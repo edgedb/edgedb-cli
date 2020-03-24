@@ -445,7 +445,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#4123c5a51d297fa6a809204459fe5e70269246aa"
+source = "git+https://github.com/edgedb/edgedb-rust#d2c24f6b4c926a265d9f538b5bc9627432865f84"
 dependencies = [
  "quote",
  "syn",
@@ -455,7 +455,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#4123c5a51d297fa6a809204459fe5e70269246aa"
+source = "git+https://github.com/edgedb/edgedb-rust#d2c24f6b4c926a265d9f538b5bc9627432865f84"
 dependencies = [
  "bigdecimal",
  "bytes",
@@ -469,7 +469,7 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#4123c5a51d297fa6a809204459fe5e70269246aa"
+source = "git+https://github.com/edgedb/edgedb-rust#d2c24f6b4c926a265d9f538b5bc9627432865f84"
 dependencies = [
  "combine",
  "snafu",

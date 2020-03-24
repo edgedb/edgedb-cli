@@ -86,6 +86,7 @@ pub enum Command {
     CreateSuperuserRole(RoleParams),
     DropRole(RoleName),
     ListDatabases,
+    ListPorts,
     Pgaddr,
     Psql,
     ListAliases(ListAliases),

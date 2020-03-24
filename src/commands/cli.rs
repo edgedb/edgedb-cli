@@ -63,6 +63,15 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 Ok(())
             }).into()
         },
+        Command::ListPorts => {
+            task::block_on(async {
+                let mut conn = Connection::from_options(&options).await?;
+                let mut cli = conn.authenticate(
+                    &options, &options.database).await?;
+                commands::list_ports(&mut cli, &cmdopt).await?;
+                Ok(())
+            }).into()
+        },
         Command::ListScalarTypes(t) => {
             task::block_on(async {
                 let mut conn = Connection::from_options(&options).await?;

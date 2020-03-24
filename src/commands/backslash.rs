@@ -36,6 +36,7 @@ Introspection
                            (alias: \list-casts)
   \li[IS+] [PATTERN]       list indexes
                            (alias: \list-indexes)
+  \list-ports              list ports
 
 Editing
   \s, \history             show history
@@ -124,8 +125,9 @@ pub const HINTS: &'static [&'static str] = &[
     r"\list-databases",
     r"\list-indexes [PATTERN]",
     r"\list-modules [PATTERN]",
-    r"\list-roles [PATTERN]",
     r"\list-object-types [PATTERN]",
+    r"\list-ports",
+    r"\list-roles [PATTERN]",
     r"\list-scalar-types [PATTERN]",
     r"\lr",
     r"\lrI",
@@ -194,6 +196,7 @@ pub const COMMAND_NAMES: &'static [&'static str] = &[
     r"\list-databases",
     r"\list-indexes",
     r"\list-modules",
+    r"\list-ports",
     r"\list-roles",
     r"\list-object-types",
     r"\list-scalar-types",
@@ -233,6 +236,7 @@ pub enum Command {
         verbose: bool,
     },
     ListDatabases,
+    ListPorts,
     ListModules {
         pattern: Option<String>,
         case_sensitive: bool,
@@ -305,6 +309,8 @@ pub fn parse(s: &str) -> Result<Command, ParseError> {
         | ("list-databases", None)
         | ("l", None)
         => Ok(Command::ListDatabases),
+        | ("list-ports", None)
+        => Ok(Command::ListPorts),
         | ("list-casts", pattern)
         | ("lc", pattern)
         | ("lcI", pattern)
@@ -486,6 +492,10 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: Command,
         }
         ListDatabases => {
             commands::list_databases(cli, &options).await?;
+            Ok(Skip)
+        }
+        ListPorts => {
+            commands::list_ports(cli, &options).await?;
             Ok(Skip)
         }
         ListScalarTypes { pattern, case_sensitive, system } => {
