@@ -1,9 +1,10 @@
+use std::env;
+use std::time::Duration;
+
+use atty;
 use structopt::StructOpt;
 use structopt::clap::AppSettings;
-use std::env;
-
 use whoami;
-use atty;
 
 use crate::repl::OutputMode;
 
@@ -42,6 +43,10 @@ struct TmpOptions {
     /// Read the password from stdin rather than TTY (useful for scripts)
     #[structopt(long)]
     pub password_from_stdin: bool,
+
+    /// In case EdgeDB connection can't be established, retry up to 30 seconds.
+    #[structopt(long, parse(try_from_str=humantime::parse_duration))]
+    pub wait_until_available: Option<Duration>,
 
     #[structopt(long)]
     pub debug_print_data_frames: bool,
@@ -384,6 +389,7 @@ pub struct Options {
     pub debug_print_descriptors: bool,
     pub debug_print_codecs: bool,
     pub output_mode: OutputMode,
+    pub wait_until_available: Option<Duration>,
 }
 
 impl Options {
@@ -432,6 +438,7 @@ impl Options {
             debug_print_data_frames: tmp.debug_print_data_frames,
             debug_print_descriptors: tmp.debug_print_descriptors,
             debug_print_codecs: tmp.debug_print_codecs,
+            wait_until_available: tmp.wait_until_available,
             output_mode: if tmp.tab_separated {
                 OutputMode::TabSeparated
             } else if tmp.json {

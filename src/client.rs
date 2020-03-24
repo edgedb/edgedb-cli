@@ -4,6 +4,7 @@ use std::io;
 use std::mem::replace;
 use std::str;
 use std::sync::Arc;
+use std::time::Instant;
 
 use anyhow::{self, Context};
 use async_std::prelude::StreamExt;
@@ -59,11 +60,31 @@ pub struct NoResultExpected {
 
 
 impl Connection {
-    pub async fn new<A: ToSocketAddrs>(addrs: A)
-        -> Result<Connection, io::Error>
+    async fn connect_tcp<A: ToSocketAddrs>(addrs: A, options: &Options)
+        -> Result<Connection, anyhow::Error>
     {
-        let s = ByteStream::new_tcp_detached(
-                TcpStream::connect(addrs).await?);
+        let start = Instant::now();
+        let conn = loop {
+            let cres = TcpStream::connect(&addrs).await;
+            match cres {
+                Err(e) if e.kind() == io::ErrorKind::ConnectionRefused => {
+                    if let Some(wait) = options.wait_until_available {
+                        if wait > start.elapsed() {
+                            continue;
+                        } else {
+                            Err(e).context(format!("Can't establish \
+                                                    connection for {:?}",
+                                                    wait))?
+                        }
+                    } else {
+                        Err(e)?
+                    }
+                }
+                Err(e) => Err(e)?,
+                Ok(conn) => break conn,
+            }
+        };
+        let s = ByteStream::new_tcp_detached(conn);
         s.set_nodelay(true)?;
         Ok(Connection {
             stream: s,
@@ -71,8 +92,10 @@ impl Connection {
     }
     #[cfg(unix)]
     pub async fn from_options(options: &Options)
-        -> Result<Connection, io::Error>
+        -> Result<Connection, anyhow::Error>
     {
+        use async_std::os::unix::net::UnixStream;
+
         let unix_host = options.host.contains("/");
         if options.admin || unix_host {
             let prefix = if unix_host {
@@ -90,15 +113,37 @@ impl Connection {
                     format!("{}/.s.EDGEDB.{}", prefix, options.port)
                 }
             };
-            let s = ByteStream::new_unix_detached(
-                async_std::os::unix::net::UnixStream::connect(path).await?
-            );
+            let start = Instant::now();
+            let conn = loop {
+                let cres = UnixStream::connect(&path).await;
+                match cres {
+                    Err(e) if e.kind() == io::ErrorKind::ConnectionRefused => {
+                        if let Some(wait) = options.wait_until_available {
+                            if wait > start.elapsed() {
+                                continue;
+                            } else {
+                                Err(e).context(format!("Can't establish \
+                                                        connection for {:?}",
+                                                        wait))?
+                            }
+                        } else {
+                            Err(e)?
+                        }
+                    }
+                    Err(e) => Err(e)?,
+                    Ok(conn) => break conn,
+                }
+            };
+            let s = ByteStream::new_unix_detached(conn);
             s.set_nodelay(true)?;
             Ok(Connection {
                 stream: s,
             })
         } else {
-            Ok(Connection::new((&options.host[..], options.port)).await?)
+            Ok(Connection::connect_tcp(
+                (&options.host[..], options.port),
+                options,
+            ).await?)
         }
     }
 
@@ -106,7 +151,10 @@ impl Connection {
     pub async fn from_options(options: &Options)
         -> Result<Connection, io::Error>
     {
-        Ok(Connection::new((&options.host[..], options.port)).await?)
+        Ok(Connection::connect_tcp(
+            (&options.host[..], options.port),
+            options,
+        ).await?)
     }
 
     pub async fn authenticate<'x>(&'x mut self, options: &Options,
