@@ -10,20 +10,36 @@ use crate::repl::OutputMode;
 
 #[derive(StructOpt, Debug)]
 struct TmpOptions {
+    /// Host of the EdgeDB instance
     #[structopt(short="H", long)]
     pub host: Option<String>,
+
+    /// Port to connect to EdgeDB
     #[structopt(short="P", long)]
     pub port: Option<u16>,
+
+    /// User name of the EdgeDB user
     #[structopt(short="u", long)]
     pub user: Option<String>,
+
+    /// Database name to connect to
     #[structopt(short="d", long)]
     pub database: Option<String>,
+
+    /// Connect to a passwordless unix socket with superuser
+    /// privileges by default
     #[structopt(long)]
     pub admin: bool,
+
+    /// Ask for password on the terminal (TTY)
     #[structopt(long)]
     pub password: bool,
+
+    /// Don't ask for password
     #[structopt(long)]
     pub no_password: bool,
+
+    /// Read the password from stdin rather than TTY (useful for scripts)
     #[structopt(long)]
     pub password_from_stdin: bool,
 
