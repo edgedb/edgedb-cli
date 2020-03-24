@@ -1,0 +1,29 @@
+on: [push]
+
+name: Tests
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      max-parallel: 4
+      matrix:
+        os: [ubuntu-16.04, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+
+      - name: Install EdgeDB
+        env:
+          OS_NAME: ${{ matrix.os }}
+          SLOT: 1-alpha3
+        run: |
+          .github/workflows/install-edgedb.sh
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
