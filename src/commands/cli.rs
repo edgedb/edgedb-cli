@@ -2,7 +2,7 @@ use async_std::task;
 
 use edgeql_parser::helpers::quote_name;
 use crate::options::{Options, Command};
-use crate::client::Connection;
+use crate::client::{Connection, non_interactive_query};
 use crate::commands;
 use crate::server_params::PostgresAddress;
 
@@ -172,6 +172,17 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 let mut cli = conn.authenticate(
                     &options, &options.database).await?;
                 commands::roles::drop(&mut cli, &cmdopt, &opt.role).await?;
+                Ok(())
+            }).into()
+        },
+        Command::Query(q) => {
+            task::block_on(async {
+                let mut conn = Connection::from_options(&options).await?;
+                let mut cli = conn.authenticate(
+                    &options, &options.database).await?;
+                for query in &q.queries {
+                    non_interactive_query(&mut cli, query, &options).await?;
+                }
                 Ok(())
             }).into()
         },

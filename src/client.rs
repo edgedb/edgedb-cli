@@ -869,7 +869,6 @@ fn value_to_tab_separated(v: &Value) -> Result<String, anyhow::Error> {
 pub async fn non_interactive_main(options: Options)
     -> Result<(), anyhow::Error>
 {
-    use crate::repl::OutputMode::*;
     let mut conn = Connection::from_options(&options).await?;
     let mut cli = conn.authenticate(&options, &options.database).await?;
     let stdin_obj = stdin();
@@ -883,103 +882,113 @@ pub async fn non_interactive_main(options: Options)
         };
         let stmt = str::from_utf8(&stmt[..])
             .context("can't decode statement")?;
-        match options.output_mode {
-            TabSeparated => {
-                let mut items = match
-                    cli.query_dynamic(stmt, &Value::empty_tuple()).await
-                {
-                    Ok(items) => items,
-                    Err(e) => match e.downcast::<NoResultExpected>() {
-                        Ok(e) => {
-                            eprintln!("  -> {}: Ok",
-                                String::from_utf8_lossy(
-                                    &e.completion_message[..]));
-                            continue;
-                        }
-                        Err(e) => Err(e)?,
-                    },
-                };
-                while let Some(row) = items.next().await.transpose()? {
-                    let mut text = value_to_tab_separated(&row)?;
-                    // trying to make writes atomic if possible
-                    text += "\n";
-                    stdout().write_all(text.as_bytes()).await?;
-                }
-            }
-            Default => {
-                let items = match
-                    cli.query_dynamic(stmt, &Value::empty_tuple()).await
-                {
-                    Ok(items) => items,
-                    Err(e) => match e.downcast::<NoResultExpected>() {
-                        Ok(e) => {
-                            eprintln!("  -> {}: Ok",
-                                String::from_utf8_lossy(
-                                    &e.completion_message[..]));
-                            continue;
-                        }
-                        Err(e) => Err(e)?,
-                    },
-                };
-                match print_to_stdout(items, &print::Config::new()).await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        match e {
-                            PrintError::StreamErr {
-                                source: ReadError::RequestError {
-                                    ref error, ..
-                                },
-                                ..
-                            } => {
-                                eprintln!("{}", error);
-                            }
-                            _ => eprintln!("{:#?}", e),
-                        }
-                        continue;
+        non_interactive_query(&mut cli, &stmt, &options).await?;
+    }
+    Ok(())
+}
+
+pub async fn non_interactive_query(cli: &mut Client<'_>, stmt: &str,
+    options: &Options)
+    -> Result<(), anyhow::Error>
+{
+    use crate::repl::OutputMode::*;
+
+    match options.output_mode {
+        TabSeparated => {
+            let mut items = match
+                cli.query_dynamic(stmt, &Value::empty_tuple()).await
+            {
+                Ok(items) => items,
+                Err(e) => match e.downcast::<NoResultExpected>() {
+                    Ok(e) => {
+                        eprintln!("  -> {}: Ok",
+                            String::from_utf8_lossy(
+                                &e.completion_message[..]));
+                        return Ok(());
                     }
+                    Err(e) => Err(e)?,
+                },
+            };
+            while let Some(row) = items.next().await.transpose()? {
+                let mut text = value_to_tab_separated(&row)?;
+                // trying to make writes atomic if possible
+                text += "\n";
+                stdout().write_all(text.as_bytes()).await?;
+            }
+        }
+        Default => {
+            let items = match
+                cli.query_dynamic(stmt, &Value::empty_tuple()).await
+            {
+                Ok(items) => items,
+                Err(e) => match e.downcast::<NoResultExpected>() {
+                    Ok(e) => {
+                        eprintln!("  -> {}: Ok",
+                            String::from_utf8_lossy(
+                                &e.completion_message[..]));
+                        return Ok(());
+                    }
+                    Err(e) => Err(e)?,
+                },
+            };
+            match print_to_stdout(items, &print::Config::new()).await {
+                Ok(()) => {}
+                Err(e) => {
+                    match e {
+                        PrintError::StreamErr {
+                            source: ReadError::RequestError {
+                                ref error, ..
+                            },
+                            ..
+                        } => {
+                            eprintln!("{}", error);
+                        }
+                        _ => eprintln!("{:#?}", e),
+                    }
+                    return Ok(());
                 }
             }
-            JsonElements => {
-                let mut items = match
-                    cli.query_json_els(stmt, &Value::empty_tuple()).await
-                {
-                    Ok(items) => items,
-                    Err(e) => match e.downcast::<NoResultExpected>() {
-                        Ok(e) => {
-                            eprintln!("  -> {}: Ok",
-                                String::from_utf8_lossy(
-                                    &e.completion_message[..]));
-                            continue;
-                        }
-                        Err(e) => Err(e)?,
-                    },
-                };
-                while let Some(mut row) = items.next().await.transpose()? {
-                    // trying to make writes atomic if possible
-                    row += "\n";
-                    stdout().write_all(row.as_bytes()).await?;
-                }
+        }
+        JsonElements => {
+            let mut items = match
+                cli.query_json_els(stmt, &Value::empty_tuple()).await
+            {
+                Ok(items) => items,
+                Err(e) => match e.downcast::<NoResultExpected>() {
+                    Ok(e) => {
+                        eprintln!("  -> {}: Ok",
+                            String::from_utf8_lossy(
+                                &e.completion_message[..]));
+                        return Ok(());
+                    }
+                    Err(e) => Err(e)?,
+                },
+            };
+            while let Some(mut row) = items.next().await.transpose()? {
+                // trying to make writes atomic if possible
+                row += "\n";
+                stdout().write_all(row.as_bytes()).await?;
             }
-            Json => {
-                let mut items = match
-                    cli.query_json(stmt, &Value::empty_tuple()).await
-                {
-                    Ok(items) => items,
-                    Err(e) => match e.downcast::<NoResultExpected>() {
-                        Ok(e) => {
-                            eprintln!("  -> {}: Ok",
-                                String::from_utf8_lossy(
-                                    &e.completion_message[..]));
-                            continue;
-                        }
-                        Err(e) => Err(e)?,
-                    },
-                };
-                while let Some(mut row) = items.next().await.transpose()? {
-                    // trying to make writes atomic if possible
-                    row += "\n";
-                    stdout().write_all(row.as_bytes()).await?;
-                }
+        }
+        Json => {
+            let mut items = match
+                cli.query_json(stmt, &Value::empty_tuple()).await
+            {
+                Ok(items) => items,
+                Err(e) => match e.downcast::<NoResultExpected>() {
+                    Ok(e) => {
+                        eprintln!("  -> {}: Ok",
+                            String::from_utf8_lossy(
+                                &e.completion_message[..]));
+                        return Ok(());
+                    }
+                    Err(e) => Err(e)?,
+                },
+            };
+            while let Some(mut row) = items.next().await.transpose()? {
+                // trying to make writes atomic if possible
+                row += "\n";
+                stdout().write_all(row.as_bytes()).await?;
             }
         }
     }

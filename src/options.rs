@@ -1,5 +1,6 @@
 use std::env;
 use std::time::Duration;
+use std::process::exit;
 
 use atty;
 use structopt::StructOpt;
@@ -63,6 +64,10 @@ struct TmpOptions {
     #[structopt(short="j", long, overrides_with="tab_separated")]
     pub json: bool,
 
+    /// Execute a query instead of starting REPL (alias to `edgedb query`)
+    #[structopt(short="c")]
+    pub query: Option<String>,
+
     #[structopt(subcommand)]
     pub subcommand: Option<Command>,
 }
@@ -93,6 +98,7 @@ pub enum Command {
     /// Modify database configuration
     Configure(Configure),
     Describe(Describe),
+    Query(Query),
 }
 
 #[derive(StructOpt, Clone, Debug)]
@@ -165,6 +171,12 @@ pub struct Describe {
     pub name: String,
     #[structopt(long, short="v")]
     pub verbose: bool,
+}
+
+#[derive(StructOpt, Clone, Debug)]
+#[structopt(setting=AppSettings::DisableVersion)]
+pub struct Query {
+    pub queries: Vec<String>,
 }
 
 #[derive(StructOpt, Clone, Debug)]
@@ -419,7 +431,9 @@ impl Options {
             });
 
         // TODO(pc) add option to force interactive mode not on a tty (tests)
-        let interactive = atty::is(atty::Stream::Stdin);
+        let interactive = tmp.query.is_none()
+            && tmp.subcommand.is_none()
+            && atty::is(atty::Stream::Stdin);
         let password = if tmp.password_from_stdin {
             let password = rpassword::read_password()
                 .expect("password can be read");
@@ -430,10 +444,23 @@ impl Options {
             Password::FromTerminal
         };
 
+        let subcommand = if let Some(query) = tmp.query {
+            if tmp.subcommand.is_some() {
+                eprintln!("Option `-c` conflicts with specifying subcommand");
+                exit(1);
+            } else {
+                Some(Command::Query(Query {
+                    queries: vec![query],
+                }))
+            }
+        } else {
+            tmp.subcommand
+        };
+
         return Options {
             host, port, user, database, interactive,
             admin: tmp.admin,
-            subcommand: tmp.subcommand,
+            subcommand,
             password,
             debug_print_data_frames: tmp.debug_print_data_frames,
             debug_print_descriptors: tmp.debug_print_descriptors,
