@@ -49,7 +49,7 @@ pub struct Connection {
 pub struct Client<'a> {
     stream: &'a ByteStream,
     outbuf: BytesMut,
-    reader: Reader<&'a ByteStream>,
+    pub reader: Reader<&'a ByteStream>,
     pub params: TypeMap<dyn typemap::DebugAny + Send>,
 }
 
@@ -582,7 +582,7 @@ impl<'a> Client<'a> {
         Ok(())
     }
 
-    async fn send_messages<'x, I>(&mut self, msgs: I)
+    pub async fn send_messages<'x, I>(&mut self, msgs: I)
         -> Result<(), anyhow::Error>
         where I: IntoIterator<Item=&'x ClientMessage>
     {

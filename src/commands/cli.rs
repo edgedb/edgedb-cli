@@ -200,7 +200,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 let mut conn = Connection::from_options(&options).await?;
                 let mut cli = conn.authenticate(
                     &options, &options.database).await?;
-                commands::dump(&mut cli, &cmdopt, &dump.file).await?;
+                commands::dump(&mut cli, &cmdopt, &dump.file.as_ref()).await?;
                 Ok(())
             }).into()
         },
