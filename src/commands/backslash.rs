@@ -37,6 +37,7 @@ Introspection
   \li[IS+] [PATTERN]       list indexes
                            (alias: \list-indexes)
   \list-ports              list ports
+  \dump FILENAME           dump current database into a file
 
 Editing
   \s, \history             show history
@@ -79,6 +80,7 @@ pub const HINTS: &'static [&'static str] = &[
     r"\d+ NAME",
     r"\describe NAME",
     r"\describe+ NAME",
+    r"\dump FILENAME",
     r"\e [N]",
     r"\edit [N]",
     r"\emacs",
@@ -150,6 +152,7 @@ pub const COMMAND_NAMES: &'static [&'static str] = &[
     r"\d+",
     r"\describe",
     r"\describe+",
+    r"\dump",
     r"\e",
     r"\edit",
     r"\emacs",
@@ -277,6 +280,7 @@ pub enum Command {
     ShowLimit,
     SetOutput { mode: OutputMode },
     ShowOutput,
+    Dump { filename: String },
 }
 
 pub struct ParseError {
@@ -428,6 +432,7 @@ pub fn parse(s: &str) -> Result<Command, ParseError> {
         ("no-introspect-types", None) => Ok(Command::NoIntrospectTypes),
         ("verbose-errors", None) => Ok(Command::VerboseErrors),
         ("no-verbose-errors", None) => Ok(Command::NoVerboseErrors),
+        ("dump", Some(param)) => Ok(Command::Dump { filename: param.into() }),
         ("output", None) => Ok(Command::ShowOutput),
         ("output", Some(param)) => {
             Ok(Command::SetOutput {
@@ -624,6 +629,10 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: Command,
                 OutputMode::Default => "default",
                 OutputMode::TabSeparated => "tab-separated",
             });
+            Ok(Skip)
+        }
+        Dump { filename } => {
+            commands::dump(cli, &options, filename.as_ref()).await?;
             Ok(Skip)
         }
     }

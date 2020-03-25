@@ -2,6 +2,7 @@ pub mod cli;
 pub mod backslash;
 pub mod options;
 mod configure;
+mod dump;
 mod filter;
 mod helpers;
 mod list;
@@ -21,6 +22,7 @@ mod type_names;
 mod describe;
 
 pub use self::configure::configure;
+pub use self::dump::dump;
 pub use self::describe::describe;
 pub use self::list_aliases::list_aliases;
 pub use self::list_casts::list_casts;

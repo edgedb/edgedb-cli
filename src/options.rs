@@ -1,6 +1,7 @@
 use std::env;
 use std::time::Duration;
 use std::process::exit;
+use std::path::PathBuf;
 
 use atty;
 use structopt::StructOpt;
@@ -100,6 +101,7 @@ pub enum Command {
     Configure(Configure),
     Describe(Describe),
     Query(Query),
+    Dump(Dump),
 }
 
 #[derive(StructOpt, Clone, Debug)]
@@ -178,6 +180,12 @@ pub struct Describe {
 #[structopt(setting=AppSettings::DisableVersion)]
 pub struct Query {
     pub queries: Vec<String>,
+}
+
+#[derive(StructOpt, Clone, Debug)]
+#[structopt(setting=AppSettings::DisableVersion)]
+pub struct Dump {
+    pub file: PathBuf,
 }
 
 #[derive(StructOpt, Clone, Debug)]

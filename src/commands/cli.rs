@@ -195,5 +195,14 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 Ok(())
             }).into()
         },
+        Command::Dump(dump) => {
+            task::block_on(async {
+                let mut conn = Connection::from_options(&options).await?;
+                let mut cli = conn.authenticate(
+                    &options, &options.database).await?;
+                commands::dump(&mut cli, &cmdopt, &dump.file).await?;
+                Ok(())
+            }).into()
+        },
     }
 }
