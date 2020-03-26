@@ -6,8 +6,8 @@ authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2018"
 
 [dependencies]
+edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
 edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust", features=["all-types"]}
-edgeql-parser = {git = "https://github.com/edgedb/edgedb-rust"}
 edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust"}
 snafu = {version="0.6.0", features=["backtraces"]}
 anyhow = "1.0.23"
