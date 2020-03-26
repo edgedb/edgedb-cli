@@ -101,7 +101,10 @@ pub enum Command {
     Configure(Configure),
     Describe(Describe),
     Query(Query),
+    /// Create a database backup
     Dump(Dump),
+    /// Restore a database backup from file
+    Restore(Restore),
 }
 
 #[derive(StructOpt, Clone, Debug)]
@@ -186,6 +189,16 @@ pub struct Query {
 #[structopt(setting=AppSettings::DisableVersion)]
 pub struct Dump {
     pub file: PathBuf,
+}
+
+#[derive(StructOpt, Clone, Debug)]
+#[structopt(setting=AppSettings::DisableVersion)]
+pub struct Restore {
+    pub file: PathBuf,
+
+    /// Allow restoring the database dump into a non-empty database
+    #[structopt(long)]
+    pub allow_non_empty: bool,
 }
 
 #[derive(StructOpt, Clone, Debug)]

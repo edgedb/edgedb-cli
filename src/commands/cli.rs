@@ -204,5 +204,16 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 Ok(())
             }).into()
         },
+        Command::Restore(restore) => {
+            task::block_on(async {
+                let mut conn = Connection::from_options(&options).await?;
+                let mut cli = conn.authenticate(
+                    &options, &options.database).await?;
+                commands::restore(&mut cli, &cmdopt,
+                    &restore.file.as_ref(),
+                    restore.allow_non_empty).await?;
+                Ok(())
+            }).into()
+        },
     }
 }

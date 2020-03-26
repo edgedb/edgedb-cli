@@ -14,7 +14,8 @@ use crate::client::Client;
 type Output = Box<dyn Write + Unpin + Send>;
 
 
-pub async fn dump<'x>(cli: &mut Client<'x>, options: &Options, filename: &Path)
+pub async fn dump<'x>(cli: &mut Client<'x>, _options: &Options,
+    filename: &Path)
     -> Result<(), anyhow::Error>
 {
     cli.send_messages(&[
