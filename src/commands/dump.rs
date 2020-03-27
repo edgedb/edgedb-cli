@@ -18,12 +18,6 @@ pub async fn dump<'x>(cli: &mut Client<'x>, _options: &Options,
     filename: &Path)
     -> Result<(), anyhow::Error>
 {
-    cli.send_messages(&[
-        ClientMessage::Dump(Dump {
-            headers: Default::default(),
-        }),
-        ClientMessage::Sync,
-    ]).await?;
     let (mut output, tmp_filename) = if filename.to_str() == Some("-") {
         (Box::new(io::stdout()) as Output, None)
     } else if cfg!(windows)
@@ -51,6 +45,14 @@ pub async fn dump<'x>(cli: &mut Client<'x>, _options: &Options,
         b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00\
           \x00\x00\x00\x00\x00\x00\x00\x01"
         ).await?;
+
+    cli.send_messages(&[
+        ClientMessage::Dump(Dump {
+            headers: Default::default(),
+        }),
+        ClientMessage::Sync,
+    ]).await?;
+
     let mut header_buf = Vec::with_capacity(25);
     let msg = cli.reader.message().await?;
     match msg {
