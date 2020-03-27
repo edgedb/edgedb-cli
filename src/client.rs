@@ -60,8 +60,9 @@ pub struct NoResultExpected {
 
 
 impl Connection {
-    async fn connect_tcp<A: ToSocketAddrs>(addrs: A, options: &Options)
+    async fn connect_tcp<A>(addrs: A, options: &Options)
         -> Result<Connection, anyhow::Error>
+        where A: ToSocketAddrs+fmt::Debug,
     {
         let start = Instant::now();
         let conn = loop {
@@ -77,10 +78,14 @@ impl Connection {
                                                     wait))?
                         }
                     } else {
-                        Err(e)?
+                        Err(e).with_context(
+                            || format!("Can't connect to {:?}", addrs))?;
                     }
                 }
-                Err(e) => Err(e)?,
+                Err(e) => {
+                    Err(e).with_context(
+                        || format!("Can't connect to {:?}", addrs))?;
+                }
                 Ok(conn) => break conn,
             }
         };
@@ -127,10 +132,14 @@ impl Connection {
                                                         wait))?
                             }
                         } else {
-                            Err(e)?
+                            Err(e).with_context(|| format!(
+                                "Can't connect to unix socket {:?}", path))?
                         }
                     }
-                    Err(e) => Err(e)?,
+                    Err(e) => {
+                        Err(e).with_context(|| format!(
+                            "Can't connect to unix socket {:?}", path))?
+                    }
                     Ok(conn) => break conn,
                 }
             };
