@@ -5,6 +5,7 @@ name: Tests
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       max-parallel: 4
       matrix:
