@@ -4,11 +4,12 @@ use std::io;
 use std::mem::replace;
 use std::str;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Instant, Duration};
 
 use anyhow::{self, Context};
 use async_std::prelude::StreamExt;
 use async_std::io::{stdin, stdout};
+use async_std::future::timeout;
 use async_std::io::prelude::WriteExt;
 use async_std::net::{TcpStream, ToSocketAddrs};
 use async_listen::ByteStream;
@@ -621,6 +622,12 @@ impl<'a> Client<'a> {
         where I: IntoIterator<Item=&'x ClientMessage>
     {
         self.writer.send_messages(msgs).await
+    }
+
+    pub async fn err_sync(&mut self) -> Result<(), anyhow::Error> {
+        self.writer.send_messages(&[ClientMessage::Sync]).await?;
+        timeout(Duration::from_secs(10), self.reader.wait_ready()).await??;
+        Ok(())
     }
 
     pub async fn execute<S>(&mut self, request: S)

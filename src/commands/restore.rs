@@ -115,8 +115,10 @@ pub async fn restore<'x>(cli: &mut Client<'x>, _options: &Options,
                 eprintln!("Schema applied in {:?}", start_headers.elapsed());
                 break;
             }
-            ServerMessage::ErrorResponse(_) => {
-                todo!();
+            ServerMessage::ErrorResponse(err) => {
+                cli.err_sync().await.ok();
+                return Err(anyhow::anyhow!(err)
+                    .context("Error initiating restore protocol"));
             }
             _ => {
                 return Err(anyhow::anyhow!(
@@ -124,10 +126,13 @@ pub async fn restore<'x>(cli: &mut Client<'x>, _options: &Options,
             }
         }
     }
-    send_blocks(&mut cli.writer, &mut input, filename)
+    let result = send_blocks(&mut cli.writer, &mut input, filename)
         .race(wait_response(&mut cli.reader, start_headers))
-        .await?;
-    Ok(())
+        .await;
+    if let Err(..) = result {
+        cli.err_sync().await.ok();
+    }
+    result
 }
 
 async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
@@ -169,8 +174,8 @@ async fn wait_response(reader: &mut Reader<&'_ ByteStream>, start: Instant)
                 print_result(c.status_data);
                 break;
             }
-            ServerMessage::ErrorResponse(_) => {
-                todo!();
+            ServerMessage::ErrorResponse(err) => {
+                return Err(anyhow::anyhow!(err));
             }
             _ => {
                 return Err(anyhow::anyhow!(
