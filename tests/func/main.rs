@@ -7,6 +7,8 @@ use std::thread::{self, JoinHandle};
 use assert_cmd::Command;
 use serde_json::from_str;
 
+mod dump_restore;
+
 
 lazy_static::lazy_static! {
     pub static ref SERVER: ServerGuard = ServerGuard::start();
@@ -14,13 +16,7 @@ lazy_static::lazy_static! {
 
 #[test]
 fn simple_query() {
-    let guard = &*SERVER;
-    let cmd = Command::cargo_bin("edgedb").expect("binary found")
-        .arg("--admin")
-        .arg("--port").arg(guard.port.to_string())
-        .arg("query").arg("SELECT 1+7")
-        .env("EDGEDB_HOST", &guard.runstate_dir)
-        .assert();
+    let cmd = SERVER.admin_cmd().arg("query").arg("SELECT 1+7").assert();
     cmd.success().stdout("8\n");
 }
 
@@ -40,8 +36,8 @@ impl ServerGuard {
         cmd.arg("--testmode");
         cmd.arg("--echo-runtime-info");
         cmd.arg("--port=auto");
-        cmd.arg("--auto-shutdown");
         cmd.stdout(Stdio::piped());
+
         let mut process = cmd.spawn().expect("Can run edgedb-server");
         let process_in = process.stdout.take().expect("stdout is pipe");
         let (tx, rx) = sync_channel(1);
@@ -81,6 +77,23 @@ impl ServerGuard {
             port,
             runstate_dir,
         }
+    }
+
+    pub fn admin_cmd(&self) -> Command {
+        let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
+        cmd.arg("--admin");
+        cmd.arg("--port").arg(self.port.to_string());
+        cmd.env("EDGEDB_HOST", &self.runstate_dir);
+        return cmd
+    }
+
+    pub fn database_cmd(&self, database_name: &str) -> Command {
+        let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
+        cmd.arg("--admin");
+        cmd.arg("--port").arg(self.port.to_string());
+        cmd.arg("--database").arg(database_name);
+        cmd.env("EDGEDB_HOST", &self.runstate_dir);
+        return cmd
     }
 }
 
