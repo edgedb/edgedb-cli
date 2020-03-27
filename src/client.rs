@@ -31,12 +31,14 @@ use crate::commands::backslash;
 use crate::options::Options;
 use crate::print::{self, print_to_stdout, PrintError};
 use crate::prompt;
-use crate::reader::{Reader, ReadError, QueryableDecoder, QueryResponse};
+use crate::reader::{ReadError, QueryableDecoder, QueryResponse};
 use crate::repl;
 use crate::server_params::PostgresAddress;
 use crate::statement::{ReadStatement, EndOfFile};
 use crate::variables::input_variables;
 use crate::error_display::print_query_error;
+
+pub use crate::reader::Reader;
 
 
 const QUERY_OPT_IMPLICIT_LIMIT: u16 = 0xFF01;
@@ -46,9 +48,13 @@ pub struct Connection {
     stream: ByteStream,
 }
 
-pub struct Client<'a> {
+pub struct Writer<'a> {
     stream: &'a ByteStream,
     outbuf: BytesMut,
+}
+
+pub struct Client<'a> {
+    pub writer: Writer<'a>,
     pub reader: Reader<&'a ByteStream>,
     pub params: TypeMap<dyn typemap::DebugAny + Send>,
 }
@@ -173,8 +179,11 @@ impl Connection {
         let (rd, stream) = (&self.stream, &self.stream);
         let reader = Reader::new(rd);
         let mut cli = Client {
-            stream, reader,
-            outbuf: BytesMut::with_capacity(8912),
+            reader,
+            writer: Writer {
+                outbuf: BytesMut::with_capacity(8912),
+                stream,
+            },
             params: TypeMap::custom(),
         };
         let mut params = HashMap::new();
@@ -509,6 +518,22 @@ async fn _interactive_main(
     }
 }
 
+impl<'a> Writer<'a> {
+
+    pub async fn send_messages<'x, I>(&mut self, msgs: I)
+        -> Result<(), anyhow::Error>
+        where I: IntoIterator<Item=&'x ClientMessage>
+    {
+        self.outbuf.truncate(0);
+        for msg in msgs {
+            msg.encode(&mut self.outbuf)?;
+        }
+        self.stream.write_all(&self.outbuf[..]).await?;
+        Ok(())
+    }
+
+}
+
 impl<'a> Client<'a> {
     pub async fn scram(&mut self, options: &Options)
         -> Result<(), anyhow::Error>
@@ -595,12 +620,7 @@ impl<'a> Client<'a> {
         -> Result<(), anyhow::Error>
         where I: IntoIterator<Item=&'x ClientMessage>
     {
-        self.outbuf.truncate(0);
-        for msg in msgs {
-            msg.encode(&mut self.outbuf)?;
-        }
-        self.stream.write_all(&self.outbuf[..]).await?;
-        Ok(())
+        self.writer.send_messages(msgs).await
     }
 
     pub async fn execute<S>(&mut self, request: S)
