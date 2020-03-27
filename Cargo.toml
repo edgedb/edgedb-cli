@@ -47,6 +47,7 @@ sha1 = "0.6.0"
 [dev-dependencies]
 assert_cmd = "0.12"
 predicates = "1"
+shutdown_hooks = "0.1.0"
 
 [[bin]]
 name = "edgedb"

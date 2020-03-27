@@ -1,3 +1,4 @@
+use std::sync::Mutex;
 use std::convert::TryInto;
 use std::io::{BufReader, BufRead};
 use std::process::Child;
@@ -20,9 +21,13 @@ fn simple_query() {
     cmd.success().stdout("8\n");
 }
 
-pub struct ServerGuard {
+pub struct ShutdownInfo {
     process: Child,
     thread: Option<JoinHandle<()>>,
+}
+
+pub struct ServerGuard {
+    shutdown_info: Mutex<ShutdownInfo>,
     port: u16,
     runstate_dir: String,
 }
@@ -71,9 +76,14 @@ impl ServerGuard {
             }
         });
         let (port, runstate_dir) = rx.recv().expect("valid port received");
+
+        shutdown_hooks::add_shutdown_hook(stop_process);
+
         ServerGuard {
-            process,
-            thread: Some(thread),
+            shutdown_info: Mutex::new(ShutdownInfo {
+                process,
+                thread: Some(thread),
+            }),
             port,
             runstate_dir,
         }
@@ -97,9 +107,10 @@ impl ServerGuard {
     }
 }
 
-impl Drop for ServerGuard {
-    fn drop(&mut self) {
-        self.process.kill().ok();
-        self.thread.take().expect("not yet joined").join().ok();
-    }
+
+extern fn stop_process() {
+    let mut sinfo = SERVER.shutdown_info.lock().expect("shutdown mutex works");
+    sinfo.process.kill().ok();
+    sinfo.process.wait().ok();
+    sinfo.thread.take().expect("not yet joined").join().ok();
 }
