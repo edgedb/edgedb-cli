@@ -8,12 +8,13 @@ use async_std::path::Path;
 use async_std::fs;
 use async_std::io::{self, Read, prelude::ReadExt};
 use async_std::future::{timeout, pending};
-use async_std::prelude::{FutureExt};
+use async_std::prelude::{FutureExt, StreamExt};
 use async_listen::ByteStream;
 use bytes::{Bytes, BytesMut, BufMut};
 
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
 use edgedb_protocol::server_message::ServerMessage;
+use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use crate::commands::helpers::print_result;
 use crate::client::{Client, Reader, Writer};
@@ -68,11 +69,42 @@ async fn read_packet(input: &mut Input, expected: PacketType)
 }
 
 
-pub async fn restore<'x>(cli: &mut Client<'x>, _options: &Options,
+async fn is_empty_db(cli: &mut Client<'_>) -> Result<bool, anyhow::Error> {
+    let mut query = cli.query::<i64>(r###"SELECT
+            count(
+                schema::Module
+                FILTER NOT .builtin AND NOT .name = "default"
+            ) + count(
+                schema::Object
+                FILTER .name LIKE "default::%"
+            )
+        "###, &Value::empty_tuple()).await?;
+    let mut non_empty = false;
+    while let Some(num) = query.next().await.transpose()? {
+        if num > 0 {
+            non_empty = true;
+        }
+    }
+    return Ok(non_empty);
+}
+
+pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
     filename: &Path, allow_non_empty: bool)
     -> Result<(), anyhow::Error>
 {
     use PacketType::*;
+    if !allow_non_empty {
+        if is_empty_db(cli).await.context("Error checking DB emptyness")? {
+            if options.command_line {
+                return Err(anyhow::anyhow!("\
+                    cannot restore: the database is not empty; \
+                    consider using the --allow-non-empty option"));
+            } else {
+                return Err(anyhow::anyhow!(
+                    "cannot restore: the database is not empty"));
+            }
+        }
+    }
 
     // TODO(tailhook) check that DB is empty
     let file_ctx = &|| format!("Failed to read dump {}", filename.display());
