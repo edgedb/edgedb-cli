@@ -290,6 +290,12 @@ pub enum ValueParameter {
     ///
     /// Corresponds to the PostgreSQL configuration parameter of the same name
     DefaultStatisticsTarget(ConfigStr),
+
+    /// Sets the number of concurrent disk I/O operations that PostgreSQL
+    /// expects can be executed simultaneously
+    ///
+    /// Corresponds to the PostgreSQL configuration parameter of the same name
+    EffectiveIoConcurrency(ConfigStr),
 }
 
 #[derive(StructOpt, Clone, Debug)]
@@ -314,6 +320,8 @@ pub enum ConfigParameter {
     EffectiveCacheSize,
     /// Reset postgres configuration parameter of the same name
     DefaultStatisticsTarget,
+    /// Reset postgres configuration parameter of the same name
+    EffectiveIoConcurrency,
 }
 
 #[derive(StructOpt, Clone, Debug)]

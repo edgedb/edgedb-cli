@@ -101,6 +101,9 @@ pub async fn configure(cli: &mut Client<'_>, _options: &Options,
         C::Set(Set { parameter: S::DefaultStatisticsTarget(param) }) => {
             set_string(cli, "default_statistics_target", param).await
         }
+        C::Set(Set { parameter: S::EffectiveIoConcurrency(param) }) => {
+            set_string(cli, "effective_io_concurrency", param).await
+        }
         C::Reset(Res { parameter }) => {
             use crate::options::ConfigParameter as C;
             let name = match parameter {
@@ -112,6 +115,7 @@ pub async fn configure(cli: &mut Client<'_>, _options: &Options,
                 C::QueryWorkMem => "query_work_mem",
                 C::EffectiveCacheSize => "effective_cache_size",
                 C::DefaultStatisticsTarget => "default_statistics_target",
+                C::EffectiveIoConcurrency => "effective_io_concurrency",
             };
             print_result(cli.execute(
                 &format!("CONFIGURE SYSTEM RESET {}", name)
