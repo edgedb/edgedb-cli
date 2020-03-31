@@ -1,3 +1,5 @@
+#[macro_use] extern crate pretty_assertions;
+
 use std::sync::Mutex;
 use std::convert::TryInto;
 use std::io::{BufReader, BufRead};
@@ -9,6 +11,7 @@ use assert_cmd::Command;
 use serde_json::from_str;
 
 mod dump_restore;
+mod configure;
 
 
 lazy_static::lazy_static! {
