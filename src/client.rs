@@ -286,6 +286,15 @@ pub async fn interactive_main(options: Options, mut state: repl::State)
                     state.database = err.target.clone();
                     continue;
                 }
+                if let Some(err) = e.downcast_ref::<ReadError>() {
+                    match err {
+                        ReadError::Eos => {
+                            eprintln!("Connection is broken. Reconnecting...");
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
                 if let Some(err) = e.downcast_ref::<io::Error>() {
                     if err.kind() == io::ErrorKind::BrokenPipe {
                         eprintln!("Connection is broken. Reconnecting...");
