@@ -1,3 +1,8 @@
+use std::convert::TryFrom;
+use std::str::FromStr;
+
+use bigdecimal::BigDecimal;
+
 use edgedb_protocol::value::Value;
 use edgedb_protocol::codec::{ObjectShape, ShapeElement};
 use crate::print::{test_format, test_format_cfg, Config};
@@ -10,6 +15,22 @@ fn int() {
         Value::Int64(10),
         Value::Int64(20),
     ]).unwrap(), "{10, 20}");
+}
+
+#[test]
+fn bigint() {
+    assert_eq!(test_format(&[
+        Value::BigInt(10.into()),
+    ]).unwrap(), "{10n}");
+}
+
+#[test]
+fn bigdecimal() {
+    assert_eq!(test_format(&[
+        Value::Decimal(TryFrom::try_from(
+            BigDecimal::from_str("10.1").unwrap()
+        ).unwrap()),
+    ]).unwrap(), "{10.1n}");
 }
 
 #[test]

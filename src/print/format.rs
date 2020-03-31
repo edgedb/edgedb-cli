@@ -76,8 +76,12 @@ impl FormatExt for Value {
             V::Int64(v) => prn.const_scalar(v),
             V::Float32(v) => prn.const_scalar(v),
             V::Float64(v) => prn.const_scalar(v),
-            V::BigInt(v) => prn.const_scalar::<BigInt>(v.into()),
-            V::Decimal(v) => prn.const_scalar::<BigDecimal>(v.into()),
+            V::BigInt(v) => {
+                prn.const_scalar(format!("{}n", Into::<BigInt>::into(v)))
+            }
+            V::Decimal(v) => {
+                prn.const_scalar(format!("{}n", Into::<BigDecimal>::into(v)))
+            }
             V::Bool(v) => prn.const_scalar(v),
             V::Datetime(t) => prn.typed("datetime", format_rfc3339(*t)),
             V::LocalDatetime(dt) => {
