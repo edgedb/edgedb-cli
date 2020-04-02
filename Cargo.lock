@@ -441,6 +441,7 @@ dependencies = [
  "tempfile",
  "term_size",
  "termcolor",
+ "textwrap",
  "typemap",
  "unicode-segmentation",
  "uuid",

@@ -51,6 +51,9 @@ pub async fn list_object_types<'x>(cli: &mut Client<'x>, options: &Options,
 
     let mut items = cli.query::<TypeRow>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
+        let term_width = term_size::dimensions_stdout()
+            .map(|(w, _h)| w).unwrap_or(80);
+        let extending_width = (term_width-7) * 3 / 4;
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
         table.set_titles(Row::new(
@@ -59,7 +62,7 @@ pub async fn list_object_types<'x>(cli: &mut Client<'x>, options: &Options,
         while let Some(item) = items.next().await.transpose()? {
             table.add_row(Row::new(vec![
                 Cell::new(&item.name),
-                Cell::new(&item.extending),
+                Cell::new(&textwrap::fill(&item.extending, extending_width)),
             ]));
         }
         if table.is_empty() {

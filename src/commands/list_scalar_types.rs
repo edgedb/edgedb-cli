@@ -57,6 +57,9 @@ pub async fn list_scalar_types<'x>(cli: &mut Client<'x>, options: &Options,
 
     let mut items = cli.query::<ScalarType>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
+        let term_width = term_size::dimensions_stdout()
+            .map(|(w, _h)| w).unwrap_or(80);
+        let extending_width = (term_width-10) / 2;
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
         table.set_titles(Row::new(
@@ -65,7 +68,7 @@ pub async fn list_scalar_types<'x>(cli: &mut Client<'x>, options: &Options,
         while let Some(item) = items.next().await.transpose()? {
             table.add_row(Row::new(vec![
                 Cell::new(&item.name),
-                Cell::new(&item.extending),
+                Cell::new(&textwrap::fill(&item.extending, extending_width)),
                 Cell::new(&item.kind),
             ]));
         }
