@@ -305,7 +305,10 @@ pub fn parse(s: &str) -> Result<Command, ParseError> {
     if !s.starts_with("\\") {
         return error("Backslash command must start with a backslash", "");
     }
-    let cmd = s[1..].split_whitespace().next().unwrap();
+    let cmd = match s[1..].split_whitespace().next() {
+        Some(cmd) => cmd,
+        None => return error("Empty command", ""),
+    };
     let arg = s[1+cmd.len()..].trim_start();
     let arg = if arg.len() > 0 { Some(arg) } else { None };
     match (cmd, arg) {
