@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use bytes::Bytes;
 
-use edgeql_parser::helpers::quote_name;
+pub use edgeql_parser::helpers::quote_name;
 
 
 pub fn print_result(res: Bytes) {

@@ -28,6 +28,8 @@ use edgedb_protocol::server_message::{ServerMessage, Authentication};
 use edgedb_protocol::queryable::{Queryable};
 use edgedb_protocol::value::Value;
 use edgedb_protocol::descriptors::OutputTypedesc;
+use edgeql_parser::preparser::full_statement;
+
 use crate::commands::backslash;
 use crate::options::Options;
 use crate::print::{self, print_to_stdout, PrintError};
@@ -315,7 +317,7 @@ async fn _interactive_main(
     let mut initial = String::new();
     let statement_name = Bytes::from_static(b"");
 
-    'input_loop: loop {
+    loop {
         let inp = match
             state.edgeql_input(&replace(&mut initial, String::new())).await
         {
@@ -366,165 +368,173 @@ async fn _interactive_main(
             }
             continue;
         }
-        let mut headers = HashMap::new();
-        if let Some(implicit_limit) = state.implicit_limit {
-            headers.insert(
-                QUERY_OPT_IMPLICIT_LIMIT,
-                Bytes::from(format!("{}", implicit_limit+1)));
-        }
-
-        cli.send_messages(&[
-            ClientMessage::Prepare(Prepare {
-                headers,
-                io_format: match state.output_mode {
-                    Default | TabSeparated => IoFormat::Binary,
-                    Json => IoFormat::Json,
-                    JsonElements => IoFormat::JsonElements,
-                },
-                expected_cardinality: Cardinality::Many,
-                statement_name: statement_name.clone(),
-                command_text: String::from(&inp),
-            }),
-            ClientMessage::Sync,
-        ]).await?;
-
-        loop {
-            let msg = cli.reader.message().await?;
-            match msg {
-                ServerMessage::PrepareComplete(..) => {
-                    cli.reader.wait_ready().await?;
-                    break;
-                }
-                ServerMessage::ErrorResponse(err) => {
-                    print_query_error(&err, &inp, state.verbose_errors)?;
-                    state.last_error = Some(err.into());
-                    cli.reader.wait_ready().await?;
-                    continue 'input_loop;
-                }
-                _ => {
-                    eprintln!("WARNING: unsolicited message {:?}", msg);
-                }
+        let mut current_offset = 0;
+        'statement_loop: while inp[current_offset..].trim() != "" {
+            let slen = full_statement(&inp.as_bytes()[current_offset..], None)
+                .unwrap_or(inp.len() - current_offset);
+            let statement = &inp[current_offset..][..slen];
+            current_offset += slen;
+            let mut headers = HashMap::new();
+            if let Some(implicit_limit) = state.implicit_limit {
+                headers.insert(
+                    QUERY_OPT_IMPLICIT_LIMIT,
+                    Bytes::from(format!("{}", implicit_limit+1)));
             }
-        }
 
-        cli.send_messages(&[
-            ClientMessage::DescribeStatement(DescribeStatement {
-                headers: HashMap::new(),
-                aspect: DescribeAspect::DataDescription,
-                statement_name: statement_name.clone(),
-            }),
-            ClientMessage::Flush,
-        ]).await?;
+            cli.send_messages(&[
+                ClientMessage::Prepare(Prepare {
+                    headers,
+                    io_format: match state.output_mode {
+                        Default | TabSeparated => IoFormat::Binary,
+                        Json => IoFormat::Json,
+                        JsonElements => IoFormat::JsonElements,
+                    },
+                    expected_cardinality: Cardinality::Many,
+                    statement_name: statement_name.clone(),
+                    command_text: String::from(statement),
+                }),
+                ClientMessage::Sync,
+            ]).await?;
 
-        let data_description = loop {
-            let msg = cli.reader.message().await?;
-            match msg {
-                ServerMessage::CommandDataDescription(data_desc) => {
-                    break data_desc;
-                }
-                ServerMessage::ErrorResponse(err) => {
-                    eprintln!("{}", err.display(state.verbose_errors));
-                    state.last_error = Some(err.into());
-                    cli.reader.wait_ready().await?;
-                    continue 'input_loop;
-                }
-                _ => {
-                    eprintln!("WARNING: unsolicited message {:?}", msg);
-                }
-            }
-        };
-        if options.debug_print_descriptors {
-            println!("Descriptor: {:?}", data_description);
-        }
-        let desc = data_description.output()?;
-        let indesc = data_description.input()?;
-        if options.debug_print_descriptors {
-            println!("InputDescr {:#?}", indesc.descriptors());
-            println!("Output Descr {:#?}", desc.descriptors());
-        }
-        let codec = desc.build_codec()?;
-        if options.debug_print_codecs {
-            println!("Codec {:#?}", codec);
-        }
-        let incodec = indesc.build_codec()?;
-        if options.debug_print_codecs {
-            println!("Input Codec {:#?}", incodec);
-        }
-
-        let input = match input_variables(&indesc, state).await {
-            Ok(input) => input,
-            Err(e) => {
-                eprintln!("{:#?}", e);
-                state.last_error = Some(e);
-                continue 'input_loop;
-            }
-        };
-
-        let mut arguments = BytesMut::with_capacity(8);
-        incodec.encode(&mut arguments, &input)?;
-
-        cli.send_messages(&[
-            ClientMessage::Execute(Execute {
-                headers: HashMap::new(),
-                statement_name: statement_name.clone(),
-                arguments: arguments.freeze(),
-            }),
-            ClientMessage::Sync,
-        ]).await?;
-
-        let mut items = cli.reader.response(codec);
-
-        match state.output_mode {
-            TabSeparated => {
-                while let Some(row) = items.next().await.transpose()? {
-                    let mut text = match value_to_tab_separated(&row) {
-                        Ok(text) => text,
-                        Err(e) => {
-                            eprintln!("Error: {}", e);
-                            // exhaust the iterator to get connection in the
-                            // consistent state
-                            while let Some(_) = items.next().await.transpose()?
-                            {}
-                            continue 'input_loop;
-                        }
-                    };
-                    // trying to make writes atomic if possible
-                    text += "\n";
-                    stdout().write_all(text.as_bytes()).await?;
-                }
-            }
-            Default => {
-                match print_to_stdout(items, &state.print).await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        match e {
-                            PrintError::StreamErr {
-                                source: ReadError::RequestError { ref error, ..},
-                                ..
-                            } => {
-                                eprintln!("{}", error);
-                            }
-                            _ => eprintln!("{:#?}", e),
-                        }
-                        state.last_error = Some(e.into());
+            loop {
+                let msg = cli.reader.message().await?;
+                match msg {
+                    ServerMessage::PrepareComplete(..) => {
                         cli.reader.wait_ready().await?;
-                        continue;
+                        break;
+                    }
+                    ServerMessage::ErrorResponse(err) => {
+                        print_query_error(&err, statement, state.verbose_errors)?;
+                        state.last_error = Some(err.into());
+                        cli.reader.wait_ready().await?;
+                        continue 'statement_loop;
+                    }
+                    _ => {
+                        eprintln!("WARNING: unsolicited message {:?}", msg);
                     }
                 }
             }
-            Json | JsonElements => {
-                while let Some(row) = items.next().await.transpose()? {
-                    let mut text = match row {
-                        Value::Str(s) => s,
-                        _ => unreachable!(),
-                    };
-                    // trying to make writes atomic if possible
-                    text += "\n";
-                    stdout().write_all(text.as_bytes()).await?;
+
+            cli.send_messages(&[
+                ClientMessage::DescribeStatement(DescribeStatement {
+                    headers: HashMap::new(),
+                    aspect: DescribeAspect::DataDescription,
+                    statement_name: statement_name.clone(),
+                }),
+                ClientMessage::Flush,
+            ]).await?;
+
+            let data_description = loop {
+                let msg = cli.reader.message().await?;
+                match msg {
+                    ServerMessage::CommandDataDescription(data_desc) => {
+                        break data_desc;
+                    }
+                    ServerMessage::ErrorResponse(err) => {
+                        eprintln!("{}", err.display(state.verbose_errors));
+                        state.last_error = Some(err.into());
+                        cli.reader.wait_ready().await?;
+                        continue 'statement_loop;
+                    }
+                    _ => {
+                        eprintln!("WARNING: unsolicited message {:?}", msg);
+                    }
+                }
+            };
+            if options.debug_print_descriptors {
+                println!("Descriptor: {:?}", data_description);
+            }
+            let desc = data_description.output()?;
+            let indesc = data_description.input()?;
+            if options.debug_print_descriptors {
+                println!("InputDescr {:#?}", indesc.descriptors());
+                println!("Output Descr {:#?}", desc.descriptors());
+            }
+            let codec = desc.build_codec()?;
+            if options.debug_print_codecs {
+                println!("Codec {:#?}", codec);
+            }
+            let incodec = indesc.build_codec()?;
+            if options.debug_print_codecs {
+                println!("Input Codec {:#?}", incodec);
+            }
+
+            let input = match input_variables(&indesc, state).await {
+                Ok(input) => input,
+                Err(e) => {
+                    eprintln!("{:#?}", e);
+                    state.last_error = Some(e);
+                    continue 'statement_loop;
+                }
+            };
+
+            let mut arguments = BytesMut::with_capacity(8);
+            incodec.encode(&mut arguments, &input)?;
+
+            cli.send_messages(&[
+                ClientMessage::Execute(Execute {
+                    headers: HashMap::new(),
+                    statement_name: statement_name.clone(),
+                    arguments: arguments.freeze(),
+                }),
+                ClientMessage::Sync,
+            ]).await?;
+
+            let mut items = cli.reader.response(codec);
+
+            match state.output_mode {
+                TabSeparated => {
+                    while let Some(row) = items.next().await.transpose()? {
+                        let mut text = match value_to_tab_separated(&row) {
+                            Ok(text) => text,
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                // exhaust the iterator to get connection in the
+                                // consistent state
+                                while let Some(_) = items.next().await.transpose()?
+                                {}
+                                continue 'statement_loop;
+                            }
+                        };
+                        // trying to make writes atomic if possible
+                        text += "\n";
+                        stdout().write_all(text.as_bytes()).await?;
+                    }
+                }
+                Default => {
+                    match print_to_stdout(items, &state.print).await {
+                        Ok(()) => {}
+                        Err(e) => {
+                            match e {
+                                PrintError::StreamErr {
+                                    source: ReadError::RequestError { ref error, ..},
+                                    ..
+                                } => {
+                                    eprintln!("{}", error);
+                                }
+                                _ => eprintln!("{:#?}", e),
+                            }
+                            state.last_error = Some(e.into());
+                            cli.reader.wait_ready().await?;
+                            continue;
+                        }
+                    }
+                    println!();
+                }
+                Json | JsonElements => {
+                    while let Some(row) = items.next().await.transpose()? {
+                        let mut text = match row {
+                            Value::Str(s) => s,
+                            _ => unreachable!(),
+                        };
+                        // trying to make writes atomic if possible
+                        text += "\n";
+                        stdout().write_all(text.as_bytes()).await?;
+                    }
                 }
             }
+            state.last_error = None;
         }
-        state.last_error = None;
     }
 }
 

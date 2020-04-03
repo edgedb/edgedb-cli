@@ -172,10 +172,19 @@ impl Validator for EdgeqlHelper {
                 }
             }
         } else {
-            if full_statement(ctx.input().as_bytes(), None).is_ok() {
-                Ok(ValidationResult::Valid(None))
-            } else {
-                Ok(ValidationResult::Incomplete)
+            let mut data = ctx.input();
+            loop {
+                match full_statement(&data.as_bytes(), None) {
+                    Ok(bytes) => {
+                        data = &data[bytes..];
+                        if data.trim().is_empty() {
+                            return Ok(ValidationResult::Valid(None))
+                        }
+                    }
+                    Err(_) => {
+                        return Ok(ValidationResult::Incomplete)
+                    }
+                }
             }
         }
     }

@@ -24,9 +24,6 @@ commands:
   test: !Command
     description: Run tests
     container: ubuntu
-    user-id: 1
-    group-id: 1
-    external-user-id: 0
     run: [cargo, test]
     volumes:
       /tmp: !Tmpfs

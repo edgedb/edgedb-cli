@@ -6,12 +6,15 @@ use std::io::{BufReader, BufRead};
 use std::process::Child;
 use std::sync::mpsc::sync_channel;
 use std::thread::{self, JoinHandle};
+use std::process;
 
 use assert_cmd::Command;
 use serde_json::from_str;
+use rexpect::session::{spawn_command, PtySession};
 
 mod dump_restore;
 mod configure;
+mod interactive;
 
 
 lazy_static::lazy_static! {
@@ -38,12 +41,18 @@ pub struct ServerGuard {
 impl ServerGuard {
     fn start() -> ServerGuard {
         use std::process::{Command, Stdio};
+        use std::os::unix::process::CommandExt;
 
         let mut cmd = Command::new("edgedb-server");
         cmd.arg("--temp-dir");
         cmd.arg("--testmode");
         cmd.arg("--echo-runtime-info");
         cmd.arg("--port=auto");
+        if unsafe { libc::geteuid() } == 0 {
+            // This is moslty true in vagga containers, so run edgedb/postgres
+            // by any non-root user
+            cmd.uid(1);
+        }
         cmd.stdout(Stdio::piped());
 
         let mut process = cmd.spawn().expect("Can run edgedb-server");
@@ -98,6 +107,17 @@ impl ServerGuard {
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
         return cmd
+    }
+
+    pub fn admin_interactive(&self) -> PtySession {
+        use assert_cmd::cargo::CommandCargoExt;
+
+        let mut cmd = process::Command::cargo_bin("edgedb")
+            .expect("binary found");
+        cmd.arg("--admin");
+        cmd.arg("--port").arg(self.port.to_string());
+        cmd.env("EDGEDB_HOST", &self.runstate_dir);
+        return spawn_command(cmd, Some(5000)).expect("start interactive");
     }
 
     pub fn database_cmd(&self, database_name: &str) -> Command {

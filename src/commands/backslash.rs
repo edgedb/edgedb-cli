@@ -10,6 +10,7 @@ use crate::commands::{self, Options};
 use crate::repl::{self, OutputMode};
 use crate::prompt;
 use crate::server_params::PostgresAddress;
+use crate::commands::helpers::{quote_name, print_result};
 use crate::commands::type_names::get_type_names;
 
 pub enum ExecuteResult {
@@ -37,7 +38,11 @@ Introspection
   \li[IS+] [PATTERN]       list indexes
                            (alias: \list-indexes)
   \list-ports              list ports
+
+Operations
   \dump FILENAME           dump current database into a file
+  \restore FILENAME        restore the database from file into the current one
+  \create-database DBNAME  create a new database
 
 Editing
   \s, \history             show history
@@ -75,6 +80,7 @@ pub const HINTS: &'static [&'static str] = &[
     r"\?",
     r"\c DBNAME",
     r"\connect DBNAME",
+    r"\create-database DBNAME",
     r"\d NAME",
     r"\d NAME",
     r"\d+ NAME",
@@ -139,6 +145,7 @@ pub const HINTS: &'static [&'static str] = &[
     r"\output [json|json-elements|default|tab-separated]",
     r"\pgaddr",
     r"\psql",
+    r"\restore FILENAME",
     r"\s",
     r"\verbose-errors",
     r"\vi",
@@ -148,6 +155,7 @@ pub const COMMAND_NAMES: &'static [&'static str] = &[
     r"\?",
     r"\c",
     r"\connect",
+    r"\create-database",
     r"\d",
     r"\d+",
     r"\describe",
@@ -215,6 +223,7 @@ pub const COMMAND_NAMES: &'static [&'static str] = &[
     r"\output",
     r"\pgaddr",
     r"\psql",
+    r"\restore",
     r"\s",
     r"\verbose-errors",
     r"\vi",
@@ -281,6 +290,8 @@ pub enum Command {
     SetOutput { mode: OutputMode },
     ShowOutput,
     Dump { filename: String },
+    Restore { filename: String },
+    CreateDatabase { name: String },
 }
 
 pub struct ParseError {
@@ -436,6 +447,12 @@ pub fn parse(s: &str) -> Result<Command, ParseError> {
         ("verbose-errors", None) => Ok(Command::VerboseErrors),
         ("no-verbose-errors", None) => Ok(Command::NoVerboseErrors),
         ("dump", Some(param)) => Ok(Command::Dump { filename: param.into() }),
+        ("restore", Some(param)) => {
+            Ok(Command::Restore { filename: param.into() })
+        }
+        ("create-database", Some(name)) => {
+            Ok(Command::CreateDatabase { name: name.into() })
+        }
         ("output", None) => Ok(Command::ShowOutput),
         ("output", Some(param)) => {
             Ok(Command::SetOutput {
@@ -636,6 +653,16 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: Command,
         }
         Dump { filename } => {
             commands::dump(cli, &options, filename.as_ref()).await?;
+            Ok(Skip)
+        }
+        Restore { filename } => {
+            commands::restore(cli, &options, filename.as_ref(), false).await?;
+            Ok(Skip)
+        }
+        CreateDatabase { name } => {
+            let res = cli.execute(
+                &format!("CREATE DATABASE {}", quote_name(&name))
+            ).await?; print_result(res);
             Ok(Skip)
         }
     }
