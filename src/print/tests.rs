@@ -164,3 +164,23 @@ fn str() {
         test_format(&[Value::Str("a\nb".into())]).unwrap(),
         "{\n  'a\nb',\n}");
 }
+
+#[test]
+fn all_widths() {
+    let shape = ObjectShape::new(vec![
+        ShapeElement {
+            flag_implicit: false,
+            flag_link_property: false,
+            flag_link: false,
+            name: "field1".into(),
+        },
+    ]);
+    for width in 0..100 {
+        test_format_cfg(&[
+            Value::Object { shape: shape.clone(), fields: vec![
+                Some(Value::Str(
+                    "Sint tempor. Qui occaecat eu consectetur elit.".into())),
+            ]},
+        ], Config::new().max_width(width)).unwrap();
+    }
+}

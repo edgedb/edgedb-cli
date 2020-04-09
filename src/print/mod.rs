@@ -115,7 +115,7 @@ async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<'_, O>, rows: &mut S,
         // Buffer rows up to one visual line.
         // After line is reached we get Exception::DisableFlow
     }
-    prn.close_block("}".clear(), true).wrap_err(PrintErr)?;
+    prn.close_block(&"}".clear(), true).wrap_err(PrintErr)?;
     Ok(())
 }
 
@@ -155,7 +155,7 @@ async fn format_rows<S, I, E, O>(prn: &mut Printer<'_, O>,
         v.format(prn).wrap_err(PrintErr)?;
         prn.comma().wrap_err(PrintErr)?;
     }
-    prn.close_block("}".clear(), true).wrap_err(PrintErr)?;
+    prn.close_block(&"}".clear(), true).wrap_err(PrintErr)?;
     Ok(())
 }
 
@@ -215,7 +215,7 @@ fn test_format_rows<I: FormatExt>(prn: &mut Printer<&mut String>, items: &[I],
         v.format(prn)?;
         prn.comma()?;
     }
-    prn.close_block("}".clear(), true)?;
+    prn.close_block(&"}".clear(), true)?;
     Ok(())
 }
 

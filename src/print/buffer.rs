@@ -192,7 +192,7 @@ impl<'a, T: Output> Printer<'a, T> {
         self.delim = Field;
         self.write(": ".clear())
     }
-    pub(in crate::print) fn close_block(&mut self, val: CString, flag: bool)
+    pub(in crate::print) fn close_block(&mut self, val: &CString, flag: bool)
         -> Result<T::Error>
     {
         self.delim = None;
@@ -200,7 +200,7 @@ impl<'a, T: Output> Printer<'a, T> {
             self.cur_indent -= self.indent;
             self.write_indent()?;
         }
-        self.write(val)?;
+        self.write(val.clone())?;
         if flag {
             self.flow = false;
         } else {
@@ -214,15 +214,15 @@ impl<'a, T: Output> Printer<'a, T> {
         where F: FnMut(&mut Self) -> Result<T::Error>
     {
         let flag = self.open_block(open)?;
-        match f(self) {
+        match f(self).and_then(|()| self.close_block(&close, flag)) {
             Ok(()) => {}
             Err(Exception::DisableFlow) if flag => {
                 self.reopen_block()?;
                 f(self)?;
+                self.close_block(&close, flag)?;
             }
             Err(e) => return Err(e)?,
         }
-        self.close_block(close, flag)?;
         Ok(())
     }
     pub(in crate::print) fn delimit(&mut self) -> Result<T::Error> {
