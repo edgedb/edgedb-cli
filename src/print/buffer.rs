@@ -12,6 +12,8 @@ use crate::print::formatter::ColorfulExt;
 
 use Delim::*;
 
+const HIGH_WATER_MARK: usize = 4096;
+
 
 #[derive(Debug)]  // no Error trait, this struct should not escape to user
 pub enum Exception<E> {
@@ -115,15 +117,16 @@ impl<'a, T: Output> Printer<'a, T> {
         self.committed = self.buffer.len();
         self.committed_indent = self.cur_indent;
         self.committed_column = 0;
-        // TODO(tailhook) add watermark
         self.flush_buf()
     }
     pub(in crate::print) fn commit(&mut self) -> Result<T::Error> {
         self.committed = self.buffer.len();
         self.committed_indent = self.cur_indent;
         self.committed_column = self.column;
-        // TODO(tailhook) add watermark
-        self.flush_buf()
+        if self.buffer.len() > HIGH_WATER_MARK {
+            self.flush_buf()?;
+        }
+        Ok(())
     }
     pub(in crate::print) fn write_indent(&mut self) -> Result<T::Error> {
         //debug_assert_eq!(self.column, 0);
