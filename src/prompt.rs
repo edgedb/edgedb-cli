@@ -18,9 +18,9 @@ use rustyline::validate::{Validator, ValidationResult, ValidationContext};
 use rustyline::completion::Completer;
 
 use edgeql_parser::preparser::full_statement;
-use edgeql_parser::tokenizer::{TokenStream, Kind};
 use crate::commands::backslash;
 use crate::print::style::{Styler, Style};
+use crate::highlight;
 
 use colorful::Colorful;
 
@@ -70,23 +70,6 @@ impl Hinter for EdgeqlHelper {
     }
 }
 
-fn emit_insignificant(buf: &mut String, styler: &Styler, mut chunk: &str) {
-    while let Some(pos) = chunk.find('#') {
-        if let Some(end) = chunk[pos..].find('\n') {
-            buf.push_str(&chunk[..pos]);
-            styler.apply(Style::Comment, &chunk[pos..pos+end], buf);
-
-            // must be unstyled to work well at the end of input
-            buf.push('\n');
-
-            chunk = &chunk[pos+end+1..];
-        } else {
-            break;
-        }
-    }
-    buf.push_str(chunk);
-}
-
 impl Highlighter for EdgeqlHelper {
     fn highlight_prompt<'b, 's: 'b, 'p: 'b>(&'s self,
         prompt: &'p str, info: PromptInfo<'_>,)
@@ -121,30 +104,7 @@ impl Highlighter for EdgeqlHelper {
             }
             return line.into();
         } else {
-            let mut outbuf = String::with_capacity(line.len());
-            let mut pos = 0;
-            let mut token_stream = TokenStream::new(line);
-            for res in &mut token_stream {
-                let tok = match res {
-                    Ok(tok) => tok,
-                    Err(_) => {
-                        outbuf.push_str(&line[pos..]);
-                        return outbuf.into();
-                    }
-                };
-                if tok.start.offset as usize > pos {
-                    emit_insignificant(&mut outbuf, &self.styler,
-                        &line[pos..tok.start.offset as usize]);
-                }
-                if let Some(st) = token_style(tok.token.kind) {
-                    self.styler.apply(st, tok.token.value, &mut outbuf);
-                } else {
-                    outbuf.push_str(tok.token.value);
-                }
-                pos = tok.end.offset as usize;
-            }
-            emit_insignificant(&mut outbuf, &self.styler, &line[pos..]);
-            return outbuf.into();
+            return highlight::edgeql(line, &self.styler).into();
         }
     }
     fn highlight_char<'l>(&self, _line: &'l str, _pos: usize) -> bool {
@@ -445,59 +405,3 @@ fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
     }
 }
 
-fn token_style(kind: Kind) -> Option<Style> {
-    use edgeql_parser::tokenizer::Kind as T;
-    use crate::print::style::Style as S;
-
-    match kind {
-        T::Keyword => Some(S::Keyword),
-
-        T::At => Some(S::Punctuation),  // TODO(tailhook) but also decorators
-        T::Dot => Some(S::Punctuation),
-        T::ForwardLink => Some(S::Punctuation),
-        T::BackwardLink => Some(S::Punctuation),
-
-        T::Assign => None,
-        T::SubAssign => None,
-        T::AddAssign => None,
-        T::Arrow => None,
-        T::Coalesce => None,
-        T::Namespace => None,
-        T::FloorDiv => None,
-        T::Concat => None,
-        T::GreaterEq => None,
-        T::LessEq => None,
-        T::NotEq => None,
-        T::NotDistinctFrom => None,
-        T::DistinctFrom => None,
-        T::Comma => None,
-        T::OpenParen => None,
-        T::CloseParen => None,
-        T::OpenBracket => None,
-        T::CloseBracket => None,
-        T::OpenBrace => None,
-        T::CloseBrace => None,
-        T::Semicolon => None,
-        T::Colon => None,
-        T::Add => None,
-        T::Sub => None,
-        T::Mul => None,
-        T::Div => None,
-        T::Modulo => None,
-        T::Pow => None,
-        T::Less => None,
-        T::Greater => None,
-        T::Eq => None,
-        T::Ampersand => None,
-        T::Pipe => None,
-        T::Argument => None, // TODO (tailhook)
-        T::DecimalConst => Some(S::Constant),
-        T::FloatConst => Some(S::Constant),
-        T::IntConst => Some(S::Constant),
-        T::BigIntConst => Some(S::Constant),
-        T::BinStr => Some(S::String),
-        T::Str => Some(S::String),
-        T::BacktickName => None,
-        T::Ident => None,
-    }
-}

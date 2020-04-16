@@ -492,7 +492,7 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb#fbdeadebbff2adcf932f2aaa550defc6662521bb"
+source = "git+https://github.com/edgedb/edgedb#087324332b7507f71a1424c8950f132825fb12fb"
 dependencies = [
  "combine",
  "snafu",
