@@ -5,12 +5,18 @@ use crate::options::{Options, Command};
 use crate::client::{Connection, non_interactive_query};
 use crate::commands;
 use crate::print;
+use crate::print::style::Styler;
 use crate::server_params::PostgresAddress;
 
 
 pub fn main(options: Options) -> Result<(), anyhow::Error> {
     let cmdopt = commands::Options {
         command_line: true,
+        styler: if atty::is(atty::Stream::Stdout) {
+            Some(Styler::dark_256())
+        } else {
+            None
+        },
     };
     match options.subcommand.as_ref().expect("subcommand is present") {
         Command::CreateDatabase(d) => {

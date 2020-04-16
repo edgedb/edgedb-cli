@@ -9,6 +9,7 @@ use crate::client::Client;
 use crate::commands::{self, Options};
 use crate::repl::{self, OutputMode};
 use crate::print;
+use crate::print::style::Styler;
 use crate::prompt;
 use crate::server_params::PostgresAddress;
 use crate::commands::helpers::quote_name;
@@ -495,6 +496,7 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: Command,
     use ExecuteResult::*;
     let options = Options {
         command_line: false,
+        styler: Some(Styler::dark_256()),
     };
     match cmd {
         Help => {
