@@ -309,6 +309,53 @@ pub async fn interactive_main(options: Options, mut state: repl::State)
     }
 }
 
+fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
+    -> bool
+{
+    use serde_json::Value::*;
+    use std::fmt::Write;
+
+    let level = path.len();
+    match json {
+        Array(items) => {
+            if items.len() > 0 {
+                return false;
+            }
+            for (idx, item) in items.iter().enumerate() {
+                write!(path, "[{}]", idx).expect("formatting succeeds");
+                _check_json_limit(item, path, limit);
+                path.truncate(level);
+            }
+        }
+        Object(pairs) => {
+            for (key, value) in pairs {
+                write!(path, ".{}", key).expect("formatting succeeds");
+                _check_json_limit(value, path, limit);
+                path.truncate(level);
+            }
+        }
+        _ => {}
+    }
+    return true;
+}
+
+fn print_json_limit_error(path: &str) {
+    eprintln!("ERROR: Cannot render JSON result: {} is too long. \
+        Consider putting an explicit LIMIT clause, \
+        or increase the implicit limit using \\limit.",
+        if path.is_empty() { "." } else { path });
+}
+
+fn check_json_limit(json: &serde_json::Value, path: &str, limit: usize) -> bool
+{
+    let mut path_buf = path.to_owned();
+    if !_check_json_limit(json, &mut path_buf, limit) {
+        print_json_limit_error(&path_buf);
+        return false;
+    }
+    return true;
+}
+
 async fn _interactive_main(
     mut cli: Client<'_>, options: &Options, mut state: &mut repl::State)
     -> Result<(), anyhow::Error>
@@ -489,7 +536,20 @@ async fn _interactive_main(
             }
             match state.output_mode {
                 TabSeparated => {
+                    let mut index = 0;
                     while let Some(row) = items.next().await.transpose()? {
+                        if let Some(limit) = state.implicit_limit {
+                            if index >= limit {
+                                eprintln!("ERROR: Too many rows. Consider \
+                                    putting an explicit LIMIT clause, \
+                                    or increase the implicit limit \
+                                    using \\limit.");
+                                while let Some(_) =
+                                    items.next().await.transpose()?
+                                {}
+                                continue 'statement_loop;
+                            }
+                        }
                         let mut text = match value_to_tab_separated(&row) {
                             Ok(text) => text,
                             Err(e) => {
@@ -504,6 +564,7 @@ async fn _interactive_main(
                         // trying to make writes atomic if possible
                         text += "\n";
                         stdout().write_all(text.as_bytes()).await?;
+                        index += 1;
                     }
                 }
                 Default => {
@@ -522,7 +583,7 @@ async fn _interactive_main(
                             }
                             state.last_error = Some(e.into());
                             cli.reader.wait_ready().await?;
-                            continue;
+                            continue 'statement_loop;
                         }
                     }
                     println!();
@@ -537,6 +598,11 @@ async fn _interactive_main(
                         let items: serde_json::Value;
                         items = serde_json::from_str(&text)
                             .context("cannot decode json result")?;
+                        if let Some(limit) = state.implicit_limit {
+                            if !check_json_limit(&items, "", limit) {
+                                continue 'statement_loop;
+                            }
+                        }
                         let items = items.as_array()
                             .ok_or_else(|| anyhow::anyhow!(
                                 "non-array returned from \
@@ -548,6 +614,7 @@ async fn _interactive_main(
                     }
                 }
                 JsonElements => {
+                    let mut index = 0;
                     while let Some(row) = items.next().await.transpose()? {
                         let text = match row {
                             Value::Str(s) => s,
@@ -557,11 +624,28 @@ async fn _interactive_main(
                         let value: serde_json::Value;
                         value = serde_json::from_str(&text)
                             .context("cannot decode json result")?;
+                        let path = format!(".[{}]", index);
+                        if let Some(limit) = state.implicit_limit {
+                            if index >= limit {
+                                print_json_limit_error(&path);
+                                while let Some(_) =
+                                    items.next().await.transpose()?
+                                {}
+                                continue 'statement_loop;
+                            }
+                            if !check_json_limit(&value, &path, limit) {
+                                while let Some(_) =
+                                    items.next().await.transpose()?
+                                {}
+                                continue 'statement_loop;
+                            }
+                        }
                         // trying to make writes atomic if possible
                         let mut data;
                         data = print::json_item_to_string(&value, &cfg)?;
                         data += "\n";
                         stdout().write_all(data.as_bytes()).await?;
+                        index += 1;
                     }
                 }
             }
