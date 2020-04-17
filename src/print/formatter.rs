@@ -112,7 +112,7 @@ impl<'a, T: Output> Formatter for Printer<'a, T> {
     }
     fn object_field(&mut self, f: &str) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(f.green())?;
+        self.write(f.light_blue().bold())?;
         self.field()?;
         Ok(())
     }
