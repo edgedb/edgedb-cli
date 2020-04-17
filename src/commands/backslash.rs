@@ -8,9 +8,10 @@ use edgedb_protocol::server_message::ErrorResponse;
 use crate::client::Client;
 use crate::commands::{self, Options};
 use crate::repl::{self, OutputMode};
+use crate::print;
 use crate::prompt;
 use crate::server_params::PostgresAddress;
-use crate::commands::helpers::{quote_name, print_result};
+use crate::commands::helpers::quote_name;
 use crate::commands::type_names::get_type_names;
 
 pub enum ExecuteResult {
@@ -660,9 +661,9 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: Command,
             Ok(Skip)
         }
         CreateDatabase { name } => {
-            let res = cli.execute(
+            print::completion(&cli.execute(
                 &format!("CREATE DATABASE {}", quote_name(&name))
-            ).await?; print_result(res);
+            ).await?);
             Ok(Skip)
         }
     }

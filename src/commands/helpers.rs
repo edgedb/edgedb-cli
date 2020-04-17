@@ -1,12 +1,6 @@
 use std::borrow::Cow;
-use bytes::Bytes;
 
 pub use edgeql_parser::helpers::quote_name;
-
-
-pub fn print_result(res: Bytes) {
-    eprintln!("  -> {}: Ok", String::from_utf8_lossy(&res[..]));
-}
 
 
 pub fn quote_namespaced<'x>(name: &'x str) -> Cow<'x, str> {

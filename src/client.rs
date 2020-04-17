@@ -956,9 +956,7 @@ pub async fn non_interactive_query(cli: &mut Client<'_>, stmt: &str,
                 Ok(items) => items,
                 Err(e) => match e.downcast::<NoResultExpected>() {
                     Ok(e) => {
-                        eprintln!("  -> {}: Ok",
-                            String::from_utf8_lossy(
-                                &e.completion_message[..]));
+                        print::completion(&e.completion_message);
                         return Ok(());
                     }
                     Err(e) => Err(e)?,
@@ -978,9 +976,7 @@ pub async fn non_interactive_query(cli: &mut Client<'_>, stmt: &str,
                 Ok(items) => items,
                 Err(e) => match e.downcast::<NoResultExpected>() {
                     Ok(e) => {
-                        eprintln!("  -> {}: Ok",
-                            String::from_utf8_lossy(
-                                &e.completion_message[..]));
+                        print::completion(&e.completion_message);
                         return Ok(());
                     }
                     Err(e) => Err(e)?,
@@ -1011,9 +1007,7 @@ pub async fn non_interactive_query(cli: &mut Client<'_>, stmt: &str,
                 Ok(items) => items,
                 Err(e) => match e.downcast::<NoResultExpected>() {
                     Ok(e) => {
-                        eprintln!("  -> {}: Ok",
-                            String::from_utf8_lossy(
-                                &e.completion_message[..]));
+                        print::completion(&e.completion_message);
                         return Ok(());
                     }
                     Err(e) => Err(e)?,
@@ -1032,9 +1026,7 @@ pub async fn non_interactive_query(cli: &mut Client<'_>, stmt: &str,
                 Ok(items) => items,
                 Err(e) => match e.downcast::<NoResultExpected>() {
                     Ok(e) => {
-                        eprintln!("  -> {}: Ok",
-                            String::from_utf8_lossy(
-                                &e.completion_message[..]));
+                        print::completion(&e.completion_message);
                         return Ok(());
                     }
                     Err(e) => Err(e)?,

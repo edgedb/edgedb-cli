@@ -4,7 +4,7 @@ use edgeql_parser::helpers::quote_name;
 use crate::options::{Options, Command};
 use crate::client::{Connection, non_interactive_query};
 use crate::commands;
-use crate::commands::helpers::print_result;
+use crate::print;
 use crate::server_params::PostgresAddress;
 
 
@@ -20,7 +20,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                     &options, &options.database).await?;
                 let res = cli.execute(&format!("CREATE DATABASE {}",
                                      quote_name(&d.database_name))).await?;
-                print_result(res);
+                print::completion(&res);
                 Ok(())
             }).into()
         },

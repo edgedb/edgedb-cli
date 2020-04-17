@@ -1,13 +1,13 @@
 use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
-use crate::commands::helpers::print_result;
+use crate::print;
 use crate::client::Client;
 use crate::options::{Configure, ConfigStr, AuthParameter, PortParameter};
 
 async fn set_string(cli: &mut Client<'_>, name: &str, value: &ConfigStr)
     -> Result<(), anyhow::Error>
 {
-    print_result(cli.execute(
+    print::completion(&cli.execute(
         &format!("CONFIGURE SYSTEM SET {} := {}",
             name, quote_string(&value.value))
     ).await?);
@@ -40,14 +40,13 @@ pub async fn configure(cli: &mut Client<'_>, _options: &Options,
                 props.push(format!(
                     "comment := {}", quote_string(comment_text)))
             }
-            let result = cli.execute(&format!(r###"
+            print::completion(&cli.execute(&format!(r###"
                 CONFIGURE SYSTEM INSERT Auth {{
                     {}
                 }}
                 "###,
                 props.join(",\n")
-            )).await?;
-            print_result(result);
+            )).await?);
             Ok(())
         }
         C::Insert(Ins { parameter: I::Port(param) }) => {
@@ -55,7 +54,7 @@ pub async fn configure(cli: &mut Client<'_>, _options: &Options,
                 addresses, port, protocol,
                 database, user, concurrency,
             } = param;
-            print_result(cli.execute(&format!(r###"
+            print::completion(&cli.execute(&format!(r###"
                     CONFIGURE SYSTEM INSERT Port {{
                         address := {{ {addresses} }},
                         port := {port},
@@ -76,7 +75,7 @@ pub async fn configure(cli: &mut Client<'_>, _options: &Options,
             Ok(())
         }
         C::Set(Set { parameter: S::ListenAddresses(param) }) => {
-            print_result(cli.execute(
+            print::completion(&cli.execute(
                 &format!("CONFIGURE SYSTEM SET listen_addresses := {{{}}}",
                 param.address.iter().map(|x| quote_string(x))
                     .collect::<Vec<_>>().join(", "))
@@ -84,7 +83,7 @@ pub async fn configure(cli: &mut Client<'_>, _options: &Options,
             Ok(())
         }
         C::Set(Set { parameter: S::ListenPort(param) }) => {
-            print_result(cli.execute(
+            print::completion(&cli.execute(
                 &format!("CONFIGURE SYSTEM SET listen_port := {}", param.port)
             ).await?);
             Ok(())
@@ -117,7 +116,7 @@ pub async fn configure(cli: &mut Client<'_>, _options: &Options,
                 C::DefaultStatisticsTarget => "default_statistics_target",
                 C::EffectiveIoConcurrency => "effective_io_concurrency",
             };
-            print_result(cli.execute(
+            print::completion(&cli.execute(
                 &format!("CONFIGURE SYSTEM RESET {}", name)
             ).await?);
             Ok(())

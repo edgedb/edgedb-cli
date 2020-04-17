@@ -6,6 +6,7 @@ use std::io;
 
 use async_std::stream::{Stream, StreamExt};
 use atty;
+use bytes::Bytes;
 use snafu::{Snafu, ResultExt, AsErrorSource};
 use term_size;
 use uuid::Uuid;
@@ -85,6 +86,10 @@ impl Config {
         self.max_items = Some(value);
         self
     }
+}
+
+pub fn completion(res: &Bytes) {
+    eprintln!("  -> {}: Ok", String::from_utf8_lossy(&res[..]));
 }
 
 async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<'_, O>, rows: &mut S,

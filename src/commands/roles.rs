@@ -1,8 +1,8 @@
 use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
-use crate::commands::helpers::print_result;
 use crate::client::Client;
 use crate::options::{RoleParams};
+use crate::print;
 
 
 fn process_params(options: &RoleParams) -> Result<Vec<String>, anyhow::Error> {
@@ -36,11 +36,11 @@ pub async fn create_superuser(cli: &mut Client<'_>, _options: &Options,
 {
     let params = process_params(role)?;
     if params.is_empty() {
-        print_result(cli.execute(
+        print::completion(&cli.execute(
             &format!("CREATE SUPERUSER ROLE {}", quote_name(&role.role))
         ).await?);
     } else {
-        print_result(cli.execute(
+        print::completion(&cli.execute(
             &format!(r###"
                 CREATE SUPERUSER ROLE {name} {{
                     {params}
@@ -60,7 +60,7 @@ pub async fn alter(cli: &mut Client<'_>, _options: &Options,
     if params.is_empty() {
         return Err(anyhow::anyhow!("Please specify attribute to alter"));
     } else {
-        print_result(cli.execute(
+        print::completion(&cli.execute(
             &format!(r###"
                 ALTER ROLE {name} {{
                     {params}
@@ -76,7 +76,7 @@ pub async fn drop(cli: &mut Client<'_>, _options: &Options,
     name: &str)
     -> Result<(), anyhow::Error>
 {
-    print_result(cli.execute(
+    print::completion(&cli.execute(
         &format!("DROP ROLE {}", quote_name(name))
     ).await?);
     Ok(())

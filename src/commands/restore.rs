@@ -16,7 +16,7 @@ use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
-use crate::commands::helpers::print_result;
+use crate::print;
 use crate::client::{Client, Reader, Writer};
 
 type Input = Box<dyn Read + Unpin + Send>;
@@ -203,7 +203,7 @@ async fn wait_response(reader: &mut Reader<&'_ ByteStream>, start: Instant)
         match msg {
             ServerMessage::CommandComplete(c) => {
                 eprintln!("Complete in {:?}", start.elapsed());
-                print_result(c.status_data);
+                print::completion(&c.status_data);
                 break;
             }
             ServerMessage::ErrorResponse(err) => {
