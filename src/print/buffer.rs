@@ -170,7 +170,7 @@ impl<'a, T: Output> Printer<'a, T> {
         Ok(())
     }
     pub(in crate::print) fn comma(&mut self) -> Result<T::Error> {
-        if self.flow {
+        if self.flow || !self.trailing_comma {
             self.delim = Comma;
         } else {
             self.write(",".clear())?;
@@ -198,6 +198,10 @@ impl<'a, T: Output> Printer<'a, T> {
     pub(in crate::print) fn close_block(&mut self, val: &CString, flag: bool)
         -> Result<T::Error>
     {
+        if self.delim == Comma && !self.flow {
+            debug_assert!(!self.trailing_comma);
+            self.commit_line()?;
+        }
         self.delim = None;
         if !self.flow {
             self.cur_indent -= self.indent;
@@ -229,8 +233,14 @@ impl<'a, T: Output> Printer<'a, T> {
         Ok(())
     }
     pub(in crate::print) fn delimit(&mut self) -> Result<T::Error> {
-        if self.delim == Comma { // assumes flow
-            self.write(", ".clear())?;
+        if self.delim == Comma {
+            if self.flow {
+                self.write(", ".clear())?;
+            } else {
+                self.write(",".clear())?;
+                debug_assert!(!self.trailing_comma);
+                self.commit_line()?;
+            }
         }
         if !self.flow && self.delim != Field {
             self.write_indent()?;

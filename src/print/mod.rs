@@ -2,23 +2,23 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::io;
-#[cfg(test)] use std::convert::Infallible;
+use std::convert::Infallible;
 
 use async_std::stream::{Stream, StreamExt};
-use atty;
 use bytes::Bytes;
 use snafu::{Snafu, ResultExt, AsErrorSource};
-use term_size;
 use uuid::Uuid;
 
-mod format;
+mod native;
+mod json;
 mod buffer;
 mod stream;
 mod formatter;
 pub mod style;
 #[cfg(test)] mod tests;
 
-use format::FormatExt;
+pub(in crate::print) use native::FormatExt;
+pub(in crate::print) use formatter::Formatter;
 use formatter::ColorfulExt;
 use buffer::{Exception, WrapErr, UnwrapExc, Delim};
 use stream::Output;
@@ -51,6 +51,7 @@ pub(in crate::print) struct Printer<'a, T> {
     implicit_properties: bool,
     type_names: &'a Option<HashMap<Uuid, String>>,
     max_items: Option<usize>,
+    trailing_comma: bool,
 
     // state
     buffer: String,
@@ -84,6 +85,10 @@ impl Config {
     }
     pub fn max_items(&mut self, value: usize) -> &mut Config {
         self.max_items = Some(value);
+        self
+    }
+    pub fn colors(&mut self, value: bool) -> &mut Config {
+        self.colors = Some(value);
         self
     }
 }
@@ -164,7 +169,7 @@ async fn format_rows<S, I, E, O>(prn: &mut Printer<'_, O>,
     Ok(())
 }
 
-pub async fn print_to_stdout<S, I, E>(mut rows: S, config: &Config)
+pub async fn native_to_stdout<S, I, E>(mut rows: S, config: &Config)
     -> Result<(), PrintError<E, io::Error>>
     where S: Stream<Item=Result<I, E>> + Send + Unpin,
           I: FormatExt,
@@ -181,6 +186,7 @@ pub async fn print_to_stdout<S, I, E>(mut rows: S, config: &Config)
         implicit_properties: config.implicit_properties,
         type_names: &config.type_names,
         max_items: config.max_items,
+        trailing_comma: true,
 
         buffer: String::with_capacity(8192),
         stream: Stdout {},
@@ -196,7 +202,6 @@ pub async fn print_to_stdout<S, I, E>(mut rows: S, config: &Config)
     match format_rows_buf(&mut prn, &mut rows, &mut row_buf).await {
         Ok(()) => {},
         Err(Exception::DisableFlow) => {
-            // debug_assert!(t.0 == 0);
             format_rows(&mut prn, row_buf, &mut rows).await.unwrap_exc()?;
         }
         Err(Exception::Error(e)) => return Err(e),
@@ -205,22 +210,21 @@ pub async fn print_to_stdout<S, I, E>(mut rows: S, config: &Config)
     Ok(())
 }
 
-#[cfg(test)]
-fn test_format_rows<I: FormatExt>(prn: &mut Printer<&mut String>, items: &[I],
-    reopen: bool)
+fn format_rows_str<I: FormatExt>(prn: &mut Printer<&mut String>, items: &[I],
+    open: &str, close: &str, reopen: bool)
     -> buffer::Result<Infallible>
 {
     if reopen {
         prn.reopen_block()?;
     } else {
-        let cp = prn.open_block("{".clear())?;
+        let cp = prn.open_block(open.clear())?;
         debug_assert!(cp);
     }
     for v in items {
         v.format(prn)?;
         prn.comma()?;
     }
-    prn.close_block(&"}".clear(), true)?;
+    prn.close_block(&close.clear(), true)?;
     Ok(())
 }
 
@@ -236,6 +240,7 @@ pub fn test_format_cfg<I: FormatExt>(items: &[I], config: &Config)
         implicit_properties: config.implicit_properties,
         type_names: &config.type_names,
         max_items: config.max_items,
+        trailing_comma: true,
 
         buffer: String::with_capacity(8192),
         stream: &mut out,
@@ -247,10 +252,10 @@ pub fn test_format_cfg<I: FormatExt>(items: &[I], config: &Config)
         column: 0,
         cur_indent: 0,
     };
-    match test_format_rows(&mut prn, &items, false) {
+    match format_rows_str(&mut prn, &items, "{", "}", false) {
         Ok(()) => {},
         Err(Exception::DisableFlow) => {
-            test_format_rows(&mut prn, &items, true).unwrap_exc()?;
+            format_rows_str(&mut prn, &items, "{", "}", true).unwrap_exc()?;
         }
         Err(Exception::Error(e)) => return Err(e),
     };
@@ -270,4 +275,71 @@ pub fn test_format<I: FormatExt>(items: &[I])
         type_names: None,
         max_items: None,
     })
+}
+
+pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
+    -> Result<String, Infallible>
+{
+    let mut out = String::new();
+    let mut prn = Printer {
+        colors: config.colors.unwrap_or(false),
+        indent: config.indent,
+        max_width: config.max_width.unwrap_or(80),
+        implicit_properties: config.implicit_properties,
+        type_names: &config.type_names,
+        max_items: config.max_items,
+        trailing_comma: false,
+
+        buffer: String::with_capacity(8192),
+        stream: &mut out,
+        delim: Delim::None,
+        flow: false,
+        committed: 0,
+        committed_indent: 0,
+        committed_column: 0,
+        column: 0,
+        cur_indent: 0,
+    };
+    match format_rows_str(&mut prn, &items, "[", "]", false) {
+        Ok(()) => {},
+        Err(Exception::DisableFlow) => {
+            format_rows_str(&mut prn, &items, "[", "]", true).unwrap_exc()?;
+        }
+        Err(Exception::Error(e)) => return Err(e),
+    };
+    prn.end().unwrap_exc()?;
+    Ok(out)
+}
+
+pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
+    -> Result<String, Infallible>
+{
+    let mut out = String::new();
+    let mut prn = Printer {
+        colors: config.colors.unwrap_or(false),
+        indent: config.indent,
+        max_width: config.max_width.unwrap_or(80),
+        implicit_properties: config.implicit_properties,
+        type_names: &config.type_names,
+        max_items: config.max_items,
+        trailing_comma: false,
+
+        buffer: String::with_capacity(8192),
+        stream: &mut out,
+        delim: Delim::None,
+        flow: false,
+        committed: 0,
+        committed_indent: 0,
+        committed_column: 0,
+        column: 0,
+        cur_indent: 0,
+    };
+    prn.end().unwrap_exc()?;
+    match item.format(&mut prn) {
+        Ok(()) => {},
+        Err(Exception::DisableFlow) => unreachable!(),
+        Err(Exception::Error(e)) => return Err(e),
+    }
+    prn.end().unwrap_exc()?;
+    Ok(out)
 }

@@ -33,6 +33,9 @@ pub trait Formatter {
     fn object<F>(&mut self, type_id: Option<&Uuid>, f: F)
         -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;
+    fn json_object<F>(&mut self, f: F)
+        -> Result<Self::Error>
+        where F: FnMut(&mut Self) -> Result<Self::Error>;
     fn named_tuple<F>(&mut self, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;
     fn comma(&mut self) -> Result<Self::Error>;
@@ -97,6 +100,14 @@ impl<'a, T: Output> Formatter for Printer<'a, T> {
                 self.block("Object {".blue(), f, "}".blue())?;
             }
         }
+        Ok(())
+    }
+    fn json_object<F>(&mut self, f: F)
+        -> Result<Self::Error>
+        where F: FnMut(&mut Self) -> Result<Self::Error>
+    {
+        self.delimit()?;
+        self.block("{".blue(), f, "}".blue())?;
         Ok(())
     }
     fn object_field(&mut self, f: &str) -> Result<Self::Error> {

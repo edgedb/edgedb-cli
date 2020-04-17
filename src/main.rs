@@ -39,6 +39,7 @@ fn interactive_main(options: Options) -> Result<(), anyhow::Error> {
         data: repl_rd,
         print: print::Config::new()
             .max_items(100)
+            .colors(atty::is(atty::Stream::Stdout))
             .clone(),
         verbose_errors: false,
         last_error: None,

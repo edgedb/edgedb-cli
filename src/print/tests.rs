@@ -5,7 +5,24 @@ use bigdecimal::BigDecimal;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::codec::{ObjectShape, ShapeElement};
-use crate::print::{test_format, test_format_cfg, Config};
+use crate::print::{self, test_format, test_format_cfg, Config};
+
+
+fn json_fmt(j: &str) -> String {
+    print::json_to_string(
+        serde_json::from_str::<serde_json::Value>(j).unwrap()
+        .as_array().unwrap(),
+        &Config::new())
+    .unwrap()
+}
+
+fn json_fmt_width(w: usize, j: &str) -> String {
+    print::json_to_string(
+        serde_json::from_str::<serde_json::Value>(j).unwrap()
+        .as_array().unwrap(),
+        &Config::new().max_width(w))
+    .unwrap()
+}
 
 
 #[test]
@@ -183,4 +200,47 @@ fn all_widths() {
             ]},
         ], Config::new().max_width(width)).unwrap();
     }
+}
+
+#[test]
+fn all_widths_json() {
+    for width in 0..100 {
+        json_fmt_width(width, r###"[
+            {"field1": "Sint tempor. Qui occaecat eu consectetur elit."},
+            {"field2": "Lorem ipsum dolor sit amet."}
+        ]"###);
+    }
+}
+
+#[test]
+fn all_widths_json_item() {
+    for width in 0..100 {
+        json_fmt_width(width, r###"[
+            {"field1": "Sint tempor. Qui occaecat eu consectetur elit."},
+            {"field2": "Lorem ipsum dolor sit amet."}
+        ]"###);
+    }
+}
+
+#[test]
+fn json() {
+    assert_eq!(json_fmt("[10]"), "[10]");
+    assert_eq!(json_fmt_width(20, r###"[
+        {"field1": [],
+         "field2": {}},
+        {"field1": ["x"],
+         "field2": {"a": 1}}
+    ]
+    "###), r###"[
+  {
+    "field1": [],
+    "field2": {}
+  },
+  {
+    "field1": ["x"],
+    "field2": {
+      "a": 1
+    }
+  }
+]"###);
 }

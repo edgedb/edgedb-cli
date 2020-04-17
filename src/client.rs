@@ -32,7 +32,7 @@ use edgeql_parser::preparser::full_statement;
 
 use crate::commands::backslash;
 use crate::options::Options;
-use crate::print::{self, print_to_stdout, PrintError};
+use crate::print::{self, PrintError};
 use crate::prompt;
 use crate::reader::{ReadError, QueryableDecoder, QueryResponse};
 use crate::repl;
@@ -482,6 +482,11 @@ async fn _interactive_main(
 
             let mut items = cli.reader.response(codec);
 
+            let mut cfg = state.print.clone();
+            if let Some((w, _h)) = term_size::dimensions_stdout() {
+                // update max_width each time
+                cfg.max_width(w);
+            }
             match state.output_mode {
                 TabSeparated => {
                     while let Some(row) = items.next().await.transpose()? {
@@ -502,12 +507,13 @@ async fn _interactive_main(
                     }
                 }
                 Default => {
-                    match print_to_stdout(items, &state.print).await {
+                    match print::native_to_stdout(items, &cfg).await {
                         Ok(()) => {}
                         Err(e) => {
                             match e {
                                 PrintError::StreamErr {
-                                    source: ReadError::RequestError { ref error, ..},
+                                    source: ReadError::RequestError {
+                                        ref error, ..},
                                     ..
                                 } => {
                                     eprintln!("{}", error);
@@ -521,15 +527,41 @@ async fn _interactive_main(
                     }
                     println!();
                 }
-                Json | JsonElements => {
+                Json => {
                     while let Some(row) = items.next().await.transpose()? {
-                        let mut text = match row {
+                        let text = match row {
                             Value::Str(s) => s,
-                            _ => unreachable!(),
+                            _ => return Err(anyhow::anyhow!(
+                                "postres returned non-string in JSON mode")),
                         };
+                        let items: serde_json::Value;
+                        items = serde_json::from_str(&text)
+                            .context("cannot decode json result")?;
+                        let items = items.as_array()
+                            .ok_or_else(|| anyhow::anyhow!(
+                                "non-array returned from \
+                                 postgres in JSON mode"))?;
                         // trying to make writes atomic if possible
-                        text += "\n";
-                        stdout().write_all(text.as_bytes()).await?;
+                        let mut data = print::json_to_string(items, &cfg)?;
+                        data += "\n";
+                        stdout().write_all(data.as_bytes()).await?;
+                    }
+                }
+                JsonElements => {
+                    while let Some(row) = items.next().await.transpose()? {
+                        let text = match row {
+                            Value::Str(s) => s,
+                            _ => return Err(anyhow::anyhow!(
+                                "postres returned non-string in JSON mode")),
+                        };
+                        let value: serde_json::Value;
+                        value = serde_json::from_str(&text)
+                            .context("cannot decode json result")?;
+                        // trying to make writes atomic if possible
+                        let mut data;
+                        data = print::json_item_to_string(&value, &cfg)?;
+                        data += "\n";
+                        stdout().write_all(data.as_bytes()).await?;
                     }
                 }
             }
@@ -947,6 +979,11 @@ pub async fn non_interactive_query(cli: &mut Client<'_>, stmt: &str,
     -> Result<(), anyhow::Error>
 {
     use crate::repl::OutputMode::*;
+    let mut cfg = print::Config::new();
+    if let Some((w, _h)) = term_size::dimensions_stdout() {
+        cfg.max_width(w);
+    }
+    cfg.colors(atty::is(atty::Stream::Stdout));
 
     match options.output_mode {
         TabSeparated => {
@@ -982,7 +1019,7 @@ pub async fn non_interactive_query(cli: &mut Client<'_>, stmt: &str,
                     Err(e) => Err(e)?,
                 },
             };
-            match print_to_stdout(items, &print::Config::new()).await {
+            match print::native_to_stdout(items, &cfg).await {
                 Ok(()) => {}
                 Err(e) => {
                     match e {
@@ -1013,10 +1050,13 @@ pub async fn non_interactive_query(cli: &mut Client<'_>, stmt: &str,
                     Err(e) => Err(e)?,
                 },
             };
-            while let Some(mut row) = items.next().await.transpose()? {
+            while let Some(row) = items.next().await.transpose()? {
+                let value: serde_json::Value = serde_json::from_str(&row)
+                    .context("cannot decode json result")?;
                 // trying to make writes atomic if possible
-                row += "\n";
-                stdout().write_all(row.as_bytes()).await?;
+                let mut data = print::json_item_to_string(&value, &cfg)?;
+                data += "\n";
+                stdout().write_all(data.as_bytes()).await?;
             }
         }
         Json => {
@@ -1032,10 +1072,16 @@ pub async fn non_interactive_query(cli: &mut Client<'_>, stmt: &str,
                     Err(e) => Err(e)?,
                 },
             };
-            while let Some(mut row) = items.next().await.transpose()? {
+            while let Some(row) = items.next().await.transpose()? {
+                let items: serde_json::Value = serde_json::from_str(&row)
+                    .context("cannot decode json result")?;
+                let items = items.as_array()
+                    .ok_or_else(|| anyhow::anyhow!(
+                        "non-array returned from postgres in JSON mode"))?;
                 // trying to make writes atomic if possible
-                row += "\n";
-                stdout().write_all(row.as_bytes()).await?;
+                let mut data = print::json_to_string(items, &cfg)?;
+                data += "\n";
+                stdout().write_all(data.as_bytes()).await?;
             }
         }
     }
