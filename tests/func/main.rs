@@ -14,6 +14,9 @@ use rexpect::session::{spawn_command, PtySession};
 
 mod dump_restore;
 mod configure;
+
+// for some reason rexpect doesn't work on macos
+#[cfg(target_os="linux")]
 mod interactive;
 
 

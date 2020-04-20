@@ -528,6 +528,15 @@ async fn _interactive_main(
             ]).await?;
 
             let mut items = cli.reader.response(codec);
+            if desc.root_pos().is_none() {
+                match cli._process_exec().await {
+                    Ok(ref val) => print::completion(val),
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                    }
+                }
+                continue 'statement_loop;
+            }
 
             let mut cfg = state.print.clone();
             if let Some((w, _h)) = term_size::dimensions_stdout() {
