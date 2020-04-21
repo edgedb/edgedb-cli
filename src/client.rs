@@ -533,6 +533,8 @@ async fn _interactive_main(
                     Ok(ref val) => print::completion(val),
                     Err(e) => {
                         eprintln!("Error: {}", e);
+                        state.last_error = Some(e.into());
+                        cli.reader.wait_ready().await?;
                     }
                 }
                 continue 'statement_loop;
