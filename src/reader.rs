@@ -25,6 +25,7 @@ const MAX_BUFFER: usize = 1_048_576;
 pub struct Reader<T> {
     stream: T,
     buf: BytesMut,
+    print_frames: bool,
 }
 
 pub struct MessageFuture<'a, T> {
@@ -86,10 +87,11 @@ impl Decode for Arc<dyn Codec> {
 
 
 impl<T: AsyncRead + Unpin> Reader<T> {
-    pub fn new(stream: T) -> Reader<T> {
+    pub fn new(stream: T, print_frames: bool) -> Reader<T> {
         return Reader {
             stream,
             buf: BytesMut::with_capacity(BUFFER_SIZE),
+            print_frames,
         }
     }
     pub fn message(&mut self) -> MessageFuture<T> {
@@ -119,7 +121,7 @@ impl<T: AsyncRead + Unpin> Reader<T> {
     fn poll_message(&mut self, cx: &mut Context)
         -> Poll<Result<ServerMessage, ReadError>>
     {
-        let Reader { ref mut buf, ref mut stream } = self;
+        let Reader { ref mut buf, ref mut stream, .. } = self;
         let frame_len = loop {
             let mut next_read = BUFFER_SIZE;
             let buf_len = buf.len();
@@ -155,6 +157,9 @@ impl<T: AsyncRead + Unpin> Reader<T> {
         };
         let frame = buf.split_to(frame_len).freeze();
         let result = ServerMessage::decode(&frame).context(DecodeErr)?;
+        if self.print_frames {
+            eprintln!("Incoming frame: {:#?}", result);
+        }
         return Poll::Ready(Ok(result));
     }
 }

@@ -51,7 +51,7 @@ struct TmpOptions {
     pub wait_until_available: Option<Duration>,
 
     #[structopt(long)]
-    pub debug_print_data_frames: bool,
+    pub debug_print_frames: bool,
     #[structopt(long)]
     pub debug_print_descriptors: bool,
     #[structopt(long)]
@@ -427,7 +427,7 @@ pub struct Options {
     pub password: Password,
     pub subcommand: Option<Command>,
     pub interactive: bool,
-    pub debug_print_data_frames: bool,
+    pub debug_print_frames: bool,
     pub debug_print_descriptors: bool,
     pub debug_print_codecs: bool,
     pub output_mode: OutputMode,
@@ -492,7 +492,7 @@ impl Options {
             admin: tmp.admin,
             subcommand,
             password,
-            debug_print_data_frames: tmp.debug_print_data_frames,
+            debug_print_frames: tmp.debug_print_frames,
             debug_print_descriptors: tmp.debug_print_descriptors,
             debug_print_codecs: tmp.debug_print_codecs,
             wait_until_available: tmp.wait_until_available,

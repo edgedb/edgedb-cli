@@ -180,7 +180,7 @@ impl Connection {
         -> Result<Client<'x>, anyhow::Error>
     {
         let (rd, stream) = (&self.stream, &self.stream);
-        let reader = Reader::new(rd);
+        let reader = Reader::new(rd, options.debug_print_frames);
         let mut cli = Client {
             reader,
             writer: Writer {
