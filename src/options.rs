@@ -3,74 +3,73 @@ use std::time::Duration;
 use std::process::exit;
 
 use atty;
-use structopt::StructOpt;
-use structopt::clap::AppSettings;
+use clap::{Clap, AppSettings};
 use whoami;
 
 use crate::repl::OutputMode;
 use crate::commands::parser::Common;
 
 
-#[derive(StructOpt, Debug)]
+#[derive(Clap, Debug)]
 struct TmpOptions {
     /// Host of the EdgeDB instance
-    #[structopt(short="H", long)]
+    #[clap(short="H", long)]
     pub host: Option<String>,
 
     /// Port to connect to EdgeDB
-    #[structopt(short="P", long)]
+    #[clap(short="P", long)]
     pub port: Option<u16>,
 
     /// User name of the EdgeDB user
-    #[structopt(short="u", long)]
+    #[clap(short="u", long)]
     pub user: Option<String>,
 
     /// Database name to connect to
-    #[structopt(short="d", long)]
+    #[clap(short="d", long)]
     pub database: Option<String>,
 
     /// Connect to a passwordless unix socket with superuser
     /// privileges by default
-    #[structopt(long)]
+    #[clap(long)]
     pub admin: bool,
 
     /// Ask for password on the terminal (TTY)
-    #[structopt(long)]
+    #[clap(long)]
     pub password: bool,
 
     /// Don't ask for password
-    #[structopt(long)]
+    #[clap(long)]
     pub no_password: bool,
 
     /// Read the password from stdin rather than TTY (useful for scripts)
-    #[structopt(long)]
+    #[clap(long)]
     pub password_from_stdin: bool,
 
     /// In case EdgeDB connection can't be established, retry up to N seconds.
-    #[structopt(long, name="N",
+    #[clap(long, name="N",
                 parse(try_from_str=humantime::parse_duration))]
     pub wait_until_available: Option<Duration>,
 
-    #[structopt(long)]
+    #[clap(long)]
     pub debug_print_frames: bool,
-    #[structopt(long)]
+    #[clap(long)]
     pub debug_print_descriptors: bool,
-    #[structopt(long)]
+    #[clap(long)]
     pub debug_print_codecs: bool,
 
     /// Tab-separated output of the queries
-    #[structopt(short="t", long, overrides_with="json")]
+    #[clap(short="t", long, overrides_with="json")]
     pub tab_separated: bool,
 
     /// JSON output for the queries (single JSON list per query)
-    #[structopt(short="j", long, overrides_with="tab_separated")]
+    #[clap(short="j", long, overrides_with="tab_separated")]
     pub json: bool,
 
     /// Execute a query instead of starting REPL (alias to `edgedb query`)
-    #[structopt(short="c")]
+    #[clap(short="c")]
     pub query: Option<String>,
 
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     pub subcommand: Option<Command>,
 }
 
@@ -81,37 +80,37 @@ pub enum Password {
     Password(String),
 }
 
-#[derive(StructOpt, Clone, Debug)]
+#[derive(Clap, Clone, Debug)]
 pub enum Command {
     AlterRole(RoleParams),
     CreateSuperuserRole(RoleParams),
     DropRole(RoleName),
     Query(Query),
-    #[structopt(flatten)]
+    #[clap(flatten)]
     Common(Common),
 }
 
-#[derive(StructOpt, Clone, Debug)]
-#[structopt(setting=AppSettings::DisableVersion)]
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
 pub struct Query {
     pub queries: Vec<String>,
 }
 
-#[derive(StructOpt, Clone, Debug)]
-#[structopt(setting=AppSettings::DisableVersion)]
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
 pub struct RoleParams {
     /// Role name
     pub role: String,
     /// Set the password for role (read separately from the terminal)
-    #[structopt(long="password")]
+    #[clap(long="password")]
     pub password: bool,
     /// Set the password for role, read from the stdin
-    #[structopt(long)]
+    #[clap(long)]
     pub password_from_stdin: bool,
 }
 
-#[derive(StructOpt, Clone, Debug)]
-#[structopt(setting=AppSettings::DisableVersion)]
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
 pub struct RoleName {
     pub role: String,
 }
@@ -135,7 +134,7 @@ pub struct Options {
 
 impl Options {
     pub fn from_args_and_env() -> Options {
-        let tmp = TmpOptions::from_args();
+        let tmp = TmpOptions::parse();
         let admin = tmp.admin;
         let user = tmp.user
             .or_else(|| env::var("EDGEDB_USER").ok())

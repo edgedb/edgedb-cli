@@ -247,21 +247,6 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "2.33.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5067f5bb2d80ef5d68b4c87db81601f0b75bca627bc2ef76b141d7b846a3c6d9"
-dependencies = [
- "ansi_term",
- "atty",
- "bitflags 1.2.1",
- "strsim 0.8.0",
- "textwrap",
- "unicode-width",
- "vec_map",
-]
-
-[[package]]
-name = "clap"
 version = "3.0.0-beta.1"
 source = "git+https://github.com/clap-rs/clap#0293fd7c4a6aa5cc4a12ed2dbfa03c6220446fb8"
 dependencies = [
@@ -270,7 +255,7 @@ dependencies = [
  "clap_derive",
  "indexmap",
  "lazy_static",
- "strsim 0.10.0",
+ "strsim",
  "termcolor",
  "textwrap",
  "unicode-width",
@@ -283,7 +268,7 @@ version = "3.0.0-beta.1"
 source = "git+https://github.com/clap-rs/clap#0293fd7c4a6aa5cc4a12ed2dbfa03c6220446fb8"
 dependencies = [
  "heck",
- "proc-macro-error 0.4.12",
+ "proc-macro-error",
  "proc-macro2",
  "quote",
  "syn",
@@ -460,7 +445,7 @@ dependencies = [
  "bigdecimal",
  "bytes",
  "chrono",
- "clap 3.0.0-beta.1",
+ "clap",
  "codespan",
  "codespan-reporting",
  "colorful",
@@ -483,7 +468,6 @@ dependencies = [
  "sha1",
  "shutdown_hooks",
  "snafu",
- "structopt",
  "tempfile 3.1.0",
  "term_size",
  "termcolor",
@@ -1012,20 +996,7 @@ version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18f33027081eba0a6d8aba6d1b1c3a3be58cbb12106341c2d5759fcd9b5277e7"
 dependencies = [
- "proc-macro-error-attr 0.4.12",
- "proc-macro2",
- "quote",
- "syn",
- "version_check",
-]
-
-[[package]]
-name = "proc-macro-error"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98e9e4b82e0ef281812565ea4751049f1bdcdfccda7d3f459f2e138a40c08678"
-dependencies = [
- "proc-macro-error-attr 1.0.2",
+ "proc-macro-error-attr",
  "proc-macro2",
  "quote",
  "syn",
@@ -1037,19 +1008,6 @@ name = "proc-macro-error-attr"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a5b4b77fdb63c1eca72173d68d24501c54ab1269409f6b672c85deb18af69de"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "syn-mid",
- "version_check",
-]
-
-[[package]]
-name = "proc-macro-error-attr"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f5444ead4e9935abd7f27dc51f7e852a0569ac888096d5ec2499470794e2e53"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1489,39 +1447,9 @@ checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
 
 [[package]]
 name = "strsim"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
-
-[[package]]
-name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
-
-[[package]]
-name = "structopt"
-version = "0.3.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff6da2e8d107dfd7b74df5ef4d205c6aebee0706c647f6bc6a2d5789905c00fb"
-dependencies = [
- "clap 2.33.0",
- "lazy_static",
- "structopt-derive",
-]
-
-[[package]]
-name = "structopt-derive"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a489c87c08fbaf12e386665109dd13470dcc9c4583ea3e10dd2b4523e5ebd9ac"
-dependencies = [
- "heck",
- "proc-macro-error 1.0.2",
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "syn"
