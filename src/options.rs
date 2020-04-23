@@ -46,8 +46,9 @@ struct TmpOptions {
     #[structopt(long)]
     pub password_from_stdin: bool,
 
-    /// In case EdgeDB connection can't be established, retry up to 30 seconds.
-    #[structopt(long, parse(try_from_str=humantime::parse_duration))]
+    /// In case EdgeDB connection can't be established, retry up to N seconds.
+    #[structopt(long, name="N",
+                parse(try_from_str=humantime::parse_duration))]
     pub wait_until_available: Option<Duration>,
 
     #[structopt(long)]
