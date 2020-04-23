@@ -2,18 +2,17 @@ use std::fmt;
 use std::error::Error;
 
 use anyhow;
-
+use clap::Clap;
 use edgedb_protocol::server_message::ErrorResponse;
 
 use crate::client::Client;
-use crate::commands::{self, Options};
+use crate::commands::Options;
 use crate::repl::{self, OutputMode};
-use crate::print;
 use crate::print::style::Styler;
 use crate::prompt;
-use crate::server_params::PostgresAddress;
-use crate::commands::helpers::quote_name;
 use crate::commands::type_names::get_type_names;
+use crate::commands::execute;
+use crate::commands::parser::{Backslash, BackslashCmd};
 
 pub enum ExecuteResult {
     Skip,
@@ -231,74 +230,10 @@ pub const COMMAND_NAMES: &'static [&'static str] = &[
     r"\vi",
 ];
 
-pub enum Command {
-    Help,
-    ListAliases {
-        pattern: Option<String>,
-        system: bool,
-        case_sensitive: bool,
-        verbose: bool,
-    },
-    ListCasts {
-        pattern: Option<String>,
-        case_sensitive: bool,
-    },
-    ListIndexes {
-        pattern: Option<String>,
-        system: bool,
-        case_sensitive: bool,
-        verbose: bool,
-    },
-    ListDatabases,
-    ListPorts,
-    ListModules {
-        pattern: Option<String>,
-        case_sensitive: bool,
-    },
-    ListRoles {
-        pattern: Option<String>,
-        case_sensitive: bool,
-    },
-    ListScalarTypes {
-        pattern: Option<String>,
-        system: bool,
-        case_sensitive: bool,
-    },
-    ListObjectTypes {
-        pattern: Option<String>,
-        system: bool,
-        case_sensitive: bool,
-    },
-    Describe {
-        name: String,
-        verbose: bool,
-    },
-    PostgresAddr,
-    Psql,
-    ViMode,
-    EmacsMode,
-    ImplicitProperties,
-    NoImplicitProperties,
-    IntrospectTypes,
-    NoIntrospectTypes,
-    Connect { database: String },
-    LastError,
-    VerboseErrors,
-    NoVerboseErrors,
-    History,
-    Edit { entry: Option<isize> },
-    SetLimit { value: usize },
-    ShowLimit,
-    SetOutput { mode: OutputMode },
-    ShowOutput,
-    Dump { filename: String },
-    Restore { filename: String },
-    CreateDatabase { name: String },
-}
-
+#[derive(Debug)]
 pub struct ParseError {
+    pub span: Option<(usize, usize)>,
     pub message: String,
-    pub hint: String,
 }
 
 #[derive(Debug)]
@@ -317,7 +252,7 @@ pub enum Item<'a> {
     Command(&'a str),
     Argument(&'a str),
     Error { message: &'a str },
-    Incomplete,
+    Incomplete { message: &'a str },
     Semicolon,
     Newline,
 }
@@ -326,13 +261,6 @@ pub struct Parser<'a> {
     data: &'a str,
     first_item: bool,
     offset: usize,
-}
-
-pub fn error<T, S: ToString>(message: S, hint: &str) -> Result<T, ParseError> {
-    Err(ParseError {
-        message: message.to_string(),
-        hint: hint.into(),
-    })
 }
 
 impl<'a> Parser<'a> {
@@ -382,7 +310,17 @@ impl<'a> Parser<'a> {
                             }
                             Some((_, _)) => {}
                             None => return Some(Token {
-                                item: Item::Incomplete,
+                                item: Item::Incomplete {
+                                    message: match quote {
+                                        '\'' => "incomplete 'single-quoted' \
+                                                argument",
+                                        '"' => "incomplete \"double-quoted\" \
+                                                argument",
+                                        '`' => "incomplete `backtick-quoted` \
+                                                argument",
+                                        _ => unreachable!(),
+                                    },
+                                },
                                 span: (offset, self.data.len()),
                             }),
                         }
@@ -451,253 +389,99 @@ impl<'a> Iterator for Parser<'a> {
     }
 }
 
-pub fn parse(s: &str) -> Result<Command, ParseError> {
-    let s = s.trim_start();
-    if !s.starts_with("\\") {
-        return error("Backslash command must start with a backslash", "");
-    }
-    let cmd = match s[1..].split_whitespace().next() {
-        Some(cmd) => cmd,
-        None => return error("Empty command", ""),
-    };
-    let arg = s[1+cmd.len()..].trim_start();
-    let arg = if arg.len() > 0 { Some(arg) } else { None };
-    match (cmd, arg) {
-        ("?", None) => Ok(Command::Help),
-        | ("list-databases", None)
-        | ("l", None)
-        => Ok(Command::ListDatabases),
-        | ("list-ports", None)
-        => Ok(Command::ListPorts),
-        | ("list-casts", pattern)
-        | ("lc", pattern)
-        | ("lcI", pattern)
-        => Ok(Command::ListCasts {
-            pattern: pattern.map(|x| x.to_owned()),
-            case_sensitive: cmd.contains('I'),
-        }),
-        | ("list-aliases", pattern)
-        | ("la", pattern)
-        | ("laI", pattern)
-        | ("laS", pattern)
-        | ("laIS", pattern)
-        | ("laSI", pattern)
-        | ("la+", pattern)
-        | ("laI+", pattern)
-        | ("laS+", pattern)
-        | ("laIS+", pattern)
-        | ("laSI+", pattern)
-        => Ok(Command::ListAliases {
-            pattern: pattern.map(|x| x.to_owned()),
-            system: cmd.contains('S'),
-            case_sensitive: cmd.contains('I'),
-            verbose: cmd.contains('+'),
-        }),
-        | ("list-indexes", pattern)
-        | ("li", pattern)
-        | ("liI", pattern)
-        | ("liS", pattern)
-        | ("liIS", pattern)
-        | ("liSI", pattern)
-        | ("li+", pattern)
-        | ("liI+", pattern)
-        | ("liS+", pattern)
-        | ("liIS+", pattern)
-        | ("liSI+", pattern)
-        => Ok(Command::ListIndexes {
-            pattern: pattern.map(|x| x.to_owned()),
-            system: cmd.contains('S'),
-            case_sensitive: cmd.contains('I'),
-            verbose: cmd.contains('+'),
-        }),
-        | ("list-scalar-types", pattern)
-        | ("lT", pattern)
-        | ("lTI", pattern)
-        | ("lTS", pattern)
-        | ("lTIS", pattern)
-        | ("lTSI", pattern)
-        => Ok(Command::ListScalarTypes {
-            pattern: pattern.map(|x| x.to_owned()),
-            system: cmd.contains('S'),
-            case_sensitive: cmd.contains('I'),
-        }),
-        | ("lt", pattern)
-        | ("ltI", pattern)
-        | ("ltS", pattern)
-        | ("ltIS", pattern)
-        | ("ltSI", pattern)
-        => Ok(Command::ListObjectTypes {
-            pattern: pattern.map(|x| x.to_owned()),
-            system: cmd.contains('S'),
-            case_sensitive: cmd.contains('I'),
-        }),
-        | ("list-roles", pattern)
-        | ("lr", pattern)
-        | ("lrI", pattern)
-        => Ok(Command::ListRoles {
-            pattern: pattern.map(|x| x.to_owned()),
-            case_sensitive: cmd.contains('I'),
-        }),
-        | ("list-modules", pattern)
-        | ("lm", pattern)
-        | ("lmI", pattern)
-        => Ok(Command::ListModules {
-            pattern: pattern.map(|x| x.to_owned()),
-            case_sensitive: cmd.contains('I'),
-        }),
-        | ("c", Some(database))
-        | ("connect", Some(database))
-        => Ok(Command::Connect { database: database.to_owned() }),
-        | ("describe", Some(name))
-        | ("d", Some(name))
-        => Ok(Command::Describe { name: name.to_owned(), verbose: false}),
-        | ("describe+", Some(name))
-        | ("d+", Some(name))
-        => Ok(Command::Describe { name: name.to_owned(), verbose: true}),
-        | ("last-error", None)
-        | ("E", None)
-        => Ok(Command::LastError),
-        | ("history", None)
-        | ("s", None)
-        => Ok(Command::History),
-        | ("edit", param)
-        | ("e", param)
-        => Ok(Command::Edit {
-            entry: param.map(|x| x.parse()).transpose()
-                .map_err(|e| ParseError {
-                    message: format!("bad number: {}", e),
-                    hint: "integer expected".into(),
-                })?,
-        }),
-        ("pgaddr", None) => Ok(Command::PostgresAddr),
-        ("psql", None) => Ok(Command::Psql),
-        ("vi", None) => Ok(Command::ViMode),
-        ("emacs", None) => Ok(Command::EmacsMode),
-        ("limit", Some(value)) => Ok(Command::SetLimit {
-            value: value.parse().map_err(|e| ParseError {
-                message: format!("bad number: {}", e),
-                hint: "integer expected".into(),
-            })?,
-        }),
-        ("limit", None) => Ok(Command::ShowLimit),
-        ("implicit-properties", None) => Ok(Command::ImplicitProperties),
-        ("no-implicit-properties", None) => Ok(Command::NoImplicitProperties),
-        ("introspect-types", None) => Ok(Command::IntrospectTypes),
-        ("no-introspect-types", None) => Ok(Command::NoIntrospectTypes),
-        ("verbose-errors", None) => Ok(Command::VerboseErrors),
-        ("no-verbose-errors", None) => Ok(Command::NoVerboseErrors),
-        ("dump", Some(param)) => Ok(Command::Dump { filename: param.into() }),
-        ("restore", Some(param)) => {
-            Ok(Command::Restore { filename: param.into() })
-        }
-        ("create-database", Some(name)) => {
-            Ok(Command::CreateDatabase { name: name.into() })
-        }
-        ("output", None) => Ok(Command::ShowOutput),
-        ("output", Some(param)) => {
-            Ok(Command::SetOutput {
-                mode: match param {
-                    "json" => OutputMode::Json,
-                    "json-elements" => OutputMode::JsonElements,
-                    "default" => OutputMode::Default,
-                    "tab-separated" => OutputMode::TabSeparated,
-                    _ => return Err(ParseError {
-                        message: format!("invalid output format: {}", param),
-                        hint: "expected one of: json, json-elements, \
-                            default, tab-separated".into(),
-                    }),
-                },
-            })
-        }
-        (_, Some(_)) if COMMAND_NAMES.contains(&&s[..cmd.len()+1]) => {
-            error(format_args!("Command `\\{}` doesn't support arguments",
-                               cmd.escape_default()),
-                  "no argument expected")
-        }
-        (_, None) if COMMAND_NAMES.contains(&&s[..cmd.len()+1]) => {
-            error(format_args!("Command `\\{}` requires an argument",
-                               cmd.escape_default()),
-                  "add an argument")
-        }
-        (_, _) => {
-            error(format_args!("Unknown command `\\{}'", cmd.escape_default()),
-                  "unknown command")
+pub fn full_statement(s: &str) -> usize {
+    for token in Parser::new(s) {
+        match token.item {
+            Item::Semicolon | Item::Newline => return token.span.1,
+            _ => {}
         }
     }
+    return s.len();
 }
 
-// TODO(tailhook) remove me
-pub async fn execute<'x>(cli: &mut Client<'x>, cmd: Command,
+pub fn parse(s: &str) -> Result<Backslash, ParseError> {
+    use Item::*;
+    use clap::ErrorKind::*;
+
+    let mut arguments = Vec::new();
+    for token in Parser::new(s) {
+        match token.item {
+            Command(x) => arguments.push(x[1..].to_string()),
+            Argument(x) => arguments.push(unquote_argument(x)),
+            Newline | Semicolon => break,
+            Incomplete { message } => {
+                return Err(ParseError {
+                    message: message.to_string(),
+                    span: Some(token.span),
+                })
+            }
+            Error { message } => {
+                return Err(ParseError {
+                    message: message.to_string(),
+                    span: Some(token.span),
+                })
+            }
+        }
+    }
+    Backslash::try_parse_from(arguments).map_err(|e| match e.kind {
+        HelpDisplayed => {
+            ParseError {
+                message: "no help supported".to_string(),
+                span: None,
+            }
+        }
+        _ => {
+            ParseError {
+                message: e.cause,
+                span: None,
+            }
+        }
+    })
+}
+
+fn unquote_argument(s: &str) -> String {
+    let mut buf = String::with_capacity(s.len());
+    let mut iter = s.chars();
+    while let Some(c) = iter.next() {
+        match c {
+            '\'' => {
+                for c in &mut iter {
+                    if c == '\'' { break; }
+                    buf.push(c);
+                }
+            }
+            '"' => {
+                for c in &mut iter {
+                    if c == '"' { break; }
+                    buf.push(c);
+                }
+            }
+            '`' => {
+                for c in &mut iter {
+                    if c == '`' { break; }
+                    buf.push(c);
+                }
+            }
+            _ => buf.push(c),
+        }
+    }
+    return buf;
+}
+
+pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
     prompt: &mut repl::State)
     -> Result<ExecuteResult, anyhow::Error>
 {
-    use Command::*;
+    use crate::commands::parser::BackslashCmd::*;
     use ExecuteResult::*;
+
     let options = Options {
         command_line: false,
         styler: Some(Styler::dark_256()),
     };
     match cmd {
-        Help => {
-            print!("{}", HELP);
-            Ok(Skip)
-        }
-        ListAliases { pattern, case_sensitive, system, verbose } => {
-            commands::list_aliases(cli, &options,
-                &pattern, system, case_sensitive, verbose).await?;
-            Ok(Skip)
-        }
-        ListCasts { pattern, case_sensitive } => {
-            commands::list_casts(cli, &options,
-                &pattern, case_sensitive).await?;
-            Ok(Skip)
-        }
-        ListIndexes { pattern, case_sensitive, system, verbose } => {
-            commands::list_indexes(cli, &options,
-                &pattern, system, case_sensitive, verbose).await?;
-            Ok(Skip)
-        }
-        ListDatabases => {
-            commands::list_databases(cli, &options).await?;
-            Ok(Skip)
-        }
-        ListPorts => {
-            commands::list_ports(cli, &options).await?;
-            Ok(Skip)
-        }
-        ListScalarTypes { pattern, case_sensitive, system } => {
-            commands::list_scalar_types(cli, &options,
-                &pattern, system, case_sensitive).await?;
-            Ok(Skip)
-        }
-        ListObjectTypes { pattern, case_sensitive, system } => {
-            commands::list_object_types(cli, &options,
-                &pattern, system, case_sensitive).await?;
-            Ok(Skip)
-        }
-        ListModules { pattern, case_sensitive } => {
-            commands::list_modules(cli, &options,
-                &pattern, case_sensitive).await?;
-            Ok(Skip)
-        }
-        ListRoles { pattern, case_sensitive } => {
-            commands::list_roles(cli, &options,
-                &pattern, case_sensitive).await?;
-            Ok(Skip)
-        }
-        PostgresAddr => {
-            match cli.params.get::<PostgresAddress>() {
-                Some(addr) => {
-                    println!("{}", serde_json::to_string_pretty(addr)?);
-                }
-                None => {
-                    eprintln!("\\pgaddr requires EdgeDB to run in DEV mode");
-                }
-            }
-            Ok(Skip)
-        }
-        Psql => {
-            commands::psql(cli, &options).await?;
+        Common(ref cmd) => {
+            execute::common(cli, cmd, &options).await?;
             Ok(Skip)
         }
         ViMode => {
@@ -724,12 +508,8 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: Command,
             prompt.print.type_names = None;
             Ok(Skip)
         }
-        Describe { name, verbose } => {
-            commands::describe(cli, &options, &name, verbose).await?;
-            Ok(Skip)
-        }
-        Connect { database } => {
-            Err(ChangeDb { target: database })?
+        Connect(c) => {
+            Err(ChangeDb { target: c.database_name.clone() })?
         }
         VerboseErrors => {
             prompt.verbose_errors = true;
@@ -755,56 +535,42 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: Command,
             prompt.show_history().await;
             Ok(Skip)
         }
-        Edit { entry } => {
-            match prompt.spawn_editor(entry).await {
+        Edit(c) => {
+            match prompt.spawn_editor(c.entry).await {
                 | prompt::Input::Text(text) => Ok(Input(text)),
                 | prompt::Input::Interrupt
                 | prompt::Input::Eof => Ok(Skip),
             }
         }
-        SetLimit { value } => {
-            if value == 0 {
-                prompt.implicit_limit = None;
-                prompt.print.max_items = None;
+        Limit(c) => {
+            if let Some(limit) = c.limit {
+                if limit == 0 {
+                    prompt.implicit_limit = None;
+                    prompt.print.max_items = None;
+                } else {
+                    prompt.implicit_limit = Some(limit);
+                    prompt.print.max_items = Some(limit);
+                }
             } else {
-                prompt.implicit_limit = Some(value);
-                prompt.print.max_items = Some(value);
+                if let Some(limit) = prompt.implicit_limit {
+                    println!("{}", limit);
+                } else {
+                    eprintln!("No limit");
+                }
             }
             Ok(Skip)
         }
-        ShowLimit => {
-            if let Some(limit) = prompt.implicit_limit {
-                println!("{}", limit);
+        Output(c) => {
+            if let Some(mode) = c.mode {
+                prompt.output_mode = mode;
             } else {
-                eprintln!("No limit");
+                println!("{}", match prompt.output_mode {
+                    OutputMode::Json => "json",
+                    OutputMode::JsonElements => "json-elements",
+                    OutputMode::Default => "default",
+                    OutputMode::TabSeparated => "tab-separated",
+                });
             }
-            Ok(Skip)
-        }
-        SetOutput { mode } => {
-            prompt.output_mode = mode;
-            Ok(Skip)
-        }
-        ShowOutput => {
-            println!("{}", match prompt.output_mode {
-                OutputMode::Json => "json",
-                OutputMode::JsonElements => "json-elements",
-                OutputMode::Default => "default",
-                OutputMode::TabSeparated => "tab-separated",
-            });
-            Ok(Skip)
-        }
-        Dump { filename } => {
-            commands::dump(cli, &options, filename.as_ref()).await?;
-            Ok(Skip)
-        }
-        Restore { filename } => {
-            commands::restore(cli, &options, filename.as_ref(), false).await?;
-            Ok(Skip)
-        }
-        CreateDatabase { name } => {
-            print::completion(&cli.execute(
-                &format!("CREATE DATABASE {}", quote_name(&name))
-            ).await?);
             Ok(Skip)
         }
     }

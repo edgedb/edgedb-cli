@@ -69,3 +69,16 @@ impl State {
         }
     }
 }
+
+impl std::str::FromStr for OutputMode {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<OutputMode, anyhow::Error> {
+        match s {
+            "json" => Ok(OutputMode::Json),
+            "json-elements" => Ok(OutputMode::JsonElements),
+            "tab-separated" => Ok(OutputMode::TabSeparated),
+            "default" => Ok(OutputMode::Default),
+            _ => Err(anyhow::anyhow!("unsupported output mode {:?}", s)),
+        }
+    }
+}

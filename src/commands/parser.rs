@@ -1,6 +1,8 @@
 use clap::{Clap, AppSettings};
 use std::path::PathBuf;
 
+use crate::repl::OutputMode;
+
 
 #[derive(Clap, Clone, Debug)]
 pub enum Common {
@@ -26,10 +28,54 @@ pub enum Common {
 }
 
 #[derive(Clap, Clone, Debug)]
-pub enum Backslash {
-    Temp,
+#[clap(setting=AppSettings::NoBinaryName)]
+pub struct Backslash {
+    #[clap(subcommand)]
+    pub command: BackslashCmd,
+}
+
+#[derive(Clap, Clone, Debug)]
+pub enum BackslashCmd {
     #[clap(flatten)]
     Common(Common),
+    ViMode,
+    EmacsMode,
+    ImplicitProperties,
+    NoImplicitProperties,
+    IntrospectTypes,
+    NoIntrospectTypes,
+    LastError,
+    VerboseErrors,
+    NoVerboseErrors,
+    History,
+    Limit(Limit),
+    Output(Output),
+    Connect(Connect),
+    Edit(Edit),
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Limit {
+    pub limit: Option<usize>,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Edit {
+    pub entry: Option<isize>,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Output {
+    pub mode: Option<OutputMode>,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Connect {
+    pub database_name: String,
 }
 
 #[derive(Clap, Clone, Debug)]

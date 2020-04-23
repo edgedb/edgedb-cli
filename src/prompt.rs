@@ -123,28 +123,23 @@ impl Validator for EdgeqlHelper {
         if line.trim().is_empty() {
             return Ok(ValidationResult::Valid(None));
         }
-        if line.starts_with("\\") {
-            match backslash::parse(line) {
-                Ok(_) => Ok(ValidationResult::Valid(None)),
-                Err(e) => {
-                    Ok(ValidationResult::Invalid(Some(
-                        format!("  ← {}", e.hint))))
-                }
-            }
-        } else {
-            let mut data = ctx.input();
-            loop {
+        let mut data = ctx.input();
+        loop {
+            if data.trim_start().starts_with('\\') {
+                let bytes = backslash::full_statement(data);
+                data = &data[bytes..];
+            } else {
                 match full_statement(&data.as_bytes(), None) {
                     Ok(bytes) => {
                         data = &data[bytes..];
-                        if data.trim().is_empty() {
-                            return Ok(ValidationResult::Valid(None))
-                        }
                     }
                     Err(_) => {
                         return Ok(ValidationResult::Incomplete)
                     }
                 }
+            }
+            if data.trim().is_empty() {
+                return Ok(ValidationResult::Valid(None))
             }
         }
     }

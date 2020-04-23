@@ -399,8 +399,9 @@ async fn _interactive_main(
                     continue;
                 }
             };
-            let exec_res = backslash::execute(&mut cli, cmd, &mut state).await;
-            match exec_res {
+            let res = backslash::execute(&mut cli,
+                &cmd.command, &mut state).await;
+            match res {
                 Ok(Skip) => continue,
                 Ok(Input(text)) => initial = text,
                 Err(e) => {
