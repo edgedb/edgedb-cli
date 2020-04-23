@@ -306,11 +306,149 @@ pub struct ChangeDb {
     pub target: String,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Token<'a> {
+    item: Item<'a>,
+    span: (usize, usize),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Item<'a> {
+    Command(&'a str),
+    Argument(&'a str),
+    Error { message: &'a str },
+    Incomplete,
+    Semicolon,
+    Newline,
+}
+
+pub struct Parser<'a> {
+    data: &'a str,
+    first_item: bool,
+    offset: usize,
+}
+
 pub fn error<T, S: ToString>(message: S, hint: &str) -> Result<T, ParseError> {
     Err(ParseError {
         message: message.to_string(),
         hint: hint.into(),
     })
+}
+
+impl<'a> Parser<'a> {
+    fn new(s: &'a str) -> Parser<'a> {
+        Parser {
+            data: s,
+            first_item: true,
+            offset: 0,
+        }
+    }
+    fn token(&self) -> Option<Token<'a>> {
+        let tail = &self.data[self.offset..].trim_start();
+        if tail.is_empty() {
+            return None;
+        }
+        let offset = self.data.len() - tail.len();
+        let mut iter = tail.char_indices();
+        let end = loop {
+            let (idx, c) = match iter.next() {
+                Some(pair) => pair,
+                None => break tail.len(),
+            };
+            match c {
+                '\'' | '"' | '`' => {
+                    let quote = c;
+                    loop {
+                        match iter.next() {
+                            Some((_, c)) if c == quote => break,
+                            Some((end, '\n')) | Some((end, '\r')) => {
+                                return Some(Token {
+                                    item: Item::Error {
+                                        message: match quote {
+                                            '\'' =>
+                                                "expected end of single \
+                                                quote `'` , got end of line",
+                                            '"' =>
+                                                "expected end of double \
+                                                quote `\"` , got end of line",
+                                            '`' =>
+                                                "expected end of backtick \
+                                                quote '`' , got end of line",
+                                            _ => unreachable!(),
+                                        },
+                                    },
+                                    span: (offset+idx, offset+end),
+                                })
+                            }
+                            Some((_, _)) => {}
+                            None => return Some(Token {
+                                item: Item::Incomplete,
+                                span: (offset, self.data.len()),
+                            }),
+                        }
+                    }
+                }
+                ';' if idx == 0 => {
+                    return Some(Token {
+                        item: Item::Semicolon,
+                        span: (offset, offset+1),
+                    });
+                }
+                '\n' if idx == 0 => {
+                    return Some(Token {
+                        item: Item::Newline,
+                        span: (offset, offset+1),
+                    });
+                }
+                '\r' if idx == 0 => {
+                    let ln = if let Some((_, '\n')) = iter.next() {
+                        2
+                    } else {
+                        1
+                    };
+                    return Some(Token {
+                        item: Item::Newline,
+                        span: (offset, offset+ln),
+                    });
+                }
+                ' ' | '\t' | '\r' | '\n' | ';' => break idx,
+                _ => {}
+            }
+        };
+        let value = &tail[..end];
+        let item = if self.first_item {
+            if !value.starts_with('\\') {
+                let char_len = value.chars().next().unwrap().len_utf8();
+                return Some(Token {
+                    item: Item::Error {
+                        message: "command must start with backslash `\\`",
+                    },
+                    span: (offset, offset+char_len),
+                })
+            }
+            Item::Command(value)
+        } else {
+            Item::Argument(value)
+        };
+        return Some(Token {
+            item,
+            span: (offset, offset+end),
+        })
+    }
+}
+
+impl<'a> Iterator for Parser<'a> {
+    type Item = Token<'a>;
+    fn next(&mut self) -> Option<Token<'a>> {
+        let result = self.token();
+        if let Some(ref tok) = result {
+            if self.first_item {
+                self.first_item = false;
+            }
+            self.offset = tok.span.1;
+        }
+        return result;
+    }
 }
 
 pub fn parse(s: &str) -> Result<Command, ParseError> {
@@ -677,3 +815,24 @@ impl fmt::Display for ChangeDb {
     }
 }
 impl Error for ChangeDb {}
+
+#[cfg(test)]
+mod test {
+    use super::Parser;
+    use super::Item::{self, *};
+
+    fn tok_values<'x>(s: &'x str) -> Vec<Item<'x>> {
+        Parser::new(s).map(|tok| tok.item).collect::<Vec<_>>()
+    }
+
+    #[test]
+    fn test_parser() {
+        assert_eq!(tok_values("\\x"), [Command("\\x")]);
+        assert_eq!(tok_values("\\x a b"),
+            [Command("\\x"), Argument("a"), Argument("b")]);
+        assert_eq!(tok_values("\\x 'a b'"),
+            [Command("\\x"), Argument("'a b'")]);
+        assert_eq!(tok_values("\\describe schema::`Object`"),
+            [Command("\\describe"), Argument("schema::`Object`")]);
+    }
+}
