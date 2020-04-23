@@ -626,6 +626,7 @@ pub fn parse(s: &str) -> Result<Command, ParseError> {
     }
 }
 
+// TODO(tailhook) remove me
 pub async fn execute<'x>(cli: &mut Client<'x>, cmd: Command,
     prompt: &mut repl::State)
     -> Result<ExecuteResult, anyhow::Error>
