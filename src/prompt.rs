@@ -10,7 +10,7 @@ use async_std::task;
 use dirs::data_local_dir;
 use rustyline::{self, error::ReadlineError, KeyPress, Cmd};
 use rustyline::{Editor, Config, Helper, Context};
-use rustyline::config::EditMode;
+use rustyline::config::{EditMode, CompletionType};
 use rustyline::hint::Hinter;
 use rustyline::highlight::{Highlighter, PromptInfo};
 use rustyline::history::History;
@@ -199,6 +199,7 @@ fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
 pub fn create_editor(mode: EditMode) -> Editor<EdgeqlHelper> {
     let config = Config::builder();
     let config = config.edit_mode(mode);
+    let config = config.completion_type(CompletionType::List);
     let mut editor = Editor::<EdgeqlHelper>::with_config(config.build());
     editor.bind_sequence(KeyPress::Enter, Cmd::AcceptOrInsertLine);
     load_history(&mut editor, "edgeql").map_err(|e| {
