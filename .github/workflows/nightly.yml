@@ -1,0 +1,398 @@
+name: Build Test and Publish Nightly Packages
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  repository_dispatch:
+    types: ["nightly-build"]
+  push:
+    branches:
+      - nightly
+
+jobs:
+
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        target: [
+          debian-stretch,
+          debian-buster,
+          ubuntu-xenial,
+          ubuntu-bionic,
+          ubuntu-focal,
+          centos-7,
+          centos-8,
+          linux-x86_64,
+        ]
+        include:
+          - target: debian-stretch
+            platform: debian
+            platform_version: stretch
+          - target: debian-buster
+            platform: debian
+            platform_version: buster
+          - target: ubuntu-xenial
+            platform: ubuntu
+            platform_version: xenial
+          - target: ubuntu-bionic
+            platform: ubuntu
+            platform_version: bionic
+          - target: ubuntu-focal
+            platform: ubuntu
+            platform_version: focal
+          - target: centos-7
+            platform: centos
+            platform_version: 7
+          - target: centos-8
+            platform: centos
+            platform_version: 8
+          - target: linux-x86_64
+            platform: linux
+            platform_version: x86_64
+
+    steps:
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
+      if: matrix.target == 'debian-stretch'
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
+      if: matrix.target == 'debian-buster'
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
+      if: matrix.target == 'ubuntu-xenial'
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
+      if: matrix.target == 'ubuntu-bionic'
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
+      if: matrix.target == 'ubuntu-focal'
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
+      if: matrix.target == 'centos-7'
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
+      if: matrix.target == 'centos-8'
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+    - name: Build (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
+      if: matrix.target == 'linux-x86_64'
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+        BUILD_GENERIC: true
+
+
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-${{ matrix.target }}
+        path: artifacts/${{ matrix.target }}
+
+
+
+  build-macos:
+    runs-on: macos-latest
+    continue-on-error: true
+
+    strategy:
+      max-parallel: 4
+      matrix:
+        target: [
+          macos-x86_64,
+        ]
+        include:
+          - target: macos-x86_64
+            platform: macos
+            platform_version: x86_64
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
+    - uses: actions/cache@v1
+      id: sdk1010cache
+      with:
+        path: ~/.cache/MacOSX10.10.sdk/
+        key: MacOSX10.10.sdk
+
+    - name: Install Xcode
+      if: steps.sdk1010cache.outputs.cache-hit != 'true'
+      env:
+        XCODE_INSTALL_USER: github-ci@edgedb.com
+        XCODE_INSTALL_PASSWORD: ${{ secrets.BOT_APPLE_ID_PASSWORD }}
+      run: |
+        xcversion install 6.4
+
+    - name: Cache 10.10 SDK
+      if: steps.sdk1010cache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ~/.cache
+        rsync -a \
+          /Applications/Xcode-6.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk/ \
+          ~/.cache/MacOSX10.10.sdk/
+
+    - name: Select macOS SDK
+      run: |
+        sudo rsync -a \
+          ~/.cache/MacOSX10.10.sdk/ \
+          /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
+        sudo xcode-select -s /Library/Developer/CommandLineTools
+
+
+    - name: Build (${{ matrix.target }})
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+
+        BUILD_GENERIC: true
+
+      run: |
+        xcrun --show-sdk-path
+        edgedb-pkg/integration/macos/build.sh
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-${{ matrix.target }}
+        path: artifacts/${{ matrix.target }}
+
+
+
+  publish-linux:
+    needs: [build-linux]
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        target: [
+          debian-stretch,
+          debian-buster,
+          ubuntu-xenial,
+          ubuntu-bionic,
+          ubuntu-focal,
+          centos-7,
+          centos-8,
+          linux-x86_64,
+        ]
+        include:
+          - target: debian-stretch
+            platform: debian
+            platform_version: stretch
+          - target: debian-buster
+            platform: debian
+            platform_version: buster
+          - target: ubuntu-xenial
+            platform: ubuntu
+            platform_version: xenial
+          - target: ubuntu-bionic
+            platform: ubuntu
+            platform_version: bionic
+          - target: ubuntu-focal
+            platform: ubuntu
+            platform_version: focal
+          - target: centos-7
+            platform: centos
+            platform_version: 7
+          - target: centos-8
+            platform: centos
+            platform_version: 8
+          - target: linux-x86_64
+            platform: linux
+            platform_version: x86_64
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-${{ matrix.target }}
+        path: artifacts/${{ matrix.target }}
+
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-stretch@master
+      if: matrix.target == 'debian-stretch'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-buster@master
+      if: matrix.target == 'debian-buster'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-xenial@master
+      if: matrix.target == 'ubuntu-xenial'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-bionic@master
+      if: matrix.target == 'ubuntu-bionic'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-focal@master
+      if: matrix.target == 'ubuntu-focal'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-7@master
+      if: matrix.target == 'centos-7'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-8@master
+      if: matrix.target == 'centos-8'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Publish (${{ matrix.target }})
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      if: matrix.target == 'linux-x86_64'
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+
+
+
+  publish-macos:
+    needs: [build-macos]
+    runs-on: macos-latest
+    strategy:
+      max-parallel: 4
+      matrix:
+        target: [
+          macos-x86_64,
+        ]
+        include:
+          - target: macos-x86_64
+            platform: macos
+            platform_version: x86_64
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-${{ matrix.target }}
+        path: artifacts/${{ matrix.target }}
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
+
+    - name: Publish (${{ matrix.target }})
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "${{ matrix.platform }}"
+        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+      run: |
+        edgedb-pkg/integration/macos/publish.sh
+
+
+
