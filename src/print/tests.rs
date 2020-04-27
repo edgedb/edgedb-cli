@@ -35,19 +35,39 @@ fn int() {
 }
 
 #[test]
-fn bigint() {
-    assert_eq!(test_format(&[
-        Value::BigInt(10.into()),
-    ]).unwrap(), "{10n}");
-}
-
-#[test]
 fn bigdecimal() {
     assert_eq!(test_format(&[
         Value::Decimal(TryFrom::try_from(
             BigDecimal::from_str("10.1").unwrap()
         ).unwrap()),
     ]).unwrap(), "{10.1n}");
+}
+
+#[test]
+fn bigint() {
+    assert_eq!(test_format(&[
+        Value::BigInt(10.into()),
+        Value::BigInt(10000.into()),
+        Value::BigInt(100000000000i64.into()),
+    ]).unwrap(), "{10n, 10000n, 1e11n}");
+}
+
+#[test]
+fn decimal() {
+    assert_eq!(test_format(&[
+        Value::Decimal(TryFrom::try_from(
+            BigDecimal::from_str("10e3").unwrap()
+        ).unwrap()),
+        Value::Decimal(TryFrom::try_from(
+            BigDecimal::from_str("10e10").unwrap()
+        ).unwrap()),
+        Value::Decimal(TryFrom::try_from(
+            BigDecimal::from_str("100000000000.1").unwrap()
+        ).unwrap()),
+        Value::Decimal(TryFrom::try_from(
+            BigDecimal::from_str("0.000000000000508").unwrap()
+        ).unwrap()),
+    ]).unwrap(), "{10000.0n, 1.0e11n, 100000000000.1n, 0.508e-12}");
 }
 
 #[test]

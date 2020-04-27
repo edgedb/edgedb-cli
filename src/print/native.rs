@@ -63,6 +63,38 @@ fn escape_string(s: &str) -> String {
     return buf;
 }
 
+fn format_bigint(bint: BigInt) -> String {
+    let txt = bint.to_string();
+    let no_zeros = txt.trim_end_matches('0');
+    let zeros = txt.len() - no_zeros.len();
+    if zeros > 5 {
+        return format!("{}e{}n", no_zeros, zeros);
+    } else {
+        return format!("{}n", txt);
+    }
+}
+
+fn format_decimal(value: BigDecimal) -> String {
+    let txt = value.to_string();
+    if txt.contains('.') {
+        if txt.starts_with("0.00000") {
+            let no_zeros = txt[2..].trim_start_matches('0');
+            let zeros = txt.len()-2 - no_zeros.len();
+            return format!("0.{}e-{}", no_zeros, zeros);
+        } else {
+            return format!("{}n", txt);
+        }
+    } else {
+        let no_zeros = txt.trim_end_matches('0');
+        let zeros = txt.len() - no_zeros.len();
+        if zeros > 5 {
+            return format!("{}.0e{}n", no_zeros, zeros);
+        } else {
+            return format!("{}.0n", txt);
+        }
+    }
+}
+
 impl FormatExt for Value {
     fn format<F: Formatter>(&self, prn: &mut F) -> Result<F::Error> {
         use Value as V;
@@ -76,12 +108,8 @@ impl FormatExt for Value {
             V::Int64(v) => prn.const_scalar(v),
             V::Float32(v) => prn.const_scalar(v),
             V::Float64(v) => prn.const_scalar(v),
-            V::BigInt(v) => {
-                prn.const_scalar(format!("{}n", Into::<BigInt>::into(v)))
-            }
-            V::Decimal(v) => {
-                prn.const_scalar(format!("{}n", Into::<BigDecimal>::into(v)))
-            }
+            V::BigInt(v) => prn.const_scalar(format_bigint(v.into())),
+            V::Decimal(v) => prn.const_scalar(format_decimal(v.into())),
             V::Bool(v) => prn.const_scalar(v),
             V::Datetime(t) => prn.typed("datetime", format_rfc3339(*t)),
             V::LocalDatetime(dt) => {
