@@ -6,6 +6,7 @@ use std::convert::Infallible;
 
 use async_std::stream::{Stream, StreamExt};
 use bytes::Bytes;
+use colorful::Colorful;
 use snafu::{Snafu, ResultExt, AsErrorSource};
 use uuid::Uuid;
 
@@ -94,7 +95,13 @@ impl Config {
 }
 
 pub fn completion(res: &Bytes) {
-    eprintln!("  -> {}: Ok", String::from_utf8_lossy(&res[..]));
+    if atty::is(atty::Stream::Stderr) {
+        eprintln!("{}",
+            format!("OK: {}", String::from_utf8_lossy(&res[..]))
+                .dark_gray().bold());
+    } else {
+        eprintln!("OK: {}", String::from_utf8_lossy(&res[..]));
+    }
 }
 
 async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<'_, O>, rows: &mut S,
