@@ -119,7 +119,8 @@ pub struct Parser<'a> {
 
 #[derive(Debug)]
 pub struct CommandInfo {
-    pub usage: String,
+    pub options: String,
+    pub arguments: Vec<String>,
     pub description: Option<String>,
 }
 
@@ -277,7 +278,14 @@ impl CommandCache {
             .map(|cmd| {
                 let name = cmd.get_name().to_owned();
                 (name, CommandInfo {
-                    usage: cmd.get_about().unwrap_or("").to_owned(),
+                    options: cmd.get_arguments().iter()
+                        .filter_map(|a| a.get_short())
+                        .collect(),
+                    arguments: cmd.get_arguments().iter()
+                        .filter(|a| a.get_short().is_none())
+                        .filter(|a| a.get_long().is_none())
+                        .map(|a| a.get_name().to_owned())
+                        .collect(),
                     description: cmd.get_about().map(|x| x.to_owned()),
                 })
             })

@@ -77,15 +77,25 @@ fn hint_command(cmd: &str, end: bool) -> Option<String> {
                         .get(*full_name.unwrap_or(&&matching[1..]))
                         .expect("command is defined");
 
-                    let suffix = &matching[cmd.len()..];
-                    if let Some(ref descr) = cinfo.description {
-                        return Some(format!("{}  -- {}", suffix, descr));
-                    } else if let Some(full) = full_name {
-                        return Some(format!("{}  -- alias of \\{}",
-                                            suffix, full));
-                    } else {
-                        return Some(suffix.into());
+                    let mut output = String::from(&matching[cmd.len()..]);
+                    if !cinfo.options.is_empty() {
+                        output.push_str(" [-");
+                        output.push_str(&cinfo.options);
+                        output.push(']');
                     }
+                    for arg in &cinfo.arguments {
+                        output.push_str(" [");
+                        output.push_str(&arg.to_uppercase());
+                        output.push(']');
+                    }
+                    if let Some(ref descr) = cinfo.description {
+                        output.push_str("  -- ");
+                        output.push_str(descr);
+                    } else if let Some(full) = full_name {
+                        output.push_str("  -- alias of \\");
+                        output.push_str(full);
+                    }
+                    return Some(output);
                 } else {
                     // TODO
                 }
