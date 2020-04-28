@@ -48,8 +48,15 @@ pub fn backslash(outbuf: &mut String, text: &str, styler: &Styler) {
         }
         let style = match token.item {
             backslash::Item::Command(cmd) => {
-                if backslash::is_valid_command(&cmd[1..]) {
-                    Some(Style::BackslashCommand)
+                if backslash::is_valid_prefix(&cmd) {
+                    if backslash::is_valid_command(&cmd) {
+                        Some(Style::BackslashCommand)
+                    } else if token.span.1 >= text.len() {
+                        // assuming still typing command
+                        None
+                    } else {
+                        Some(Style::Error)
+                    }
                 } else {
                     Some(Style::Error)
                 }

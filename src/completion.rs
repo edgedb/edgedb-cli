@@ -1,5 +1,8 @@
-use crate::commands::backslash;
+use std::cmp::Ordering;
+
 use edgeql_parser::preparser;
+
+use crate::commands::backslash;
 
 
 #[derive(Debug)]
@@ -59,12 +62,76 @@ pub fn complete(input: &str, cursor: usize)
     }
 }
 
+fn hint_command(cmd: &str, end: bool) -> Option<String> {
+    use backslash::CMD_CACHE;
+    let mut rng = CMD_CACHE.all_commands.range(cmd.to_string()..);
+    if let Some(matching) = rng.next() {
+        if matching.starts_with(cmd) {
+            let next = rng.next().map(|x| x.starts_with(cmd)).unwrap_or(false);
+            let full_match = cmd.len() == matching.len();
+            if full_match || !next {
+                // only single match
+                if end {
+                    let full_name = CMD_CACHE.aliases.get(&matching[1..]);
+                    let cinfo = CMD_CACHE.commands
+                        .get(*full_name.unwrap_or(&&matching[1..]))
+                        .expect("command is defined");
+
+                    let suffix = &matching[cmd.len()..];
+                    if let Some(ref descr) = cinfo.description {
+                        return Some(format!("{}  -- {}", suffix, descr));
+                    } else if let Some(full) = full_name {
+                        return Some(format!("{}  -- alias of \\{}",
+                                            suffix, full));
+                    } else {
+                        return Some(suffix.into());
+                    }
+                } else {
+                    // TODO
+                }
+                return None;
+            } else if end { // multiple choices possible, user is still typing
+                return None
+            }
+        }
+    }
+    let mut candidates: Vec<(f64, &String)> = backslash::CMD_CACHE.all_commands
+        .iter()
+        .map(|pv| (strsim::jaro_winkler(cmd, pv), pv))
+        .filter(|(confidence, _pv)| *confidence > 0.8)
+        .collect();
+    candidates.sort_by(|a, b| {
+        b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal)
+    });
+    let options: Vec<_> = candidates.into_iter().map(|(_c, pv)| &pv[..]).collect();
+    match options.len() {
+        0 => Some("  ← unknown backslash command".into()),
+        1..=3 => Some(format!("  ← unknown, try: {}", options.join(", "))),
+        _ => {
+            Some(format!("  ← unknown, try: {}, ...", options[..2].join(", ")))
+        }
+    }
+}
+
 pub fn hint(input: &str, pos: usize) -> Option<String> {
+    use backslash::Item::*;
+
     match current(input, pos) {
         (_, Current::Empty) => None,
         (_, Current::Edgeql(_)) => None,
         (off, Current::Backslash(cmd)) => {
-            //todo!();
+            for token in backslash::Parser::new(cmd) {
+                if pos >= token.span.0 && pos <= token.span.1 {
+                    match token.item {
+                        Command(cmd) => {
+                            return hint_command(cmd, pos == input.len())
+                        }
+                        _ => {}  // TODO(tailhook)
+                    }
+                } else {
+                    // TODO(tailhook) remember command
+                }
+            }
             None
         }
     }

@@ -117,8 +117,14 @@ pub struct Parser<'a> {
     offset: usize,
 }
 
+#[derive(Debug)]
+pub struct CommandInfo {
+    pub usage: String,
+    pub description: Option<String>,
+}
+
 pub struct CommandCache {
-    pub commands: BTreeSet<String>,
+    pub commands: BTreeMap<String, CommandInfo>,
     pub aliases: BTreeMap<&'static str, &'static str>,
     pub all_commands: BTreeSet<String>,
 }
@@ -267,11 +273,18 @@ impl CommandCache {
         aliases.insert("c", "connect");
         aliases.insert("E", "last-error");
         aliases.insert("?", "help");
-        let commands: BTreeSet<_> = clap.get_subcommands().iter()
-            .map(|c| c.get_name().to_owned())
+        let commands: BTreeMap<_,_> = clap.get_subcommands().iter()
+            .map(|cmd| {
+                let name = cmd.get_name().to_owned();
+                (name, CommandInfo {
+                    usage: cmd.get_about().unwrap_or("").to_owned(),
+                    description: cmd.get_about().map(|x| x.to_owned()),
+                })
+            })
             .collect();
+        println!("COMMANDS {:#?}", commands);
         CommandCache {
-            all_commands: commands.iter().map(|x| &x[..])
+            all_commands: commands.keys().map(|x| &x[..])
                 .chain(aliases.keys().map(|x| *x))
                 .map(|n| String::from("\\") + n)
                 .collect(),
@@ -367,7 +380,15 @@ fn unquote_argument(s: &str) -> String {
 }
 
 pub fn is_valid_command(s: &str) -> bool {
-    CMD_CACHE.commands.contains(s) || CMD_CACHE.aliases.get(s).is_some()
+    CMD_CACHE.all_commands.get(s).is_some()
+}
+
+pub fn is_valid_prefix(s: &str) -> bool {
+    let mut iter = CMD_CACHE.all_commands.range(s.to_string()..);
+    match iter.next() {
+        Some(cmd) => cmd.starts_with(s),
+        None => false,
+    }
 }
 
 pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,

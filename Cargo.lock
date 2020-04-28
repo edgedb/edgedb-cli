@@ -468,6 +468,7 @@ dependencies = [
  "sha1",
  "shutdown_hooks",
  "snafu",
+ "strsim",
  "tempfile 3.1.0",
  "term_size",
  "termcolor",
