@@ -62,7 +62,7 @@ pub fn complete(input: &str, cursor: usize)
     }
 }
 
-fn hint_command(cmd: &str, end: bool) -> Option<String> {
+fn hint_command(cmd: &str) -> Option<String> {
     use backslash::CMD_CACHE;
     let mut rng = CMD_CACHE.all_commands.range(cmd.to_string()..);
     if let Some(matching) = rng.next() {
@@ -70,37 +70,31 @@ fn hint_command(cmd: &str, end: bool) -> Option<String> {
             let next = rng.next().map(|x| x.starts_with(cmd)).unwrap_or(false);
             let full_match = cmd.len() == matching.len();
             if full_match || !next {
-                // only single match
-                if end {
-                    let full_name = CMD_CACHE.aliases.get(&matching[1..]);
-                    let cinfo = CMD_CACHE.commands
-                        .get(*full_name.unwrap_or(&&matching[1..]))
-                        .expect("command is defined");
+                let full_name = CMD_CACHE.aliases.get(&matching[1..]);
+                let cinfo = CMD_CACHE.commands
+                    .get(*full_name.unwrap_or(&&matching[1..]))
+                    .expect("command is defined");
 
-                    let mut output = String::from(&matching[cmd.len()..]);
-                    if !cinfo.options.is_empty() {
-                        output.push_str(" [-");
-                        output.push_str(&cinfo.options);
-                        output.push(']');
-                    }
-                    for arg in &cinfo.arguments {
-                        output.push_str(" [");
-                        output.push_str(&arg.to_uppercase());
-                        output.push(']');
-                    }
-                    if let Some(ref descr) = cinfo.description {
-                        output.push_str("  -- ");
-                        output.push_str(descr);
-                    } else if let Some(full) = full_name {
-                        output.push_str("  -- alias of \\");
-                        output.push_str(full);
-                    }
-                    return Some(output);
-                } else {
-                    // TODO
+                let mut output = String::from(&matching[cmd.len()..]);
+                if !cinfo.options.is_empty() {
+                    output.push_str(" [-");
+                    output.push_str(&cinfo.options);
+                    output.push(']');
                 }
-                return None;
-            } else if end { // multiple choices possible, user is still typing
+                for arg in &cinfo.arguments {
+                    output.push_str(" [");
+                    output.push_str(&arg.to_uppercase());
+                    output.push(']');
+                }
+                if let Some(ref descr) = cinfo.description {
+                    output.push_str("  -- ");
+                    output.push_str(descr);
+                } else if let Some(full) = full_name {
+                    output.push_str("  -- alias of \\");
+                    output.push_str(full);
+                }
+                return Some(output);
+            } else  { // multiple choices possible
                 return None
             }
         }
@@ -134,7 +128,7 @@ pub fn hint(input: &str, pos: usize) -> Option<String> {
                 if pos >= token.span.0 && pos <= token.span.1 {
                     match token.item {
                         Command(cmd) => {
-                            return hint_command(cmd, pos == input.len())
+                            return hint_command(cmd);
                         }
                         _ => {}  // TODO(tailhook)
                     }
