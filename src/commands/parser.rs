@@ -29,6 +29,7 @@ pub enum Common {
 
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::NoBinaryName)]
+#[clap(setting=AppSettings::DisableVersion)]
 pub struct Backslash {
     #[clap(subcommand)]
     pub command: BackslashCmd,
@@ -38,6 +39,7 @@ pub struct Backslash {
 pub enum BackslashCmd {
     #[clap(flatten)]
     Common(Common),
+    Help,
     ViMode,
     EmacsMode,
     ImplicitProperties,

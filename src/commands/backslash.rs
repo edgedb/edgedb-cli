@@ -1,8 +1,9 @@
 use std::fmt;
 use std::error::Error;
+use std::collections::{BTreeSet, BTreeMap};
 
 use anyhow;
-use clap::Clap;
+use clap::{self, Clap, IntoApp};
 use edgedb_protocol::server_message::ErrorResponse;
 
 use crate::client::Client;
@@ -14,6 +15,12 @@ use crate::commands::type_names::get_type_names;
 use crate::commands::execute;
 use crate::commands::parser::{Backslash, BackslashCmd};
 
+
+lazy_static::lazy_static! {
+    pub static ref CMD_CACHE: CommandCache = CommandCache::new();
+}
+
+
 pub enum ExecuteResult {
     Skip,
     Input(String),
@@ -21,22 +28,22 @@ pub enum ExecuteResult {
 
 const HELP: &str = r###"
 Introspection
-  (options: + = verbose, S = show system objects, I = case-sensitive match)
-  \d[+] NAME               describe schema object
+  (options: -v = verbose, -s = show system objects, -I = case-sensitive match)
+  \d [-v] NAME             describe schema object
   \l, \list-databases      list databases
-  \lT[IS] [PATTERN]        list scalar types
+  \lT [-sI] [PATTERN]      list scalar types
                            (alias: \list-scalar-types)
-  \lt[IS] [PATTERN]        list object types
+  \lt [-sI] [PATTERN]      list object types
                            (alias: \list-object-types)
-  \lr[I]                   list roles
+  \lr [-I]                 list roles
                            (alias: \list-roles)
-  \lm[I]                   list modules
+  \lm [-I]                 list modules
                            (alias: \list-modules)
-  \la[IS+] [PATTERN]       list expression aliases
+  \la [-Isv] [PATTERN]     list expression aliases
                            (alias: \list-aliases)
-  \lc[I] [PATTERN]         list casts
+  \lc [-I] [PATTERN]       list casts
                            (alias: \list-casts)
-  \li[IS+] [PATTERN]       list indexes
+  \li [-Isv] [PATTERN]     list indexes
                            (alias: \list-indexes)
   \list-ports              list ports
 
@@ -77,159 +84,6 @@ Help
   \?                       Show help on backslash commands
 "###;
 
-pub const HINTS: &'static [&'static str] = &[
-    r"\?",
-    r"\c DBNAME",
-    r"\connect DBNAME",
-    r"\create-database DBNAME",
-    r"\d NAME",
-    r"\d NAME",
-    r"\d+ NAME",
-    r"\describe NAME",
-    r"\describe+ NAME",
-    r"\dump FILENAME",
-    r"\e [N]",
-    r"\edit [N]",
-    r"\emacs",
-    r"\history",
-    r"\implicit-properties",
-    r"\introspect-types",
-    r"\l",
-    r"\la [PATTERN]",
-    r"\laI [PATTERN]",
-    r"\laIS [PATTERN]",
-    r"\laS [PATTERN]",
-    r"\laSI [PATTERN]",
-    r"\la+ [PATTERN]",
-    r"\laI+ [PATTERN]",
-    r"\laIS+ [PATTERN]",
-    r"\laS+ [PATTERN]",
-    r"\laSI+ [PATTERN]",
-    r"\last-error",
-    r"\lT [PATTERN]",
-    r"\lc [PATTERN]",
-    r"\lcI [PATTERN]",
-    r"\li [PATTERN]",
-    r"\li+ [PATTERN]",
-    r"\liI [PATTERN]",
-    r"\liI+ [PATTERN]",
-    r"\liIS [PATTERN]",
-    r"\liIS+ [PATTERN]",
-    r"\liS [PATTERN]",
-    r"\liS+ [PATTERN]",
-    r"\liSI [PATTERN]",
-    r"\liSI+ [PATTERN]",
-    r"\limit [LIMIT]",
-    r"\lTI [PATTERN]",
-    r"\lTIS [PATTERN]",
-    r"\lTS [PATTERN]",
-    r"\lTSI [PATTERN]",
-    r"\lt [PATTERN]",
-    r"\ltI [PATTERN]",
-    r"\ltIS [PATTERN]",
-    r"\ltS [PATTERN]",
-    r"\ltSI [PATTERN]",
-    r"\list-aliases [PATTERN]",
-    r"\list-casts [PATTERN]",
-    r"\list-databases",
-    r"\list-indexes [PATTERN]",
-    r"\list-modules [PATTERN]",
-    r"\list-object-types [PATTERN]",
-    r"\list-ports",
-    r"\list-roles [PATTERN]",
-    r"\list-scalar-types [PATTERN]",
-    r"\lr",
-    r"\lrI",
-    r"\no-implicit-properties",
-    r"\no-introspect-types",
-    r"\no-verbose-errors",
-    r"\output [json|json-elements|default|tab-separated]",
-    r"\pgaddr",
-    r"\psql",
-    r"\restore FILENAME",
-    r"\s",
-    r"\verbose-errors",
-    r"\vi",
-];
-
-pub const COMMAND_NAMES: &'static [&'static str] = &[
-    r"\?",
-    r"\c",
-    r"\connect",
-    r"\create-database",
-    r"\d",
-    r"\d+",
-    r"\describe",
-    r"\describe+",
-    r"\dump",
-    r"\e",
-    r"\edit",
-    r"\emacs",
-    r"\implicit-properties",
-    r"\introspect-types",
-    r"\history",
-    r"\l",
-    r"\la",
-    r"\la+",
-    r"\laI",
-    r"\laI+",
-    r"\laIS",
-    r"\laIS+",
-    r"\laS",
-    r"\laS+",
-    r"\laSI",
-    r"\laSI+",
-    r"\last-error",
-    r"\li",
-    r"\liI",
-    r"\liIS",
-    r"\liS",
-    r"\liSI",
-    r"\li+",
-    r"\liI+",
-    r"\liIS+",
-    r"\liS+",
-    r"\liSI+",
-    r"\limit",
-    r"\lc",
-    r"\lcI",
-    r"\lT",
-    r"\lTI",
-    r"\lTIS",
-    r"\lTS",
-    r"\lTSI",
-    r"\lt",
-    r"\ltI",
-    r"\ltIS",
-    r"\ltS",
-    r"\ltSI",
-    r"\list-aliases",
-    r"\list-casts",
-    r"\list-databases",
-    r"\list-indexes",
-    r"\list-modules",
-    r"\list-ports",
-    r"\list-roles",
-    r"\list-object-types",
-    r"\list-scalar-types",
-    r"\lr",
-    r"\lrI",
-    r"\no-implicit-properties",
-    r"\no-introspect-types",
-    r"\no-verbose-errors",
-    r"\output default",
-    r"\output json",
-    r"\output json-elements",
-    r"\output tab-separated",
-    r"\output",
-    r"\pgaddr",
-    r"\psql",
-    r"\restore",
-    r"\s",
-    r"\verbose-errors",
-    r"\vi",
-];
-
 #[derive(Debug)]
 pub struct ParseError {
     pub span: Option<(usize, usize)>,
@@ -243,8 +97,8 @@ pub struct ChangeDb {
 
 #[derive(Debug, PartialEq)]
 pub struct Token<'a> {
-    item: Item<'a>,
-    span: (usize, usize),
+    pub item: Item<'a>,
+    pub span: (usize, usize),
 }
 
 #[derive(Debug, PartialEq)]
@@ -263,8 +117,14 @@ pub struct Parser<'a> {
     offset: usize,
 }
 
+pub struct CommandCache {
+    pub commands: BTreeSet<String>,
+    pub aliases: BTreeMap<&'static str, &'static str>,
+    pub all_commands: BTreeSet<String>,
+}
+
 impl<'a> Parser<'a> {
-    fn new(s: &'a str) -> Parser<'a> {
+    pub fn new(s: &'a str) -> Parser<'a> {
         Parser {
             data: s,
             first_item: true,
@@ -389,6 +249,38 @@ impl<'a> Iterator for Parser<'a> {
     }
 }
 
+impl CommandCache {
+    fn new() -> CommandCache {
+        let clap = Backslash::into_app();
+        let mut aliases = BTreeMap::new();
+        aliases.insert("d", "describe");
+        aliases.insert("l", "list-databases");
+        aliases.insert("lT", "list-scalar-types");
+        aliases.insert("lt", "list-object-types");
+        aliases.insert("lr", "list-roles");
+        aliases.insert("lm", "list-modules");
+        aliases.insert("la", "list-aliases");
+        aliases.insert("lc", "list-casts");
+        aliases.insert("li", "list-indexes");
+        aliases.insert("s", "history");
+        aliases.insert("e", "edit");
+        aliases.insert("c", "connect");
+        aliases.insert("E", "last-error");
+        aliases.insert("?", "help");
+        let commands: BTreeSet<_> = clap.get_subcommands().iter()
+            .map(|c| c.get_name().to_owned())
+            .collect();
+        CommandCache {
+            all_commands: commands.iter().map(|x| &x[..])
+                .chain(aliases.keys().map(|x| *x))
+                .map(|n| String::from("\\") + n)
+                .collect(),
+            commands,
+            aliases,
+        }
+    }
+}
+
 pub fn full_statement(s: &str) -> usize {
     for token in Parser::new(s) {
         match token.item {
@@ -406,7 +298,13 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
     let mut arguments = Vec::new();
     for token in Parser::new(s) {
         match token.item {
-            Command(x) => arguments.push(x[1..].to_string()),
+            Command(x) => {
+                if let Some(cmd) = CMD_CACHE.aliases.get(&x[1..]) {
+                    arguments.push(cmd.to_string())
+                } else {
+                    arguments.push(x[1..].to_owned())
+                }
+            }
             Argument(x) => arguments.push(unquote_argument(x)),
             Newline | Semicolon => break,
             Incomplete { message } => {
@@ -468,6 +366,10 @@ fn unquote_argument(s: &str) -> String {
     return buf;
 }
 
+pub fn is_valid_command(s: &str) -> bool {
+    CMD_CACHE.commands.contains(s) || CMD_CACHE.aliases.get(s).is_some()
+}
+
 pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
     prompt: &mut repl::State)
     -> Result<ExecuteResult, anyhow::Error>
@@ -480,6 +382,10 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
         styler: Some(Styler::dark_256()),
     };
     match cmd {
+        Help => {
+            print!("{}", HELP);
+            Ok(Skip)
+        }
         Common(ref cmd) => {
             execute::common(cli, cmd, &options).await?;
             Ok(Skip)

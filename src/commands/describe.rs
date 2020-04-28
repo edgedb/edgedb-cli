@@ -19,7 +19,9 @@ pub async fn describe<'x>(cli: &mut Client<'x>, options: &Options,
     ).await?;
     while let Some(text) = items.next().await.transpose()? {
         if let Some(ref styler) = options.styler {
-            println!("{}", highlight::edgeql(&text, styler));
+            let mut out = String::with_capacity(text.len());
+            highlight::edgeql(&mut out, &text, styler);
+            println!("{}", out);
         } else {
             println!("{}", text);
         }
