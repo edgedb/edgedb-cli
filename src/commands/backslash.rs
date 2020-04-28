@@ -320,6 +320,11 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
     for token in Parser::new(s) {
         match token.item {
             Command(x) => {
+                if x == "\\?" || x == "\\help" {
+                    return Ok(Backslash {
+                        command: BackslashCmd::Help,
+                    })
+                }
                 if let Some(cmd) = CMD_CACHE.aliases.get(&x[1..]) {
                     arguments.push(cmd.to_string())
                 } else {
@@ -342,20 +347,8 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
             }
         }
     }
-    Backslash::try_parse_from(arguments).map_err(|e| match e.kind {
-        HelpDisplayed => {
-            ParseError {
-                message: "no help supported".to_string(),
-                span: None,
-            }
-        }
-        _ => {
-            ParseError {
-                message: e.cause,
-                span: None,
-            }
-        }
-    })
+    Backslash::try_parse_from(arguments)
+    .map_err(|e| ParseError { message: e.cause, span: None })
 }
 
 fn unquote_argument(s: &str) -> String {
