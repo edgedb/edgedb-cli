@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::task::{Poll, Context};
 
 use async_std::io::Read as AsyncRead;
-use async_std::stream::Stream;
+use async_std::stream::{Stream, StreamExt};
 use bytes::{Bytes, BytesMut, BufMut};
 use snafu::{Snafu, ResultExt, Backtrace};
 
@@ -170,6 +170,16 @@ impl<'a, T> Future for MessageFuture<'a, T>
     type Output = Result<ServerMessage, ReadError>;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         self.reader.poll_message(cx)
+    }
+}
+
+impl<'a, T, D> QueryResponse<'a, T, D>
+    where T: AsyncRead + Unpin,
+          D: Decode,
+{
+    pub async fn skip_remaining(&mut self) -> Result<(), ReadError> {
+        while let Some(_) = self.next().await.transpose()?  {}
+        Ok(())
     }
 }
 

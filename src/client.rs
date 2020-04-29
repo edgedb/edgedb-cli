@@ -556,9 +556,7 @@ async fn _interactive_main(
                                     putting an explicit LIMIT clause, \
                                     or increase the implicit limit \
                                     using \\limit.");
-                                while let Some(_) =
-                                    items.next().await.transpose()?
-                                {}
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                         }
@@ -568,8 +566,7 @@ async fn _interactive_main(
                                 eprintln!("Error: {}", e);
                                 // exhaust the iterator to get connection in the
                                 // consistent state
-                                while let Some(_) = items.next().await.transpose()?
-                                {}
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                         };
@@ -607,20 +604,21 @@ async fn _interactive_main(
                             _ => return Err(anyhow::anyhow!(
                                 "postres returned non-string in JSON mode")),
                         };
-                        let items: serde_json::Value;
-                        items = serde_json::from_str(&text)
+                        let jitems: serde_json::Value;
+                        jitems = serde_json::from_str(&text)
                             .context("cannot decode json result")?;
                         if let Some(limit) = state.implicit_limit {
-                            if !check_json_limit(&items, "", limit) {
+                            if !check_json_limit(&jitems, "", limit) {
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                         }
-                        let items = items.as_array()
+                        let jitems = jitems.as_array()
                             .ok_or_else(|| anyhow::anyhow!(
                                 "non-array returned from \
                                  postgres in JSON mode"))?;
                         // trying to make writes atomic if possible
-                        let mut data = print::json_to_string(items, &cfg)?;
+                        let mut data = print::json_to_string(jitems, &cfg)?;
                         data += "\n";
                         stdout().write_all(data.as_bytes()).await?;
                     }
@@ -640,15 +638,11 @@ async fn _interactive_main(
                         if let Some(limit) = state.implicit_limit {
                             if index >= limit {
                                 print_json_limit_error(&path);
-                                while let Some(_) =
-                                    items.next().await.transpose()?
-                                {}
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                             if !check_json_limit(&value, &path, limit) {
-                                while let Some(_) =
-                                    items.next().await.transpose()?
-                                {}
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                         }
