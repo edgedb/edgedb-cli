@@ -318,7 +318,7 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
     let level = path.len();
     match json {
         Array(items) => {
-            if items.len() > 0 {
+            if items.len() > limit {
                 return false;
             }
             for (idx, item) in items.iter().enumerate() {
