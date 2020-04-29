@@ -29,6 +29,6 @@ fn create_report() -> Result<(), Box<dyn Error>> {
     let mut cmd = SERVER.admin_interactive();
     cmd.exp_string("edgedb>")?;
     cmd.send_line("CREATE TYPE default::Type1;\n")?;
-    cmd.exp_string(" -> CREATE: Ok\r\n")?;
+    cmd.exp_string("OK: CREATE")?;
     Ok(())
 }
