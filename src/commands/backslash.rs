@@ -139,7 +139,8 @@ impl<'a> Parser<'a> {
         }
     }
     fn token(&self) -> Option<Token<'a>> {
-        let tail = &self.data[self.offset..].trim_start();
+        let whitespace: &[_] = &[' ', '\t'];
+        let tail = self.data[self.offset..].trim_start_matches(whitespace);
         if tail.is_empty() {
             return None;
         }

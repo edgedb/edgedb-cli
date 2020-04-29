@@ -387,40 +387,50 @@ async fn _interactive_main(
         if inp.trim().is_empty() {
             continue;
         }
-        if inp.trim_start().starts_with("\\") {
-            use backslash::ExecuteResult::*;
-            let cmd = match backslash::parse(&inp) {
-                Ok(cmd) => cmd,
-                Err(e) => {
-                    eprintln!("Error parsing backslash command: {}",
-                              e.message);
-                    // Quick-edit command on error
-                    initial = inp.trim_start().into();
-                    continue;
-                }
-            };
-            let res = backslash::execute(&mut cli,
-                &cmd.command, &mut state).await;
-            match res {
-                Ok(Skip) => continue,
-                Ok(Input(text)) => initial = text,
-                Err(e) => {
-                    if e.is::<backslash::ChangeDb>() {
-                        return Err(e);
-                    }
-                    eprintln!("Error executing command: {}", e);
-                    // Quick-edit command on error
-                    initial = inp.trim_start().into();
-                    state.last_error = Some(e);
-                }
-            }
-            continue;
-        }
         let mut current_offset = 0;
         'statement_loop: while inp[current_offset..].trim() != "" {
-            let slen = full_statement(&inp.as_bytes()[current_offset..], None)
-                .unwrap_or(inp.len() - current_offset);
-            let statement = &inp[current_offset..][..slen];
+            let inp_tail = &inp[current_offset..].trim_start();
+            current_offset = inp.len() - inp_tail.len();
+            if inp_tail.starts_with("\\") {
+                use backslash::ExecuteResult::*;
+                let len = backslash::full_statement(&inp_tail);
+                current_offset += len;
+                let cmd = match backslash::parse(&inp_tail[..len]) {
+                    Ok(cmd) => cmd,
+                    Err(e) => {
+                        eprintln!("Error parsing backslash command: {}",
+                                  e.message);
+                        if inp_tail[len..].trim().is_empty() {
+                            // Quick-edit command on error
+                            initial = inp_tail[..len].trim_start().into();
+                        }
+                        continue 'statement_loop;
+                    }
+                };
+                let res = backslash::execute(&mut cli,
+                    &cmd.command, &mut state).await;
+                match res {
+                    Ok(Skip) => continue,
+                    Ok(Input(text)) => initial = text,
+                    Err(e) => {
+                        if e.is::<backslash::ChangeDb>() {
+                            if !inp_tail[len..].trim().is_empty() {
+                                eprintln!("WARNING: subsequent commands after \
+                                           \\connect are ignored");
+                            }
+                            return Err(e);
+                        }
+                        eprintln!("Error executing command: {}", e);
+                        // Quick-edit command on error
+                        initial = inp.trim_start().into();
+                        state.last_error = Some(e);
+                    }
+                }
+                continue 'statement_loop;
+            }
+            let slen = full_statement(&inp_tail.as_bytes(), None)
+                .unwrap_or(inp_tail.len());
+            let statement = &inp_tail[..slen];
             current_offset += slen;
             let mut headers = HashMap::new();
             if let Some(implicit_limit) = state.implicit_limit {
