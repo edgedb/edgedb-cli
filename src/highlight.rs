@@ -4,14 +4,14 @@ use edgeql_parser::tokenizer::{TokenStream, Kind};
 use edgeql_parser::keywords;
 use crate::print::style::{Styler, Style};
 
+
 lazy_static::lazy_static! {
     static ref UNRESERVED_KEYWORDS: HashSet<&'static str> =
         keywords::UNRESERVED_KEYWORDS.iter().map(|x| *x).collect();
 }
 
 
-pub fn edgeql(text: &str, styler: &Styler) -> String {
-    let mut outbuf = String::with_capacity(text.len());
+pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
     let mut pos = 0;
     let mut token_stream = TokenStream::new(text);
     for res in &mut token_stream {
@@ -19,23 +19,60 @@ pub fn edgeql(text: &str, styler: &Styler) -> String {
             Ok(tok) => tok,
             Err(_) => {
                 outbuf.push_str(&text[pos..]);
-                return outbuf.into();
+                return;
             }
         };
         if tok.start.offset as usize > pos {
-            emit_insignificant(&mut outbuf, &styler,
+            emit_insignificant(outbuf, &styler,
                 &text[pos..tok.start.offset as usize]);
         }
         if let Some(st) = token_style(tok.token.kind, tok.token.value)
         {
-            styler.apply(st, tok.token.value, &mut outbuf);
+            styler.apply(st, tok.token.value, outbuf);
         } else {
             outbuf.push_str(tok.token.value);
         }
         pos = tok.end.offset as usize;
     }
-    emit_insignificant(&mut outbuf, &styler, &text[pos..]);
-    return outbuf.into();
+    emit_insignificant(outbuf, &styler, &text[pos..]);
+}
+
+pub fn backslash(outbuf: &mut String, text: &str, styler: &Styler) {
+    use crate::commands::backslash;
+
+    let mut pos = 0;
+    let mut tokens = backslash::Parser::new(text);
+    for token in &mut tokens {
+        if token.span.0 > pos {
+            emit_insignificant(outbuf, &styler, &text[pos..token.span.0]);
+        }
+        let style = match token.item {
+            backslash::Item::Command(cmd) => {
+                if backslash::is_valid_prefix(&cmd) {
+                    if backslash::is_valid_command(&cmd) {
+                        Some(Style::BackslashCommand)
+                    } else if token.span.1 >= text.len() {
+                        // assuming still typing command
+                        None
+                    } else {
+                        Some(Style::Error)
+                    }
+                } else {
+                    Some(Style::Error)
+                }
+            },
+            backslash::Item::Error {..} => Some(Style::Error),
+            _ => None
+        };
+        let value = &text[token.span.0..token.span.1];
+        if let Some(st) = style {
+            styler.apply(st, value, outbuf);
+        } else {
+            outbuf.push_str(value);
+        }
+        pos = token.span.1 as usize;
+    }
+    emit_insignificant(outbuf, &styler, &text[pos..]);
 }
 
 fn emit_insignificant(buf: &mut String, styler: &Styler, mut chunk: &str) {

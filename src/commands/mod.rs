@@ -1,8 +1,7 @@
-pub mod cli;
-pub mod backslash;
-pub mod options;
 mod configure;
+mod describe;
 mod dump;
+mod execute;
 mod filter;
 mod helpers;
 mod list;
@@ -20,7 +19,10 @@ mod restore;
 mod roles;
 mod table;
 mod type_names;
-mod describe;
+pub mod backslash;
+pub mod cli;
+pub mod options;
+pub mod parser;
 
 pub use self::configure::configure;
 pub use self::dump::dump;

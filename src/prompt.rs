@@ -10,7 +10,7 @@ use async_std::task;
 use dirs::data_local_dir;
 use rustyline::{self, error::ReadlineError, KeyPress, Cmd};
 use rustyline::{Editor, Config, Helper, Context};
-use rustyline::config::EditMode;
+use rustyline::config::{EditMode, CompletionType};
 use rustyline::hint::Hinter;
 use rustyline::highlight::{Highlighter, PromptInfo};
 use rustyline::history::History;
@@ -19,7 +19,8 @@ use rustyline::completion::Completer;
 
 use edgeql_parser::preparser::full_statement;
 use crate::commands::backslash;
-use crate::print::style::{Styler, Style};
+use crate::completion;
+use crate::print::style::Styler;
 use crate::highlight;
 
 use colorful::Colorful;
@@ -27,7 +28,7 @@ use colorful::Colorful;
 
 pub enum Control {
     EdgeqlInput { database: String, initial: String },
-    VariableInput { name: String, type_name: String, initial: String },
+    ParameterInput { name: String, type_name: String, initial: String },
     ShowHistory,
     SpawnEditor { entry: Option<isize> },
     ViMode,
@@ -47,26 +48,7 @@ pub struct EdgeqlHelper {
 impl Helper for EdgeqlHelper {}
 impl Hinter for EdgeqlHelper {
     fn hint(&self, line: &str, pos: usize, _ctx: &Context) -> Option<String> {
-        // TODO(tailhook) strip leading whitespace
-        // TODO(tailhook) hint argument name if not on the end of line
-        if line.starts_with("\\") && pos == line.len() {
-            let mut hint = None;
-            for item in backslash::HINTS {
-                if item.starts_with(line) {
-                    if hint.is_some() {
-                        // more than one item matches
-                        hint = None;
-                        break;
-                    } else {
-                        hint = Some(item);
-                    }
-                }
-            }
-            if let Some(hint) = hint {
-                return Some(hint[line.len()..].into())
-            }
-        }
-        return None;
+        return completion::hint(line, pos);
     }
 }
 
@@ -82,29 +64,31 @@ impl Highlighter for EdgeqlHelper {
         }
     }
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
-        let line_trim = line.trim_start();
-        if line_trim.starts_with('\\') {
-            let off = line.len() - line_trim.len();
-            if let Some(cmd) = line.split_whitespace().next() {
-                if backslash::COMMAND_NAMES.contains(&cmd) {
-                    let mut buf = String::with_capacity(line.len() + 8);
-                    buf.push_str(&line[..off]);
-                    self.styler.apply(Style::BackslashCommand, cmd, &mut buf);
-                    buf.push_str(&line[off+cmd.len()..]);
-                    return buf.into();
-                } else if !backslash::COMMAND_NAMES
-                    .iter().any(|c| c.starts_with(cmd))
-                {
-                    let mut buf = String::with_capacity(line.len() + 8);
-                    buf.push_str(&line[..off]);
-                    self.styler.apply(Style::Error, cmd, &mut buf);
-                    buf.push_str(&line[off+cmd.len()..]);
-                    return buf.into();
+        let mut buf = String::with_capacity(line.len() + 8);
+        let mut data = line;
+        loop {
+            if data.trim().is_empty() {
+                buf.push_str(data);
+                return buf.into();
+            }
+            if data.trim_start().starts_with('\\') {
+                let bytes = backslash::full_statement(data);
+                highlight::backslash(&mut buf, &data[..bytes], &self.styler);
+                data = &data[bytes..];
+            } else {
+                match full_statement(&data.as_bytes(), None) {
+                    Ok(bytes) => {
+                        highlight::edgeql(&mut buf,
+                            &data[..bytes], &self.styler);
+                        data = &data[bytes..];
+                    }
+                    Err(_) => {
+                        highlight::edgeql(&mut buf,
+                            &data, &self.styler);
+                        data = &"";
+                    }
                 }
             }
-            return line.into();
-        } else {
-            return highlight::edgeql(line, &self.styler).into();
         }
     }
     fn highlight_char<'l>(&self, _line: &'l str, _pos: usize) -> bool {
@@ -114,58 +98,51 @@ impl Highlighter for EdgeqlHelper {
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
         return hint.light_gray().to_string().into()
     }
+    fn highlight_candidate<'h>(&self, item: &'h str, _typ: CompletionType)
+        -> std::borrow::Cow<'h, str>
+    {
+        use std::fmt::Write;
+
+        if let Some(pos) = item.find(" -- ") {
+            let mut buf = String::with_capacity(item.len() + 8);
+            let (value, descr) = item.split_at(pos);
+            buf.push_str(value);
+            write!(buf, "{}", descr.light_gray()).unwrap();
+            return buf.into();
+        } else {
+            return item.into();
+        }
+    }
 }
 impl Validator for EdgeqlHelper {
     fn validate(&self, ctx: &mut ValidationContext)
         -> Result<ValidationResult, ReadlineError>
     {
-        let line = ctx.input().trim();
-        if line.trim().is_empty() {
+        let input = ctx.input();
+        let complete = match completion::current(input, input.len()).1 {
+            completion::Current::Edgeql(q) if q.ends_with(';') => true,
+            completion::Current::Edgeql(_) => false,
+            completion::Current::Empty => true,
+            completion::Current::Backslash(_) => true,
+        };
+        if complete {
             return Ok(ValidationResult::Valid(None));
-        }
-        if line.starts_with("\\") {
-            match backslash::parse(line) {
-                Ok(_) => Ok(ValidationResult::Valid(None)),
-                Err(e) => {
-                    Ok(ValidationResult::Invalid(Some(
-                        format!("  ← {}", e.hint))))
-                }
-            }
         } else {
-            let mut data = ctx.input();
-            loop {
-                match full_statement(&data.as_bytes(), None) {
-                    Ok(bytes) => {
-                        data = &data[bytes..];
-                        if data.trim().is_empty() {
-                            return Ok(ValidationResult::Valid(None))
-                        }
-                    }
-                    Err(_) => {
-                        return Ok(ValidationResult::Incomplete)
-                    }
-                }
-            }
+            return Ok(ValidationResult::Incomplete);
         }
     }
 }
 impl Completer for EdgeqlHelper {
-    type Candidate = String;
+    type Candidate = completion::Pair;
     fn complete(&self, line: &str, pos: usize, _ctx: &Context)
         -> Result<(usize, Vec<Self::Candidate>), ReadlineError>
     {
-        // TODO(tailhook) strip leading whitespace
-        // TODO(tailhook) argument completion
-        if line.starts_with("\\") && pos == line.len() {
-            let mut options = Vec::new();
-            for item in backslash::COMMAND_NAMES {
-                if item.starts_with(line) {
-                    options.push((*item).into());
-                }
-            }
-            return Ok((0, options))
+        let comp = completion::complete(line, pos);
+        if let Some((offset, options)) = comp {
+            Ok((offset, options))
+        } else {
+            Ok((pos, Vec::new()))
         }
-        Ok((pos, Vec::new()))
     }
 }
 
@@ -204,6 +181,7 @@ fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
 pub fn create_editor(mode: EditMode) -> Editor<EdgeqlHelper> {
     let config = Config::builder();
     let config = config.edit_mode(mode);
+    let config = config.completion_type(CompletionType::List);
     let mut editor = Editor::<EdgeqlHelper>::with_config(config.build());
     editor.bind_sequence(KeyPress::Enter, Cmd::AcceptOrInsertLine);
     load_history(&mut editor, "edgeql").map_err(|e| {
@@ -277,10 +255,10 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 edgeql_input(&mut prompt, &mut editor, &data,
                     &database, &initial);
             }
-            Some(Control::VariableInput { name, type_name, initial })
+            Some(Control::ParameterInput { name, type_name, initial })
             => {
                 prompt.clear();
-                prompt.push_str("Variable <");
+                prompt.push_str("Parameter <");
                 prompt.push_str(&type_name);
                 prompt.push_str(">$");
                 prompt.push_str(&name);

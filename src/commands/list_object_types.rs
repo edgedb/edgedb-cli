@@ -71,7 +71,7 @@ pub async fn list_object_types<'x>(cli: &mut Client<'x>, options: &Options,
             } else if !system {
                 eprintln!("No user-defined object types found. {}",
                     if options.command_line { "Try --system" }
-                    else { r"Try \ltS" });
+                    else { r"Try \lt -s" });
             }
         } else {
             table.printstd();

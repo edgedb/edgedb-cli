@@ -318,7 +318,7 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
     let level = path.len();
     match json {
         Array(items) => {
-            if items.len() > 0 {
+            if items.len() > limit {
                 return false;
             }
             for (idx, item) in items.iter().enumerate() {
@@ -387,39 +387,50 @@ async fn _interactive_main(
         if inp.trim().is_empty() {
             continue;
         }
-        if inp.trim_start().starts_with("\\") {
-            use backslash::ExecuteResult::*;
-            let cmd = match backslash::parse(&inp) {
-                Ok(cmd) => cmd,
-                Err(e) => {
-                    eprintln!("Error parsing backslash command: {}",
-                              e.message);
-                    // Quick-edit command on error
-                    initial = inp.trim_start().into();
-                    continue;
-                }
-            };
-            let exec_res = backslash::execute(&mut cli, cmd, &mut state).await;
-            match exec_res {
-                Ok(Skip) => continue,
-                Ok(Input(text)) => initial = text,
-                Err(e) => {
-                    if e.is::<backslash::ChangeDb>() {
-                        return Err(e);
-                    }
-                    eprintln!("Error executing command: {}", e);
-                    // Quick-edit command on error
-                    initial = inp.trim_start().into();
-                    state.last_error = Some(e);
-                }
-            }
-            continue;
-        }
         let mut current_offset = 0;
         'statement_loop: while inp[current_offset..].trim() != "" {
-            let slen = full_statement(&inp.as_bytes()[current_offset..], None)
-                .unwrap_or(inp.len() - current_offset);
-            let statement = &inp[current_offset..][..slen];
+            let inp_tail = &inp[current_offset..].trim_start();
+            current_offset = inp.len() - inp_tail.len();
+            if inp_tail.starts_with("\\") {
+                use backslash::ExecuteResult::*;
+                let len = backslash::full_statement(&inp_tail);
+                current_offset += len;
+                let cmd = match backslash::parse(&inp_tail[..len]) {
+                    Ok(cmd) => cmd,
+                    Err(e) => {
+                        eprintln!("Error parsing backslash command: {}",
+                                  e.message);
+                        if inp_tail[len..].trim().is_empty() {
+                            // Quick-edit command on error
+                            initial = inp_tail[..len].trim_start().into();
+                        }
+                        continue 'statement_loop;
+                    }
+                };
+                let res = backslash::execute(&mut cli,
+                    &cmd.command, &mut state).await;
+                match res {
+                    Ok(Skip) => continue,
+                    Ok(Input(text)) => initial = text,
+                    Err(e) => {
+                        if e.is::<backslash::ChangeDb>() {
+                            if !inp_tail[len..].trim().is_empty() {
+                                eprintln!("WARNING: subsequent commands after \
+                                           \\connect are ignored");
+                            }
+                            return Err(e);
+                        }
+                        eprintln!("Error executing command: {}", e);
+                        // Quick-edit command on error
+                        initial = inp.trim_start().into();
+                        state.last_error = Some(e);
+                    }
+                }
+                continue 'statement_loop;
+            }
+            let slen = full_statement(&inp_tail.as_bytes(), None)
+                .unwrap_or(inp_tail.len());
+            let statement = &inp_tail[..slen];
             current_offset += slen;
             let mut headers = HashMap::new();
             if let Some(implicit_limit) = state.implicit_limit {
@@ -555,9 +566,7 @@ async fn _interactive_main(
                                     putting an explicit LIMIT clause, \
                                     or increase the implicit limit \
                                     using \\limit.");
-                                while let Some(_) =
-                                    items.next().await.transpose()?
-                                {}
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                         }
@@ -567,8 +576,7 @@ async fn _interactive_main(
                                 eprintln!("Error: {}", e);
                                 // exhaust the iterator to get connection in the
                                 // consistent state
-                                while let Some(_) = items.next().await.transpose()?
-                                {}
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                         };
@@ -606,20 +614,21 @@ async fn _interactive_main(
                             _ => return Err(anyhow::anyhow!(
                                 "postres returned non-string in JSON mode")),
                         };
-                        let items: serde_json::Value;
-                        items = serde_json::from_str(&text)
+                        let jitems: serde_json::Value;
+                        jitems = serde_json::from_str(&text)
                             .context("cannot decode json result")?;
                         if let Some(limit) = state.implicit_limit {
-                            if !check_json_limit(&items, "", limit) {
+                            if !check_json_limit(&jitems, "", limit) {
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                         }
-                        let items = items.as_array()
+                        let jitems = jitems.as_array()
                             .ok_or_else(|| anyhow::anyhow!(
                                 "non-array returned from \
                                  postgres in JSON mode"))?;
                         // trying to make writes atomic if possible
-                        let mut data = print::json_to_string(items, &cfg)?;
+                        let mut data = print::json_to_string(jitems, &cfg)?;
                         data += "\n";
                         stdout().write_all(data.as_bytes()).await?;
                     }
@@ -639,15 +648,11 @@ async fn _interactive_main(
                         if let Some(limit) = state.implicit_limit {
                             if index >= limit {
                                 print_json_limit_error(&path);
-                                while let Some(_) =
-                                    items.next().await.transpose()?
-                                {}
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                             if !check_json_limit(&value, &path, limit) {
-                                while let Some(_) =
-                                    items.next().await.transpose()?
-                                {}
+                                items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }
                         }

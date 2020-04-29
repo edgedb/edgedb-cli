@@ -7,6 +7,7 @@ use crate::options::Options;
 
 mod client;
 mod commands;
+mod completion;
 mod highlight;
 mod options;
 mod print;

@@ -102,7 +102,7 @@ pub async fn list_indexes<'x>(cli: &mut Client<'x>, options: &Options,
                 if options.command_line {
                     eprintln!("No explicit indexes found. Try --verbose");
                 } else {
-                    eprintln!("No explicit indexes found. Try \\li+");
+                    eprintln!("No explicit indexes found. Try \\li -v");
                 }
             } else {
                 eprintln!("No indexes found.");

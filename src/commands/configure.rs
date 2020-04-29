@@ -2,7 +2,9 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
 use crate::client::Client;
-use crate::options::{Configure, ConfigStr, AuthParameter, PortParameter};
+use crate::commands::parser::{Configure, ConfigStr};
+use crate::commands::parser::{AuthParameter, PortParameter};
+
 
 async fn set_string(cli: &mut Client<'_>, name: &str, value: &ConfigStr)
     -> Result<(), anyhow::Error>
@@ -18,12 +20,12 @@ pub async fn configure(cli: &mut Client<'_>, _options: &Options,
     cfg: &Configure)
     -> Result<(), anyhow::Error>
 {
-    use crate::options::ConfigureCommand as C;
-    use crate::options::ConfigureInsert as Ins;
-    use crate::options::ConfigureReset as Res;
-    use crate::options::ListParameter as I;
-    use crate::options::ConfigureSet as Set;
-    use crate::options::ValueParameter as S;
+    use crate::commands::parser::ConfigureCommand as C;
+    use crate::commands::parser::ConfigureInsert as Ins;
+    use crate::commands::parser::ConfigureReset as Res;
+    use crate::commands::parser::ListParameter as I;
+    use crate::commands::parser::ConfigureSet as Set;
+    use crate::commands::parser::ValueParameter as S;
     match &cfg.command {
         C::Insert(Ins { parameter: I::Auth(param) }) => {
             let AuthParameter { users, comment, priority, method } = param;
@@ -104,7 +106,7 @@ pub async fn configure(cli: &mut Client<'_>, _options: &Options,
             set_string(cli, "effective_io_concurrency", param).await
         }
         C::Reset(Res { parameter }) => {
-            use crate::options::ConfigParameter as C;
+            use crate::commands::parser::ConfigParameter as C;
             let name = match parameter {
                 C::ListenAddresses => "listen_addresses",
                 C::ListenPort => "listen_port",

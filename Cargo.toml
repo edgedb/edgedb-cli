@@ -17,8 +17,8 @@ async-std = {version="1", features=[
 ]}
 bytes = "0.5.3"
 rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb"}
-clap = "2.33.0"
-structopt = "0.3.5"
+clap = { git="https://github.com/clap-rs/clap", branch="master" }
+strsim = "0.10.0"
 whoami = "0.6.0"
 atty = "0.2.13"
 scram = "0.4.0"

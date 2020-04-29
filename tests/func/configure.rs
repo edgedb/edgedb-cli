@@ -29,7 +29,7 @@ fn configure_all_parameters() {
 
     let cmd = SERVER.admin_cmd()
         .arg("configure").arg("set")
-        .arg("--help")
+        .arg("-h")
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
     let cmd_simple_options = out.lines()
@@ -64,7 +64,7 @@ fn configure_all_parameters() {
 
     let cmd = SERVER.admin_cmd()
         .arg("configure").arg("insert")
-        .arg("--help")
+        .arg("-h")
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
     let cmd_object_options = out.lines()
@@ -78,7 +78,7 @@ fn configure_all_parameters() {
 
     let cmd = SERVER.admin_cmd()
         .arg("configure").arg("reset")
-        .arg("--help")
+        .arg("-h")
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
     let cmd_reset_options = out.lines()
