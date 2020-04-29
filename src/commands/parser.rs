@@ -92,7 +92,7 @@ pub struct ListAliases {
     pub pattern: Option<String>,
     #[clap(long, short="I")]
     pub case_sensitive: bool,
-    #[clap(long, short="S")]
+    #[clap(long, short="s")]
     pub system: bool,
     #[clap(long, short="v")]
     pub verbose: bool,
@@ -112,7 +112,7 @@ pub struct ListIndexes {
     pub pattern: Option<String>,
     #[clap(long, short="I")]
     pub case_sensitive: bool,
-    #[clap(long, short="S")]
+    #[clap(long, short="s")]
     pub system: bool,
     #[clap(long, short="v")]
     pub verbose: bool,
@@ -124,7 +124,7 @@ pub struct ListTypes {
     pub pattern: Option<String>,
     #[clap(long, short="I")]
     pub case_sensitive: bool,
-    #[clap(long, short="S")]
+    #[clap(long, short="s")]
     pub system: bool,
 }
 
