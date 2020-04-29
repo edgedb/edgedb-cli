@@ -41,7 +41,7 @@ impl State {
         -> prompt::Input
     {
         self.control.send(
-            prompt::Control::VariableInput {
+            prompt::Control::ParameterInput {
                 name: name.to_owned(),
                 type_name: type_name.to_owned(),
                 initial: initial.to_owned(),

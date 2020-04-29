@@ -28,7 +28,7 @@ use colorful::Colorful;
 
 pub enum Control {
     EdgeqlInput { database: String, initial: String },
-    VariableInput { name: String, type_name: String, initial: String },
+    ParameterInput { name: String, type_name: String, initial: String },
     ShowHistory,
     SpawnEditor { entry: Option<isize> },
     ViMode,
@@ -255,10 +255,10 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 edgeql_input(&mut prompt, &mut editor, &data,
                     &database, &initial);
             }
-            Some(Control::VariableInput { name, type_name, initial })
+            Some(Control::ParameterInput { name, type_name, initial })
             => {
                 prompt.clear();
-                prompt.push_str("Variable <");
+                prompt.push_str("Parameter <");
                 prompt.push_str(&type_name);
                 prompt.push_str(">$");
                 prompt.push_str(&name);
