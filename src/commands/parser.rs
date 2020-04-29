@@ -1,7 +1,7 @@
 use clap::{Clap, AppSettings};
 use std::path::PathBuf;
 
-use crate::repl::OutputMode;
+use crate::repl;
 
 
 #[derive(Clap, Clone, Debug)]
@@ -40,23 +40,53 @@ pub enum BackslashCmd {
     #[clap(flatten)]
     Common(Common),
     Help,
-    ViMode,
-    EmacsMode,
-    ImplicitProperties,
-    NoImplicitProperties,
-    IntrospectTypes,
-    NoIntrospectTypes,
     LastError,
-    VerboseErrors,
-    NoVerboseErrors,
     History,
-    Limit(Limit),
-    Output(Output),
     Connect(Connect),
     Edit(Edit),
+    Set(SetCommand),
 }
 
 #[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct SetCommand {
+    #[clap(subcommand)]
+    pub setting: Option<Setting>,
+}
+
+
+#[derive(Clap, Clone, Debug)]
+pub enum Setting {
+    /// Set input mode. One of: vi, emacs
+    InputMode(InputMode),
+    /// Print implicit properties of objects: id, type id
+    ImplicitProperties(SettingBool),
+    /// Print typenames instead of `Object` in default output mode
+    /// (may fail if schema is updated after enabling option)
+    IntrospectTypes(SettingBool),
+    /// Print all errors with maximum verbosity
+    VerboseErrors(SettingBool),
+    /// Set implicit LIMIT. Defaults to 100, specify 0 to disable.
+    Limit(Limit),
+    /// Set output mode. One of: json, json-elements, default, tab-separated
+    OutputMode(OutputMode),
+}
+
+#[derive(Clap, Clone, Debug, Default)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct InputMode {
+    #[clap(possible_values=&["vi", "emacs"][..])]
+    pub mode: Option<repl::InputMode>,
+}
+
+#[derive(Clap, Clone, Debug, Default)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct SettingBool {
+    #[clap(possible_values=&["on", "off"][..])]
+    pub value: Option<String>,
+}
+
+#[derive(Clap, Clone, Debug, Default)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Limit {
     pub limit: Option<usize>,
@@ -68,10 +98,13 @@ pub struct Edit {
     pub entry: Option<isize>,
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(Clap, Clone, Debug, Default)]
 #[clap(setting=AppSettings::DisableVersion)]
-pub struct Output {
-    pub mode: Option<OutputMode>,
+pub struct OutputMode {
+    #[clap(possible_values=
+        &["json", "json-elements", "default", "tab-separated"][..]
+    )]
+    pub mode: Option<repl::OutputMode>,
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -362,4 +395,40 @@ pub struct PortParameter {
     /// application port.
     #[clap(long)]
     pub concurrency: i64,
+}
+
+impl Setting {
+    pub fn name(&self) -> &'static str {
+        use Setting::*;
+        match self {
+            InputMode(_) => "input-mode",
+            ImplicitProperties(_) => "implicit-properties",
+            IntrospectTypes(_) => "introspect-types",
+            VerboseErrors(_) => "verbose-errors",
+            Limit(_) => "limit",
+            OutputMode(_) => "output-mode",
+        }
+    }
+    pub fn is_show(&self) -> bool {
+        use Setting::*;
+
+        match self {
+            InputMode(a) => a.mode.is_none(),
+            ImplicitProperties(a) => a.value.is_none(),
+            IntrospectTypes(a) => a.value.is_none(),
+            VerboseErrors(a) => a.value.is_none(),
+            Limit(a) => a.limit.is_none(),
+            OutputMode(a) => a.mode.is_none(),
+        }
+    }
+}
+
+impl SettingBool {
+    pub fn unwrap_value(&self) -> bool {
+        match self.value.as_deref() {
+            Some("on") => true,
+            Some("off") => false,
+            _ => unreachable!("validated by clap"),
+        }
+    }
 }

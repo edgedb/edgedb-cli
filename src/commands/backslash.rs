@@ -1,19 +1,22 @@
 use std::fmt;
+use std::borrow::Cow;
 use std::error::Error;
 use std::collections::{BTreeSet, BTreeMap};
 
 use anyhow;
 use clap::{self, Clap, IntoApp};
 use edgedb_protocol::server_message::ErrorResponse;
+use prettytable::{Table, Row, Cell};
 
 use crate::client::Client;
 use crate::commands::Options;
-use crate::repl::{self, OutputMode};
+use crate::repl;
 use crate::print::style::Styler;
 use crate::prompt;
-use crate::commands::type_names::get_type_names;
 use crate::commands::execute;
-use crate::commands::parser::{Backslash, BackslashCmd};
+use crate::commands::parser::{Backslash, BackslashCmd, Setting};
+use crate::commands::table;
+use crate::commands::type_names::get_type_names;
 
 
 lazy_static::lazy_static! {
@@ -58,18 +61,7 @@ Editing
                            output as the input
 
 Settings
-  \limit [LIMIT]           Set implicit LIMIT. Defaults to 100, specify 0 to disable.
-  \output [MODE]           Set output mode. One of:
-                             json, json-elements, default, tab-separated
-  \vi                      switch to vi-mode editing
-  \emacs                   switch to emacs (normal) mode editing, disables vi-mode
-  \implicit-properties     print implicit properties of objects (id, type id)
-  \no-implicit-properties  disable printing implicit properties
-  \introspect-types        print typenames instead of `Object` (may fail if
-                           schema is updated after enabling option)
-  \no-introspect-types     disable type introspection
-  \verbose-errors          print all errors with maximum verbosity
-  \no-verbose-errors       only print InternalServerError with maximum verbosity
+  \set [OPTION [VALUE]]      show/change setting, see \
 
 Connection
   \c, \connect [DBNAME]    Connect to database DBNAME
@@ -82,6 +74,7 @@ Development
 
 Help
   \?                       Show help on backslash commands
+  \set                     Show setting descriptions (without arguments)
 "###;
 
 #[derive(Debug)]
@@ -125,6 +118,7 @@ pub struct CommandInfo {
 }
 
 pub struct CommandCache {
+    pub settings: Vec<(Setting, String)>,
     pub commands: BTreeMap<String, CommandInfo>,
     pub aliases: BTreeMap<&'static str, &'static str>,
     pub all_commands: BTreeSet<String>,
@@ -259,6 +253,8 @@ impl<'a> Iterator for Parser<'a> {
 
 impl CommandCache {
     fn new() -> CommandCache {
+        use Setting::*;
+
         let clap = Backslash::into_app();
         let mut aliases = BTreeMap::new();
         aliases.insert("d", "describe");
@@ -275,9 +271,13 @@ impl CommandCache {
         aliases.insert("c", "connect");
         aliases.insert("E", "last-error");
         aliases.insert("?", "help");
+        let mut setting_cmd = None;
         let commands: BTreeMap<_,_> = clap.get_subcommands().iter()
             .map(|cmd| {
                 let name = cmd.get_name().to_owned();
+                if name == "set" {
+                    setting_cmd = Some(cmd);
+                }
                 (name, CommandInfo {
                     options: cmd.get_arguments().iter()
                         .filter_map(|a| a.get_short())
@@ -291,7 +291,27 @@ impl CommandCache {
                 })
             })
             .collect();
+        let setting_cmd = setting_cmd.expect("set command exists");
+        let mut setting_descr: BTreeMap<_, _> = setting_cmd.get_subcommands()
+            .iter()
+            .map(|cmd| {
+                (cmd.get_name(),
+                 cmd.get_about().unwrap_or("").to_owned())
+            })
+            .collect();
         CommandCache {
+            settings: vec![
+                InputMode(Default::default()),
+                ImplicitProperties(Default::default()),
+                IntrospectTypes(Default::default()),
+                VerboseErrors(Default::default()),
+                Limit(Default::default()),
+                OutputMode(Default::default()),
+            ].into_iter().map(|s| {
+                let descr = setting_descr.remove(&s.name())
+                    .expect("all settings described");
+                (s, descr)
+            }).collect(),
             all_commands: commands.keys().map(|x| &x[..])
                 .chain(aliases.keys().map(|x| *x))
                 .map(|n| String::from("\\") + n)
@@ -391,11 +411,65 @@ pub fn is_valid_prefix(s: &str) -> bool {
     }
 }
 
+pub fn bool_str(val: bool) -> &'static str {
+    match val {
+        true => "on",
+        false => "off",
+    }
+}
+
+pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
+     use Setting::*;
+
+     match s {
+        InputMode(_) => {
+            prompt.input_mode.as_str().into()
+        }
+        ImplicitProperties(_) => {
+            bool_str(prompt.print.implicit_properties).into()
+        }
+        IntrospectTypes(_) => {
+            bool_str(prompt.print.type_names.is_some()).into()
+        }
+        VerboseErrors(_) => {
+            bool_str(prompt.verbose_errors).into()
+        }
+        Limit(_) => {
+            if let Some(limit) = prompt.implicit_limit {
+                limit.to_string().into()
+            } else {
+                "0  # no limit".into()
+            }
+        }
+        OutputMode(_) => {
+            prompt.output_mode.as_str().into()
+        }
+     }
+}
+
+fn list_settings(prompt: &mut repl::State) {
+    let mut table = Table::new();
+    table.set_format(*table::FORMAT);
+    table.set_titles(Row::new(
+        ["Setting", "Current", "Description"]
+        .iter().map(|x| table::header_cell(x)).collect()));
+    for (ref cmd, ref description) in &CMD_CACHE.settings {
+        table.add_row(Row::new(vec![
+            Cell::new(cmd.name()),
+            Cell::new(&get_setting(cmd, prompt)),
+            Cell::new(&textwrap::fill(&description, 40)),
+        ]));
+    }
+    table.printstd();
+}
+
 pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
     prompt: &mut repl::State)
     -> Result<ExecuteResult, anyhow::Error>
 {
     use crate::commands::parser::BackslashCmd::*;
+    use crate::commands::parser::SetCommand;
+    use Setting::*;
     use ExecuteResult::*;
 
     let options = Options {
@@ -411,40 +485,58 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
             execute::common(cli, cmd, &options).await?;
             Ok(Skip)
         }
-        ViMode => {
-            prompt.vi_mode().await;
+        Set(SetCommand {setting: None}) => {
+            list_settings(prompt);
             Ok(Skip)
         }
-        EmacsMode => {
-            prompt.emacs_mode().await;
+        Set(SetCommand {setting: Some(ref cmd)}) if cmd.is_show() => {
+            println!("{}: {}", cmd.name(), get_setting(&cmd, prompt));
             Ok(Skip)
         }
-        ImplicitProperties => {
-            prompt.print.implicit_properties = true;
-            Ok(Skip)
-        }
-        NoImplicitProperties => {
-            prompt.print.implicit_properties = true;
-            Ok(Skip)
-        }
-        IntrospectTypes => {
-            prompt.print.type_names = Some(get_type_names(cli).await?);
-            Ok(Skip)
-        }
-        NoIntrospectTypes => {
-            prompt.print.type_names = None;
+        Set(SetCommand {setting: Some(ref cmd)}) => {
+            match cmd {
+                InputMode(m) => {
+                    prompt.input_mode(m.mode.expect("only writes here")).await;
+                }
+                ImplicitProperties(b) => {
+                    prompt.print.implicit_properties = b.unwrap_value();
+                }
+                IntrospectTypes(b) => {
+                    if b.unwrap_value() {
+                        prompt.print.type_names =
+                            Some(get_type_names(cli).await?);
+                    } else {
+                        prompt.print.type_names = None;
+                    }
+                }
+                VerboseErrors(b) => {
+                    prompt.verbose_errors = b.unwrap_value();
+                }
+                Limit(c) => {
+                    if let Some(limit) = c.limit {
+                        if limit == 0 {
+                            prompt.implicit_limit = None;
+                            prompt.print.max_items = None;
+                        } else {
+                            prompt.implicit_limit = Some(limit);
+                            prompt.print.max_items = Some(limit);
+                        }
+                    } else {
+                        if let Some(limit) = prompt.implicit_limit {
+                            println!("{}", limit);
+                        } else {
+                            eprintln!("No limit");
+                        }
+                    }
+                }
+                OutputMode(c) => {
+                    prompt.output_mode = c.mode.expect("only writes here");
+                }
+            }
             Ok(Skip)
         }
         Connect(c) => {
             Err(ChangeDb { target: c.database_name.clone() })?
-        }
-        VerboseErrors => {
-            prompt.verbose_errors = true;
-            Ok(Skip)
-        }
-        NoVerboseErrors => {
-            prompt.verbose_errors = false;
-            Ok(Skip)
         }
         LastError => {
             if let Some(ref err) = prompt.last_error {
@@ -468,37 +560,6 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
                 | prompt::Input::Interrupt
                 | prompt::Input::Eof => Ok(Skip),
             }
-        }
-        Limit(c) => {
-            if let Some(limit) = c.limit {
-                if limit == 0 {
-                    prompt.implicit_limit = None;
-                    prompt.print.max_items = None;
-                } else {
-                    prompt.implicit_limit = Some(limit);
-                    prompt.print.max_items = Some(limit);
-                }
-            } else {
-                if let Some(limit) = prompt.implicit_limit {
-                    println!("{}", limit);
-                } else {
-                    eprintln!("No limit");
-                }
-            }
-            Ok(Skip)
-        }
-        Output(c) => {
-            if let Some(mode) = c.mode {
-                prompt.output_mode = mode;
-            } else {
-                println!("{}", match prompt.output_mode {
-                    OutputMode::Json => "json",
-                    OutputMode::JsonElements => "json-elements",
-                    OutputMode::Default => "default",
-                    OutputMode::TabSeparated => "tab-separated",
-                });
-            }
-            Ok(Skip)
         }
     }
 }

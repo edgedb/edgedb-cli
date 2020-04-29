@@ -48,6 +48,7 @@ fn interactive_main(options: Options) -> Result<(), anyhow::Error> {
         database: options.database.clone(),
         implicit_limit: Some(100),
         output_mode: options.output_mode,
+        input_mode: repl::InputMode::Emacs,
     };
     let handle = task::spawn(client::interactive_main(options, state));
     prompt::main(repl_wr, control_rd)?;
