@@ -123,7 +123,7 @@ pub fn hint(input: &str, pos: usize) -> Option<String> {
     match current(input, pos) {
         (_, Current::Empty) => None,
         (_, Current::Edgeql(_)) => None,
-        (off, Current::Backslash(cmd)) => {
+        (_, Current::Backslash(cmd)) => {
             for token in backslash::Parser::new(cmd) {
                 if pos >= token.span.0 && pos <= token.span.1 {
                     match token.item {

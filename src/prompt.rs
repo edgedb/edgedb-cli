@@ -63,7 +63,7 @@ impl Highlighter for EdgeqlHelper {
             return prompt.into();
         }
     }
-    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
+    fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
         let mut buf = String::with_capacity(line.len() + 8);
         let mut data = line;
         loop {

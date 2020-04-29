@@ -290,7 +290,6 @@ impl CommandCache {
                 })
             })
             .collect();
-        println!("COMMANDS {:#?}", commands);
         CommandCache {
             all_commands: commands.keys().map(|x| &x[..])
                 .chain(aliases.keys().map(|x| *x))
@@ -314,7 +313,6 @@ pub fn full_statement(s: &str) -> usize {
 
 pub fn parse(s: &str) -> Result<Backslash, ParseError> {
     use Item::*;
-    use clap::ErrorKind::*;
 
     let mut arguments = Vec::new();
     for token in Parser::new(s) {
