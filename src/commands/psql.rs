@@ -21,7 +21,7 @@ pub async fn psql<'x>(cli: &mut Client<'x>, _options: &Options)
                 if let Some(dir) = option_env!("PSQL_DEFAULT_PATH") {
                     let psql_path = Path::new(dir).join("psql");
                     if !psql_path.exists() {
-                        eprintln!("WARNING: {} does not exists",
+                        eprintln!("WARNING: {} does not exist",
                                   psql_path.display());
                     }
                     let npath = if let Some(path) = env::var_os("PATH") {
