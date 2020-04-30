@@ -32,7 +32,7 @@ commands:
   repl: !Command
     description: Run edgedb repl
     container: ubuntu
-    run: [cargo, run, --bin, edgedb, '--']
+    run: [cargo, run, --bin, edgedb, --features=dev_mode, '--']
 
   tree: !Command
     description: Run tree tool
