@@ -367,7 +367,14 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
         }
     }
     Backslash::try_parse_from(arguments)
-    .map_err(|e| ParseError { message: e.cause, span: None })
+    .map_err(|e| ParseError {
+        message: if e.cause.is_empty() {
+            e.to_string()
+        } else {
+            e.cause
+        },
+        span: None,
+    })
 }
 
 fn unquote_argument(s: &str) -> String {
