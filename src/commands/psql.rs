@@ -1,6 +1,3 @@
-use std::env;
-use std::path::Path;
-use std::ffi::OsString;
 use std::process::Command;
 
 use anyhow::Context;
@@ -15,8 +12,12 @@ pub async fn psql<'x>(cli: &mut Client<'x>, _options: &Options)
     match cli.params.get::<PostgresAddress>() {
         Some(addr) => {
             let mut cmd = Command::new("psql");
-            #[cfg(all(feature="dev_mode", unix))]
+            #[cfg(all(feature="dev_mode"))]
             {
+                use std::env;
+                use std::iter;
+                use std::path::{Path, PathBuf};
+
                 if let Some(dir) = option_env!("PSQL_DEFAULT_PATH") {
                     let psql_path = Path::new(dir).join("psql");
                     if !psql_path.exists() {
@@ -24,16 +25,13 @@ pub async fn psql<'x>(cli: &mut Client<'x>, _options: &Options)
                                   psql_path.display());
                     }
                     let npath = if let Some(path) = env::var_os("PATH") {
-                        if path.is_empty() {
-                            dir.into()
-                        } else {
-                            let mut npath = OsString::with_capacity(
-                                dir.len() + 1 + path.len() + 1);
-                            npath.push(dir);
-                            npath.push(":");
-                            npath.push(path);
-                            npath
-                        }
+                        env::join_paths(
+                            iter::once(PathBuf::from(dir))
+                            .chain(env::split_paths(&path)))
+                        .unwrap_or_else(|e| {
+                            eprintln!("PSQL_DEFAULT_PATH error: {}", e);
+                            path
+                        })
                     } else {
                         dir.into()
                     };
