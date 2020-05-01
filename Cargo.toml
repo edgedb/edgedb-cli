@@ -52,6 +52,9 @@ pretty_assertions = "0.6.1"
 shutdown_hooks = "0.1.0"
 libc = "0.2.68"
 
+[features]
+dev_mode = []
+
 [[bin]]
 name = "edgedb"
 path = "src/main.rs"
