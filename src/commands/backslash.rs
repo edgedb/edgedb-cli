@@ -116,14 +116,30 @@ pub struct Parser<'a> {
 }
 
 #[derive(Debug)]
+pub struct Argument {
+    pub required: bool,
+    pub name: String,
+}
+
+#[derive(Debug)]
 pub struct CommandInfo {
     pub options: String,
-    pub arguments: Vec<String>,
+    pub arguments: Vec<Argument>,
     pub description: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct SettingInfo {
+    pub name: &'static str,
+    pub description: String,
+    pub name_description: String,
+    pub setting: Setting,
+    pub value_name: String,
+    pub values: Option<Vec<String>>,
+}
+
 pub struct CommandCache {
-    pub settings: Vec<(Setting, String)>,
+    pub settings: BTreeMap<&'static str, SettingInfo>,
     pub commands: BTreeMap<String, CommandInfo>,
     pub aliases: BTreeMap<&'static str, &'static str>,
     pub all_commands: BTreeSet<String>,
@@ -290,33 +306,48 @@ impl CommandCache {
                     arguments: cmd.get_arguments().iter()
                         .filter(|a| a.get_short().is_none())
                         .filter(|a| a.get_long().is_none())
-                        .map(|a| a.get_name().to_owned())
+                        .map(|a| Argument {
+                            required: false,
+                            name: a.get_name().to_owned(),
+                        })
                         .collect(),
                     description: cmd.get_about().map(|x| x.to_owned()),
                 })
             })
             .collect();
         let setting_cmd = setting_cmd.expect("set command exists");
-        let mut setting_descr: BTreeMap<_, _> = setting_cmd.get_subcommands()
+        let mut setting_cmd: BTreeMap<_, _> = setting_cmd.get_subcommands()
             .iter()
-            .map(|cmd| {
-                (cmd.get_name(),
-                 cmd.get_about().unwrap_or("").to_owned())
-            })
+            .map(|cmd| (cmd.get_name(), cmd))
             .collect();
-        CommandCache {
-            settings: vec![
+        let settings = vec![
                 InputMode(Default::default()),
                 ImplicitProperties(Default::default()),
                 IntrospectTypes(Default::default()),
                 VerboseErrors(Default::default()),
                 Limit(Default::default()),
                 OutputMode(Default::default()),
-            ].into_iter().map(|s| {
-                let descr = setting_descr.remove(&s.name())
-                    .expect("all settings described");
-                (s, descr)
-            }).collect(),
+            ].into_iter().map(|setting| {
+                let cmd = setting_cmd.remove(&setting.name())
+                    .expect("all settings have cmd");
+                let arg = cmd.get_arguments().get(0)
+                    .expect("setting has argument");
+                let values = arg.get_possible_values()
+                    .map(|v| v.iter().map(|x| (*x).to_owned()).collect());
+                let description = cmd.get_about().unwrap_or("").to_owned();
+                let info = SettingInfo {
+                    name: setting.name(),
+                    name_description: format!("{} -- {}",
+                        setting.name(), description),
+                    description,
+                    setting,
+                    value_name: arg.get_name().to_owned(),
+                    values,
+                 };
+                (info.name, info)
+            }).collect();
+        CommandCache {
+            settings,
             all_commands: commands.keys().map(|x| &x[..])
                 .chain(aliases.keys().map(|x| *x))
                 .map(|n| String::from("\\") + n)
@@ -411,18 +442,6 @@ fn unquote_argument(s: &str) -> String {
     return buf;
 }
 
-pub fn is_valid_command(s: &str) -> bool {
-    CMD_CACHE.all_commands.get(s).is_some()
-}
-
-pub fn is_valid_prefix(s: &str) -> bool {
-    let mut iter = CMD_CACHE.all_commands.range(s.to_string()..);
-    match iter.next() {
-        Some(cmd) => cmd.starts_with(s),
-        None => false,
-    }
-}
-
 pub fn bool_str(val: bool) -> &'static str {
     match val {
         true => "on",
@@ -465,11 +484,11 @@ fn list_settings(prompt: &mut repl::State) {
     table.set_titles(Row::new(
         ["Setting", "Current", "Description"]
         .iter().map(|x| table::header_cell(x)).collect()));
-    for (ref cmd, ref description) in &CMD_CACHE.settings {
+    for setting in CMD_CACHE.settings.values() {
         table.add_row(Row::new(vec![
-            Cell::new(cmd.name()),
-            Cell::new(&get_setting(cmd, prompt)),
-            Cell::new(&textwrap::fill(&description, 40)),
+            Cell::new(&setting.name),
+            Cell::new(&get_setting(&setting.setting, prompt)),
+            Cell::new(&textwrap::fill(&setting.description, 40)),
         ]));
     }
     table.printstd();

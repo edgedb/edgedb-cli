@@ -2,7 +2,9 @@ use std::collections::HashSet;
 
 use edgeql_parser::tokenizer::{TokenStream, Kind};
 use edgeql_parser::keywords;
+
 use crate::print::style::{Styler, Style};
+use crate::completion::{BackslashFsm, ValidationResult};
 
 
 lazy_static::lazy_static! {
@@ -42,27 +44,15 @@ pub fn backslash(outbuf: &mut String, text: &str, styler: &Styler) {
 
     let mut pos = 0;
     let mut tokens = backslash::Parser::new(text);
+    let mut fsm = BackslashFsm::Command;
     for token in &mut tokens {
         if token.span.0 > pos {
             emit_insignificant(outbuf, &styler, &text[pos..token.span.0]);
         }
-        let style = match token.item {
-            backslash::Item::Command(cmd) => {
-                if backslash::is_valid_prefix(&cmd) {
-                    if backslash::is_valid_command(&cmd) {
-                        Some(Style::BackslashCommand)
-                    } else if token.span.1 >= text.len() {
-                        // assuming still typing command
-                        None
-                    } else {
-                        Some(Style::Error)
-                    }
-                } else {
-                    Some(Style::Error)
-                }
-            },
-            backslash::Item::Error {..} => Some(Style::Error),
-            _ => None
+        let style = match fsm.validate(&token) {
+            ValidationResult::Valid => Some(Style::BackslashCommand),
+            ValidationResult::Invalid => Some(Style::Error),
+            ValidationResult::Unknown => None,
         };
         let value = &text[token.span.0..token.span.1];
         if let Some(st) = style {
@@ -71,6 +61,7 @@ pub fn backslash(outbuf: &mut String, text: &str, styler: &Styler) {
             outbuf.push_str(value);
         }
         pos = token.span.1 as usize;
+        fsm = fsm.advance(token);
     }
     emit_insignificant(outbuf, &styler, &text[pos..]);
 }
