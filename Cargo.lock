@@ -126,9 +126,9 @@ dependencies = [
 
 [[package]]
 name = "backtrace-sys"
-version = "0.1.36"
+version = "0.1.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78848718ee1255a2485d1309ad9cdecfc2e7d0362dd11c6829364c6b35ae1bc7"
+checksum = "18fbebbe1c9d1f383a9cc7e8ccdb471b91c8d024ee9c2ca5b5346121fe8b4399"
 dependencies = [
  "cc",
  "libc",
@@ -248,13 +248,14 @@ dependencies = [
 [[package]]
 name = "clap"
 version = "3.0.0-beta.1"
-source = "git+https://github.com/clap-rs/clap#0293fd7c4a6aa5cc4a12ed2dbfa03c6220446fb8"
+source = "git+https://github.com/clap-rs/clap#087fab2ab3b643b73e93f9ba7de74f36164d1a45"
 dependencies = [
  "atty",
  "bitflags 1.2.1",
  "clap_derive",
  "indexmap",
  "lazy_static",
+ "os_str_bytes",
  "strsim",
  "termcolor",
  "textwrap",
@@ -265,7 +266,7 @@ dependencies = [
 [[package]]
 name = "clap_derive"
 version = "3.0.0-beta.1"
-source = "git+https://github.com/clap-rs/clap#0293fd7c4a6aa5cc4a12ed2dbfa03c6220446fb8"
+source = "git+https://github.com/clap-rs/clap#087fab2ab3b643b73e93f9ba7de74f36164d1a45"
 dependencies = [
  "heck",
  "proc-macro-error",
@@ -482,7 +483,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#96b8b0cd96661627c822fe6c17a0f9d920ba12f5"
+source = "git+https://github.com/edgedb/edgedb-rust#75f5f9a67ad49c003e0b5b219bf58fab06c414a6"
 dependencies = [
  "quote",
  "syn",
@@ -492,7 +493,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#96b8b0cd96661627c822fe6c17a0f9d920ba12f5"
+source = "git+https://github.com/edgedb/edgedb-rust#75f5f9a67ad49c003e0b5b219bf58fab06c414a6"
 dependencies = [
  "bigdecimal",
  "bytes",
@@ -506,7 +507,7 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb#83a46973ec1383223e6c39e844e7eed455868b88"
+source = "git+https://github.com/edgedb/edgedb#2e3eb8dde5b1eea32a91cccd78419f4faa476fc2"
 dependencies = [
  "combine",
  "snafu",
@@ -890,6 +891,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c601810575c99596d4afc46f78a678c80105117c379eb3650cf99b8a21ce5b"
 
 [[package]]
+name = "os_str_bytes"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5aad937e768e4bd31ddf5f56ce5d1fa7d2e18d84d2aae49d2c45c65aa1cadba0"
+
+[[package]]
 name = "output_vt100"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1040,9 +1047,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bdc6c187c65bca4260c9011c9e3132efe4909da44726bad24cf7572ae338d7f"
+checksum = "4c1f4b0efa5fc5e8ceb705136bfee52cfdb6a4e3509f770b478cd6ed434232a7"
 dependencies = [
  "proc-macro2",
 ]
@@ -1340,9 +1347,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.51"
+version = "1.0.52"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da07b57ee2623368351e9a0488bb0b261322a15a6e0ae53e243cbdc0f4208da9"
+checksum = "a7894c8ed05b7a3a279aeb79025fdec1d3158080b75b98a08faf2806bb799edd"
 dependencies = [
  "itoa",
  "ryu",
@@ -1712,9 +1719,9 @@ checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.60"
+version = "0.2.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cc57ce05287f8376e998cbddfb4c8cb43b84a7ec55cf4551d7c00eef317a47f"
+checksum = "f56e97dbea16d5f56549d6c8ea7f36efb6be98507308650c1a5970574b3941b9"
 dependencies = [
  "cfg-if",
  "wasm-bindgen-macro",
@@ -1722,9 +1729,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.60"
+version = "0.2.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d967d37bf6c16cca2973ca3af071d0a2523392e4a594548155d89a678f4237cd"
+checksum = "7b75d4f3f9b81dfc7d66b955876b325b20e8affd4ce8d93e51162626fc5faadb"
 dependencies = [
  "bumpalo",
  "lazy_static",
@@ -1737,9 +1744,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.60"
+version = "0.2.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bd151b63e1ea881bb742cd20e1d6127cef28399558f3b5d415289bc41eee3a4"
+checksum = "9dcde4b19e863521c1e78ecf100935132396291b09ae0ae2e155ff84ccbe9736"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -1747,9 +1754,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.60"
+version = "0.2.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d68a5b36eef1be7868f668632863292e37739656a80fc4b9acec7b0bd35a4931"
+checksum = "13d87d2b117af2b86472402d70f7eb173bbe166beb5e727f3c0bebecdf356504"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1760,9 +1767,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.60"
+version = "0.2.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "daf76fe7d25ac79748a37538b7daeed1c7a6867c92d3245c12c6222e4a20d639"
+checksum = "71f77b681efd0bca6f8ea356cdc2e497538b41d3e2a02afed18ce8f022231d29"
 
 [[package]]
 name = "whoami"

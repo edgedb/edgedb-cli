@@ -30,6 +30,13 @@ fn simple_query() {
     cmd.success().stdout("8\n");
 }
 
+#[test]
+fn version() {
+    let cmd = SERVER.admin_cmd().arg("--version").assert();
+    cmd.success()
+        .stdout(concat!("edgedb-cli ", env!("CARGO_PKG_VERSION")));
+}
+
 pub struct ShutdownInfo {
     process: Child,
     thread: Option<JoinHandle<()>>,

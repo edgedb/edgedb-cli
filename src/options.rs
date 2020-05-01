@@ -11,6 +11,7 @@ use crate::commands::parser::Common;
 
 
 #[derive(Clap, Debug)]
+#[clap(version=clap::crate_version!())]
 struct TmpOptions {
     /// Host of the EdgeDB instance
     #[clap(short="H", long)]
