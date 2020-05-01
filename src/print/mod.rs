@@ -37,6 +37,7 @@ pub enum PrintError<S: AsErrorSource + Error, P: AsErrorSource + Error> {
 pub struct Config {
     pub colors: Option<bool>,
     pub indent: usize,
+    pub expand_strings: bool,
     pub max_width: Option<usize>,
     pub implicit_properties: bool,
     pub type_names: Option<HashMap<Uuid, String>>,
@@ -48,6 +49,7 @@ pub(in crate::print) struct Printer<'a, T> {
     // config
     colors: bool,
     indent: usize,
+    expand_strings: bool,
     max_width: usize,
     implicit_properties: bool,
     type_names: &'a Option<HashMap<Uuid, String>>,
@@ -73,6 +75,7 @@ impl Config {
         Config {
             colors: None,
             indent: 2,
+            expand_strings: false,
             max_width: None,
             implicit_properties: false,
             type_names: None,
@@ -90,6 +93,11 @@ impl Config {
     }
     pub fn colors(&mut self, value: bool) -> &mut Config {
         self.colors = Some(value);
+        self
+    }
+    #[allow(dead_code)]
+    pub fn expand_strings(&mut self, value: bool) -> &mut Config {
+        self.expand_strings = value;
         self
     }
 }
@@ -189,6 +197,7 @@ pub async fn native_to_stdout<S, I, E>(mut rows: S, config: &Config)
         colors: config.colors
             .unwrap_or_else(|| atty::is(atty::Stream::Stdout)),
         indent: config.indent,
+        expand_strings: config.expand_strings,
         max_width: w,
         implicit_properties: config.implicit_properties,
         type_names: &config.type_names,
@@ -243,6 +252,7 @@ pub fn test_format_cfg<I: FormatExt>(items: &[I], config: &Config)
     let mut prn = Printer {
         colors: false,
         indent: config.indent,
+        expand_strings: config.expand_strings,
         max_width: config.max_width.unwrap_or(80),
         implicit_properties: config.implicit_properties,
         type_names: &config.type_names,
@@ -277,6 +287,7 @@ pub fn test_format<I: FormatExt>(items: &[I])
     test_format_cfg(items, &Config {
         colors: Some(false),
         indent: 2,
+        expand_strings: false,
         max_width: Some(80),
         implicit_properties: false,
         type_names: None,
@@ -291,6 +302,7 @@ pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
     let mut prn = Printer {
         colors: config.colors.unwrap_or(false),
         indent: config.indent,
+        expand_strings: config.expand_strings,
         max_width: config.max_width.unwrap_or(80),
         implicit_properties: config.implicit_properties,
         type_names: &config.type_names,
@@ -325,6 +337,7 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
     let mut prn = Printer {
         colors: config.colors.unwrap_or(false),
         indent: config.indent,
+        expand_strings: config.expand_strings,
         max_width: config.max_width.unwrap_or(80),
         implicit_properties: config.implicit_properties,
         type_names: &config.type_names,

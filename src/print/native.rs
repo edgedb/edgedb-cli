@@ -101,7 +101,12 @@ impl FormatExt for Value {
         match self {
             V::Nothing => prn.const_scalar("Nothing"),
             V::Uuid(u) => prn.const_scalar(u),
-            V::Str(s) => prn.const_scalar(escape_string(s)),
+            V::Str(s) if prn.expand_strings() => {
+                prn.const_scalar(escape_string(s))
+            }
+            V::Str(s) => {
+                prn.const_scalar(format!("{:?}", s))
+            }
             V::Bytes(b) => prn.const_scalar(format_args!("{:?}", b)),
             V::Int16(v) => prn.const_scalar(v),
             V::Int32(v) => prn.const_scalar(v),

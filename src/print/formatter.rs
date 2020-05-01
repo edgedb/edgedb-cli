@@ -44,6 +44,7 @@ pub trait Formatter {
     fn tuple_field(&mut self, f: &str) -> Result<Self::Error>;
 
     fn implicit_properties(&self) -> bool;
+    fn expand_strings(&self) -> bool;
     fn max_items(&self) -> Option<usize>;
 }
 
@@ -146,6 +147,10 @@ impl<'a, T: Output> Formatter for Printer<'a, T> {
 
     fn implicit_properties(&self) -> bool {
         self.implicit_properties
+    }
+
+    fn expand_strings(&self) -> bool {
+        self.expand_strings
     }
 
     fn max_items(&self) -> Option<usize> {

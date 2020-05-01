@@ -327,6 +327,7 @@ impl CommandCache {
                 VerboseErrors(Default::default()),
                 Limit(Default::default()),
                 OutputMode(Default::default()),
+                ExpandStrings(Default::default()),
             ].into_iter().map(|setting| {
                 let cmd = setting_cmd.remove(&setting.name())
                     .expect("all settings have cmd");
@@ -475,6 +476,9 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
         OutputMode(_) => {
             prompt.output_mode.as_str().into()
         }
+        ExpandStrings(_) => {
+            bool_str(prompt.print.expand_strings).into()
+        }
      }
 }
 
@@ -565,6 +569,9 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
                 }
                 OutputMode(c) => {
                     prompt.output_mode = c.mode.expect("only writes here");
+                }
+                ExpandStrings(b) => {
+                    prompt.print.expand_strings = b.unwrap_value();
                 }
             }
             Ok(Skip)

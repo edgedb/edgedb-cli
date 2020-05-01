@@ -196,9 +196,13 @@ fn object() {
 fn str() {
     assert_eq!(
         test_format(&[Value::Str("hello".into())]).unwrap(),
-        r#"{'hello'}"#);
+        r#"{"hello"}"#);
     assert_eq!(
         test_format(&[Value::Str("a\nb".into())]).unwrap(),
+        "{\"a\\nb\"}");
+    assert_eq!(
+        test_format_cfg(&[Value::Str("a\nb".into())],
+                        Config::new().expand_strings(true)).unwrap(),
         "{\n  'a\nb',\n}");
 }
 

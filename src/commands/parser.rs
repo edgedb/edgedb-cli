@@ -70,6 +70,8 @@ pub enum Setting {
     Limit(Limit),
     /// Set output mode. One of: json, json-elements, default, tab-separated
     OutputMode(OutputMode),
+    /// Stop escaping newlines in quoted strings
+    ExpandStrings(SettingBool),
 }
 
 #[derive(Clap, Clone, Debug, Default)]
@@ -407,6 +409,7 @@ impl Setting {
             VerboseErrors(_) => "verbose-errors",
             Limit(_) => "limit",
             OutputMode(_) => "output-mode",
+            ExpandStrings(_) => "expand-strings",
         }
     }
     pub fn is_show(&self) -> bool {
@@ -419,6 +422,7 @@ impl Setting {
             VerboseErrors(a) => a.value.is_none(),
             Limit(a) => a.limit.is_none(),
             OutputMode(a) => a.mode.is_none(),
+            ExpandStrings(a) => a.value.is_none(),
         }
     }
 }
