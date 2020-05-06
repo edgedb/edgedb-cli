@@ -58,3 +58,7 @@ dev_mode = []
 [[bin]]
 name = "edgedb"
 path = "src/main.rs"
+
+[profile.release]
+debug = true
+lto = true
