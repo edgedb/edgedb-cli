@@ -1,5 +1,6 @@
 use serde_json::Value;
 
+use colorful::Colorful;
 use crate::print::{FormatExt, Formatter};
 use crate::print::buffer::Result;
 
@@ -23,8 +24,15 @@ impl FormatExt for Value {
             V::Object(dict) => {
                 prn.json_object(|prn| {
                     for (key, value) in dict {
-                        prn.object_field(&serde_json::to_string(key)
-                                         .expect("can serialize string"))?;
+                        if key.starts_with('@') {
+                            prn.object_field(serde_json::to_string(key)
+                                             .expect("can serialize string")
+                                             .rgb(0, 0xa5, 0xcb).bold())?;
+                        } else {
+                            prn.object_field(serde_json::to_string(key)
+                                             .expect("can serialize string")
+                                             .light_blue().bold())?;
+                        }
                         value.format(prn)?;
                         prn.comma()?;
                     }

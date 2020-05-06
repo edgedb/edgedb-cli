@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::convert::TryInto;
 
 use bigdecimal::BigDecimal;
+use colorful::Colorful;
 use chrono::format::{Item, Numeric, Pad, Fixed};
 use chrono::{NaiveDateTime, NaiveDate, NaiveTime};
 use humantime::format_rfc3339;
@@ -176,7 +177,15 @@ impl FormatExt for Value {
                     let mut n = 0;
                     for (fld, value) in shape.elements.iter().zip(fields) {
                         if !fld.flag_implicit || prn.implicit_properties() {
-                            prn.object_field(&fld.name)?;
+                            if fld.flag_link_property {
+                                prn.object_field(
+                                    ("@".to_owned() + &fld.name)
+                                    .rgb(0, 0xa5, 0xcb).bold()
+                                )?;
+                            } else {
+                                prn.object_field(
+                                    fld.name.clone().light_blue().bold())?;
+                            };
                             value.format(prn)?;
                             prn.comma()?;
                             n += 1;
@@ -187,7 +196,8 @@ impl FormatExt for Value {
                             .iter().zip(fields)
                             .find(|(f, _) | f.name == "id")
                         {
-                            prn.object_field(&fld.name)?;
+                            prn.object_field(
+                                fld.name.clone().light_blue().bold())?;
                             value.format(prn)?;
                             prn.comma()?;
                         }

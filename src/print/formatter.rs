@@ -40,7 +40,7 @@ pub trait Formatter {
         where F: FnMut(&mut Self) -> Result<Self::Error>;
     fn comma(&mut self) -> Result<Self::Error>;
     fn ellipsis(&mut self) -> Result<Self::Error>;
-    fn object_field(&mut self, f: &str) -> Result<Self::Error>;
+    fn object_field(&mut self, f: CString) -> Result<Self::Error>;
     fn tuple_field(&mut self, f: &str) -> Result<Self::Error>;
 
     fn implicit_properties(&self) -> bool;
@@ -111,9 +111,9 @@ impl<'a, T: Output> Formatter for Printer<'a, T> {
         self.block("{".blue(), f, "}".blue())?;
         Ok(())
     }
-    fn object_field(&mut self, f: &str) -> Result<Self::Error> {
+    fn object_field(&mut self, f: CString) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(f.light_blue().bold())?;
+        self.write(f)?;
         self.field()?;
         Ok(())
     }

@@ -192,6 +192,38 @@ fn object() {
 }"###);
 }
 
+
+#[test]
+fn link_property() {
+    let shape = ObjectShape::new(vec![
+        ShapeElement {
+            flag_implicit: false,
+            flag_link_property: false,
+            flag_link: false,
+            name: "field1".into(),
+        },
+        ShapeElement {
+            flag_implicit: false,
+            flag_link_property: true,
+            flag_link: false,
+            name: "field2".into(),
+        }
+    ]);
+    assert_eq!(test_format_cfg(&[
+        Value::Object { shape: shape.clone(), fields: vec![
+            Some(Value::Int32(10)),
+            Some(Value::Int32(20)),
+        ]},
+        Value::Object { shape: shape.clone(), fields: vec![
+            Some(Value::Int32(30)),
+            Some(Value::Int32(40)),
+        ]},
+    ], Config::new().max_width(60)).unwrap(), r###"{
+  Object {field1: 10, @field2: 20},
+  Object {field1: 30, @field2: 40},
+}"###);
+}
+
 #[test]
 fn str() {
     assert_eq!(
