@@ -9,6 +9,7 @@ use std::thread::{self, JoinHandle};
 use std::process;
 
 use assert_cmd::Command;
+use once_cell::sync::Lazy;
 use serde_json::from_str;
 use rexpect::session::{spawn_command, PtySession};
 
@@ -20,9 +21,7 @@ mod configure;
 mod interactive;
 
 
-lazy_static::lazy_static! {
-    pub static ref SERVER: ServerGuard = ServerGuard::start();
-}
+pub static SERVER: Lazy<ServerGuard> = Lazy::new(|| ServerGuard::start());
 
 #[test]
 fn simple_query() {

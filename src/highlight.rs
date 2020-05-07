@@ -2,15 +2,15 @@ use std::collections::HashSet;
 
 use edgeql_parser::tokenizer::{TokenStream, Kind};
 use edgeql_parser::keywords;
+use once_cell::sync::Lazy;
 
 use crate::print::style::{Styler, Style};
 use crate::completion::{BackslashFsm, ValidationResult};
 
 
-lazy_static::lazy_static! {
-    static ref UNRESERVED_KEYWORDS: HashSet<&'static str> =
-        keywords::UNRESERVED_KEYWORDS.iter().map(|x| *x).collect();
-}
+static UNRESERVED_KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    keywords::UNRESERVED_KEYWORDS.iter().map(|x| *x).collect()
+});
 
 
 pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
