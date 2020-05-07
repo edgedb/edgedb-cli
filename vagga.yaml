@@ -34,15 +34,30 @@ commands:
     container: ubuntu
     run: [cargo, run, --bin, edgedb, --features=dev_mode, '--']
 
+  server: !Command
+    description: Run edgedb server command
+    container: ubuntu
+    run: [cargo, run, --bin, edgedb, '--', server]
+
   tree: !Command
     description: Run tree tool
-    container: ubuntu
+    container: tools
     run: [cargo, tree]
 
   outdated: !Command
     description: Run outdated tool
-    container: ubuntu
+    container: tools
     run: [cargo, outdated]
+
+  fuzz: !Command
+    description: Run fuzz tool
+    container: tools
+    run: [cargo, fuzz]
+
+  bloat: !Command
+    description: Run cargo bloat tool
+    container: tools
+    run: [cargo, bloat]
 
 
 containers:
@@ -65,15 +80,14 @@ containers:
       - postgresql-client
 
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-1.41.0-x86_64-unknown-linux-gnu.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-1.42.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-std-1.41.0-x86_64-unknown-linux-musl.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-std-1.42.0-x86_64-unknown-linux-musl.tar.gz"
       script: "./install.sh --prefix=/musl \
                --components=rust-std-x86_64-unknown-linux-musl"
     - !Env RUSTFLAGS: -g
-    - !Sh 'cargo install cargo-tree cargo-fuzz cargo-outdated --root=/usr'
     - !Sh 'ln -s /musl/lib/rustlib/x86_64-unknown-linux-musl /usr/lib/rustlib/x86_64-unknown-linux-musl'
 
     # edgedb itself for tests
@@ -89,10 +103,17 @@ containers:
       trusted: true
     - !Install [edgedb-1-alpha3]
 
-    environ:
+
+    environ: &environ
       HOME: /work/target
       RUST_BACKTRACE: 1
       # needed for musl build
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
       EDGEDB_HOST: '/work/tmp/run'
+
+  tools:
+    setup:
+    - !Container ubuntu
+    - !Sh 'cargo install cargo-tree cargo-fuzz cargo-outdated cargo-bloat --root=/usr'
+    environ: *environ
