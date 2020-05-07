@@ -44,13 +44,13 @@ termcolor = "1.1.0"
 async-listen = "0.2.0"
 sha1 = "0.6.0"
 textwrap = "0.11.0"
-rexpect = "0.3.0"
 
 [dev-dependencies]
 assert_cmd = "0.12"
 pretty_assertions = "0.6.1"
 shutdown_hooks = "0.1.0"
 libc = "0.2.68"
+rexpect = "0.3.0"
 
 [features]
 dev_mode = []
