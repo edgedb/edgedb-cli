@@ -14,6 +14,7 @@ mod print;
 mod prompt;
 mod reader;
 mod repl;
+mod server;
 mod server_params;
 mod statement;
 mod variables;

@@ -3,6 +3,7 @@ use async_std::task;
 use crate::options::{Options, Command};
 use crate::client::{Connection, non_interactive_query};
 use crate::commands;
+use crate::server;
 use crate::print::style::Styler;
 
 
@@ -25,6 +26,9 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 Ok(())
             }).into()
         },
+        Command::Server(cmd) => {
+            server::main(cmd)
+        }
         Command::CreateSuperuserRole(opt) => {
             task::block_on(async {
                 let mut conn = Connection::from_options(&options).await?;
