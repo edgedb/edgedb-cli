@@ -11,10 +11,17 @@ pub struct ServerCommand {
 #[derive(Clap, Clone, Debug)]
 pub enum Command {
     Install(Install),
+    #[clap(name="_detect")]
+    _Detect(Detect),
 }
 
 #[derive(Clap, Debug, Clone)]
 pub struct Install {
     #[clap(short="i", long)]
     pub interactive: bool,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::Hidden)]
+pub struct Detect {
 }
