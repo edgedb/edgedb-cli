@@ -746,6 +746,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "matches"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
+
+[[package]]
 name = "maybe-uninit"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1266,15 +1272,17 @@ dependencies = [
 
 [[package]]
 name = "rustyline"
-version = "6.0.0"
-source = "git+https://github.com/tailhook/rustyline?branch=edgedb#844eeff7906152dc6defd2f34cc335f66ac4f91b"
+version = "6.1.2"
+source = "git+https://github.com/tailhook/rustyline?branch=edgedb_20190508#05c42ace8fd1af67fc86b91f758e22d48ac476bf"
 dependencies = [
  "cfg-if",
  "dirs 2.0.2",
  "libc",
  "log",
+ "matches",
  "memchr",
  "nix 0.17.0",
+ "scopeguard",
  "unicode-segmentation",
  "unicode-width",
  "utf8parse",

@@ -113,6 +113,9 @@ impl Highlighter for EdgeqlHelper {
             return item.into();
         }
     }
+    fn has_continuation_prompt(&self) -> bool {
+        true
+    }
 }
 impl Validator for EdgeqlHelper {
     fn validate(&self, ctx: &mut ValidationContext)
@@ -183,7 +186,8 @@ pub fn create_editor(mode: EditMode) -> Editor<EdgeqlHelper> {
     let config = config.edit_mode(mode);
     let config = config.completion_type(CompletionType::List);
     let mut editor = Editor::<EdgeqlHelper>::with_config(config.build());
-    editor.bind_sequence(KeyPress::Enter, Cmd::AcceptOrInsertLine);
+    editor.bind_sequence(KeyPress::Enter,
+        Cmd::AcceptOrInsertLine { accept_in_the_middle: false });
     load_history(&mut editor, "edgeql").map_err(|e| {
         eprintln!("Can't load history: {:#}", e);
     }).ok();
@@ -197,7 +201,6 @@ pub fn var_editor(mode: EditMode, type_name: &str) -> Editor<()> {
     let config = Config::builder();
     let config = config.edit_mode(mode);
     let mut editor = Editor::<()>::with_config(config.build());
-    editor.bind_sequence(KeyPress::Enter, Cmd::AcceptOrInsertLine);
     load_history(&mut editor, &format!("var_{}", type_name)).map_err(|e| {
         eprintln!("Can't load history: {:#}", e);
     }).ok();
