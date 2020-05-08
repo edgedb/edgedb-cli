@@ -188,6 +188,7 @@ pub fn create_editor(mode: EditMode) -> Editor<EdgeqlHelper> {
     let mut editor = Editor::<EdgeqlHelper>::with_config(config.build());
     editor.bind_sequence(KeyPress::Enter,
         Cmd::AcceptOrInsertLine { accept_in_the_middle: false });
+    editor.bind_sequence(KeyPress::Meta('\r'), Cmd::AcceptLine);
     load_history(&mut editor, "edgeql").map_err(|e| {
         eprintln!("Can't load history: {:#}", e);
     }).ok();
