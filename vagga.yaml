@@ -37,7 +37,14 @@ commands:
   server: !Command
     description: Run edgedb server command
     container: ubuntu
+    write-mode: transient-hard-link-copy
     run: [cargo, run, --bin, edgedb, '--', server]
+
+  ubuntu-bash: !Command
+    description: Run edgedb server command
+    container: ubuntu
+    write-mode: transient-hard-link-copy
+    run: [bash]
 
   tree: !Command
     description: Run tree tool
