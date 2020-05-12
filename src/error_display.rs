@@ -1,7 +1,7 @@
 use std::default::Default;
 use std::str;
 
-use codespan::{Files, Span};
+use codespan::Files;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
 use codespan_reporting::term::{emit};
 use termcolor::{StandardStream, ColorChoice};
