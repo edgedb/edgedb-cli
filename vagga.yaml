@@ -110,6 +110,9 @@ containers:
       trusted: true
     - !Install [edgedb-1-alpha3]
 
+    volumes:
+      /tmp: !Tmpfs
+        size: 1G
 
     environ: &environ
       HOME: /work/target

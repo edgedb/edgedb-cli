@@ -572,6 +572,7 @@ dependencies = [
  "humantime 2.0.0",
  "libc",
  "log",
+ "native-tls",
  "num-bigint",
  "once_cell",
  "os-release",
@@ -1298,6 +1299,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
 
 [[package]]
+name = "openssl-src"
+version = "111.9.0+1.1.1g"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2dbe10ddd1eb335aba3780eb2eaa13e1b7b441d2562fd962398740927f39ec4"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "openssl-sys"
 version = "0.9.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1306,6 +1316,7 @@ dependencies = [
  "autocfg",
  "cc",
  "libc",
+ "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
