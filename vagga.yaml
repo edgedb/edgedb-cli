@@ -31,7 +31,7 @@ commands:
     container: ubuntu
     run: [cargo, test, --target=x86_64-unknown-linux-musl]
     environ:
-      DOCKER_HOST: unix:///var/run/docker.sock
+      DOCKER_HOST: unix:///var/docker.sock
     volumes:
       /tmp: !Tmpfs
         size: 1Gi

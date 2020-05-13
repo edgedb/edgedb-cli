@@ -3,7 +3,9 @@ use std::env;
 
 use tar::{Builder, Header};
 
-pub fn make_context(dockerfile: &str) -> Result<Vec<u8>, anyhow::Error> {
+pub fn make_context(dockerfile: &str, sudoers: &str)
+    -> Result<Vec<u8>, anyhow::Error>
+{
     let buf = Vec::with_capacity(1048576);
     let mut arch = Builder::new(buf);
 
@@ -12,6 +14,12 @@ pub fn make_context(dockerfile: &str) -> Result<Vec<u8>, anyhow::Error> {
     header.set_path("Dockerfile")?;
     header.set_cksum();
     arch.append(&header, dockerfile.as_bytes())?;
+
+    let mut header = Header::new_gnu();
+    header.set_size(sudoers.len() as u64);
+    header.set_path("sudoers")?;
+    header.set_cksum();
+    arch.append(&header, sudoers.as_bytes())?;
 
     let bin = fs::read(env!("CARGO_BIN_EXE_edgedb"))?;
     let mut header = Header::new_gnu();
