@@ -17,7 +17,8 @@ mod dump_restore;
 mod configure;
 
 // for some reason rexpect doesn't work on macos
-#[cfg(target_os="linux")]
+// and also something wrong on musl libc
+#[cfg(all(target_os="linux", not(target_env="musl")))]
 mod interactive;
 
 

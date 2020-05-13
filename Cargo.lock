@@ -38,12 +38,10 @@ checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 
 [[package]]
 name = "assert_cmd"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "936fcf2c692b37c696cd0002c57752b2d9478402450c9ca4a463f6afae16d6f5"
+version = "1.0.1"
+source = "git+https://github.com/tailhook/assert_cmd?branch=edgedb_20190513#062308b405aaa36240a80c07fec520768b628035"
 dependencies = [
  "doc-comment",
- "escargot",
  "predicates",
  "predicates-core",
  "predicates-tree",
@@ -589,6 +587,7 @@ dependencies = [
  "snafu",
  "strsim",
  "surf",
+ "tar",
  "tempfile",
  "term_size",
  "termcolor",
@@ -673,15 +672,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "escargot"
-version = "0.5.0"
+name = "filetime"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74cf96bec282dcdb07099f7e31d9fed323bca9435a09aba7b6d99b7617bca96d"
+checksum = "affc17579b132fc2461adf7c575cc6e8b134ebca52c51f5411388965227dc695"
 dependencies = [
- "lazy_static",
- "log",
- "serde",
- "serde_json",
+ "cfg-if",
+ "libc",
+ "redox_syscall",
+ "winapi 0.3.8",
 ]
 
 [[package]]
@@ -2022,6 +2021,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tar"
+version = "0.4.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3196bfbffbba3e57481b6ea32249fbaf590396a52505a2615adbb79d9d826d3"
+dependencies = [
+ "filetime",
+ "libc",
+ "redox_syscall",
+ "xattr",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2442,4 +2453,13 @@ checksum = "d59cefebd0c892fa2dd6de581e937301d8552cb44489cdff035c6187cb63fa5e"
 dependencies = [
  "winapi 0.2.8",
  "winapi-build",
+]
+
+[[package]]
+name = "xattr"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "244c3741f4240ef46274860397c7c74e50eb23624996930e484c16679633a54c"
+dependencies = [
+ "libc",
 ]

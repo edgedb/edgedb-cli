@@ -25,9 +25,18 @@ commands:
     description: Run tests
     container: ubuntu
     run: [cargo, test]
+
+  test-musl: !Command
+    description: Run musl (docker) tests
+    container: ubuntu
+    run: [cargo, test, --target=x86_64-unknown-linux-musl]
+    environ:
+      DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
       /tmp: !Tmpfs
         size: 1Gi
+      /var/docker.sock: !BindRW /volumes/docker.sock
+
 
   repl: !Command
     description: Run edgedb repl
@@ -71,7 +80,7 @@ containers:
 
   ubuntu:
     setup:
-    - !Ubuntu xenial
+    - !Ubuntu bionic
     - !UbuntuUniverse
     - !Install
       - ca-certificates
@@ -85,13 +94,15 @@ containers:
       - pkg-config
       # for \psql
       - postgresql-client
+      # for tests
+      - docker.io
 
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-1.42.0-x86_64-unknown-linux-gnu.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-1.43.1-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-std-1.42.0-x86_64-unknown-linux-musl.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-std-1.43.1-x86_64-unknown-linux-musl.tar.gz"
       script: "./install.sh --prefix=/musl \
                --components=rust-std-x86_64-unknown-linux-musl"
     - !Env RUSTFLAGS: -g
@@ -105,15 +116,16 @@ containers:
             postgres
     - !UbuntuRepo
       url: https://packages.edgedb.com/apt
-      suite: xenial.nightly
+      suite: bionic.nightly
       components: [main]
       trusted: true
     - !Install [edgedb-1-alpha3]
+    - !Text
+      /var/docker.sock: ""
 
     volumes:
       /tmp: !Tmpfs
         size: 1G
-
     environ: &environ
       HOME: /work/target
       RUST_BACKTRACE: 1
