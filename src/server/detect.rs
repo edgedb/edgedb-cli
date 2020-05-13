@@ -5,7 +5,7 @@ mod linux;
 mod windows;
 mod macos;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub(in crate::server::detect) struct Lazy<T>(once_cell::sync::OnceCell<T>);
 
 #[derive(Clone, Debug, Serialize)]

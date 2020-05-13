@@ -1,3 +1,4 @@
+use std::path::{PathBuf};
 use serde::Serialize;
 
 use crate::server::detect::Lazy;
@@ -5,6 +6,8 @@ use crate::server::detect::Lazy;
 #[derive(Clone, Debug, Serialize)]
 pub struct OsInfo {
     distribution: Lazy<Distribution>,
+    user_id: Lazy<users::uid_t>,
+    sudo_path: Lazy<Option<PathBuf>>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -34,10 +37,14 @@ impl OsInfo {
     pub fn new() -> OsInfo {
         OsInfo {
             distribution: Lazy::lazy(),
+            user_id: Lazy::lazy(),
+            sudo_path: Lazy::lazy(),
         }
     }
     pub fn detect_all(&self) {
         self.get_distribution();
+        self.get_user_id();
+        self.get_sudo_path();
     }
     pub fn get_distribution(&self) -> &Distribution {
         self.distribution.get_or_init(|| {
@@ -46,6 +53,16 @@ impl OsInfo {
                 Distribution::Unknown
             })
         })
+    }
+    pub fn get_user_id(&self) -> users::uid_t {
+        *self.user_id.get_or_init(|| {
+            users::get_current_uid()
+        })
+    }
+    pub fn get_sudo_path(&self) -> Option<&PathBuf> {
+        self.sudo_path.get_or_init(|| {
+            which::which("sudo").ok()
+        }).as_ref()
     }
 }
 

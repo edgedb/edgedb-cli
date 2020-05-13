@@ -50,6 +50,8 @@ os-release = "0.1.0"
 surf = {version="2.0.0-alpha.2"}
 native-tls = {version="0.2.4", features=["vendored"]}
 thiserror = "1.0.16"
+users = "0.10.0"
+which = {version="3.1.1", default-features=false}
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
