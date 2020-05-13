@@ -89,6 +89,7 @@ containers:
       - vim
       - less  # as pager for repl
       - musl-tools
+      - zlib1g-dev
       # for cargo geiger
       - libssl-dev
       - pkg-config
