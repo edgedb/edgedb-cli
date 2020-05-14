@@ -21,8 +21,8 @@ commands:
     container: nightly
     run: [cargo, rustc, "--", -Zunstable-options, --pretty=expanded]
 
-  test: !Command
-    description: Run tests
+  test-rust: !Command
+    description: Run normal rust tests
     container: ubuntu
     run: [cargo, test]
 
@@ -36,6 +36,12 @@ commands:
       /tmp: !Tmpfs
         size: 1Gi
       /var/docker.sock: !BindRW /volumes/docker.sock
+
+  test: !Command
+    description: Run all the tests
+    container: ubuntu
+    prerequisites: [test-rust, test-musl]
+    run: [echo, Ok]
 
 
   repl: !Command

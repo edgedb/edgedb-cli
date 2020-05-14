@@ -1,9 +1,9 @@
 use once_cell::sync::OnceCell;
 use serde::Serialize;
 
-mod linux;
-mod windows;
-mod macos;
+pub mod linux;
+pub mod windows;
+pub mod macos;
 
 #[derive(Clone, Debug, Default)]
 pub(in crate::server::detect) struct Lazy<T>(once_cell::sync::OnceCell<T>);

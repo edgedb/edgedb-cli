@@ -20,17 +20,17 @@ pub enum Distribution {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct DebianInfo {
-    codename: String,
+    pub codename: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct UbuntuInfo {
-    codename: String,
+    pub codename: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct CentosInfo {
-    release: u32,
+    pub release: u32,
 }
 
 impl OsInfo {

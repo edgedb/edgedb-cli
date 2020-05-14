@@ -1,5 +1,3 @@
-use std::io::Write;
-
 use assert_cmd::Command;
 
 use crate::docker;
@@ -9,7 +7,7 @@ pub fn dockerfile(codename: &str) -> String {
     format!(r###"
         FROM ubuntu:{codename}
         RUN apt-get update
-        RUN apt-get install -y ca-certificates sudo
+        RUN apt-get install -y ca-certificates sudo gnupg2
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
     "###, codename=codename)
@@ -33,11 +31,20 @@ fn bionic_sudo() -> Result<(), anyhow::Error> {
     Command::new("docker")
         .args(&["run", "--rm", "-u", "1", "bionic_sudo:latest"])
         .args(&["sh", "-exc", r###"
-            edgedb server install
+            RUST_LOG=info edgedb server install
             echo --- DONE ---
-            edgedb-server --version
+            edgedb-server --help
+            apt-cache policy edgedb-1-alpha2
         "###])
+        // add edgedb-server --version check
         .assert()
-        .success();
+        .success()
+        .stdout(predicates::str::contains("--- DONE ---"))
+        .stdout(predicates::function::function(|data: &str| {
+            let tail = &data[data.find("--- DONE ---").unwrap()..];
+            assert!(tail.contains("Usage: edgedb-server [OPTIONS]"));
+            assert!(tail.contains("Installed: 1.0a2"));
+            true
+        }));
     Ok(())
 }
