@@ -1,4 +1,7 @@
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
+use std::fs;
+
+use anyhow::Context;
 use serde::Serialize;
 
 use crate::server::detect::Lazy;
@@ -69,20 +72,38 @@ impl OsInfo {
 fn detect_distro() -> Result<Distribution, anyhow::Error> {
     use Distribution::*;
 
-    let rel = os_release::OsRelease::new()?;
-    let distro = match &rel.id[..] {
-        "debian" => Debian(DebianInfo {
-            codename: rel.version_codename,
-        }),
-        "ubuntu" => Ubuntu(UbuntuInfo {
-            codename: rel.version_codename,
-        }),
-        "centos" => Centos(CentosInfo {
-            release: rel.version_id.parse()
-                .map_err(|e| anyhow::anyhow!("Error parsing version {:?}: {}",
-                    rel.version_id, e))?,
-        }),
-        _ => Unknown,
-    };
-    Ok(distro)
+    if Path::new("/etc/os-release").exists() {
+        let rel = os_release::OsRelease::new()?;
+        let distro = match &rel.id[..] {
+            "debian" => Debian(DebianInfo {
+                codename: rel.version_codename,
+            }),
+            "ubuntu" => Ubuntu(UbuntuInfo {
+                codename: rel.version_codename,
+            }),
+            "centos" => Centos(CentosInfo {
+                release: rel.version_id.parse()
+                    .map_err(|e|
+                        anyhow::anyhow!("Error parsing version {:?}: {}",
+                        rel.version_id, e))?,
+            }),
+            _ => Unknown,
+        };
+        Ok(distro)
+    } else if Path::new("/etc/centos-release").exists() {
+        let data = fs::read_to_string("/etc/centos-release")
+            .context("Reading /etc/centos-release")?;
+        if let Some(dpos) = data.find('.') {
+            if data.starts_with("CentOS release ") {
+                let release = data["CentOS release ".len()..dpos]
+                    .parse()
+                    .context("bad /etc/centos-release file")?;
+                return Ok(Centos(CentosInfo { release }));
+            }
+        }
+        Err(anyhow::anyhow!("Bad /etc/centos-release file"))?
+    } else {
+        Err(anyhow::anyhow!("Cannot detect linux distribution, \
+            no known /etc/*-release file found"))
+    }
 }

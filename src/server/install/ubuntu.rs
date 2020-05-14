@@ -40,7 +40,8 @@ pub fn prepare(_options: &Install, _detect: &Detect,
         Err(e) if e.kind() == io::ErrorKind::NotFound => true,
         Err(e) => {
             log::warn!(
-                "Unable to read sources.list file: {}. Will replace...", e);
+                "Unable to read {} file: {}. Will replace...",
+                    SOURCES_LIST_PATH, e);
             true
         }
     };

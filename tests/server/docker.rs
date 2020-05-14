@@ -8,7 +8,8 @@ use tar::{Builder, Header};
 fn sudoers() -> &'static str {
     r###"
         root        ALL=(ALL:ALL) SETENV: ALL
-        daemon	ALL=(ALL:ALL)	NOPASSWD: ALL
+        bin   	ALL=(ALL:ALL)	NOPASSWD: ALL  # for centos
+        daemon	ALL=(ALL:ALL)	NOPASSWD: ALL  # for ubuntu + debian
     "###
 }
 
@@ -42,8 +43,7 @@ fn make_context(dockerfile: &str, sudoers: &str)
     Ok(arch.into_inner()?)
 }
 
-pub fn sudo_test(dockerfile: &str, tagname: &str,
-    major_ver: &str, display_ver: &str)
+pub fn sudo_test(dockerfile: &str, tagname: &str)
     -> Result<(), anyhow::Error>
 {
     let context = make_context(&dockerfile, sudoers())?;
@@ -60,16 +60,15 @@ pub fn sudo_test(dockerfile: &str, tagname: &str,
             RUST_LOG=info edgedb server install
             echo --- DONE ---
             edgedb-server --help
-            apt-cache policy edgedb-{}
-        "###, major_ver)])
-        // add edgedb-server --version check
+        "###)])
+        // add edgedb-server --version check since alpha3
         .assert()
         .success()
         .stdout(predicates::str::contains("--- DONE ---"))
         .stdout(predicates::function::function(|data: &str| {
             let tail = &data[data.find("--- DONE ---").unwrap()..];
             assert!(tail.contains("Usage: edgedb-server [OPTIONS]"));
-            assert!(tail.contains(&format!("Installed: {}", display_ver)));
+            //assert!(tail.contains(&format!("Installed: {}", display_ver)));
             true
         }));
     Ok(())

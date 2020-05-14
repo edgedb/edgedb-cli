@@ -7,4 +7,6 @@ mod docker;
 mod ubuntu;
 #[cfg(target_env="musl")]
 mod debian;
+#[cfg(target_env="musl")]
+mod centos;
 

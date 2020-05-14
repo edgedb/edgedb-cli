@@ -7,8 +7,9 @@ mod operation;
 mod exit_codes;
 
 // Distributions
-mod ubuntu;
+mod centos;
 mod debian;
+mod ubuntu;
 
 
 pub use operation::{Operation, Command};
@@ -27,7 +28,14 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
                 detect::linux::Distribution::Debian(debian) => {
                     debian::prepare(options, &detect, linux, debian)?
                 }
-                _ => todo!(),
+                detect::linux::Distribution::Centos(centos) => {
+                    centos::prepare(options, &detect, linux, centos)?
+                }
+                detect::linux::Distribution::Unknown => {
+                    return Err(anyhow::anyhow!(
+                        "Unsupported linux distribution. Supported: \
+                        Debian, Ubuntu, Centos"));
+                }
             };
             let mut ctx = operation::Context::new();
             let has_privileged = operations.iter().any(|x| x.is_privileged());

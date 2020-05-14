@@ -12,17 +12,15 @@ pub fn dockerfile(codename: &str) -> String {
 }
 
 #[test]
-fn buster_sudo_alpha2() -> Result<(), anyhow::Error> {
+fn buster_sudo_current() -> Result<(), anyhow::Error> {
     docker::sudo_test(
         &dockerfile("buster"),
-        "edgedb_server_test:buster_sudo",
-        "1-alpha2", "1.0a2")
+        "edgedb_server_test:buster_sudo")
 }
 
 #[test]
-fn stretch_sudo_alpha2() -> Result<(), anyhow::Error> {
+fn stretch_sudo_current() -> Result<(), anyhow::Error> {
     docker::sudo_test(
         &dockerfile("stretch"),
-        "edgedb_server_test:stretch_sudo",
-        "1-alpha2", "1.0a2")
+        "edgedb_server_test:stretch_sudo")
 }
