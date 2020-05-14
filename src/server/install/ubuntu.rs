@@ -19,8 +19,8 @@ fn sources_list(codename: &str) -> String {
 }
 
 
-pub fn prepare(options: &Install, detect: &Detect,
-    os_info: &OsInfo, info: &UbuntuInfo)
+pub fn prepare(_options: &Install, _detect: &Detect,
+    _os_info: &OsInfo, info: &UbuntuInfo)
     -> Result<Vec<Operation>, anyhow::Error>
 {
     let key = task::block_on(remote::get_string(KEY_FILE_URL,
