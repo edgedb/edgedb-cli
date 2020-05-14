@@ -3,9 +3,13 @@ use std::process::exit;
 use crate::server::options::Install;
 use crate::server::detect;
 
-mod ubuntu;
 mod operation;
 mod exit_codes;
+
+// Distributions
+mod ubuntu;
+mod debian;
+
 
 pub use operation::{Operation, Command};
 
@@ -19,6 +23,9 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
             let operations = match linux.get_distribution() {
                 detect::linux::Distribution::Ubuntu(ubuntu) => {
                     ubuntu::prepare(options, &detect, linux, ubuntu)?
+                }
+                detect::linux::Distribution::Debian(debian) => {
+                    debian::prepare(options, &detect, linux, debian)?
                 }
                 _ => todo!(),
             };
