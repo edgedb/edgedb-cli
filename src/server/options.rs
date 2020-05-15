@@ -19,6 +19,8 @@ pub enum Command {
 pub struct Install {
     #[clap(short="i", long)]
     pub interactive: bool,
+    #[clap(long)]
+    pub nightly: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

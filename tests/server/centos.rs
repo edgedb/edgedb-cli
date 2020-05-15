@@ -14,12 +14,30 @@ pub fn dockerfile(codename: &str) -> String {
 fn centos7_sudo_current() -> Result<(), anyhow::Error> {
     docker::sudo_test(
         &dockerfile("7"),
-        "edgedb_server_test:centos7_sudo")
+        "edgedb_server_test:centos7_sudo",
+        false)
 }
 
 #[test]
 fn centos8_sudo_current() -> Result<(), anyhow::Error> {
     docker::sudo_test(
         &dockerfile("8"),
-        "edgedb_server_test:centos8_sudo")
+        "edgedb_server_test:centos8_sudo",
+        false)
+}
+
+#[test]
+fn centos7_sudo_nightly() -> Result<(), anyhow::Error> {
+    docker::sudo_test(
+        &dockerfile("7"),
+        "edgedb_server_test:centos7_sudo",
+        true)
+}
+
+#[test]
+fn centos8_sudo_nightly() -> Result<(), anyhow::Error> {
+    docker::sudo_test(
+        &dockerfile("8"),
+        "edgedb_server_test:centos8_sudo",
+        true)
 }

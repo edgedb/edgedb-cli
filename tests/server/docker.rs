@@ -43,7 +43,7 @@ fn make_context(dockerfile: &str, sudoers: &str)
     Ok(arch.into_inner()?)
 }
 
-pub fn sudo_test(dockerfile: &str, tagname: &str)
+pub fn sudo_test(dockerfile: &str, tagname: &str, nightly: bool)
     -> Result<(), anyhow::Error>
 {
     let context = make_context(&dockerfile, sudoers())?;
@@ -57,10 +57,10 @@ pub fn sudo_test(dockerfile: &str, tagname: &str)
         .args(&["run", "--rm", "-u", "1"])
         .arg(tagname)
         .args(&["sh", "-exc", &format!(r###"
-            RUST_LOG=info edgedb server install
+            RUST_LOG=info edgedb server install {arg}
             echo --- DONE ---
             edgedb-server --help
-        "###)])
+        "###, arg=if nightly { "--nightly" } else {""})])
         // add edgedb-server --version check since alpha3
         .assert()
         .success()

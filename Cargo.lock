@@ -581,6 +581,7 @@ dependencies = [
  "rpassword",
  "rustyline",
  "scram",
+ "semver",
  "serde",
  "serde_json",
  "sha1",

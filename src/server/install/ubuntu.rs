@@ -5,21 +5,26 @@ use std::str;
 
 use crate::server::detect::Detect;
 use crate::server::detect::linux::{OsInfo, UbuntuInfo};
-use crate::server::install::{Operation, Command, KEY_FILE_URL};
+use crate::server::install::{Operation, Command, VersionInfo, KEY_FILE_URL};
 use crate::server::options::Install;
 use crate::server::remote;
 
 
-const SOURCES_LIST_PATH: &str =
-    "/etc/apt/sources.list.d/edgedb_server_install.list";
+fn sources_list_path(nightly: bool) -> &'static str {
+    if nightly {
+        "/etc/apt/sources.list.d/edgedb_server_install_nightly.list"
+    } else {
+        "/etc/apt/sources.list.d/edgedb_server_install.list"
+    }
+}
 
-
-fn sources_list(codename: &str) -> String {
-    format!("deb https://packages.edgedb.com/apt {} main\n", codename)
+fn sources_list(codename: &str, nightly: bool) -> String {
+    format!("deb https://packages.edgedb.com/apt {}{} main\n", codename,
+        if nightly { ".nightly" } else { "" } )
 }
 
 
-pub fn prepare(_options: &Install, _detect: &Detect,
+pub fn prepare(_options: &Install, verinfo: &VersionInfo, _detect: &Detect,
     _os_info: &OsInfo, info: &UbuntuInfo)
     -> Result<Vec<Operation>, anyhow::Error>
 {
@@ -32,22 +37,22 @@ pub fn prepare(_options: &Install, _detect: &Detect,
             .arg("add")
             .arg("-"),
     });
-    let sources_list = sources_list(&info.codename);
-    let update_list = match fs::read(SOURCES_LIST_PATH) {
+    let sources_list = sources_list(&info.codename, verinfo.nightly);
+    let list_path = sources_list_path(verinfo.nightly);
+    let update_list = match fs::read(list_path) {
         Ok(data) => {
             str::from_utf8(&data).map(|x| x.trim()) != Ok(sources_list.trim())
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => true,
         Err(e) => {
-            log::warn!(
-                "Unable to read {} file: {}. Will replace...",
-                    SOURCES_LIST_PATH, e);
+            log::warn!("Unable to read {} file: {}. Will replace...",
+                list_path, e);
             true
         }
     };
     if update_list {
         operations.push(Operation::WritePrivilegedFile {
-            path: SOURCES_LIST_PATH.into(),
+            path: list_path.into(),
             data: sources_list.into(),
         });
     }
@@ -56,7 +61,7 @@ pub fn prepare(_options: &Install, _detect: &Detect,
             .arg("update")
             .arg("--no-list-cleanup")
             .arg("-o")
-                .arg(format!("Dir::Etc::sourcelist={}", SOURCES_LIST_PATH))
+                .arg(format!("Dir::Etc::sourcelist={}", list_path))
             .arg("-o").arg("Dir::Etc::sourceparts=-")
     ));
     operations.push(Operation::PrivilegedCmd(
@@ -64,7 +69,7 @@ pub fn prepare(_options: &Install, _detect: &Detect,
         .arg("install")
         .arg("-y")
         // TODO(tailhook) version
-        .arg("edgedb-1-alpha2")
+        .arg(format!("{}-{}", verinfo.package_name, verinfo.package_suffix))
     ));
     return Ok(operations);
 }

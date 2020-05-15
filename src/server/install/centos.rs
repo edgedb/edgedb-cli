@@ -4,42 +4,54 @@ use std::str;
 
 use crate::server::detect::Detect;
 use crate::server::detect::linux::{OsInfo, CentosInfo};
-use crate::server::install::{Operation, Command};
+use crate::server::install::{Operation, Command, VersionInfo, KEY_FILE_URL};
 use crate::server::options::Install;
 
+fn repo_file(nightly: bool) -> &'static str {
+    if nightly {
+        "/etc/yum.repos.d/edgedb-server-install-nightly.repo"
+    } else {
+        "/etc/yum.repos.d/edgedb-server-install.repo"
+    }
+}
 
-const REPO_FILE_PATH: &str = "/etc/yum.repos.d/edgedb-server-install.repo";
-const REPO_FILE_DATA: &str =
-    "\
-        [edgedb-server-install]\n\
-        name=edgedb-server-install\n\
-        baseurl=https://packages.edgedb.com/rpm/el$releasever/\n\
-        enabled=1\n\
-        gpgcheck=1\n\
-        gpgkey=https://packages.edgedb.com/keys/edgedb.asc\n\
-    ";
+fn repo_data(nightly: bool) -> String {
+    format!("\
+            [edgedb-server-install{name_suffix}]\n\
+            name=edgedb-server-install{name_suffix}\n\
+            baseurl=https://packages.edgedb.com/rpm/el$releasever{suffix}/\n\
+            enabled=1\n\
+            gpgcheck=1\n\
+            gpgkey={keyfile}\n\
+        ",
+        name_suffix=if nightly { "-nightly" } else {""},
+        suffix=if nightly { ".nightly" } else {""},
+        keyfile=KEY_FILE_URL)
+}
 
 
-pub fn prepare(_options: &Install, _detect: &Detect,
+pub fn prepare(_options: &Install, verinfo: &VersionInfo, _detect: &Detect,
     _os_info: &OsInfo, _info: &CentosInfo)
     -> Result<Vec<Operation>, anyhow::Error>
 {
     let mut operations = Vec::new();
-    let update_list = match fs::read(REPO_FILE_PATH) {
+    let repo_data = repo_data(verinfo.nightly);
+    let repo_path = repo_file(verinfo.nightly);
+    let update_list = match fs::read(&repo_path) {
         Ok(data) => {
-            str::from_utf8(&data).map(|x| x.trim()) != Ok(REPO_FILE_DATA)
+            str::from_utf8(&data).map(|x| x.trim()) != Ok(repo_data.trim())
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => true,
         Err(e) => {
-            log::warn!(
-                "Unable to read {}: {}. Will replace...", REPO_FILE_PATH, e);
+            log::warn!("Unable to read {}: {}. Will replace...",
+                repo_path, e);
             true
         }
     };
     if update_list {
         operations.push(Operation::WritePrivilegedFile {
-            path: REPO_FILE_PATH.into(),
-            data: REPO_FILE_DATA.into(),
+            path: repo_path.into(),
+            data: repo_data.into(),
         });
     }
     operations.push(Operation::PrivilegedCmd(
@@ -47,7 +59,7 @@ pub fn prepare(_options: &Install, _detect: &Detect,
         .arg("-y")
         .arg("install")
         // TODO(tailhook) version
-        .arg("edgedb-1-alpha2")
+        .arg(format!("{}-{}", verinfo.package_name, verinfo.package_suffix))
     ));
-    return Ok(operations);
+    Ok(operations)
 }
