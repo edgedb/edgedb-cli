@@ -42,6 +42,9 @@ pub async fn psql<'x>(cli: &mut Client<'x>, _options: &Options)
             cmd.arg("-U").arg(&addr.user);
             cmd.arg("-p").arg(addr.port.to_string());
             cmd.arg("-d").arg(&addr.database);
+
+            #[cfg(unix)]
+            let _trap = signal::trap::Trap::trap(&[signal::Signal::SIGINT]);
             cmd.status()
                 .context(format!("Error running {:?}", cmd))?;
         }
