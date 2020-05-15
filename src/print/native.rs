@@ -47,7 +47,7 @@ pub trait FormatExt {
     fn format<F: Formatter>(&self, prn: &mut F) -> Result<F::Error>;
 }
 
-fn escape_string(s: &str) -> String {
+fn escape_string(s: &str, expanded: bool) -> String {
     let mut buf = String::with_capacity(s.len()+2);
     buf.push('\'');
     for c in s.chars() {
@@ -57,6 +57,10 @@ fn escape_string(s: &str) -> String {
             => buf.push_str(&format!("\\x{:02x}", c as u32)),
             '\u{0080}'..='\u{009F}'
             => buf.push_str(&format!("\\u{:04x}", c as u32)),
+            '\'' => buf.push_str("\\'"),
+            '\r' if !expanded => buf.push_str("\\r"),
+            '\n' if !expanded => buf.push_str("\\n"),
+            '\t' if !expanded => buf.push_str("\\t"),
             _ => buf.push(c),
         }
     }
@@ -102,11 +106,8 @@ impl FormatExt for Value {
         match self {
             V::Nothing => prn.const_scalar("Nothing"),
             V::Uuid(u) => prn.const_scalar(u),
-            V::Str(s) if prn.expand_strings() => {
-                prn.const_scalar(escape_string(s))
-            }
             V::Str(s) => {
-                prn.const_scalar(format!("{:?}", s))
+                prn.const_scalar(escape_string(s, prn.expand_strings()))
             }
             V::Bytes(b) => prn.const_scalar(format_args!("{:?}", b)),
             V::Int16(v) => prn.const_scalar(v),
