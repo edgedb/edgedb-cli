@@ -5,11 +5,12 @@ use clap::{Clap, AppSettings};
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ServerCommand {
     #[clap(subcommand)]
-    pub subcommand: Option<Command>,
+    pub subcommand: Command,
 }
 
 #[derive(Clap, Clone, Debug)]
 pub enum Command {
+    #[clap(about="Install edgedb-server")]
     Install(Install),
     #[clap(name="_detect")]
     _Detect(Detect),

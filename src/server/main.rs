@@ -7,8 +7,7 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
     use Command::*;
 
     match &cmd.subcommand {
-        Some(Install(c)) => install::install(c),
-        Some(_Detect(c)) => detect::main(c),
-        None => todo!(),
+        Install(c) => install::install(c),
+        _Detect(c) => detect::main(c),
     }
 }
