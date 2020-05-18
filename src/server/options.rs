@@ -1,5 +1,7 @@
 use clap::{Clap, AppSettings};
 
+use crate::server::version::Version;
+
 
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::DisableVersion)]
@@ -22,6 +24,8 @@ pub struct Install {
     pub interactive: bool,
     #[clap(long)]
     pub nightly: bool,
+    #[clap(long, conflicts_with="nightly")]
+    pub version: Option<Version<String>>,
 }
 
 #[derive(Clap, Debug, Clone)]

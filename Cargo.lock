@@ -569,6 +569,7 @@ dependencies = [
  "env_logger",
  "humantime 2.0.0",
  "libc",
+ "linked-hash-map",
  "log",
  "native-tls",
  "num-bigint",
@@ -581,7 +582,6 @@ dependencies = [
  "rpassword",
  "rustyline",
  "scram",
- "semver",
  "serde",
  "serde_json",
  "sha1",
@@ -591,6 +591,7 @@ dependencies = [
  "surf",
  "tar",
  "tempfile",
+ "term",
  "term_size",
  "termcolor",
  "textwrap",
@@ -1076,6 +1077,12 @@ dependencies = [
  "pkg-config",
  "vcpkg",
 ]
+
+[[package]]
+name = "linked-hash-map"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dd5a6d5999d9907cda8ed67bbd137d3af8085216c2ac62de5be860bd41f304a"
 
 [[package]]
 name = "lock_api"

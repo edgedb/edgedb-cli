@@ -4,8 +4,8 @@ use std::str;
 
 use crate::server::detect::Detect;
 use crate::server::detect::linux::{OsInfo, CentosInfo};
-use crate::server::install::{Operation, Command, VersionInfo, KEY_FILE_URL};
-use crate::server::options::Install;
+use crate::server::install::{Operation, Command, Settings, KEY_FILE_URL};
+
 
 fn repo_file(nightly: bool) -> &'static str {
     if nightly {
@@ -30,13 +30,13 @@ fn repo_data(nightly: bool) -> String {
 }
 
 
-pub fn prepare(_options: &Install, verinfo: &VersionInfo, _detect: &Detect,
+pub fn prepare(settings: &Settings,_detect: &Detect,
     _os_info: &OsInfo, _info: &CentosInfo)
     -> Result<Vec<Operation>, anyhow::Error>
 {
     let mut operations = Vec::new();
-    let repo_data = repo_data(verinfo.nightly);
-    let repo_path = repo_file(verinfo.nightly);
+    let repo_data = repo_data(settings.nightly);
+    let repo_path = repo_file(settings.nightly);
     let update_list = match fs::read(&repo_path) {
         Ok(data) => {
             str::from_utf8(&data).map(|x| x.trim()) != Ok(repo_data.trim())
@@ -59,7 +59,7 @@ pub fn prepare(_options: &Install, verinfo: &VersionInfo, _detect: &Detect,
         .arg("-y")
         .arg("install")
         // TODO(tailhook) version
-        .arg(format!("{}-{}", verinfo.package_name, verinfo.package_suffix))
+        .arg(format!("{}-{}", settings.package_name, settings.major_version))
     ));
     Ok(operations)
 }

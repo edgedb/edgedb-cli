@@ -5,8 +5,7 @@ use std::str;
 
 use crate::server::detect::Detect;
 use crate::server::detect::linux::{OsInfo, UbuntuInfo};
-use crate::server::install::{Operation, Command, VersionInfo, KEY_FILE_URL};
-use crate::server::options::Install;
+use crate::server::install::{Operation, Command, Settings, KEY_FILE_URL};
 use crate::server::remote;
 
 
@@ -24,7 +23,7 @@ fn sources_list(codename: &str, nightly: bool) -> String {
 }
 
 
-pub fn prepare(_options: &Install, verinfo: &VersionInfo, _detect: &Detect,
+pub fn prepare(settings: &Settings, _detect: &Detect,
     _os_info: &OsInfo, info: &UbuntuInfo)
     -> Result<Vec<Operation>, anyhow::Error>
 {
@@ -37,8 +36,8 @@ pub fn prepare(_options: &Install, verinfo: &VersionInfo, _detect: &Detect,
             .arg("add")
             .arg("-"),
     });
-    let sources_list = sources_list(&info.codename, verinfo.nightly);
-    let list_path = sources_list_path(verinfo.nightly);
+    let sources_list = sources_list(&info.codename, settings.nightly);
+    let list_path = sources_list_path(settings.nightly);
     let update_list = match fs::read(list_path) {
         Ok(data) => {
             str::from_utf8(&data).map(|x| x.trim()) != Ok(sources_list.trim())
@@ -69,7 +68,7 @@ pub fn prepare(_options: &Install, verinfo: &VersionInfo, _detect: &Detect,
         .arg("install")
         .arg("-y")
         // TODO(tailhook) version
-        .arg(format!("{}-{}", verinfo.package_name, verinfo.package_suffix))
+        .arg(format!("{}-{}", settings.package_name, settings.major_version))
     ));
     return Ok(operations);
 }

@@ -1,3 +1,4 @@
+#[cfg(target_env="musl")]
 mod docker;
 
 // Tests are running under musl, because we need to upload a CLI binary to the

@@ -1,12 +1,11 @@
 use std::process::exit;
 
-use semver::Version;
-
 use crate::server::options::Install;
 use crate::server::detect;
 
 mod operation;
 mod exit_codes;
+mod settings;
 
 // Distributions
 mod centos;
@@ -14,75 +13,40 @@ mod debian;
 mod ubuntu;
 
 
-pub use operation::{Operation, Command};
+pub(in crate::server::install) use operation::{Operation, Command};
+pub(in crate::server::install) use settings::{Settings, SettingsBuilder};
 
 const KEY_FILE_URL: &str = "https://packages.edgedb.com/keys/edgedb.asc";
 
-pub struct VersionDirectory {
-    current_version: Version,
-    nightly_version: Version,
-}
-
-pub struct VersionInfo {
-    package_suffix: String,
-    nightly: bool,
-    package_name: String,
-}
-
-fn package_name(v: &Version) -> String {
-    if v <= &Version::parse("1.0.0-alpha2").unwrap() {
-        "edgedb".into()
-    } else {
-        "edgedb-server".into()
-    }
-}
-
-fn package_suffix(v: &Version) -> String {
-    use std::fmt::Write;
-
-    let mut ver = if v.minor > 0 {
-        format!("{}-{}", v.major, v.minor)
-    } else {
-        format!("{}", v.major)
-    };
-    for item in &v.pre {
-        write!(&mut ver, "-{}", item).unwrap();
-    }
-    ver
-}
 
 pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     let detect = detect::Detect::current_os();
-
-    let ver_dir = VersionDirectory {
-        current_version: Version::parse("1.0.0-alpha2").unwrap(),
-        nightly_version: Version::parse("1.0.0-alpha3").unwrap(),
-    };
-    let vinfo = if options.nightly {
-        VersionInfo {
-            package_suffix: package_suffix(&ver_dir.nightly_version),
-            nightly: true,
-            package_name: package_name(&ver_dir.nightly_version),
-        }
-    } else {
-        VersionInfo {
-            package_suffix: package_suffix(&ver_dir.current_version),
-            nightly: false,
-            package_name: package_name(&ver_dir.current_version),
+    let settings_builder = SettingsBuilder::new(&detect, options)?;
+    dbg!(&settings_builder);
+    let settings = match settings_builder.build() {
+        Ok(settings) => settings,
+        Err(settings::BuildError::Fatal(e)) => Err(anyhow::anyhow!(e))?,
+        Err(settings::BuildError::Configurable(errors)) => {
+            for e in errors {
+                eprintln!("{}", e);
+            }
+            return Err(anyhow::anyhow!("Add mentioned options or run with \
+                --interactive (-i) for interactive mode"));
         }
     };
+    settings.print();
 
     match &detect.os_info {
         detect::OsInfo::Linux(linux) => {
             let operations = match linux.get_distribution() {
                 detect::linux::Distribution::Ubuntu(ubuntu) => {
-                    ubuntu::prepare(options, &vinfo, &detect, linux, ubuntu)?
+                    ubuntu::prepare(&settings, &detect, linux, ubuntu)?
                 }
                 detect::linux::Distribution::Debian(debian) => {
-                    debian::prepare(options, &vinfo, &detect, linux, debian)?
+                    debian::prepare(&settings, &detect, linux, debian)?
                 }
                 detect::linux::Distribution::Centos(centos) => {
-                    centos::prepare(options, &vinfo, &detect, linux, centos)?
+                    centos::prepare(&settings, &detect, linux, centos)?
                 }
                 detect::linux::Distribution::Unknown => {
                     return Err(anyhow::anyhow!(
@@ -118,6 +82,14 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
             }
             Ok(())
         }
-        _ => todo!(),
+        detect::OsInfo::Windows(_) => {
+            anyhow::bail!("Installation is unsupported on Windows yet");
+        }
+        detect::OsInfo::Macos(_) => {
+            anyhow::bail!("Installation is unsupported on MacOS yet");
+        }
+        detect::OsInfo::Unknown => {
+            anyhow::bail!("Cannot detect operationg system kind");
+        }
     }
 }
