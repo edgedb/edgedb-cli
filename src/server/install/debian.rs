@@ -69,6 +69,7 @@ pub fn prepare(settings: &Settings, _detect: &Detect,
         .arg("-y")
         // TODO(tailhook) version
         .arg(format!("{}-{}", settings.package_name, settings.major_version))
+        .env("_EDGEDB_INSTALL_SKIP_BOOTSTRAP", "1")
     ));
     return Ok(operations);
 }

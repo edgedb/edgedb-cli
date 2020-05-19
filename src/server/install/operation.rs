@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::process::{Command as StdCommand, Stdio, ExitStatus};
 use std::ffi::OsString;
 use std::fs;
@@ -10,6 +11,7 @@ use anyhow::Context as ContextExt;
 #[derive(Debug)]
 pub struct Command {
     cmd: PathBuf,
+    environ: BTreeMap<OsString, OsString>,
     arguments: Vec<OsString>,
 }
 
@@ -30,6 +32,32 @@ pub struct Context {
     sudo_cmd: Option<PathBuf>,
 }
 
+impl Command {
+    fn to_std(&self, sudo_cmd: &Option<PathBuf>) -> StdCommand {
+        let mut cmd = if let Some(sudo_cmd) = sudo_cmd {
+            let mut cmd = StdCommand::new(sudo_cmd);
+            for (k, v) in &self.environ {
+                let mut arg = k.clone();
+                arg.push("=");
+                arg.push(v);
+                cmd.arg(arg);
+            }
+            cmd.arg(&self.cmd);
+            cmd
+        } else {
+            let mut cmd = StdCommand::new(&self.cmd);
+            for (k, v) in &self.environ {
+                cmd.env(k, v);
+            }
+            cmd
+        };
+        for arg in &self.arguments {
+            cmd.arg(arg);
+        }
+        return cmd;
+    }
+}
+
 impl Context {
     pub fn new() -> Context {
         Context {
@@ -45,11 +73,18 @@ impl Command {
     pub fn new(cmd: impl Into<PathBuf>) -> Command {
         Command {
             cmd: cmd.into(),
+            environ: BTreeMap::new(),
             arguments: Vec::new(),
         }
     }
     pub fn arg(mut self, arg: impl Into<OsString>) -> Self {
         self.arguments.push(arg.into());
+        self
+    }
+    pub fn env(mut self, key: impl Into<OsString>, arg: impl Into<OsString>)
+        -> Self
+    {
+        self.environ.insert(key.into(), arg.into());
         self
     }
 }
@@ -95,6 +130,12 @@ impl Operation {
             FeedPrivilegedCmd {cmd, ..} | PrivilegedCmd(cmd) => {
                 if elevate {
                     buf.push_str("sudo ");
+                    for (key, value) in &cmd.environ {
+                        buf.push_str(&key.to_string_lossy());
+                        buf.push_str("=");
+                        buf.push_str(&value.to_string_lossy());
+                        buf.push_str(" ");
+                    }
                 }
                 write!(&mut buf, "{}", cmd.cmd.display()).unwrap();
                 for arg in &cmd.arguments {
@@ -117,16 +158,7 @@ impl Operation {
 
         match self {
             FeedPrivilegedCmd {cmd, input} => {
-                let mut os_cmd = if let Some(sudo_cmd) = &ctx.sudo_cmd {
-                    let mut os_cmd = StdCommand::new(sudo_cmd);
-                    os_cmd.arg(&cmd.cmd);
-                    os_cmd
-                } else {
-                    StdCommand::new(&cmd.cmd)
-                };
-                for arg in &cmd.arguments {
-                    os_cmd.arg(arg);
-                }
+                let mut os_cmd = cmd.to_std(&ctx.sudo_cmd);
                 os_cmd.stdin(Stdio::piped());
                 let mut child = os_cmd.spawn()
                     .with_context(|| format!("Command {:?} error", os_cmd))?;
@@ -136,16 +168,7 @@ impl Operation {
                 cmd_result(child.wait(), os_cmd)
             }
             PrivilegedCmd(cmd) => {
-                let mut os_cmd = if let Some(sudo_cmd) = &ctx.sudo_cmd {
-                    let mut os_cmd = StdCommand::new(sudo_cmd);
-                    os_cmd.arg(&cmd.cmd);
-                    os_cmd
-                } else {
-                    StdCommand::new(&cmd.cmd)
-                };
-                for arg in &cmd.arguments {
-                    os_cmd.arg(arg);
-                }
+                let mut os_cmd = cmd.to_std(&ctx.sudo_cmd);
                 log::info!("Executing {:?}", os_cmd);
                 cmd_result(os_cmd.status(), os_cmd)
             }
