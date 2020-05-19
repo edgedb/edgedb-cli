@@ -97,6 +97,8 @@ pub struct Limit {
 
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::TrailingVarArg)]
+#[clap(setting=AppSettings::AllowLeadingHyphen)]
 pub struct Edit {
     pub entry: Option<isize>,
 }
