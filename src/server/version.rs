@@ -2,10 +2,10 @@ use std::str::CharIndices;
 use std::iter::{Peekable};
 use std::cmp::Ordering;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Version<T: AsRef<str>>(pub T);
 pub struct Components<'a>(&'a str, Peekable<CharIndices<'a>>);
 

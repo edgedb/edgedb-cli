@@ -14,6 +14,7 @@ pub struct ServerCommand {
 pub enum Command {
     #[clap(about="Install edgedb-server")]
     Install(Install),
+    ListVersions(ListVersions),
     #[clap(name="_detect")]
     _Detect(Detect),
 }
@@ -26,6 +27,13 @@ pub struct Install {
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
     pub version: Option<Version<String>>,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::Hidden)]
+pub struct ListVersions {
+    #[clap(long)]
+    installed_only: bool,
 }
 
 #[derive(Clap, Debug, Clone)]
