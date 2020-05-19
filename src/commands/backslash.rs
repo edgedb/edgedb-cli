@@ -25,6 +25,7 @@ pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(|| CommandCache::new());
 
 pub enum ExecuteResult {
     Skip,
+    Quit,
     Input(String),
 }
 
@@ -60,25 +61,15 @@ Editing
                            output as the input
 
 Settings
-  \set [OPTION [VALUE]]      show/change setting, see \
+  \set [OPTION [VALUE]]    how/change setting, type \set for listing
 
 Connection
   \c, \connect [DBNAME]    Connect to database DBNAME
-"###;
 
-#[cfg(feature="dev_mode")]
-const HELP_DEV: &str = r###"
-Development
-  \E                       show most recent error message at maximum verbosity
-                           (alias: \last-error)
-  \pgaddr                  show the network addr of the postgres server
-  \psql                    open psql to the current postgres process
-"###;
-
-const HELP_HELP: &str = r###"
 Help
   \?                       Show help on backslash commands
   \set                     Show setting descriptions (without arguments)
+  \q, \exit, Ctrl+D        Quit REPL
 "###;
 
 #[derive(Debug)]
@@ -290,6 +281,8 @@ impl CommandCache {
         aliases.insert("e", "edit");
         aliases.insert("c", "connect");
         aliases.insert("E", "last-error");
+        aliases.insert("q", "exit");
+        aliases.insert("quit", "exit");
         aliases.insert("?", "help");
         let mut setting_cmd = None;
         let commands: BTreeMap<_,_> = clap.get_subcommands().iter()
@@ -513,9 +506,6 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
     match cmd {
         Help => {
             print!("{}", HELP);
-            #[cfg(feature="dev_mode")]
-            print!("{}", HELP_DEV);
-            print!("{}", HELP_HELP);
             Ok(Skip)
         }
         Common(ref cmd) => {
@@ -601,6 +591,7 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
                 | prompt::Input::Eof => Ok(Skip),
             }
         }
+        Exit => Ok(Quit),
     }
 }
 

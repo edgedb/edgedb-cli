@@ -342,7 +342,7 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
 fn print_json_limit_error(path: &str) {
     eprintln!("ERROR: Cannot render JSON result: {} is too long. \
         Consider putting an explicit LIMIT clause, \
-        or increase the implicit limit using \\limit.",
+        or increase the implicit limit using `\\set limit`.",
         if path.is_empty() { "." } else { path });
 }
 
@@ -411,6 +411,7 @@ async fn _interactive_main(
                     &cmd.command, &mut state).await;
                 match res {
                     Ok(Skip) => continue,
+                    Ok(Quit) => return Ok(()),
                     Ok(Input(text)) => initial = text,
                     Err(e) => {
                         if e.is::<backslash::ChangeDb>() {
@@ -565,7 +566,7 @@ async fn _interactive_main(
                                 eprintln!("ERROR: Too many rows. Consider \
                                     putting an explicit LIMIT clause, \
                                     or increase the implicit limit \
-                                    using \\limit.");
+                                    using `\\set limit`.");
                                 items.skip_remaining().await?;
                                 continue 'statement_loop;
                             }

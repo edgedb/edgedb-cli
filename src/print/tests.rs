@@ -96,7 +96,7 @@ fn array_ellipsis() {
   [
     10,
     20,
-    ... (further results hidden \limit 2)
+    ... (further results hidden `\set limit 2`)
   ],
 }"###);
     assert_eq!(test_format_cfg(&[
@@ -228,14 +228,21 @@ fn link_property() {
 fn str() {
     assert_eq!(
         test_format(&[Value::Str("hello".into())]).unwrap(),
-        r#"{"hello"}"#);
+        "{'hello'}");
     assert_eq!(
         test_format(&[Value::Str("a\nb".into())]).unwrap(),
-        "{\"a\\nb\"}");
+        "{'a\\nb'}");
+    assert_eq!(
+        test_format(&[Value::Str("a'b".into())]).unwrap(),
+        r"{'a\'b'}");
     assert_eq!(
         test_format_cfg(&[Value::Str("a\nb".into())],
                         Config::new().expand_strings(true)).unwrap(),
         "{\n  'a\nb',\n}");
+    assert_eq!(
+        test_format_cfg(&[Value::Str("a'b".into())],
+                        Config::new().expand_strings(true)).unwrap(),
+        r"{'a\'b'}");
 }
 
 #[test]

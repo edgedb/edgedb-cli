@@ -586,6 +586,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "shutdown_hooks",
+ "signal",
  "snafu",
  "strsim",
  "surf",
@@ -1883,6 +1884,16 @@ name = "shutdown_hooks"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6057adedbec913419c92996f395ba69931acbd50b7d56955394cd3f7bedbfa45"
+
+[[package]]
+name = "signal"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f6ce83b159ab6984d2419f495134972b48754d13ff2e3f8c998339942b56ed9"
+dependencies = [
+ "libc",
+ "nix 0.14.1",
+]
 
 [[package]]
 name = "slab"

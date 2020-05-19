@@ -54,13 +54,14 @@ users = "0.10.0"
 which = {version="3.1.1", default-features=false}
 linked-hash-map = "0.5.3"
 term = "0.5"
+signal = "0.7.0"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
 predicates = "1.0.4"
+libc = "0.2.68"
 pretty_assertions = "0.6.1"
 shutdown_hooks = "0.1.0"
-libc = "0.2.68"
 rexpect = {git="https://github.com/tailhook/rexpect", branch="default_terminal_size"}
 tar = "0.4.26"
 
@@ -72,5 +73,5 @@ name = "edgedb"
 path = "src/main.rs"
 
 [profile.release]
-#debug = true
+debug = true
 lto = true
