@@ -232,7 +232,8 @@ pub fn edgeql_input(prompt: &mut String, editor: &mut Editor<EdgeqlHelper>,
         }
     };
     editor.add_history_entry(&text);
-    task::block_on(data.send(Input::Text(text)))
+    task::block_on(data.send(Input::Text(text)));
+    save_history(editor, "edgeql");
 }
 
 
@@ -246,12 +247,10 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
         match task::block_on(control.recv()) {
             None => break 'outer,
             Some(Control::ViMode) => {
-                save_history(&mut editor, "edgeql");
                 mode = EditMode::Vi;
                 editor = create_editor(mode);
             }
             Some(Control::EmacsMode) => {
-                save_history(&mut editor, "edgeql");
                 mode = EditMode::Emacs;
                 editor = create_editor(mode);
             }
