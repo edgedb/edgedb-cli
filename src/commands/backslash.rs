@@ -6,6 +6,7 @@ use std::collections::{BTreeSet, BTreeMap};
 use anyhow;
 use clap::{self, Clap, IntoApp};
 use edgedb_protocol::server_message::ErrorResponse;
+use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
 
 use crate::client::Client;
@@ -19,9 +20,7 @@ use crate::commands::table;
 use crate::commands::type_names::get_type_names;
 
 
-lazy_static::lazy_static! {
-    pub static ref CMD_CACHE: CommandCache = CommandCache::new();
-}
+pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(|| CommandCache::new());
 
 
 pub enum ExecuteResult {

@@ -14,6 +14,7 @@ mod print;
 mod prompt;
 mod reader;
 mod repl;
+mod server;
 mod server_params;
 mod statement;
 mod variables;
@@ -22,6 +23,8 @@ mod error_display;
 
 fn main() -> Result<(), anyhow::Error> {
     let opt = Options::from_args_and_env();
+    env_logger::init_from_env(env_logger::Env::default()
+        .default_filter_or("warn"));
     if opt.subcommand.is_some() {
         commands::cli::main(opt)
     } else {

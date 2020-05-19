@@ -9,6 +9,7 @@ use std::thread::{self, JoinHandle};
 use std::process;
 
 use assert_cmd::Command;
+use once_cell::sync::Lazy;
 use serde_json::from_str;
 use rexpect::session::{spawn_command, PtySession};
 
@@ -16,13 +17,12 @@ mod dump_restore;
 mod configure;
 
 // for some reason rexpect doesn't work on macos
-#[cfg(target_os="linux")]
+// and also something wrong on musl libc
+#[cfg(all(target_os="linux", not(target_env="musl")))]
 mod interactive;
 
 
-lazy_static::lazy_static! {
-    pub static ref SERVER: ServerGuard = ServerGuard::start();
-}
+pub static SERVER: Lazy<ServerGuard> = Lazy::new(|| ServerGuard::start());
 
 #[test]
 fn simple_query() {

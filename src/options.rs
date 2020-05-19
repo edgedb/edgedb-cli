@@ -8,6 +8,7 @@ use whoami;
 
 use crate::repl::OutputMode;
 use crate::commands::parser::Common;
+use crate::server;
 
 
 #[derive(Clap, Debug)]
@@ -87,6 +88,7 @@ pub enum Command {
     CreateSuperuserRole(RoleParams),
     DropRole(RoleName),
     Query(Query),
+    Server(server::options::ServerCommand),
     #[clap(flatten)]
     Common(Common),
 }
