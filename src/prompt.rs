@@ -340,7 +340,7 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
 fn show_history(history: &History) -> Result<(), anyhow::Error> {
     let pager = env::var("EDGEDB_PAGER")
         .or_else(|_| env::var("PAGER"))
-        .unwrap_or_else(|_| String::from("less -RF"));
+        .unwrap_or_else(|_| String::from("less -R"));
     let mut items = pager.split_whitespace();
     let mut cmd = Command::new(items.next().unwrap());
     cmd.stdin(Stdio::piped());
