@@ -10,7 +10,7 @@ use async_std::task;
 use dirs::data_local_dir;
 use rustyline::{self, error::ReadlineError, KeyPress, Cmd};
 use rustyline::{Editor, Config, Helper, Context};
-use rustyline::config::{EditMode, CompletionType};
+use rustyline::config::{EditMode, CompletionType, Builder as ConfigBuilder};
 use rustyline::hint::Hinter;
 use rustyline::highlight::{Highlighter, PromptInfo};
 use rustyline::history::History;
@@ -33,6 +33,7 @@ pub enum Control {
     SpawnEditor { entry: Option<isize> },
     ViMode,
     EmacsMode,
+    SetHistoryLimit(usize),
 }
 
 pub enum Input {
@@ -181,11 +182,9 @@ fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
     }).ok();
 }
 
-pub fn create_editor(mode: EditMode) -> Editor<EdgeqlHelper> {
-    let config = Config::builder();
-    let config = config.edit_mode(mode);
-    let config = config.completion_type(CompletionType::List);
-    let mut editor = Editor::<EdgeqlHelper>::with_config(config.build());
+pub fn create_editor(config: &ConfigBuilder) -> Editor<EdgeqlHelper> {
+    let mut editor = Editor::<EdgeqlHelper>::with_config(
+        config.clone().build());
     editor.bind_sequence(KeyPress::Enter,
         Cmd::AcceptOrInsertLine { accept_in_the_middle: false });
     editor.bind_sequence(KeyPress::Meta('\r'), Cmd::AcceptLine);
@@ -198,10 +197,8 @@ pub fn create_editor(mode: EditMode) -> Editor<EdgeqlHelper> {
     return editor;
 }
 
-pub fn var_editor(mode: EditMode, type_name: &str) -> Editor<()> {
-    let config = Config::builder();
-    let config = config.edit_mode(mode);
-    let mut editor = Editor::<()>::with_config(config.build());
+pub fn var_editor(config: &ConfigBuilder, type_name: &str) -> Editor<()> {
+    let mut editor = Editor::<()>::with_config(config.clone().build());
     load_history(&mut editor, &format!("var_{}", type_name)).map_err(|e| {
         eprintln!("Can't load history: {:#}", e);
     }).ok();
@@ -240,19 +237,25 @@ pub fn edgeql_input(prompt: &mut String, editor: &mut Editor<EdgeqlHelper>,
 pub fn main(data: Sender<Input>, control: Receiver<Control>)
     -> Result<(), anyhow::Error>
 {
-    let mut mode = EditMode::Emacs;
-    let mut editor = create_editor(mode);
+    let config = Config::builder();
+    let config = config.edit_mode(EditMode::Emacs);
+    let mut config = config.completion_type(CompletionType::List);
+    let mut editor = create_editor(&config);
     let mut prompt = String::from("> ");
     'outer: loop {
         match task::block_on(control.recv()) {
             None => break 'outer,
             Some(Control::ViMode) => {
-                mode = EditMode::Vi;
-                editor = create_editor(mode);
+                config = config.edit_mode(EditMode::Vi);
+                editor = create_editor(&config);
             }
             Some(Control::EmacsMode) => {
-                mode = EditMode::Emacs;
-                editor = create_editor(mode);
+                config = config.edit_mode(EditMode::Emacs);
+                editor = create_editor(&config);
+            }
+            Some(Control::SetHistoryLimit(h)) => {
+                config = config.max_history_size(h);
+                editor = create_editor(&config);
             }
             Some(Control::EdgeqlInput { database, initial }) => {
                 edgeql_input(&mut prompt, &mut editor, &data,
@@ -266,7 +269,7 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 prompt.push_str(">$");
                 prompt.push_str(&name);
                 prompt.push_str(": ");
-                let mut editor = var_editor(mode, &type_name);
+                let mut editor = var_editor(&config, &type_name);
                 let text = match
                     editor.readline_with_initial(&prompt, (&initial, ""))
                 {

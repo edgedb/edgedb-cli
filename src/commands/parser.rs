@@ -73,6 +73,8 @@ pub enum Setting {
     OutputMode(OutputMode),
     /// Stop escaping newlines in quoted strings
     ExpandStrings(SettingBool),
+    /// Set number of entries retained in history
+    History(SettingUsize),
 }
 
 #[derive(Clap, Clone, Debug, Default)]
@@ -93,6 +95,12 @@ pub struct SettingBool {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Limit {
     pub limit: Option<usize>,
+}
+
+#[derive(Clap, Clone, Debug, Default)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct SettingUsize {
+    pub value: Option<usize>,
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -411,6 +419,7 @@ impl Setting {
             IntrospectTypes(_) => "introspect-types",
             VerboseErrors(_) => "verbose-errors",
             Limit(_) => "limit",
+            History(_) => "history",
             OutputMode(_) => "output-mode",
             ExpandStrings(_) => "expand-strings",
         }
@@ -424,6 +433,7 @@ impl Setting {
             IntrospectTypes(a) => a.value.is_none(),
             VerboseErrors(a) => a.value.is_none(),
             Limit(a) => a.limit.is_none(),
+            History(a) => a.value.is_none(),
             OutputMode(a) => a.mode.is_none(),
             ExpandStrings(a) => a.value.is_none(),
         }

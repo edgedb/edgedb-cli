@@ -27,6 +27,7 @@ pub struct State {
     pub implicit_limit: Option<usize>,
     pub input_mode: InputMode,
     pub output_mode: OutputMode,
+    pub history_limit: usize,
 }
 
 
@@ -59,7 +60,8 @@ impl State {
             Some(x) => x,
         }
     }
-    pub async fn input_mode(&self, value: InputMode) {
+    pub async fn input_mode(&mut self, value: InputMode) {
+        self.input_mode = value;
         let msg = match value {
             InputMode::Vi => prompt::Control::ViMode,
             InputMode::Emacs => prompt::Control::EmacsMode,
@@ -75,6 +77,10 @@ impl State {
             None | Some(prompt::Input::Eof) => prompt::Input::Eof,
             Some(x) => x,
         }
+    }
+    pub async fn set_history_limit(&mut self, val: usize) {
+        self.history_limit = val;
+        self.control.send(prompt::Control::SetHistoryLimit(val)).await;
     }
 }
 

@@ -320,6 +320,7 @@ impl CommandCache {
                 Limit(Default::default()),
                 OutputMode(Default::default()),
                 ExpandStrings(Default::default()),
+                History(Default::default()),
             ].into_iter().map(|setting| {
                 let cmd = setting_cmd.remove(&setting.name())
                     .expect("all settings have cmd");
@@ -465,6 +466,9 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
                 "0  # no limit".into()
             }
         }
+        History(_) => {
+            prompt.history_limit.to_string().into()
+        }
         OutputMode(_) => {
             prompt.output_mode.as_str().into()
         }
@@ -540,21 +544,18 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
                     prompt.verbose_errors = b.unwrap_value();
                 }
                 Limit(c) => {
-                    if let Some(limit) = c.limit {
-                        if limit == 0 {
-                            prompt.implicit_limit = None;
-                            prompt.print.max_items = None;
-                        } else {
-                            prompt.implicit_limit = Some(limit);
-                            prompt.print.max_items = Some(limit);
-                        }
+                    let limit = c.limit.expect("only set here");
+                    if limit == 0 {
+                        prompt.implicit_limit = None;
+                        prompt.print.max_items = None;
                     } else {
-                        if let Some(limit) = prompt.implicit_limit {
-                            println!("{}", limit);
-                        } else {
-                            eprintln!("No limit");
-                        }
+                        prompt.implicit_limit = Some(limit);
+                        prompt.print.max_items = Some(limit);
                     }
+                }
+                Setting::History(c) => {
+                    let limit = c.value.expect("only set here");
+                    prompt.set_history_limit(limit).await;
                 }
                 OutputMode(c) => {
                     prompt.output_mode = c.mode.expect("only writes here");
@@ -580,7 +581,7 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
             }
             Ok(Skip)
         }
-        History => {
+        BackslashCmd::History => {
             prompt.show_history().await;
             Ok(Skip)
         }

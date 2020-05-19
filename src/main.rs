@@ -52,6 +52,7 @@ fn interactive_main(options: Options) -> Result<(), anyhow::Error> {
         implicit_limit: Some(100),
         output_mode: options.output_mode,
         input_mode: repl::InputMode::Emacs,
+        history_limit: 100,
     };
     let handle = task::spawn(client::interactive_main(options, state));
     prompt::main(repl_wr, control_rd)?;
