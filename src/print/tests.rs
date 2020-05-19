@@ -96,7 +96,7 @@ fn array_ellipsis() {
   [
     10,
     20,
-    ... (further results hidden \limit 2)
+    ... (further results hidden `\set limit 2`)
   ],
 }"###);
     assert_eq!(test_format_cfg(&[

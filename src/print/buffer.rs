@@ -185,7 +185,8 @@ impl<'a, T: Output> Printer<'a, T> {
             self.write("...".clear())?;
         } else {
             self.write("...".clear())?;
-            self.write(format!(" (further results hidden \\limit {limit})\n",
+            self.write(format!(" (further results hidden \
+                `\\set limit {limit}`)\n",
                 limit=self.max_items.unwrap_or(0))
                 .dark_gray())?;
         }
