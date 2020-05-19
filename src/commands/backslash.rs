@@ -65,18 +65,7 @@ Settings
 
 Connection
   \c, \connect [DBNAME]    Connect to database DBNAME
-"###;
 
-#[cfg(feature="dev_mode")]
-const HELP_DEV: &str = r###"
-Development
-  \E                       show most recent error message at maximum verbosity
-                           (alias: \last-error)
-  \pgaddr                  show the network addr of the postgres server
-  \psql                    open psql to the current postgres process
-"###;
-
-const HELP_HELP: &str = r###"
 Help
   \?                       Show help on backslash commands
   \set                     Show setting descriptions (without arguments)
@@ -514,9 +503,6 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
     match cmd {
         Help => {
             print!("{}", HELP);
-            #[cfg(feature="dev_mode")]
-            print!("{}", HELP_DEV);
-            print!("{}", HELP_HELP);
             Ok(Skip)
         }
         Common(ref cmd) => {
