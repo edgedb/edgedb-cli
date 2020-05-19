@@ -1,4 +1,5 @@
 use std::fmt;
+use std::collections::HashMap;
 
 use once_cell::sync::OnceCell;
 use serde::Serialize;
@@ -16,6 +17,7 @@ pub(in crate::server::detect) struct Lazy<T>(once_cell::sync::OnceCell<T>);
 pub struct Detect {
     pub os_info: OsInfo,
     available_methods: Lazy<Vec<InstallMethod>>,
+    installed: HashMap<InstallMethod, Lazy<Vec<InstalledPackage>>>,
 }
 
 pub enum VersionQuery {
@@ -23,7 +25,17 @@ pub enum VersionQuery {
     Nightly,
 }
 
+#[derive(Clone, Serialize, Debug)]
 pub struct VersionResult {
+    pub package_name: String,
+    pub major_version: Version<String>,
+    pub version: Version<String>,
+    pub revision: String,
+}
+
+#[derive(Clone, Serialize, Debug)]
+pub struct InstalledPackage {
+    pub method: InstallMethod,
     pub package_name: String,
     pub major_version: Version<String>,
     pub version: Version<String>,
@@ -38,7 +50,7 @@ pub enum OsInfo {
     Unknown,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Hash, PartialEq, Eq)]
 pub enum InstallMethod {
     OsRepository,
 }
@@ -46,6 +58,11 @@ pub enum InstallMethod {
 impl Detect {
     pub fn current_os() -> Detect {
         use OsInfo::*;
+
+        let mut installed = HashMap::new();
+
+        // Preinitialize all the methods
+        installed.insert(InstallMethod::OsRepository, Lazy::lazy());
 
         Detect {
             os_info: if cfg!(windows) {
@@ -58,6 +75,7 @@ impl Detect {
                 Unknown
             },
             available_methods: Lazy::lazy(),
+            installed,
         }
     }
     pub fn detect_all(&self) {
@@ -103,6 +121,18 @@ impl Detect {
             },
             OsInfo::Unknown => anyhow::bail!("Unsupported"),
         }
+    }
+
+    pub fn get_installed(&self, meth: &InstallMethod) -> &[InstalledPackage] {
+        self.installed.get(meth).unwrap()
+        .get_or_init(|| {
+            match &self.os_info {
+                OsInfo::Windows(_) => vec![],
+                OsInfo::Macos(_) => vec![],
+                OsInfo::Linux(lin) => todo!(),
+                OsInfo::Unknown => vec![]
+            }
+        })
     }
 }
 
