@@ -411,6 +411,7 @@ async fn _interactive_main(
                     &cmd.command, &mut state).await;
                 match res {
                     Ok(Skip) => continue,
+                    Ok(Quit) => return Ok(()),
                     Ok(Input(text)) => initial = text,
                     Err(e) => {
                         if e.is::<backslash::ChangeDb>() {

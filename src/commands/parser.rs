@@ -45,6 +45,7 @@ pub enum BackslashCmd {
     Connect(Connect),
     Edit(Edit),
     Set(SetCommand),
+    Exit,
 }
 
 #[derive(Clap, Clone, Debug)]

@@ -26,6 +26,7 @@ lazy_static::lazy_static! {
 
 pub enum ExecuteResult {
     Skip,
+    Quit,
     Input(String),
 }
 
@@ -61,7 +62,7 @@ Editing
                            output as the input
 
 Settings
-  \set [OPTION [VALUE]]      show/change setting, see \
+  \set [OPTION [VALUE]]    how/change setting, type \set for listing
 
 Connection
   \c, \connect [DBNAME]    Connect to database DBNAME
@@ -69,6 +70,7 @@ Connection
 Help
   \?                       Show help on backslash commands
   \set                     Show setting descriptions (without arguments)
+  \q, \exit, Ctrl+D        Quit REPL
 "###;
 
 #[derive(Debug)]
@@ -280,6 +282,8 @@ impl CommandCache {
         aliases.insert("e", "edit");
         aliases.insert("c", "connect");
         aliases.insert("E", "last-error");
+        aliases.insert("q", "exit");
+        aliases.insert("quit", "exit");
         aliases.insert("?", "help");
         let mut setting_cmd = None;
         let commands: BTreeMap<_,_> = clap.get_subcommands().iter()
@@ -588,6 +592,7 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
                 | prompt::Input::Eof => Ok(Skip),
             }
         }
+        Exit => Ok(Quit),
     }
 }
 
