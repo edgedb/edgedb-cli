@@ -3,6 +3,8 @@ use anyhow;
 use async_std::task;
 use async_std::sync::{channel};
 
+use std::env;
+
 use crate::options::Options;
 
 mod client;
@@ -22,6 +24,11 @@ mod error_display;
 
 
 fn main() -> Result<(), anyhow::Error> {
+    // If a crash happens we want the backtrace to be printed by default
+    // to ease bug reporting and troubleshooting.
+    // TODO: consider removing this once EdgeDB reaches 1.0 stable.
+    env::set_var("RUST_BACKTRACE", "1");
+
     let opt = Options::from_args_and_env();
     env_logger::init_from_env(env_logger::Env::default()
         .default_filter_or("warn"));
