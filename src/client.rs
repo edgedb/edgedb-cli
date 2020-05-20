@@ -521,7 +521,7 @@ async fn _interactive_main(
             let input = match input_variables(&indesc, state).await {
                 Ok(input) => input,
                 Err(e) => {
-                    eprintln!("{:#?}", e);
+                    eprintln!("{:#}", e);
                     state.last_error = Some(e);
                     continue 'statement_loop;
                 }

@@ -1,6 +1,8 @@
 use std::fmt;
 use std::error::Error;
 
+use anyhow::{Context};
+
 use edgedb_protocol::value::Value;
 use edgedb_protocol::codec;
 use edgedb_protocol::descriptors::{InputTypedesc, Descriptor};
@@ -55,16 +57,39 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
     }
     match item {
         Descriptor::BaseScalar(s) => {
-            if s.id == codec::STD_STR {
-                let val = match state.variable_input(name, "str", "").await {
-                    | prompt::Input::Text(val) => val,
-                    | prompt::Input::Interrupt
-                    | prompt::Input::Eof => Err(Canceled)?,
-                };
-                Ok(Value::Str(val))
-            } else {
-                Err(anyhow::anyhow!(
-                    "Unimplemented input type {}", s.id))
+            let type_name = match s.id {
+                codec::STD_STR => "str",
+                codec::STD_INT16 => "int16",
+                codec::STD_INT32 => "int32",
+                codec::STD_INT64 => "int64",
+                _ => return Err(anyhow::anyhow!(
+                        "Unimplemented input type {}", s.id))
+            };
+
+            let val = match state.variable_input(name, type_name, "").await {
+                | prompt::Input::Text(val) => val,
+                | prompt::Input::Interrupt
+                | prompt::Input::Eof => Err(Canceled)?,
+            };
+
+            match s.id {
+                codec::STD_STR => {
+                    Ok(Value::Str(val))
+                }
+                codec::STD_INT16 => {
+                    let v = val.parse::<i16>().context("invalid int16 value")?;
+                    Ok(Value::Int16(v))
+                }
+                codec::STD_INT32 => {
+                    let v = val.parse::<i32>().context("invalid int32 value")?;
+                    Ok(Value::Int32(v))
+                }
+                codec::STD_INT64 => {
+                    let v = val.parse::<i64>().context("invalid int64 value")?;
+                    Ok(Value::Int64(v))
+                }
+                _ => Err(anyhow::anyhow!(
+                         "Unimplemented input type {}", s.id))
             }
         }
         _ => Err(anyhow::anyhow!(
