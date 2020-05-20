@@ -62,14 +62,15 @@ Editing
 
 Settings
   \set [OPTION [VALUE]]    how/change setting, type \set for listing
+                           all available options
 
 Connection
   \c, \connect [DBNAME]    Connect to database DBNAME
 
 Help
-  \?                       Show help on backslash commands
+  \?, \h, \help            Show help on backslash commands
   \set                     Show setting descriptions (without arguments)
-  \q, \exit, Ctrl+D        Quit REPL
+  \q, \quit, \exit, Ctrl+D Quit REPL
 "###;
 
 #[derive(Debug)]
@@ -284,6 +285,7 @@ impl CommandCache {
         aliases.insert("q", "exit");
         aliases.insert("quit", "exit");
         aliases.insert("?", "help");
+        aliases.insert("h", "help");
         let mut setting_cmd = None;
         let commands: BTreeMap<_,_> = clap.get_subcommands().iter()
             .map(|cmd| {
@@ -369,7 +371,7 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
     for token in Parser::new(s) {
         match token.item {
             Command(x) => {
-                if x == "\\?" || x == "\\help" {
+                if x == "\\?" || x == "\\h" || x == "\\help" {
                     return Ok(Backslash {
                         command: BackslashCmd::Help,
                     })
