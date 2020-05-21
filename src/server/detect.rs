@@ -1,25 +1,28 @@
 use std::fmt;
-use std::collections::HashMap;
 
 use once_cell::sync::OnceCell;
 use serde::Serialize;
 
 use crate::server::version::Version;
+use crate::server::docker::{DockerCandidate};
+use crate::server::package::{PackageCandidate};
+use crate::server::os_trait::CurrentOs;
+use crate::server::install::InstallMethod;
 
-pub mod linux;
-pub mod windows;
-pub mod macos;
+use anyhow::Context;
+
+
+#[cfg(target_arch="x86_64")]
+pub const ARCH: &str = "x86_64";
+#[cfg(not(any(
+    target_arch="x86_64",
+)))]
+compile_error!("Unsupported architecture, supported: x86_64");
 
 #[derive(Clone, Debug, Default)]
-pub(in crate::server::detect) struct Lazy<T>(once_cell::sync::OnceCell<T>);
+pub struct Lazy<T>(once_cell::sync::OnceCell<T>);
 
-#[derive(Clone, Debug, Serialize)]
-pub struct Detect {
-    pub os_info: OsInfo,
-    available_methods: Lazy<Vec<InstallMethod>>,
-    installed: HashMap<InstallMethod, Lazy<Vec<InstalledPackage>>>,
-}
-
+#[derive(Debug)]
 pub enum VersionQuery {
     Stable(Option<Version<String>>),
     Nightly,
@@ -42,98 +45,10 @@ pub struct InstalledPackage {
     pub revision: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub enum OsInfo {
-    Linux(linux::OsInfo),
-    Windows(windows::OsInfo),
-    Macos(macos::OsInfo),
-    Unknown,
-}
-
-#[derive(Debug, Clone, Serialize, Hash, PartialEq, Eq)]
-pub enum InstallMethod {
-    OsRepository,
-}
-
-impl Detect {
-    pub fn current_os() -> Detect {
-        use OsInfo::*;
-
-        let mut installed = HashMap::new();
-
-        // Preinitialize all the methods
-        installed.insert(InstallMethod::OsRepository, Lazy::lazy());
-
-        Detect {
-            os_info: if cfg!(windows) {
-                Windows(windows::OsInfo::new())
-            } else if cfg!(macos) {
-                Macos(macos::OsInfo::new())
-            } else if cfg!(target_os="linux") {
-                Linux(linux::OsInfo::new())
-            } else {
-                Unknown
-            },
-            available_methods: Lazy::lazy(),
-            installed,
-        }
-    }
-    pub fn detect_all(&self) {
-        use OsInfo::*;
-        match &self.os_info {
-            Windows(w) => w.detect_all(),
-            Macos(m) => m.detect_all(),
-            Linux(l) => l.detect_all(),
-            Unknown => {}
-        }
-    }
-    pub fn get_available_methods(&self) -> &[InstallMethod] {
-        use linux::Distribution::*;
-        use InstallMethod::*;
-
-        self.available_methods.get_or_init(|| {
-            match &self.os_info {
-                OsInfo::Windows(_) => vec![],
-                OsInfo::Macos(_) => vec![],
-                OsInfo::Linux(l) => match l.get_distribution() {
-                    Debian(_) => vec![OsRepository],
-                    Ubuntu(_) => vec![OsRepository],
-                    Centos(_) => vec![OsRepository],
-                    Unknown => vec![]
-                },
-                OsInfo::Unknown => vec![]
-            }
-        })
-    }
-    pub fn get_version(&self, ver: &VersionQuery)
-        -> Result<VersionResult, anyhow::Error>
-    {
-        use linux::Distribution::*;
-
-        match &self.os_info {
-            OsInfo::Windows(_) => anyhow::bail!("Unsupported"),
-            OsInfo::Macos(_) => anyhow::bail!("Unsupported"),
-            OsInfo::Linux(l) => match l.get_distribution() {
-                Debian(d) => d.get_version(ver),
-                Ubuntu(d) => d.get_version(ver),
-                Centos(d) => d.get_version(ver),
-                Unknown => anyhow::bail!("Unsupported"),
-            },
-            OsInfo::Unknown => anyhow::bail!("Unsupported"),
-        }
-    }
-
-    pub fn get_installed(&self, meth: &InstallMethod) -> &[InstalledPackage] {
-        self.installed.get(meth).unwrap()
-        .get_or_init(|| {
-            match &self.os_info {
-                OsInfo::Windows(_) => vec![],
-                OsInfo::Macos(_) => vec![],
-                OsInfo::Linux(lin) => todo!(),
-                OsInfo::Unknown => vec![]
-            }
-        })
-    }
+#[derive(Debug)]
+pub struct InstallationMethods {
+    pub package: PackageCandidate,
+    pub docker: DockerCandidate,
 }
 
 impl<T: Serialize> Serialize for Lazy<T> {
@@ -145,27 +60,41 @@ impl<T: Serialize> Serialize for Lazy<T> {
 }
 
 impl<T> Lazy<T> {
-    fn lazy() -> Lazy<T> {
+    pub fn lazy() -> Lazy<T> {
         Lazy(OnceCell::new())
     }
-    fn get_or_init<F>(&self, f: F) -> &T
+    pub fn get_or_init<F>(&self, f: F) -> &T
         where F: FnOnce() -> T
     {
         self.0.get_or_init(f)
     }
-    fn get_or_try_init<F, E>(&self, f: F) -> Result<&T, E>
+    pub fn get_or_try_init<F, E>(&self, f: F) -> Result<&T, E>
         where F: FnOnce() -> Result<T, E>
     {
         self.0.get_or_try_init(f)
     }
 }
 
+pub fn current_os() -> anyhow::Result<Box<dyn CurrentOs>> {
+    use crate::server::{windows, macos, linux, unknown_os};
+
+    if cfg!(windows) {
+        Ok(Box::new(windows::Windows::new()))
+    } else if cfg!(macos) {
+        Ok(Box::new(macos::Macos::new()))
+    } else if cfg!(target_os="linux") {
+        linux::detect_distro()
+            .context("error detecting linux distribution")
+    } else {
+        Ok(Box::new(unknown_os::Unknown::new()))
+    }
+}
+
 pub fn main(_arg: &crate::server::options::Detect)
     -> Result<(), anyhow::Error>
 {
-    let det = Detect::current_os();
-    det.detect_all();
-    serde_json::to_writer_pretty(std::io::stdout(), &det)?;
+    let os = current_os()?;
+    serde_json::to_writer_pretty(std::io::stdout(), &os.detect_all())?;
     Ok(())
 }
 
@@ -173,14 +102,22 @@ impl InstallMethod {
     pub fn title(&self) -> &'static str {
         use InstallMethod::*;
         match self {
-            OsRepository => "Native System Repository",
+            Package => "Native System Package",
+            Docker => "Docker Container",
         }
     }
     pub fn option(&self) -> &'static str {
         use InstallMethod::*;
         match self {
-            OsRepository => "--method=native",
+            Package => "--method=package",
+            Docker => "--method=docker",
         }
+    }
+}
+
+impl VersionQuery {
+    pub fn is_nightly(&self) -> bool {
+        matches!(self, VersionQuery::Nightly)
     }
 }
 
@@ -191,6 +128,55 @@ impl fmt::Display for VersionQuery {
             Stable(None) => "stable".fmt(f),
             Stable(Some(ver)) => ver.fmt(f),
             Nightly => "nightly".fmt(f),
+        }
+    }
+}
+
+impl InstallationMethods {
+    pub fn format_error(&self) -> String {
+        let mut buf = String::with_capacity(1024);
+        if self.package.supported || self.docker.supported {
+            buf.push_str("No installation method chosen, add:\n");
+            if self.package.supported {
+                self.package.format_option(&mut buf, true);
+            }
+            if self.docker.supported {
+                self.docker.format_option(&mut buf, !self.package.supported);
+            }
+            if !self.package.supported {
+                self.package.format_error(&mut buf);
+            }
+            if !self.docker.supported {
+                self.docker.format_error(&mut buf);
+            }
+            buf.push_str("or run `edgedb server install --interactive` \
+                          and follow instructions");
+        } else if self.docker.platform_supported {
+            buf.push_str("No installation method found:\n");
+            self.package.format_error(&mut buf);
+            self.docker.format_error(&mut buf);
+            buf.push_str("Consider installing docker: \
+                https://docs.docker.com/get-docker/");
+            buf.push_str("Or ask for native support at \
+                https://github.com/edgedb/edgedb-cli/issues/new\
+                ?template=install-unsupported.md");
+        } else {
+            buf.push_str("No installation method supported for the platform:");
+            self.package.format_error(&mut buf);
+            self.docker.format_error(&mut buf);
+            buf.push_str("Please consider opening an issue at \
+                https://github.com/edgedb/edgedb-cli/issues/new\
+                ?template=install-unsupported.md");
+        }
+        return buf;
+    }
+    pub fn pick_first(&self) -> Option<InstallMethod> {
+        if self.package.supported {
+            Some(InstallMethod::Package)
+        } else if self.docker.supported {
+            Some(InstallMethod::Docker)
+        } else {
+            None
         }
     }
 }

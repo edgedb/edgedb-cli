@@ -20,6 +20,12 @@ trait HttpOkExt<T> {
     fn ensure200(self, text: &'static str) -> Result<T, anyhow::Error>;
 }
 
+impl HttpFailure {
+    pub fn is_404(&self) -> bool {
+        self.0.status() == 404
+    }
+}
+
 impl HttpOkExt<surf::Response> for Result<surf::Response, surf::Error> {
     fn ensure200(self, text: &'static str)
         -> Result<surf::Response, anyhow::Error>

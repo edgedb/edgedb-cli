@@ -10,9 +10,6 @@ pub fn dockerfile(codename: &str) -> String {
     "###, codename=codename)
 }
 
-/*
-Temporary absent indexes
-
 #[test]
 fn centos7_sudo_current() -> Result<(), anyhow::Error> {
     docker::sudo_test(
@@ -28,7 +25,6 @@ fn centos8_sudo_current() -> Result<(), anyhow::Error> {
         "edgedb_server_test:centos8_sudo",
         false)
 }
-*/
 
 #[test]
 fn centos7_sudo_nightly() -> Result<(), anyhow::Error> {

@@ -1,6 +1,7 @@
 use clap::{Clap, AppSettings};
 
 use crate::server::version::Version;
+use crate::server::install::InstallMethod;
 
 
 #[derive(Clap, Debug, Clone)]
@@ -27,6 +28,8 @@ pub struct Install {
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
     pub version: Option<Version<String>>,
+    #[clap(long, possible_values=&["package", "docker"][..])]
+    pub method: Option<InstallMethod>,
 }
 
 #[derive(Clap, Debug, Clone)]
