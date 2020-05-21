@@ -1,8 +1,9 @@
 use crate::server::options::ListVersions;
-use crate::server::detect::Detect;
 
 
-pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
+pub fn list_versions(_options: &ListVersions) -> Result<(), anyhow::Error> {
+    todo!();
+    /*
     let detect = Detect::current_os();
     let mut installed = Vec::new();
     for meth in detect.get_available_methods() {
@@ -10,4 +11,5 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
     }
 
     Ok(())
+    */
 }
