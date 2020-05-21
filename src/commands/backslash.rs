@@ -322,7 +322,7 @@ impl CommandCache {
                 Limit(Default::default()),
                 OutputMode(Default::default()),
                 ExpandStrings(Default::default()),
-                History(Default::default()),
+                HistorySize(Default::default()),
             ].into_iter().map(|setting| {
                 let cmd = setting_cmd.remove(&setting.name())
                     .expect("all settings have cmd");
@@ -468,7 +468,7 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
                 "0  # no limit".into()
             }
         }
-        History(_) => {
+        HistorySize(_) => {
             prompt.history_limit.to_string().into()
         }
         OutputMode(_) => {
@@ -555,7 +555,7 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
                         prompt.print.max_items = Some(limit);
                     }
                 }
-                Setting::History(c) => {
+                HistorySize(c) => {
                     let limit = c.value.expect("only set here");
                     prompt.set_history_limit(limit).await;
                 }
@@ -583,7 +583,7 @@ pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
             }
             Ok(Skip)
         }
-        BackslashCmd::History => {
+        History => {
             prompt.show_history().await;
             Ok(Skip)
         }

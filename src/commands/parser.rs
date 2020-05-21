@@ -74,7 +74,7 @@ pub enum Setting {
     /// Stop escaping newlines in quoted strings
     ExpandStrings(SettingBool),
     /// Set number of entries retained in history
-    History(SettingUsize),
+    HistorySize(SettingUsize),
 }
 
 #[derive(Clap, Clone, Debug, Default)]
@@ -419,7 +419,7 @@ impl Setting {
             IntrospectTypes(_) => "introspect-types",
             VerboseErrors(_) => "verbose-errors",
             Limit(_) => "limit",
-            History(_) => "history",
+            HistorySize(_) => "history-size",
             OutputMode(_) => "output-mode",
             ExpandStrings(_) => "expand-strings",
         }
@@ -433,7 +433,7 @@ impl Setting {
             IntrospectTypes(a) => a.value.is_none(),
             VerboseErrors(a) => a.value.is_none(),
             Limit(a) => a.limit.is_none(),
-            History(a) => a.value.is_none(),
+            HistorySize(a) => a.value.is_none(),
             OutputMode(a) => a.mode.is_none(),
             ExpandStrings(a) => a.value.is_none(),
         }
