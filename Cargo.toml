@@ -67,7 +67,9 @@ tar = "0.4.26"
 
 [features]
 dev_mode = []
-vendored_openssl = ["native-tls/vendored"]
+
+[target.'cfg(target_env="rust")'.dependencies]
+native-tls = {version="0.2.4", features=["vendored"]}
 
 [[bin]]
 name = "edgedb"
