@@ -69,7 +69,9 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
         linux::find_version(packages, query)
     }
     fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]> {
-        todo!();
+        Ok(&self.installed.get_or_try_init(|| {
+            debian_like::get_installed()
+        })?)
     }
     fn detect_all(&self) -> serde_json::Value {
         todo!();

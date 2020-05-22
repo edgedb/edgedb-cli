@@ -38,7 +38,6 @@ pub struct VersionResult {
 
 #[derive(Clone, Serialize, Debug)]
 pub struct InstalledPackage {
-    pub method: InstallMethod,
     pub package_name: String,
     pub major_version: Version<String>,
     pub version: Version<String>,

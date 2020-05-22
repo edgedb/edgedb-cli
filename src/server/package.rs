@@ -2,7 +2,7 @@ use async_std::task;
 use serde::Deserialize;
 
 use crate::server::version::Version;
-use crate::server::detect::Lazy;
+use crate::server::detect::{Lazy, InstalledPackage};
 use crate::server::os_trait::CurrentOs;
 use crate::server::remote;
 
@@ -19,6 +19,7 @@ pub struct PackageCandidate {
 #[derive(Debug)]
 pub struct PackageMethod<'os, O: CurrentOs + ?Sized> {
     pub os: &'os O,
+    pub installed: Lazy<Vec<InstalledPackage>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -70,6 +71,7 @@ impl PackageCandidate {
         }
         Ok(PackageMethod {
             os,
+            installed: Lazy::lazy(),
         })
     }
 }
