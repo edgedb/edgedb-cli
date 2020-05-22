@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
 use linked_hash_map::LinkedHashMap;
-use once_cell::sync::Lazy;
-use prettytable::format::TableFormat;
-use prettytable::format::{FormatBuilder, LinePosition, LineSeparator};
 use prettytable::{Table, Row, Cell};
 
 use crate::server::options::Install;
@@ -11,30 +8,7 @@ use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::detect::{VersionQuery, InstallationMethods};
 use crate::server::version::Version;
 use crate::server::install::InstallMethod;
-
-
-pub static FORMAT: Lazy<TableFormat> = Lazy::new(|| {
-    FormatBuilder::new()
-    .column_separator('│')
-    .borders('│')
-    .separators(&[LinePosition::Top],
-                LineSeparator::new('─',
-                                   '┬',
-                                   '┌',
-                                   '┐'))
-    .separators(&[LinePosition::Title],
-                LineSeparator::new('─',
-                                   '┼',
-                                   '├',
-                                   '┤'))
-    .separators(&[LinePosition::Bottom],
-                LineSeparator::new('─',
-                                   '┴',
-                                   '└',
-                                   '┘'))
-    .padding(1, 1)
-    .build()
-});
+use crate::table;
 
 
 #[derive(Debug)]
@@ -152,7 +126,7 @@ impl Settings {
                 Cell::new(v),
             ]));
         }
-        table.set_format(*FORMAT);
+        table.set_format(*table::FORMAT);
         table.printstd();
     }
 }
