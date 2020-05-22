@@ -16,8 +16,8 @@ use crate::print::style::Styler;
 use crate::prompt;
 use crate::commands::execute;
 use crate::commands::parser::{Backslash, BackslashCmd, Setting};
-use crate::commands::table;
 use crate::commands::type_names::get_type_names;
+use crate::table;
 
 
 pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(|| CommandCache::new());

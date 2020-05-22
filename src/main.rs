@@ -21,6 +21,7 @@ mod repl;
 mod server;
 mod server_params;
 mod statement;
+mod table;
 mod variables;
 
 fn main() {

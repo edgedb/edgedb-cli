@@ -36,7 +36,7 @@ pub struct Install {
 #[clap(setting=AppSettings::Hidden)]
 pub struct ListVersions {
     #[clap(long)]
-    installed_only: bool,
+    pub installed_only: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

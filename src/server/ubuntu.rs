@@ -6,7 +6,7 @@ use crate::server::install;
 use crate::server::linux;
 use crate::server::debian_like;
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::PackageMethod;
+use crate::server::package::{PackageMethod, PackageInfo};
 
 
 #[derive(Debug, Serialize)]
@@ -57,8 +57,9 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
             self.os.common.install_operations(settings)?,
             &self.os.linux)
     }
-    fn all_versions(&self) -> anyhow::Result<&[VersionResult]> {
-        todo!();
+    fn all_versions(&self, nightly: bool) -> anyhow::Result<&[PackageInfo]> {
+        Ok(self.os.common.get_repo(nightly)?
+            .map(|x| &x.packages[..]).unwrap_or(&[]))
     }
     fn get_version(&self, query: &VersionQuery)
         -> anyhow::Result<VersionResult>

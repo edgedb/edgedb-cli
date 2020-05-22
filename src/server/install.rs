@@ -16,7 +16,7 @@ pub(in crate::server) use settings::{Settings, SettingsBuilder};
 pub const KEY_FILE_URL: &str = "https://packages.edgedb.com/keys/edgedb.asc";
 
 
-#[derive(Debug, Clone, Serialize, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InstallMethod {
     Package,
     Docker,
@@ -47,6 +47,30 @@ impl FromStr for InstallMethod {
             "docker" => Ok(InstallMethod::Docker),
             _ => anyhow::bail!("Unknown installation method {:?}. \
                 Options: package, docker"),
+        }
+    }
+}
+
+impl InstallMethod {
+    pub fn title(&self) -> &'static str {
+        use InstallMethod::*;
+        match self {
+            Package => "Native System Package",
+            Docker => "Docker Container",
+        }
+    }
+    pub fn option(&self) -> &'static str {
+        use InstallMethod::*;
+        match self {
+            Package => "--method=package",
+            Docker => "--method=docker",
+        }
+    }
+    pub fn short_name(&self) -> &'static str {
+        use InstallMethod::*;
+        match self {
+            Package => "package",
+            Docker => "docker",
         }
     }
 }

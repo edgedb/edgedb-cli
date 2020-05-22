@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::install;
+use crate::server::package::PackageInfo;
 
 
 #[derive(Debug)]
@@ -83,8 +84,9 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     {
         todo!();
     }
-    fn all_versions(&self) -> anyhow::Result<&[VersionResult]> {
-        todo!();
+    fn all_versions(&self, _nightly: bool) -> anyhow::Result<&[PackageInfo]> {
+        // TODO(tailhook) implement fetching versions from docker
+        Ok(&[])
     }
     fn get_version(&self, _query: &VersionQuery)
         -> anyhow::Result<VersionResult>

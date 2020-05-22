@@ -98,23 +98,6 @@ pub fn main(_arg: &crate::server::options::Detect)
     Ok(())
 }
 
-impl InstallMethod {
-    pub fn title(&self) -> &'static str {
-        use InstallMethod::*;
-        match self {
-            Package => "Native System Package",
-            Docker => "Docker Container",
-        }
-    }
-    pub fn option(&self) -> &'static str {
-        use InstallMethod::*;
-        match self {
-            Package => "--method=package",
-            Docker => "--method=docker",
-        }
-    }
-}
-
 impl VersionQuery {
     pub fn is_nightly(&self) -> bool {
         matches!(self, VersionQuery::Nightly)
