@@ -94,7 +94,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         todo!();
     }
     fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]> {
-        todo!();
+        Ok(&[])
     }
     fn detect_all(&self) -> serde_json::Value {
         todo!();

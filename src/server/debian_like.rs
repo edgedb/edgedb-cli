@@ -1,15 +1,18 @@
 use std::fs;
 use std::io;
 use std::str;
+use std::process::Command as StdCommand;
 
+use anyhow::Context;
 use async_std::task;
 use serde::Serialize;
 
-use crate::server::detect::{InstallationMethods, Lazy, ARCH};
+use crate::server::detect::{InstallationMethods, Lazy, ARCH, InstalledPackage};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
 use crate::server::remote;
+use crate::server::version::Version;
 
 
 #[derive(Debug, Serialize)]
@@ -137,4 +140,70 @@ impl Debian {
         ));
         return Ok(operations);
     }
+}
+
+pub fn get_installed() -> anyhow::Result<Vec<InstalledPackage>> {
+    let mut cmd = StdCommand::new("apt-cache");
+    cmd.arg("search");
+    cmd.arg("^edgedb(-server)?-[0-9]");
+    let out = cmd.output()
+        .context("cannot get installed packages")?;
+    if !out.status.success() {
+        anyhow::bail!("cannot get installed packages: {:?} {}",
+            cmd, out.status);
+    }
+    let mut result = Vec::new();
+    for line in out.stdout.split(|&b| b == b'\n') {
+        let pkg_name = match
+            str::from_utf8(line).ok()
+            .and_then(|l| l.split_whitespace().next())
+        {
+            Some(pkg_name) => pkg_name,
+            None => continue,
+        };
+        if !pkg_name.starts_with("edgedb-") ||
+            !pkg_name.starts_with("edgedb-server-")
+        {
+            continue
+        }
+
+        let mut cmd = StdCommand::new("apt-cache");
+        cmd.arg("policy");
+        cmd.arg(pkg_name);
+        let out = cmd.output()
+            .context("cannot get installed packages")?;
+        if !out.status.success() {
+            anyhow::bail!("cannot get installed packages: {:?} {}",
+                cmd, out.status);
+        }
+        for line in out.stdout.split(|&b| b == b'\n') {
+            let line = match str::from_utf8(line).ok() {
+                Some(line) => line.trim(),
+                None => continue,
+            };
+            if line.starts_with("Installed:") {
+                let ver = line["Installed:".len()..].trim();
+                if ver == "(none)" {
+                    break;
+                }
+                let (package_name, major_version) =
+                    if pkg_name.starts_with("edgedb-server-") {
+                        ("edgedb-server", &pkg_name["edgedb-server-".len()..])
+                    } else {
+                        ("edgedb", &pkg_name["edgedb-".len()..])
+                    };
+                let mut split = ver.splitn(2, "-");
+                let version = split.next().unwrap();
+                let revision = split.next().unwrap_or("");
+                result.push(InstalledPackage {
+                    package_name: package_name.to_owned(),
+                    major_version: Version(major_version.to_owned()),
+                    version: Version(version.to_owned()),
+                    revision: revision.to_owned(),
+                });
+                break;
+            }
+        }
+    }
+    Ok(result)
 }
