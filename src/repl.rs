@@ -1,4 +1,4 @@
-use async_std::sync::{Sender, Receiver};
+use async_std::sync::{Sender, Receiver, RecvError};
 
 use crate::prompt;
 use crate::print;
@@ -40,8 +40,8 @@ impl State {
             }
         ).await;
         match self.data.recv().await {
-            None | Some(prompt::Input::Eof) => prompt::Input::Eof,
-            Some(x) => x,
+            Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
+            Ok(x) => x,
         }
     }
     pub async fn variable_input(&mut self,
@@ -56,8 +56,8 @@ impl State {
             }
         ).await;
         match self.data.recv().await {
-            None | Some(prompt::Input::Eof) => prompt::Input::Eof,
-            Some(x) => x,
+            Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
+            Ok(x) => x,
         }
     }
     pub async fn input_mode(&mut self, value: InputMode) {
@@ -74,8 +74,8 @@ impl State {
     pub async fn spawn_editor(&self, entry: Option<isize>) -> prompt::Input {
         self.control.send(prompt::Control::SpawnEditor { entry }).await;
         match self.data.recv().await {
-            None | Some(prompt::Input::Eof) => prompt::Input::Eof,
-            Some(x) => x,
+            Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
+            Ok(x) => x,
         }
     }
     pub async fn set_history_limit(&mut self, val: usize) {

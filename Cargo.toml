@@ -11,7 +11,7 @@ edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust", features=["all
 edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust"}
 snafu = {version="0.6.0", features=["backtraces"]}
 anyhow = "1.0.23"
-async-std = {version="1", features=[
+async-std = {version="1.6.*", features=[
     # we need stdin/stdout and channel
     "unstable",
 ]}

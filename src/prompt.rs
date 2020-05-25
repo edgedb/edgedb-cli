@@ -5,7 +5,7 @@ use std::env;
 use std::process::{Command, Stdio};
 
 use anyhow::{self, Context as _Context};
-use async_std::sync::{Sender, Receiver};
+use async_std::sync::{Sender, Receiver, RecvError};
 use async_std::task;
 use dirs::data_local_dir;
 use rustyline::{self, error::ReadlineError, KeyPress, Cmd};
@@ -244,24 +244,24 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
     let mut prompt = String::from("> ");
     'outer: loop {
         match task::block_on(control.recv()) {
-            None => break 'outer,
-            Some(Control::ViMode) => {
+            Err(RecvError) => break 'outer,
+            Ok(Control::ViMode) => {
                 config = config.edit_mode(EditMode::Vi);
                 editor = create_editor(&config);
             }
-            Some(Control::EmacsMode) => {
+            Ok(Control::EmacsMode) => {
                 config = config.edit_mode(EditMode::Emacs);
                 editor = create_editor(&config);
             }
-            Some(Control::SetHistoryLimit(h)) => {
+            Ok(Control::SetHistoryLimit(h)) => {
                 config = config.max_history_size(h);
                 editor = create_editor(&config);
             }
-            Some(Control::EdgeqlInput { database, initial }) => {
+            Ok(Control::EdgeqlInput { database, initial }) => {
                 edgeql_input(&mut prompt, &mut editor, &data,
                     &database, &initial);
             }
-            Some(Control::ParameterInput { name, type_name, initial })
+            Ok(Control::ParameterInput { name, type_name, initial })
             => {
                 prompt.clear();
                 prompt.push_str("Parameter <");
@@ -288,7 +288,7 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 save_history(&mut editor, &format!("var_{}", &type_name));
                 task::block_on(data.send(Input::Text(text)))
             }
-            Some(Control::ShowHistory) => {
+            Ok(Control::ShowHistory) => {
                 match show_history(editor.history()) {
                     Ok(()) => {}
                     Err(e) => {
@@ -296,7 +296,7 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                     }
                 }
             }
-            Some(Control::SpawnEditor { entry }) => {
+            Ok(Control::SpawnEditor { entry }) => {
                 let h = editor.history();
                 let e = entry.unwrap_or(-1);
                 let normal = if e < 0 {
