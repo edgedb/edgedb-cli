@@ -79,7 +79,7 @@ pub fn current_os() -> anyhow::Result<Box<dyn CurrentOs>> {
 
     if cfg!(windows) {
         Ok(Box::new(windows::Windows::new()))
-    } else if cfg!(macos) {
+    } else if cfg!(target_os="macos") {
         Ok(Box::new(macos::Macos::new()))
     } else if cfg!(target_os="linux") {
         linux::detect_distro()
