@@ -1,4 +1,5 @@
 use crate::docker;
+use test_case::test_case;
 
 
 pub fn dockerfile(codename: &str) -> String {
@@ -11,30 +12,13 @@ pub fn dockerfile(codename: &str) -> String {
     "###, codename=codename)
 }
 
-#[test]
-fn buster_sudo_current() -> Result<(), anyhow::Error> {
+#[test_case("buster", false)]
+#[test_case("stretch", false)]
+#[test_case("buster", true)]
+#[test_case("stretch", true)]
+fn sudo_install(codename: &str, nightly: bool) -> Result<(), anyhow::Error> {
     docker::sudo_test(
-        &dockerfile("buster"),
-        "edgedb_server_test:buster_sudo", false)
-}
-
-#[test]
-fn stretch_sudo_current() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("stretch"),
-        "edgedb_server_test:stretch_sudo", false)
-}
-
-#[test]
-fn buster_sudo_nightly() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("buster"),
-        "edgedb_server_test:buster_sudo", true)
-}
-
-#[test]
-fn stretch_sudo_nightly() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("stretch"),
-        "edgedb_server_test:stretch_sudo", true)
+        &dockerfile(codename),
+        &format!("edgedb_server_test:{}_sudo", codename),
+        nightly)
 }

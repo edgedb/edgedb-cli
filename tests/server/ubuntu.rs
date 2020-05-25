@@ -1,4 +1,5 @@
 use crate::docker;
+use test_case::test_case;
 
 
 pub fn dockerfile(codename: &str) -> String {
@@ -11,42 +12,16 @@ pub fn dockerfile(codename: &str) -> String {
     "###, codename=codename)
 }
 
-#[test]
-fn bionic_sudo_current() -> Result<(), anyhow::Error> {
+#[test_case("bionic", false)]
+#[test_case("xenial", false)]
+#[test_case("bionic", true)]
+#[test_case("xenial", true)]
+#[test_case("focal", true; "inconclusive -- no stable version for focal")]
+fn sudo_install(codename: &str, nightly: bool)
+    -> Result<(), anyhow::Error>
+{
     docker::sudo_test(
-        &dockerfile("bionic"),
-        "edgedb_server_test:bionic_sudo",
-        false)
-}
-
-#[test]
-fn xenial_sudo_current() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("xenial"),
-        "edgedb_server_test:xenial_sudo",
-        false)
-}
-
-#[test]
-fn bionic_sudo_nightly() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("bionic"),
-        "edgedb_server_test:bionic_sudo",
-        true)
-}
-
-#[test]
-fn xenial_sudo_nightly() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("xenial"),
-        "edgedb_server_test:xenial_sudo",
-        true)
-}
-
-#[test]
-fn focal_sudo_nightly() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("xenial"),
-        "edgedb_server_test:xenial_sudo",
-        true)
+        &dockerfile(codename),
+        &format!("edgedb_server_test:{}_sudo", codename),
+        nightly)
 }

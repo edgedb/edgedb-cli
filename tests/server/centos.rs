@@ -1,4 +1,5 @@
 use crate::docker;
+use test_case::test_case;
 
 
 pub fn dockerfile(codename: &str) -> String {
@@ -10,34 +11,15 @@ pub fn dockerfile(codename: &str) -> String {
     "###, codename=codename)
 }
 
-#[test]
-fn centos7_sudo_current() -> Result<(), anyhow::Error> {
+#[test_case(7, false)]
+#[test_case(8, false)]
+#[test_case(7, true)]
+#[test_case(8, true)]
+fn sudo_install(release: u32, nightly: bool)
+    -> Result<(), anyhow::Error>
+{
     docker::sudo_test(
-        &dockerfile("7"),
-        "edgedb_server_test:centos7_sudo",
-        false)
-}
-
-#[test]
-fn centos8_sudo_current() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("8"),
-        "edgedb_server_test:centos8_sudo",
-        false)
-}
-
-#[test]
-fn centos7_sudo_nightly() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("7"),
-        "edgedb_server_test:centos7_sudo",
-        true)
-}
-
-#[test]
-fn centos8_sudo_nightly() -> Result<(), anyhow::Error> {
-    docker::sudo_test(
-        &dockerfile("8"),
-        "edgedb_server_test:centos8_sudo",
-        true)
+        &dockerfile(&format!("{}", release)),
+        &format!("edgedb_server_test:centos{}_sudo", release),
+        nightly)
 }
