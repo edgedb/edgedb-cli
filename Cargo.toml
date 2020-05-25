@@ -64,6 +64,7 @@ pretty_assertions = "0.6.1"
 shutdown_hooks = "0.1.0"
 rexpect = {git="https://github.com/tailhook/rexpect", branch="default_terminal_size"}
 tar = "0.4.26"
+test-case = "1.0.0"
 
 [features]
 dev_mode = []
