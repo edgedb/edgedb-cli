@@ -201,12 +201,14 @@ pub struct Describe {
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Dump {
+    /// Filename to write dump to. Use dash `-` to write into stdout
     pub file: PathBuf,
 }
 
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Restore {
+    /// Filename to read dump from. Use dash `-` to read from stdin
     pub file: PathBuf,
 
     /// Allow restoring the database dump into a non-empty database
