@@ -25,3 +25,14 @@ fn sudo_install(codename: &str, nightly: bool)
         &format!("edgedb_server_test:{}_sudo", codename),
         nightly)
 }
+
+// Only works on nightly, because other overwrite edgedb command
+#[test_case("xenial", true)]
+fn refuse_to_reinstall(codename: &str, nightly: bool)
+    -> Result<(), anyhow::Error>
+{
+    docker::install_twice_test(
+        &dockerfile(codename),
+        &format!("edgedb_server_test:{}_sudo", codename),
+        nightly)
+}

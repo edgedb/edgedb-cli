@@ -68,8 +68,35 @@ pub fn sudo_test(dockerfile: &str, tagname: &str, nightly: bool)
         .stdout(predicates::function::function(|data: &str| {
             let tail = &data[data.find("--- DONE ---").unwrap()..];
             assert!(tail.contains("Usage: edgedb-server [OPTIONS]"));
-            //assert!(tail.contains(&format!("Installed: {}", display_ver)));
             true
+        }));
+    Ok(())
+}
+
+pub fn install_twice_test(dockerfile: &str, tagname: &str, nightly: bool)
+    -> Result<(), anyhow::Error>
+{
+    let context = make_context(&dockerfile, sudoers())?;
+    Command::new("docker")
+        .arg("build").arg("-")
+        .arg("-t").arg(tagname)
+        .write_stdin(context)
+        .assert()
+        .success();
+    Command::new("docker")
+        .args(&["run", "--rm", "-u", "1"])
+        .arg(tagname)
+        .args(&["sh", "-exc", &format!(r###"
+            RUST_LOG=info edgedb server install {arg}
+            echo --- DONE --- 1>&2
+            RUST_LOG=info edgedb server install
+        "###, arg=if nightly { "--nightly" } else {""})])
+        .assert()
+        .code(51)
+        .stderr(predicates::str::contains("--- DONE ---"))
+        .stderr(predicates::function::function(|data: &str| {
+            let tail = &data[data.find("--- DONE ---").unwrap()..];
+            tail.contains("already installed")
         }));
     Ok(())
 }
