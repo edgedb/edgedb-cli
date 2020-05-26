@@ -53,7 +53,6 @@ Introspection
 Operations
   \dump FILENAME           dump current database into a file
   \restore FILENAME        restore the database from file into the current one
-  \create-database DBNAME  create a new database
 
 Editing
   \s, \history             show history
