@@ -7,7 +7,6 @@ use crate::server::version::Version;
 use crate::server::docker::{DockerCandidate};
 use crate::server::package::{PackageCandidate};
 use crate::server::os_trait::CurrentOs;
-use crate::server::install::InstallMethod;
 
 use anyhow::Context;
 
@@ -151,14 +150,5 @@ impl InstallationMethods {
                 ?template=install-unsupported.md");
         }
         return buf;
-    }
-    pub fn pick_first(&self) -> Option<InstallMethod> {
-        if self.package.supported {
-            Some(InstallMethod::Package)
-        } else if self.docker.supported {
-            Some(InstallMethod::Docker)
-        } else {
-            None
-        }
     }
 }

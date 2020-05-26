@@ -192,7 +192,16 @@ impl<'os> Method for PackageMethod<'os, Centos> {
             cmd.arg("edgedb-*");
             let out = cmd.output()
                 .context("cannot get installed packages")?;
-            if !out.status.success() {
+            if out.status.code() == Some(1) {
+                if str::from_utf8(&out.stderr)
+                    .map(|x| x.contains("No matching Packages to list"))
+                    .unwrap_or(false)
+                {
+                    return Ok(Vec::new());
+                }
+                anyhow::bail!("cannot get installed packages: {:?} {}",
+                    cmd, out.status);
+            } else if !out.status.success() {
                 anyhow::bail!("cannot get installed packages: {:?} {}",
                     cmd, out.status);
             }
