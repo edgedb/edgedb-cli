@@ -1664,7 +1664,7 @@ dependencies = [
 [[package]]
 name = "rustyline"
 version = "6.1.2"
-source = "git+https://github.com/tailhook/rustyline?branch=edgedb_20190508#4d67abd15d2b7afba9c3492a1ab3e66a92e6fe21"
+source = "git+https://github.com/tailhook/rustyline?branch=edgedb_20200526#44463e8e8c308029da917f28ceaf8fef1b34e54f"
 dependencies = [
  "cfg-if",
  "dirs 2.0.2",
