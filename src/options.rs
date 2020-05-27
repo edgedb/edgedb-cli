@@ -165,14 +165,20 @@ impl Options {
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
             && atty::is(atty::Stream::Stdin);
+
         let password = if tmp.password_from_stdin {
             let password = rpassword::read_password()
                 .expect("password can be read");
             Password::Password(password)
         } else if tmp.no_password {
             Password::NoPassword
-        } else {
+        } else if tmp.password {
             Password::FromTerminal
+        } else {
+            match env::var("EDGEDB_PASSWORD") {
+                Ok(p) => Password::Password(p),
+                Err(_) => Password::NoPassword
+            }
         };
 
         let subcommand = if let Some(query) = tmp.query {
