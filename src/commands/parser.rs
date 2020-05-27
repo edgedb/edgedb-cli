@@ -9,7 +9,9 @@ pub enum Common {
     CreateDatabase(CreateDatabase),
     ListDatabases,
     ListPorts,
+    #[clap(setting=AppSettings::Hidden)]
     Pgaddr,
+    #[clap(setting=AppSettings::Hidden)]
     Psql,
     ListAliases(ListAliases),
     ListCasts(ListCasts),
