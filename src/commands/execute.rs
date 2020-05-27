@@ -65,8 +65,8 @@ pub async fn common<'x>(cli: &mut Client<'x>, cmd: &Common, options: &Options)
         Dump(c) => {
             commands::dump(cli, &options, c.file.as_ref()).await?;
         }
-        Restore(c) => {
-            commands::restore(cli, &options, c.file.as_ref(), false)
+        Restore(params) => {
+            commands::restore(cli, &options, params)
             .await?;
         }
         Configure(c) => {

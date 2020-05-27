@@ -16,6 +16,7 @@ use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
+use crate::commands::parser::{Restore as RestoreCmd};
 use crate::print;
 use crate::client::{Client, Reader, Writer};
 
@@ -89,10 +90,11 @@ async fn is_empty_db(cli: &mut Client<'_>) -> Result<bool, anyhow::Error> {
 }
 
 pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
-    filename: &Path, allow_non_empty: bool)
+    params: &RestoreCmd)
     -> Result<(), anyhow::Error>
 {
     use PacketType::*;
+    let RestoreCmd { allow_non_empty, file: ref filename, verbose } = *params;
     if !allow_non_empty {
         if is_empty_db(cli).await.context("Error checking DB emptyness")? {
             if options.command_line {
@@ -144,7 +146,10 @@ pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
         let msg = cli.reader.message().await?;
         match msg {
             ServerMessage::RestoreReady(_) => {
-                eprintln!("Schema applied in {:?}", start_headers.elapsed());
+                if verbose {
+                    eprintln!("Schema applied in {:?}",
+                              start_headers.elapsed());
+                }
                 break;
             }
             ServerMessage::ErrorResponse(err) => {
@@ -158,8 +163,9 @@ pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
             }
         }
     }
-    let result = send_blocks(&mut cli.writer, &mut input, filename)
-        .race(wait_response(&mut cli.reader, start_headers))
+    let result = send_blocks(&mut cli.writer, &mut input,
+                             filename.as_ref(), verbose)
+        .race(wait_response(&mut cli.reader, start_headers, verbose))
         .await;
     if let Err(..) = result {
         cli.err_sync().await.ok();
@@ -168,7 +174,7 @@ pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
 }
 
 async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
-    filename: &Path)
+    filename: &Path, verbose: bool)
     -> Result<(), anyhow::Error>
 {
     use PacketType::*;
@@ -184,26 +190,33 @@ async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
         ]).await?;
     }
     writer.send_messages(&[ClientMessage::RestoreEof]).await?;
-    eprintln!("Blocks sent in {:?}", start_blocks.elapsed());
+    if verbose {
+        eprintln!("Blocks sent in {:?}", start_blocks.elapsed());
+    }
 
     // This future should be canceled by wait_response() receiving
     // CommandComplete
     let start_waiting = Instant::now();
     loop {
         timeout(Duration::from_secs(60), pending()).await?;
-        eprintln!("Waiting for complete {:?}", start_waiting.elapsed());
+        if verbose {
+            eprintln!("Waiting for complete {:?}", start_waiting.elapsed());
+        }
     }
 }
 
-async fn wait_response(reader: &mut Reader<&'_ ByteStream>, start: Instant)
+async fn wait_response(reader: &mut Reader<&'_ ByteStream>, start: Instant,
+    verbose: bool)
     -> Result<(), anyhow::Error>
 {
     loop {
         let msg = reader.message().await?;
         match msg {
             ServerMessage::CommandComplete(c) => {
-                eprintln!("Complete in {:?}", start.elapsed());
-                print::completion(&c.status_data);
+                if verbose {
+                    eprintln!("Complete in {:?}", start.elapsed());
+                    print::completion(&c.status_data);
+                }
                 break;
             }
             ServerMessage::ErrorResponse(err) => {
