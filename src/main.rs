@@ -10,8 +10,11 @@ use crate::options::Options;
 mod client;
 mod commands;
 mod completion;
+mod error_display;
 mod highlight;
+mod non_interactive;
 mod options;
+mod outputs;
 mod print;
 mod prompt;
 mod reader;
@@ -20,7 +23,6 @@ mod server;
 mod server_params;
 mod statement;
 mod variables;
-mod error_display;
 
 
 fn main() -> Result<(), anyhow::Error> {
@@ -68,6 +70,6 @@ fn interactive_main(options: Options) -> Result<(), anyhow::Error> {
 }
 
 fn non_interactive_main(options: Options) -> Result<(), anyhow::Error> {
-    task::block_on(client::non_interactive_main(options))
+    task::block_on(non_interactive::main(options))
 }
 

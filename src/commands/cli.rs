@@ -1,7 +1,8 @@
 use async_std::task;
 
 use crate::options::{Options, Command};
-use crate::client::{Connection, non_interactive_query};
+use crate::client::Connection;
+use crate::non_interactive;
 use crate::commands;
 use crate::server;
 use crate::print::style::Styler;
@@ -63,7 +64,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 let mut cli = conn.authenticate(
                     &options, &options.database).await?;
                 for query in &q.queries {
-                    non_interactive_query(&mut cli, query, &options).await?;
+                    non_interactive::query(&mut cli, query, &options).await?;
                 }
                 Ok(())
             }).into()
