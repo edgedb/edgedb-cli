@@ -1,7 +1,6 @@
 use anyhow;
 
 use async_std::task;
-use async_std::sync::{channel};
 
 use std::env;
 
@@ -12,6 +11,7 @@ mod commands;
 mod completion;
 mod error_display;
 mod highlight;
+mod interactive;
 mod non_interactive;
 mod options;
 mod outputs;
@@ -38,38 +38,9 @@ fn main() -> Result<(), anyhow::Error> {
         commands::cli::main(opt)
     } else {
         if opt.interactive {
-            interactive_main(opt)
+            interactive::main(opt)
         } else {
-            non_interactive_main(opt)
+            task::block_on(non_interactive::main(opt))
         }
     }
 }
-
-fn interactive_main(options: Options) -> Result<(), anyhow::Error> {
-    let (control_wr, control_rd) = channel(1);
-    let (repl_wr, repl_rd) = channel(1);
-    let state = repl::State {
-        control: control_wr,
-        data: repl_rd,
-        print: print::Config::new()
-            .max_items(100)
-            .colors(atty::is(atty::Stream::Stdout))
-            .clone(),
-        verbose_errors: false,
-        last_error: None,
-        database: options.database.clone(),
-        implicit_limit: Some(100),
-        output_mode: options.output_mode,
-        input_mode: repl::InputMode::Emacs,
-        history_limit: 100,
-    };
-    let handle = task::spawn(client::interactive_main(options, state));
-    prompt::main(repl_wr, control_rd)?;
-    task::block_on(handle)?;
-    Ok(())
-}
-
-fn non_interactive_main(options: Options) -> Result<(), anyhow::Error> {
-    task::block_on(non_interactive::main(options))
-}
-
