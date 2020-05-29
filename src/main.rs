@@ -1,8 +1,7 @@
-use anyhow;
+use std::env;
+use std::process::exit;
 
 use async_std::task;
-
-use std::env;
 
 use crate::options::Options;
 
@@ -24,8 +23,17 @@ mod server_params;
 mod statement;
 mod variables;
 
+fn main() {
+    match _main() {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("Error: {:#}", e);
+            exit(1);
+        }
+    }
+}
 
-fn main() -> Result<(), anyhow::Error> {
+fn _main() -> Result<(), anyhow::Error> {
     // If a crash happens we want the backtrace to be printed by default
     // to ease bug reporting and troubleshooting.
     // TODO: consider removing this once EdgeDB reaches 1.0 stable.

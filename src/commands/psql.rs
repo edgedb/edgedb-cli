@@ -1,4 +1,6 @@
+use std::env;
 use std::process::Command;
+use std::ffi::OsString;
 
 use anyhow::Context;
 use crate::client::Client;
@@ -12,9 +14,7 @@ pub async fn psql<'x>(cli: &mut Client<'x>, _options: &Options)
     match cli.params.get::<PostgresAddress>() {
         Some(addr) => {
             let mut cmd = Command::new("psql");
-            #[cfg(all(feature="dev_mode"))]
-            {
-                use std::env;
+            let path = if cfg!(feature="dev_mode") {
                 use std::iter;
                 use std::path::{Path, PathBuf};
 
@@ -35,18 +35,26 @@ pub async fn psql<'x>(cli: &mut Client<'x>, _options: &Options)
                     } else {
                         dir.into()
                     };
-                    cmd.env("PATH", npath);
+                    Some(npath)
+                } else {
+                    env::var_os("PATH")
                 }
-            }
+            } else {
+                env::var_os("PATH")
+            };
             cmd.arg("-h").arg(&addr.host);
             cmd.arg("-U").arg(&addr.user);
             cmd.arg("-p").arg(addr.port.to_string());
             cmd.arg("-d").arg(&addr.database);
+            if let Some(path) = path.as_ref() {
+                cmd.env("PATH", path);
+            }
 
             #[cfg(unix)]
             let _trap = signal::trap::Trap::trap(&[signal::Signal::SIGINT]);
-            cmd.status()
-                .context(format!("Error running {:?}", cmd))?;
+            cmd.status().context(
+                format!("Error running {:?} (path: {:?})", cmd,
+                    path.unwrap_or_else(OsString::new)))?;
         }
         None => {
             eprintln!("psql requires EdgeDB to run in DEV mode");
