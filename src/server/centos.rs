@@ -6,11 +6,12 @@ use std::process::Command as StdCommand;
 use anyhow::Context;
 use serde::Serialize;
 
-use crate::server::detect::{InstallationMethods, Lazy, ARCH};
+use crate::server::detect::{Lazy, ARCH};
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::linux;
+use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::package::{PackageMethod, PackageInfo};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
@@ -144,11 +145,11 @@ impl CurrentOs for Centos {
         self.linux.detect_all();
         serde_json::to_value(self).expect("can serialize")
     }
-    fn make_method<'x>(&'x self, method: &install::InstallMethod,
+    fn make_method<'x>(&'x self, method: &InstallMethod,
         methods: &InstallationMethods)
         -> anyhow::Result<Box<dyn Method + 'x>>
     {
-        use install::InstallMethod::*;
+        use InstallMethod::*;
 
         match method {
             Package => Ok(Box::new(methods.package.make_method(self)?)),

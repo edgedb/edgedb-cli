@@ -1,5 +1,6 @@
 pub mod options;
 mod main;
+mod methods;
 mod detect;
 mod remote;
 mod version;
@@ -22,5 +23,6 @@ mod package;
 // commands
 mod install;
 mod list_versions;
+mod init;
 
 pub use main::main;

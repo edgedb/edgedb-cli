@@ -99,4 +99,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn detect_all(&self) -> serde_json::Value {
         todo!();
     }
+    fn is_system_only(&self) -> bool {
+        true
+    }
 }
