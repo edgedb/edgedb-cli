@@ -2,10 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use crate::server::detect::{InstallationMethods, Lazy};
-use crate::server::detect::{VersionQuery, VersionResult};
-use crate::server::install::{self, operation, exit_codes, Operation};
+use crate::server::detect::{Lazy, VersionQuery, VersionResult};
+use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::os_trait::{CurrentOs, Method};
+use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::package::{RepositoryInfo, PackageInfo};
 use crate::server::version::Version;
 use crate::server::{debian, ubuntu, centos};
@@ -64,7 +64,7 @@ impl CurrentOs for Unknown {
         serde_json::to_value(Wrapper { error: self.error.to_string() })
         .expect("can serialize")
     }
-    fn make_method<'x>(&'x self, _method: &install::InstallMethod,
+    fn make_method<'x>(&'x self, _method: &InstallMethod,
         _methods: &InstallationMethods)
         -> anyhow::Result<Box<dyn Method + 'x>>
     {

@@ -4,8 +4,6 @@ use once_cell::sync::OnceCell;
 use serde::Serialize;
 
 use crate::server::version::Version;
-use crate::server::docker::{DockerCandidate};
-use crate::server::package::{PackageCandidate};
 use crate::server::os_trait::CurrentOs;
 
 use anyhow::Context;
@@ -41,12 +39,6 @@ pub struct InstalledPackage {
     pub major_version: Version<String>,
     pub version: Version<String>,
     pub revision: String,
-}
-
-#[derive(Debug)]
-pub struct InstallationMethods {
-    pub package: PackageCandidate,
-    pub docker: DockerCandidate,
 }
 
 impl<T: Serialize> Serialize for Lazy<T> {
@@ -97,8 +89,20 @@ pub fn main(_arg: &crate::server::options::Detect)
 }
 
 impl VersionQuery {
+    pub fn new(nightly: bool, version: &Option<Version<String>>)
+        -> VersionQuery
+    {
+        if nightly {
+            VersionQuery::Nightly
+        } else {
+            VersionQuery::Stable(version.clone())
+        }
+    }
     pub fn is_nightly(&self) -> bool {
         matches!(self, VersionQuery::Nightly)
+    }
+    pub fn is_specific(&self) -> bool {
+        matches!(self, VersionQuery::Stable(Some(..)))
     }
 }
 
@@ -113,42 +117,3 @@ impl fmt::Display for VersionQuery {
     }
 }
 
-impl InstallationMethods {
-    pub fn format_error(&self) -> String {
-        let mut buf = String::with_capacity(1024);
-        if self.package.supported || self.docker.supported {
-            buf.push_str("No installation method chosen, add:\n");
-            if self.package.supported {
-                self.package.format_option(&mut buf, true);
-            }
-            if self.docker.supported {
-                self.docker.format_option(&mut buf, !self.package.supported);
-            }
-            if !self.package.supported {
-                self.package.format_error(&mut buf);
-            }
-            if !self.docker.supported {
-                self.docker.format_error(&mut buf);
-            }
-            buf.push_str("or run `edgedb server install --interactive` \
-                          and follow instructions");
-        } else if self.docker.platform_supported {
-            buf.push_str("No installation method found:\n");
-            self.package.format_error(&mut buf);
-            self.docker.format_error(&mut buf);
-            buf.push_str("Consider installing docker: \
-                https://docs.docker.com/get-docker/");
-            buf.push_str("Or ask for native support at \
-                https://github.com/edgedb/edgedb-cli/issues/new\
-                ?template=install-unsupported.md");
-        } else {
-            buf.push_str("No installation method supported for the platform:");
-            self.package.format_error(&mut buf);
-            self.docker.format_error(&mut buf);
-            buf.push_str("Please consider opening an issue at \
-                https://github.com/edgedb/edgedb-cli/issues/new\
-                ?template=install-unsupported.md");
-        }
-        return buf;
-    }
-}

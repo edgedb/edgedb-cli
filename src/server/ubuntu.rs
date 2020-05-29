@@ -1,10 +1,10 @@
 use serde::Serialize;
 
-use crate::server::detect::{InstallationMethods};
+use crate::server::debian_like;
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::install;
 use crate::server::linux;
-use crate::server::debian_like;
+use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::package::{PackageMethod, PackageInfo};
 
@@ -37,11 +37,11 @@ impl CurrentOs for Ubuntu {
         self.linux.detect_all();
         serde_json::to_value(self).expect("can serialize")
     }
-    fn make_method<'x>(&'x self, method: &install::InstallMethod,
+    fn make_method<'x>(&'x self, method: &InstallMethod,
         methods: &InstallationMethods)
         -> anyhow::Result<Box<dyn Method + 'x>>
     {
-        use install::InstallMethod::*;
+        use InstallMethod::*;
         match method {
             Package => Ok(Box::new(methods.package.make_method(self)?)),
             Docker => Ok(Box::new(methods.docker.make_method(self)?)),

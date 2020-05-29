@@ -1,7 +1,6 @@
 use serde::Serialize;
 
-use crate::server::detect::{InstallationMethods};
-use crate::server::install;
+use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
 
 
@@ -19,7 +18,7 @@ impl CurrentOs for Unknown {
     fn detect_all(&self) -> serde_json::Value {
         todo!();
     }
-    fn make_method<'x>(&'x self, _method: &install::InstallMethod,
+    fn make_method<'x>(&'x self, _method: &InstallMethod,
         _methods: &InstallationMethods)
         -> anyhow::Result<Box<dyn Method + 'x>>
     {

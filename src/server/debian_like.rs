@@ -7,11 +7,12 @@ use anyhow::Context;
 use async_std::task;
 use serde::Serialize;
 
-use crate::server::detect::{InstallationMethods, Lazy, ARCH, InstalledPackage};
+use crate::server::detect::{Lazy, ARCH, InstalledPackage};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
 use crate::server::remote;
+use crate::server::methods::InstallationMethods;
 use crate::server::version::Version;
 
 

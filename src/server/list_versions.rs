@@ -3,10 +3,9 @@ use std::collections::{BTreeSet, BTreeMap};
 use prettytable::{Table, Cell, Row};
 
 use crate::server::detect;
-use crate::server::install::InstallMethod;
+use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::ListVersions;
 use crate::server::version::Version;
-use crate::server::os_trait::CurrentOs;
 use crate::table;
 
 
@@ -22,19 +21,20 @@ pub struct VersionInfo {
 pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
     let mut versions = BTreeMap::new();
     let os = detect::current_os()?;
+    let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
     if options.installed_only {
-        remote(&*os, &mut versions)
+        remote(&methods, &mut versions)
             .map_err(|e| {
                 log::warn!("Error fetching remote versions: {:#}", e);
             }).ok();
-        installed(&*os, &mut versions)?;
+        installed(&methods, &mut versions)?;
         let versions = versions.into_iter()
             .filter(|(_m, v)| !v.installed.is_empty())
             .collect();
         print_versions(versions);
     } else {
-        remote(&*os, &mut versions)?;
-        installed(&*os, &mut versions)
+        remote(&methods, &mut versions)?;
+        installed(&methods, &mut versions)
             .map_err(|e| {
                 log::warn!("Error fetching installed versions: {:#}", e);
             }).ok();
@@ -43,11 +43,11 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn installed(os: &dyn CurrentOs,
+fn installed(methods: &Methods,
     versions: &mut BTreeMap<Version<String>, VersionInfo>)
     -> Result<(), anyhow::Error>
 {
-    for (meth, method) in os.instantiate_methods()? {
+    for (meth, method) in methods {
         for ver in method.installed_versions()? {
             let full_ver = format!("{}-{}", ver.version, ver.revision);
             let entry = versions.entry(ver.major_version.clone())
@@ -63,11 +63,10 @@ fn installed(os: &dyn CurrentOs,
     Ok(())
 }
 
-fn remote(os: &dyn CurrentOs,
-    versions: &mut BTreeMap<Version<String>, VersionInfo>)
+fn remote(methods: &Methods, versions: &mut BTreeMap<Version<String>, VersionInfo>)
     -> anyhow::Result<()>
 {
-    for (meth, method) in os.instantiate_methods()? {
+    for (meth, method) in methods {
         for pkg in method.all_versions(false)? {
             if let Some(major) = &pkg.slot {
                 let full_ver = Version(format!("{}-{}",

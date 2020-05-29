@@ -5,7 +5,7 @@ use crate::server::options::Install;
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::detect::VersionQuery;
 use crate::server::version::Version;
-use crate::server::install::InstallMethod;
+use crate::server::methods::InstallMethod;
 use crate::table;
 
 
@@ -36,11 +36,8 @@ impl<'os> SettingsBuilder<'os> {
         methods: LinkedHashMap<InstallMethod, Box<dyn Method + 'os>>)
         -> Result<SettingsBuilder<'os>, anyhow::Error>
     {
-        let version_query = if options.nightly {
-                VersionQuery::Nightly
-            } else {
-                VersionQuery::Stable(options.version.clone())
-            };
+        let version_query = VersionQuery::new(
+            options.nightly, &options.version);
         Ok(SettingsBuilder {
             os,
             method: options.method.clone()
