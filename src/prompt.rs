@@ -83,7 +83,7 @@ impl Highlighter for EdgeqlHelper {
                             &data[..bytes], &self.styler);
                         data = &data[bytes..];
                     }
-                    Err(_) => {
+                    Err(_cont) => {
                         highlight::edgeql(&mut buf,
                             &data, &self.styler);
                         data = &"";
@@ -124,8 +124,7 @@ impl Validator for EdgeqlHelper {
     {
         let input = ctx.input();
         let complete = match completion::current(input, input.len()).1 {
-            completion::Current::Edgeql(q) if q.ends_with(';') => true,
-            completion::Current::Edgeql(_) => false,
+            completion::Current::Edgeql(_, complete) => complete,
             completion::Current::Empty => true,
             completion::Current::Backslash(_) => true,
         };

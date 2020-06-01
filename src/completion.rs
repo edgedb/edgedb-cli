@@ -11,7 +11,7 @@ use crate::commands::backslash;
 
 #[derive(Debug)]
 pub enum Current<'a> {
-    Edgeql(&'a str),
+    Edgeql(&'a str, bool),
     Backslash(&'a str),
     Empty,
 }
@@ -70,12 +70,14 @@ pub fn current<'x>(data: &'x str, pos: usize) -> (usize, Current<'x>) {
             match preparser::full_statement(&data[offset..].as_bytes(), None) {
                 Ok(bytes) => {
                     if offset + bytes > pos {
-                        return (offset,
-                                Current::Edgeql(&data[offset..][..bytes]));
+                        return (offset, Current::Edgeql(
+                            &data[offset..][..bytes], true));
                     }
                     offset += bytes;
                 }
-                Err(_) => return (offset, Current::Edgeql(&data[offset..])),
+                Err(_) => {
+                    return (offset, Current::Edgeql(&data[offset..], false));
+                }
             }
         }
     }
@@ -119,7 +121,7 @@ pub fn complete(input: &str, cursor: usize)
 {
     match current(input, cursor) {
         (_, Current::Empty) => None,
-        (_, Current::Edgeql(_)) => None,
+        (_, Current::Edgeql(..)) => None,
         (off, Current::Backslash(cmd)) => {
             use backslash::Item::*;
             use BackslashFsm as Fsm;
@@ -319,7 +321,7 @@ pub fn hint(input: &str, pos: usize) -> Option<String> {
 
     match current(input, pos) {
         (_, Current::Empty) => None,
-        (_, Current::Edgeql(_)) => None,
+        (_, Current::Edgeql(..)) => None,
         (off, Current::Backslash(cmd)) => {
             use backslash::Item::*;
             use BackslashFsm as Fsm;
