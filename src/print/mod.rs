@@ -75,7 +75,7 @@ impl Config {
         Config {
             colors: None,
             indent: 2,
-            expand_strings: false,
+            expand_strings: true,
             max_width: None,
             implicit_properties: false,
             type_names: None,
