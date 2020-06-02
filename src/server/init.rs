@@ -31,7 +31,7 @@ struct Metadata {
 
 fn data_path(system: bool) -> anyhow::Result<PathBuf> {
     if system {
-        todo!();
+        anyhow::bail!("System instances are not implemented yet"); // TODO
     } else {
         Ok(dirs::data_dir()
             .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
@@ -151,7 +151,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
     };
     settings.print();
     if settings.system {
-        todo!();
+        anyhow::bail!("System instances are not implemented yet"); // TODO
     } else {
         if settings.directory.exists() {
             anyhow::bail!("Directory {0} already exists. \
