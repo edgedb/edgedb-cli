@@ -96,7 +96,6 @@ pub fn main(_arg: &crate::server::options::Detect)
     let os = current_os()?;
     let detected = os.get_available_methods()?;
     let methods = detected.instantiate_all(&*os, true)?;
-    println!("METHODS {:?}", methods);
     serde_json::to_writer_pretty(std::io::stdout(), &Info {
         os_type: os.get_type_name(),
         os_info: os.detect_all(),
@@ -123,6 +122,24 @@ impl VersionQuery {
     }
     pub fn is_specific(&self) -> bool {
         matches!(self, VersionQuery::Stable(Some(..)))
+    }
+    pub fn to_arg(&self) -> Option<String> {
+        use VersionQuery::*;
+
+        match self {
+            Stable(None) => None,
+            Stable(Some(ver)) => Some(format!("--version={}", ver)),
+            Nightly => Some("--nightly".into()),
+        }
+    }
+    pub fn installed_matches(&self, pkg: &InstalledPackage) -> bool {
+        use VersionQuery::*;
+
+        match self {
+            Nightly => true, // TODO(tailhook) only for real nightly
+            Stable(None) => true,
+            Stable(Some(v)) => &pkg.major_version == v,
+        }
     }
 }
 
