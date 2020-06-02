@@ -13,7 +13,7 @@ impl CurrentOs for Windows {
     fn get_available_methods(&self)
         -> Result<InstallationMethods, anyhow::Error>
     {
-        todo!();
+        anyhow::bail!("Windows support is unimplemented yet"); // TODO
     }
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
@@ -22,7 +22,7 @@ impl CurrentOs for Windows {
         _methods: &InstallationMethods)
         -> anyhow::Result<Box<dyn Method + 'x>>
     {
-        todo!();
+        anyhow::bail!("Windows support is unimplemented yet"); // TODO
     }
 }
 

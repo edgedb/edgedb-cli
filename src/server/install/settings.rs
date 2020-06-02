@@ -54,6 +54,11 @@ impl<'os> SettingsBuilder<'os> {
     pub fn build(mut self)
         -> anyhow::Result<(Settings, Box<dyn Method + 'os>)>
     {
+        if self.package_name.is_none() || self.major_version.is_none() ||
+            self.version.is_none()
+        {
+            anyhow::bail!("No installable version found");
+        }
         let method = self.methods.remove(&self.method)
             .expect("method exists");
         let settings = Settings {

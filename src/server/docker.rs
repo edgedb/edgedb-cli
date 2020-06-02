@@ -87,7 +87,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn install(&self, _settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {
-        todo!();
+        anyhow::bail!("Docker support is not implemented yet"); // TODO
     }
     fn all_versions(&self, _nightly: bool) -> anyhow::Result<&[PackageInfo]> {
         // TODO(tailhook) implement fetching versions from docker
@@ -96,7 +96,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn get_version(&self, _query: &VersionQuery)
         -> anyhow::Result<VersionResult>
     {
-        todo!();
+        anyhow::bail!("Docker support is not implemented yet"); // TODO
     }
     fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]> {
         Ok(&[])
@@ -115,6 +115,6 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn create_user_service(&self, _settings: &init::Settings)
         -> anyhow::Result<()>
     {
-        todo!();
+        anyhow::bail!("Docker support is not implemented yet"); // TODO
     }
 }

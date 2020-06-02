@@ -6,7 +6,8 @@ use crate::server::detect::{Lazy, VersionQuery, VersionResult, ARCH};
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::package::{RepositoryInfo, PackageInfo};
+use crate::server::package::{PackageCandidate, RepositoryInfo, PackageInfo};
+use crate::server::docker::DockerCandidate;
 use crate::server::version::Version;
 use crate::server::init;
 use crate::server::{debian, ubuntu, centos};
@@ -18,6 +19,8 @@ use serde::Serialize;
 
 #[derive(Debug)]
 pub struct Unknown {
+    distro_name: String,
+    distro_version: String,
     error: anyhow::Error,
 }
 
@@ -56,21 +59,40 @@ impl CurrentOs for Unknown {
     fn get_available_methods(&self)
         -> Result<InstallationMethods, anyhow::Error>
     {
-        todo!();
+        Ok(InstallationMethods {
+            package: PackageCandidate {
+                supported: false,
+                distro_name: self.distro_name.clone(),
+                distro_version: self.distro_version.clone(),
+                distro_supported: false,
+                version_supported: false,
+            },
+            docker: DockerCandidate::detect()?,
+        })
     }
     fn detect_all(&self) -> serde_json::Value {
         #[derive(Serialize)]
-        struct Wrapper {
-            error: String
+        struct Wrapper<'a> {
+            distro_name: &'a str,
+            distro_version: &'a str,
+            error: String,
         }
-        serde_json::to_value(Wrapper { error: self.error.to_string() })
-        .expect("can serialize")
+        serde_json::to_value(Wrapper {
+                distro_name: &self.distro_name,
+                distro_version: &self.distro_version,
+                error: format!("{:#}", self.error)
+        }).expect("can serialize")
     }
-    fn make_method<'x>(&'x self, _method: &InstallMethod,
-        _methods: &InstallationMethods)
+    fn make_method<'x>(&'x self, method: &InstallMethod,
+        methods: &InstallationMethods)
         -> anyhow::Result<Box<dyn Method + 'x>>
     {
-        todo!();
+        use InstallMethod::*;
+        match method {
+            Package => anyhow::bail!("Package method is unsupported on {}",
+                                     self.distro_name),
+            Docker => Ok(Box::new(methods.docker.make_method(self)?)),
+        }
     }
 }
 
@@ -82,6 +104,8 @@ pub fn detect_distro() -> Result<Box<dyn CurrentOs>, anyhow::Error> {
             "ubuntu" => Ok(Box::new(ubuntu::Ubuntu::new(&rel)?)),
             "centos" => Ok(Box::new(centos::Centos::new(&rel)?)),
             _ => Ok(Box::new(Unknown {
+                distro_name: rel.id.clone(),
+                distro_version: rel.version_codename.clone(),
                 error: anyhow::anyhow!("Unsupported distribution {:?}", rel.id)
             })),
         }
@@ -101,6 +125,8 @@ pub fn detect_distro() -> Result<Box<dyn CurrentOs>, anyhow::Error> {
         anyhow::bail!("Bad /etc/centos-release file")
     } else {
         Ok(Box::new(Unknown {
+            distro_name: "<unknown>".into(),
+            distro_version: "<unknown>".into(),
             error: anyhow::anyhow!("Cannot detect linux distribution, \
             no known /etc/*-release file found"),
         }))
