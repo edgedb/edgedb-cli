@@ -4,6 +4,7 @@ use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::install;
 use crate::server::package::PackageInfo;
+use crate::server::version::Version;
 
 
 #[derive(Debug)]
@@ -101,5 +102,10 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     }
     fn is_system_only(&self) -> bool {
         true
+    }
+    fn get_server_path(&self, _major_version: &Version<String>)
+        -> anyhow::Result<PathBuf>
+    {
+        anyhow::bail!("Cannot directly run dockerized server");
     }
 }

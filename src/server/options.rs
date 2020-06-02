@@ -44,7 +44,7 @@ pub struct ListVersions {
 
 #[derive(Clap, Debug, Clone)]
 pub struct Init {
-    #[clap(about="Database server instance name")]
+    #[clap(about="Database server instance name", default_value="default")]
     pub name: String,
     #[clap(long)]
     pub system: bool,

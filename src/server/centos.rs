@@ -1,7 +1,8 @@
 use std::fs;
 use std::io;
-use std::str;
+use std::path::PathBuf;
 use std::process::Command as StdCommand;
+use std::str;
 
 use anyhow::Context;
 use serde::Serialize;
@@ -255,5 +256,10 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     }
     fn detect_all(&self) -> serde_json::Value {
         todo!();
+    }
+    fn get_server_path(&self, major_version: &Version<String>)
+        -> anyhow::Result<PathBuf>
+    {
+        linux::get_server_path(major_version)
     }
 }

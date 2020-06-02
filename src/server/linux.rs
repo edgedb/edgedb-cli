@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use crate::server::detect::{Lazy, VersionQuery, VersionResult};
+use crate::server::detect::{Lazy, VersionQuery, VersionResult, ARCH};
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::methods::{InstallationMethods, InstallMethod};
@@ -182,4 +182,13 @@ pub fn perform_install(operations: Vec<Operation>, linux: &Linux)
         op.perform(&ctx)?;
     }
     Ok(())
+}
+
+pub fn get_server_path(major_version: &Version<String>)
+    -> anyhow::Result<PathBuf>
+{
+    Ok(Path::new("/usr/lib")
+        .join(&format!("{}-linux-gnu", ARCH))
+        .join(&format!("edgedb-{}", major_version))
+        .join("bin/edgedb-server"))
 }

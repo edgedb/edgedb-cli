@@ -162,9 +162,7 @@ pub fn get_installed() -> anyhow::Result<Vec<InstalledPackage>> {
             Some(pkg_name) => pkg_name,
             None => continue,
         };
-        if !pkg_name.starts_with("edgedb-") ||
-            !pkg_name.starts_with("edgedb-server-")
-        {
+        if !pkg_name.starts_with("edgedb-") {
             continue
         }
 
