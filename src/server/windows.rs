@@ -16,7 +16,7 @@ impl CurrentOs for Windows {
         todo!();
     }
     fn detect_all(&self) -> serde_json::Value {
-        todo!();
+        serde_json::to_value(self).expect("can serialize")
     }
     fn make_method<'x>(&'x self, _method: &InstallMethod,
         _methods: &InstallationMethods)
