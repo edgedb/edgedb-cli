@@ -1,9 +1,11 @@
 use std::fmt;
+use std::path::PathBuf;
 
 use crate::server::install;
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::package::PackageInfo;
+use crate::server::version::Version;
 
 
 pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
@@ -24,4 +26,6 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn is_system_only(&self) -> bool {
         false
     }
+    fn get_server_path(&self, major_version: &Version<String>)
+        -> anyhow::Result<PathBuf>;
 }

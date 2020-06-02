@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use linked_hash_map::LinkedHashMap;
 
 use crate::server::os_trait::{CurrentOs, Method};
@@ -11,7 +11,8 @@ use crate::server::docker::DockerCandidate;
 pub type Methods<'a> = LinkedHashMap<InstallMethod, Box<dyn Method + 'a>>;
 
 
-#[derive(Debug, Clone, Serialize, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize)]
 pub enum InstallMethod {
     Package,
     Docker,

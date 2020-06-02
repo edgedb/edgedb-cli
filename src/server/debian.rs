@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use serde::Serialize;
 
 use crate::server::debian_like;
@@ -7,6 +9,7 @@ use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::package::{PackageMethod, PackageInfo};
+use crate::server::version::Version;
 
 
 #[derive(Debug, Serialize)]
@@ -76,5 +79,10 @@ impl<'os> Method for PackageMethod<'os, Debian> {
     }
     fn detect_all(&self) -> serde_json::Value {
         todo!();
+    }
+    fn get_server_path(&self, major_version: &Version<String>)
+        -> anyhow::Result<PathBuf>
+    {
+        linux::get_server_path(major_version)
     }
 }
