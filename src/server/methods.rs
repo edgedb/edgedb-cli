@@ -18,7 +18,7 @@ pub enum InstallMethod {
     Docker,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct InstallationMethods {
     pub package: PackageCandidate,
     pub docker: DockerCandidate,
@@ -35,9 +35,9 @@ impl InstallationMethods {
         let mut methods = LinkedHashMap::new();
         for meth_name in &[Package, Docker] {
             if self.is_supported(meth_name) {
-                match os.make_method(&Package, &self) {
+                match os.make_method(meth_name, &self) {
                     Ok(meth) => {
-                        methods.insert(Package, meth);
+                        methods.insert(meth_name.clone(), meth);
                     }
                     Err(e) if skip_on_error => {
                         eprintln!("WARNING: {:#}", e);

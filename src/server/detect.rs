@@ -1,10 +1,12 @@
 use std::fmt;
+use std::collections::BTreeMap;
 
 use once_cell::sync::OnceCell;
 use serde::Serialize;
 
 use crate::server::version::Version;
 use crate::server::os_trait::CurrentOs;
+use crate::server::methods::{self, InstallMethod};
 
 use anyhow::Context;
 
@@ -83,8 +85,26 @@ pub fn current_os() -> anyhow::Result<Box<dyn CurrentOs>> {
 pub fn main(_arg: &crate::server::options::Detect)
     -> Result<(), anyhow::Error>
 {
+    #[derive(Serialize)]
+    struct Info {
+        os_type: &'static str,
+        os_info: serde_json::Value,
+        detected: methods::InstallationMethods,
+        methods: BTreeMap<InstallMethod, serde_json::Value>,
+    }
+
     let os = current_os()?;
-    serde_json::to_writer_pretty(std::io::stdout(), &os.detect_all())?;
+    let detected = os.get_available_methods()?;
+    let methods = detected.instantiate_all(&*os, true)?;
+    println!("METHODS {:?}", methods);
+    serde_json::to_writer_pretty(std::io::stdout(), &Info {
+        os_type: os.get_type_name(),
+        os_info: os.detect_all(),
+        detected,
+        methods: methods.iter()
+            .map(|(mname, meth)| (mname.clone(), meth.detect_all()))
+            .collect(),
+    })?;
     Ok(())
 }
 

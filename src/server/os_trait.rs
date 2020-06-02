@@ -1,4 +1,5 @@
 use std::fmt;
+use std::any::type_name;
 use std::path::PathBuf;
 
 use crate::server::install;
@@ -10,6 +11,9 @@ use crate::server::init;
 
 
 pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
+    fn get_type_name(&self) -> &'static str {
+        type_name::<Self>()
+    }
     fn get_available_methods(&self) -> anyhow::Result<InstallationMethods>;
     fn detect_all(&self) -> serde_json::Value;
     fn make_method<'x>(&'x self, method: &InstallMethod,

@@ -1,5 +1,5 @@
 use async_std::task;
-use serde::Deserialize;
+use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
 use crate::server::detect::{Lazy, InstalledPackage};
@@ -7,7 +7,7 @@ use crate::server::os_trait::CurrentOs;
 use crate::server::remote;
 
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct PackageCandidate {
     pub supported: bool,
     pub distro_name: String,
@@ -16,9 +16,11 @@ pub struct PackageCandidate {
     pub version_supported: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct PackageMethod<'os, O: CurrentOs + ?Sized> {
+    #[serde(skip)]
     pub os: &'os O,
+    #[serde(skip)]
     pub installed: Lazy<Vec<InstalledPackage>>,
 }
 

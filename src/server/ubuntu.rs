@@ -78,7 +78,7 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
         })?)
     }
     fn detect_all(&self) -> serde_json::Value {
-        todo!();
+        serde_json::to_value(self).expect("can serialize")
     }
     fn get_server_path(&self, major_version: &Version<String>)
         -> anyhow::Result<PathBuf>

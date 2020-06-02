@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use serde::Serialize;
+
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::install;
@@ -8,17 +10,18 @@ use crate::server::package::PackageInfo;
 use crate::server::version::Version;
 
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct DockerCandidate {
     pub supported: bool,
     pub platform_supported: bool,
     cli: Option<PathBuf>,
     socket: Option<PathBuf>,
-    socket_permissions: bool,
+    socket_permissions_ok: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct DockerMethod<'os, O: CurrentOs + ?Sized> {
+    #[serde(skip)]
     os: &'os O,
     cli: PathBuf,
 }
@@ -32,7 +35,7 @@ impl DockerCandidate {
             platform_supported: cfg!(unix) || cfg!(windows),
             cli,
             socket: None,  // TODO(tailhook)
-            socket_permissions: true,
+            socket_permissions_ok: true,
         })
     }
     pub fn format_option(&self, buf: &mut String, recommended: bool) {
@@ -52,7 +55,7 @@ impl DockerCandidate {
                 Command-line tool: {cli}, docker socket: {sock}",
                 cli=if self.cli.is_some() { "found" } else { "not found" },
                 sock=if self.socket.is_some() {
-                    if self.socket_permissions {
+                    if self.socket_permissions_ok {
                         "found"
                     } else {
                         "access forbidden"
@@ -99,7 +102,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         Ok(&[])
     }
     fn detect_all(&self) -> serde_json::Value {
-        todo!();
+        serde_json::to_value(self).expect("can serialize")
     }
     fn is_system_only(&self) -> bool {
         true
