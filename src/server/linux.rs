@@ -254,7 +254,7 @@ WantedBy=multi-user.target
 
 pub fn create_systemd_service(settings: &init::Settings) -> anyhow::Result<()> {
     let unit_dir = if settings.system {
-        todo!();
+        PathBuf::from("/etc/systemd/system")
     } else {
         home_dir()
             .context("Cannot determine home directory")?

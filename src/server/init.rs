@@ -1,7 +1,7 @@
 use std::fs;
 use std::process::Command;
 use std::path::{Path, PathBuf};
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use anyhow::Context;
 use prettytable::{Table, Row, Cell};
@@ -10,8 +10,8 @@ use serde::{Serialize, Deserialize};
 use crate::server::options::Init;
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
-use crate::server::methods::InstallMethod;
-use crate::server::detect::{self, VersionQuery};
+use crate::server::methods::{InstallMethod, Methods};
+use crate::server::detect::{self, VersionQuery, InstalledPackage};
 use crate::table;
 
 
@@ -66,22 +66,15 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
     Ok(())
 }
 
-pub fn init(options: &Init) -> anyhow::Result<()> {
-    let version_query = VersionQuery::new(
-        options.nightly, &options.version);
-    let current_os = detect::current_os()?;
-    let avail_methods = current_os.get_available_methods()?;
-    let (version, meth_name, method) = if let Some(ref _meth) = options.method
-    {
-        todo!();
-    } else if version_query.is_nightly() || version_query.is_specific() {
-        todo!();
-    } else {
-        let methods = avail_methods.instantiate_all(&*current_os, true)?;
-        let mut max_ver = None;
-        let mut ver_methods = HashSet::new();
-        for (meth, method) in &methods {
-            for ver in method.installed_versions()? {
+fn find_version<F>(methods: &Methods, mut cond: F)
+    -> anyhow::Result<Option<(Version<String>, InstallMethod)>>
+    where F: FnMut(&InstalledPackage) -> bool
+{
+    let mut max_ver = None;
+    let mut ver_methods = BTreeSet::new();
+    for (meth, method) in methods {
+        for ver in method.installed_versions()? {
+            if cond(ver) {
                 if let Some(ref mut max_ver) = max_ver {
                     if *max_ver == ver.major_version {
                         ver_methods.insert(meth.clone());
@@ -96,11 +89,51 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 }
             }
         }
+    }
+    Ok(max_ver.map(|ver| (ver, ver_methods.into_iter().next().unwrap())))
+}
+
+pub fn init(options: &Init) -> anyhow::Result<()> {
+    let version_query = VersionQuery::new(
+        options.nightly, &options.version);
+    let current_os = detect::current_os()?;
+    let avail_methods = current_os.get_available_methods()?;
+    let (version, meth_name, method) = if let Some(ref meth) = options.method {
+        let method = current_os.make_method(meth, &avail_methods)?;
+        let mut max_ver = None;
+        for ver in method.installed_versions()? {
+            if let Some(ref mut max_ver) = max_ver {
+                if *max_ver < ver.major_version {
+                    *max_ver = ver.major_version.clone();
+                }
+            } else {
+                max_ver = Some(ver.major_version.clone());
+            }
+        }
         if let Some(ver) = max_ver {
-            let mut ver_methods = ver_methods.into_iter().collect::<Vec<_>>();
-            ver_methods.sort();
-            let mut methods = methods;
-            let meth_name = ver_methods.remove(0);
+            (ver, meth.clone(), method)
+        } else {
+            anyhow::bail!("Cannot find any installed version. Run: \n  \
+                edgedb server install {}", meth.option());
+        }
+    } else if version_query.is_nightly() || version_query.is_specific() {
+        let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
+        if let Some((ver, meth_name)) =
+            find_version(&methods, |p| version_query.installed_matches(p))?
+        {
+            let meth = methods.remove(&meth_name)
+                .expect("method is recently used");
+            (ver, meth_name, meth)
+        } else {
+            anyhow::bail!("Cannot find version {} installed. Run: \n  \
+                edgedb server install {}",
+                version_query,
+                version_query.to_arg().unwrap_or_else(String::new));
+        }
+
+    } else {
+        let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
+        if let Some((ver, meth_name)) = find_version(&methods, |_| true)? {
             let meth = methods.remove(&meth_name)
                 .expect("method is recently used");
             (ver, meth_name, meth)
