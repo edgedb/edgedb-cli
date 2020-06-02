@@ -6,6 +6,7 @@ use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::package::PackageInfo;
 use crate::server::version::Version;
+use crate::server::init;
 
 
 pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
@@ -28,4 +29,6 @@ pub trait Method: fmt::Debug + Send + Sync {
     }
     fn get_server_path(&self, major_version: &Version<String>)
         -> anyhow::Result<PathBuf>;
+    fn create_user_service(&self, settings: &init::Settings)
+        -> anyhow::Result<()>;
 }

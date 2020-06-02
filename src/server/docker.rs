@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::install;
+use crate::server::init;
 use crate::server::package::PackageInfo;
 use crate::server::version::Version;
 
@@ -107,5 +108,10 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         -> anyhow::Result<PathBuf>
     {
         anyhow::bail!("Cannot directly run dockerized server");
+    }
+    fn create_user_service(&self, _settings: &init::Settings)
+        -> anyhow::Result<()>
+    {
+        todo!();
     }
 }
