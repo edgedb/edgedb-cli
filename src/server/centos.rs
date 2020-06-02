@@ -12,6 +12,7 @@ use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::linux;
+use crate::server::init;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::package::{PackageMethod, PackageInfo};
@@ -261,5 +262,10 @@ impl<'os> Method for PackageMethod<'os, Centos> {
         -> anyhow::Result<PathBuf>
     {
         linux::get_server_path(major_version)
+    }
+    fn create_user_service(&self, settings: &init::Settings)
+        -> anyhow::Result<()>
+    {
+        linux::create_systemd_service(settings)
     }
 }

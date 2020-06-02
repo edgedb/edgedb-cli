@@ -8,9 +8,11 @@ use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::package::{RepositoryInfo, PackageInfo};
 use crate::server::version::Version;
+use crate::server::init;
 use crate::server::{debian, ubuntu, centos};
 
 use anyhow::Context;
+use dirs::home_dir;
 use serde::Serialize;
 
 
@@ -191,4 +193,50 @@ pub fn get_server_path(major_version: &Version<String>)
         .join(&format!("{}-linux-gnu", ARCH))
         .join(&format!("edgedb-{}", major_version))
         .join("bin/edgedb-server"))
+}
+
+pub fn systemd_unit(settings: &init::Settings)
+    -> anyhow::Result<String>
+{
+    Ok(format!(r###"
+[Unit]
+Description=EdgeDB Database Service, instance {instance_name:?}
+Documentation=https://edgedb.com/
+After=syslog.target
+After=network.target
+
+[Service]
+Type=notify
+
+Environment=EDGEDATA={directory}
+RuntimeDirectory=edgedb-{instance_name}
+
+ExecStart={server_path} -D ${{EDGEDATA}} --runstate-dir=%t/edgedb-{instance_name}
+ExecReload=/bin/kill -HUP ${{MAINPID}}
+KillMode=mixed
+KillSignal=SIGINT
+TimeoutSec=0
+
+[Install]
+WantedBy=multi-user.target
+    "###,
+        instance_name=settings.name,
+        directory=settings.directory.display(),
+        server_path=get_server_path(&settings.version)?.display(),
+    ))
+}
+
+pub fn create_systemd_service(settings: &init::Settings) -> anyhow::Result<()> {
+    let unit_dir = if settings.system {
+        todo!();
+    } else {
+        home_dir()
+            .context("Cannot determine home directory")?
+            .join(".config/systemd/user")
+    };
+    fs::create_dir_all(&unit_dir)?;
+    let unit_path = unit_dir
+        .join(&format!("edgedb@{}.service", settings.name));
+    fs::write(&unit_path, systemd_unit(&settings)?)?;
+    Ok(())
 }

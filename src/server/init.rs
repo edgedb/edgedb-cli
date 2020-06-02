@@ -15,11 +15,12 @@ use crate::server::detect::{self, VersionQuery};
 use crate::table;
 
 
-struct Settings {
-    system: bool,
-    version: Version<String>,
-    method: InstallMethod,
-    directory: PathBuf,
+pub struct Settings {
+    pub name: String,
+    pub system: bool,
+    pub version: Version<String>,
+    pub method: InstallMethod,
+    pub directory: PathBuf,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -38,7 +39,7 @@ fn data_path(system: bool) -> anyhow::Result<PathBuf> {
     }
 }
 
-fn try_bootstrap(settings: &Settings, method: &Box<dyn Method + '_>)
+fn try_bootstrap(settings: &Settings, method: &dyn Method)
     -> anyhow::Result<()>
 {
     fs::create_dir_all(&settings.directory)
@@ -47,7 +48,9 @@ fn try_bootstrap(settings: &Settings, method: &Box<dyn Method + '_>)
 
     let mut cmd = Command::new(method.get_server_path(&settings.version)?);
     cmd.arg("--bootstrap");
+    cmd.arg("--log-level=warn");
     cmd.arg("--data-dir").arg(&settings.directory);
+
     match cmd.status() {
         Ok(s) if s.success() => {}
         Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
@@ -107,10 +110,11 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         }
     };
     let settings = Settings {
+        name: options.name.clone(),
         system: options.system,
         version,
         method: meth_name,
-        directory: data_path(options.system)?,
+        directory: data_path(options.system)?.join(&options.name),
     };
     settings.print();
     if settings.system {
@@ -123,17 +127,27 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 re-running `edgedb server init`.",
                 settings.directory.display());
         }
-        match try_bootstrap(&settings, &method) {
-            Ok(()) => Ok(()),
+        match try_bootstrap(&settings, &*method) {
+            Ok(()) => {}
             Err(e) => {
                 log::error!("Bootstrap error, cleaning up...");
                 fs::remove_dir_all(&settings.directory)
                     .with_context(|| format!("failed to clean up {}",
                                              settings.directory.display()))?;
                 Err(e).context(format!("Error bootstrapping {}",
-                                       settings.directory.display()))
+                                       settings.directory.display()))?
             }
         }
+        method.create_user_service(&settings).map_err(|e| {
+            eprintln!("Bootrapping complete, \
+                but there was an error creating a service. \
+                You can run service manually via: \n  \
+                edgedb server start --foreground");
+            e
+        }).context("failed to init service")?;
+        println!("Bootstrap complete. To start a server:\n  \
+                  edgedb server start");
+        Ok(())
     }
 }
 
@@ -145,6 +159,10 @@ fn write_metadata(path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
 impl Settings {
     pub fn print(&self) {
         let mut table = Table::new();
+        table.add_row(Row::new(vec![
+            Cell::new("Instance Name"),
+            Cell::new(&self.name),
+        ]));
         table.add_row(Row::new(vec![
             Cell::new("Mode"),
             Cell::new(if self.method == InstallMethod::Docker {
