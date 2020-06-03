@@ -145,3 +145,8 @@ containers:
     - !Container ubuntu
     - !Sh 'cargo install cargo-tree cargo-fuzz cargo-outdated cargo-bloat --root=/usr'
     environ: *environ
+
+  test_install:
+    setup:
+    - !Ubuntu focal
+    - !Install [ca-certificates, curl]

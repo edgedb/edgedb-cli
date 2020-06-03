@@ -8,6 +8,7 @@ use whoami;
 
 use crate::repl::OutputMode;
 use crate::commands::parser::Common;
+use crate::self_install;
 use crate::server;
 
 
@@ -89,6 +90,8 @@ pub enum Command {
     DropRole(RoleName),
     Query(Query),
     Server(server::options::ServerCommand),
+    #[clap(setting=AppSettings::Hidden, name="_self_install")]
+    _SelfInstall(self_install::SelfInstall),
     #[clap(flatten)]
     Common(Common),
 }
