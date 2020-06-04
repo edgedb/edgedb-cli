@@ -6,6 +6,9 @@ pub fn dockerfile(codename: &str) -> String {
     format!(r###"
         FROM centos:{codename}
         RUN yum -y install sudo
+        RUN adduser --uid 1000 --home /home/user \
+            --shell /bin/bash --group users \
+            user
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
     "###, codename=codename)
@@ -20,7 +23,7 @@ fn sudo_install(release: u32, nightly: bool)
 {
     docker::sudo_test(
         &dockerfile(&format!("{}", release)),
-        &format!("edgedb_server_test:centos{}_sudo", release),
+        &format!("edgedb_test:centos{}_sudo", release),
         nightly)
 }
 
@@ -31,6 +34,6 @@ fn refuse_to_reinstall(release: u32, nightly: bool)
 {
     docker::install_twice_test(
         &dockerfile(&format!("{}", release)),
-        &format!("edgedb_server_test:centos{}_sudo", release),
+        &format!("edgedb_test:centos{}_sudo", release),
         nightly)
 }

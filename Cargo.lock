@@ -537,6 +537,7 @@ dependencies = [
  "native-tls",
  "num-bigint",
  "once_cell",
+ "openssl",
  "os-release",
  "predicates",
  "pretty_assertions",

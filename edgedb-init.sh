@@ -96,7 +96,7 @@ main() {
     ensure chmod u+x "$_file"
     if [ ! -x "$_file" ]; then
         printf '%s\n' "Cannot execute $_file (likely because of mounting /tmp as noexec)." 1>&2
-        printf '%s\n' "Please copy the file to a location where you can execute binaries and run ./edgedb-cli${_ext} _init." 1>&2
+        printf '%s\n' "Please copy the file to a location where you can execute binaries and run ./edgedb-cli${_ext} _self_install." 1>&2
         exit 1
     fi
 
@@ -109,9 +109,9 @@ main() {
             err "Unable to run interactively. Run with -y to accept defaults, --help for additional options"
         fi
 
-        ignore "$_file" _init "$@" < /dev/tty
+        ignore "$_file" _self_install "$@" < /dev/tty
     else
-        ignore "$_file" _init "$@"
+        ignore "$_file" _self_install "$@"
     fi
 
     local _retval=$?
