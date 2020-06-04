@@ -1,8 +1,11 @@
 #!/bin/bash
 
-# This is just a little script that can be downloaded from the internet to
-# install eddgedb CLI tools. It just does platform detection, downloads the
-# installer and runs it.
+# Portions Copyright (c) 2020 MagicStack Inc.
+# Portions Copyright (c) 2016 The Rust Project Developers.
+#
+# This is a simple script that can be downloaded from https://edgedb.com to
+# install `edgedb` CLI tools. Its job is to detect the host platform and to 
+# download and run the relevant installer.
 
 set -u
 
