@@ -7,6 +7,9 @@ pub fn dockerfile(codename: &str) -> String {
         FROM ubuntu:{codename}
         RUN apt-get update
         RUN apt-get install -y ca-certificates sudo gnupg2 apt-transport-https
+        RUN adduser --uid 1000 --home /home/user \
+            --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
+            user
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
     "###, codename=codename)
@@ -22,7 +25,7 @@ fn sudo_install(codename: &str, nightly: bool)
 {
     docker::sudo_test(
         &dockerfile(codename),
-        &format!("edgedb_server_test:{}_sudo", codename),
+        &format!("edgedb_test:{}_sudo", codename),
         nightly)
 }
 
@@ -33,6 +36,6 @@ fn refuse_to_reinstall(codename: &str, nightly: bool)
 {
     docker::install_twice_test(
         &dockerfile(codename),
-        &format!("edgedb_server_test:{}_sudo", codename),
+        &format!("edgedb_test:{}_sudo", codename),
         nightly)
 }

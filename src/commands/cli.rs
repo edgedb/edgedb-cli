@@ -4,6 +4,7 @@ use crate::options::{Options, Command};
 use crate::client::Connection;
 use crate::non_interactive;
 use crate::commands;
+use crate::self_install;
 use crate::server;
 use crate::print::style::Styler;
 
@@ -69,5 +70,8 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 Ok(())
             }).into()
         },
+        Command::_SelfInstall(s) => {
+            self_install::main(s)
+        }
     }
 }
