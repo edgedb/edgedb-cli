@@ -50,16 +50,14 @@ os-release = "0.1.0"
 surf = {version="2.0.0-alpha.2", features=["h1-client"], default-features=false}
 native-tls = {version="0.2.4"}
 thiserror = "1.0.16"
-users = "0.10.0"
 which = {version="3.1.1", default-features=false}
 linked-hash-map = "0.5.3"
 term = "0.5"
-signal = "0.7.0"
+libc = "0.2.68"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
 predicates = "1.0.4"
-libc = "0.2.68"
 pretty_assertions = "0.6.1"
 shutdown_hooks = "0.1.0"
 rexpect = {git="https://github.com/tailhook/rexpect", branch="default_terminal_size"}
@@ -70,8 +68,12 @@ openssl = "0.10.29"
 [features]
 dev_mode = []
 
-[target.'cfg(target_env="rust")'.dependencies]
-native-tls = {version="0.2.4", features=["vendored"]}
+[target.'cfg(unix)'.dependencies]
+signal = "0.7.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi = "0.3.8"
+winreg = "0.7.0"
 
 [[bin]]
 name = "edgedb"

@@ -1,7 +1,9 @@
 use std::env;
+use std::path::Path;
 use std::process::exit;
 
 use async_std::task;
+use clap::Clap;
 
 use crate::options::Options;
 
@@ -16,6 +18,7 @@ mod options;
 mod outputs;
 mod print;
 mod prompt;
+mod platform;
 mod reader;
 mod repl;
 mod self_install;
@@ -40,6 +43,15 @@ fn _main() -> Result<(), anyhow::Error> {
     // to ease bug reporting and troubleshooting.
     // TODO: consider removing this once EdgeDB reaches 1.0 stable.
     env::set_var("RUST_BACKTRACE", "1");
+
+    if let Some(arg0) = std::env::args_os().next() {
+        if let Some(exe_name) = Path::new(&arg0).file_name() {
+            if exe_name.to_string_lossy().contains("-init") {
+                let opt = self_install::SelfInstall::parse();
+                return self_install::main(&opt);
+            }
+        }
+    }
 
     let opt = Options::from_args_and_env();
     env_logger::init_from_env(env_logger::Env::default()

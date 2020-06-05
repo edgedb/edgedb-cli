@@ -153,7 +153,7 @@ impl Connection {
 
     #[cfg(windows)]
     pub async fn from_options(options: &Options)
-        -> Result<Connection, io::Error>
+        -> anyhow::Result<Connection>
     {
         Ok(Connection::connect_tcp(
             (&options.host[..], options.port),

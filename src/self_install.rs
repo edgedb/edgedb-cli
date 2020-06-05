@@ -1,3 +1,6 @@
+// Portions Copyright (c) 2020 MagicStack Inc.
+// Portions Copyright (c) 2016 The Rust Project Developers.
+
 use std::env;
 use std::fs;
 use std::io::Write;
@@ -7,9 +10,9 @@ use anyhow::Context;
 use clap::Clap;
 use dirs::{home_dir, executable_dir};
 use prettytable::{Table, Row, Cell};
-use users::get_current_uid;
 
 use crate::table;
+use crate::platform::get_current_uid;
 
 
 #[derive(Clap, Clone, Debug)]
@@ -166,7 +169,7 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
     let settings = if cfg!(windows) {
         let installation_path = home_dir()
             .ok_or_else(|| anyhow::anyhow!("Cannot determine home dir"))?
-            .join("EdgeDB/CLI");
+            .join("EdgeDB").join("CLI");
         Settings {
             system: false,
             modify_path: !options.no_modify_path &&
@@ -225,9 +228,10 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
 
     if settings.modify_path {
         #[cfg(windows)] {
-            windows_add_to_path(&settings.installation_path);
+            windows_add_to_path(&settings.installation_path)
+                .context("failed adding a directory to PATH")?;
         }
-        #[cfg(unix)] {
+        if cfg!(unix) {
             let line = format!("\nexport PATH=\"{}:$PATH\"",
                                settings.installation_path.display());
             for path in &settings.rc_files {
@@ -243,9 +247,130 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
     Ok(())
 }
 
+// This is used to decode the value of HKCU\Environment\PATH. If that
+// key is not unicode (or not REG_SZ | REG_EXPAND_SZ) then this
+// returns null.  The winreg library itself does a lossy unicode
+// conversion.
 #[cfg(windows)]
-fn windows_add_to_path(installation_path: &Path) -> Result<()> {
-    anyhow::bail!("adding to PATH for windows is not implemented yet");
+pub fn string_from_winreg_value(val: &winreg::RegValue) -> Option<String> {
+    use std::slice;
+    use winreg::enums::RegType;
+
+    match val.vtype {
+        RegType::REG_SZ | RegType::REG_EXPAND_SZ => {
+            // Copied from winreg
+            let words = unsafe {
+                #[allow(clippy::cast_ptr_alignment)]
+                slice::from_raw_parts(val.bytes.as_ptr().cast::<u16>(), val.bytes.len() / 2)
+            };
+
+            String::from_utf16(words).ok().and_then(|mut s| {
+                while s.ends_with('\u{0}') {
+                    s.pop();
+                }
+                Some(s)
+            })
+        }
+        _ => None,
+
+    }
+
+}
+
+#[cfg(windows)]
+// Get the windows PATH variable out of the registry as a String. If
+// this returns None then the PATH variable is not unicode and we
+// should not mess with it.
+fn get_windows_path_var() -> anyhow::Result<Option<String>> {
+    use std::io;
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
+    use winreg::RegKey;
+
+    let root = RegKey::predef(HKEY_CURRENT_USER);
+    let environment = root
+        .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)
+        .context("permission denied")?;
+
+    let reg_value = environment.get_raw_value("PATH");
+    match reg_value {
+        Ok(val) => {
+            if let Some(s) = string_from_winreg_value(&val) {
+                Ok(Some(s))
+            } else {
+                log::warn!("the registry key HKEY_CURRENT_USER\\Environment\\PATH does not contain valid Unicode. \
+                       Not modifying the PATH variable");
+                return Ok(None);
+            }
+        }
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(Some(String::new())),
+        Err(e) => Err(e).context("windows failure"),
+    }
+}
+
+/// Encodes a utf-8 string as a null-terminated UCS-2 string in bytes
+#[cfg(windows)]
+pub fn string_to_winreg_bytes(s: &str) -> Vec<u8> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    let v: Vec<u16> = OsStr::new(s).encode_wide().chain(Some(0)).collect();
+    unsafe { std::slice::from_raw_parts(v.as_ptr().cast::<u8>(), v.len() * 2).to_vec() }
+}
+
+#[cfg(windows)]
+fn windows_add_to_path(installation_path: &Path) -> anyhow::Result<()> {
+    use std::ptr;
+    use std::env::{join_paths, split_paths};
+    use winapi::shared::minwindef::*;
+    use winapi::um::winuser::SendMessageTimeoutA;
+    use winapi::um::winuser::{HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE};
+    use winreg::enums::{RegType, HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
+    use winreg::{RegKey, RegValue};
+
+    let old_path: Vec<_> = if let Some(s) = get_windows_path_var()? {
+        split_paths(&s).collect()
+    } else {
+        // Non-unicode path
+        return Ok(());
+    };
+
+    if old_path.iter().any(|p| p == installation_path) {
+        return Ok(());
+    }
+
+    let new_path = join_paths(vec![installation_path].into_iter()
+                              .chain(old_path.iter().map(|x| x.as_ref())))
+            .context("can't join path")?;
+    let new_path = new_path.to_str()
+            .ok_or_else(|| anyhow::anyhow!("failed to convert PATH to utf-8"))?;
+
+    let root = RegKey::predef(HKEY_CURRENT_USER);
+    let environment = root
+        .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)
+        .context("permission denied")?;
+
+    let reg_value = RegValue {
+        bytes: string_to_winreg_bytes(&new_path),
+        vtype: RegType::REG_EXPAND_SZ,
+    };
+
+    environment
+        .set_raw_value("PATH", &reg_value)
+        .context("permission denied")?;
+
+    // Tell other processes to update their environment
+
+    unsafe {
+        SendMessageTimeoutA(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            0 as WPARAM,
+            "Environment\0".as_ptr() as LPARAM,
+            SMTO_ABORTIFHUNG,
+            5000,
+            ptr::null_mut(),
+        );
+    }
+    Ok(())
 }
 
 impl Settings {
@@ -259,7 +384,7 @@ impl Settings {
             Cell::new("Modify PATH Variable"),
             Cell::new(if self.modify_path { "yes" } else { "no" }),
         ]));
-        if self.modify_path {
+        if self.modify_path && !self.rc_files.is_empty() {
             table.add_row(Row::new(vec![
                 Cell::new("Profile Files"),
                 Cell::new(&self.rc_files.iter()

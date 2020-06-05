@@ -15,6 +15,7 @@ use crate::server::{debian, ubuntu, centos};
 use anyhow::Context;
 use dirs::home_dir;
 use serde::Serialize;
+use crate::platform::{Uid, get_current_uid};
 
 
 #[derive(Debug)]
@@ -26,7 +27,7 @@ pub struct Unknown {
 
 #[derive(Debug, Serialize)]
 pub struct Linux {
-    user_id: Lazy<users::uid_t>,
+    user_id: Lazy<Uid>,
     sudo_path: Lazy<Option<PathBuf>>,
 }
 
@@ -42,9 +43,9 @@ impl Linux {
         self.get_user_id();
         self.get_sudo_path();
     }
-    pub fn get_user_id(&self) -> users::uid_t {
+    pub fn get_user_id(&self) -> Uid {
         *self.user_id.get_or_init(|| {
-            users::get_current_uid()
+            get_current_uid()
         })
     }
     pub fn get_sudo_path(&self) -> Option<&PathBuf> {
