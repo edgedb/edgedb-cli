@@ -8,7 +8,7 @@ use std::path::{PathBuf, Path};
 
 use anyhow::Context;
 use clap::Clap;
-use dirs::{home_dir, executable_dir};
+use dirs::home_dir;
 use prettytable::{Table, Row, Cell};
 
 use crate::table;
@@ -38,6 +38,7 @@ pub struct Settings {
     system: bool,
     installation_path: PathBuf,
     modify_path: bool,
+    env_file: PathBuf,
     rc_files: Vec<PathBuf>,
 }
 
@@ -157,48 +158,31 @@ To get started you need installation directory ({dir}) in your `PATH`
 environment variable. Next time you log in this will be done
 automatically.
 
-To configure your current shell run `export PATH="{dir}:$PATH"`
+To configure your current shell run `source {env_path}`
 "###,
-            dir=settings.installation_path.display());
+            dir=settings.installation_path.display(),
+            env_path=settings.env_file.display());
     } else {
         println!(r###"EdgeDB command-line tool is installed now. Great!"###);
     }
 }
 
 pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
-    let settings = if cfg!(windows) {
-        let installation_path = home_dir()
-            .ok_or_else(|| anyhow::anyhow!("Cannot determine home dir"))?
-            .join("EdgeDB").join("CLI");
-        Settings {
-            system: false,
-            modify_path: !options.no_modify_path &&
-                         should_modify_path(&installation_path),
-            installation_path,
-            rc_files: Vec::new(),
-        }
-    } else if get_current_uid() == 0 {
-        Settings {
-            system: true,
-            modify_path: false,
-            installation_path: PathBuf::from("/usr/bin"),
-            rc_files: Vec::new(),
-        }
+    let settings = if get_current_uid() == 0 {
+        anyhow::bail!("Installation as root is not supported. \
+            Try running without sudo.")
     } else {
-        let installation_path = if cfg!(target_os="macos") {
-            PathBuf::from("/usr/local/bin")
-        } else {
-            executable_dir()
-            .ok_or_else(|| {
-                anyhow::anyhow!("Cannot determine executable dir")
-            })?
-        };
+        let base = home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Cannot determine home dir"))?
+            .join(".edgedb");
+        let installation_path = base.join("bin");
         Settings {
             rc_files: get_rc_files()?,
             system: false,
             modify_path: !options.no_modify_path &&
                          should_modify_path(&installation_path),
             installation_path,
+            env_file: base.join("env"),
         }
     };
     if !options.quiet {
@@ -239,6 +223,8 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
                     .with_context(|| format!("failed to update profile file {:?}",
                                              path))?;
             }
+            fs::write(&settings.env_file, &(line + "\n"))
+                .context("failed to write env file")?;
         }
     }
 
