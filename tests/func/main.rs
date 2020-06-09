@@ -11,9 +11,10 @@ use std::process;
 use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use serde_json::from_str;
-use rexpect::session::{spawn_command, PtySession};
 
+#[cfg(not(windows))]
 mod dump_restore;
+#[cfg(not(windows))]
 mod configure;
 
 // for some reason rexpect doesn't work on macos
@@ -24,12 +25,14 @@ mod interactive;
 
 pub static SERVER: Lazy<ServerGuard> = Lazy::new(|| ServerGuard::start());
 
+#[cfg(not(windows))]
 #[test]
 fn simple_query() {
     let cmd = SERVER.admin_cmd().arg("query").arg("SELECT 1+7").assert();
     cmd.success().stdout("8\n");
 }
 
+#[cfg(not(windows))]
 #[test]
 fn version() {
     let cmd = SERVER.admin_cmd().arg("--version").assert();
@@ -51,14 +54,15 @@ pub struct ServerGuard {
 impl ServerGuard {
     fn start() -> ServerGuard {
         use std::process::{Command, Stdio};
-        use std::os::unix::process::CommandExt;
 
         let mut cmd = Command::new("edgedb-server");
         cmd.arg("--temp-dir");
         cmd.arg("--testmode");
         cmd.arg("--echo-runtime-info");
         cmd.arg("--port=auto");
+        #[cfg(unix)]
         if unsafe { libc::geteuid() } == 0 {
+            use std::os::unix::process::CommandExt;
             // This is moslty true in vagga containers, so run edgedb/postgres
             // by any non-root user
             cmd.uid(1);
@@ -119,8 +123,10 @@ impl ServerGuard {
         return cmd
     }
 
-    pub fn admin_interactive(&self) -> PtySession {
+    #[cfg(not(windows))]
+    pub fn admin_interactive(&self) -> rexpect::session::PtySession {
         use assert_cmd::cargo::CommandCargoExt;
+        use rexpect::session::spawn_command;
 
         let mut cmd = process::Command::cargo_bin("edgedb")
             .expect("binary found");

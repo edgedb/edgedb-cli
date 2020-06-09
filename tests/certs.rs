@@ -129,6 +129,7 @@ fn mk_ca_signed_cert(
 
     let subject_alt_name = SubjectAlternativeName::new()
         .dns("edgedb-test-http")
+        .dns("localhost")
         .build(&cert_builder.x509v3_context(Some(ca_cert), None))?;
     cert_builder.append_extension(subject_alt_name)?;
 

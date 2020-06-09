@@ -168,7 +168,7 @@ To configure your current shell run `source {env_path}`
 }
 
 pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
-    let settings = if get_current_uid() == 0 {
+    let settings = if !cfg!(windows) && get_current_uid() == 0 {
         anyhow::bail!("Installation as root is not supported. \
             Try running without sudo.")
     } else {

@@ -1,6 +1,8 @@
 #[cfg(target_env="musl")]
+#[path="../docker.rs"]
 mod docker;
 #[cfg(target_env="musl")]
+#[path="../certs.rs"]
 mod certs;
 
 // Tests are running under musl, because we need to upload a CLI binary to the

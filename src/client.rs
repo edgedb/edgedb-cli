@@ -283,7 +283,7 @@ impl<'a> Client<'a> {
             Password(ref s) => s.clone(),
         };
 
-        let scram = ScramClient::new(&options.user, &password, None)?;
+        let scram = ScramClient::new(&options.user, &password, None);
 
         let (scram, first) = scram.client_first();
         self.send_messages(&[
