@@ -97,14 +97,27 @@ fn github_action_install() -> anyhow::Result<()> {
     shut_tx.send(()).ok();
     tokio.block_on(http)?;
 
-    Command::new(
-        home_dir().unwrap()
-            .join(".edgedb").join("bin").join("edgedb"))
+    let edgedb = home_dir().unwrap()
+        .join(".edgedb").join("bin").join("edgedb");
+
+    Command::new(&edgedb)
         .arg("--version")
         .assert()
         .success()
         .stdout(predicates::str::contains(
             concat!("edgedb-cli ", env!("CARGO_PKG_VERSION"))));
+
+    if !cfg!(windows) {
+        Command::new(&edgedb)
+            .arg("server").arg("install")
+            .assert()
+            .success();
+
+        Command::new(&edgedb)
+            .arg("server").arg("init")
+            .assert()
+            .success();
+    }
 
     Ok(())
 }
