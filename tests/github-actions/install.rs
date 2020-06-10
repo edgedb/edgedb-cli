@@ -113,6 +113,12 @@ fn github_action_install() -> anyhow::Result<()> {
             .assert()
             .success();
 
+        // TODO(tailhook) check output somehow
+        Command::new(&edgedb)
+            .arg("server").arg("list-versions")
+            .assert()
+            .success();
+
         Command::new(&edgedb)
             .arg("server").arg("init")
             .assert()
