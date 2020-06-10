@@ -100,15 +100,28 @@ impl Macos {
         -> anyhow::Result<Option<&RepositoryInfo>>
     {
         if nightly {
-            self.nightly_repo.get_or_fetch(|| {
-                format!("https://packages.edgedb.com/archive/.jsonindexes/\
-                    macos.nightly.json")
-            })
+            self.nightly_repo.get_or_try_init(|| {
+                task::block_on(remote::get_json_opt(
+                    &format!("https://packages.edgedb.com/archive/\
+                        .jsonindexes/macos-{}.nightly.json", ARCH),
+                    "failed to fetch repository index"))
+            }).map(|opt| opt.as_ref())
         } else {
-            self.stable_repo.get_or_fetch(|| {
-                format!("https://packages.edgedb.com/archive/.jsonindexes/\
-                    macos.json")
-            })
+            self.stable_repo.get_or_try_init(|| {
+                Ok(task::block_on(remote::get_json_opt(
+                    &format!("https://packages.edgedb.com/archive/\
+                        .jsonindexes/macos-{}.json", ARCH),
+                    "failed to fetch repository index"))?
+                .map(|mut repo: RepositoryInfo| {
+                    repo.packages
+                        .retain(|p| p.basename == "edgedb-server" &&
+                                    // TODO(tailhook) remove this check when
+                                    // jsonindexes is fixed
+                                    !p.revision.contains("nightly")
+                        );
+                    repo
+                }))
+            }).map(|opt| opt.as_ref())
         }
     }
 }
@@ -119,15 +132,15 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     {
         let tmpdir = tempfile::tempdir()?;
         let ver = self.get_version(&VersionQuery::new(
-            settings.nightly, Some(&settings.version)))?;
+            settings.nightly, Some(&settings.major_version)))?;
         let package_name = format!("edgedb-server-{}_{}_{}.pkg",
             settings.major_version, settings.version, ver.revision);
         let pkg_path = tmpdir.path().join(&package_name);
         task::block_on(remote::get_file(
             &pkg_path,
             &format!("https://packages.edgedb.com/archive/macos-{arch}/{name}",
-                arch=ARCH, name=package_name),
-            "downloading_package"))?;
+                arch=ARCH, name=package_name)))
+            .context("failed to download package")?;
 
         let operations = vec![
             Operation::PrivilegedCmd(
@@ -182,26 +195,56 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             cmd.arg(r"--pkgs=com.edgedb.edgedb-server-\d.*");
             let out = cmd.output()
                 .context("cannot get installed packages")?;
-            if !out.status.success() {
+            if out.status.code() == Some(1) {
+                return Ok(Vec::new());
+            } else if !out.status.success() {
                 anyhow::bail!("cannot get installed packages: {:?} {}",
                     cmd, out.status);
             }
             let mut result = Vec::new();
-            let mut lines = out.stdout.split(|&b| b == b'\n');
-            for line in &mut lines {
-                let line = match str::from_utf8(line) {
-                    Ok(line) => line,
-                    Err(_) => continue,
-                };
+            let lines = out.stdout.split(|&b| b == b'\n')
+                .filter_map(|line| str::from_utf8(line).ok());
+            for line in lines {
                 if !line.starts_with("com.edgedb.edgedb-server-") {
                     continue;
                 }
                 let major = &line["com.edgedb.edgedb-server-".len()..].trim();
+
+                let mut cmd = StdCommand::new("pkgutil");
+                cmd.arg("--pkg-info").arg(line.trim());
+                let out = cmd.output()
+                    .context("cannot get package version")?;
+                if !out.status.success() {
+                    anyhow::bail!("cannot get package version: {:?} {}",
+                        cmd, out.status);
+                }
+                let lines = out.stdout.split(|&b| b == b'\n')
+                    .filter_map(|line| str::from_utf8(line).ok());
+                let mut version = None;
+                for line in lines {
+                    if line.starts_with("version:") {
+                        version = Some(line["version:".len()..].trim());
+                        break;
+                    }
+                }
+                let version = if let Some(version) = version {
+                    version
+                } else {
+                    log::info!("Cannot get version of {:?}", line);
+                    continue;
+                };
+                let mut pair_iter = version.splitn(2, "_");
+                let (ver, rev) = match (pair_iter.next(), pair_iter.next()) {
+                    (Some(ver), Some(rev)) => (ver, rev),
+                    (Some(ver), None) => (ver, "<unknown>"),
+                    _ => unreachable!(),
+                };
+
                 result.push(InstalledPackage {
                     package_name: "edgedb-server".to_owned(),
                     major_version: Version(major.to_string()),
-                    version: Version("<unknown>".to_owned()), // TODO
-                    revision: "<unknown>".to_owned(), // TODO
+                    version: Version(ver.to_owned()),
+                    revision: rev.to_owned(),
                 });
             }
             Ok(result)

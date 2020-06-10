@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command as StdCommand;
 use std::str;
 
+use async_std::task;
 use anyhow::Context;
 use serde::Serialize;
 
@@ -17,6 +18,7 @@ use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::package::{self, PackageMethod, PackageInfo};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
+use crate::server::remote;
 use crate::server::version::Version;
 
 
@@ -73,17 +75,21 @@ impl Centos {
         -> anyhow::Result<Option<&RepositoryInfo>>
     {
         if nightly {
-            self.nightly_repo.get_or_fetch(|| {
-                format!("https://packages.edgedb.com/rpm/.jsonindexes/\
-                    el{}.nightly.json",
-                    self.release)
-            })
+            self.nightly_repo.get_or_try_init(|| {
+                task::block_on(remote::get_json_opt(
+                    &format!("https://packages.edgedb.com/rpm/.jsonindexes/\
+                        el{}.nightly.json",
+                        self.release),
+                    "failed to fetch repository index"))
+            }).map(|opt| opt.as_ref())
         } else {
-            self.stable_repo.get_or_fetch(|| {
-                format!("https://packages.edgedb.com/rpm/.jsonindexes/\
-                    el{}.json",
-                    self.release)
-            })
+            self.stable_repo.get_or_try_init(|| {
+                task::block_on(remote::get_json_opt(
+                    &format!("https://packages.edgedb.com/rpm/.jsonindexes/\
+                        el{}.json",
+                        self.release),
+                    "failed to fetch repository index"))
+            }).map(|opt| opt.as_ref())
         }
     }
     fn install_operations(&self, settings: &install::Settings)

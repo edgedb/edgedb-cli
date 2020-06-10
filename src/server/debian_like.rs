@@ -63,17 +63,21 @@ impl Debian {
         -> anyhow::Result<Option<&RepositoryInfo>>
     {
         if nightly {
-            self.nightly_repo.get_or_fetch(|| {
-                format!("https://packages.edgedb.com/apt/.jsonindexes/\
-                        {}.nightly.json",
-                        self.codename)
-            })
+            self.nightly_repo.get_or_try_init(|| {
+                task::block_on(remote::get_json_opt(
+                    &format!("https://packages.edgedb.com/apt/.jsonindexes/\
+                            {}.nightly.json",
+                            self.codename),
+                    "failed to fetch repository index"))
+            }).map(|opt| opt.as_ref())
         } else {
-            self.stable_repo.get_or_fetch(|| {
-                format!("https://packages.edgedb.com/apt/.jsonindexes/\
-                        {}.json",
-                        self.codename)
-            })
+            self.stable_repo.get_or_try_init(|| {
+                task::block_on(remote::get_json_opt(
+                    &format!("https://packages.edgedb.com/apt/.jsonindexes/\
+                            {}.json",
+                            self.codename),
+                    "failed to fetch repository index"))
+            }).map(|opt| opt.as_ref())
         }
     }
     pub fn get_available_methods(&self)
@@ -99,8 +103,8 @@ impl Debian {
     pub fn install_operations(&self, settings: &install::Settings)
         -> anyhow::Result<Vec<Operation>>
     {
-        let key = task::block_on(remote::get_string(install::KEY_FILE_URL,
-            "downloading key file"))?;
+        let key = task::block_on(remote::get_string(install::KEY_FILE_URL))
+            .context("downloading key file")?;
         let mut operations = Vec::new();
         operations.push(Operation::FeedPrivilegedCmd {
             input: key.into(),

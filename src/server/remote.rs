@@ -17,60 +17,66 @@ pub struct HttpFailure(surf::Response);
 
 
 trait HttpErrorExt<T> {
-    fn context(self, text: &'static str) -> Result<T, anyhow::Error>;
+    fn url_context(self, url: &str) -> Result<T, anyhow::Error>;
 }
 trait HttpOkExt<T> {
-    fn ensure200(self, text: &'static str) -> Result<T, anyhow::Error>;
-}
-
-impl HttpFailure {
-    pub fn is_404(&self) -> bool {
-        self.0.status() == 404
-    }
+    fn ensure200(self, url: &str) -> Result<T, anyhow::Error>;
 }
 
 impl HttpOkExt<surf::Response> for Result<surf::Response, surf::Error> {
-    fn ensure200(self, text: &'static str)
+    fn ensure200(self, url: &str)
         -> Result<surf::Response, anyhow::Error>
     {
         match self {
-            Ok(res) if res.status() != 200
-                   => Err(HttpFailure(res)).context(text),
-            Ok(res) => return Ok(res),
-            Err(e) => Err(HttpError(e)).context(text),
+            Ok(res) if res.status() != 200 => {
+                Err(HttpFailure(res)).url_context(url)
+            }
+            Err(e) => Err(HttpError(e)).url_context(url),
+            Ok(res) => Ok(res),
         }
     }
 }
 
-impl<T> HttpErrorExt<T> for Result<T, surf::Error> {
-    fn context(self, text: &'static str) -> Result<T, anyhow::Error> {
-        self.map_err(HttpError).context(text)
+impl<T, E> HttpErrorExt<T> for Result<T, E>
+    where Result<T, E>: Context<T, E>
+{
+    fn url_context(self, url: &str) -> Result<T, anyhow::Error> {
+        self.with_context(|| format!("fetching {:?}", url))
     }
 }
 
-pub async fn get_string(url: &str, context: &'static str)
+pub async fn get_string(url: &str)
     -> Result<String, anyhow::Error>
 {
     log::info!("Fetching {}", url);
-    Ok(surf::get(url).await.ensure200(context)?
-        .body_string().await.context(context)?)
+    Ok(surf::get(url).await.ensure200(url)?
+        .body_string().await.map_err(HttpError).url_context(url)?)
 }
 
-pub async fn get_json<T: DeserializeOwned>(url: &str, context: &'static str)
-    -> Result<T, anyhow::Error>
+pub async fn get_json_opt<T>(url: &str, context: &'static str)
+    -> Result<Option<T>, anyhow::Error>
+    where T: DeserializeOwned,
 {
-    log::info!("Fetching JSON at {}", url);
-    Ok(surf::get(url).await.ensure200(context)?
-        .body_json::<T>().await.context(context)?)
+    log::info!("Fetching optional JSON at {}", url);
+    match surf::get(url).await {
+        Ok(res) if res.status() == 404 => Ok(None),
+        Ok(res) if res.status() != 200
+            => Err(HttpFailure(res)).context(context),
+        Ok(mut res) => Ok(Some(res.body_json::<T>().await.context(context)?)),
+        Err(e) => Err(HttpError(e)).context(context),
+    }
 }
 
-pub async fn get_file(dest: impl AsRef<Path>, url: &str, context: &'static str)
+pub async fn get_file(dest: impl AsRef<Path>, url: &str)
     -> Result<(), anyhow::Error>
 {
     let dest = dest.as_ref();
     log::info!("Downloading {} -> {}", url, dest.display());
-    let response = surf::get(url).await.ensure200(context)?;
-    let file = fs::File::create(dest).await.context(context)?;
-    io::copy(response, file).await.context(context)?;
+    let response = surf::get(url).await.ensure200(url)?;
+    let file = fs::File::create(dest).await
+        .with_context(|| format!("writing {:?}", dest.display()))?;
+    io::copy(response, file).await
+        .with_context(|| format!("downloading {:?} -> {:?}",
+                                 url, dest.display()))?;
     Ok(())
 }

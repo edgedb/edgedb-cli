@@ -1,11 +1,9 @@
-use async_std::task;
 use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
 use crate::server::detect::{Lazy, InstalledPackage, VersionQuery};
 use crate::server::detect::{VersionResult};
 use crate::server::os_trait::CurrentOs;
-use crate::server::remote;
 
 
 #[derive(Debug, Serialize)]
@@ -76,31 +74,6 @@ impl PackageCandidate {
             os,
             installed: Lazy::lazy(),
         })
-    }
-}
-
-impl Lazy<Option<RepositoryInfo>> {
-    pub fn get_or_fetch<F>(&self, f: F)
-        -> anyhow::Result<Option<&RepositoryInfo>>
-        where F: FnOnce() -> String,
-    {
-        self.get_or_try_init(|| {
-            match task::block_on(remote::get_json(&f(),
-                "cannot fetch package version info"))
-            {
-                Ok(data) => Ok(Some(data)),
-                Err(error) => {
-                    for cause in error.chain() {
-                        match cause.downcast_ref::<remote::HttpFailure>() {
-                            Some(e) if e.is_404() => return Ok(None),
-                            Some(_) => break,
-                            _ => {}
-                        }
-                    }
-                    Err(error)
-                }
-            }
-        }).map(|opt| opt.as_ref())
     }
 }
 
