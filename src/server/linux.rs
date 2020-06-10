@@ -3,13 +3,12 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 
 use crate::platform::{Uid, get_current_uid};
-use crate::server::detect::{Lazy, ARCH};
+use crate::server::detect::Lazy;
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::package::{PackageCandidate};
 use crate::server::docker::DockerCandidate;
-use crate::server::version::Version;
 use crate::server::init;
 use crate::server::{debian, ubuntu, centos};
 
@@ -166,16 +165,7 @@ pub fn perform_install(operations: Vec<Operation>, linux: &Linux)
     Ok(())
 }
 
-pub fn get_server_path(major_version: &Version<String>)
-    -> anyhow::Result<PathBuf>
-{
-    Ok(Path::new("/usr/lib")
-        .join(&format!("{}-linux-gnu", ARCH))
-        .join(&format!("edgedb-{}", major_version))
-        .join("bin/edgedb-server"))
-}
-
-pub fn systemd_unit(settings: &init::Settings)
+pub fn systemd_unit(settings: &init::Settings, meth: &dyn Method)
     -> anyhow::Result<String>
 {
     Ok(format!(r###"
@@ -203,7 +193,7 @@ WantedBy=multi-user.target
     "###,
         instance_name=settings.name,
         directory=settings.directory.display(),
-        server_path=get_server_path(&settings.version)?.display(),
+        server_path=meth.get_server_path(&settings.version)?.display(),
         userinfo=if settings.system {
             "User=edgedb\n\
              Group=edgedb"
@@ -213,7 +203,9 @@ WantedBy=multi-user.target
     ))
 }
 
-pub fn create_systemd_service(settings: &init::Settings) -> anyhow::Result<()> {
+pub fn create_systemd_service(settings: &init::Settings, meth: &dyn Method)
+    -> anyhow::Result<()>
+{
     let unit_dir = if settings.system {
         PathBuf::from("/etc/systemd/system")
     } else {
@@ -224,6 +216,6 @@ pub fn create_systemd_service(settings: &init::Settings) -> anyhow::Result<()> {
     fs::create_dir_all(&unit_dir)?;
     let unit_path = unit_dir
         .join(&format!("edgedb@{}.service", settings.name));
-    fs::write(&unit_path, systemd_unit(&settings)?)?;
+    fs::write(&unit_path, systemd_unit(&settings, meth)?)?;
     Ok(())
 }

@@ -84,11 +84,11 @@ impl<'os> Method for PackageMethod<'os, Debian> {
     fn get_server_path(&self, major_version: &Version<String>)
         -> anyhow::Result<PathBuf>
     {
-        linux::get_server_path(major_version)
+        debian_like::server_path(major_version)
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>
     {
-        linux::create_systemd_service(settings)
+        linux::create_systemd_service(settings, self)
     }
 }
