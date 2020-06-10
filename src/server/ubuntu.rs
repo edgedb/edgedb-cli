@@ -9,7 +9,7 @@ use crate::server::init;
 use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{PackageMethod, PackageInfo};
+use crate::server::package::{self, PackageMethod, PackageInfo};
 use crate::server::version::Version;
 
 
@@ -70,7 +70,7 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
     {
         let packages = self.os.common.get_repo(query.is_nightly())?
             .ok_or_else(|| anyhow::anyhow!("No repository found"))?;
-        linux::find_version(packages, query)
+        package::find_version(packages, query)
     }
     fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]> {
         Ok(&self.installed.get_or_try_init(|| {

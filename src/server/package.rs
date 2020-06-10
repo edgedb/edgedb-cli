@@ -2,7 +2,8 @@ use async_std::task;
 use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
-use crate::server::detect::{Lazy, InstalledPackage};
+use crate::server::detect::{Lazy, InstalledPackage, VersionQuery};
+use crate::server::detect::{VersionResult};
 use crate::server::os_trait::CurrentOs;
 use crate::server::remote;
 
@@ -100,5 +101,54 @@ impl Lazy<Option<RepositoryInfo>> {
                 }
             }
         }).map(|opt| opt.as_ref())
+    }
+}
+
+fn version_matches(package: &PackageInfo, version: &VersionQuery) -> bool {
+    use VersionQuery::*;
+
+    if package.slot.is_none() ||
+        (package.basename != "edgedb" && package.basename != "edgedb-server")
+    {
+        return false;
+    }
+    match version {
+        Nightly => true,
+        Stable(None) => true,
+        Stable(Some(v)) => package.slot.as_ref() == Some(v),
+    }
+}
+
+
+pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
+    -> Result<VersionResult, anyhow::Error>
+{
+    let mut max_version = None::<&PackageInfo>;
+    for package in &haystack.packages {
+        if version_matches(package, ver) {
+            if let Some(max) = max_version {
+                if max.version < package.version {
+                    max_version = Some(package);
+                }
+            } else {
+                max_version = Some(package);
+            }
+        }
+    }
+    if let Some(target) = max_version {
+        let major = target.slot.as_ref().unwrap().clone();
+        Ok(VersionResult {
+            package_name:
+                if major.to_ref() >= Version("1-alpha3") {
+                    "edgedb-server".into()
+                } else {
+                    "edgedb".into()
+                },
+            major_version: major,
+            version: target.version.clone(),
+            revision: target.revision.clone(),
+        })
+    } else {
+        anyhow::bail!("Version {} not found", ver)
     }
 }

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 #[cfg(windows)]
 pub type Uid = u32;
 
@@ -12,4 +14,9 @@ pub fn get_current_uid() -> Uid {
 #[cfg(not(windows))]
 pub fn get_current_uid() -> Uid {
     unsafe { libc::geteuid() }
+}
+
+pub fn home_dir() -> anyhow::Result<PathBuf> {
+    dirs::home_dir()
+    .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))
 }

@@ -95,7 +95,7 @@ fn find_version<F>(methods: &Methods, mut cond: F)
 
 pub fn init(options: &Init) -> anyhow::Result<()> {
     let version_query = VersionQuery::new(
-        options.nightly, &options.version);
+        options.nightly, options.version.as_ref());
     let current_os = detect::current_os()?;
     let avail_methods = current_os.get_available_methods()?;
     let (version, meth_name, method) = if let Some(ref meth) = options.method {

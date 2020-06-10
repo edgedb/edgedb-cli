@@ -1,4 +1,7 @@
+use std::path::Path;
 use anyhow::Context;
+use async_std::fs;
+use async_std::io;
 
 use serde::de::DeserializeOwned;
 
@@ -59,4 +62,15 @@ pub async fn get_json<T: DeserializeOwned>(url: &str, context: &'static str)
     log::info!("Fetching JSON at {}", url);
     Ok(surf::get(url).await.ensure200(context)?
         .body_json::<T>().await.context(context)?)
+}
+
+pub async fn get_file(dest: impl AsRef<Path>, url: &str, context: &'static str)
+    -> Result<(), anyhow::Error>
+{
+    let dest = dest.as_ref();
+    log::info!("Downloading {} -> {}", url, dest.display());
+    let response = surf::get(url).await.ensure200(context)?;
+    let file = fs::File::create(dest).await.context(context)?;
+    io::copy(response, file).await.context(context)?;
+    Ok(())
 }

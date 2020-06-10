@@ -37,7 +37,7 @@ impl<'os> SettingsBuilder<'os> {
         -> Result<SettingsBuilder<'os>, anyhow::Error>
     {
         let version_query = VersionQuery::new(
-            options.nightly, &options.version);
+            options.nightly, options.version.as_ref());
         Ok(SettingsBuilder {
             os,
             method: options.method.clone()

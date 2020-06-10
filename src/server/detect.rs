@@ -108,13 +108,13 @@ pub fn main(_arg: &crate::server::options::Detect)
 }
 
 impl VersionQuery {
-    pub fn new(nightly: bool, version: &Option<Version<String>>)
+    pub fn new(nightly: bool, version: Option<&Version<String>>)
         -> VersionQuery
     {
         if nightly {
             VersionQuery::Nightly
         } else {
-            VersionQuery::Stable(version.clone())
+            VersionQuery::Stable(version.cloned())
         }
     }
     pub fn is_nightly(&self) -> bool {

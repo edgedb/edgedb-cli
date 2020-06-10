@@ -2,11 +2,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
-use crate::server::detect::{Lazy, VersionQuery, VersionResult, ARCH};
+use crate::platform::{Uid, get_current_uid};
+use crate::server::detect::{Lazy, ARCH};
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::package::{PackageCandidate, RepositoryInfo, PackageInfo};
+use crate::server::package::{PackageCandidate};
 use crate::server::docker::DockerCandidate;
 use crate::server::version::Version;
 use crate::server::init;
@@ -15,7 +16,6 @@ use crate::server::{debian, ubuntu, centos};
 use anyhow::Context;
 use dirs::home_dir;
 use serde::Serialize;
-use crate::platform::{Uid, get_current_uid};
 
 
 #[derive(Debug)]
@@ -133,53 +133,6 @@ pub fn detect_distro() -> Result<Box<dyn CurrentOs>, anyhow::Error> {
         }))
     }
 }
-fn version_matches(package: &PackageInfo, version: &VersionQuery) -> bool {
-    use VersionQuery::*;
-
-    if package.slot.is_none() ||
-        (package.basename != "edgedb" && package.basename != "edgedb-server")
-    {
-        return false;
-    }
-    match version {
-        Nightly => true,
-        Stable(None) => true,
-        Stable(Some(v)) => package.slot.as_ref() == Some(v),
-    }
-}
-
-pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
-    -> Result<VersionResult, anyhow::Error>
-{
-    let mut max_version = None::<&PackageInfo>;
-    for package in &haystack.packages {
-        if version_matches(package, ver) {
-            if let Some(max) = max_version {
-                if max.version < package.version {
-                    max_version = Some(package);
-                }
-            } else {
-                max_version = Some(package);
-            }
-        }
-    }
-    if let Some(target) = max_version {
-        let major = target.slot.as_ref().unwrap().clone();
-        Ok(VersionResult {
-            package_name:
-                if major.to_ref() >= Version("1-alpha3") {
-                    "edgedb-server".into()
-                } else {
-                    "edgedb".into()
-                },
-            major_version: major,
-            version: target.version.clone(),
-            revision: target.revision.clone(),
-        })
-    } else {
-        anyhow::bail!("Version {} not found", ver)
-    }
-}
 
 pub fn perform_install(operations: Vec<Operation>, linux: &Linux)
     -> anyhow::Result<()>
@@ -234,6 +187,7 @@ After=network.target
 
 [Service]
 Type=notify
+{userinfo}
 
 Environment=EDGEDATA={directory}
 RuntimeDirectory=edgedb-{instance_name}
@@ -250,6 +204,12 @@ WantedBy=multi-user.target
         instance_name=settings.name,
         directory=settings.directory.display(),
         server_path=get_server_path(&settings.version)?.display(),
+        userinfo=if settings.system {
+            "User=edgedb\n\
+             Group=edgedb"
+        } else {
+            ""
+        },
     ))
 }
 
