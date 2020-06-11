@@ -119,6 +119,12 @@ fn github_action_install() -> anyhow::Result<()> {
             .assert()
             .success();
 
+        // Extra install fails with code 51
+        Command::new(&edgedb)
+            .arg("server").arg("install")
+            .assert()
+            .code(51);
+
         Command::new(&edgedb)
             .arg("server").arg("init")
             .assert()
