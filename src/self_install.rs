@@ -3,8 +3,9 @@
 
 use std::env;
 use std::fs;
-use std::io::Write;
+use std::io::{Write, BufRead, stdin, stdout};
 use std::path::{PathBuf, Path};
+use std::process::exit;
 
 use anyhow::Context;
 use clap::Clap;
@@ -167,8 +168,68 @@ To configure your current shell run `source {env_path}`
     }
 }
 
+pub fn read_choice() -> anyhow::Result<String> {
+    for line in stdin().lock().lines() {
+        let line = line.context("reading user input")?;
+        return Ok(line.trim().to_uppercase())
+    }
+    anyhow::bail!("Unexpected end of input");
+}
 pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
-    let settings = if !cfg!(windows) && get_current_uid() == 0 {
+    match _main(options) {
+        Ok(()) => {
+            if cfg!(windows) && !options.no_confirm {
+                // This is needed so user can read the message if console
+                // was open just for this process
+                eprintln!("Press the Enter key to continue");
+                read_choice()?;
+            }
+            Ok(())
+        }
+        Err(e) => {
+            if cfg!(windows) && !options.no_confirm {
+                // This is needed so user can read the message if console
+                // was open just for this process
+                eprintln!("Error: {:#}", e);
+                eprintln!("Press the Enter key to continue");
+                read_choice()?;
+                exit(1);
+            }
+            Err(e)
+        }
+    }
+}
+
+fn customize(settings: &mut Settings) -> anyhow::Result<()> {
+    if should_modify_path(&settings.installation_path) {
+        loop {
+            print!("Modify PATH variable? (Y/n)");
+
+            stdout().flush()?;
+            match read_choice()?.as_ref() {
+                "y" | "yes" | "" => {
+                    settings.modify_path = true;
+                    break;
+                }
+                "n" | "no" => {
+                    settings.modify_path = false;
+                    break;
+                }
+                choice => {
+                    eprintln!("Invalid choice {:?}. \
+                        Use single letter `y` or `n`.",
+                        choice);
+                }
+            }
+        }
+    } else {
+        println!("No options to customize");
+    }
+    Ok(())
+}
+
+fn _main(options: &SelfInstall) -> anyhow::Result<()> {
+    let mut settings = if !cfg!(windows) && get_current_uid() == 0 {
         anyhow::bail!("Installation as root is not supported. \
             Try running without sudo.")
     } else {
@@ -189,7 +250,22 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
         print_long_description(&settings);
         settings.print();
         if !options.no_confirm {
-            // TODO(tailhook) ask confirmation
+            loop {
+                println!("1) Proceed with installation (default)");
+                println!("2) Customize installation");
+                println!("3) Cancel installation");
+                match read_choice()?.as_ref() {
+                    "" | "1" => break,
+                    "2" => {
+                        customize(&mut settings)?;
+                        settings.print();
+                    }
+                    _ => {
+                        eprintln!("Aborting installation");
+                        exit(7);
+                    }
+                }
+            }
         }
     }
 
