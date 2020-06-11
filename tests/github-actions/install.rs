@@ -129,6 +129,38 @@ fn github_action_install() -> anyhow::Result<()> {
             .arg("server").arg("init")
             .assert()
             .success();
+
+        if cfg!(tagget_os="linux") {  // TODO
+            Command::new(&edgedb)
+                .arg("server").arg("start")
+                .assert()
+                .success();
+
+            Command::new(&edgedb)
+                .arg("server").arg("status")
+                .assert()
+                .success();
+
+            Command::new(&edgedb)
+                .arg("server").arg("restart")
+                .assert()
+                .success();
+
+            Command::new(&edgedb)
+                .arg("server").arg("status")
+                .assert()
+                .success();
+
+            Command::new(&edgedb)
+                .arg("server").arg("stop")
+                .assert()
+                .success();
+
+            Command::new(&edgedb)
+                .arg("server").arg("status")
+                .assert()
+                .code(3);
+        }
     }
 
     Ok(())

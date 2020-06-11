@@ -23,13 +23,13 @@ pub struct Settings {
     pub directory: PathBuf,
 }
 
-#[derive(Serialize, Deserialize)]
-struct Metadata {
-    version: Version<String>,
-    method: InstallMethod,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Metadata {
+    pub version: Version<String>,
+    pub method: InstallMethod,
 }
 
-fn data_path(system: bool) -> anyhow::Result<PathBuf> {
+pub fn data_path(system: bool) -> anyhow::Result<PathBuf> {
     if system {
         anyhow::bail!("System instances are not implemented yet"); // TODO
     } else {

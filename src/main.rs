@@ -17,6 +17,7 @@ mod non_interactive;
 mod options;
 mod outputs;
 mod print;
+mod process;
 mod prompt;
 mod platform;
 mod reader;

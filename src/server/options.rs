@@ -19,6 +19,14 @@ pub enum Command {
     ListVersions(ListVersions),
     #[clap(about="Initialize a new server instance")]
     Init(Init),
+    #[clap(about="Start an instance")]
+    Start(Start),
+    #[clap(about="Stop an instance")]
+    Stop(Stop),
+    #[clap(about="Restart an instance")]
+    Restart(Restart),
+    #[clap(about="Status of an instance")]
+    Status(Status),
     #[clap(name="_detect")]
     _Detect(Detect),
 }
@@ -59,6 +67,35 @@ pub struct Init {
 }
 
 #[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Start {
+    #[clap(about="Database server instance name", default_value="default")]
+    pub name: String,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Stop {
+    #[clap(about="Database server instance name", default_value="default")]
+    pub name: String,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Restart {
+    #[clap(about="Database server instance name", default_value="default")]
+    pub name: String,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Status {
+    #[clap(about="Database server instance name", default_value="default")]
+    pub name: String,
+}
+
+#[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::Hidden)]
+#[clap(setting=AppSettings::DisableVersion)]
 pub struct Detect {
 }

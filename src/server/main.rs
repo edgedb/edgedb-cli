@@ -3,6 +3,7 @@ use crate::server::install;
 use crate::server::detect;
 use crate::server::list_versions;
 use crate::server::init;
+use crate::server::control;
 
 
 pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
@@ -12,6 +13,10 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
         Install(c) => install::install(c),
         Init(c) => init::init(c),
         ListVersions(c) => list_versions::list_versions(c),
+        Start(c) => control::get_instance(&c.name)?.start(c),
+        Stop(c) => control::get_instance(&c.name)?.stop(c),
+        Restart(c) => control::get_instance(&c.name)?.restart(c),
+        Status(c) => control::get_instance(&c.name)?.status(c),
         _Detect(c) => detect::main(c),
     }
 }

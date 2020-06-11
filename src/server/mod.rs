@@ -24,5 +24,6 @@ mod package;
 mod install;
 mod list_versions;
 mod init;
+mod control;
 
 pub use main::main;
