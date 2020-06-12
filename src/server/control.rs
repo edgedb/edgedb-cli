@@ -19,7 +19,9 @@ pub trait Instance {
 
 pub struct SystemdInstance {
     name: String,
+    #[allow(dead_code)]
     system: bool,
+    #[allow(dead_code)]
     version: Version<String>,
 }
 
