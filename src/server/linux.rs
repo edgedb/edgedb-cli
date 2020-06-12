@@ -10,6 +10,7 @@ use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::package::{PackageCandidate};
 use crate::server::docker::DockerCandidate;
 use crate::server::init;
+use crate::server::version::Version;
 use crate::server::{debian, ubuntu, centos};
 
 use anyhow::Context;
@@ -163,6 +164,11 @@ pub fn perform_install(operations: Vec<Operation>, linux: &Linux)
         op.perform(&ctx)?;
     }
     Ok(())
+}
+
+pub fn get_server_path(major_version: &Version<String>) -> PathBuf {
+    Path::new("/usr/bin")
+    .join(format!("edgedb-server-{}", major_version))
 }
 
 pub fn systemd_unit(settings: &init::Settings, meth: &dyn Method)

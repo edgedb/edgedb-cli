@@ -1,7 +1,6 @@
 use std::fs;
 use std::io;
 use std::str;
-use std::path::{Path, PathBuf};
 use std::process::Command as StdCommand;
 
 use anyhow::Context;
@@ -39,15 +38,6 @@ fn sources_list_path(nightly: bool) -> &'static str {
 fn sources_list(codename: &str, nightly: bool) -> String {
     format!("deb https://packages.edgedb.com/apt {}{} main\n", codename,
         if nightly { ".nightly" } else { "" } )
-}
-
-pub fn server_path(major_version: &Version<String>)
-    -> anyhow::Result<PathBuf>
-{
-    Ok(Path::new("/usr/lib")
-        .join(&format!("{}-linux-gnu", ARCH))
-        .join(&format!("edgedb-server-{}", major_version))
-        .join("bin/edgedb-server"))
 }
 
 impl Debian {

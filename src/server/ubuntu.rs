@@ -83,7 +83,7 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
     fn get_server_path(&self, major_version: &Version<String>)
         -> anyhow::Result<PathBuf>
     {
-        debian_like::server_path(major_version)
+        Ok(linux::get_server_path(major_version))
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>

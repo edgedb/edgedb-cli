@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::process::Command as StdCommand;
 use std::str;
 
@@ -267,14 +267,7 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     fn get_server_path(&self, major_version: &Version<String>)
         -> anyhow::Result<PathBuf>
     {
-        match ARCH {
-            "x86_64" => {
-                Ok(Path::new("/usr/lib64")
-                    .join(&format!("edgedb-server-{}", major_version))
-                    .join("bin/edgedb-server"))
-            }
-            _ => anyhow::bail!("Unsupported architecture {}", ARCH),
-        }
+        Ok(linux::get_server_path(major_version))
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>
