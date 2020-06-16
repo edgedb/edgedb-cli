@@ -9,7 +9,6 @@ use async_std::fs;
 use async_std::io::{self, Read, prelude::ReadExt};
 use async_std::future::{timeout, pending};
 use async_std::prelude::{FutureExt, StreamExt};
-use async_listen::ByteStream;
 use bytes::{Bytes, BytesMut, BufMut};
 
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
@@ -18,7 +17,7 @@ use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use crate::commands::parser::{Restore as RestoreCmd};
 use crate::print;
-use crate::client::{Client, Reader, Writer};
+use crate::client::{Connection, Reader, Writer};
 
 type Input = Box<dyn Read + Unpin + Send>;
 
@@ -70,7 +69,7 @@ async fn read_packet(input: &mut Input, expected: PacketType)
 }
 
 
-async fn is_empty_db(cli: &mut Client<'_>) -> Result<bool, anyhow::Error> {
+async fn is_empty_db(cli: &mut Connection) -> Result<bool, anyhow::Error> {
     let mut query = cli.query::<i64>(r###"SELECT
             count(
                 schema::Module
@@ -89,7 +88,7 @@ async fn is_empty_db(cli: &mut Client<'_>) -> Result<bool, anyhow::Error> {
     return Ok(non_empty);
 }
 
-pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
+pub async fn restore<'x>(cli: &mut Connection, options: &Options,
     params: &RestoreCmd)
     -> Result<(), anyhow::Error>
 {
@@ -135,7 +134,8 @@ pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
         .ok_or_else(|| anyhow::anyhow!("Dump is empty"))
                        .with_context(file_ctx)?;
     let start_headers = Instant::now();
-    cli.send_messages(&[
+    let mut seq = cli.start_sequence().await?;
+    seq.send_messages(&[
         ClientMessage::Restore(Restore {
             headers: HashMap::new(),
             jobs: 1,
@@ -143,7 +143,7 @@ pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
         })
     ]).await?;
     loop {
-        let msg = cli.reader.message().await?;
+        let msg = seq.message().await?;
         match msg {
             ServerMessage::RestoreReady(_) => {
                 if verbose {
@@ -153,7 +153,7 @@ pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
                 break;
             }
             ServerMessage::ErrorResponse(err) => {
-                cli.err_sync().await.ok();
+                seq.err_sync().await.ok();
                 return Err(anyhow::anyhow!(err)
                     .context("Error initiating restore protocol"));
             }
@@ -163,13 +163,14 @@ pub async fn restore<'x>(cli: &mut Client<'x>, options: &Options,
             }
         }
     }
-    let result = send_blocks(&mut cli.writer, &mut input,
+    let result = send_blocks(&mut seq.writer, &mut input,
                              filename.as_ref(), verbose)
-        .race(wait_response(&mut cli.reader, start_headers, verbose))
+        .race(wait_response(&mut seq.reader, start_headers, verbose))
         .await;
     if let Err(..) = result {
-        cli.err_sync().await.ok();
+        seq.err_sync().await.ok();
     }
+    seq.end_clean();
     result
 }
 
@@ -205,7 +206,7 @@ async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
     }
 }
 
-async fn wait_response(reader: &mut Reader<&'_ ByteStream>, start: Instant,
+async fn wait_response(reader: &mut Reader<'_>, start: Instant,
     verbose: bool)
     -> Result<(), anyhow::Error>
 {

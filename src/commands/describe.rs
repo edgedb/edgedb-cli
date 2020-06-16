@@ -3,11 +3,11 @@ use async_std::prelude::StreamExt;
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use crate::commands::helpers::quote_namespaced;
-use crate::client::Client;
+use crate::client::Connection;
 use crate::highlight;
 
 
-pub async fn describe<'x>(cli: &mut Client<'x>, options: &Options,
+pub async fn describe(cli: &mut Connection, options: &Options,
     name: &str, verbose: bool)
     -> Result<(), anyhow::Error>
 {

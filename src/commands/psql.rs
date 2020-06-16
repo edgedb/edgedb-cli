@@ -3,15 +3,15 @@ use std::process::Command;
 use std::ffi::OsString;
 
 use anyhow::Context;
-use crate::client::Client;
+use crate::client::Connection;
 use crate::commands::Options;
 use crate::server_params::PostgresAddress;
 
 
-pub async fn psql<'x>(cli: &mut Client<'x>, _options: &Options)
+pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
     -> Result<(), anyhow::Error>
 {
-    match cli.params.get::<PostgresAddress>() {
+    match cli.get_param::<PostgresAddress>() {
         Some(addr) => {
             let mut cmd = Command::new("psql");
             let path = if cfg!(feature="dev_mode") {

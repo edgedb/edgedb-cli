@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use edgedb_derive::Queryable;
 use edgedb_protocol::value::Value;
-use crate::client::Client;
+use crate::client::Connection;
 
 
 #[derive(Queryable)]
@@ -15,7 +15,7 @@ struct Row {
 }
 
 
-pub async fn get_type_names<'x>(cli: &mut Client<'x>)
+pub async fn get_type_names(cli: &mut Connection)
     -> Result<HashMap<Uuid, String>, anyhow::Error>
 {
     let mut items = cli.query::<Row>(

@@ -5,7 +5,7 @@ use prettytable::{Table, Row, Cell};
 use edgedb_derive::Queryable;
 use crate::commands::Options;
 use crate::commands::filter;
-use crate::client::Client;
+use crate::client::Connection;
 use crate::table;
 
 
@@ -17,7 +17,7 @@ struct Index {
     subject_name: String,
 }
 
-pub async fn list_indexes<'x>(cli: &mut Client<'x>, options: &Options,
+pub async fn list_indexes(cli: &mut Connection, options: &Options,
     pattern: &Option<String>, system: bool, case_sensitive: bool,
     verbose: bool)
     -> Result<(), anyhow::Error>

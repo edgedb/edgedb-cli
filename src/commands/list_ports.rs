@@ -5,7 +5,7 @@ use prettytable::{Table, Row, Cell};
 use edgedb_derive::Queryable;
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
-use crate::client::Client;
+use crate::client::Connection;
 use crate::table;
 
 
@@ -20,7 +20,7 @@ struct PortRow {
     user: String,
 }
 
-pub async fn list_ports<'x>(cli: &mut Client<'x>, options: &Options)
+pub async fn list_ports<'x>(cli: &mut Connection, options: &Options)
     -> Result<(), anyhow::Error>
 {
     let mut items = cli.query::<PortRow>(r###"

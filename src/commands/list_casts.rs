@@ -5,7 +5,7 @@ use prettytable::{Table, Row, Cell};
 use edgedb_derive::Queryable;
 use crate::commands::Options;
 use crate::commands::filter;
-use crate::client::Client;
+use crate::client::Connection;
 use crate::table;
 
 
@@ -18,7 +18,7 @@ struct Cast {
 }
 
 
-pub async fn list_casts<'x>(cli: &mut Client<'x>, options: &Options,
+pub async fn list_casts<'x>(cli: &mut Connection, options: &Options,
     pattern: &Option<String>, case_sensitive: bool)
     -> Result<(), anyhow::Error>
 {

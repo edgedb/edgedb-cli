@@ -9,15 +9,15 @@ use async_std::io::{self, Write, prelude::WriteExt};
 use edgedb_protocol::client_message::{ClientMessage, Dump};
 use edgedb_protocol::server_message::ServerMessage;
 use crate::commands::Options;
-use crate::client::Client;
+use crate::client::Connection;
 
 type Output = Box<dyn Write + Unpin + Send>;
 
 
-pub async fn dump<'x>(cli: &mut Client<'x>, _options: &Options,
-    filename: &Path)
+pub async fn dump(cli: &mut Connection, _options: &Options, filename: &Path)
     -> Result<(), anyhow::Error>
 {
+    let mut seq = cli.start_sequence().await?;
     let (mut output, tmp_filename) = if filename.to_str() == Some("-") {
         (Box::new(io::stdout()) as Output, None)
     } else if cfg!(windows)
@@ -46,7 +46,7 @@ pub async fn dump<'x>(cli: &mut Client<'x>, _options: &Options,
           \x00\x00\x00\x00\x00\x00\x00\x01"
         ).await?;
 
-    cli.send_messages(&[
+    seq.send_messages(&[
         ClientMessage::Dump(Dump {
             headers: Default::default(),
         }),
@@ -54,7 +54,7 @@ pub async fn dump<'x>(cli: &mut Client<'x>, _options: &Options,
     ]).await?;
 
     let mut header_buf = Vec::with_capacity(25);
-    let msg = cli.reader.message().await?;
+    let msg = seq.message().await?;
     match msg {
         ServerMessage::DumpHeader(packet) => {
             // this is ensured because length in the protocol is u32 too
@@ -75,10 +75,10 @@ pub async fn dump<'x>(cli: &mut Client<'x>, _options: &Options,
         }
     }
     loop {
-        let msg = cli.reader.message().await?;
+        let msg = seq.message().await?;
         match msg {
             ServerMessage::CommandComplete(..) => {
-                cli.reader.wait_ready().await?;
+                seq.wait_ready().await?;
                 break;
             }
             ServerMessage::DumpBlock(packet) => {
@@ -103,5 +103,6 @@ pub async fn dump<'x>(cli: &mut Client<'x>, _options: &Options,
     if let Some(tmp_filename) = tmp_filename {
         fs::rename(tmp_filename, filename).await?;
     }
+    seq.end_clean();
     Ok(())
 }

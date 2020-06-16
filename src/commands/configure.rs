@@ -1,12 +1,12 @@
 use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
-use crate::client::Client;
+use crate::client::Connection;
 use crate::commands::parser::{Configure, ConfigStr};
 use crate::commands::parser::{AuthParameter, PortParameter};
 
 
-async fn set_string(cli: &mut Client<'_>, name: &str, value: &ConfigStr)
+async fn set_string(cli: &mut Connection, name: &str, value: &ConfigStr)
     -> Result<(), anyhow::Error>
 {
     print::completion(&cli.execute(
@@ -16,7 +16,7 @@ async fn set_string(cli: &mut Client<'_>, name: &str, value: &ConfigStr)
     Ok(())
 }
 
-pub async fn configure(cli: &mut Client<'_>, _options: &Options,
+pub async fn configure(cli: &mut Connection, _options: &Options,
     cfg: &Configure)
     -> Result<(), anyhow::Error>
 {
