@@ -9,7 +9,7 @@ use edgedb_protocol::server_message::ErrorResponse;
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
 
-use crate::client::Client;
+use crate::client::Connection;
 use crate::commands::Options;
 use crate::repl;
 use crate::print::style::Styler;
@@ -495,7 +495,7 @@ fn list_settings(prompt: &mut repl::State) {
     table.printstd();
 }
 
-pub async fn execute<'x>(cli: &mut Client<'x>, cmd: &BackslashCmd,
+pub async fn execute(cli: &mut Connection, cmd: &BackslashCmd,
     prompt: &mut repl::State)
     -> Result<ExecuteResult, anyhow::Error>
 {

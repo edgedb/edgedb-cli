@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use typemap::Key;
 
+use crate::client::{Sealed, PublicParam};
+
 
 #[derive(Deserialize, Debug, Serialize)]
 pub struct PostgresAddress {
@@ -18,3 +20,6 @@ pub struct PostgresAddress {
 impl Key for PostgresAddress {
     type Value = PostgresAddress;
 }
+
+impl Sealed for PostgresAddress { }
+impl PublicParam for PostgresAddress { }

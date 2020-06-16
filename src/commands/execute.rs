@@ -2,12 +2,12 @@ use edgeql_parser::helpers::quote_name;
 
 use crate::commands::{self, Options};
 use crate::commands::parser::Common;
-use crate::client::Client;
+use crate::client::Connection;
 use crate::print;
 use crate::server_params::PostgresAddress;
 
 
-pub async fn common<'x>(cli: &mut Client<'x>, cmd: &Common, options: &Options)
+pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
     -> Result<(), anyhow::Error>
 {
     use Common::*;
@@ -47,7 +47,7 @@ pub async fn common<'x>(cli: &mut Client<'x>, cmd: &Common, options: &Options)
                 &c.pattern, c.case_sensitive).await?;
         }
         Pgaddr => {
-            match cli.params.get::<PostgresAddress>() {
+            match cli.get_param::<PostgresAddress>() {
                 Some(addr) => {
                     println!("{}", serde_json::to_string_pretty(addr)?);
                 }

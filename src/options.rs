@@ -10,6 +10,7 @@ use crate::repl::OutputMode;
 use crate::commands::parser::Common;
 use crate::self_install;
 use crate::server;
+use crate::client::Builder;
 
 
 #[derive(Clap, Debug)]
@@ -76,13 +77,6 @@ struct TmpOptions {
     pub subcommand: Option<Command>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Password {
-    NoPassword,
-    FromTerminal,
-    Password(String),
-}
-
 #[derive(Clap, Clone, Debug)]
 pub enum Command {
     AlterRole(RoleParams),
@@ -123,19 +117,13 @@ pub struct RoleName {
 
 #[derive(Debug, Clone)]
 pub struct Options {
-    pub host: String,
-    pub port: u16,
-    pub user: String,
-    pub database: String,
-    pub admin: bool,
-    pub password: Password,
+    pub conn_params: Builder,
     pub subcommand: Option<Command>,
     pub interactive: bool,
     pub debug_print_frames: bool,
     pub debug_print_descriptors: bool,
     pub debug_print_codecs: bool,
     pub output_mode: OutputMode,
-    pub wait_until_available: Option<Duration>,
 }
 
 impl Options {
@@ -172,16 +160,50 @@ impl Options {
         let password = if tmp.password_from_stdin {
             let password = rpassword::read_password()
                 .expect("password can be read");
-            Password::Password(password)
+            Some(password)
         } else if tmp.no_password {
-            Password::NoPassword
+            None
         } else if tmp.password {
-            Password::FromTerminal
+            Some(rpassword::read_password_from_tty(
+                    Some(&format!("Password for '{}': ",
+                                  user.escape_default())))
+                 .unwrap_or_else(|e| {
+                     eprintln!("Error reading password: {:#}", e);
+                     exit(1);
+                }))
         } else {
             match env::var("EDGEDB_PASSWORD") {
-                Ok(p) => Password::Password(p),
-                Err(_) => Password::NoPassword
+                Ok(p) => Some(p),
+                Err(_) => None,
             }
+        };
+
+        let mut conn_params = Builder::new();
+        conn_params.user(user);
+        password.map(|password| conn_params.password(password));
+        conn_params.database(database);
+        tmp.wait_until_available.map(|w| conn_params.wait_until_available(w));
+
+        let unix_host = host.contains("/");
+        if admin || unix_host {
+            let prefix = if unix_host {
+                &host
+            } else {
+                "/var/run/edgedb"
+            };
+            let path = if prefix.contains(".s.EDGEDB") {
+                // it's the full path
+                prefix.into()
+            } else {
+                if admin {
+                    format!("{}/.s.EDGEDB.admin.{}", prefix, port)
+                } else {
+                    format!("{}/.s.EDGEDB.{}", prefix, port)
+                }
+            };
+            conn_params.unix_addr(path);
+        } else {
+            conn_params.tcp_addr(host, port);
         };
 
         let subcommand = if let Some(query) = tmp.query {
@@ -198,14 +220,12 @@ impl Options {
         };
 
         return Options {
-            host, port, user, database, interactive,
-            admin: tmp.admin,
+            conn_params,
+            interactive,
             subcommand,
-            password,
             debug_print_frames: tmp.debug_print_frames,
             debug_print_descriptors: tmp.debug_print_descriptors,
             debug_print_codecs: tmp.debug_print_codecs,
-            wait_until_available: tmp.wait_until_available,
             output_mode: if tmp.tab_separated {
                 OutputMode::TabSeparated
             } else if tmp.json {

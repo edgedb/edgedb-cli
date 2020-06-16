@@ -30,7 +30,7 @@ use crate::variables::input_variables;
 use crate::error_display::print_query_error;
 use crate::outputs::tab_separated;
 
-use crate::client::{Connection, Client};
+use crate::client::Connection;
 
 
 const QUERY_OPT_IMPLICIT_LIMIT: u16 = 0xFF01;
@@ -48,7 +48,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             .clone(),
         verbose_errors: false,
         last_error: None,
-        database: options.database.clone(),
+        database: options.conn_params.get_effective_database(),
         implicit_limit: Some(100),
         output_mode: options.output_mode,
         input_mode: repl::InputMode::Emacs,
@@ -66,9 +66,8 @@ pub async fn _main(options: Options, mut state: repl::State)
     let mut banner = false;
     let mut version = None;
     loop {
-        let mut conn = Connection::from_options(&options).await?;
-        let mut cli = conn.authenticate(&options, &state.database).await?;
-        let fetched_version = cli.get_version().await?;
+        let mut conn = options.conn_params.connect().await?;
+        let fetched_version = conn.get_version().await?;
         if !banner || version.as_ref() != Some(&fetched_version) {
             println!("{} {}",
                 "EdgeDB".light_gray(),
@@ -79,7 +78,7 @@ pub async fn _main(options: Options, mut state: repl::State)
             println!("{}", r#"Type "\?" for help."#.light_gray());
             banner = true;
         }
-        match _interactive_main(cli, &options, &mut state).await {
+        match _interactive_main(conn, &options, &mut state).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 if let Some(err) = e.downcast_ref::<backslash::ChangeDb>() {
@@ -154,8 +153,8 @@ fn check_json_limit(json: &serde_json::Value, path: &str, limit: usize) -> bool
     return true;
 }
 
-async fn _interactive_main(
-    mut cli: Client<'_>, options: &Options, mut state: &mut repl::State)
+async fn _interactive_main(mut cli: Connection, options: &Options,
+    mut state: &mut repl::State)
     -> Result<(), anyhow::Error>
 {
     use crate::repl::OutputMode::*;
@@ -167,8 +166,9 @@ async fn _interactive_main(
             state.edgeql_input(&replace(&mut initial, String::new())).await
         {
             prompt::Input::Eof => {
-                cli.send_messages(&[ClientMessage::Terminate]).await?;
-                match cli.reader.message().await {
+                let mut seq = cli.start_sequence().await?;
+                seq.send_messages(&[ClientMessage::Terminate]).await?;
+                match seq.message().await {
                     Err(ReadError::Eos) => {}
                     Err(e) => {
                         eprintln!("WARNING: error on terminate: {}", e);
@@ -238,7 +238,8 @@ async fn _interactive_main(
                     Bytes::from(format!("{}", implicit_limit+1)));
             }
 
-            cli.send_messages(&[
+            let mut seq = cli.start_sequence().await?;
+            seq.send_messages(&[
                 ClientMessage::Prepare(Prepare {
                     headers,
                     io_format: match state.output_mode {
@@ -254,16 +255,17 @@ async fn _interactive_main(
             ]).await?;
 
             loop {
-                let msg = cli.reader.message().await?;
+                let msg = seq.message().await?;
                 match msg {
                     ServerMessage::PrepareComplete(..) => {
-                        cli.reader.wait_ready().await?;
+                        seq.wait_ready().await?;
                         break;
                     }
                     ServerMessage::ErrorResponse(err) => {
                         print_query_error(&err, statement, state.verbose_errors)?;
                         state.last_error = Some(err.into());
-                        cli.reader.wait_ready().await?;
+                        seq.wait_ready().await?;
+                        seq.end_clean();
                         continue 'statement_loop;
                     }
                     _ => {
@@ -272,7 +274,7 @@ async fn _interactive_main(
                 }
             }
 
-            cli.send_messages(&[
+            seq.send_messages(&[
                 ClientMessage::DescribeStatement(DescribeStatement {
                     headers: HashMap::new(),
                     aspect: DescribeAspect::DataDescription,
@@ -282,7 +284,7 @@ async fn _interactive_main(
             ]).await?;
 
             let data_description = loop {
-                let msg = cli.reader.message().await?;
+                let msg = seq.message().await?;
                 match msg {
                     ServerMessage::CommandDataDescription(data_desc) => {
                         break data_desc;
@@ -290,7 +292,8 @@ async fn _interactive_main(
                     ServerMessage::ErrorResponse(err) => {
                         eprintln!("{}", err.display(state.verbose_errors));
                         state.last_error = Some(err.into());
-                        cli.reader.wait_ready().await?;
+                        seq.wait_ready().await?;
+                        seq.end_clean();
                         continue 'statement_loop;
                     }
                     _ => {
@@ -321,6 +324,7 @@ async fn _interactive_main(
                 Err(e) => {
                     eprintln!("{:#}", e);
                     state.last_error = Some(e);
+                    seq.end_clean();
                     continue 'statement_loop;
                 }
             };
@@ -328,7 +332,7 @@ async fn _interactive_main(
             let mut arguments = BytesMut::with_capacity(8);
             incodec.encode(&mut arguments, &input)?;
 
-            cli.send_messages(&[
+            seq.send_messages(&[
                 ClientMessage::Execute(Execute {
                     headers: HashMap::new(),
                     statement_name: statement_name.clone(),
@@ -337,14 +341,13 @@ async fn _interactive_main(
                 ClientMessage::Sync,
             ]).await?;
 
-            let mut items = cli.reader.response(codec);
+            let mut items = seq.response(codec);
             if desc.root_pos().is_none() {
-                match cli._process_exec().await {
+                match items.get_completion().await {
                     Ok(ref val) => print::completion(val),
                     Err(e) => {
                         eprintln!("Error: {}", e);
                         state.last_error = Some(e.into());
-                        cli.reader.wait_ready().await?;
                     }
                 }
                 continue 'statement_loop;
@@ -400,7 +403,6 @@ async fn _interactive_main(
                                 _ => eprintln!("{:#?}", e),
                             }
                             state.last_error = Some(e.into());
-                            cli.reader.wait_ready().await?;
                             continue 'statement_loop;
                         }
                     }

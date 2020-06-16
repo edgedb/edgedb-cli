@@ -1,10 +1,10 @@
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use crate::commands::list;
-use crate::client::Client;
+use crate::client::Connection;
 
 
-pub async fn list_databases<'x>(cli: &mut Client<'x>, options: &Options)
+pub async fn list_databases(cli: &mut Connection, options: &Options)
     -> Result<(), anyhow::Error>
 {
     let items = cli.query(

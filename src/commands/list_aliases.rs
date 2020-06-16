@@ -6,7 +6,7 @@ use edgedb_derive::Queryable;
 use crate::commands::Options;
 use crate::commands::filter;
 use crate::table;
-use crate::client::Client;
+use crate::client::Connection;
 
 
 
@@ -17,7 +17,7 @@ struct Alias {
     klass: String,
 }
 
-pub async fn list_aliases<'x>(cli: &mut Client<'x>, options: &Options,
+pub async fn list_aliases(cli: &mut Connection, options: &Options,
     pattern: &Option<String>, system: bool, case_sensitive: bool,
     verbose: bool)
     -> Result<(), anyhow::Error>

@@ -10,6 +10,7 @@ use std::task::{Poll, Context};
 
 use async_std::io::Read as AsyncRead;
 use async_std::stream::{Stream, StreamExt};
+use async_listen::ByteStream;
 use bytes::{Bytes, BytesMut, BufMut};
 use snafu::{Snafu, ResultExt, Backtrace};
 
@@ -19,27 +20,29 @@ use edgedb_protocol::queryable::Queryable;
 use edgedb_protocol::codec::Codec;
 use edgedb_protocol::value::Value;
 
+use crate::client;
+
+
 const BUFFER_SIZE: usize = 8192;
 const MAX_BUFFER: usize = 1_048_576;
 
-pub struct Reader<T> {
-    stream: T,
-    buf: BytesMut,
-    print_frames: bool,
+pub struct Reader<'a> {
+    pub(crate) stream: &'a ByteStream,
+    pub(crate) buf: &'a mut BytesMut,
 }
 
-pub struct MessageFuture<'a, T> {
-    reader: &'a mut Reader<T>,
+pub struct MessageFuture<'a, 'r: 'a> {
+    reader: &'a mut Reader<'r>,
 }
 
-pub struct QueryResponse<'a, T, D> {
-    reader: &'a mut Reader<T>,
-    complete: bool,
-    buffer: Vec<Bytes>,
-    decoder: D,
+// Note: query response expects query *followed by* Sync messsage
+pub struct QueryResponse<'a, D> {
+    pub(crate) seq: Option<client::Sequence<'a>>,
+    pub(crate) complete: bool,
+    pub(crate) error: Option<ErrorResponse>,
+    pub(crate) buffer: Vec<Bytes>,
+    pub(crate) decoder: D,
 }
-
-impl<T, D> Unpin for QueryResponse<'_, T, D> where T: Unpin {}
 
 #[derive(Debug, Snafu)]
 #[non_exhaustive]
@@ -64,6 +67,7 @@ pub trait Decode {
 pub struct QueryableDecoder<T>(PhantomData<*const T>);
 
 unsafe impl<T> Send for QueryableDecoder<T> {}
+impl<D> Unpin for QueryResponse<'_, D> {}
 
 impl<T> QueryableDecoder<T> {
     pub fn new() -> QueryableDecoder<T> {
@@ -85,26 +89,10 @@ impl Decode for Arc<dyn Codec> {
     }
 }
 
-
-impl<T: AsyncRead + Unpin> Reader<T> {
-    pub fn new(stream: T, print_frames: bool) -> Reader<T> {
-        return Reader {
-            stream,
-            buf: BytesMut::with_capacity(BUFFER_SIZE),
-            print_frames,
-        }
-    }
-    pub fn message(&mut self) -> MessageFuture<T> {
+impl<'r> Reader<'r> {
+    pub fn message(&mut self) -> MessageFuture<'_, 'r> {
         MessageFuture {
             reader: self,
-        }
-    }
-    pub fn response<D: Decode>(&mut self, decoder: D) -> QueryResponse<T, D> {
-        QueryResponse {
-            reader: self,
-            buffer: Vec::new(),
-            complete: false,
-            decoder,
         }
     }
     pub async fn wait_ready(&mut self) -> Result<(), ReadError> {
@@ -157,35 +145,34 @@ impl<T: AsyncRead + Unpin> Reader<T> {
         };
         let frame = buf.split_to(frame_len).freeze();
         let result = ServerMessage::decode(&frame).context(DecodeErr)?;
-        if self.print_frames {
-            eprintln!("Incoming frame: {:#?}", result);
-        }
+        log::debug!(target: "edgedb::incoming::frame",
+                    "Frame Contents: {:#?}", result);
         return Poll::Ready(Ok(result));
     }
 }
 
-impl<'a, T> Future for MessageFuture<'a, T>
-    where T: AsyncRead + Unpin,
-{
+impl Future for MessageFuture<'_, '_> {
     type Output = Result<ServerMessage, ReadError>;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         self.reader.poll_message(cx)
     }
 }
 
-impl<'a, T, D> QueryResponse<'a, T, D>
-    where T: AsyncRead + Unpin,
-          D: Decode,
+impl<D> QueryResponse<'_, D>
+    where D: Decode,
 {
-    pub async fn skip_remaining(&mut self) -> Result<(), ReadError> {
+    pub async fn skip_remaining(mut self) -> Result<(), ReadError> {
         while let Some(_) = self.next().await.transpose()?  {}
         Ok(())
     }
+    pub async fn get_completion(mut self) -> anyhow::Result<Bytes> {
+        let seq = self.seq.take().expect("poll after end of stream");
+        Ok(seq._process_exec().await?)
+    }
 }
 
-impl<'a, T, D> Stream for QueryResponse<'a, T, D>
-    where T: AsyncRead + Unpin,
-          D: Decode,
+impl<D> Stream for QueryResponse<'_, D>
+    where D: Decode,
 {
     type Item = Result<D::Output, ReadError>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context)
@@ -194,12 +181,15 @@ impl<'a, T, D> Stream for QueryResponse<'a, T, D>
         let QueryResponse {
             ref mut buffer,
             ref mut complete,
-            ref mut reader,
+            ref mut error,
+            ref mut seq,
             ref decoder,
         } = *self;
+        let seq = seq.as_mut().expect("poll after end of stream");
         while buffer.len() == 0 {
-            match reader.poll_message(cx) {
-                Poll::Ready(Ok(ServerMessage::Data(data))) => {
+            match seq.reader.poll_message(cx) {
+                Poll::Ready(Ok(ServerMessage::Data(data))) if error.is_none()
+                => {
                     if *complete {
                         return
                             OutOfOrder { message: ServerMessage::Data(data) }
@@ -207,20 +197,30 @@ impl<'a, T, D> Stream for QueryResponse<'a, T, D>
                     }
                     buffer.extend(data.data.into_iter().rev());
                 }
-                Poll::Ready(Ok(m @ ServerMessage::CommandComplete(_))) => {
+                Poll::Ready(Ok(m @ ServerMessage::CommandComplete(_)))
+                if error.is_none()
+                => {
                     if *complete {
                         OutOfOrder { message: m }.fail()?;
                     }
                     *complete = true;
                 }
                 Poll::Ready(Ok(m @ ServerMessage::ReadyForCommand(_))) => {
-                    if !*complete {
-                        OutOfOrder { message: m }.fail()?;
+                    if let Some(error) = error.take() {
+                        self.seq.take().unwrap().end_clean();
+                        return Poll::Ready(Some(
+                            RequestError { error }.fail()));
+                    } else {
+                        if !*complete {
+                            OutOfOrder { message: m }.fail()?;
+                        }
+                        self.seq.take().unwrap().end_clean();
+                        return Poll::Ready(None);
                     }
-                    return Poll::Ready(None);
                 }
                 Poll::Ready(Ok(ServerMessage::ErrorResponse(e))) => {
-                    return Poll::Ready(Some(RequestError { error: e }.fail()));
+                    *error = Some(e);
+                    continue;
                 }
                 Poll::Ready(Ok(message)) => {
                     OutOfOrder { message }.fail()?;

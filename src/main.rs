@@ -55,8 +55,16 @@ fn _main() -> Result<(), anyhow::Error> {
     }
 
     let opt = Options::from_args_and_env();
-    env_logger::init_from_env(env_logger::Env::default()
-        .default_filter_or("warn"));
+
+    let mut builder = env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("warn")
+    );
+    if opt.debug_print_frames {
+        builder.filter_module("edgedb::incoming::frame",
+                              log::LevelFilter::Debug);
+    }
+    builder.init();
+
     if opt.subcommand.is_some() {
         commands::cli::main(opt)
     } else {

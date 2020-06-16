@@ -1,6 +1,6 @@
 use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
-use crate::client::Client;
+use crate::client::Connection;
 use crate::options::{RoleParams};
 use crate::print;
 
@@ -30,7 +30,7 @@ fn process_params(options: &RoleParams) -> Result<Vec<String>, anyhow::Error> {
     Ok(result)
 }
 
-pub async fn create_superuser(cli: &mut Client<'_>, _options: &Options,
+pub async fn create_superuser(cli: &mut Connection, _options: &Options,
     role: &RoleParams)
     -> Result<(), anyhow::Error>
 {
@@ -52,7 +52,7 @@ pub async fn create_superuser(cli: &mut Client<'_>, _options: &Options,
     Ok(())
 }
 
-pub async fn alter(cli: &mut Client<'_>, _options: &Options,
+pub async fn alter(cli: &mut Connection, _options: &Options,
     role: &RoleParams)
     -> Result<(), anyhow::Error>
 {
@@ -72,7 +72,7 @@ pub async fn alter(cli: &mut Client<'_>, _options: &Options,
     Ok(())
 }
 
-pub async fn drop(cli: &mut Client<'_>, _options: &Options,
+pub async fn drop(cli: &mut Connection, _options: &Options,
     name: &str)
     -> Result<(), anyhow::Error>
 {

@@ -12,15 +12,14 @@ use crate::options::Options;
 use crate::print::{self, PrintError};
 use crate::reader::ReadError;
 use crate::statement::{ReadStatement, EndOfFile};
-use crate::client::{Connection, Client, NoResultExpected};
+use crate::client::{Connection, NoResultExpected};
 use crate::outputs::tab_separated;
 
 
 pub async fn main(options: Options)
     -> Result<(), anyhow::Error>
 {
-    let mut conn = Connection::from_options(&options).await?;
-    let mut cli = conn.authenticate(&options, &options.database).await?;
+    let mut conn = options.conn_params.connect().await?;
     let stdin_obj = stdin();
     let mut stdin = stdin_obj.lock().await; // only lock *after* authentication
     let mut inbuf = BytesMut::with_capacity(8192);
@@ -32,13 +31,12 @@ pub async fn main(options: Options)
         };
         let stmt = str::from_utf8(&stmt[..])
             .context("can't decode statement")?;
-        query(&mut cli, &stmt, &options).await?;
+        query(&mut conn, &stmt, &options).await?;
     }
     Ok(())
 }
 
-pub async fn query(cli: &mut Client<'_>, stmt: &str,
-    options: &Options)
+pub async fn query(conn: &mut Connection, stmt: &str, options: &Options)
     -> Result<(), anyhow::Error>
 {
     use crate::repl::OutputMode::*;
@@ -51,7 +49,7 @@ pub async fn query(cli: &mut Client<'_>, stmt: &str,
     match options.output_mode {
         TabSeparated => {
             let mut items = match
-                cli.query_dynamic(stmt, &Value::empty_tuple()).await
+                conn.query_dynamic(stmt, &Value::empty_tuple()).await
             {
                 Ok(items) => items,
                 Err(e) => match e.downcast::<NoResultExpected>() {
@@ -71,7 +69,7 @@ pub async fn query(cli: &mut Client<'_>, stmt: &str,
         }
         Default => {
             let items = match
-                cli.query_dynamic(stmt, &Value::empty_tuple()).await
+                conn.query_dynamic(stmt, &Value::empty_tuple()).await
             {
                 Ok(items) => items,
                 Err(e) => match e.downcast::<NoResultExpected>() {
@@ -102,7 +100,7 @@ pub async fn query(cli: &mut Client<'_>, stmt: &str,
         }
         JsonElements => {
             let mut items = match
-                cli.query_json_els(stmt, &Value::empty_tuple()).await
+                conn.query_json_els(stmt, &Value::empty_tuple()).await
             {
                 Ok(items) => items,
                 Err(e) => match e.downcast::<NoResultExpected>() {
@@ -124,7 +122,7 @@ pub async fn query(cli: &mut Client<'_>, stmt: &str,
         }
         Json => {
             let mut items = match
-                cli.query_json(stmt, &Value::empty_tuple()).await
+                conn.query_json(stmt, &Value::empty_tuple()).await
             {
                 Ok(items) => items,
                 Err(e) => match e.downcast::<NoResultExpected>() {
