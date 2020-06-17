@@ -45,14 +45,15 @@ pub struct PasswordRequired;
 
 
 pub trait Sealed {}  // TODO(tailhook) private
-pub trait PublicParam: Sealed + typemap::Key + typemap::DebugAny + Send {}
+pub trait PublicParam: Sealed + typemap::Key + typemap::DebugAny + Send + Sync
+{}
 
 
 pub struct Connection {
     stream: ByteStream,
     input_buf: BytesMut,
     output_buf: BytesMut,
-    params: TypeMap<dyn typemap::DebugAny + Send>,
+    params: TypeMap<dyn typemap::DebugAny + Send + Sync>,
     transaction_state: TransactionState,
     dirty: bool,
 }
@@ -327,6 +328,18 @@ impl<'a> Sequence<'a> {
 }
 
 impl Connection {
+    pub fn is_consistent(&self) -> bool {
+        !self.dirty
+    }
+    pub async fn terminate(mut self) -> anyhow::Result<()> {
+        let mut seq = self.start_sequence().await?;
+        seq.send_messages(&[ClientMessage::Terminate]).await?;
+        match seq.message().await {
+            Err(reader::ReadError::Eos) => Ok(()),
+            Err(e) => Err(e)?,
+            Ok(msg) => anyhow::bail!("unsolicited message {:?}", msg),
+        }
+    }
     pub(crate) async fn start_sequence<'x>(&'x mut self)
         -> anyhow::Result<Sequence<'x>>
     {
@@ -349,9 +362,12 @@ impl Connection {
 
     pub fn get_param<T: PublicParam>(&self)
         -> Option<&<T as typemap::Key>::Value>
-        where <T as typemap::Key>::Value: Send + fmt::Debug
+        where <T as typemap::Key>::Value: fmt::Debug + Send + Sync
     {
         self.params.get::<T>()
+    }
+    pub fn transaction_state(&self) -> TransactionState {
+        self.transaction_state
     }
 }
 

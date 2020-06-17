@@ -14,7 +14,7 @@ use crate::prompt;
 pub struct Canceled;
 
 
-pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::State)
+pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
     -> Result<Value, anyhow::Error>
 {
     if desc.is_empty_tuple() {
@@ -46,7 +46,7 @@ pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::State)
 }
 
 async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
-    state: &mut repl::State)
+    state: &mut repl::PromptRpc)
     -> Result<Value, anyhow::Error>
 {
     match item {
