@@ -1,7 +1,12 @@
 use async_std::sync::{Sender, Receiver, RecvError};
 
+use colorful::Colorful;
+use edgedb_protocol::server_message::TransactionState;
+
+use crate::client;
 use crate::prompt;
 use crate::print;
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputMode {
@@ -17,33 +22,28 @@ pub enum InputMode {
     Emacs,
 }
 
-pub struct State {
+pub struct PromptRpc {
     pub control: Sender<prompt::Control>,
     pub data: Receiver<prompt::Input>,
+}
+
+pub struct State {
+    pub prompt: PromptRpc,
     pub print: print::Config,
     pub verbose_errors: bool,
     pub last_error: Option<anyhow::Error>,
-    pub database: String,
     pub implicit_limit: Option<usize>,
     pub input_mode: InputMode,
     pub output_mode: OutputMode,
     pub history_limit: usize,
+    pub conn_params: client::Builder,
+    pub database: String,
+    pub connection: Option<client::Connection>,
+    pub last_version: Option<String>,
+    pub initial_text: String,
 }
 
-
-impl State {
-    pub async fn edgeql_input(&mut self, initial: &str) -> prompt::Input {
-        self.control.send(
-            prompt::Control::EdgeqlInput {
-                database: self.database.clone(),
-                initial: initial.to_owned(),
-            }
-        ).await;
-        match self.data.recv().await {
-            Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
-            Ok(x) => x,
-        }
-    }
+impl PromptRpc {
     pub async fn variable_input(&mut self,
         name: &str, type_name: &str, initial: &str)
         -> prompt::Input
@@ -60,27 +60,113 @@ impl State {
             Ok(x) => x,
         }
     }
+}
+
+impl State {
+    pub async fn reconnect(&mut self) -> anyhow::Result<()> {
+        let mut conn = self.conn_params.connect().await?;
+        let fetched_version = conn.get_version().await?;
+        if self.last_version.as_ref() != Some(&fetched_version) {
+            println!("{} {}",
+                "EdgeDB".light_gray(),
+                fetched_version[..].light_gray());
+            self.last_version = Some(fetched_version);
+        }
+        self.database = self.conn_params.get_effective_database();
+        self.connection = Some(conn);
+        Ok(())
+    }
+    pub async fn try_connect(&mut self, database: &str) -> anyhow::Result<()> {
+        let mut params = self.conn_params.clone();
+        params.database(database);
+        let mut conn = params.connect().await?;
+        let fetched_version = conn.get_version().await?;
+        if self.last_version.as_ref() != Some(&fetched_version) {
+            println!("{} {}",
+                "EdgeDB".light_gray(),
+                fetched_version[..].light_gray());
+            self.last_version = Some(fetched_version);
+        }
+        self.conn_params = params;
+        self.database = database.into();
+        self.connection = Some(conn);
+        Ok(())
+    }
+    pub async fn ensure_connection(&mut self) -> anyhow::Result<()> {
+        match &self.connection {
+            Some(c) if c.is_consistent() => {}
+            Some(_) => {
+                eprintln!("Connection is in inconsistent state, \
+                    Reconnecting...");
+                self.reconnect().await?;
+            }
+            None => {
+                self.reconnect().await?;
+            }
+        };
+        Ok(())
+    }
+    pub async fn terminate(&mut self) {
+        if let Some(conn) = self.connection.take() {
+            if conn.is_consistent() {
+                conn.terminate().await
+                    .map_err(|e| log::warn!("Termination error: {:#}", e))
+                    .ok();
+            }
+        }
+    }
+    pub async fn edgeql_input(&mut self, initial: &str) -> prompt::Input {
+        use TransactionState::*;
+        let prompt = format!("{}{}> ",
+            self.database,
+            match self.connection.as_ref().map(|c| c.transaction_state()) {
+                Some(NotInTransaction) => "",
+                Some(InTransaction) => "[T]",
+                Some(InFailedTransaction) => "[T:failed]",
+                None => "",
+            }
+        );
+        self.prompt.control.send(
+            prompt::Control::EdgeqlInput {
+                prompt,
+                initial: initial.to_owned(),
+            }
+        ).await;
+        match self.prompt.data.recv().await {
+            Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
+            Ok(x) => x,
+        }
+    }
     pub async fn input_mode(&mut self, value: InputMode) {
         self.input_mode = value;
         let msg = match value {
             InputMode::Vi => prompt::Control::ViMode,
             InputMode::Emacs => prompt::Control::EmacsMode,
         };
-        self.control.send(msg).await
+        self.prompt.control.send(msg).await
     }
     pub async fn show_history(&self) {
-        self.control.send(prompt::Control::ShowHistory).await;
+        self.prompt.control.send(prompt::Control::ShowHistory).await;
     }
     pub async fn spawn_editor(&self, entry: Option<isize>) -> prompt::Input {
-        self.control.send(prompt::Control::SpawnEditor { entry }).await;
-        match self.data.recv().await {
+        self.prompt.control.send(prompt::Control::SpawnEditor { entry }).await;
+        match self.prompt.data.recv().await {
             Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
             Ok(x) => x,
         }
     }
     pub async fn set_history_limit(&mut self, val: usize) {
         self.history_limit = val;
-        self.control.send(prompt::Control::SetHistoryLimit(val)).await;
+        self.prompt.control.send(prompt::Control::SetHistoryLimit(val)).await;
+    }
+    pub fn in_transaction(&self) -> bool {
+        match &self.connection {
+            Some(conn) => {
+                matches!(conn.transaction_state(),
+                         TransactionState::InTransaction)
+            }
+            None => false,
+        }
     }
 }
 

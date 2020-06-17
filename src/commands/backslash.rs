@@ -1,6 +1,4 @@
-use std::fmt;
 use std::borrow::Cow;
-use std::error::Error;
 use std::collections::{BTreeSet, BTreeMap};
 
 use anyhow;
@@ -9,7 +7,6 @@ use edgedb_protocol::server_message::ErrorResponse;
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
 
-use crate::client::Connection;
 use crate::commands::Options;
 use crate::repl;
 use crate::print::style::Styler;
@@ -76,11 +73,6 @@ Help
 pub struct ParseError {
     pub span: Option<(usize, usize)>,
     pub message: String,
-}
-
-#[derive(Debug)]
-pub struct ChangeDb {
-    pub target: String,
 }
 
 #[derive(Debug, PartialEq)]
@@ -495,8 +487,7 @@ fn list_settings(prompt: &mut repl::State) {
     table.printstd();
 }
 
-pub async fn execute(cli: &mut Connection, cmd: &BackslashCmd,
-    prompt: &mut repl::State)
+pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
     -> Result<ExecuteResult, anyhow::Error>
 {
     use crate::commands::parser::BackslashCmd::*;
@@ -508,6 +499,7 @@ pub async fn execute(cli: &mut Connection, cmd: &BackslashCmd,
         command_line: false,
         styler: Some(Styler::dark_256()),
     };
+    let cli = prompt.connection.as_mut().expect("connection established");
     match cmd {
         Help => {
             print!("{}", HELP);
@@ -568,7 +560,15 @@ pub async fn execute(cli: &mut Connection, cmd: &BackslashCmd,
             Ok(Skip)
         }
         Connect(c) => {
-            Err(ChangeDb { target: c.database_name.clone() })?
+            if prompt.in_transaction() {
+                eprintln!("WARNING: Transaction cancelled")
+            }
+            prompt.try_connect(&c.database_name).await
+                .map_err(|e| {
+                    eprintln!("Error: Cannot connect: {:#}", e)
+                })
+                .ok();
+            Ok(Skip)
         }
         LastError => {
             if let Some(ref err) = prompt.last_error {
@@ -596,13 +596,6 @@ pub async fn execute(cli: &mut Connection, cmd: &BackslashCmd,
         Exit => Ok(Quit),
     }
 }
-
-impl fmt::Display for ChangeDb {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "switch database to {:?}", self.target)
-    }
-}
-impl Error for ChangeDb {}
 
 #[cfg(test)]
 mod test {

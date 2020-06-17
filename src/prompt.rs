@@ -27,7 +27,7 @@ use colorful::Colorful;
 
 
 pub enum Control {
-    EdgeqlInput { database: String, initial: String },
+    EdgeqlInput { prompt: String, initial: String },
     ParameterInput { name: String, type_name: String, initial: String },
     ShowHistory,
     SpawnEditor { entry: Option<isize> },
@@ -204,12 +204,9 @@ pub fn var_editor(config: &ConfigBuilder, type_name: &str) -> Editor<()> {
     return editor;
 }
 
-pub fn edgeql_input(prompt: &mut String, editor: &mut Editor<EdgeqlHelper>,
-    data: &Sender<Input>, database: &str, initial: &str)
+pub fn edgeql_input(prompt: &str, editor: &mut Editor<EdgeqlHelper>,
+    data: &Sender<Input>, initial: &str)
 {
-    prompt.clear();
-    prompt.push_str(&database);
-    prompt.push_str("> ");
     let text = match
         editor.readline_with_initial(&prompt, (&initial, ""))
     {
@@ -240,7 +237,6 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
     let config = config.edit_mode(EditMode::Emacs);
     let mut config = config.completion_type(CompletionType::List);
     let mut editor = create_editor(&config);
-    let mut prompt = String::from("> ");
     'outer: loop {
         match task::block_on(control.recv()) {
             Err(RecvError) => break 'outer,
@@ -256,18 +252,12 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 config = config.max_history_size(h);
                 editor = create_editor(&config);
             }
-            Ok(Control::EdgeqlInput { database, initial }) => {
-                edgeql_input(&mut prompt, &mut editor, &data,
-                    &database, &initial);
+            Ok(Control::EdgeqlInput { prompt, initial }) => {
+                edgeql_input(&prompt, &mut editor, &data, &initial);
             }
             Ok(Control::ParameterInput { name, type_name, initial })
             => {
-                prompt.clear();
-                prompt.push_str("Parameter <");
-                prompt.push_str(&type_name);
-                prompt.push_str(">$");
-                prompt.push_str(&name);
-                prompt.push_str(": ");
+                let prompt = format!("Parameter <{}>${}: ", &type_name, &name);
                 let mut editor = var_editor(&config, &type_name);
                 let text = match
                     editor.readline_with_initial(&prompt, (&initial, ""))
