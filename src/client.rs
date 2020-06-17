@@ -23,6 +23,7 @@ use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
 use edgedb_protocol::client_message::{Execute, ExecuteScript};
 use edgedb_protocol::codec::Codec;
 use edgedb_protocol::server_message::{ServerMessage, Authentication};
+use edgedb_protocol::server_message::{TransactionState};
 use edgedb_protocol::queryable::{Queryable};
 use edgedb_protocol::value::Value;
 use edgedb_protocol::descriptors::OutputTypedesc;
@@ -52,6 +53,7 @@ pub struct Connection {
     input_buf: BytesMut,
     output_buf: BytesMut,
     params: TypeMap<dyn typemap::DebugAny + Send>,
+    transaction_state: TransactionState,
     dirty: bool,
 }
 
@@ -217,6 +219,7 @@ impl Builder {
             input_buf: BytesMut::with_capacity(8192),
             output_buf: BytesMut::with_capacity(8192),
             params: TypeMap::custom(),
+            transaction_state: TransactionState::NotInTransaction,
             dirty: false,
         };
         let mut seq = conn.start_sequence().await?;
@@ -268,7 +271,11 @@ impl Builder {
         loop {
             let msg = seq.message().await?;
             match msg {
-                ServerMessage::ReadyForCommand(..) => break,
+                ServerMessage::ReadyForCommand(ready) => {
+                    seq.reader.consume_ready(ready);
+                    seq.end_clean();
+                    break;
+                }
                 ServerMessage::ServerKeyData(_) => {
                     // TODO(tailhook) store it somehow?
                 }
@@ -294,7 +301,6 @@ impl Builder {
                 }
             }
         }
-        seq.end_clean();
         conn.params = server_params;
         Ok(conn)
     }
@@ -332,6 +338,7 @@ impl Connection {
         let reader = Reader {
             buf: &mut self.input_buf,
             stream: &self.stream,
+            transaction_state: &mut self.transaction_state,
         };
         let writer = Writer {
             outbuf: &mut self.output_buf,
@@ -440,8 +447,10 @@ impl<'a> Sequence<'a> {
         self.writer.send_messages(msgs).await
     }
 
-    pub async fn wait_ready(&mut self) -> Result<(), reader::ReadError> {
-        self.reader.wait_ready().await
+    pub async fn expect_ready(mut self) -> Result<(), reader::ReadError> {
+        self.reader.wait_ready().await?;
+        self.end_clean();
+        Ok(())
     }
 
     pub fn message(&mut self) -> reader::MessageFuture<'_, 'a> {
@@ -570,10 +579,11 @@ impl Connection {
         let status = loop {
             match seq.message().await? {
                 ServerMessage::CommandComplete(c) => {
-                    seq.wait_ready().await?;
+                    seq.expect_ready().await?;
                     break c.status_data;
                 }
                 ServerMessage::ErrorResponse(err) => {
+                    seq.expect_ready().await?;
                     return Err(anyhow::anyhow!(err));
                 }
                 msg => {
@@ -581,7 +591,6 @@ impl Connection {
                 }
             }
         };
-        seq.end_clean();
         Ok(status)
     }
 

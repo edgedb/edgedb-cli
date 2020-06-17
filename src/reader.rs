@@ -15,6 +15,7 @@ use bytes::{Bytes, BytesMut, BufMut};
 use snafu::{Snafu, ResultExt, Backtrace};
 
 use edgedb_protocol::server_message::{ServerMessage, ErrorResponse};
+use edgedb_protocol::server_message::{ReadyForCommand, TransactionState};
 use edgedb_protocol::errors::{DecodeError};
 use edgedb_protocol::queryable::Queryable;
 use edgedb_protocol::codec::Codec;
@@ -29,6 +30,7 @@ const MAX_BUFFER: usize = 1_048_576;
 pub struct Reader<'a> {
     pub(crate) stream: &'a ByteStream,
     pub(crate) buf: &'a mut BytesMut,
+    pub(crate) transaction_state: &'a mut TransactionState,
 }
 
 pub struct MessageFuture<'a, 'r: 'a> {
@@ -95,11 +97,17 @@ impl<'r> Reader<'r> {
             reader: self,
         }
     }
+    pub fn consume_ready(&mut self, ready: ReadyForCommand) {
+        *self.transaction_state = ready.transaction_state;
+    }
     pub async fn wait_ready(&mut self) -> Result<(), ReadError> {
         loop {
             let msg = self.message().await?;
             match msg {
-                ServerMessage::ReadyForCommand(..) => return Ok(()),
+                ServerMessage::ReadyForCommand(ready) => {
+                    self.consume_ready(ready);
+                    return Ok(())
+                }
                 // TODO(tailhook) should we react on messages somehow?
                 //                At list parse LogMessage's?
                 _ => {},
@@ -205,15 +213,19 @@ impl<D> Stream for QueryResponse<'_, D>
                     }
                     *complete = true;
                 }
-                Poll::Ready(Ok(m @ ServerMessage::ReadyForCommand(_))) => {
+                Poll::Ready(Ok(ServerMessage::ReadyForCommand(r))) => {
                     if let Some(error) = error.take() {
+                        seq.reader.consume_ready(r);
                         self.seq.take().unwrap().end_clean();
                         return Poll::Ready(Some(
                             RequestError { error }.fail()));
                     } else {
                         if !*complete {
-                            OutOfOrder { message: m }.fail()?;
+                            return OutOfOrder {
+                                message: ServerMessage::ReadyForCommand(r)
+                            }.fail()?;
                         }
+                        seq.reader.consume_ready(r);
                         self.seq.take().unwrap().end_clean();
                         return Poll::Ready(None);
                     }
