@@ -251,21 +251,19 @@ async fn _interactive_main(mut cli: Connection, options: &Options,
                     statement_name: statement_name.clone(),
                     command_text: String::from(statement),
                 }),
-                ClientMessage::Sync,
+                ClientMessage::Flush,
             ]).await?;
 
             loop {
                 let msg = seq.message().await?;
                 match msg {
                     ServerMessage::PrepareComplete(..) => {
-                        seq.wait_ready().await?;
                         break;
                     }
                     ServerMessage::ErrorResponse(err) => {
                         print_query_error(&err, statement, state.verbose_errors)?;
                         state.last_error = Some(err.into());
-                        seq.wait_ready().await?;
-                        seq.end_clean();
+                        seq.err_sync().await?;
                         continue 'statement_loop;
                     }
                     _ => {
@@ -292,8 +290,7 @@ async fn _interactive_main(mut cli: Connection, options: &Options,
                     ServerMessage::ErrorResponse(err) => {
                         eprintln!("{}", err.display(state.verbose_errors));
                         state.last_error = Some(err.into());
-                        seq.wait_ready().await?;
-                        seq.end_clean();
+                        seq.expect_ready().await?;
                         continue 'statement_loop;
                     }
                     _ => {

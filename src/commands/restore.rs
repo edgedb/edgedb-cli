@@ -154,6 +154,7 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
             }
             ServerMessage::ErrorResponse(err) => {
                 seq.err_sync().await.ok();
+                seq.end_clean();
                 return Err(anyhow::anyhow!(err)
                     .context("Error initiating restore protocol"));
             }

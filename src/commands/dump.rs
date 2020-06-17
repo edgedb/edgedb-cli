@@ -78,7 +78,7 @@ pub async fn dump(cli: &mut Connection, _options: &Options, filename: &Path)
         let msg = seq.message().await?;
         match msg {
             ServerMessage::CommandComplete(..) => {
-                seq.wait_ready().await?;
+                seq.expect_ready().await?;
                 break;
             }
             ServerMessage::DumpBlock(packet) => {
@@ -103,6 +103,5 @@ pub async fn dump(cli: &mut Connection, _options: &Options, filename: &Path)
     if let Some(tmp_filename) = tmp_filename {
         fs::rename(tmp_filename, filename).await?;
     }
-    seq.end_clean();
     Ok(())
 }
