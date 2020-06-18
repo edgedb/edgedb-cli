@@ -8,8 +8,9 @@ use std::path::PathBuf;
 
 use anyhow::{self, Context};
 use async_std::prelude::StreamExt;
-use async_std::future::timeout;
+use async_std::future::{timeout, pending};
 use async_std::io::prelude::WriteExt;
+use async_std::io::ReadExt;
 use async_std::net::{TcpStream, ToSocketAddrs};
 use async_listen::ByteStream;
 use bytes::{Bytes, BytesMut};
@@ -328,6 +329,14 @@ impl<'a> Sequence<'a> {
 }
 
 impl Connection {
+    pub async fn passive_wait<T>(&mut self) -> T {
+        let mut buf = [0u8; 1];
+        self.stream.read(&mut buf[..]).await.ok();
+        // any erroneous or successful read (even 0) means need reconnect
+        self.dirty = true;
+        pending::<()>().await;
+        unreachable!();
+    }
     pub fn is_consistent(&self) -> bool {
         !self.dirty
     }
