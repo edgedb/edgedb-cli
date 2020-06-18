@@ -1,5 +1,6 @@
 use async_std::sync::{Sender, Receiver, RecvError};
 
+use async_std::prelude::FutureExt;
 use colorful::Colorful;
 use edgedb_protocol::server_message::TransactionState;
 
@@ -116,6 +117,7 @@ impl State {
     }
     pub async fn edgeql_input(&mut self, initial: &str) -> prompt::Input {
         use TransactionState::*;
+
         let prompt = format!("{}{}> ",
             self.database,
             match self.connection.as_ref().map(|c| c.transaction_state()) {
@@ -131,7 +133,12 @@ impl State {
                 initial: initial.to_owned(),
             }
         ).await;
-        match self.prompt.data.recv().await {
+        let result = if let Some(conn) = &mut self.connection {
+            self.prompt.data.recv().race(conn.passive_wait()).await
+        } else {
+            self.prompt.data.recv().await
+        };
+        match result {
             Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
             Ok(x) => x,
         }

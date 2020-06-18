@@ -468,6 +468,9 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             }
             prompt::Input::Text(inp) => inp,
         };
+        if !state.in_transaction() {
+            state.ensure_connection().await?;
+        }
         for item in ToDo::new(&inp) {
             let result = match item {
                 ToDoItem::Backslash(text) => {
