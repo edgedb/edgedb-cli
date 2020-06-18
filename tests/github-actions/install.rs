@@ -130,7 +130,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .assert()
             .success();
 
-        if cfg!(tagget_os="linux") {  // TODO
+        if cfg!(not(windows)) {
             Command::new(&edgedb)
                 .arg("server").arg("start")
                 .assert()

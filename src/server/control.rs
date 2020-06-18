@@ -1,5 +1,8 @@
 use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
+use std::thread;
+use std::time::Duration;
 
 use anyhow::Context;
 
@@ -8,6 +11,7 @@ use crate::server::options::{Start, Stop, Restart, Status};
 use crate::server::init::{data_path, Metadata};
 use crate::server::methods::InstallMethod;
 use crate::server::version::Version;
+use crate::platform::home_dir;
 
 
 pub trait Instance {
@@ -23,6 +27,16 @@ pub struct SystemdInstance {
     system: bool,
     #[allow(dead_code)]
     version: Version<String>,
+}
+
+pub struct LaunchdInstance {
+    #[allow(dead_code)]
+    name: String,
+    #[allow(dead_code)]
+    system: bool,
+    #[allow(dead_code)]
+    version: Version<String>,
+    unit_path: PathBuf,
 }
 
 pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
@@ -48,6 +62,16 @@ pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
                 name: name.to_owned(),
                 system: false,
                 version: metadata.version.to_owned(),
+            }))
+        }
+        InstallMethod::Package if cfg!(target_os="macos") => {
+            let unit_name = format!("com.edgedb.edgedb-server-{}.plist", name);
+            Ok(Box::new(LaunchdInstance {
+                name: name.to_owned(),
+                system: false,
+                version: metadata.version.to_owned(),
+                unit_path: home_dir()?.join("Library/LaunchAgents")
+                    .join(&unit_name),
             }))
         }
         _ => {
@@ -83,6 +107,36 @@ impl Instance for SystemdInstance {
             .arg("--user")
             .arg("status")
             .arg(format!("edgedb@{}", self.name)))?;
+        Ok(())
+    }
+}
+
+impl Instance for LaunchdInstance {
+    fn start(&mut self, _options: &Start) -> anyhow::Result<()> {
+        run(Command::new("launchctl")
+            .arg("start")
+            .arg(&self.unit_path))?;
+        Ok(())
+    }
+    fn stop(&mut self, _options: &Stop) -> anyhow::Result<()> {
+        run(Command::new("launchctl")
+            .arg("stop")
+            .arg(&self.unit_path))?;
+        Ok(())
+    }
+    fn restart(&mut self, _options: &Restart) -> anyhow::Result<()> {
+        run(Command::new("launchctl")
+            .arg("stop")
+            .arg(&self.unit_path))?;
+        // TODO(tailhook) what is the better way?
+        thread::sleep(Duration::from_secs(1));
+        run(Command::new("launchctl")
+            .arg("start")
+            .arg(&self.unit_path))?;
+        Ok(())
+    }
+    fn status(&mut self, _options: &Status) -> anyhow::Result<()> {
+        // TODO(tailhook)
         Ok(())
     }
 }
