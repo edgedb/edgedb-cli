@@ -58,6 +58,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-ctrlc"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "907279f6e91a51c8ec7cac24711e8308f21da7c10c7700ca2f7e125694ed2df1"
+dependencies = [
+ "ctrlc",
+ "futures-core",
+]
+
+[[package]]
 name = "async-h1"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -501,6 +511,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctrlc"
+version = "3.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a4ba686dff9fa4c1c9636ce1010b0cf98ceb421361b0bb3d6faeec43bd217a7"
+dependencies = [
+ "nix 0.17.0",
+ "winapi 0.3.8",
+]
+
+[[package]]
 name = "difference"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -572,6 +592,7 @@ version = "1.0.0-alpha.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "async-ctrlc",
  "async-listen",
  "async-std",
  "atty",

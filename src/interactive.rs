@@ -4,10 +4,11 @@ use std::str;
 
 use anyhow::{self, Context};
 use async_std::task;
-use async_std::prelude::StreamExt;
+use async_std::prelude::{StreamExt, FutureExt};
 use async_std::io::stdout;
 use async_std::io::prelude::WriteExt;
 use async_std::sync::{channel};
+use async_ctrlc::CtrlC;
 use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
 
@@ -35,6 +36,10 @@ const QUERY_OPT_IMPLICIT_LIMIT: u16 = 0xFF01;
 #[derive(Debug, thiserror::Error)]
 #[error("Shutting down on user request")]
 pub struct CleanShutdown;
+
+#[derive(Debug, thiserror::Error)]
+#[error("Interrupted")]
+pub struct Interrupted;
 
 struct ToDo<'a> {
     tail: &'a str,
@@ -451,6 +456,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
 async fn _interactive_main(options: &Options, state: &mut repl::State)
     -> Result<(), anyhow::Error>
 {
+    let mut ctrlc = CtrlC::new()?;
     loop {
         state.ensure_connection().await?;
         let cur_initial = replace(&mut state.initial_text, String::new());
@@ -474,19 +480,29 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
         for item in ToDo::new(&inp) {
             let result = match item {
                 ToDoItem::Backslash(text) => {
-                    execute_backslash(state, text).await
+                    execute_backslash(state, text)
+                        .race(async { ctrlc.next().await; Err(Interrupted)?})
+                        .await
                 }
                 ToDoItem::Query(statement) => {
-                    execute_query(options, state, statement).await
+                    execute_query(options, state, statement)
+                        .race(async { ctrlc.next().await; Err(Interrupted)?})
+                        .await
                 }
             };
             if let Err(err) = result {
-                eprintln!("Error: {:#}", err);
-                if state.connection.as_ref().map(|c| !c.is_consistent())
-                    .unwrap_or(true)
-                {
-                    // Don't continue next statements on error
+                if err.is::<Interrupted>() {
+                    eprintln!("Interrupted.");
+                    state.reconnect().await?;
                     break;
+                } else {
+                    eprintln!("Error: {:#}", err);
+                    if state.connection.as_ref().map(|c| !c.is_consistent())
+                        .unwrap_or(true)
+                    {
+                        // Don't continue next statements on error
+                        break;
+                    }
                 }
             }
         }
