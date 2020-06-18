@@ -154,7 +154,6 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
             }
             ServerMessage::ErrorResponse(err) => {
                 seq.err_sync().await.ok();
-                seq.end_clean();
                 return Err(anyhow::anyhow!(err)
                     .context("Error initiating restore protocol"));
             }
@@ -170,8 +169,9 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
         .await;
     if let Err(..) = result {
         seq.err_sync().await.ok();
+    } else {
+        seq.end_clean();
     }
-    seq.end_clean();
     result
 }
 

@@ -96,8 +96,7 @@ impl State {
         match &self.connection {
             Some(c) if c.is_consistent() => {}
             Some(_) => {
-                eprintln!("Connection is in inconsistent state, \
-                    Reconnecting...");
+                eprintln!("Reconnecting...");
                 self.reconnect().await?;
             }
             None => {

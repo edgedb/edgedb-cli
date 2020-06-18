@@ -474,9 +474,9 @@ impl<'a> Sequence<'a> {
     }
 
     // TODO(tailhook) figure out if this is the best way
-    pub async fn err_sync(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn err_sync(mut self) -> Result<(), anyhow::Error> {
         self.writer.send_messages(&[ClientMessage::Sync]).await?;
-        timeout(Duration::from_secs(10), self.reader.wait_ready()).await??;
+        timeout(Duration::from_secs(10), self.expect_ready()).await??;
         Ok(())
     }
 

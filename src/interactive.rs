@@ -121,27 +121,6 @@ pub async fn _main(options: Options, mut state: repl::State)
             return Err(e);
         }
     }
-    /*{
-        Ok(()) => return Ok(()),
-        Err(e) => {
-            if let Some(err) = e.downcast_ref::<ReadError>() {
-                match err {
-                    ReadError::Eos => {
-                        eprintln!("Connection is broken. Reconnecting...");
-                    }
-                    _ => {}
-                }
-            }
-            if let Some(err) = e.downcast_ref::<io::Error>() {
-                if err.kind() == io::ErrorKind::BrokenPipe {
-                    eprintln!("Connection is broken. Reconnecting...");
-                    continue;
-                }
-            }
-            return Err(e);
-        }
-    }
-    */
 }
 
 fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
@@ -490,12 +469,21 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             prompt::Input::Text(inp) => inp,
         };
         for item in ToDo::new(&inp) {
-            match item {
+            let result = match item {
                 ToDoItem::Backslash(text) => {
-                    execute_backslash(state, text).await?;
+                    execute_backslash(state, text).await
                 }
                 ToDoItem::Query(statement) => {
-                    execute_query(options, state, statement).await?;
+                    execute_query(options, state, statement).await
+                }
+            };
+            if let Err(err) = result {
+                eprintln!("Error: {:#}", err);
+                if state.connection.as_ref().map(|c| !c.is_consistent())
+                    .unwrap_or(true)
+                {
+                    // Don't continue next statements on error
+                    break;
                 }
             }
         }
