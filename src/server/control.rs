@@ -1,8 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use std::thread;
-use std::time::Duration;
 
 use anyhow::Context;
 
@@ -11,7 +9,7 @@ use crate::server::options::{Start, Stop, Restart, Status};
 use crate::server::init::{data_path, Metadata};
 use crate::server::methods::InstallMethod;
 use crate::server::version::Version;
-use crate::platform::home_dir;
+use crate::platform::{home_dir, get_current_uid};
 
 
 pub trait Instance {
@@ -126,13 +124,10 @@ impl Instance for LaunchdInstance {
     }
     fn restart(&mut self, _options: &Restart) -> anyhow::Result<()> {
         run(Command::new("launchctl")
-            .arg("stop")
-            .arg(&self.unit_path))?;
-        // TODO(tailhook) what is the better way?
-        thread::sleep(Duration::from_secs(1));
-        run(Command::new("launchctl")
-            .arg("start")
-            .arg(&self.unit_path))?;
+            .arg("kickstart")
+            .arg("-k")
+            .arg(&format!("gui/{}/edgedb-server-{}",
+                get_current_uid(), self.name)))?;
         Ok(())
     }
     fn status(&mut self, _options: &Status) -> anyhow::Result<()> {
