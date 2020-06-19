@@ -178,12 +178,21 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         method.create_user_service(&settings).map_err(|e| {
             eprintln!("Bootrapping complete, \
                 but there was an error creating a service. \
-                You can run service manually via: \n  \
-                edgedb server start --foreground");
+                You can run server manually via: \n  \
+                edgedb server start --foreground {}",
+                settings.name.escape_default());
             e
         }).context("failed to init service")?;
-        println!("Bootstrap complete. To start a server:\n  \
-                  edgedb server start");
+        match settings.start_conf {
+            StartConf::Auto => {
+                println!("Bootstrap complete. Server is up and runnning now.");
+            }
+            StartConf::Manual => {
+                println!("Bootstrap complete. To start a server:\n  \
+                          edgedb server start {}",
+                          settings.name.escape_default());
+            }
+        }
         Ok(())
     }
 }
