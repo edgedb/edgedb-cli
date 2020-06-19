@@ -1,10 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, exit};
 
 use anyhow::Context;
 
-use crate::process::{run, exit_from};
+use crate::process::{run, exit_from, get_text};
 use crate::server::options::{Start, Stop, Restart, Status};
 use crate::server::init::{data_path, Metadata};
 use crate::server::methods::InstallMethod;
@@ -131,7 +131,28 @@ impl Instance for LaunchdInstance {
         Ok(())
     }
     fn status(&mut self, _options: &Status) -> anyhow::Result<()> {
-        // TODO(tailhook)
-        Ok(())
+        let services = get_text(Command::new("launchctl")
+            .arg("list"))?;
+        let svc_name = format!("edgedb-server-{}", self.name);
+        for line in services.lines() {
+            let mut iter = line.split_whitespace();
+            let pid = iter.next().unwrap_or("-");
+            let exit_code = iter.next().unwrap_or("<unknown>");
+            let name = iter.next();
+            if let Some(name) = name {
+                if name == svc_name {
+                    if pid == "-" {
+                        eprintln!("Server exited with exit code {}",
+                                  exit_code);
+                        exit(3);
+                    }
+                    eprint!("Server is running, pid ");
+                    println!("{}", pid);
+                    return Ok(());
+                }
+            }
+        }
+        eprintln!("Server is not running");
+        exit(3);
     }
 }
