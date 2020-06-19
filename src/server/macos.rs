@@ -300,7 +300,7 @@ fn plist_data(settings: &init::Settings)
 <plist version="1.0">
 <dict>
     <key>Disabled</key>
-    <false/>
+    {disabled}
 
     <key>Label</key>
     <string>edgedb-{instance_name}</string>
@@ -308,8 +308,9 @@ fn plist_data(settings: &init::Settings)
     <key>ProgramArguments</key>
     <array>
         <string>{server_path}</string>
-        <string>-D{directory}</string>
+        <string>--data-dir={directory}</string>
         <string>--runstate-dir={runtime_dir}</string>
+        <string>--port={port}</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -331,6 +332,11 @@ fn plist_data(settings: &init::Settings)
         runtime_dir=home_dir()?
             .join(".edgedb/run").join(&settings.name)
             .display(),
+        disabled=match settings.start_conf {
+            StartConf::Auto => '<false/>',
+            StartConf::Manual => '<true/>',
+        },
+        port=settings.port,
         userinfo=if settings.system {
             "<key>UserName</key><string>edgedb</string>"
         } else {

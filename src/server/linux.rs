@@ -189,7 +189,7 @@ Type=notify
 Environment=EDGEDATA={directory}
 RuntimeDirectory=edgedb-{instance_name}
 
-ExecStart={server_path} -D ${{EDGEDATA}} --runstate-dir=%t/edgedb-{instance_name}
+ExecStart={server_path} --data-dir=${{EDGEDATA}} --runstate-dir=%t/edgedb-{instance_name} --port={port}
 ExecReload=/bin/kill -HUP ${{MAINPID}}
 KillMode=mixed
 KillSignal=SIGINT
@@ -201,6 +201,7 @@ WantedBy=multi-user.target
         instance_name=settings.name,
         directory=settings.directory.display(),
         server_path=meth.get_server_path(&settings.version)?.display(),
+        port=settings.port,
         userinfo=if settings.system {
             "User=edgedb\n\
              Group=edgedb"
@@ -221,11 +222,17 @@ pub fn create_systemd_service(settings: &init::Settings, meth: &dyn Method)
             .join(".config/systemd/user")
     };
     fs::create_dir_all(&unit_dir)?;
-    let unit_path = unit_dir
-        .join(&format!("edgedb@{}.service", settings.name));
+    let unit_name = format!("edgedb-server@{}.service", settings.name);
+    let unit_path = unit_dir.join(&unit_name);
     fs::write(&unit_path, systemd_unit(&settings, meth)?)?;
     run(Command::new("systemctl")
         .arg("--user")
         .arg("daemon-reload"))?;
+    if settings.start_conf == StartConf::Auto {
+        run(Command::new("systemctl")
+            .arg("--user")
+            .arg("enable")
+            .arg(&unit_name))?;
+    }
     Ok(())
 }

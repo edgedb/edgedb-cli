@@ -1,3 +1,5 @@
+use std::fmt;
+use std::str::FromStr;
 use clap::{Clap, AppSettings};
 
 use crate::server::version::Version;
@@ -50,6 +52,12 @@ pub struct ListVersions {
     pub installed_only: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StartConf {
+    Auto,
+    Manual,
+}
+
 #[derive(Clap, Debug, Clone)]
 pub struct Init {
     #[clap(about="Database server instance name", default_value="default")]
@@ -64,6 +72,11 @@ pub struct Init {
     pub version: Option<Version<String>>,
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub method: Option<InstallMethod>,
+    #[clap(long, default_value="5656")]
+    pub port: u16,
+    #[clap(long, default_value="auto",
+           possible_values=&["auto", "manual"][..])]
+    pub start_conf: StartConf,
 }
 
 #[derive(Clap, Debug, Clone)]
@@ -99,3 +112,31 @@ pub struct Status {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Detect {
 }
+
+impl FromStr for StartConf {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> anyhow::Result<StartConf> {
+        match s {
+            "auto" => Ok(StartConf::Auto),
+            "manual" => Ok(StartConf::Manual),
+            _ => anyhow::bail!("Unsupported start configuration, \
+                options: `auto`, `manual`"),
+        }
+    }
+}
+
+impl StartConf {
+    fn as_str(&self) -> &str {
+        match self {
+            StartConf::Auto => "auto",
+            StartConf::Manual => "manual",
+        }
+    }
+}
+
+impl fmt::Display for StartConf {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+

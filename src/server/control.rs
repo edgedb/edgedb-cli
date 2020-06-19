@@ -114,13 +114,13 @@ impl Instance for SystemdInstance {
 impl Instance for LaunchdInstance {
     fn start(&mut self, _options: &Start) -> anyhow::Result<()> {
         run(Command::new("launchctl")
-            .arg("start")
+            .arg("load").arg("-w")
             .arg(&self.unit_path))?;
         Ok(())
     }
     fn stop(&mut self, _options: &Stop) -> anyhow::Result<()> {
         run(Command::new("launchctl")
-            .arg("stop")
+            .arg("unload")
             .arg(&self.unit_path))?;
         Ok(())
     }

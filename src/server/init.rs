@@ -7,7 +7,7 @@ use anyhow::Context;
 use prettytable::{Table, Row, Cell};
 
 use serde::{Serialize, Deserialize};
-use crate::server::options::Init;
+use crate::server::options::{Init, StartConf};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
 use crate::server::methods::{InstallMethod, Methods};
@@ -21,6 +21,8 @@ pub struct Settings {
     pub version: Version<String>,
     pub method: InstallMethod,
     pub directory: PathBuf,
+    pub port: u16,
+    pub start_conf: StartConf,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -148,6 +150,8 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         version,
         method: meth_name,
         directory: data_path(options.system)?.join(&options.name),
+        port: options.port,
+        start_conf: options.start_conf,
     };
     settings.print();
     if settings.system {
