@@ -304,7 +304,7 @@ fn plist_data(settings: &init::Settings)
     {disabled}
 
     <key>Label</key>
-    <string>edgedb-{instance_name}</string>
+    <string>edgedb-server-{instance_name}</string>
 
     <key>ProgramArguments</key>
     <array>
