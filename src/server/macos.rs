@@ -272,6 +272,8 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             .join(&format!("com.edgedb.edgedb-server-{}.plist",
                            settings.name));
         fs::write(&unit_path, plist_data(&settings)?)?;
+        fs::create_dir_all(home_dir()?.join(".edgedb/run"))?;
+
         run(StdCommand::new("launchctl")
             .arg("load")
             .arg(unit_path))?;
