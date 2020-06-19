@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::exit;
+use std::process::{Command, exit};
 
+use crate::process::run;
 use crate::platform::{Uid, get_current_uid};
 use crate::server::detect::Lazy;
 use crate::server::install::{operation, exit_codes, Operation};
@@ -223,5 +224,8 @@ pub fn create_systemd_service(settings: &init::Settings, meth: &dyn Method)
     let unit_path = unit_dir
         .join(&format!("edgedb@{}.service", settings.name));
     fs::write(&unit_path, systemd_unit(&settings, meth)?)?;
+    run(Command::new("systemctl")
+        .arg("--user")
+        .arg("daemon-reload"))?;
     Ok(())
 }

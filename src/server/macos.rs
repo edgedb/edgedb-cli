@@ -19,6 +19,7 @@ use crate::server::package::{self, PackageCandidate, RepositoryInfo};
 use crate::server::package::{PackageMethod, PackageInfo};
 use crate::server::remote;
 use crate::platform::{Uid, get_current_uid, home_dir};
+use crate::process::run;
 
 
 #[derive(Debug, Serialize)]
@@ -271,6 +272,9 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             .join(&format!("com.edgedb.edgedb-server-{}.plist",
                            settings.name));
         fs::write(&unit_path, plist_data(&settings)?)?;
+        run(StdCommand::new("launchctl")
+            .arg("load")
+            .arg(unit_path))?;
         Ok(())
     }
 }
