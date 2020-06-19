@@ -2,15 +2,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
 
-use crate::process::run;
 use crate::platform::{Uid, get_current_uid};
+use crate::process::run;
 use crate::server::detect::Lazy;
-use crate::server::install::{operation, exit_codes, Operation};
-use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::package::{PackageCandidate};
 use crate::server::docker::DockerCandidate;
 use crate::server::init;
+use crate::server::install::{operation, exit_codes, Operation};
+use crate::server::methods::{InstallationMethods, InstallMethod};
+use crate::server::options::StartConf;
+use crate::server::os_trait::{CurrentOs, Method};
+use crate::server::package::{PackageCandidate};
 use crate::server::version::Version;
 use crate::server::{debian, ubuntu, centos};
 

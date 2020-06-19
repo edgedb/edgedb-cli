@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@master
       - name: Install musl-tools
         run: "sudo apt-get install musl-tools"
+      - name: Systemd version
+        run: "systemd --version"
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal

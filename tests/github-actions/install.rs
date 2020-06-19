@@ -125,12 +125,12 @@ fn github_action_install() -> anyhow::Result<()> {
             .assert()
             .code(51);
 
-        Command::new(&edgedb)
-            .arg("server").arg("init")
-            .assert()
-            .success();
+        if cfg!(target_os="macos") {
+            Command::new(&edgedb)
+                .arg("server").arg("init")
+                .assert()
+                .success();
 
-        if cfg!(not(windows)) {
             Command::new(&edgedb)
                 .arg("server").arg("start")
                 .assert()

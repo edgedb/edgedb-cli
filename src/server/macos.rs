@@ -7,19 +7,20 @@ use anyhow::Context;
 use async_std::task;
 use serde::Serialize;
 
+use crate::platform::{Uid, get_current_uid, home_dir};
+use crate::process::run;
 use crate::server::detect::{ARCH, Lazy, VersionQuery, VersionResult};
 use crate::server::detect::{InstalledPackage};
 use crate::server::docker::DockerCandidate;
 use crate::server::init;
-use crate::server::version::Version;
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
 use crate::server::methods::{InstallationMethods, InstallMethod};
+use crate::server::options::StartConf;
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{self, PackageCandidate, RepositoryInfo};
 use crate::server::package::{PackageMethod, PackageInfo};
+use crate::server::package::{self, PackageCandidate, RepositoryInfo};
 use crate::server::remote;
-use crate::platform::{Uid, get_current_uid, home_dir};
-use crate::process::run;
+use crate::server::version::Version;
 
 
 #[derive(Debug, Serialize)]
@@ -333,8 +334,8 @@ fn plist_data(settings: &init::Settings)
             .join(".edgedb/run").join(&settings.name)
             .display(),
         disabled=match settings.start_conf {
-            StartConf::Auto => '<false/>',
-            StartConf::Manual => '<true/>',
+            StartConf::Auto => "<false/>",
+            StartConf::Manual => "<true/>",
         },
         port=settings.port,
         userinfo=if settings.system {
