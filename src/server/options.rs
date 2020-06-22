@@ -72,8 +72,8 @@ pub struct Init {
     pub version: Option<Version<String>>,
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub method: Option<InstallMethod>,
-    #[clap(long, default_value="5656")]
-    pub port: u16,
+    #[clap(long)]
+    pub port: Option<u16>,
     #[clap(long, default_value="auto",
            possible_values=&["auto", "manual"][..])]
     pub start_conf: StartConf,

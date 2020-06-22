@@ -1,18 +1,23 @@
 use std::fs;
+use std::io;
 use std::process::Command;
 use std::path::{Path, PathBuf};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, BTreeMap};
 
 use anyhow::Context;
 use prettytable::{Table, Row, Cell};
-
 use serde::{Serialize, Deserialize};
+
+use crate::platform::config_dir;
+use crate::server::detect::{self, VersionQuery, InstalledPackage};
+use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::{Init, StartConf};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
-use crate::server::methods::{InstallMethod, Methods};
-use crate::server::detect::{self, VersionQuery, InstalledPackage};
 use crate::table;
+
+
+const MIN_PORT: u16 = 10700;
 
 
 pub struct Settings {
@@ -39,6 +44,66 @@ pub fn data_path(system: bool) -> anyhow::Result<PathBuf> {
             .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
             .join("edgedb/data"))
     }
+}
+
+fn _read_ports(path: &Path) -> anyhow::Result<BTreeMap<String, u16>> {
+    let data = match fs::read_to_string(&path) {
+        Ok(data) if data.is_empty() => {
+            return Ok(BTreeMap::new());
+        }
+        Ok(data) => data,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Ok(BTreeMap::new());
+        }
+        Err(e) => return Err(e)?,
+    };
+    Ok(serde_json::from_str(&data)?)
+}
+
+fn next_min_port(port_map: &BTreeMap<String, u16>) -> u16 {
+    if port_map.len() == 0 {
+        return MIN_PORT;
+    }
+    let port_set: BTreeSet<u16> = port_map.values().cloned().collect();
+    let mut prev = MIN_PORT - 1;
+    for port in port_set {
+        if port > prev+1 {
+            return prev + 1;
+        }
+        prev = port;
+    }
+    return prev+1;
+}
+
+fn _write_ports(port_map: &BTreeMap<String, u16>, port_file: &Path)
+    -> anyhow::Result<()>
+{
+    let config_dir = config_dir()?;
+    fs::create_dir_all(&config_dir)?;
+    let tmp_file = config_dir.join(".instance_ports.json.tmp");
+    fs::remove_file(&tmp_file).ok();
+    serde_json::to_writer_pretty(fs::File::create(&tmp_file)?, &port_map)?;
+    fs::rename(&tmp_file, &port_file)?;
+    Ok(())
+}
+
+fn allocate_port(name: &str) -> anyhow::Result<u16> {
+    let port_file = config_dir()?.join("instance_ports.json");
+    let mut port_map = _read_ports(&port_file).with_context(|| {
+        format!("failed reading port mapping {}", port_file.display())
+    })?;
+    if let Some(port) = port_map.get(name) {
+        return Ok(*port);
+    }
+    if name == "default" {
+        return Ok(5656);
+    }
+    let port = next_min_port(&port_map);
+    port_map.insert(name.to_string(), port);
+    _write_ports(&port_map, &port_file).with_context(|| {
+        format!("failed writing port mapping {}", port_file.display())
+    })?;
+    Ok(port)
 }
 
 fn try_bootstrap(settings: &Settings, method: &dyn Method)
@@ -144,13 +209,14 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 edgedb server install");
         }
     };
+    let port = allocate_port(&options.name)?;
     let settings = Settings {
         name: options.name.clone(),
         system: options.system,
         version,
         method: meth_name,
         directory: data_path(options.system)?.join(&options.name),
-        port: options.port,
+        port,
         start_conf: options.start_conf,
     };
     settings.print();

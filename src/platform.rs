@@ -20,3 +20,7 @@ pub fn home_dir() -> anyhow::Result<PathBuf> {
     dirs::home_dir()
     .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))
 }
+
+pub fn config_dir() -> anyhow::Result<PathBuf> {
+    Ok(home_dir()?.join(".edgedb").join("config"))
+}
