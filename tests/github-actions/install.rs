@@ -108,58 +108,98 @@ fn github_action_install() -> anyhow::Result<()> {
             concat!("edgedb-cli ", env!("CARGO_PKG_VERSION"))));
 
     if !cfg!(windows) {
+        println!("Install");
         Command::new(&edgedb)
             .arg("server").arg("install")
             .assert()
             .success();
 
         // TODO(tailhook) check output somehow
+        println!("List versions");
         Command::new(&edgedb)
             .arg("server").arg("list-versions")
             .assert()
             .success();
 
         // Extra install fails with code 51
+        println!("Conflict on installing again");
         Command::new(&edgedb)
             .arg("server").arg("install")
             .assert()
             .code(51);
 
         if cfg!(target_os="macos") {
+            println!("Init default");
             Command::new(&edgedb)
                 .arg("server").arg("init")
                 .assert()
                 .success();
 
+            println!("Start");
             Command::new(&edgedb)
                 .arg("server").arg("start")
                 .assert()
                 .success();
 
+            println!("Status");
             Command::new(&edgedb)
                 .arg("server").arg("status")
                 .assert()
                 .success();
 
+            println!("Restart");
             Command::new(&edgedb)
                 .arg("server").arg("restart")
                 .assert()
                 .success();
 
+            println!("Status");
             Command::new(&edgedb)
                 .arg("server").arg("status")
                 .assert()
                 .success();
 
+            println!("Stop");
             Command::new(&edgedb)
                 .arg("server").arg("stop")
                 .assert()
                 .success();
 
+            println!("Status");
             Command::new(&edgedb)
                 .arg("server").arg("status")
                 .assert()
                 .code(3);
+
+            println!("Init second one");
+            Command::new(&edgedb)
+                .arg("server").arg("init").arg("second")
+                .assert()
+                .success();
+
+            println!("Start second");
+            Command::new(&edgedb)
+                .arg("server").arg("start").arg("second")
+                .assert()
+                .success();
+
+            println!("Start default simultaneously to second");
+            Command::new(&edgedb)
+                .arg("server").arg("start").arg("default")
+                .assert()
+                .success();
+
+            println!("Status second");
+            Command::new(&edgedb)
+                .arg("server").arg("status").arg("second")
+                .assert()
+                .success();
+
+            println!("Status default");
+            Command::new(&edgedb)
+                .arg("server").arg("status") // default
+                .assert()
+                .success();
         }
     }
 
