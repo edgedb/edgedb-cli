@@ -1,9 +1,9 @@
+#[cfg(not(windows))]
 #[macro_use] extern crate pretty_assertions;
 
 use std::sync::Mutex;
 use std::convert::TryInto;
 use std::io::{BufReader, BufRead};
-use std::process::Child;
 use std::sync::mpsc::sync_channel;
 use std::thread::{self, JoinHandle};
 use std::process;
@@ -41,7 +41,7 @@ fn version() {
 }
 
 pub struct ShutdownInfo {
-    process: Child,
+    process: process::Child,
     thread: Option<JoinHandle<()>>,
 }
 
