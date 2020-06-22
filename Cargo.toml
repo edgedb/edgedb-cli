@@ -65,7 +65,7 @@ tar = "0.4.26"
 test-case = "1.0.0"
 openssl = "0.10.29"
 tokio = {version="0.2.21", features=["rt-threaded"]}
-warp = {version="0.2.3", no_default_features=true, features=["tls"]}
+warp = {version="0.2.3", default-features=false, features=["tls"]}
 
 [features]
 dev_mode = []
