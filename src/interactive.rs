@@ -41,6 +41,10 @@ pub struct CleanShutdown;
 #[error("Interrupted")]
 pub struct Interrupted;
 
+#[derive(Debug, thiserror::Error)]
+#[error("QueryError")]
+pub struct QueryError;
+
 struct ToDo<'a> {
     tail: &'a str,
 }
@@ -159,7 +163,7 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
 }
 
 fn print_json_limit_error(path: &str) {
-    eprintln!("ERROR: Cannot render JSON result: {} is too long. \
+    eprintln!("Error: Cannot render JSON result: {} is too long. \
         Consider putting an explicit LIMIT clause, \
         or increase the implicit limit using `\\set limit`.",
         if path.is_empty() { "." } else { path });
@@ -250,7 +254,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 print_query_error(&err, statement, state.verbose_errors)?;
                 state.last_error = Some(err.into());
                 seq.err_sync().await?;
-                return Ok(());
+                return Err(QueryError)?;
             }
             _ => {
                 eprintln!("WARNING: unsolicited message {:?}", msg);
@@ -277,7 +281,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 eprintln!("{}", err.display(state.verbose_errors));
                 state.last_error = Some(err.into());
                 seq.expect_ready().await?;
-                return Ok(());
+                return Err(QueryError)?;
             }
             _ => {
                 eprintln!("WARNING: unsolicited message {:?}", msg);
@@ -308,7 +312,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             eprintln!("{:#}", e);
             state.last_error = Some(e);
             seq.end_clean();
-            return Ok(());
+            return Err(QueryError)?;
         }
     };
 
@@ -331,6 +335,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             Err(e) => {
                 eprintln!("Error: {}", e);
                 state.last_error = Some(e.into());
+                return Err(QueryError)?;
             }
         }
         return Ok(());
@@ -347,12 +352,12 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             while let Some(row) = items.next().await.transpose()? {
                 if let Some(limit) = state.implicit_limit {
                     if index >= limit {
-                        eprintln!("ERROR: Too many rows. Consider \
+                        eprintln!("Error: Too many rows. Consider \
                             putting an explicit LIMIT clause, \
                             or increase the implicit limit \
                             using `\\set limit`.");
                         items.skip_remaining().await?;
-                        return Ok(());
+                        return Err(QueryError)?;
                     }
                 }
                 let mut text = match tab_separated::format_row(&row) {
@@ -362,7 +367,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                         // exhaust the iterator to get connection in the
                         // consistent state
                         items.skip_remaining().await?;
-                        return Ok(());
+                        return Err(QueryError)?;
                     }
                 };
                 // trying to make writes atomic if possible
@@ -386,7 +391,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                         _ => eprintln!("{:#?}", e),
                     }
                     state.last_error = Some(e.into());
-                    return Ok(());
+                    return Err(QueryError)?;
                 }
             }
             println!();
@@ -404,7 +409,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 if let Some(limit) = state.implicit_limit {
                     if !check_json_limit(&jitems, "", limit) {
                         items.skip_remaining().await?;
-                        return Ok(());
+                        return Err(QueryError)?;
                     }
                 }
                 let jitems = jitems.as_array()
@@ -433,11 +438,11 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                     if index >= limit {
                         print_json_limit_error(&path);
                         items.skip_remaining().await?;
-                        return Ok(());
+                        return Err(QueryError)?;
                     }
                     if !check_json_limit(&value, &path, limit) {
                         items.skip_remaining().await?;
-                        return Ok(());
+                        return Err(QueryError)?;
                     }
                 }
                 // trying to make writes atomic if possible
@@ -494,16 +499,11 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                 if err.is::<Interrupted>() {
                     eprintln!("Interrupted.");
                     state.reconnect().await?;
-                    break;
-                } else {
+                } else if !err.is::<QueryError>() {
                     eprintln!("Error: {:#}", err);
-                    if state.connection.as_ref().map(|c| !c.is_consistent())
-                        .unwrap_or(true)
-                    {
-                        // Don't continue next statements on error
-                        break;
-                    }
                 }
+                // Don't continue next statements on error
+                break;
             }
         }
     }
