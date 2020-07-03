@@ -55,6 +55,7 @@ linked-hash-map = "0.5.3"
 term = "0.5"
 libc = "0.2.68"
 async-ctrlc = {version="1.2.0", features=["stream"]}
+urlencoding = "1.1.1"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}

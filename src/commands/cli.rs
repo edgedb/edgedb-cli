@@ -16,6 +16,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         } else {
             None
         },
+        conn_params: options.conn_params.clone(),
     };
     match options.subcommand.as_ref().expect("subcommand is present") {
         Command::Common(cmd) => {

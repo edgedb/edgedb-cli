@@ -63,7 +63,7 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             commands::describe(cli, &options, &c.name, c.verbose).await?;
         }
         Dump(c) => {
-            commands::dump(cli, &options, c.file.as_ref()).await?;
+            commands::dump(cli, &options, c).await?;
         }
         Restore(params) => {
             commands::restore(cli, &options, params)

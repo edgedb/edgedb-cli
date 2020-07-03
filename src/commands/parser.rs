@@ -200,18 +200,39 @@ pub struct Describe {
     pub verbose: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DumpFormat {
+    Dir,
+}
+
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Dump {
-    /// Filename to write dump to. Use dash `-` to write into stdout
-    pub file: PathBuf,
+    /// Path to file write dump to (or directory if `--all` is specified).
+    /// Use dash `-` to write into stdout (latter doesn't work in `--all` mode)
+    pub path: PathBuf,
+    /// Dump all databases and the server configuration. `path` is a directory
+    /// in this case
+    #[clap(long)]
+    pub all: bool,
+
+    /// Choose dump format. For normal dumps this parameter should be omitted.
+    /// For `--all` only `--format=dir` is required.
+    #[clap(long, possible_values=&["dir"][..])]
+    pub format: Option<DumpFormat>,
 }
 
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Restore {
-    /// Filename to read dump from. Use dash `-` to read from stdin
-    pub file: PathBuf,
+    /// Path to file (or directory in case of `--all) to read dump from.
+    /// Use dash `-` to read from stdin
+    pub path: PathBuf,
+
+    /// Restore all databases and the server configuratoin. `path` is a
+    /// directory in this case
+    #[clap(long)]
+    pub all: bool,
 
     /// Allow restoring the database dump into a non-empty database
     #[clap(long)]
@@ -454,6 +475,16 @@ impl SettingBool {
             Some("on") => true,
             Some("off") => false,
             _ => unreachable!("validated by clap"),
+        }
+    }
+}
+
+impl std::str::FromStr for DumpFormat {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<DumpFormat, anyhow::Error> {
+        match s {
+            "dir" => Ok(DumpFormat::Dir),
+            _ => Err(anyhow::anyhow!("unsupported dump format {:?}", s)),
         }
     }
 }
