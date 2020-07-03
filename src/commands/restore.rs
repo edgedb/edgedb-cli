@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::time::{Instant, Duration};
+use std::ffi::OsString;
 use std::mem::transmute;
+use std::str;
+use std::time::{Instant, Duration};
 
 use anyhow::Context;
 use async_std::path::Path;
@@ -11,16 +13,21 @@ use async_std::future::{timeout, pending};
 use async_std::prelude::{FutureExt, StreamExt};
 use bytes::{Bytes, BytesMut, BufMut};
 
+use edgeql_parser::helpers::quote_name;
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
+use edgedb_protocol ::server_message::{ErrorResponse};
+
 use crate::commands::Options;
 use crate::commands::parser::{Restore as RestoreCmd};
 use crate::client::{Connection, Reader, Writer};
+use crate::statement::{ReadStatement, EndOfFile};
 
 type Input = Box<dyn Read + Unpin + Send>;
 
 const MAX_SUPPORTED_DUMP_VER: i64 = 1;
+const SCHEMA_ERROR: u32 = 0x_04_04_00_00;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PacketType {
@@ -91,10 +98,21 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
     params: &RestoreCmd)
     -> Result<(), anyhow::Error>
 {
+    if params.all {
+        restore_all(cli, options, params).await
+    } else {
+        restore_db(cli, options, params).await
+    }
+}
+
+async fn restore_db<'x>(cli: &mut Connection, options: &Options,
+    params: &RestoreCmd)
+    -> Result<(), anyhow::Error>
+{
     use PacketType::*;
     let RestoreCmd {
-        allow_non_empty, file: ref filename,
-        verbose: _,
+        allow_non_empty, path: ref filename,
+        all: _, verbose: _,
     } = *params;
     if !allow_non_empty {
         if is_empty_db(cli).await.context("Error checking DB emptyness")? {
@@ -224,6 +242,93 @@ async fn wait_response(reader: &mut Reader<'_>, start: Instant)
                     "WARNING: unsolicited message {:?}", msg));
             }
         }
+    }
+    Ok(())
+}
+
+fn path_to_database_name(path: &Path) -> anyhow::Result<String> {
+    let encoded = path.file_stem().and_then(|x| x.to_str())
+        .ok_or_else(|| anyhow::anyhow!("invalid dump filename {:?}", path))?;
+    let decoded = urlencoding::decode(encoded)
+        .with_context(|| format!("failed to decode filename {:?}", path))?;
+    Ok(decoded)
+}
+
+async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
+    let mut input = fs::File::open(path).await?;
+    let mut inbuf = BytesMut::with_capacity(8192);
+    loop {
+        let stmt = match ReadStatement::new(&mut inbuf, &mut input).await {
+            Ok(chunk) => chunk,
+            Err(e) if e.is::<EndOfFile>() => break,
+            Err(e) => return Err(e),
+        };
+        let stmt = str::from_utf8(&stmt[..])
+            .context("can't decode statement")?;
+        if !stmt.trim().is_empty() {
+            cli.execute(&stmt).await
+                .with_context(|| format!("failed statement {:?}", stmt))?;
+        }
+    }
+    Ok(())
+}
+
+async fn restore_all<'x>(cli: &mut Connection, options: &Options,
+    params: &RestoreCmd)
+    -> anyhow::Result<()>
+{
+    let dir = &params.path;
+    let filename = dir.join("init.edgeql");
+    apply_init(cli, filename.as_ref()).await
+        .with_context(|| format!("error applying init file {:?}", filename))?;
+
+    let mut conn_params = options.conn_params.clone();
+    let mut params = params.clone();
+
+    let dump_ext = OsString::from("dump");
+    let mut dir_list = fs::read_dir(&dir).await?;
+    while let Some(entry) = dir_list.next().await.transpose()? {
+        let path = entry.path();
+        if path.extension() != Some(&dump_ext) {
+            continue;
+        }
+        let database = path_to_database_name(&path)?;
+        let create_db = format!("CREATE DATABASE {}", quote_name(&database));
+        let db_error = match cli.execute(create_db).await {
+            Ok(_) => None,
+            Err(e) => {
+                let silent = if let Some(e) = e.downcast_ref::<ErrorResponse>() {
+                    e.code == SCHEMA_ERROR
+                } else {
+                    false
+                };
+                if silent {
+                    Some(e)
+                } else {
+                    anyhow::bail!(e);
+                }
+            }
+        };
+        conn_params.database(&database);
+        let mut db_conn = match conn_params.connect().await  {
+            Ok(conn) => conn,
+            Err(e) => {
+                let err = Err(e)
+                    .with_context(|| format!(
+                        "cannot connect to database {:?}",
+                        database));
+                if let Some(db_error) = db_error {
+                    err.with_context(|| format!(
+                            "cannot create database {:?}: {}",
+                            database, db_error))?
+                } else {
+                    err?
+                }
+            }
+        };
+        params.path = path.into();
+        restore_db(&mut db_conn, options, &params).await
+            .with_context(|| format!("restoring database {:?}", database))?;
     }
     Ok(())
 }

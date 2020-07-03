@@ -498,6 +498,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
     let options = Options {
         command_line: false,
         styler: Some(Styler::dark_256()),
+        conn_params: prompt.conn_params.clone(),
     };
     let cli = prompt.connection.as_mut().expect("connection established");
     match cmd {

@@ -23,6 +23,8 @@ mod configure;
 mod interactive;
 
 
+pub static SHUTDOWN_INFO: Lazy<Mutex<Vec<ShutdownInfo>>> =
+    Lazy::new(|| Mutex::new(Vec::new()));
 pub static SERVER: Lazy<ServerGuard> = Lazy::new(|| ServerGuard::start());
 
 #[cfg(not(windows))]
@@ -46,7 +48,6 @@ pub struct ShutdownInfo {
 }
 
 pub struct ServerGuard {
-    shutdown_info: Mutex<ShutdownInfo>,
     port: u16,
     runstate_dir: String,
 }
@@ -63,6 +64,8 @@ impl ServerGuard {
         cmd.arg("--testmode");
         cmd.arg("--echo-runtime-info");
         cmd.arg("--port=auto");
+        cmd.arg("--default-database=edgedb");
+        cmd.arg("--default-database-user=edgedb");
         #[cfg(unix)]
         if unsafe { libc::geteuid() } == 0 {
             use std::os::unix::process::CommandExt;
@@ -107,13 +110,16 @@ impl ServerGuard {
         });
         let (port, runstate_dir) = rx.recv().expect("valid port received");
 
-        shutdown_hooks::add_shutdown_hook(stop_process);
+        let mut sinfo = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
+        if sinfo.is_empty() {
+            shutdown_hooks::add_shutdown_hook(stop_processes);
+        }
+        sinfo.push(ShutdownInfo {
+            process,
+            thread: Some(thread),
+        });
 
         ServerGuard {
-            shutdown_info: Mutex::new(ShutdownInfo {
-                process,
-                thread: Some(thread),
-            }),
             port,
             runstate_dir,
         }
@@ -151,9 +157,13 @@ impl ServerGuard {
 }
 
 
-extern fn stop_process() {
-    let mut sinfo = SERVER.shutdown_info.lock().expect("shutdown mutex works");
-    sinfo.process.kill().ok();
-    sinfo.process.wait().ok();
-    sinfo.thread.take().expect("not yet joined").join().ok();
+extern fn stop_processes() {
+    let mut items = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
+    for item in items.iter_mut() {
+        item.process.kill().ok();
+    }
+    for item in items.iter_mut() {
+        item.process.wait().ok();
+        item.thread.take().expect("not yet joined").join().ok();
+    }
 }
