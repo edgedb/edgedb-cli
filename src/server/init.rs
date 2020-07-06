@@ -290,6 +290,10 @@ impl Settings {
             Cell::new(&self.directory.display().to_string()),
         ]));
         table.add_row(Row::new(vec![
+            Cell::new("Database Server Port"),
+            Cell::new(&self.port.to_string()),
+        ]));
+        table.add_row(Row::new(vec![
             Cell::new("EdgeDB Version"),
             Cell::new(self.version.num()),
         ]));
