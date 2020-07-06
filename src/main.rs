@@ -13,6 +13,7 @@ mod completion;
 mod error_display;
 mod highlight;
 mod interactive;
+mod log_levels;
 mod non_interactive;
 mod options;
 mod outputs;
@@ -59,10 +60,7 @@ fn _main() -> Result<(), anyhow::Error> {
     let mut builder = env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or("warn")
     );
-    if opt.debug_print_frames {
-        builder.filter_module("edgedb::incoming::frame",
-                              log::LevelFilter::Debug);
-    }
+    log_levels::init(&mut builder, &opt);
     builder.init();
 
     if opt.subcommand.is_some() {

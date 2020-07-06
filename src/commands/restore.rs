@@ -16,7 +16,6 @@ use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use crate::commands::parser::{Restore as RestoreCmd};
-use crate::print;
 use crate::client::{Connection, Reader, Writer};
 
 type Input = Box<dyn Read + Unpin + Send>;
@@ -93,7 +92,10 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
     -> Result<(), anyhow::Error>
 {
     use PacketType::*;
-    let RestoreCmd { allow_non_empty, file: ref filename, verbose } = *params;
+    let RestoreCmd {
+        allow_non_empty, file: ref filename,
+        verbose: _,
+    } = *params;
     if !allow_non_empty {
         if is_empty_db(cli).await.context("Error checking DB emptyness")? {
             if options.command_line {
@@ -146,10 +148,8 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
         let msg = seq.message().await?;
         match msg {
             ServerMessage::RestoreReady(_) => {
-                if verbose {
-                    eprintln!("Schema applied in {:?}",
-                              start_headers.elapsed());
-                }
+                log::info!(target: "edgedb::restore",
+                    "Schema applied in {:?}", start_headers.elapsed());
                 break;
             }
             ServerMessage::ErrorResponse(err) => {
@@ -164,8 +164,8 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
         }
     }
     let result = send_blocks(&mut seq.writer, &mut input,
-                             filename.as_ref(), verbose)
-        .race(wait_response(&mut seq.reader, start_headers, verbose))
+                             filename.as_ref())
+        .race(wait_response(&mut seq.reader, start_headers))
         .await;
     if let Err(..) = result {
         seq.err_sync().await.ok();
@@ -176,7 +176,7 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
 }
 
 async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
-    filename: &Path, verbose: bool)
+    filename: &Path)
     -> Result<(), anyhow::Error>
 {
     use PacketType::*;
@@ -192,33 +192,28 @@ async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
         ]).await?;
     }
     writer.send_messages(&[ClientMessage::RestoreEof]).await?;
-    if verbose {
-        eprintln!("Blocks sent in {:?}", start_blocks.elapsed());
-    }
+    log::info!(target: "edgedb::restore",
+        "Blocks sent in {:?}", start_blocks.elapsed());
 
     // This future should be canceled by wait_response() receiving
     // CommandComplete
     let start_waiting = Instant::now();
     loop {
         timeout(Duration::from_secs(60), pending::<()>()).await.ok();
-        if verbose {
-            eprintln!("Waiting for complete {:?}", start_waiting.elapsed());
-        }
+        log::info!(target: "edgedb::restore",
+            "Waiting for complete {:?}", start_waiting.elapsed());
     }
 }
 
-async fn wait_response(reader: &mut Reader<'_>, start: Instant,
-    verbose: bool)
+async fn wait_response(reader: &mut Reader<'_>, start: Instant)
     -> Result<(), anyhow::Error>
 {
     loop {
         let msg = reader.message().await?;
         match msg {
-            ServerMessage::CommandComplete(c) => {
-                if verbose {
-                    eprintln!("Complete in {:?}", start.elapsed());
-                    print::completion(&c.status_data);
-                }
+            ServerMessage::CommandComplete(_) => {
+                log::info!(target: "edgedb::restore",
+                    "Complete in {:?}", start.elapsed());
                 break;
             }
             ServerMessage::ErrorResponse(err) => {
