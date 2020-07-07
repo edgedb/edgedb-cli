@@ -83,28 +83,28 @@ impl Instance for SystemdInstance {
         run(Command::new("systemctl")
             .arg("--user")
             .arg("start")
-            .arg(format!("edgedb@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name)))?;
         Ok(())
     }
     fn stop(&mut self, _options: &Stop) -> anyhow::Result<()> {
         run(Command::new("systemctl")
             .arg("--user")
             .arg("stop")
-            .arg(format!("edgedb@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name)))?;
         Ok(())
     }
     fn restart(&mut self, _options: &Restart) -> anyhow::Result<()> {
         run(Command::new("systemctl")
             .arg("--user")
             .arg("restart")
-            .arg(format!("edgedb@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name)))?;
         Ok(())
     }
     fn status(&mut self, _options: &Status) -> anyhow::Result<()> {
         exit_from(Command::new("systemctl")
             .arg("--user")
             .arg("status")
-            .arg(format!("edgedb@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name)))?;
         Ok(())
     }
 }
