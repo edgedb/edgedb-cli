@@ -8,6 +8,7 @@ use crate::server::install;
 use crate::server::init;
 use crate::server::package::PackageInfo;
 use crate::server::version::Version;
+use crate::server::methods::InstallMethod;
 
 
 #[derive(Debug, Serialize)]
@@ -84,6 +85,9 @@ impl DockerCandidate {
 }
 
 impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
+    fn name(&self) -> InstallMethod {
+        InstallMethod::Docker
+    }
     fn install(&self, _settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {

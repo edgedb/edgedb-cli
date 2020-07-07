@@ -29,6 +29,8 @@ pub enum Command {
     Restart(Restart),
     #[clap(about="Status of an instance")]
     Status(Status),
+    #[clap(about="Upgrade installations and instances")]
+    Upgrade(Upgrade),
     #[clap(name="_detect")]
     _Detect(Detect),
 }
@@ -120,6 +122,38 @@ pub struct Status {
     /// Database server instance name
     #[clap(default_value="default", validator(instance_name_opt))]
     pub name: String,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion, after_help="\
+There are few modes of operation of this command:
+
+edgedb server upgrade
+  Without arguments this command upgrades all instances which aren't running
+  nightly EdgeDB to a latest minor version of the server.
+
+edgedb <name> [--to-version=<ver>|--to-nightly]
+  Upgrades specified instance to the specified major version of the server or
+  to the latest nightly, by default upgrades to the latest stable. This only
+  works for instances that initially aren't running nightly.
+
+edgedb --nightly
+  Upgrades all existing nightly instances to the latest EdgeDB nightly.
+")]
+pub struct Upgrade {
+    #[clap(long, about="Upgrade all nightly instances")]
+    pub nightly: bool,
+    #[clap(long,
+        about="Upgrade specified instance(s) to a specified major version")]
+    pub to_version: Option<Version<String>>,
+    #[clap(long,
+        about="Upgrade specifies instance to a latest nightly version")]
+    pub to_nightly: bool,
+    #[clap(about="Only upgrade specicified database instance")]
+    pub name: Option<String>,
+    /// Verbose output
+    #[clap(short="v", long)]
+    pub verbose: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

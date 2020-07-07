@@ -45,13 +45,16 @@ pub struct LaunchdInstance {
 pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
     let dir = data_path(false)?.join(name);
     if !dir.exists() {
+        /*  // TODO(tailhook) implement system instances
         let sys_dir = data_path(true)?.join(name);
         if sys_dir.exists() {
             anyhow::bail!("System instances are not implemented yet");
         }
+        */
         anyhow::bail!("No instance {0:?} found. Run:\n  \
             edgedb server init {0}", name);
     }
+    log::debug!("Instance {:?} data path: {:?}", name, dir);
     let metadata_path = dir.join("metadata.json");
     let metadata: Metadata = serde_json::from_slice(
         &fs::read(&metadata_path)
@@ -59,6 +62,13 @@ pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
                                  metadata_path.display()))?)
         .with_context(|| format!("failed to read metadata {}",
                                  metadata_path.display()))?;
+    get_instance_from_metadata(name, &metadata, false)
+}
+
+pub fn get_instance_from_metadata(name: &str,
+    metadata: &Metadata, system: bool)
+    -> anyhow::Result<Box<dyn Instance>>
+{
     match metadata.method {
         InstallMethod::Package if cfg!(target_os="linux") => {
             Ok(Box::new(SystemdInstance {

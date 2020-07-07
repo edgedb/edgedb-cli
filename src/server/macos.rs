@@ -129,6 +129,9 @@ impl Macos {
 }
 
 impl<'os> Method for PackageMethod<'os, Macos> {
+    fn name(&self) -> InstallMethod {
+        InstallMethod::Package
+    }
     fn install(&self, settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {
