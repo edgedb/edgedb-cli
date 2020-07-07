@@ -34,9 +34,10 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
                          Some(v) if v == &old_ver.major_version)
             {
                 if &effective_method == meth_kind {
-                    eprintln!("EdgeDB {} ({}) is already installed. \
+                    eprintln!("EdgeDB {} ({}-{}) is already installed. \
                         Use `edgedb server upgrade` for upgrade.",
-                        old_ver.major_version, old_ver.version);
+                        old_ver.major_version,
+                        old_ver.version, old_ver.revision);
                 } else {
                     eprintln!("EdgeDB {} is already installed via {}. \
                         Please deinstall before installing via {}.",
