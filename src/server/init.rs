@@ -25,6 +25,7 @@ pub struct Settings {
     pub name: String,
     pub system: bool,
     pub version: Version<String>,
+    pub nightly: bool,
     pub method: InstallMethod,
     pub directory: PathBuf,
     pub port: u16,
@@ -36,6 +37,8 @@ pub struct Metadata {
     pub version: Version<String>,
     pub method: InstallMethod,
     pub port: u16,
+    pub nightly: bool,
+    pub start_conf: StartConf,
 }
 
 pub fn data_path(system: bool) -> anyhow::Result<PathBuf> {
@@ -131,6 +134,8 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
         version: settings.version.clone(),
         method: settings.method.clone(),
         port: settings.port,
+        nightly: settings.nightly,
+        start_conf: settings.start_conf,
     }).with_context(|| format!("failed to write metadata file {}",
                                metapath.display()))?;
     Ok(())
@@ -217,6 +222,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         name: options.name.clone(),
         system: options.system,
         version,
+        nightly: version_query.is_nightly(),
         method: meth_name,
         directory: data_path(options.system)?.join(&options.name),
         port,

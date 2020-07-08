@@ -604,6 +604,7 @@ dependencies = [
  "edgedb-protocol",
  "edgeql-parser",
  "env_logger",
+ "fn-error-context",
  "humantime 2.0.0",
  "libc",
  "linked-hash-map",
@@ -736,6 +737,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da62c4f1b81918835a8c6a484a397775fff5953fe83529afd51b05f5c6a6617d"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "fn-error-context"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73bba11a59759c631c207e99dc50fb818879a803db5c071be71c4e2d26bfbffe"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

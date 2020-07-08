@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
+
 use clap::{Clap, AppSettings};
+use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
 use crate::server::methods::InstallMethod;
@@ -54,7 +56,7 @@ pub struct ListVersions {
     pub installed_only: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum StartConf {
     Auto,
     Manual,
@@ -141,19 +143,28 @@ edgedb --nightly
   Upgrades all existing nightly instances to the latest EdgeDB nightly.
 ")]
 pub struct Upgrade {
-    #[clap(long, about="Upgrade all nightly instances")]
+    /// Upgrade all nightly instances
+    #[clap(long)]
     pub nightly: bool,
-    #[clap(long,
-        about="Upgrade specified instance(s) to a specified major version")]
+
+    /// Upgrade specified instance(s) to a specified major version
+    #[clap(long)]
     pub to_version: Option<Version<String>>,
-    #[clap(long,
-        about="Upgrade specifies instance to a latest nightly version")]
+
+    /// Upgrade specifies instance to a latest nightly version
+    #[clap(long)]
     pub to_nightly: bool,
-    #[clap(about="Only upgrade specicified database instance")]
+
+    /// Only upgrade specicified database instance
     pub name: Option<String>,
+
     /// Verbose output
     #[clap(short="v", long)]
     pub verbose: bool,
+
+    /// Force upgrade process even if there is no new version
+    #[clap(long)]
+    pub force: bool,
 }
 
 #[derive(Clap, Debug, Clone)]
