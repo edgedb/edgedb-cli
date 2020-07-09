@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::cmp::{min, Ordering};
 use std::str::FromStr;
 
 use std::ops::Bound;
@@ -41,6 +41,11 @@ pub enum SettingValue {
 pub struct Pair {
     value: &'static str,
     description: &'static str,
+}
+
+pub struct Hint {
+    text: String,
+    complete: usize,
 }
 
 trait SetRangeStrExt<K> {
@@ -166,7 +171,7 @@ pub fn complete(input: &str, cursor: usize)
     }
 }
 
-fn hint_command(cmd: &str) -> Option<String> {
+fn hint_command(cmd: &str) -> Option<Hint> {
     use backslash::CMD_CACHE;
     let mut rng = CMD_CACHE.all_commands.range_from(cmd)
         .take_while(|x| x.starts_with(cmd));
@@ -179,6 +184,7 @@ fn hint_command(cmd: &str) -> Option<String> {
                 .expect("command is defined");
 
             let mut output = String::from(&matching[cmd.len()..]);
+            let complete = output.len() + 1;
             if !cinfo.options.is_empty() {
                 output.push_str(" [-");
                 output.push_str(&cinfo.options);
@@ -196,7 +202,7 @@ fn hint_command(cmd: &str) -> Option<String> {
                 output.push_str("  -- alias of \\");
                 output.push_str(full);
             }
-            return Some(output);
+            return Some(Hint::new(output, complete));
         } else  { // multiple choices possible
             return None
         }
@@ -212,16 +218,17 @@ fn hint_command(cmd: &str) -> Option<String> {
     let options: Vec<_> = candidates.into_iter()
         .map(|(_c, pv)| &pv[..])
         .collect();
-    match options.len() {
-        0 => Some("  ← unknown backslash command".into()),
-        1..=3 => Some(format!("  ← unknown, try: {}", options.join(", "))),
+    let text = match options.len() {
+        0 => "  ← unknown backslash command".into(),
+        1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
         _ => {
-            Some(format!("  ← unknown, try: {}, ...", options[..2].join(", ")))
+            format!("  ← unknown, try: {}, ...", options[..2].join(", "))
         }
-    }
+    };
+    Some(Hint::new(text, 0))
 }
 
-fn hint_setting_name(sname: &str) -> Option<String> {
+fn hint_setting_name(sname: &str) -> Option<Hint> {
     use backslash::CMD_CACHE;
     let mut rng = CMD_CACHE.settings.range(sname..)
         .take_while(|(name, _)| name.starts_with(sname));
@@ -230,6 +237,7 @@ fn hint_setting_name(sname: &str) -> Option<String> {
         let full_match = sname.len() == matching.len();
         if full_match || !rng.next().is_some() {
             let mut output = String::from(&matching[sname.len()..]);
+            let complete = output.len()+1;
             if let Some(ref values) = setting.values {
                 output.push_str(" [");
                 output.push_str(&values.join("|"));
@@ -241,7 +249,7 @@ fn hint_setting_name(sname: &str) -> Option<String> {
             }
             output.push_str("  -- ");
             output.push_str(&setting.description);
-            return Some(output);
+            return Some(Hint::new(output, complete));
         } else  { // multiple choices possible
             return None
         }
@@ -257,16 +265,15 @@ fn hint_setting_name(sname: &str) -> Option<String> {
     let options: Vec<_> = candidates.into_iter()
         .map(|(_c, pv)| &pv[..])
         .collect();
-    match options.len() {
-        0 => Some("  ← unknown setting".into()),
-        1..=3 => Some(format!("  ← unknown, try: {}", options.join(", "))),
-        _ => {
-            Some(format!("  ← unknown, try: {}, ...", options[..2].join(", ")))
-        }
-    }
+    let text = match options.len() {
+        0 => "  ← unknown setting".into(),
+        1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
+        _ => format!("  ← unknown, try: {}, ...", options[..2].join(", ")),
+    };
+    Some(Hint::new(text, 0))
 }
 
-fn hint_setting_value(input: &str, val: &SettingValue) -> Option<String> {
+fn hint_setting_value(input: &str, val: &SettingValue) -> Option<Hint> {
     match val {
         SettingValue::Usize => None,
         SettingValue::Variants(variants) => {
@@ -275,7 +282,7 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<String> {
                 let full_match = input.len() == matching.len();
                 if full_match || !matches.next().is_some() {
                     // TODO(tailhook) describe setting
-                    return Some(matching[input.len()..].to_owned());
+                    return Some(Hint::new(&matching[input.len()..], 1000));
                 } else  { // multiple choices possible
                     return None
                 }
@@ -287,9 +294,9 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<String> {
                     _ => None,
                 };
                 if let Some(suggest) = suggest {
-                    return Some(format!(
+                    return Some(Hint::new(format!(
                         "  ← unknown boolean, did you mean: {}",
-                        suggest));
+                        suggest), 0));
                 }
             };
             let mut candidates: Vec<(f64, &String)> = variants
@@ -303,21 +310,20 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<String> {
             let options: Vec<_> = candidates.into_iter()
                 .map(|(_c, pv)| &pv[..])
                 .collect();
-            match options.len() {
-                0 => Some("  ← unknown value".into()),
-                1..=3 => {
-                    Some(format!("  ← unknown, try: {}", options.join(", ")))
-                }
+            let text = match options.len() {
+                0 => "  ← unknown value".into(),
+                1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
                 _ => {
-                    Some(format!("  ← unknown, try: {}, ...",
-                                 options[..2].join(", ")))
+                    format!("  ← unknown, try: {}, ...",
+                                 options[..2].join(", "))
                 }
-            }
+            };
+            Some(Hint::new(text, 0))
         }
     }
 }
 
-pub fn hint(input: &str, pos: usize) -> Option<String> {
+pub fn hint(input: &str, pos: usize) -> Option<Hint> {
 
     match current(input, pos) {
         (_, Current::Empty) => None,
@@ -464,6 +470,26 @@ impl rustyline::completion::Candidate for Pair {
     }
     fn display(&self) -> &str {
         self.description
+    }
+}
+
+impl Hint {
+    fn new<S: Into<String>>(text: S, complete: usize) -> Hint {
+        let text = text.into();
+        Hint { complete: min(complete, text.len()), text }
+    }
+}
+
+impl rustyline::hint::Hint for Hint {
+    fn completion(&self) -> Option<&str> {
+        if self.complete > 0 {
+            Some(&self.text[..self.complete])
+        } else {
+            None
+        }
+    }
+    fn display(&self) -> &str {
+        self.text.as_ref()
     }
 }
 

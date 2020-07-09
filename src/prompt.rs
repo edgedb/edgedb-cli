@@ -48,7 +48,10 @@ pub struct EdgeqlHelper {
 
 impl Helper for EdgeqlHelper {}
 impl Hinter for EdgeqlHelper {
-    fn hint(&self, line: &str, pos: usize, _ctx: &Context) -> Option<String> {
+    type Hint = completion::Hint;
+    fn hint(&self, line: &str, pos: usize, _ctx: &Context)
+        -> Option<Self::Hint>
+    {
         return completion::hint(line, pos);
     }
 }
