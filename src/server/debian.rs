@@ -23,9 +23,14 @@ pub struct Debian {
 
 impl Debian {
     pub fn new(rel: &os_release::OsRelease) -> anyhow::Result<Debian> {
+        let codename = match (rel.version.find("("), rel.version.find(")")) {
+            (Some(start), Some(end)) => {
+                &rel.version[start+1..end]
+            }
+            _ => "",
+        };
         Ok(Debian {
-            common: debian_like::Debian::new(
-                "Debian", rel.version_codename.clone()),
+            common: debian_like::Debian::new("Debian", codename.into()),
             linux: linux::Linux::new(),
         })
     }

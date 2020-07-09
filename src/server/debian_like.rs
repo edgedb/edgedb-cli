@@ -82,7 +82,7 @@ impl Debian {
         Ok(InstallationMethods {
             package: PackageCandidate {
                 supported: version_supported,
-                distro_name: "Ubuntu".into(),
+                distro_name: self.distro.into(),
                 distro_version: self.codename.clone(),
                 distro_supported: true,
                 version_supported,
