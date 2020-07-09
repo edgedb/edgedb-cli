@@ -6,10 +6,11 @@ use std::collections::BTreeMap;
 use anyhow::Context;
 use async_std::task;
 use linked_hash_map::LinkedHashMap;
+use fn_error_context::context;
 
 use crate::client;
 use crate::server::control::get_instance_from_metadata;
-use crate::server::detect::{self, VersionQuery};
+use crate::server::detect::{self, VersionQuery, VersionResult};
 use crate::server::init::{init, Metadata, data_path};
 use crate::server::install;
 use crate::server::options::{self, Upgrade};
@@ -224,19 +225,11 @@ fn do_minor_upgrade(method: &dyn Method,
             .context("Unable to determine version")?;
 
         if !options.force {
-            let new_ver = Version(format!("{}-{}", new.version, new.revision));
-            for ver in method.installed_versions()? {
-                if ver.major_version != version {
-                    continue
-                }
-                let cur_ver = Version(format!("{}-{}",
-                                              ver.version, ver.revision));
-                if cur_ver <= new_ver {
-                    log::info!(target: "edgedb::server::upgrade",
-                        "Version {} is up to date {}, skipping instances: {}",
-                        version, cur_ver, instances_str);
-                    return Ok(());
-                }
+            if let Some(cur_ver) = up_to_date(&version_query, &new, method)? {
+                log::info!(target: "edgedb::server::upgrade",
+                    "Version {} is up to date {}, skipping instances: {}",
+                    version, cur_ver, instances_str);
+                return Ok(());
             }
         }
 
@@ -275,7 +268,7 @@ fn do_minor_upgrade(method: &dyn Method,
     Ok(())
 }
 
-async fn dump_instance(name: &str, meta: &Metadata, socket: &Path)
+async fn dump_instance(name: &str, _meta: &Metadata, socket: &Path)
     -> anyhow::Result<()>
 {
     log::info!(target: "edgedb::server::upgrade",
@@ -300,7 +293,7 @@ async fn dump_instance(name: &str, meta: &Metadata, socket: &Path)
     Ok(())
 }
 
-async fn restore_instance(name: &str, meta: &Metadata, socket: &Path)
+async fn restore_instance(name: &str, _meta: &Metadata, socket: &Path)
     -> anyhow::Result<()>
 {
     use crate::commands::parser::Restore;
@@ -339,26 +332,16 @@ fn do_nightly_upgrade(method: &dyn Method,
         .context("Unable to determine version")?;
 
     if !options.force {
-        let new_ver = Version(format!("{}-{}", new.version, new.revision));
-        for ver in method.installed_versions()? {
-            if !ver.revision.contains("nightly") {
-                continue
-            }
-            let cur_ver = Version(format!("{}-{}", ver.version, ver.revision));
-            if cur_ver <= new_ver {
-                log::info!(target: "edgedb::server::upgrade",
-                    "Nightly is up to date {}, skipping instances: {}",
-                    cur_ver, instances_str);
-                return Ok(());
-            }
+        if let Some(cur_ver) = up_to_date(&version_query, &new, method)? {
+            log::info!(target: "edgedb::server::upgrade",
+                "Nightly is up to date {}, skipping instances: {}",
+                cur_ver, instances_str);
+            return Ok(());
         }
     }
 
     for (name, meta) in &instances {
-        let mut inst = get_instance_from_metadata(name, meta, false)?;
-        inst.start(&options::Start { name: name.clone() })?;
-        task::block_on(dump_instance(name, meta, &inst.get_socket(true)?))?;
-        inst.stop(&options::Stop { name: name.clone() })?;
+        dump_and_stop(name, meta, false)?;
     }
 
     log::info!(target: "edgedb::server::upgrade", "Upgrading the package");
@@ -372,38 +355,99 @@ fn do_nightly_upgrade(method: &dyn Method,
     })?;
 
     for (name, meta) in &instances {
-        let path = data_path(false)?.join(&name);
-        let backup = data_path(false)?.join(&format!("{}.backup", name));
-        fs::rename(path, backup)?;
-        init(&options::Init {
-            name: name.clone(),
-            system: false,
-            interactive: false,
-            nightly: true,
-            version: None,
-            method: Some(method.name()),
-            port: Some(meta.port),
-            start_conf: meta.start_conf,
-        })?;
-
-        let mut inst = get_instance_from_metadata(name, meta, false)?;
-        inst.start(&options::Start { name: name.clone() })?;
-
-        task::block_on(restore_instance(name, meta,
-                                        &inst.get_socket(true)?))?;
+        reinit_and_restore(name, meta, false, method)?;
     }
     Ok(())
+}
+
+#[context("failed to dump {:?}", name)]
+fn dump_and_stop(name: &str, meta: &Metadata, system: bool)
+    -> anyhow::Result<()>
+{
+    let mut inst = get_instance_from_metadata(name, meta, system)?;
+    // in case not started for now
+    inst.start(&options::Start { name: name.into() })?;
+    task::block_on(dump_instance(name, meta, &inst.get_socket(true)?))?;
+    inst.stop(&options::Stop { name: name.into() })?;
+    Ok(())
+}
+
+#[context("failed to restore {:?}", name)]
+fn reinit_and_restore(name: &str, meta: &Metadata, system: bool,
+    method: &dyn Method)
+    -> anyhow::Result<()>
+{
+    let base = data_path(false)?;
+    let path = base.join(&name);
+    let backup = base.join(&format!("{}.backup", name));
+    fs::rename(path, backup)?;
+    init(&options::Init {
+        name: name.into(),
+        system,
+        interactive: false,
+        nightly: true,
+        version: None,
+        method: Some(method.name()),
+        port: Some(meta.port),
+        start_conf: meta.start_conf,
+    })?;
+
+    let mut inst = get_instance_from_metadata(name, meta, system)?;
+    inst.start(&options::Start { name: name.into() })?;
+
+    task::block_on(restore_instance(name, meta,
+                                    &inst.get_socket(true)?))?;
+    log::info!(target: "edgedb::server::upgrade",
+        "Restarting instance {:?} to apply changes from `restore --all`");
+    inst.restart(&options::Start { name: name.into() })?;
+    Ok(())
+}
+
+fn up_to_date(version: &VersionQuery, new: &VersionResult, method: &dyn Method)
+    -> anyhow::Result<Option<Version<String>>>
+{
+    let new_ver = Version(format!("{}-{}", new.version, new.revision));
+    for ver in method.installed_versions()? {
+        if !version.installed_matches(ver) {
+            continue
+        }
+        let cur_ver = Version(format!("{}-{}",
+                                      ver.version, ver.revision));
+        if cur_ver >= new_ver {
+            return Ok(Some(cur_ver));
+        }
+    }
+    return Ok(None);
 }
 
 fn do_instance_upgrade(method: &dyn Method,
     name: String, meta: Metadata, version: &VersionQuery, options: &Upgrade)
     -> anyhow::Result<()>
 {
-    // INSTALL
-    // DUMP
-    // STOP
-    // MODIFY SERVICE FILE
-    // START
-    // RESTORE
-    todo!();
+    let new = method.get_version(&version)
+        .context("Unable to determine version")?;
+
+    if !options.force {
+        if let Some(cur_ver) = up_to_date(version, &new, method)? {
+            log::info!(target: "edgedb::server::upgrade",
+                "Version {} is up to date {}, skipping instance: {}",
+                version, cur_ver, name);
+            return Ok(());
+        }
+    }
+
+    dump_and_stop(&name, &meta, false)?;
+
+    log::info!(target: "edgedb::server::upgrade", "Installing the package");
+    method.install(&install::Settings {
+        method: method.name(),
+        package_name: new.package_name,
+        major_version: new.major_version,
+        version: new.version,
+        nightly: version.is_nightly(),
+        extra: LinkedHashMap::new(),
+    })?;
+
+    reinit_and_restore(&name, &meta, false, method)?;
+    Ok(())
 }

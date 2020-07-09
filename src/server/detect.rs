@@ -136,9 +136,10 @@ impl VersionQuery {
         use VersionQuery::*;
 
         match self {
-            Nightly => true, // TODO(tailhook) only for real nightly
-            Stable(None) => true,
-            Stable(Some(v)) => &pkg.major_version == v,
+            Nightly => pkg.revision.contains("nightly"),
+            Stable(None) => !pkg.revision.contains("nightly"),
+            Stable(Some(v)) => &pkg.major_version == v &&
+                               !pkg.revision.contains("nightly"),
         }
     }
 }

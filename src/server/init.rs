@@ -208,12 +208,16 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
 
     } else {
         let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
-        if let Some((ver, meth_name)) = find_version(&methods, |_| true)? {
+        if let Some((ver, meth_name)) =
+            find_version(&methods, |p| !p.revision.contains("nightly"))?
+        {
             let meth = methods.remove(&meth_name)
                 .expect("method is recently used");
             (ver, meth_name, meth)
         } else {
-            anyhow::bail!("Cannot find any installed version. Run: \n  \
+            anyhow::bail!("Cannot find any installed version \
+                (note: nightly versions are skipped unless `--nightly` \
+                is used).\nRun: \n  \
                 edgedb server install");
         }
     };
