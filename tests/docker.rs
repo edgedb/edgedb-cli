@@ -121,14 +121,13 @@ pub fn sudo_test(dockerfile: &str, tagname: &str, nightly: bool)
             r###"
                 RUST_LOG=info edgedb server install {arg}
                 echo --- DONE ---
-                edgedb-server --help
+                /usr/bin/edgedb-server-* --version
             "###, arg=if nightly { "--nightly" } else {""})
         ).success()
-        // add edgedb-server --version check since alpha3
         .stdout(predicates::str::contains("--- DONE ---"))
         .stdout(predicates::function::function(|data: &str| {
             let tail = &data[data.find("--- DONE ---").unwrap()..];
-            assert!(tail.contains("Usage: edgedb-server [OPTIONS]"));
+            assert!(tail.contains("edgedb-server, version"));
             true
         }));
     Ok(())
