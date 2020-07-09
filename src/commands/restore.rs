@@ -200,7 +200,7 @@ async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
     // CommandComplete
     let start_waiting = Instant::now();
     loop {
-        timeout(Duration::from_secs(60), pending()).await?;
+        timeout(Duration::from_secs(60), pending()).await.ok();
         if verbose {
             eprintln!("Waiting for complete {:?}", start_waiting.elapsed());
         }
