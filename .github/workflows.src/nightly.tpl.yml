@@ -95,52 +95,8 @@ jobs:
         path: artifacts/<< tgt.name >>
 <% endfor %>
 <% for tgt in targets.linux %>
-  test-<< tgt.name >>:
-    needs: [build-<< tgt.name >>]
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/download-artifact@v1
-      with:
-        name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
-
-    - name: Test
-      uses: edgedb/edgedb-pkg/integration/linux/test/<< tgt.name >>@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "<< tgt.platform >>"
-        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
-
-<% endfor %>
-<% for tgt in targets.macos %>
-  test-<< tgt.name >>:
-    needs: [build-<< tgt.name >>]
-    runs-on: macos-latest
-
-    steps:
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-pkg
-        ref: master
-        path: edgedb/edgedb-pkg
-
-    - uses: actions/download-artifact@v1
-      with:
-        name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
-
-    - name: Test
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "<< tgt.platform >>"
-        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
-      run: |
-        edgedb-pkg/integration/macos/test.sh
-<% endfor %>
-<% for tgt in targets.linux %>
   publish-<< tgt.name >>:
-    needs: [test-<< tgt.name >>]
+    needs: [build-<< tgt.name >>]
     runs-on: ubuntu-latest
 
     steps:
@@ -164,35 +120,15 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - name: Test Published
-      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< tgt.name >>@master
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "<< tgt.platform >>"
-        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
-
     - uses: actions/checkout@v1
       with:
         repository: edgedb/edgedb-docker
         ref: master
         path: edgedb/dockerfile
-    <% if tgt.name == 'debian-stretch' %>
-
-    - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@2.6
-      with:
-        name: edgedb/edgedb:nightly
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-        snapshot: true
-        workdir: dockerfile
-        buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=.nightly
-    <% endif %>
 <% endfor %>
 <% for tgt in targets.macos %>
   publish-<< tgt.name >>:
-    needs: [test-<< tgt.name >>]
+    needs: [build-<< tgt.name >>]
     runs-on: macos-latest
 
     steps:
