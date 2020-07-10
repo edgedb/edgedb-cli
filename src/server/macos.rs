@@ -282,7 +282,8 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     }
 }
 
-fn get_server_path(major_version: &Version<String>) -> anyhow::Result<PathBuf>
+pub fn get_server_path(major_version: &Version<String>)
+    -> anyhow::Result<PathBuf>
 {
     Ok(Path::new("/Library/Frameworks/EdgeDB.framework/Versions")
         .join(major_version.as_ref())

@@ -84,6 +84,16 @@ pub struct Init {
 pub struct Start {
     #[clap(about="Database server instance name", default_value="default")]
     pub name: String,
+    #[clap(long)]
+    #[cfg_attr(target_os="linux",
+        clap(about="Start the server in the foreground rather than using \
+                    systemd to manage the process (note you might need to \
+                    stop non-foreground instance first)"))]
+    #[cfg_attr(target_os="macos",
+        clap(about="Start the server in the foreground rather than using \
+                    launchctl to manage the process (note you might need to \
+                    stop non-foreground instance first)"))]
+    pub foreground: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

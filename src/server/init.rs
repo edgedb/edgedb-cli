@@ -35,6 +35,7 @@ pub struct Settings {
 pub struct Metadata {
     pub version: Version<String>,
     pub method: InstallMethod,
+    pub port: u16,
 }
 
 pub fn data_path(system: bool) -> anyhow::Result<PathBuf> {
@@ -129,6 +130,7 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
     write_metadata(&metapath, &Metadata {
         version: settings.version.clone(),
         method: settings.method.clone(),
+        port: settings.port,
     }).with_context(|| format!("failed to write metadata file {}",
                                metapath.display()))?;
     Ok(())
@@ -253,7 +255,10 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         match settings.start_conf {
             StartConf::Auto => {
                 control::get_instance(&settings.name)?
-                    .start(&Start { name: settings.name.clone() })?;
+                    .start(&Start {
+                        name: settings.name.clone(),
+                        foreground: false,
+                    })?;
                 println!("Bootstrap complete. Server is up and runnning now.");
             }
             StartConf::Manual => {

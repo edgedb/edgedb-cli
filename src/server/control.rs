@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::process::{Command, exit};
 
 use anyhow::Context;
@@ -9,6 +9,7 @@ use crate::server::options::{Start, Stop, Restart, Status};
 use crate::server::init::{data_path, Metadata};
 use crate::server::methods::InstallMethod;
 use crate::server::version::Version;
+use crate::server::{linux, macos};
 use crate::platform::{home_dir, get_current_uid};
 
 
@@ -17,14 +18,16 @@ pub trait Instance {
     fn stop(&mut self, options: &Stop) -> anyhow::Result<()>;
     fn restart(&mut self, options: &Restart) -> anyhow::Result<()>;
     fn status(&mut self, options: &Status) -> anyhow::Result<()>;
+    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf>;
 }
 
 pub struct SystemdInstance {
     name: String,
     #[allow(dead_code)]
     system: bool,
-    #[allow(dead_code)]
     version: Version<String>,
+    data_dir: PathBuf,
+    port: u16,
 }
 
 pub struct LaunchdInstance {
@@ -35,6 +38,8 @@ pub struct LaunchdInstance {
     #[allow(dead_code)]
     version: Version<String>,
     unit_path: PathBuf,
+    data_dir: PathBuf,
+    port: u16,
 }
 
 pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
@@ -60,6 +65,8 @@ pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
                 name: name.to_owned(),
                 system: false,
                 version: metadata.version.to_owned(),
+                port: metadata.port,
+                data_dir: dir,
             }))
         }
         InstallMethod::Package if cfg!(target_os="macos") => {
@@ -68,8 +75,10 @@ pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
                 name: name.to_owned(),
                 system: false,
                 version: metadata.version.to_owned(),
+                data_dir: dir,
                 unit_path: home_dir()?.join("Library/LaunchAgents")
                     .join(&unit_name),
+                port: metadata.port,
             }))
         }
         _ => {
@@ -79,11 +88,20 @@ pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
 }
 
 impl Instance for SystemdInstance {
-    fn start(&mut self, _options: &Start) -> anyhow::Result<()> {
-        run(Command::new("systemctl")
-            .arg("--user")
-            .arg("start")
-            .arg(format!("edgedb-server@{}", self.name)))?;
+    fn start(&mut self, options: &Start) -> anyhow::Result<()> {
+        if options.foreground {
+            let sock = self.get_socket(true)?;
+            let socket_dir = sock.parent().unwrap();
+            run(Command::new(linux::get_server_path(&self.version))
+                .arg("--port").arg(self.port.to_string())
+                .arg("--data-dir").arg(&self.data_dir)
+                .arg("--runstate-dir").arg(&socket_dir))?;
+        } else {
+            run(Command::new("systemctl")
+                .arg("--user")
+                .arg("start")
+                .arg(format!("edgedb-server@{}", self.name)))?;
+        }
         Ok(())
     }
     fn stop(&mut self, _options: &Stop) -> anyhow::Result<()> {
@@ -107,13 +125,32 @@ impl Instance for SystemdInstance {
             .arg(format!("edgedb-server@{}", self.name)))?;
         Ok(())
     }
+    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
+        Ok(dirs::runtime_dir()
+            .unwrap_or_else(|| {
+                Path::new("/run/user").join(get_current_uid().to_string())
+            })
+            .join(format!("edgedb-{}", self.name))
+            .join(format!(".s.EDGEDB{}.{}",
+                if admin { ".admin" } else { "" },
+                self.port)))
+    }
 }
 
 impl Instance for LaunchdInstance {
-    fn start(&mut self, _options: &Start) -> anyhow::Result<()> {
-        run(Command::new("launchctl")
-            .arg("load").arg("-w")
-            .arg(&self.unit_path))?;
+    fn start(&mut self, options: &Start) -> anyhow::Result<()> {
+        if options.foreground {
+            let sock = self.get_socket(true)?;
+            let socket_dir = sock.parent().unwrap();
+            run(Command::new(macos::get_server_path(&self.version)?)
+                .arg("--port").arg(self.port.to_string())
+                .arg("--data-dir").arg(&self.data_dir)
+                .arg("--runstate-dir").arg(&socket_dir))?;
+        } else {
+            run(Command::new("launchctl")
+                .arg("load").arg("-w")
+                .arg(&self.unit_path))?;
+        }
         Ok(())
     }
     fn stop(&mut self, _options: &Stop) -> anyhow::Result<()> {
@@ -154,5 +191,13 @@ impl Instance for LaunchdInstance {
         }
         eprintln!("Server is not running");
         exit(3);
+    }
+    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
+        Ok(home_dir()?
+            .join(".edgedb/run")
+            .join(&self.name)
+            .join(format!(".s.EDGEDB{}.{}",
+                if admin { ".admin" } else { "" },
+                self.port)))
     }
 }
