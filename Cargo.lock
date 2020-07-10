@@ -1806,7 +1806,7 @@ dependencies = [
 [[package]]
 name = "rustyline"
 version = "6.2.0"
-source = "git+https://github.com/tailhook/rustyline?branch=edgedb_20200709#7c2f9516d59a1a0a566f4d7bb143e5eeb2c83374"
+source = "git+https://github.com/tailhook/rustyline?branch=edgedb_20200710#51419b98149059efb881918abaa7d8ec904b2ac3"
 dependencies = [
  "cfg-if",
  "dirs-next",
