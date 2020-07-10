@@ -166,6 +166,8 @@ To configure your current shell run `source {env_path}`
     } else {
         println!(r###"EdgeDB command-line tool is installed now. Great!"###);
     }
+    println!("To install the server locally run:\n  \
+                edgedb server install");
 }
 
 pub fn read_choice() -> anyhow::Result<String> {
