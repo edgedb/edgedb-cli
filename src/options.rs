@@ -3,7 +3,7 @@ use std::time::Duration;
 use std::process::exit;
 
 use atty;
-use clap::{Clap, AppSettings};
+use clap::{Clap, AppSettings, ArgSettings};
 use whoami;
 
 use crate::repl::OutputMode;
@@ -17,48 +17,53 @@ use crate::client::Builder;
 #[clap(version=clap::crate_version!())]
 struct TmpOptions {
     /// Host of the EdgeDB instance
-    #[clap(short="H", long)]
+    #[clap(short="H", long, help_heading=Some("CONNECTION OPTIONS"))]
     pub host: Option<String>,
 
     /// Port to connect to EdgeDB
-    #[clap(short="P", long)]
+    #[clap(short="P", long, help_heading=Some("CONNECTION OPTIONS"))]
     pub port: Option<u16>,
 
     /// User name of the EdgeDB user
-    #[clap(short="u", long)]
+    #[clap(short="u", long, help_heading=Some("CONNECTION OPTIONS"))]
     pub user: Option<String>,
 
     /// Database name to connect to
-    #[clap(short="d", long)]
+    #[clap(short="d", long, help_heading=Some("CONNECTION OPTIONS"))]
     pub database: Option<String>,
 
     /// Connect to a passwordless unix socket with superuser
     /// privileges by default
-    #[clap(long)]
+    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
     pub admin: bool,
 
     /// Ask for password on the terminal (TTY)
-    #[clap(long)]
+    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
     pub password: bool,
 
     /// Don't ask for password
-    #[clap(long)]
+    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
     pub no_password: bool,
 
     /// Read the password from stdin rather than TTY (useful for scripts)
-    #[clap(long)]
+    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
     pub password_from_stdin: bool,
 
     /// In case EdgeDB connection can't be established, retry up to N seconds.
-    #[clap(long, name="N",
+    #[clap(long, name="N", help_heading=Some("CONNECTION OPTIONS"),
                 parse(try_from_str=humantime::parse_duration))]
     pub wait_until_available: Option<Duration>,
 
-    #[clap(long)]
+    #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
+    #[cfg_attr(not(feature="dev_mode"), clap(setting=ArgSettings::Hidden))]
     pub debug_print_frames: bool,
-    #[clap(long)]
+
+    #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
+    #[cfg_attr(not(feature="dev_mode"), clap(setting=ArgSettings::Hidden))]
     pub debug_print_descriptors: bool,
-    #[clap(long)]
+
+    #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
+    #[cfg_attr(not(feature="dev_mode"), clap(setting=ArgSettings::Hidden))]
     pub debug_print_codecs: bool,
 
     /// Tab-separated output of the queries
