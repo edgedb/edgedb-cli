@@ -9,9 +9,10 @@ use prettytable::{Table, Row, Cell};
 use serde::{Serialize, Deserialize};
 
 use crate::platform::config_dir;
+use crate::server::control;
 use crate::server::detect::{self, VersionQuery, InstalledPackage};
 use crate::server::methods::{InstallMethod, Methods};
-use crate::server::options::{Init, StartConf};
+use crate::server::options::{Init, Start, StartConf};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
 use crate::table;
@@ -251,6 +252,8 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         }).context("failed to init service")?;
         match settings.start_conf {
             StartConf::Auto => {
+                control::get_instance(&settings.name)?
+                    .start(&Start { name: settings.name.clone() })?;
                 println!("Bootstrap complete. Server is up and runnning now.");
             }
             StartConf::Manual => {
