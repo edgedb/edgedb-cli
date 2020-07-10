@@ -27,3 +27,4 @@ mod init;
 mod control;
 
 pub use main::main;
+pub use control::get_instance;

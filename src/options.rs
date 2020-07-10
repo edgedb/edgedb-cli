@@ -54,6 +54,11 @@ struct TmpOptions {
                 parse(try_from_str=humantime::parse_duration))]
     pub wait_until_available: Option<Duration>,
 
+    /// Local instance name created with `edgedb server init` to connect to
+    /// (overrides host and port)
+    #[clap(short="I", long, help_heading=Some("CONNECTION OPTIONS"))]
+    pub instance: Option<String>,
+
     #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
     #[cfg_attr(not(feature="dev_mode"),
         clap(setting=clap::ArgSettings::Hidden))]
@@ -193,7 +198,17 @@ impl Options {
         tmp.wait_until_available.map(|w| conn_params.wait_until_available(w));
 
         let unix_host = host.contains("/");
-        if admin || unix_host {
+        if let Some(name) = tmp.instance {
+            let path = server::get_instance(&name)
+                .and_then(|inst| inst.get_socket(admin))
+                .unwrap_or_else(|e| {
+                    eprintln!("Could not find instance {:?}: {:#}.\n\
+                        Note: only instances created by `edgedb server init` \
+                        are supported by `--instance` argument.", name, e);
+                    exit(1);
+                });
+            conn_params.unix_addr(path);
+        } else if admin || unix_host {
             let prefix = if unix_host {
                 &host
             } else {
