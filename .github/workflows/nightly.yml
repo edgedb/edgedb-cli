@@ -11,169 +11,172 @@ on:
 
 jobs:
 
-  build-linux:
+  build-debian-stretch:
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 4
-      matrix:
-        target: [
-          debian-stretch,
-          debian-buster,
-          ubuntu-xenial,
-          ubuntu-bionic,
-          ubuntu-focal,
-          centos-7,
-          centos-8,
-          linux-x86_64,
-        ]
-        include:
-          - target: debian-stretch
-            platform: debian
-            platform_version: stretch
-          - target: debian-buster
-            platform: debian
-            platform_version: buster
-          - target: ubuntu-xenial
-            platform: ubuntu
-            platform_version: xenial
-          - target: ubuntu-bionic
-            platform: ubuntu
-            platform_version: bionic
-          - target: ubuntu-focal
-            platform: ubuntu
-            platform_version: focal
-          - target: centos-7
-            platform: centos
-            platform_version: 7
-          - target: centos-8
-            platform: centos
-            platform_version: 8
-          - target: linux-x86_64
-            platform: linux
-            platform_version: x86_64
 
     steps:
-
-    - name: Build (${{ matrix.target }})
+    - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
-      if: matrix.target == 'debian-stretch'
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "stretch"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
-    - name: Build (${{ matrix.target }})
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-debian-stretch
+        path: artifacts/debian-stretch
+
+  build-debian-buster:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
-      if: matrix.target == 'debian-buster'
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
-    - name: Build (${{ matrix.target }})
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-debian-buster
+        path: artifacts/debian-buster
+
+  build-ubuntu-xenial:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
-      if: matrix.target == 'ubuntu-xenial'
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "xenial"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
-    - name: Build (${{ matrix.target }})
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-ubuntu-xenial
+        path: artifacts/ubuntu-xenial
+
+  build-ubuntu-bionic:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
-      if: matrix.target == 'ubuntu-bionic'
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
-    - name: Build (${{ matrix.target }})
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-ubuntu-bionic
+        path: artifacts/ubuntu-bionic
+
+  build-ubuntu-focal:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
-      if: matrix.target == 'ubuntu-focal'
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
-    - name: Build (${{ matrix.target }})
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-ubuntu-focal
+        path: artifacts/ubuntu-focal
+
+  build-centos-7:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
-      if: matrix.target == 'centos-7'
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "7"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
-    - name: Build (${{ matrix.target }})
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-centos-7
+        path: artifacts/centos-7
+
+  build-centos-8:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
-      if: matrix.target == 'centos-8'
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
 
-    - name: Build (${{ matrix.target }})
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-centos-8
+        path: artifacts/centos-8
+
+  build-linux-x86_64:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
-      if: matrix.target == 'linux-x86_64'
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
         BUILD_GENERIC: true
 
 
-
     - uses: actions/upload-artifact@v1
       with:
-        name: builds-${{ matrix.target }}
-        path: artifacts/${{ matrix.target }}
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
 
 
-
-  build-macos:
+  build-macos-x86_64:
     runs-on: macos-latest
     continue-on-error: true
-
-    strategy:
-      max-parallel: 4
-      matrix:
-        target: [
-          macos-x86_64,
-        ]
-        include:
-          - target: macos-x86_64
-            platform: macos
-            platform_version: x86_64
 
     steps:
     - uses: actions/checkout@v1
@@ -211,13 +214,12 @@ jobs:
           /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
         sudo xcode-select -s /Library/Developer/CommandLineTools
 
-
-    - name: Build (${{ matrix.target }})
+    - name: Build
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "x86_64"
         SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
 
@@ -229,154 +231,268 @@ jobs:
 
     - uses: actions/upload-artifact@v1
       with:
-        name: builds-${{ matrix.target }}
-        path: artifacts/${{ matrix.target }}
+        name: builds-macos-x86_64
+        path: artifacts/macos-x86_64
 
 
-
-  publish-linux:
-    needs: [build-linux]
+  publish-debian-stretch:
+    needs: [build-debian-stretch]
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 4
-      matrix:
-        target: [
-          debian-stretch,
-          debian-buster,
-          ubuntu-xenial,
-          ubuntu-bionic,
-          ubuntu-focal,
-          centos-7,
-          centos-8,
-          linux-x86_64,
-        ]
-        include:
-          - target: debian-stretch
-            platform: debian
-            platform_version: stretch
-          - target: debian-buster
-            platform: debian
-            platform_version: buster
-          - target: ubuntu-xenial
-            platform: ubuntu
-            platform_version: xenial
-          - target: ubuntu-bionic
-            platform: ubuntu
-            platform_version: bionic
-          - target: ubuntu-focal
-            platform: ubuntu
-            platform_version: focal
-          - target: centos-7
-            platform: centos
-            platform_version: 7
-          - target: centos-8
-            platform: centos
-            platform_version: 8
-          - target: linux-x86_64
-            platform: linux
-            platform_version: x86_64
 
     steps:
     - uses: actions/download-artifact@v1
       with:
-        name: builds-${{ matrix.target }}
-        path: artifacts/${{ matrix.target }}
+        name: builds-debian-stretch
+        path: artifacts/debian-stretch
 
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-stretch
 
-    - name: Publish (${{ matrix.target }})
+    - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/debian-stretch@master
-      if: matrix.target == 'debian-stretch'
       env:
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "stretch"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-buster@master
-      if: matrix.target == 'debian-buster'
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: edgedb/dockerfile
 
-    - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-xenial@master
-      if: matrix.target == 'ubuntu-xenial'
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-    - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-bionic@master
-      if: matrix.target == 'ubuntu-bionic'
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-    - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-focal@master
-      if: matrix.target == 'ubuntu-focal'
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-    - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-7@master
-      if: matrix.target == 'centos-7'
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-    - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-8@master
-      if: matrix.target == 'centos-8'
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-    - name: Publish (${{ matrix.target }})
-      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
-      if: matrix.target == 'linux-x86_64'
-      env:
-        PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
-        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-
-
-
-
-  publish-macos:
-    needs: [build-macos]
-    runs-on: macos-latest
-    strategy:
-      max-parallel: 4
-      matrix:
-        target: [
-          macos-x86_64,
-        ]
-        include:
-          - target: macos-x86_64
-            platform: macos
-            platform_version: x86_64
+  publish-debian-buster:
+    needs: [build-debian-buster]
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v1
       with:
-        name: builds-${{ matrix.target }}
-        path: artifacts/${{ matrix.target }}
+        name: builds-debian-buster
+        path: artifacts/debian-buster
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-buster
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-buster@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "buster"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: edgedb/dockerfile
+
+  publish-ubuntu-xenial:
+    needs: [build-ubuntu-xenial]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-ubuntu-xenial
+        path: artifacts/ubuntu-xenial
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-xenial
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-xenial@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "xenial"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: edgedb/dockerfile
+
+  publish-ubuntu-bionic:
+    needs: [build-ubuntu-bionic]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-ubuntu-bionic
+        path: artifacts/ubuntu-bionic
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-bionic
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-bionic@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "bionic"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: edgedb/dockerfile
+
+  publish-ubuntu-focal:
+    needs: [build-ubuntu-focal]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-ubuntu-focal
+        path: artifacts/ubuntu-focal
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-focal
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-focal@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "focal"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: edgedb/dockerfile
+
+  publish-centos-7:
+    needs: [build-centos-7]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-centos-7
+        path: artifacts/centos-7
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-7
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-7@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "7"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: edgedb/dockerfile
+
+  publish-centos-8:
+    needs: [build-centos-8]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-centos-8
+        path: artifacts/centos-8
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: centos-8
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-8@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "centos"
+        PKG_PLATFORM_VERSION: "8"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: edgedb/dockerfile
+
+  publish-linux-x86_64:
+    needs: [build-linux-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linux-x86_64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-docker
+        ref: master
+        path: edgedb/dockerfile
+
+
+  publish-macos-x86_64:
+    needs: [build-macos-x86_64]
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-macos-x86_64
+        path: artifacts/macos-x86_64
 
     - uses: actions/checkout@v1
       with:
@@ -384,15 +500,19 @@ jobs:
         ref: master
         path: edgedb-cli/edgedb-pkg
 
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: macos-x86_64
 
-    - name: Publish (${{ matrix.target }})
+    - name: Publish
       env:
         PKG_SUBDIST: "nightly"
-        PKG_PLATFORM: "${{ matrix.platform }}"
-        PKG_PLATFORM_VERSION: "${{ matrix.platform_version }}"
+        PKG_PLATFORM: "macos"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
       run: |
         edgedb-pkg/integration/macos/publish.sh
-
-
 
