@@ -3,7 +3,7 @@ use std::time::Duration;
 use std::process::exit;
 
 use atty;
-use clap::{Clap, AppSettings, ArgSettings};
+use clap::{Clap, AppSettings};
 use whoami;
 
 use crate::repl::OutputMode;
@@ -55,15 +55,18 @@ struct TmpOptions {
     pub wait_until_available: Option<Duration>,
 
     #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
-    #[cfg_attr(not(feature="dev_mode"), clap(setting=ArgSettings::Hidden))]
+    #[cfg_attr(not(feature="dev_mode"),
+        clap(setting=clap::ArgSettings::Hidden))]
     pub debug_print_frames: bool,
 
     #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
-    #[cfg_attr(not(feature="dev_mode"), clap(setting=ArgSettings::Hidden))]
+    #[cfg_attr(not(feature="dev_mode"),
+        clap(setting=clap::ArgSettings::Hidden))]
     pub debug_print_descriptors: bool,
 
     #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
-    #[cfg_attr(not(feature="dev_mode"), clap(setting=ArgSettings::Hidden))]
+    #[cfg_attr(not(feature="dev_mode"),
+        clap(setting=clap::ArgSettings::Hidden))]
     pub debug_print_codecs: bool,
 
     /// Tab-separated output of the queries
