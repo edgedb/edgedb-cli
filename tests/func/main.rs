@@ -55,7 +55,10 @@ impl ServerGuard {
     fn start() -> ServerGuard {
         use std::process::{Command, Stdio};
 
-        let mut cmd = Command::new("edgedb-server");
+        let bin_name = format!("edgedb-server-{}",
+            option_env!("EDGEDB_MAJOR_VERSION")
+            .expect("EDGEDB_MAJOR_VERSION env var should be set"));
+        let mut cmd = Command::new(&bin_name);
         cmd.arg("--temp-dir");
         cmd.arg("--testmode");
         cmd.arg("--echo-runtime-info");
@@ -69,7 +72,8 @@ impl ServerGuard {
         }
         cmd.stdout(Stdio::piped());
 
-        let mut process = cmd.spawn().expect("Can run edgedb-server");
+        let mut process = cmd.spawn()
+            .expect(&format!("Can run {}", bin_name));
         let process_in = process.stdout.take().expect("stdout is pipe");
         let (tx, rx) = sync_channel(1);
         let thread = thread::spawn(move || {

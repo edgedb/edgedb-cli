@@ -1,6 +1,8 @@
 on: [push]
 
 name: Tests
+env:
+  EDGEDB_MAJOR_VERSION: 1-alpha4
 
 jobs:
   test:
@@ -22,7 +24,7 @@ jobs:
       - name: Install EdgeDB
         env:
           OS_NAME: ${{ matrix.os }}
-          SLOT: 1-alpha3
+          SLOT: ${{ env.EDGEDB_MAJOR_VERSION }}
         run: |
           .github/workflows/install-edgedb.sh
 
@@ -51,7 +53,7 @@ jobs:
       - name: Install EdgeDB
         env:
           OS_NAME: ${{ matrix.os }}
-          SLOT: 1-alpha3
+          SLOT: ${{ env.EDGEDB_MAJOR_VERSION }}
         run: |
           .github/workflows/install-edgedb.sh
 

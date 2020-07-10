@@ -138,7 +138,7 @@ containers:
       suite: bionic.nightly
       components: [main]
       trusted: true
-    - !Install [edgedb-1-alpha3]
+    - !Install [edgedb-1-alpha4]
     - !Text
       /var/docker.sock: ""
 
@@ -152,7 +152,8 @@ containers:
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
       EDGEDB_HOST: '/work/tmp/run'
-      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-server-1-alpha3/bin
+      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-server-1-alpha4/bin
+      EDGEDB_MAJOR_VERSION: 1-alpha4
 
   tools:
     setup:
