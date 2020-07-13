@@ -142,6 +142,7 @@ impl Builder {
                 Err(e) if e.kind() == io::ErrorKind::ConnectionRefused => {
                     if let Some(wait) = self.wait {
                         if wait > start.elapsed() {
+                            sleep(Duration::from_millis(100)).await;
                             continue;
                         } else {
                             Err(e).context(format!("Can't establish \
