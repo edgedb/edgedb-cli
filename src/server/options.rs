@@ -60,7 +60,8 @@ pub enum StartConf {
 
 #[derive(Clap, Debug, Clone)]
 pub struct Init {
-    #[clap(about="Database server instance name", default_value="default")]
+    /// Database server instance name
+    #[clap(default_value="default", validator(instance_name_opt))]
     pub name: String,
     #[clap(long)]
     pub system: bool,
@@ -82,7 +83,8 @@ pub struct Init {
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Start {
-    #[clap(about="Database server instance name", default_value="default")]
+    /// Database server instance name
+    #[clap(default_value="default", validator(instance_name_opt))]
     pub name: String,
     #[clap(long)]
     #[cfg_attr(target_os="linux",
@@ -99,21 +101,24 @@ pub struct Start {
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Stop {
-    #[clap(about="Database server instance name", default_value="default")]
+    /// Database server instance name
+    #[clap(default_value="default", validator(instance_name_opt))]
     pub name: String,
 }
 
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Restart {
-    #[clap(about="Database server instance name", default_value="default")]
+    /// Database server instance name
+    #[clap(default_value="default", validator(instance_name_opt))]
     pub name: String,
 }
 
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Status {
-    #[clap(about="Database server instance name", default_value="default")]
+    /// Database server instance name
+    #[clap(default_value="default", validator(instance_name_opt))]
     pub name: String,
 }
 
@@ -150,3 +155,24 @@ impl fmt::Display for StartConf {
     }
 }
 
+fn instance_name_opt(name: &str) -> Result<(), String> {
+    if is_ident(&name) {
+        return Ok(())
+    }
+    return Err("instance name must be a valid identifier, \
+                (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)".into())
+}
+
+fn is_ident(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    for c in chars {
+        if !c.is_alphanumeric() && c != '_' {
+            return false;
+        }
+    }
+    return true
+}
