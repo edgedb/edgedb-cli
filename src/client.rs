@@ -12,6 +12,7 @@ use async_std::future::{timeout, pending};
 use async_std::io::prelude::WriteExt;
 use async_std::io::ReadExt;
 use async_std::net::{TcpStream, ToSocketAddrs};
+use async_std::task::sleep;
 use async_listen::ByteStream;
 use bytes::{Bytes, BytesMut};
 use scram::ScramClient;
@@ -170,9 +171,13 @@ impl Builder {
         let conn = loop {
             let cres = UnixStream::connect(&path).await;
             match cres {
-                Err(e) if e.kind() == io::ErrorKind::ConnectionRefused => {
+                Err(e) if matches!(e.kind(),
+                    io::ErrorKind::ConnectionRefused |
+                    io::ErrorKind::NotFound)
+                => {
                     if let Some(wait) = self.wait {
                         if wait > start.elapsed() {
+                            sleep(Duration::from_millis(100)).await;
                             continue;
                         } else {
                             Err(e).context(format!("Can't establish \
