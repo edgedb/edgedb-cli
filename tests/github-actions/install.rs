@@ -129,15 +129,15 @@ fn github_action_install() -> anyhow::Result<()> {
             .code(51);
 
         if cfg!(target_os="macos") {
-            println!("Init default");
+            println!("Init first"); // TODO(tailhook) replace to default
             Command::new(&edgedb)
-                .arg("server").arg("init")
+                .arg("server").arg("init").arg("inst1")
                 .assert()
                 .success();
 
             println!("Execute query");
             Command::new(&edgedb)
-                .arg("--instance").arg("default")
+                .arg("--admin").arg("--instance").arg("inst1")
                 .arg("--wait-until-available=20s")
                 .arg("query").arg("SELECT 1")
                 .assert()
@@ -145,31 +145,31 @@ fn github_action_install() -> anyhow::Result<()> {
 
             println!("Status");
             Command::new(&edgedb)
-                .arg("server").arg("status")
+                .arg("server").arg("status").arg("inst1")
                 .assert()
                 .success();
 
             println!("Restart");
             Command::new(&edgedb)
-                .arg("server").arg("restart")
+                .arg("server").arg("restart").arg("inst1")
                 .assert()
                 .success();
 
             println!("Status");
             Command::new(&edgedb)
-                .arg("server").arg("status")
+                .arg("server").arg("status").arg("inst1")
                 .assert()
                 .success();
 
             println!("Stop");
             Command::new(&edgedb)
-                .arg("server").arg("stop")
+                .arg("server").arg("stop").arg("inst1")
                 .assert()
                 .success();
 
             println!("Status");
             Command::new(&edgedb)
-                .arg("server").arg("status")
+                .arg("server").arg("status").arg("inst1")
                 .assert()
                 .code(3);
 
@@ -187,7 +187,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
             println!("Start default simultaneously to second");
             Command::new(&edgedb)
-                .arg("server").arg("start").arg("default")
+                .arg("server").arg("start").arg("inst1")
                 .assert()
                 .success();
 
@@ -199,7 +199,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
             println!("Status default");
             Command::new(&edgedb)
-                .arg("server").arg("status") // default
+                .arg("server").arg("status").arg("inst1")
                 .assert()
                 .success();
         }
