@@ -137,6 +137,7 @@ impl Builder {
     {
         let start = Instant::now();
         let conn = loop {
+            log::info!("Connecting via TCP {:?}", addr);
             let cres = TcpStream::connect(&addr).await;
             match cres {
                 Err(e) if e.kind() == io::ErrorKind::ConnectionRefused => {
@@ -170,6 +171,7 @@ impl Builder {
 
         let start = Instant::now();
         let conn = loop {
+            log::info!("Connecting via {:?}", path);
             let cres = UnixStream::connect(&path).await;
             match cres {
                 Err(e) if matches!(e.kind(),
