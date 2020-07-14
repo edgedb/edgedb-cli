@@ -138,10 +138,16 @@ impl<'os> Method for PackageMethod<'os, Macos> {
         let package_name = format!("edgedb-server-{}_{}_{}.pkg",
             settings.major_version, settings.version, ver.revision);
         let pkg_path = tmpdir.path().join(&package_name);
-        task::block_on(remote::get_file(
-            &pkg_path,
-            &format!("https://packages.edgedb.com/archive/macos-{arch}/{name}",
-                arch=ARCH, name=package_name)))
+        let url = if settings.nightly {
+            format!("https://packages.edgedb.com/archive/\
+                macos-{arch}.nightly/{name}",
+                arch=ARCH, name=package_name)
+        } else {
+            format!("https://packages.edgedb.com/archive/\
+                macos-{arch}/{name}",
+                arch=ARCH, name=package_name)
+        };
+        task::block_on(remote::get_file(&pkg_path, &url))
             .context("failed to download package")?;
 
         let operations = vec![
