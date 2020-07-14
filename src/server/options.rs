@@ -134,12 +134,12 @@ edgedb server upgrade
   Without arguments this command upgrades all instances which aren't running
   nightly EdgeDB to a latest minor version of the server.
 
-edgedb <name> [--to-version=<ver>|--to-nightly]
+edgedb server upgrade <name> [--to-version=<ver>|--to-nightly]
   Upgrades specified instance to the specified major version of the server or
   to the latest nightly, by default upgrades to the latest stable. This only
   works for instances that initially aren't running nightly.
 
-edgedb --nightly
+edgedb server upgrade --nightly
   Upgrades all existing nightly instances to the latest EdgeDB nightly.
 ")]
 pub struct Upgrade {
