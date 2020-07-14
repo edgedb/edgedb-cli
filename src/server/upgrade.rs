@@ -262,7 +262,10 @@ fn do_minor_upgrade(method: &dyn Method,
 
         for (name, meta) in &instances {
             let mut instance = get_instance_from_metadata(name, meta, false)?;
-            instance.start(&options::Start { name: name.clone() })?;
+            instance.start(&options::Start {
+                name: name.clone(),
+                foreground: false,
+            })?;
         }
     }
     Ok(())
@@ -366,7 +369,7 @@ fn dump_and_stop(name: &str, meta: &Metadata, system: bool)
 {
     let mut inst = get_instance_from_metadata(name, meta, system)?;
     // in case not started for now
-    inst.start(&options::Start { name: name.into() })?;
+    inst.start(&options::Start { name: name.into(), foreground: false })?;
     task::block_on(dump_instance(name, meta, &inst.get_socket(true)?))?;
     inst.stop(&options::Stop { name: name.into() })?;
     Ok(())
@@ -393,13 +396,14 @@ fn reinit_and_restore(name: &str, meta: &Metadata, system: bool,
     })?;
 
     let mut inst = get_instance_from_metadata(name, meta, system)?;
-    inst.start(&options::Start { name: name.into() })?;
+    inst.start(&options::Start { name: name.into(), foreground: false })?;
 
     task::block_on(restore_instance(name, meta,
                                     &inst.get_socket(true)?))?;
     log::info!(target: "edgedb::server::upgrade",
-        "Restarting instance {:?} to apply changes from `restore --all`");
-    inst.restart(&options::Start { name: name.into() })?;
+        "Restarting instance {:?} to apply changes from `restore --all`",
+        name);
+    inst.restart(&options::Restart { name: name.into() })?;
     Ok(())
 }
 

@@ -69,6 +69,7 @@ pub fn get_instance_from_metadata(name: &str,
     metadata: &Metadata, system: bool)
     -> anyhow::Result<Box<dyn Instance>>
 {
+    let dir = data_path(false)?.join(name);
     match metadata.method {
         InstallMethod::Package if cfg!(target_os="linux") => {
             Ok(Box::new(SystemdInstance {
