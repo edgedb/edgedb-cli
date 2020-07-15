@@ -2,6 +2,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use anyhow::Context;
 use async_std::task;
@@ -17,6 +18,7 @@ use crate::server::options::{self, Upgrade};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
 use crate::commands;
+use crate::platform::ProcessGuard;
 
 
 enum ToDo {
@@ -315,6 +317,7 @@ async fn restore_instance(name: &str, _meta: &Metadata, socket: &Path)
     conn_params.user("edgedb");
     conn_params.database("edgedb");
     conn_params.unix_addr(socket);
+    conn_params.wait_until_available(Duration::from_secs(30));
     let mut cli = conn_params.connect().await?;
     let options = commands::Options {
         command_line: true,
@@ -400,18 +403,27 @@ fn reinit_and_restore(name: &str, meta: &Metadata, system: bool,
         method: Some(method.name()),
         port: Some(meta.port),
         start_conf: meta.start_conf,
-        skip_user_creation: true,
+        inhibit_user_creation: true,
+        inhibit_start: true,
     })?;
 
     let mut inst = get_instance_from_metadata(name, meta, system)?;
-    inst.start(&options::Start { name: name.into(), foreground: false })?;
+    let mut cmd = inst.run_command()?;
+    // temporarily patch the edgedb issue of 1-alpha.4
+    cmd.arg("--default-database=edgedb");
+    cmd.arg("--default-database-user=edgedb");
+    log::debug!("Running server: {:?}", cmd);
+    let child = ProcessGuard::run(&mut cmd)
+        .with_context(|| format!("error running server {:?}", cmd))?;
 
     task::block_on(restore_instance(name, meta,
                                     &inst.get_socket(true)?))?;
     log::info!(target: "edgedb::server::upgrade",
         "Restarting instance {:?} to apply changes from `restore --all`",
         name);
-    inst.restart(&options::Restart { name: name.into() })?;
+    drop(child);
+
+    inst.start(&options::Start { name: name.into(), foreground: false })?;
     Ok(())
 }
 

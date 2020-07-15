@@ -19,6 +19,7 @@ pub trait Instance {
     fn restart(&mut self, options: &Restart) -> anyhow::Result<()>;
     fn status(&mut self, options: &Status) -> anyhow::Result<()>;
     fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf>;
+    fn run_command(&self) -> anyhow::Result<Command>;
 }
 
 pub struct SystemdInstance {
@@ -101,12 +102,7 @@ pub fn get_instance_from_metadata(name: &str,
 impl Instance for SystemdInstance {
     fn start(&mut self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            let sock = self.get_socket(true)?;
-            let socket_dir = sock.parent().unwrap();
-            run(Command::new(linux::get_server_path(&self.version))
-                .arg("--port").arg(self.port.to_string())
-                .arg("--data-dir").arg(&self.data_dir)
-                .arg("--runstate-dir").arg(&socket_dir))?;
+            run(&mut self.run_command()?)?;
         } else {
             run(Command::new("systemctl")
                 .arg("--user")
@@ -146,17 +142,21 @@ impl Instance for SystemdInstance {
                 if admin { ".admin" } else { "" },
                 self.port)))
     }
+    fn run_command(&self) -> anyhow::Result<Command> {
+        let sock = self.get_socket(true)?;
+        let socket_dir = sock.parent().unwrap();
+        let mut cmd = Command::new(linux::get_server_path(&self.version));
+        cmd.arg("--port").arg(self.port.to_string());
+        cmd.arg("--data-dir").arg(&self.data_dir);
+        cmd.arg("--runstate-dir").arg(&socket_dir);
+        Ok(cmd)
+    }
 }
 
 impl Instance for LaunchdInstance {
     fn start(&mut self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            let sock = self.get_socket(true)?;
-            let socket_dir = sock.parent().unwrap();
-            run(Command::new(macos::get_server_path(&self.version)?)
-                .arg("--port").arg(self.port.to_string())
-                .arg("--data-dir").arg(&self.data_dir)
-                .arg("--runstate-dir").arg(&socket_dir))?;
+            run(&mut self.run_command()?)?;
         } else {
             run(Command::new("launchctl")
                 .arg("load").arg("-w")
@@ -210,5 +210,14 @@ impl Instance for LaunchdInstance {
             .join(format!(".s.EDGEDB{}.{}",
                 if admin { ".admin" } else { "" },
                 self.port)))
+    }
+    fn run_command(&self) -> anyhow::Result<Command> {
+        let sock = self.get_socket(true)?;
+        let socket_dir = sock.parent().unwrap();
+        let mut cmd = Command::new(macos::get_server_path(&self.version)?);
+        cmd.arg("--port").arg(self.port.to_string());
+        cmd.arg("--data-dir").arg(&self.data_dir);
+        cmd.arg("--runstate-dir").arg(&socket_dir);
+        Ok(cmd)
     }
 }

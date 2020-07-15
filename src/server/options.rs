@@ -84,7 +84,10 @@ pub struct Init {
     pub start_conf: StartConf,
     /// Do not create a user and database named after current unix user
     #[clap(long, setting=ArgSettings::Hidden)]
-    pub skip_user_creation: bool,
+    pub inhibit_user_creation: bool,
+    /// Do not start database right now, even if --start-conf=auto
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub inhibit_start: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

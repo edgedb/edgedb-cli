@@ -30,7 +30,8 @@ pub struct Settings {
     pub directory: PathBuf,
     pub port: u16,
     pub start_conf: StartConf,
-    pub skip_user_creation: bool,
+    pub inhibit_user_creation: bool,
+    pub inhibit_start: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -123,7 +124,7 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
     cmd.arg("--bootstrap");
     cmd.arg("--log-level=warn");
     cmd.arg("--data-dir").arg(&settings.directory);
-    if settings.skip_user_creation {
+    if settings.inhibit_user_creation {
         cmd.arg("--default-database=edgedb");
         cmd.arg("--default-database-user=edgedb");
     }
@@ -237,7 +238,8 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         directory: data_path(options.system)?.join(&options.name),
         port,
         start_conf: options.start_conf,
-        skip_user_creation: options.skip_user_creation,
+        inhibit_user_creation: options.inhibit_user_creation,
+        inhibit_start: options.inhibit_start,
     };
     settings.print();
     if settings.system {
@@ -269,8 +271,8 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 settings.name.escape_default());
             e
         }).context("failed to init service")?;
-        match settings.start_conf {
-            StartConf::Auto => {
+        match (settings.start_conf, settings.inhibit_start) {
+            (StartConf::Auto, false) => {
                 control::get_instance(&settings.name)?
                     .start(&Start {
                         name: settings.name.clone(),
@@ -278,7 +280,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                     })?;
                 println!("Bootstrap complete. Server is up and runnning now.");
             }
-            StartConf::Manual => {
+            (StartConf::Manual, _) | (_, true) => {
                 println!("Bootstrap complete. To start a server:\n  \
                           edgedb server start {}",
                           settings.name.escape_default());
