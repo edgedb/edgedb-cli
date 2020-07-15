@@ -4,6 +4,7 @@ use crate::server::detect;
 use crate::server::list_versions;
 use crate::server::init;
 use crate::server::control;
+use crate::server::upgrade;
 
 
 pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
@@ -17,6 +18,7 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
         Stop(c) => control::get_instance(&c.name)?.stop(c),
         Restart(c) => control::get_instance(&c.name)?.restart(c),
         Status(c) => control::get_instance(&c.name)?.status(c),
+        Upgrade(c) => upgrade::upgrade(c),
         _Detect(c) => detect::main(c),
     }
 }

@@ -179,7 +179,7 @@ async fn get_text(cli: &mut Connection, query: &str)
     Ok(text)
 }
 
-async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
+pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
     -> Result<(), anyhow::Error>
 {
     let databases = get_databases(cli).await?;

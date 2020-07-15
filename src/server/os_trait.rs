@@ -22,6 +22,7 @@ pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
 }
 
 pub trait Method: fmt::Debug + Send + Sync {
+    fn name(&self) -> InstallMethod;
     fn install(&self, settings: &install::Settings) -> anyhow::Result<()>;
     fn all_versions(&self, nightly: bool) -> anyhow::Result<&[PackageInfo]>;
     fn get_version(&self, query: &VersionQuery)

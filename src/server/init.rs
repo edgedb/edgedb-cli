@@ -25,10 +25,13 @@ pub struct Settings {
     pub name: String,
     pub system: bool,
     pub version: Version<String>,
+    pub nightly: bool,
     pub method: InstallMethod,
     pub directory: PathBuf,
     pub port: u16,
     pub start_conf: StartConf,
+    pub inhibit_user_creation: bool,
+    pub inhibit_start: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -36,6 +39,8 @@ pub struct Metadata {
     pub version: Version<String>,
     pub method: InstallMethod,
     pub port: u16,
+    pub nightly: bool,
+    pub start_conf: StartConf,
 }
 
 pub fn data_path(system: bool) -> anyhow::Result<PathBuf> {
@@ -119,7 +124,12 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
     cmd.arg("--bootstrap");
     cmd.arg("--log-level=warn");
     cmd.arg("--data-dir").arg(&settings.directory);
+    if settings.inhibit_user_creation {
+        cmd.arg("--default-database=edgedb");
+        cmd.arg("--default-database-user=edgedb");
+    }
 
+    log::debug!("Running bootstrap {:?}", cmd);
     match cmd.status() {
         Ok(s) if s.success() => {}
         Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
@@ -131,6 +141,8 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
         version: settings.version.clone(),
         method: settings.method.clone(),
         port: settings.port,
+        nightly: settings.nightly,
+        start_conf: settings.start_conf,
     }).with_context(|| format!("failed to write metadata file {}",
                                metapath.display()))?;
     Ok(())
@@ -203,12 +215,16 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
 
     } else {
         let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
-        if let Some((ver, meth_name)) = find_version(&methods, |_| true)? {
+        if let Some((ver, meth_name)) =
+            find_version(&methods, |p| !p.revision.contains("nightly"))?
+        {
             let meth = methods.remove(&meth_name)
                 .expect("method is recently used");
             (ver, meth_name, meth)
         } else {
-            anyhow::bail!("Cannot find any installed version. Run: \n  \
+            anyhow::bail!("Cannot find any installed version \
+                (note: nightly versions are skipped unless `--nightly` \
+                is used).\nRun: \n  \
                 edgedb server install");
         }
     };
@@ -217,10 +233,13 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         name: options.name.clone(),
         system: options.system,
         version,
+        nightly: version_query.is_nightly(),
         method: meth_name,
         directory: data_path(options.system)?.join(&options.name),
         port,
         start_conf: options.start_conf,
+        inhibit_user_creation: options.inhibit_user_creation,
+        inhibit_start: options.inhibit_start,
     };
     settings.print();
     if settings.system {
@@ -252,8 +271,8 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 settings.name.escape_default());
             e
         }).context("failed to init service")?;
-        match settings.start_conf {
-            StartConf::Auto => {
+        match (settings.start_conf, settings.inhibit_start) {
+            (StartConf::Auto, false) => {
                 control::get_instance(&settings.name)?
                     .start(&Start {
                         name: settings.name.clone(),
@@ -261,7 +280,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                     })?;
                 println!("Bootstrap complete. Server is up and runnning now.");
             }
-            StartConf::Manual => {
+            (StartConf::Manual, _) | (_, true) => {
                 println!("Bootstrap complete. To start a server:\n  \
                           edgedb server start {}",
                           settings.name.escape_default());

@@ -25,6 +25,7 @@ mod install;
 mod list_versions;
 mod init;
 mod control;
+mod upgrade;
 
 pub use main::main;
 pub use control::get_instance;

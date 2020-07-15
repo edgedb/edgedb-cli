@@ -24,7 +24,7 @@ pub mod options;
 pub mod parser;
 
 pub use self::configure::configure;
-pub use self::dump::dump;
+pub use self::dump::{dump, dump_all};
 pub use self::describe::describe;
 pub use self::list_aliases::list_aliases;
 pub use self::list_casts::list_casts;
@@ -36,5 +36,5 @@ pub use self::list_ports::list_ports;
 pub use self::list_roles::list_roles;
 pub use self::list_scalar_types::list_scalar_types;
 pub use self::options::Options;
-pub use self::restore::restore;
+pub use self::restore::{restore, restore_all};
 pub use self::psql::psql;

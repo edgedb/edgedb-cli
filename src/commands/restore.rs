@@ -273,7 +273,7 @@ async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn restore_all<'x>(cli: &mut Connection, options: &Options,
+pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
     params: &RestoreCmd)
     -> anyhow::Result<()>
 {

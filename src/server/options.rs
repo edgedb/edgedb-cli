@@ -1,6 +1,8 @@
 use std::fmt;
 use std::str::FromStr;
-use clap::{Clap, AppSettings};
+
+use clap::{Clap, AppSettings, ArgSettings};
+use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
 use crate::server::methods::InstallMethod;
@@ -29,6 +31,8 @@ pub enum Command {
     Restart(Restart),
     #[clap(about="Status of an instance")]
     Status(Status),
+    #[clap(about="Upgrade installations and instances")]
+    Upgrade(Upgrade),
     #[clap(name="_detect")]
     _Detect(Detect),
 }
@@ -52,7 +56,7 @@ pub struct ListVersions {
     pub installed_only: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum StartConf {
     Auto,
     Manual,
@@ -78,6 +82,12 @@ pub struct Init {
     #[clap(long, default_value="auto",
            possible_values=&["auto", "manual"][..])]
     pub start_conf: StartConf,
+    /// Do not create a user and database named after current unix user
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub inhibit_user_creation: bool,
+    /// Do not start database right now, even if --start-conf=auto
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub inhibit_start: bool,
 }
 
 #[derive(Clap, Debug, Clone)]
@@ -120,6 +130,47 @@ pub struct Status {
     /// Database server instance name
     #[clap(default_value="default", validator(instance_name_opt))]
     pub name: String,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion, after_help="\
+There are few modes of operation of this command:
+
+edgedb server upgrade
+  Without arguments this command upgrades all instances which aren't running
+  nightly EdgeDB to a latest minor version of the server.
+
+edgedb server upgrade <name> [--to-version=<ver>|--to-nightly]
+  Upgrades specified instance to the specified major version of the server or
+  to the latest nightly, by default upgrades to the latest stable. This only
+  works for instances that initially aren't running nightly.
+
+edgedb server upgrade --nightly
+  Upgrades all existing nightly instances to the latest EdgeDB nightly.
+")]
+pub struct Upgrade {
+    /// Upgrade all nightly instances
+    #[clap(long)]
+    pub nightly: bool,
+
+    /// Upgrade specified instance(s) to a specified major version
+    #[clap(long)]
+    pub to_version: Option<Version<String>>,
+
+    /// Upgrade specifies instance to a latest nightly version
+    #[clap(long)]
+    pub to_nightly: bool,
+
+    /// Only upgrade specicified database instance
+    pub name: Option<String>,
+
+    /// Verbose output
+    #[clap(short="v", long)]
+    pub verbose: bool,
+
+    /// Force upgrade process even if there is no new version
+    #[clap(long)]
+    pub force: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

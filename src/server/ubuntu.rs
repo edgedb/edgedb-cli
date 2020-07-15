@@ -54,6 +54,9 @@ impl CurrentOs for Ubuntu {
 }
 
 impl<'os> Method for PackageMethod<'os, Ubuntu> {
+    fn name(&self) -> InstallMethod {
+        InstallMethod::Package
+    }
     fn install(&self, settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {

@@ -175,6 +175,9 @@ fn split_on<'x>(s: &'x str, delimiter: char) -> (&'x str, &'x str) {
 }
 
 impl<'os> Method for PackageMethod<'os, Centos> {
+    fn name(&self) -> InstallMethod {
+        InstallMethod::Package
+    }
     fn install(&self, settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {
