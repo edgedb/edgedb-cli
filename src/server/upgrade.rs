@@ -380,8 +380,12 @@ fn dump_and_stop(name: &str, meta: &Metadata, system: bool)
 {
     let mut inst = get_instance_from_metadata(name, meta, system)?;
     // in case not started for now
+    log::info!(target: "edgedb::server::upgrade",
+        "Ensuring instance is started");
     inst.start(&options::Start { name: name.into(), foreground: false })?;
     task::block_on(dump_instance(name, meta, &inst.get_socket(true)?))?;
+    log::info!(target: "edgedb::server::upgrade",
+        "Stopping the instance before package upgrade");
     inst.stop(&options::Stop { name: name.into() })?;
     Ok(())
 }
