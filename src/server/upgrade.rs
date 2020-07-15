@@ -295,6 +295,7 @@ async fn dump_instance(name: &str, _meta: &Metadata, socket: &Path)
     conn_params.user("edgedb");
     conn_params.database("edgedb");
     conn_params.unix_addr(socket);
+    conn_params.wait_until_available(Duration::from_secs(30));
     let mut cli = conn_params.connect().await?;
     let options = commands::Options {
         command_line: true,
