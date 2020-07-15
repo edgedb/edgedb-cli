@@ -10,8 +10,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
     - name: Determine package version
-      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -35,8 +41,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
     - name: Determine package version
-      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -60,8 +72,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
     - name: Determine package version
-      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -85,8 +103,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
     - name: Determine package version
-      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -110,8 +134,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
     - name: Determine package version
-      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -135,8 +165,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
     - name: Determine package version
-      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -160,8 +196,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
     - name: Determine package version
-      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -185,8 +227,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
     - name: Determine package version
-      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -211,18 +259,17 @@ jobs:
 
   build-macos-x86_64:
     runs-on: macos-latest
-    continue-on-error: true
 
     steps:
-    - name: Determine package version
-      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
-      id: whichver
-
     - uses: actions/checkout@v1
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-cli/edgedb-pkg
+
+    - name: Determine package version
+      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      id: whichver
 
     - uses: actions/cache@v2
       id: sdk1010cache
@@ -518,6 +565,7 @@ jobs:
 
   publish-macos-x86_64:
     needs: [build-macos-x86_64]
+    continue-on-error: true
     runs-on: macos-latest
 
     steps:
