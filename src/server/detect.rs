@@ -136,10 +136,10 @@ impl VersionQuery {
         use VersionQuery::*;
 
         match self {
-            Nightly => pkg.revision.contains("nightly"),
-            Stable(None) => !pkg.revision.contains("nightly"),
+            Nightly => pkg.version.as_ref().contains(".dev"),
+            Stable(None) => !pkg.version.as_ref().contains(".dev"),
             Stable(Some(v)) => &pkg.major_version == v &&
-                               !pkg.revision.contains("nightly"),
+                               !pkg.version.as_ref().contains(".dev"),
         }
     }
 }
