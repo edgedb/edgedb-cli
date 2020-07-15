@@ -11,10 +11,7 @@ jobs:
 
     steps:
     - name: Determine package version
-      shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -39,10 +36,7 @@ jobs:
 
     steps:
     - name: Determine package version
-      shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -67,10 +61,7 @@ jobs:
 
     steps:
     - name: Determine package version
-      shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -95,10 +86,7 @@ jobs:
 
     steps:
     - name: Determine package version
-      shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -123,10 +111,7 @@ jobs:
 
     steps:
     - name: Determine package version
-      shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -151,10 +136,7 @@ jobs:
 
     steps:
     - name: Determine package version
-      shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -179,10 +161,7 @@ jobs:
 
     steps:
     - name: Determine package version
-      shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -207,10 +186,7 @@ jobs:
 
     steps:
     - name: Determine package version
-      shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - name: Build
@@ -239,10 +215,7 @@ jobs:
 
     steps:
     - name: Determine package version
-      shell: bash
-      env:
-        BRANCH: "${{ github.event.client_payload.branch }}"
-      run: echo ::set-output name=version::${BRANCH#releases/}
+      run: .github/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
     - uses: actions/checkout@v1
