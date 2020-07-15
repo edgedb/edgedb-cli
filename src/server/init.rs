@@ -322,7 +322,11 @@ impl Settings {
         ]));
         table.add_row(Row::new(vec![
             Cell::new("EdgeDB Version"),
-            Cell::new(self.version.num()),
+            Cell::new(&if self.nightly {
+                format!("{} (nightly)", self.version)
+            } else {
+                self.version.to_string()
+            }),
         ]));
         table.set_format(*table::FORMAT);
         table.printstd();
