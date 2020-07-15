@@ -160,8 +160,15 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let todo = interpret_options(&options);
     let instances = get_instances(&todo)?;
     if instances.is_empty() {
-        log::warn!(target: "edgedb::server::upgrade",
-            "No instances found. Nothing to upgrade.");
+        if options.nightly {
+            log::warn!(target: "edgedb::server::upgrade",
+                "No instances found. Nothing to upgrade.");
+        } else {
+            log::warn!(target: "edgedb::server::upgrade",
+                "No instances found. Nothing to upgrade \
+                (Note: nightly instances are upgraded only if `--nightly` \
+                is specified).");
+        }
         return Ok(());
     }
     let mut by_method = BTreeMap::new();
