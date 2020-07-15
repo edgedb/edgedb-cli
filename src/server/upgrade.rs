@@ -393,6 +393,7 @@ fn reinit_and_restore(name: &str, meta: &Metadata, system: bool,
         method: Some(method.name()),
         port: Some(meta.port),
         start_conf: meta.start_conf,
+        skip_user_creation: true,
     })?;
 
     let mut inst = get_instance_from_metadata(name, meta, system)?;

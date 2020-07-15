@@ -30,6 +30,7 @@ pub struct Settings {
     pub directory: PathBuf,
     pub port: u16,
     pub start_conf: StartConf,
+    pub skip_user_creation: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -122,6 +123,10 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
     cmd.arg("--bootstrap");
     cmd.arg("--log-level=warn");
     cmd.arg("--data-dir").arg(&settings.directory);
+    if settings.skip_user_creation {
+        cmd.arg("--default-database=edgedb");
+        cmd.arg("--default-database-user=edgedb");
+    }
 
     match cmd.status() {
         Ok(s) if s.success() => {}
@@ -231,6 +236,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         directory: data_path(options.system)?.join(&options.name),
         port,
         start_conf: options.start_conf,
+        skip_user_creation: options.skip_user_creation,
     };
     settings.print();
     if settings.system {

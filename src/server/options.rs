@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use clap::{Clap, AppSettings};
+use clap::{Clap, AppSettings, ArgSettings};
 use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
@@ -82,6 +82,9 @@ pub struct Init {
     #[clap(long, default_value="auto",
            possible_values=&["auto", "manual"][..])]
     pub start_conf: StartConf,
+    /// Do not create a user and database named after current unix user
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub skip_user_creation: bool,
 }
 
 #[derive(Clap, Debug, Clone)]
