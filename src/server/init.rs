@@ -128,6 +128,7 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
         cmd.arg("--default-database-user=edgedb");
     }
 
+    log::debug!("Running bootstrap {:?}", cmd);
     match cmd.status() {
         Ok(s) if s.success() => {}
         Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
