@@ -22,6 +22,7 @@ use crate::commands::backslash;
 use crate::completion;
 use crate::print::style::Styler;
 use crate::highlight;
+use crate::repl::{TX_MARKER, FAILURE_MARKER};
 
 use colorful::Colorful;
 
@@ -63,6 +64,19 @@ impl Highlighter for EdgeqlHelper {
     {
         if info.line_no() > 0 {
             return format!("{0:.>1$}", " ", prompt.len()).into();
+        } else if prompt.ends_with("> ") {
+            let content = &prompt[..prompt.len()-2];
+            if content.ends_with(TX_MARKER) {
+                return format!("{}{}> ",
+                    &content[..content.len()-TX_MARKER.len()],
+                    TX_MARKER.green()).into();
+            } else if content.ends_with(FAILURE_MARKER) {
+                return format!("{}{}> ",
+                    &content[..content.len()-FAILURE_MARKER.len()],
+                    FAILURE_MARKER.red()).into();
+            } else {
+                return prompt.into();
+            }
         } else {
             return prompt.into();
         }

@@ -9,6 +9,10 @@ use crate::prompt;
 use crate::print;
 
 
+pub const TX_MARKER: &str = "[tx]";
+pub const FAILURE_MARKER: &str = "[tx:failed]";
+
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputMode {
     Default,
@@ -122,8 +126,8 @@ impl State {
             self.database,
             match self.connection.as_ref().map(|c| c.transaction_state()) {
                 Some(NotInTransaction) => "",
-                Some(InTransaction) => "[T]",
-                Some(InFailedTransaction) => "[T:failed]",
+                Some(InTransaction) => TX_MARKER,
+                Some(InFailedTransaction) => FAILURE_MARKER,
                 None => "",
             }
         );
