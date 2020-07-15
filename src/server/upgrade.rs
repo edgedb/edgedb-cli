@@ -364,7 +364,7 @@ fn do_nightly_upgrade(method: &dyn Method,
         package_name: new.package_name,
         major_version: new.major_version,
         version: new.version,
-        nightly: false,
+        nightly: true,
         extra: LinkedHashMap::new(),
     })?;
 
