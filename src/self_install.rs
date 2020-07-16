@@ -147,7 +147,7 @@ fn print_post_install_message(settings: &Settings) {
     if cfg!(windows) {
         print!(r###"# EdgeDB command-line tool is installed now!
 
-We've updated your bashrc to have {dir} in your `PATH`
+We've updated your environment configuration to have {dir} in your `PATH`
 environment variable. Next time you open the terminal it will be configured
 automatically.
 "###,
@@ -155,7 +155,7 @@ automatically.
     } else if settings.modify_path {
         print!(r###"# EdgeDB command-line tool is installed now!
 
-We've updated your bashrc to have {dir} in your `PATH`
+We've updated your shell profile to have {dir} in your `PATH`
 environment variable. Next time you open the terminal it will be configured
 automatically.
 
