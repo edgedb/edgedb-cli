@@ -145,28 +145,29 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
 
 fn print_post_install_message(settings: &Settings) {
     if cfg!(windows) {
-        print!(r###"# EdgeDB command-line tool is installed now. Great!
+        print!(r###"# EdgeDB command-line tool is installed now!
 
-To get started you need installation directory ({dir}) in your `PATH`
-environment variable. Future applications will automatically have the
-correct environment, but you may need to restart your current shell.
+We've updated your bashrc to have {dir} in your `PATH`
+environment variable. Next time you open the terminal it will be configured
+automatically.
 "###,
             dir=settings.installation_path.display());
     } else if settings.modify_path {
-        print!(r###"# EdgeDB command-line tool is installed now. Great!
+        print!(r###"# EdgeDB command-line tool is installed now!
 
-To get started you need installation directory ({dir}) in your `PATH`
-environment variable. Next time you log in this will be done
+We've updated your bashrc to have {dir} in your `PATH`
+environment variable. Next time you open the terminal it will be configured
 automatically.
 
-To configure your current shell run `source {env_path}`
+For this session please run:
+  source {env_path}
 "###,
             dir=settings.installation_path.display(),
             env_path=settings.env_file.display());
     } else {
-        println!(r###"EdgeDB command-line tool is installed now. Great!"###);
+        println!(r###"EdgeDB command-line tool is installed now!"###);
     }
-    println!("To install the server locally run:\n  \
+    println!("\nTo install the server locally run:\n  \
                 edgedb server install");
 }
 
