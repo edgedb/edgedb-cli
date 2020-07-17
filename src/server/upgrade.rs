@@ -19,11 +19,12 @@ use crate::server::install;
 use crate::server::options::{self, Upgrade};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
+use crate::server::is_valid_name;
 use crate::commands;
 use crate::platform::ProcessGuard;
 
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct UpgradeMeta {
     pub source: Version<String>,
     pub target: Version<String>,
@@ -32,7 +33,7 @@ pub struct UpgradeMeta {
     pub pid: u32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct BackupMeta {
     #[serde(with="humantime_serde")]
     pub timestamp: SystemTime,
@@ -114,20 +115,6 @@ impl Iterator for InstanceIterator {
     }
 }
 
-fn is_ident(value: &str) -> bool {
-    let mut chars = value.chars();
-    match chars.next() {
-        Some(c) if c.is_alphabetic() || c == '_' => {}
-        _ => return false,
-    }
-    for c in chars {
-        if !c.is_alphanumeric() && c != '_' {
-            return false;
-        }
-    }
-    return true
-}
-
 impl InstanceIterator {
     fn read_item(&self, item: Result<fs::DirEntry, io::Error>)
         -> anyhow::Result<Option<Instance>>
@@ -144,7 +131,7 @@ impl InstanceIterator {
             return Ok(None);
         }
         if let Some(name) = item.file_name().to_str() {
-            if !is_ident(name) {
+            if !is_valid_name(name) {
                 return Ok(None);
             }
             let meta = match
