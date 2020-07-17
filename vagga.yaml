@@ -76,7 +76,7 @@ commands:
 
   tree: !Command
     description: Run tree tool
-    container: tools
+    container: ubuntu
     run: [cargo, tree]
 
   outdated: !Command
@@ -117,11 +117,11 @@ containers:
       - curl
 
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-1.43.1-x86_64-unknown-linux-gnu.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-1.45.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-std-1.43.1-x86_64-unknown-linux-musl.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-std-1.45.0-x86_64-unknown-linux-musl.tar.gz"
       script: "./install.sh --prefix=/musl \
                --components=rust-std-x86_64-unknown-linux-musl"
     - !Env RUSTFLAGS: -g
@@ -158,7 +158,7 @@ containers:
   tools:
     setup:
     - !Container ubuntu
-    - !Sh 'cargo install cargo-tree cargo-fuzz cargo-outdated cargo-bloat --root=/usr'
+    - !Sh 'cargo install cargo-fuzz cargo-outdated cargo-bloat --root=/usr'
     environ: *environ
 
   test_install:
