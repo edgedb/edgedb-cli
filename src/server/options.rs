@@ -135,9 +135,9 @@ pub struct Status {
     #[clap(default_value="default", validator(instance_name_opt))]
     pub name: String,
 
-    /// Verbose output
-    #[clap(short="v", long)]
-    pub verbose: bool,
+    /// Show current systems service info
+    #[clap(long)]
+    pub service: bool,
 
     /// Output more debug info about each instance
     #[clap(long)]
