@@ -130,7 +130,9 @@ impl Instance for SystemdInstance {
         Ok(())
     }
     fn status(&mut self, options: &Status) -> anyhow::Result<()> {
-        if options.verbose {
+        if options.extended {
+            self.get_status()?.print_extended_and_exit();
+        } else if options.verbose {
             exit_from(Command::new("systemctl")
                 .arg("--user")
                 .arg("status")
@@ -189,8 +191,12 @@ impl Instance for LaunchdInstance {
                 get_current_uid(), self.name)))?;
         Ok(())
     }
-    fn status(&mut self, _options: &Status) -> anyhow::Result<()> {
-        self.get_status()?.print_and_exit()
+    fn status(&mut self, options: &Status) -> anyhow::Result<()> {
+        if options.extended {
+            self.get_status()?.print_extended_and_exit();
+        } else {
+            self.get_status()?.print_and_exit()
+        }
     }
     fn get_status(&self) -> anyhow::Result<status::Status> {
         status::get_status(&self.name, self.system)
