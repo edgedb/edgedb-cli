@@ -212,18 +212,32 @@ WantedBy=multi-user.target
     ))
 }
 
+fn unit_dir(system: bool) -> anyhow::Result<PathBuf> {
+    if system {
+        Ok(PathBuf::from("/etc/systemd/system"))
+    } else {
+        Ok(home_dir()
+            .context("Cannot determine home directory")?
+            .join(".config/systemd/user"))
+    }
+}
+
+fn unit_name(name: &str) -> String {
+    format!("edgedb-server@{}.service", name)
+}
+
+pub fn systemd_service_path(name: &str, system: bool)
+    -> anyhow::Result<PathBuf>
+{
+    Ok(unit_dir(system)?.join(&unit_name(name)))
+}
+
 pub fn create_systemd_service(settings: &init::Settings, meth: &dyn Method)
     -> anyhow::Result<()>
 {
-    let unit_dir = if settings.system {
-        PathBuf::from("/etc/systemd/system")
-    } else {
-        home_dir()
-            .context("Cannot determine home directory")?
-            .join(".config/systemd/user")
-    };
+    let unit_dir = unit_dir(settings.system)?;
     fs::create_dir_all(&unit_dir)?;
-    let unit_name = format!("edgedb-server@{}.service", settings.name);
+    let unit_name = unit_name(&settings.name);
     let unit_path = unit_dir.join(&unit_name);
     fs::write(&unit_path, systemd_unit(&settings, meth)?)?;
     run(Command::new("systemctl")

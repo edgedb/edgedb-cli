@@ -1,15 +1,16 @@
 use std::fs;
 use std::path::{PathBuf, Path};
-use std::process::{Command, exit};
+use std::process::Command;
 
-use anyhow::Context;
+use fn_error_context::context;
 
-use crate::process::{run, exit_from, get_text};
+use crate::process::{run, exit_from};
 use crate::server::options::{Start, Stop, Restart, Status};
 use crate::server::init::{data_path, Metadata};
 use crate::server::methods::InstallMethod;
 use crate::server::version::Version;
 use crate::server::{linux, macos};
+use crate::server::status;
 use crate::platform::{home_dir, get_current_uid};
 
 
@@ -18,6 +19,7 @@ pub trait Instance {
     fn stop(&mut self, options: &Stop) -> anyhow::Result<()>;
     fn restart(&mut self, options: &Restart) -> anyhow::Result<()>;
     fn status(&mut self, options: &Status) -> anyhow::Result<()>;
+    fn get_status(&self) -> anyhow::Result<status::Status>;
     fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf>;
     fn run_command(&self) -> anyhow::Result<Command>;
 }
@@ -43,9 +45,17 @@ pub struct LaunchdInstance {
     port: u16,
 }
 
+#[context("failed to read metadata {}/metadata.json", dir.display())]
+pub fn read_metadata(dir: &Path) -> anyhow::Result<Metadata> {
+    let metadata_path = dir.join("metadata.json");
+    Ok(serde_json::from_slice(&fs::read(&metadata_path)?)?)
+}
+
 pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
     let dir = data_path(false)?.join(name);
-    if !dir.exists() {
+    let system = if dir.exists() {
+        false
+    } else {
         /*  // TODO(tailhook) implement system instances
         let sys_dir = data_path(true)?.join(name);
         if sys_dir.exists() {
@@ -54,21 +64,15 @@ pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
         */
         anyhow::bail!("No instance {0:?} found. Run:\n  \
             edgedb server init {0}", name);
-    }
+    };
     log::debug!("Instance {:?} data path: {:?}", name, dir);
-    let metadata_path = dir.join("metadata.json");
-    let metadata: Metadata = serde_json::from_slice(
-        &fs::read(&metadata_path)
-        .with_context(|| format!("failed to read metadata {}",
-                                 metadata_path.display()))?)
-        .with_context(|| format!("failed to read metadata {}",
-                                 metadata_path.display()))?;
-    get_instance_from_metadata(name, &metadata, false)
+    let metadata = read_metadata(&dir)?;
+    get_instance_from_metadata(name, system, &metadata)
 }
 
-pub fn get_instance_from_metadata(name: &str,
-    metadata: &Metadata, system: bool)
-    -> anyhow::Result<Box<dyn Instance>>
+pub fn get_instance_from_metadata(name: &str, system: bool,
+    metadata: &Metadata)
+ -> anyhow::Result<Box<dyn Instance>>
 {
     let dir = data_path(false)?.join(name);
     match metadata.method {
@@ -125,12 +129,19 @@ impl Instance for SystemdInstance {
             .arg(format!("edgedb-server@{}", self.name)))?;
         Ok(())
     }
-    fn status(&mut self, _options: &Status) -> anyhow::Result<()> {
-        exit_from(Command::new("systemctl")
-            .arg("--user")
-            .arg("status")
-            .arg(format!("edgedb-server@{}", self.name)))?;
+    fn status(&mut self, options: &Status) -> anyhow::Result<()> {
+        if options.verbose {
+            exit_from(Command::new("systemctl")
+                .arg("--user")
+                .arg("status")
+                .arg(format!("edgedb-server@{}", self.name)))?;
+        } else {
+            self.get_status()?.print_and_exit();
+        }
         Ok(())
+    }
+    fn get_status(&self) -> anyhow::Result<status::Status> {
+        status::get_status(&self.name, self.system)
     }
     fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
         Ok(dirs::runtime_dir()
@@ -179,29 +190,10 @@ impl Instance for LaunchdInstance {
         Ok(())
     }
     fn status(&mut self, _options: &Status) -> anyhow::Result<()> {
-        let services = get_text(Command::new("launchctl")
-            .arg("list"))?;
-        let svc_name = format!("edgedb-server-{}", self.name);
-        for line in services.lines() {
-            let mut iter = line.split_whitespace();
-            let pid = iter.next().unwrap_or("-");
-            let exit_code = iter.next().unwrap_or("<unknown>");
-            let name = iter.next();
-            if let Some(name) = name {
-                if name == svc_name {
-                    if pid == "-" {
-                        eprintln!("Server exited with exit code {}",
-                                  exit_code);
-                        exit(3);
-                    }
-                    eprint!("Server is running, pid ");
-                    println!("{}", pid);
-                    return Ok(());
-                }
-            }
-        }
-        eprintln!("Server is not running");
-        exit(3);
+        self.get_status()?.print_and_exit()
+    }
+    fn get_status(&self) -> anyhow::Result<status::Status> {
+        status::get_status(&self.name, self.system)
     }
     fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
         Ok(home_dir()?

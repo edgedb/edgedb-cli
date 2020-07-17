@@ -272,21 +272,15 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>
     {
-        let unit_dir = if settings.system {
-            PathBuf::from("/Library/LaunchDaemons")
-        } else {
-            home_dir()?.join("Library/LaunchAgents")
-        };
-        fs::create_dir_all(&unit_dir)?;
-        let unit_path = unit_dir
-            .join(&format!("com.edgedb.edgedb-server-{}.plist",
-                           settings.name));
-        fs::write(&unit_path, plist_data(&settings)?)?;
+        let plist_dir = plist_dir(settings.system)?;
+        fs::create_dir_all(&plist_dir)?;
+        let plist_path = plist_dir.join(&plist_name(&settings.name));
+        fs::write(&plist_path, plist_data(&settings)?)?;
         fs::create_dir_all(home_dir()?.join(".edgedb/run"))?;
 
         run(StdCommand::new("launchctl")
             .arg("load")
-            .arg(unit_path))?;
+            .arg(plist_path))?;
         Ok(())
     }
 }
@@ -299,6 +293,23 @@ pub fn get_server_path(major_version: &Version<String>)
         .join("lib")
         .join(&format!("edgedb-server-{}", major_version))
         .join("bin/edgedb-server"))
+}
+
+fn plist_dir(system: bool) -> anyhow::Result<PathBuf> {
+    if system {
+        Ok(PathBuf::from("/Library/LaunchDaemons"))
+    } else {
+        Ok(home_dir()?.join("Library/LaunchAgents"))
+    }
+}
+fn plist_name(name: &str) -> String {
+    format!("com.edgedb.edgedb-server-{}.plist", name)
+}
+
+pub fn launchd_plist_path(name: &str, system: bool)
+    -> anyhow::Result<PathBuf>
+{
+    Ok(plist_dir(system)?.join(plist_name(name)))
 }
 
 fn plist_data(settings: &init::Settings)

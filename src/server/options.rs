@@ -88,6 +88,9 @@ pub struct Init {
     /// Do not start database right now, even if --start-conf=auto
     #[clap(long, setting=ArgSettings::Hidden)]
     pub inhibit_start: bool,
+    /// Write upgrade metadata marker with specified contents
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub upgrade_marker: Option<String>,
 }
 
 #[derive(Clap, Debug, Clone)]
@@ -130,6 +133,10 @@ pub struct Status {
     /// Database server instance name
     #[clap(default_value="default", validator(instance_name_opt))]
     pub name: String,
+
+    /// Verbose output
+    #[clap(short="v", long)]
+    pub verbose: bool,
 }
 
 #[derive(Clap, Debug, Clone)]
