@@ -136,10 +136,9 @@ impl VersionQuery {
         use VersionQuery::*;
 
         match self {
-            Nightly => pkg.version.as_ref().contains(".dev"),
-            Stable(None) => !pkg.version.as_ref().contains(".dev"),
-            Stable(Some(v)) => &pkg.major_version == v &&
-                               !pkg.version.as_ref().contains(".dev"),
+            Nightly => pkg.is_nightly(),
+            Stable(None) => !pkg.is_nightly(),
+            Stable(Some(v)) => &pkg.major_version == v && !pkg.is_nightly(),
         }
     }
 }
@@ -155,3 +154,18 @@ impl fmt::Display for VersionQuery {
     }
 }
 
+impl InstalledPackage {
+    pub fn is_nightly(&self) -> bool {
+        // TODO(tailhook) get nightly flag from the source index
+        return self.version.as_ref().contains(".dev")
+    }
+    pub fn full_version(&self) -> Version<String> {
+        Version(format!("{}-{}", self.version, self.revision))
+    }
+}
+
+impl VersionResult {
+    pub fn full_version(&self) -> Version<String> {
+        Version(format!("{}-{}", self.version, self.revision))
+    }
+}

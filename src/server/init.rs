@@ -7,6 +7,7 @@ use std::collections::{BTreeSet, BTreeMap};
 use anyhow::Context;
 use prettytable::{Table, Row, Cell};
 use serde::{Serialize, Deserialize};
+use fn_error_context::context;
 
 use crate::platform::config_dir;
 use crate::server::control;
@@ -32,6 +33,7 @@ pub struct Settings {
     pub start_conf: StartConf,
     pub inhibit_user_creation: bool,
     pub inhibit_start: bool,
+    pub upgrade_marker: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -53,6 +55,15 @@ pub fn data_path(system: bool) -> anyhow::Result<PathBuf> {
     }
 }
 
+fn port_file() -> anyhow::Result<PathBuf> {
+    Ok(config_dir()?.join("instance_ports.json"))
+}
+
+pub fn read_ports() -> anyhow::Result<BTreeMap<String, u16>> {
+    _read_ports(&port_file()?)
+}
+
+#[context("failed reading port mapping {}", path.display())]
 fn _read_ports(path: &Path) -> anyhow::Result<BTreeMap<String, u16>> {
     let data = match fs::read_to_string(&path) {
         Ok(data) if data.is_empty() => {
@@ -95,10 +106,8 @@ fn _write_ports(port_map: &BTreeMap<String, u16>, port_file: &Path)
 }
 
 fn allocate_port(name: &str) -> anyhow::Result<u16> {
-    let port_file = config_dir()?.join("instance_ports.json");
-    let mut port_map = _read_ports(&port_file).with_context(|| {
-        format!("failed reading port mapping {}", port_file.display())
-    })?;
+    let port_file = port_file()?;
+    let mut port_map = _read_ports(&port_file)?;
     if let Some(port) = port_map.get(name) {
         return Ok(*port);
     }
@@ -136,6 +145,12 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
         Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
     }
 
+    if let Some(upgrade_marker) = &settings.upgrade_marker {
+        write_upgrade(
+            &settings.directory.join("UPGRADE_IN_PROGRESS"),
+            upgrade_marker)?;
+    }
+
     let metapath = settings.directory.join("metadata.json");
     write_metadata(&metapath, &Metadata {
         version: settings.version.clone(),
@@ -143,8 +158,7 @@ fn try_bootstrap(settings: &Settings, method: &dyn Method)
         port: settings.port,
         nightly: settings.nightly,
         start_conf: settings.start_conf,
-    }).with_context(|| format!("failed to write metadata file {}",
-                               metapath.display()))?;
+    })?;
     Ok(())
 }
 
@@ -240,6 +254,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         start_conf: options.start_conf,
         inhibit_user_creation: options.inhibit_user_creation,
         inhibit_start: options.inhibit_start,
+        upgrade_marker: options.upgrade_marker.clone(),
     };
     settings.print();
     if settings.system {
@@ -290,8 +305,15 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
     }
 }
 
+#[context("failed to write upgrade marker {}", path.display())]
+fn write_upgrade(path: &Path, data: &str) -> anyhow::Result<()> {
+    fs::write(path, data.as_bytes())?;
+    Ok(())
+}
+
+#[context("failed to write metadata file {}", path.display())]
 fn write_metadata(path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
-    fs::write(path,serde_json::to_vec(&metadata)?)?;
+    fs::write(path, serde_json::to_vec(&metadata)?)?;
     Ok(())
 }
 

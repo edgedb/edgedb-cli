@@ -21,10 +21,11 @@ mod docker;
 mod package;
 
 // commands
+mod control;
+mod init;
 mod install;
 mod list_versions;
-mod init;
-mod control;
+mod status;
 mod upgrade;
 
 pub use main::main;

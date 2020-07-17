@@ -606,6 +606,7 @@ dependencies = [
  "env_logger",
  "fn-error-context",
  "humantime 2.0.0",
+ "humantime-serde",
  "libc",
  "linked-hash-map",
  "log",
@@ -1084,6 +1085,16 @@ name = "humantime"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9b6c53306532d3c8e8087b44e6580e10db51a023cf9b433cea2ac38066b92da"
+
+[[package]]
+name = "humantime-serde"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1c57351e2c81b7a03e82a6c8f4198b309c158f6d67c4adb707af6af7d91465a"
+dependencies = [
+ "humantime 2.0.0",
+ "serde",
+]
 
 [[package]]
 name = "hyper"
