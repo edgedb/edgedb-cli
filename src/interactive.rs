@@ -199,7 +199,7 @@ async fn execute_backslash(mut state: &mut repl::State, text: &str)
         Ok(Skip) => {},
         Ok(Quit) => {
             state.terminate().await;
-            return Ok(());
+            return Err(CleanShutdown)?;
         }
         Ok(Input(text)) => state.initial_text = text,
         Err(e) => {
@@ -499,6 +499,8 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                 if err.is::<Interrupted>() {
                     eprintln!("Interrupted.");
                     state.reconnect().await?;
+                } else if err.is::<CleanShutdown>() {
+                    return Err(err)?;
                 } else if !err.is::<QueryError>() {
                     eprintln!("Error: {:#}", err);
                 }
