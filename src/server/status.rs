@@ -1,5 +1,6 @@
 use std::io;
 use std::fs;
+use std::collections::{BTreeMap, BTreeSet};
 use std::process::{Command, exit};
 use std::time::Duration;
 use std::path::{Path, PathBuf};
@@ -8,27 +9,34 @@ use anyhow::Context;
 use async_std::task;
 use async_std::net::TcpStream;
 use async_std::io::timeout;
+use once_cell::unsync::OnceCell;
 use fn_error_context::context;
+use prettytable::{Table, Row, Cell};
 
 use crate::server::init::{Metadata, read_ports, data_path};
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
 use crate::server::control::read_metadata;
 use crate::server::{linux, macos};
+use crate::server::is_valid_name;
 use crate::process::get_text;
+use crate::table;
 
 
+#[derive(Debug)]
 pub enum Service {
     Running { pid: u32 },
     Failed { exit_code: Option<u16> },
     Inactive { error: String },
 }
 
+#[derive(Debug)]
 pub enum Port {
     Occupied,
     Refused,
     Unknown,
 }
 
+#[derive(Debug)]
 pub enum DataDirectory {
     Absent,
     NoMetadata,
@@ -36,11 +44,13 @@ pub enum DataDirectory {
     Normal,
 }
 
+#[derive(Debug)]
 pub enum BackupStatus {
     Absent,
     Exists(anyhow::Result<BackupMeta>),
 }
 
+#[derive(Debug)]
 pub struct Status {
     name: String,
     service: Service,
@@ -51,6 +61,11 @@ pub struct Status {
     data_status: DataDirectory,
     backup: BackupStatus,
     service_file_exists: bool,
+}
+
+pub struct Cache {
+    launchctl_list: OnceCell<anyhow::Result<String>>,
+    reserved_ports: OnceCell<Result<BTreeMap<String, u16>, ()>>,
 }
 
 fn format_duration(mut dur: Duration) -> String {
@@ -64,6 +79,10 @@ fn format_duration(mut dur: Duration) -> String {
 
 impl Status {
     pub fn print_extended_and_exit(&self) -> ! {
+        self.print_extended();
+        self.exit()
+    }
+    fn print_extended(&self) {
         println!("{}:", self.name);
 
         print!("  Status: ");
@@ -144,8 +163,6 @@ impl Status {
                         .unwrap_or(format!("done just now")))
             }
         });
-
-        self.exit()
     }
     pub fn print_and_exit(&self) -> ! {
         use Service::*;
@@ -226,9 +243,12 @@ fn systemd_status(name: &str, system: bool) -> Service {
     }
 }
 
-fn launchctl_status(name: &str, _system: bool) -> Service {
+fn launchctl_status(name: &str, _system: bool, cache: &Cache) -> Service {
     use Service::*;
-    let txt = match get_text(&mut Command::new("launchctl").arg("list")) {
+    let list = cache.launchctl_list.get_or_init(|| {
+        get_text(&mut Command::new("launchctl").arg("list"))
+    });
+    let txt = match list {
         Ok(txt) => txt,
         Err(e) => {
             return Service::Inactive {
@@ -304,13 +324,14 @@ fn backup_status(dir: &Path) -> BackupStatus {
     Exists(meta)
 }
 
-fn _get_status(base: &Path, name: &str, system: bool) -> Status {
+fn _get_status(base: &Path, name: &str, system: bool, cache: &Cache) -> Status
+{
     use DataDirectory::*;
 
     let service = if cfg!(target_os="linux") {
         systemd_status(name, system)
     } else if cfg!(target_os="macos") {
-        launchctl_status(name, system)
+        launchctl_status(name, system, &cache)
     } else {
         Service::Inactive { error: "unsupported os".into() }
     };
@@ -330,8 +351,11 @@ fn _get_status(base: &Path, name: &str, system: bool) -> Status {
     } else {
         (Absent, Err(anyhow::anyhow!("No data directory")))
     };
-    let reserved_port = read_ports()
-        .map_err(|e| log::warn!("{:#}", e))
+    let reserved_port =
+        cache.reserved_ports.get_or_init(|| {
+            read_ports()
+            .map_err(|e| log::warn!("{:#}", e))
+        }).as_ref()
         .ok()
         .and_then(|ports| ports.get(name).cloned());
     let port_status = probe_port(&metadata, &reserved_port);
@@ -363,5 +387,93 @@ fn _get_status(base: &Path, name: &str, system: bool) -> Status {
 
 pub fn get_status(name: &str, system: bool) -> anyhow::Result<Status> {
     let base = data_path(system)?;
-    Ok(_get_status(&base, name, system))
+    let cache = Cache::new();
+    Ok(_get_status(&base, name, system, &cache))
+}
+
+fn get_status_with(name: &str, system: bool, cache: &Cache)
+    -> anyhow::Result<Status>
+{
+    let base = data_path(system)?;
+    Ok(_get_status(&base, name, system, cache))
+}
+
+#[context("error reading dir {}", dir.display())]
+fn instances_from_data_dir(dir: &Path, system: bool,
+    instances: &mut BTreeSet<(String, bool)>)
+    -> anyhow::Result<()>
+{
+    for item in fs::read_dir(&dir)? {
+        let item = item?;
+        if !item.file_type()?.is_dir() {
+            continue;
+        }
+        if let Some(name) = item.file_name().to_str() {
+            if !is_valid_name(name) {
+                continue;
+            }
+            instances.insert((name.to_owned(), system));
+        }
+    }
+    Ok(())
+}
+
+fn all_instances() -> anyhow::Result<BTreeSet<(String, bool)>> {
+    let mut instances = BTreeSet::new();
+    let user_base = data_path(false)?;
+    if user_base.exists() {
+        instances_from_data_dir(&user_base, false, &mut instances)?;
+    }
+    // TODO(tailhook) add a list of instances from the service directory
+    // TODO(tailhook) add system instances
+    Ok(instances)
+}
+
+impl Cache {
+    fn new() -> Cache {
+        Cache {
+            launchctl_list: OnceCell::new(),
+            reserved_ports: OnceCell::new(),
+        }
+    }
+}
+
+pub fn print_status_all(extended: bool) -> anyhow::Result<()> {
+    let instances = all_instances()?;
+    let cache = Cache::new();
+    let mut statuses = Vec::new();
+    for (name, system) in instances {
+        statuses.push(get_status_with(&name, system, &cache)?);
+    }
+    if statuses.is_empty() {
+        eprintln!("No instances found");
+        return Ok(());
+    }
+    if extended {
+        for status in statuses {
+            status.print_extended();
+        }
+    } else {
+        let mut table = Table::new();
+        table.set_format(*table::FORMAT);
+        table.set_titles(Row::new(
+            ["Name", "Port", "Version", "Status"]
+            .iter().map(|x| table::header_cell(x)).collect()));
+        for status in statuses {
+            table.add_row(Row::new(vec![
+                Cell::new(&status.name),
+                Cell::new(&status.metadata.as_ref()
+                    .map(|m| m.port.to_string()).unwrap_or("?".into())),
+                Cell::new(&status.metadata.as_ref()
+                    .map(|m| m.version.to_string()).unwrap_or("?".into())),
+                Cell::new(match status.service {
+                    Service::Running {..} => "running",
+                    Service::Failed {..} => "not running",
+                    Service::Inactive {..} => "inactive",
+                }),
+            ]));
+        }
+        table.printstd();
+    }
+    Ok(())
 }

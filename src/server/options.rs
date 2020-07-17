@@ -6,6 +6,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
 use crate::server::methods::InstallMethod;
+use crate::server::is_valid_name;
 
 
 #[derive(Clap, Debug, Clone)]
@@ -141,6 +142,10 @@ pub struct Status {
     /// Output more debug info about each instance
     #[clap(long)]
     pub extended: bool,
+
+    /// Print status of all instances
+    #[clap(long)]
+    pub all: bool,
 }
 
 #[derive(Clap, Debug, Clone)]
@@ -218,23 +223,10 @@ impl fmt::Display for StartConf {
 }
 
 fn instance_name_opt(name: &str) -> Result<(), String> {
-    if is_ident(&name) {
+    if is_valid_name(&name) {
         return Ok(())
     }
     return Err("instance name must be a valid identifier, \
                 (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)".into())
 }
 
-fn is_ident(name: &str) -> bool {
-    let mut chars = name.chars();
-    match chars.next() {
-        Some(c) if c.is_alphabetic() || c == '_' => {}
-        _ => return false,
-    }
-    for c in chars {
-        if !c.is_alphanumeric() && c != '_' {
-            return false;
-        }
-    }
-    return true
-}
