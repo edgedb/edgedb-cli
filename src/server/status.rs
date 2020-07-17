@@ -2,7 +2,7 @@ use std::io;
 use std::fs;
 use std::process::{Command, exit};
 use std::time::Duration;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use async_std::task;
@@ -45,17 +45,111 @@ pub struct Status {
     name: String,
     service: Service,
     metadata: anyhow::Result<Metadata>,
-    allocated_port: Option<u16>,
+    reserved_port: Option<u16>,
     port_status: Port,
-    data_directory: DataDirectory,
+    data_dir: PathBuf,
+    data_status: DataDirectory,
     backup: BackupStatus,
     service_file_exists: bool,
 }
 
+fn format_duration(mut dur: Duration) -> String {
+    if dur > Duration::from_secs(86400*2) {
+        dur = Duration::from_secs((dur.as_secs() / 86400)*86400)
+    } else {
+        dur = Duration::from_secs(dur.as_secs());
+    }
+    humantime::format_duration(dur).to_string()
+}
+
 impl Status {
+    pub fn print_extended_and_exit(&self) -> ! {
+        println!("{}:", self.name);
+
+        print!("  Status: ");
+        match self.service {
+            Service::Running { pid } => {
+                println!("running, pid {}", pid);
+                println!("  Pid: {}", pid);
+            }
+            Service::Failed { exit_code: Some(code) } => {
+                println!("stopped, exit code {}", code);
+            }
+            Service::Failed { exit_code: None } => {
+                println!("not running");
+            }
+            Service::Inactive {..} => {
+                println!("inactive");
+            }
+        }
+        println!("  Service file: {}", match self.service_file_exists {
+            true => "exists",
+            false => "NOT FOUND",
+        });
+
+        match &self.metadata {
+            Ok(meta) => {
+                println!("  Version: {}{}", meta.version, if meta.nightly {
+                    " (nightly)"
+                } else {
+                    ""
+                });
+                println!("  Installation method: {}", meta.method.title());
+                println!("  Startup: {}", meta.start_conf);
+                if let Some(port) = self.reserved_port {
+                    if meta.port == port {
+                        println!("  Port: {}", port);
+                    } else {
+                        println!("  Port: {} (but {} reserved)",
+                                 meta.port, port);
+                    }
+                } else {
+                    println!("  Port: {}", meta.port);
+                }
+            }
+            _ => if let Some(port) = self.reserved_port {
+                println!("  Port: {} (reserved)", port);
+            },
+        }
+
+        println!("  Port status: {}", match &self.port_status {
+            Port::Occupied => "occupied",
+            Port::Refused => "unoccupied",
+            Port::Unknown => "unknown",
+        });
+
+        println!("  Data directory: {}", self.data_dir.display());
+        println!("  Data status: {}", match &self.data_status {
+            DataDirectory::Absent => "NOT FOUND".into(),
+            DataDirectory::NoMetadata => "METADATA ERROR".into(),
+            DataDirectory::Upgrading(Err(e)) => format!("upgrading ({:#})", e),
+            DataDirectory::Upgrading(Ok(up)) => {
+                format!("upgrading {} -> {} for {}",
+                        up.source, up.target,
+                        format_duration(
+                            up.started.elapsed().unwrap_or(Duration::new(0, 0))
+                        ))
+            }
+            DataDirectory::Normal => "normal".into(),
+        });
+        println!("  Backup: {}", match &self.backup {
+            BackupStatus::Absent => "absent".into(),
+            BackupStatus::Exists(Err(e)) => {
+                format!("present (error: {:#})", e)
+            }
+            BackupStatus::Exists(Ok(b)) => {
+                format!("present, {}",
+                    b.timestamp.elapsed()
+                        .map(|d| format!("done {} ago", format_duration(d)))
+                        .unwrap_or(format!("done just now")))
+            }
+        });
+
+        self.exit()
+    }
     pub fn print_and_exit(&self) -> ! {
         use Service::*;
-        match self.service {
+        match &self.service {
             Running { pid } => {
                 eprint!("Running, pid ");
                 println!("{}", pid);
@@ -74,6 +168,11 @@ impl Status {
         // Socket is occupied, while not running
         // No service file or no data directory
         // ..etc.
+        self.exit()
+    }
+    fn exit(&self) -> ! {
+        use Service::*;
+
         match self.service {
             Running {..} => exit(0),
             Failed {..} => exit(3),
@@ -162,12 +261,12 @@ fn launchctl_status(name: &str, _system: bool) -> Service {
     Inactive { error: format!("service {:?} not found", svc_name) }
 }
 
-fn probe_port(metadata: &anyhow::Result<Metadata>, allocated: &Option<u16>)
+fn probe_port(metadata: &anyhow::Result<Metadata>, reserved: &Option<u16>)
     -> Port
 {
     use Port::*;
 
-    let port = match metadata.as_ref().ok().map(|m| m.port).or(*allocated) {
+    let port = match metadata.as_ref().ok().map(|m| m.port).or(*reserved) {
         Some(port) => port,
         None => return Unknown,
     };
@@ -216,7 +315,7 @@ fn _get_status(base: &Path, name: &str, system: bool) -> Status {
         Service::Inactive { error: "unsupported os".into() }
     };
     let data_dir = base.join(name);
-    let (data_directory, metadata) = if data_dir.exists() {
+    let (data_status, metadata) = if data_dir.exists() {
         let metadata = read_metadata(&data_dir);
         if metadata.is_ok() {
             let upgrade_file = data_dir.join("UPGRADE_IN_PROGRESS");
@@ -231,11 +330,11 @@ fn _get_status(base: &Path, name: &str, system: bool) -> Status {
     } else {
         (Absent, Err(anyhow::anyhow!("No data directory")))
     };
-    let allocated_port = read_ports()
+    let reserved_port = read_ports()
         .map_err(|e| log::warn!("{:#}", e))
         .ok()
         .and_then(|ports| ports.get(name).cloned());
-    let port_status = probe_port(&metadata, &allocated_port);
+    let port_status = probe_port(&metadata, &reserved_port);
     let backup = backup_status(&base.join(format!("{}.backup", name)));
     let service_file_exists = if cfg!(target_os="linux") {
         linux::systemd_service_path(&name, system)
@@ -253,9 +352,10 @@ fn _get_status(base: &Path, name: &str, system: bool) -> Status {
         name: name.into(),
         service,
         metadata,
-        allocated_port,
+        reserved_port,
         port_status,
-        data_directory,
+        data_dir,
+        data_status,
         backup,
         service_file_exists,
     }

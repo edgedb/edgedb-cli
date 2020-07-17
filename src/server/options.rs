@@ -137,6 +137,10 @@ pub struct Status {
     /// Verbose output
     #[clap(short="v", long)]
     pub verbose: bool,
+
+    /// Output more debug info about each instance
+    #[clap(long)]
+    pub extended: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

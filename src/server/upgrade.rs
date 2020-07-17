@@ -356,7 +356,7 @@ async fn restore_instance(inst: &Instance, socket: &Path)
 
     log::info!(target: "edgedb::server::upgrade",
         "Restoring instance {:?}", inst.name);
-    let path = inst.data_dir.join(format!("{}.dump", inst.name));
+    let path = inst.data_dir.with_file_name(format!("{}.dump", inst.name));
     let mut conn_params = client::Builder::new();
     conn_params.user("edgedb");
     conn_params.database("edgedb");
