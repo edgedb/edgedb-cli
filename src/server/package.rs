@@ -96,19 +96,20 @@ fn version_matches(package: &PackageInfo, version: &VersionQuery) -> bool {
 pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
     -> Result<VersionResult, anyhow::Error>
 {
-    let mut max_version = None::<&PackageInfo>;
+    let mut max_version = None::<(&PackageInfo, Version<String>)>;
     for package in &haystack.packages {
         if version_matches(package, ver) {
-            if let Some(max) = max_version {
-                if max.version < package.version {
-                    max_version = Some(package);
+            let cur_version = package.full_version();
+            if let Some((_, max_ver)) = &max_version {
+                if max_ver < &cur_version {
+                    max_version = Some((package, cur_version));
                 }
             } else {
-                max_version = Some(package);
+                max_version = Some((package, cur_version));
             }
         }
     }
-    if let Some(target) = max_version {
+    if let Some((target, _)) = max_version {
         let major = target.slot.as_ref().unwrap().clone();
         Ok(VersionResult {
             package_name:
@@ -123,5 +124,11 @@ pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
         })
     } else {
         anyhow::bail!("Version {} not found", ver)
+    }
+}
+
+impl PackageInfo {
+    pub fn full_version(&self) -> Version<String> {
+        Version(format!("{}-{}", self.version, self.revision))
     }
 }
