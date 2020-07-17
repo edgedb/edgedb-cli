@@ -132,7 +132,7 @@ impl Instance for SystemdInstance {
     fn status(&mut self, options: &Status) -> anyhow::Result<()> {
         if options.extended {
             self.get_status()?.print_extended_and_exit();
-        } else if options.verbose {
+        } else if options.service {
             exit_from(Command::new("systemctl")
                 .arg("--user")
                 .arg("status")
@@ -166,6 +166,12 @@ impl Instance for SystemdInstance {
     }
 }
 
+impl LaunchdInstance {
+    fn launchd_name(&self) -> String {
+        format!("gui/{}/edgedb-server-{}", get_current_uid(), self.name)
+    }
+}
+
 impl Instance for LaunchdInstance {
     fn start(&mut self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
@@ -187,16 +193,20 @@ impl Instance for LaunchdInstance {
         run(Command::new("launchctl")
             .arg("kickstart")
             .arg("-k")
-            .arg(&format!("gui/{}/edgedb-server-{}",
-                get_current_uid(), self.name)))?;
+            .arg(self.launchd_name()))?;
         Ok(())
     }
     fn status(&mut self, options: &Status) -> anyhow::Result<()> {
         if options.extended {
             self.get_status()?.print_extended_and_exit();
+        } else if options.service {
+            exit_from(Command::new("launchctl")
+                .arg("print")
+                .arg(self.launchd_name()))?;
         } else {
-            self.get_status()?.print_and_exit()
+            self.get_status()?.print_and_exit();
         }
+        Ok(())
     }
     fn get_status(&self) -> anyhow::Result<status::Status> {
         status::get_status(&self.name, self.system)
