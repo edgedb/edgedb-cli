@@ -20,6 +20,13 @@ jobs:
       run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
       env:
@@ -50,6 +57,13 @@ jobs:
     - name: Determine package version
       run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
@@ -82,6 +96,13 @@ jobs:
       run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
       env:
@@ -112,6 +133,13 @@ jobs:
     - name: Determine package version
       run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
@@ -144,6 +172,13 @@ jobs:
       run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
@@ -174,6 +209,13 @@ jobs:
     - name: Determine package version
       run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
@@ -206,6 +248,13 @@ jobs:
       run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
@@ -236,6 +285,13 @@ jobs:
     - name: Determine package version
       run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
@@ -299,6 +355,13 @@ jobs:
           ~/.cache/MacOSX10.10.sdk/ \
           /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
         sudo xcode-select -s /Library/Developer/CommandLineTools
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
 
     - name: Build
       env:

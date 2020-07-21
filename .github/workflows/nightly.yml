@@ -15,6 +15,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
       env:
@@ -35,6 +42,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
@@ -55,6 +69,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
       env:
@@ -75,6 +96,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
@@ -95,6 +123,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
@@ -115,6 +150,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
       env:
@@ -135,6 +177,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
@@ -155,6 +204,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
       env:
@@ -213,6 +269,13 @@ jobs:
           ~/.cache/MacOSX10.10.sdk/ \
           /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
         sudo xcode-select -s /Library/Developer/CommandLineTools
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
 
     - name: Build
       env:

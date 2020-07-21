@@ -20,6 +20,13 @@ jobs:
       run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
       id: whichver
 
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
       env:
@@ -82,6 +89,13 @@ jobs:
           ~/.cache/MacOSX10.10.sdk/ \
           /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
         sudo xcode-select -s /Library/Developer/CommandLineTools
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
 
     - name: Build
       env:
