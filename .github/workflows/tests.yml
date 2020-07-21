@@ -18,7 +18,6 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-          target: x86_64-unknown-linux-musl
           default: true
 
       - name: Install EdgeDB
