@@ -132,3 +132,55 @@ impl PackageInfo {
         Version(format!("{}-{}", self.version, self.revision))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::RepositoryInfo;
+    use super::Version;
+    use super::VersionQuery;
+    use super::VersionResult;
+    use super::find_version;
+
+    #[test]
+    fn test_find_version() {
+        let json_contents = r#"
+            {"packages": [{"architecture": "x86_64",
+                           "basename": "edgedb-server",
+                           "installref": "/archive/macos-x86_64/edgedb-server-1-alpha3_1.0a3_2020060201.pkg",
+                           "name": "edgedb-server-1-alpha3",
+                           "revision": "2020060201",
+                           "slot": "1-alpha3",
+                           "version": "1.0a3"},
+                          {"architecture": "x86_64",
+                           "basename": "edgedb-server",
+                           "installref": "/archive/macos-x86_64/edgedb-server-1-alpha4_1.0a4_2020071512.pkg",
+                           "name": "edgedb-server-1-alpha4",
+                           "revision": "2020071512",
+                           "slot": "1-alpha4",
+                           "version": "1.0a4"},
+                          {"architecture": "x86_64",
+                           "basename": "edgedb-server",
+                           "installref": "/archive/macos-x86_64/edgedb-server-1-alpha4_1.0a4_2020071614.pkg",
+                           "name": "edgedb-server-1-alpha4",
+                           "revision": "2020071614",
+                           "slot": "1-alpha4",
+                           "version": "1.0a4"}]}
+        "#;
+        let repository_info: RepositoryInfo = serde_json::from_str(json_contents).unwrap();
+        let version_str = format!("{}-{}", "1.0a4", "2020071614");
+        let query = VersionQuery::Stable(Some(Version(version_str.to_owned())));
+        let result = find_version(&repository_info, &query);
+        let expected = VersionResult {
+            package_name: String::from("edgedb-server"),
+            major_version: Version(version_str.to_owned()),
+            version: Version(version_str.to_owned()),
+            revision: String::from("2020071614"),
+        };
+        match result {
+            Ok(actual) => assert!(actual.package_name == expected.package_name &&
+                                  actual.version == expected.version &&
+                                  actual.revision == expected.revision),
+            Err(_) => (),
+        };
+    }
+}
