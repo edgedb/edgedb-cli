@@ -2,7 +2,6 @@ use crate::print::stream::Output;
 use crate::print::Printer;
 
 use colorful::{Colorful, core::color_string::CString};
-use uuid::Uuid;
 
 use crate::print::buffer::Result;
 
@@ -30,7 +29,7 @@ pub trait Formatter {
         where F: FnMut(&mut Self) -> Result<Self::Error>;
     fn array<F>(&mut self, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;
-    fn object<F>(&mut self, type_id: Option<&Uuid>, f: F)
+    fn object<F>(&mut self, type_id: Option<&str>, f: F)
         -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;
     fn json_object<F>(&mut self, f: F)
@@ -48,7 +47,7 @@ pub trait Formatter {
     fn max_items(&self) -> Option<usize>;
 }
 
-impl<'a, T: Output> Formatter for Printer<'a, T> {
+impl<T: Output> Formatter for Printer<T> {
     type Error = T::Error;
     fn const_scalar<S: ToString>(&mut self, s: S) -> Result<Self::Error> {
         self.delimit()?;
@@ -83,19 +82,15 @@ impl<'a, T: Output> Formatter for Printer<'a, T> {
     fn ellipsis(&mut self) -> Result<Self::Error> {
         Printer::ellipsis(self)
     }
-    fn object<F>(&mut self, type_id: Option<&Uuid>, f: F)
+    fn object<F>(&mut self, type_name: Option<&str>, f: F)
         -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>
     {
         self.delimit()?;
-        match (type_id, self.type_names) {
-            (Some(tid), Some(names)) => {
-                if let Some(name) = names.get(tid) {
-                    self.block((String::from(name) + " {").blue(),
-                               f, "}".blue())?;
-                } else {
-                    self.block("Object {".blue(), f, "}".blue())?;
-                }
+        match type_name {
+            Some(tname) => {
+                self.block((String::from(tname) + " {").blue(),
+                            f, "}".blue())?;
             }
             _ => {
                 self.block("Object {".blue(), f, "}".blue())?;
