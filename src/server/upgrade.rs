@@ -11,7 +11,7 @@ use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
-use crate::client;
+use edgedb_client::client;
 use crate::server::control;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::init::{init, Metadata, data_path};

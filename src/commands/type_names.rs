@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use edgedb_derive::Queryable;
 use edgedb_protocol::value::Value;
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 
 
 #[derive(Queryable)]

@@ -2,9 +2,9 @@ use edgeql_parser::helpers::quote_name;
 
 use crate::commands::{self, Options};
 use crate::commands::parser::Common;
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 use crate::print;
-use crate::server_params::PostgresAddress;
+use edgedb_client::server_params::PostgresAddress;
 
 
 pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)

@@ -1,7 +1,7 @@
 use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 use crate::commands::parser::{Configure, ConfigStr};
 use crate::commands::parser::{AuthParameter, PortParameter};
 

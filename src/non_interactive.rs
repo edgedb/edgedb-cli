@@ -10,9 +10,9 @@ use edgedb_protocol::value::Value;
 
 use crate::options::Options;
 use crate::print::{self, PrintError};
-use crate::reader::ReadError;
+use edgedb_client::reader::ReadError;
 use crate::statement::{ReadStatement, EndOfFile};
-use crate::client::{Connection, NoResultExpected};
+use edgedb_client::client::{Connection, NoResultExpected};
 use crate::outputs::tab_separated;
 
 

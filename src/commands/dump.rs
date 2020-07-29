@@ -12,7 +12,7 @@ use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 
 
 type Output = Box<dyn Write + Unpin + Send>;

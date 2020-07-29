@@ -1,7 +1,7 @@
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use crate::commands::list;
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 
 
 pub async fn list_databases(cli: &mut Connection, options: &Options)
