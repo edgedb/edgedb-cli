@@ -246,6 +246,19 @@ fn str() {
 }
 
 #[test]
+fn bytes() {
+    assert_eq!(
+        test_format(&[Value::Bytes(b"hello".to_vec())]).unwrap(),
+        "{b'hello'}");
+    assert_eq!(
+        test_format(&[Value::Bytes(b"a\nb".to_vec())]).unwrap(),
+        "{b'a\\nb'}");
+    assert_eq!(
+        test_format(&[Value::Bytes(b"a'b".to_vec())]).unwrap(),
+        r"{b'a\'b'}");
+}
+
+#[test]
 fn all_widths() {
     let shape = ObjectShape::new(vec![
         ShapeElement {
