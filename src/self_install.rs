@@ -174,7 +174,7 @@ For this session please run:
 pub fn read_choice() -> anyhow::Result<String> {
     for line in stdin().lock().lines() {
         let line = line.context("reading user input")?;
-        return Ok(line.trim().to_uppercase())
+        return Ok(line.trim().to_lowercase())
     }
     anyhow::bail!("Unexpected end of input");
 }
