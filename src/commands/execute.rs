@@ -4,6 +4,7 @@ use crate::commands::{self, Options};
 use crate::commands::parser::Common;
 use crate::client::Connection;
 use crate::print;
+use crate::migrations;
 use crate::server_params::PostgresAddress;
 
 
@@ -76,6 +77,15 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             print::completion(&cli.execute(
                 &format!("CREATE DATABASE {}", quote_name(&c.database_name))
             ).await?);
+        }
+        CreateMigration(params) => {
+            migrations::create(cli, &options, params).await?;
+        }
+        Migrate(params) => {
+            migrations::migrate(cli, &options, params).await?;
+        }
+        ShowStatus(params) => {
+            migrations::status(cli, &options, params).await?;
         }
     }
     Ok(())

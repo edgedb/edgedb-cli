@@ -29,6 +29,7 @@ mod server_params;
 mod statement;
 mod table;
 mod variables;
+mod migrations;
 
 fn main() {
     match _main() {

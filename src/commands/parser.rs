@@ -27,6 +27,12 @@ pub enum Common {
     Dump(Dump),
     /// Restore a database backup from file
     Restore(Restore),
+    /// Create a migration script
+    CreateMigration(CreateMigration),
+    /// Bring current database to the latest or a specified revision
+    Migrate(Migrate),
+    /// Show current migration state
+    ShowStatus(ShowStatus),
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -437,6 +443,34 @@ pub struct PortParameter {
     /// application port.
     #[clap(long)]
     pub concurrency: i64,
+}
+
+#[derive(Clap, Clone, Debug)]
+pub struct MigrationConfig {
+    /// Directory where *.edgeql files are located
+    #[clap(long, default="./dbschema")]
+    schema_dir: PathBuf,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct CreateMigration {
+    #[clap(flatten)]
+    cfg: MigrationConfig,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Migrate {
+    #[clap(flatten)]
+    cfg: MigrationConfig,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct ShowStatus {
+    #[clap(flatten)]
+    cfg: MigrationConfig,
 }
 
 impl Setting {
