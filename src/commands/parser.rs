@@ -448,22 +448,22 @@ pub struct PortParameter {
 #[derive(Clap, Clone, Debug)]
 pub struct MigrationConfig {
     /// Directory where *.edgeql files are located
-    #[clap(long, default="./dbschema")]
-    schema_dir: PathBuf,
+    #[clap(long, default_value="./dbschema")]
+    pub schema_dir: PathBuf,
 }
 
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct CreateMigration {
     #[clap(flatten)]
-    cfg: MigrationConfig,
+    pub cfg: MigrationConfig,
 }
 
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Migrate {
     #[clap(flatten)]
-    cfg: MigrationConfig,
+    pub cfg: MigrationConfig,
 }
 
 #[derive(Clap, Clone, Debug)]
