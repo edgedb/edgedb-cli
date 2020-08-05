@@ -1,6 +1,8 @@
 mod context;
 mod create;
+mod grammar;
 mod migrate;
+mod migration;
 mod sourcemap;
 mod status;
 

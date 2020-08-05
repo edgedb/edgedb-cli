@@ -599,6 +599,7 @@ dependencies = [
  "codespan",
  "codespan-reporting",
  "colorful",
+ "combine",
  "dirs 2.0.2",
  "edgedb-derive",
  "edgedb-protocol",
@@ -677,7 +678,7 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb#9e8c0613b3468eb47444dc6a524caef1e3c0302b"
+source = "git+https://github.com/edgedb/edgedb#b0e6111a853cd50f4dc723c06103da5d2d1bc489"
 dependencies = [
  "combine",
  "snafu",

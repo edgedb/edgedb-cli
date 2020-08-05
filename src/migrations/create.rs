@@ -2,7 +2,7 @@ use async_std::path::{Path, PathBuf};
 use async_std::fs;
 use async_std::stream::StreamExt;
 use fn_error_context::context;
-use edgeql_parser::preparser::full_statement;
+use edgeql_parser::preparser::{full_statement, is_empty};
 
 use crate::commands::Options;
 use crate::commands::parser::CreateMigration;
@@ -14,30 +14,6 @@ enum SourceName {
     Prefix,
     Suffix,
     File(PathBuf),
-}
-
-// TODO(tailhook) move it to `edgedb-parser crate`
-fn is_empty(text: &str) -> bool {
-    let mut iter = text.chars();
-    loop {
-        let cur_char = match iter.next() {
-            Some(c) => c,
-            None => return true,
-        };
-        match cur_char {
-            '\u{feff}' | '\r' | '\t' | '\n' | ' ' => continue,
-            // Comment
-            '#' => {
-                while let Some(c) = iter.next() {
-                    if c == '\r' || c == '\n' {
-                        break;
-                    }
-                }
-                continue;
-            }
-            _ => return false,
-        }
-    }
 }
 
 #[context("error reading schema file {}", path.display())]
