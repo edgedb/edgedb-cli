@@ -2,7 +2,10 @@ use async_std::path::{Path, PathBuf};
 use async_std::fs;
 use async_std::stream::StreamExt;
 use fn_error_context::context;
+use edgedb_derive::Queryable;
+use edgedb_protocol::value::Value;
 use edgeql_parser::preparser::{full_statement, is_empty};
+use serde::Deserialize;
 
 use crate::commands::Options;
 use crate::commands::parser::CreateMigration;
@@ -14,6 +17,13 @@ enum SourceName {
     Prefix,
     Suffix,
     File(PathBuf),
+}
+
+#[derive(Deserialize, Queryable, Debug)]
+#[edgedb(json)]
+struct CurrentMigration {
+    confirmed: Vec<String>,
+    proposed: Vec<String>,
 }
 
 #[context("error reading schema file {}", path.display())]
@@ -38,7 +48,7 @@ async fn gen_create_migration(ctx: &Context)
     -> anyhow::Result<(String, SourceMap<SourceName>)>
 {
     let mut bld = Builder::new();
-    bld.add_lines(SourceName::Prefix, "START MIGRATION {");
+    bld.add_lines(SourceName::Prefix, "START MIGRATION TO {");
     let mut dir = fs::read_dir(&ctx.schema_dir).await?;
     while let Some(item) = dir.next().await.transpose()? {
         let fname = item.file_name();
@@ -63,6 +73,13 @@ pub async fn create(cli: &mut Connection, options: &Options,
 {
     let ctx = Context::from_config(&create.cfg);
     let (text, sourcemap) = gen_create_migration(&ctx).await?;
-    println!("MIG TEXT {:?}", text);
-    todo!();
+    cli.execute(text).await?;
+    let mut items = cli.query::<CurrentMigration>(
+        "DESCRIBE CURRENT MIGRATION AS JSON",
+        &Value::empty_tuple(),
+    ).await?;
+    while let Some(data) = items.next().await.transpose()? {
+        println!("DATA {:?}", data);
+    }
+    Ok(())
 }

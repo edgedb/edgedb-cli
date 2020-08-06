@@ -654,8 +654,9 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#75f5f9a67ad49c003e0b5b219bf58fab06c414a6"
+source = "git+https://github.com/edgedb/edgedb-rust#50a050d5da3e8cc74b55b8e42bc4abc2d26d0861"
 dependencies = [
+ "proc-macro2",
  "quote",
  "syn",
  "trybuild",
@@ -664,7 +665,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#75f5f9a67ad49c003e0b5b219bf58fab06c414a6"
+source = "git+https://github.com/edgedb/edgedb-rust#50a050d5da3e8cc74b55b8e42bc4abc2d26d0861"
 dependencies = [
  "bigdecimal",
  "bytes 0.5.4",
@@ -1645,9 +1646,9 @@ checksum = "8e946095f9d3ed29ec38de908c22f95d9ac008e424c7bcae54c75a79c527c694"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.17"
+version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1502d12e458c49a4c9cbff560d0fe0060c252bc29799ed94ca2ed4bb665a0101"
+checksum = "04f5f085b5d71e2188cb8271e5da0161ad52c3f227a661a3c135fdf28e258b12"
 dependencies = [
  "unicode-xid",
 ]
