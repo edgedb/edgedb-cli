@@ -1,6 +1,6 @@
 #[derive(Debug)]
 pub struct Migration {
     pub message: Option<String>,
-    pub id: Option<String>,
-    pub parent_id: Option<String>,
+    pub id: String,
+    pub parent_id: String,
 }
