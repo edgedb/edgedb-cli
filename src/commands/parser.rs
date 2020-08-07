@@ -470,7 +470,11 @@ pub struct Migrate {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ShowStatus {
     #[clap(flatten)]
-    cfg: MigrationConfig,
+    pub cfg: MigrationConfig,
+
+    /// Do not print any messages, only indicate success by exit status
+    #[clap(long)]
+    pub quiet: bool,
 }
 
 impl Setting {

@@ -1,3 +1,4 @@
+mod exit;
 mod configure;
 mod describe;
 mod dump;
@@ -38,3 +39,4 @@ pub use self::list_scalar_types::list_scalar_types;
 pub use self::options::Options;
 pub use self::restore::{restore, restore_all};
 pub use self::psql::psql;
+pub use self::exit::ExitCode;

@@ -13,7 +13,7 @@ use crate::client::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::sourcemap::{Builder, SourceMap};
 
-enum SourceName {
+pub enum SourceName {
     Prefix,
     Suffix,
     File(PathBuf),
@@ -21,9 +21,9 @@ enum SourceName {
 
 #[derive(Deserialize, Queryable, Debug)]
 #[edgedb(json)]
-struct CurrentMigration {
-    confirmed: Vec<String>,
-    proposed: Vec<String>,
+pub struct CurrentMigration {
+    pub confirmed: Vec<String>,
+    pub proposed: Vec<String>,
 }
 
 #[context("error reading schema file {}", path.display())]
@@ -44,7 +44,7 @@ async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
 }
 
 #[context("error reading schema at {}", ctx.schema_dir.display())]
-async fn gen_create_migration(ctx: &Context)
+pub async fn gen_create_migration(ctx: &Context)
     -> anyhow::Result<(String, SourceMap<SourceName>)>
 {
     let mut bld = Builder::new();

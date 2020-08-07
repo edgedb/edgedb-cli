@@ -35,6 +35,9 @@ fn main() {
     match _main() {
         Ok(()) => {}
         Err(e) => {
+            if let Some(e) = e.downcast_ref::<commands::ExitCode>() {
+                e.exit();
+            }
             eprintln!("Error: {:#}", e);
             exit(1);
         }
