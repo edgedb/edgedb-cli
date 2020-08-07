@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use combine::{StreamOnce, Parser, ParseResult};
+use combine::{StreamOnce, Parser, ParseResult, position};
 use combine::{satisfy, between, many, skip_many, eof, choice, opaque};
 use combine::parser::combinator::no_partial;
 use combine::easy::{self, Errors, Info};
@@ -153,14 +153,17 @@ fn migration<'a>()
         .skip(ident("ONTO"))
         .and(kind(Kind::Ident))
         .and(between(kind(Kind::OpenBrace), kind(Kind::CloseBrace),
-            many::<Vec<_>, _, _>(statement())))
+            (position(), many::<Vec<_>, _, _>(statement()), position())
+        ))
         .skip(kind(Kind::Semicolon))
         .skip(eof())
-    .and_then(|((id, parent_id), statements)| -> Result<_, Error<'_>> {
+    .and_then(|((id, parent_id), brace_block)| -> Result<_, Error<'_>> {
+        let (start, statements, end) = brace_block;
         let mut m = Migration {
             message: None,
             id: id.value.into(),
             parent_id: parent_id.value.into(),
+            text_range: (start.offset as usize, end.offset as usize),
         };
         for item in statements {
             match item {
@@ -186,18 +189,6 @@ pub fn parse_migration(data: &str) -> anyhow::Result<Migration> {
         ParseResult::CommitErr(e) => anyhow::bail!("parse error: {}", e),
         ParseResult::PeekErr(e) => anyhow::bail!("parse error: {:?}", e),
     }
-/*
-            match (&mut tokens).next() {
-                Some(Ok(t)) => {
-                    anyhow::bail!("end of file expected, got '{}'", t.token)
-                }
-                Some(Err(e)) => {
-                    anyhow::bail!(
-                        "end of file expected, got parse error: {:?}", e)
-                }
-                None => {}
-            }
-            */
 }
 
 #[cfg(test)]
