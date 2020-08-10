@@ -74,7 +74,7 @@ pub async fn create(cli: &mut Connection, options: &Options,
     let ctx = Context::from_config(&create.cfg);
     let (text, sourcemap) = gen_create_migration(&ctx).await?;
     cli.execute(text).await?;
-    let mut data = cli.query_row::<CurrentMigration>(
+    let data = cli.query_row::<CurrentMigration>(
         "DESCRIBE CURRENT MIGRATION AS JSON",
         &Value::empty_tuple(),
     ).await?;

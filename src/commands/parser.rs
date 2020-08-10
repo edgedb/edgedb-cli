@@ -464,6 +464,9 @@ pub struct CreateMigration {
 pub struct Migrate {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
+    /// Do not print any messages, only indicate success by exit status
+    #[clap(long)]
+    pub quiet: bool,
 }
 
 #[derive(Clap, Clone, Debug)]
