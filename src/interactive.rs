@@ -18,7 +18,7 @@ use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
 use edgedb_protocol::client_message::{Execute};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
-use edgeql_parser::preparser::full_statement;
+use edgeql_parser::preparser::{self, full_statement};
 
 use crate::commands::backslash;
 use crate::options::Options;
@@ -68,7 +68,7 @@ impl<'a> Iterator for ToDo<'a> {
             let len = backslash::full_statement(&tail);
             self.tail = &tail[len..];
             return Some(ToDoItem::Backslash(&tail[..len]));
-        } else if tail.trim() == "" {
+        } else if preparser::is_empty(tail) {
             return None;
         } else {
             let len = full_statement(&tail.as_bytes(), None)

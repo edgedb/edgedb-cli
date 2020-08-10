@@ -12,10 +12,13 @@ use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use serde_json::from_str;
 
+// Can't run server on windows
 #[cfg(not(windows))]
 mod dump_restore;
 #[cfg(not(windows))]
 mod configure;
+#[cfg(not(windows))]
+mod non_interactive;
 
 // for some reason rexpect doesn't work on macos
 // and also something wrong on musl libc

@@ -6,6 +6,7 @@ use async_std::io::{stdin, stdout};
 use async_std::io::prelude::WriteExt;
 
 use bytes::BytesMut;
+use edgeql_parser::preparser;
 use edgedb_protocol::value::Value;
 
 use crate::options::Options;
@@ -31,6 +32,9 @@ pub async fn main(options: Options)
         };
         let stmt = str::from_utf8(&stmt[..])
             .context("can't decode statement")?;
+        if preparser::is_empty(stmt) {
+            continue;
+        }
         query(&mut conn, &stmt, &options).await?;
     }
     Ok(())

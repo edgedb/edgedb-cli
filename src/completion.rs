@@ -61,7 +61,7 @@ trait MapRangeStrExt<K, V> {
 pub fn current<'x>(data: &'x str, pos: usize) -> (usize, Current<'x>) {
     let mut offset = 0;
     loop {
-        if data[offset..].trim().is_empty() {
+        if preparser::is_empty(&data[offset..]) {
             return (offset, Current::Empty);
         }
         if data[offset..].trim_start().starts_with('\\') {
