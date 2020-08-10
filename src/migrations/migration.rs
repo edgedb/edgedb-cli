@@ -1,6 +1,7 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::ffi::OsStr;
 
+use async_std::io;
 use async_std::fs;
 use async_std::path::{Path, PathBuf};
 use async_std::stream::StreamExt;
@@ -24,8 +25,8 @@ pub struct Migration {
 
 #[derive(Debug)]
 pub struct MigrationFile {
-    path: PathBuf,
-    data: Migration,
+    pub path: PathBuf,
+    pub data: Migration,
 }
 
 #[derive(PartialOrd, PartialEq, Eq, Ord)]
@@ -57,9 +58,9 @@ fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
                 Migration names are computed from the hash \
                 of the migration contents. To proceed you must fix the \
                 statement to read as:\n  \
-                CREATE MIGRATION {computed} ONTO ...\n
+                CREATE MIGRATION {computed} ONTO ...\n\
                 if this migration is not applied to \
-                any database or revert the changes to the file",
+                any database. Alternatively, revert the changes to the file.",
                 computed=id, file=migration.id);
         }
         Ok(())
@@ -88,7 +89,13 @@ fn file_num(path: &Path) -> Option<u64> {
 async fn _read_all(dir: &Path, validate_hashes: bool)
     -> anyhow::Result<LinkedHashMap<String, MigrationFile>>
 {
-    let mut dir = fs::read_dir(dir).await?;
+    let mut dir = match fs::read_dir(dir).await {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Ok(LinkedHashMap::new());
+        }
+        Err(e) => Err(e)?,
+    };
     let mut all = HashMap::new();
     while let Some(item) = dir.next().await.transpose()? {
         let fname = item.file_name();
