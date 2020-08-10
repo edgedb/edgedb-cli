@@ -18,6 +18,7 @@ use bytes::{Bytes, BytesMut};
 use scram::ScramClient;
 use serde_json::from_slice;
 use typemap::TypeMap;
+use fn_error_context::context;
 
 use edgedb_protocol::client_message::{ClientMessage, ClientHandshake};
 use edgedb_protocol::client_message::{Prepare, IoFormat, Cardinality};
@@ -736,17 +737,12 @@ impl Connection {
         return seq._process_exec().await;
     }
 
+    #[context("cannot fetch database version")]
     pub async fn get_version(&mut self) -> Result<String, anyhow::Error> {
-        let mut q = self.query::<String>(
+        self.query_row(
             "SELECT sys::get_version_as_str()",
             &Value::empty_tuple(),
-        ).await?;
-        let mut fetched_version = None;
-        while let Some(ver) = q.next().await.transpose()? {
-            fetched_version = Some(ver);
-        }
-        return fetched_version
-            .ok_or_else(|| anyhow::anyhow!("Can't fetch version"));
+        ).await
     }
 }
 
