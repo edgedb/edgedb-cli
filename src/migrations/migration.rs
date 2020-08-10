@@ -40,15 +40,17 @@ fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(b"CREATE\0MIGRATION\0ONTO\0");
         hasher.update(migration.parent_id.as_bytes());
+        hasher.update(b"\0{\0");
         for token in &mut TokenStream::new(txt) {
             let token = token.map_err(|e| anyhow::anyhow!("{}", e))?;
-            hasher.update(b"\0");
             hasher.update(token.token.value.as_bytes());
+            hasher.update(b"\0");
         }
+        hasher.update(b"\0}");
         let hash = base32::encode(
             base32::Alphabet::RFC4648 { padding: false },
             &hasher.finalize());
-        let id = format!("m1{}", hash);
+        let id = format!("m1{}", hash.to_ascii_lowercase());
         if id != migration.id {
             anyhow::bail!("migration name should be `{computed}` \
                 but `{file}` is used instead.\n\
@@ -176,21 +178,18 @@ mod test {
     #[test]
     #[should_panic(expected=
         "migration name should be \
-        `m1G3QZQDR57PP3W2MDWDKQ4G7DQ4OEFAWQDAVZGEIOV7FIWNTPB3LQ` \
+        `m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq` \
         but `m124` is used instead.")]
     fn test_bad_hash() {
         let text = r###"
-            CREATE MIGRATION m124
-                ONTO m1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-            {
+            CREATE MIGRATION m124 ONTO initial {
             };
         "###;
         let migr = Migration {
             id: "m124".into(),
-            parent_id: "m1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                .into(),
+            parent_id: "initial".into(),
             message: None,
-            text_range: (137, 137),
+            text_range: (62, 62),
         };
         let result = parse_migration(text).unwrap();
         assert_eq!(result.id, migr.id);
@@ -204,18 +203,17 @@ mod test {
     fn test_hash_zero() {
         let text = r###"
             CREATE MIGRATION
-                m1G3QZQDR57PP3W2MDWDKQ4G7DQ4OEFAWQDAVZGEIOV7FIWNTPB3LQ
-                ONTO m1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq
+                ONTO initial
             {
             };
         "###;
         let migr = Migration {
-            id: "m1G3QZQDR57PP3W2MDWDKQ4G7DQ4OEFAWQDAVZGEIOV7FIWNTPB3LQ"
+            id: "m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq"
                 .into(),
-            parent_id: "m1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                .into(),
+            parent_id: "initial".into(),
             message: None,
-            text_range: (203, 203),
+            text_range: (156, 156),
         };
         let result = parse_migration(text).unwrap();
         assert_eq!(result.id, migr.id);
@@ -229,16 +227,16 @@ mod test {
     fn test_hash_1() {
         let text = r###"
             CREATE MIGRATION
-                m1NSP3K6JKU6QCKFFO33AS5PNTQGY62Z45W73AFOYS6QJJKK62R2LQ
-                ONTO m1G3QZQDR57PP3W2MDWDKQ4G7DQ4OEFAWQDAVZGEIOV7FIWNTPB3LQ
+                m1zqdy6fkelif6cnwwwkmyvk5gnsbfkhrmnbitopt6plk3kp2fqpha
+                ONTO m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq
             {
                 CREATE TYPE Type1;
             };
         "###;
         let migr = Migration {
-            id: "m1NSP3K6JKU6QCKFFO33AS5PNTQGY62Z45W73AFOYS6QJJKK62R2LQ"
+            id: "m1zqdy6fkelif6cnwwwkmyvk5gnsbfkhrmnbitopt6plk3kp2fqpha"
                 .into(),
-            parent_id: "m1G3QZQDR57PP3W2MDWDKQ4G7DQ4OEFAWQDAVZGEIOV7FIWNTPB3LQ"
+            parent_id: "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq"
                 .into(),
             message: None,
             text_range: (207, 238),
@@ -254,25 +252,24 @@ mod test {
     #[test]
     #[should_panic(expected=
         "migration name should be \
-        `m1NZCXSRFATSBSFNW6QAGSKLP3UP4J2XEUVV7FG434VR25Z2ADPDSA` \
-        but `m1NSP3K6JKU6QCKFFO33AS5PNTQGY62Z45W73AFOYS6QJJKK62R2LQ` \
+        `m1l2x6ndfuxijzutz4yil6owejrqoptramv2kmcfqu6wihxi5p3qsa` \
+        but `m1nsp3k6jku6qckffo33as5pntqgy62z45w73afoys6qjjkk62r2lq` \
         is used instead")]
     fn test_hash_depends_on_parent() {
         let text = r###"
             CREATE MIGRATION
-                m1NSP3K6JKU6QCKFFO33AS5PNTQGY62Z45W73AFOYS6QJJKK62R2LQ
-                ONTO m1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+                m1nsp3k6jku6qckffo33as5pntqgy62z45w73afoys6qjjkk62r2lq
+                ONTO initial
             {
                 CREATE TYPE Type1;
             };
         "###;
         let migr = Migration {
-            id: "m1NSP3K6JKU6QCKFFO33AS5PNTQGY62Z45W73AFOYS6QJJKK62R2LQ"
+            id: "m1nsp3k6jku6qckffo33as5pntqgy62z45w73afoys6qjjkk62r2lq"
                 .into(),
-            parent_id: "m1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                .into(),
+            parent_id: "initial".into(),
             message: None,
-            text_range: (207, 238),
+            text_range: (160, 191),
         };
         let result = parse_migration(text).unwrap();
         assert_eq!(result.id, migr.id);
@@ -310,7 +307,7 @@ mod test {
 
     #[test]
     #[should_panic(expected="File `0001.edgeql` should have parent migration \
-        \"m1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"")]
+        \"initial\"")]
     fn first_wrong_parent() {
         sort_revisions(mk_seq(&[
             ("m10001", "m10002", "0001.edgeql"),

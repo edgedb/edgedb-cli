@@ -6,8 +6,7 @@ mod migration;
 mod sourcemap;
 mod status;
 
-const NULL_MIGRATION: &str =
-    "m1AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const NULL_MIGRATION: &str = "initial";
 
 pub use create::create;
 pub use migrate::migrate;
