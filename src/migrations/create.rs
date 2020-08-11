@@ -19,11 +19,22 @@ pub enum SourceName {
     File(PathBuf),
 }
 
+#[derive(Deserialize, Debug)]
+pub struct StatementProposal {
+    pub text: String,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Proposal {
+    pub statements: Vec<StatementProposal>,
+    pub confidence: f64,
+}
+
 #[derive(Deserialize, Queryable, Debug)]
 #[edgedb(json)]
 pub struct CurrentMigration {
     pub confirmed: Vec<String>,
-    pub proposed: Vec<String>,
+    pub proposed: Vec<Proposal>,
 }
 
 #[context("error reading schema file {}", path.display())]

@@ -19,8 +19,10 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
         if !status.quiet {
             eprintln!("Schema in database differ to on-disk schema, \
                 in particular:");
-            for text in data.confirmed.iter().chain(&data.proposed).take(3)
-            {
+            let changes = data.confirmed.iter()
+                .chain(data.proposed.iter()
+                    .flat_map(|p| p.statements.iter().map(|s| &s.text)));
+            for text in changes.take(3) {
                 eprintln!("    {}",
                     text.lines().collect::<Vec<_>>()
                     .join("\n    "));
@@ -52,13 +54,9 @@ pub async fn status(cli: &mut Connection, options: &Options,
         if !status.quiet {
             if let Some(db_migration) = &db_migration {
                 if let Some(_) = migrations.get(db_migration) {
-                    eprintln!("There is no database revision {} \
-                        in the filesystem. Consider updating sources.",
-                        db_migration);
-                } else {
-                        let mut iter = migrations.keys()
-                            .skip_while(|k| k != &db_migration);
-                        iter.next(); // skip db_migration itself
+                    let mut iter = migrations.keys()
+                        .skip_while(|k| k != &db_migration);
+                    iter.next(); // skip db_migration itself
                     let first = iter.next().unwrap();  // we know it's not last
                     let count = iter.count() + 1;
                     eprintln!("Database is at migration {db:?} while sources \
@@ -68,6 +66,10 @@ pub async fn status(cli: &mut Connection, options: &Options,
                         n=count,
                         first=first,
                         first_file=migrations[first].path.display());
+                } else {
+                    eprintln!("There is no database revision {} \
+                        in the filesystem. Consider updating sources.",
+                        db_migration);
                 }
             } else {
                 eprintln!("Database is empty. While there are {} migrations \
