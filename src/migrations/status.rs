@@ -83,5 +83,9 @@ pub async fn status(cli: &mut Connection, options: &Options,
     let check = ensure_diff_is_empty(cli, status).await;
     let abort = cli.execute("ABORT MIGRATION").await;
     check.and(abort)?;
+    if !status.quiet {
+        eprintln!("Database is up to date. Last migration {}.",
+            db_migration.as_ref().map(|x| &x[..]).unwrap_or("initial"));
+    }
     Ok(())
 }
