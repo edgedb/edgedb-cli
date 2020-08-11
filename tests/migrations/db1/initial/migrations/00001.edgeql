@@ -1,4 +1,4 @@
-CREATE MIGRATION m1uvkqj5iad7nlxzptnbwl6zfbs4blzerid6l2bpmgr42viscsrdiq
+CREATE MIGRATION m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa
     ONTO initial
 {
     CREATE TYPE Type1 {

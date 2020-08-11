@@ -47,7 +47,7 @@ fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
             hasher.update(token.token.value.as_bytes());
             hasher.update(b"\0");
         }
-        hasher.update(b"\0}");
+        hasher.update(b"}\0");
         let hash = base32::encode(
             base32::Alphabet::RFC4648 { padding: false },
             &hasher.finalize());
@@ -185,7 +185,7 @@ mod test {
     #[test]
     #[should_panic(expected=
         "migration name should be \
-        `m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq` \
+        `m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq` \
         but `m124` is used instead.")]
     fn test_bad_hash() {
         let text = r###"
@@ -210,13 +210,13 @@ mod test {
     fn test_hash_zero() {
         let text = r###"
             CREATE MIGRATION
-                m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq
+                m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq
                 ONTO initial
             {
             };
         "###;
         let migr = Migration {
-            id: "m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq"
+            id: "m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq"
                 .into(),
             parent_id: "initial".into(),
             message: None,
@@ -234,14 +234,14 @@ mod test {
     fn test_hash_1() {
         let text = r###"
             CREATE MIGRATION
-                m1zqdy6fkelif6cnwwwkmyvk5gnsbfkhrmnbitopt6plk3kp2fqpha
+                m1fvpcra5cxntkss3k2to2yfu7pit3t3owesvdw2nysqvvpihdiszq
                 ONTO m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq
             {
                 CREATE TYPE Type1;
             };
         "###;
         let migr = Migration {
-            id: "m1zqdy6fkelif6cnwwwkmyvk5gnsbfkhrmnbitopt6plk3kp2fqpha"
+            id: "m1fvpcra5cxntkss3k2to2yfu7pit3t3owesvdw2nysqvvpihdiszq"
                 .into(),
             parent_id: "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq"
                 .into(),
@@ -259,20 +259,20 @@ mod test {
     #[test]
     #[should_panic(expected=
         "migration name should be \
-        `m1l2x6ndfuxijzutz4yil6owejrqoptramv2kmcfqu6wihxi5p3qsa` \
-        but `m1nsp3k6jku6qckffo33as5pntqgy62z45w73afoys6qjjkk62r2lq` \
+        `m1q3jjfe7zjl74v3n2vxjwzneousdas6vvd4qwrfd6j6xmhmktyada` \
+        but `m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq` \
         is used instead")]
     fn test_hash_depends_on_parent() {
         let text = r###"
             CREATE MIGRATION
-                m1nsp3k6jku6qckffo33as5pntqgy62z45w73afoys6qjjkk62r2lq
+                m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq
                 ONTO initial
             {
                 CREATE TYPE Type1;
             };
         "###;
         let migr = Migration {
-            id: "m1nsp3k6jku6qckffo33as5pntqgy62z45w73afoys6qjjkk62r2lq"
+            id: "m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq"
                 .into(),
             parent_id: "initial".into(),
             message: None,
