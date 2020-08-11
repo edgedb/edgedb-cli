@@ -7,10 +7,13 @@ use std::io::{BufReader, BufRead};
 use std::sync::mpsc::sync_channel;
 use std::thread::{self, JoinHandle};
 use std::process;
+use std::env;
 
 use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use serde_json::from_str;
+
+const DEFAULT_EDGEDB_VERSION: &str = "1-alpha4";
 
 // Can't run server on windows
 #[cfg(not(windows))]
@@ -60,8 +63,8 @@ impl ServerGuard {
         use std::process::{Command, Stdio};
 
         let bin_name = format!("edgedb-server-{}",
-            option_env!("EDGEDB_MAJOR_VERSION")
-            .expect("EDGEDB_MAJOR_VERSION env var should be set"));
+            env::var("EDGEDB_MAJOR_VERSION")
+            .expect(DEFAULT_EDGEDB_VERSION));
         let mut cmd = Command::new(&bin_name);
         cmd.arg("--temp-dir");
         cmd.arg("--testmode");
