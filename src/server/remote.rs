@@ -3,6 +3,7 @@ use anyhow::Context;
 use async_std::fs;
 use async_std::io;
 
+use fn_error_context::context;
 use serde::de::DeserializeOwned;
 
 
@@ -45,6 +46,7 @@ impl<T, E> HttpErrorExt<T> for Result<T, E>
     }
 }
 
+#[context("failed to fetch URL: {}", url)]
 pub async fn get_string(url: &str)
     -> Result<String, anyhow::Error>
 {
@@ -53,6 +55,7 @@ pub async fn get_string(url: &str)
         .body_string().await.map_err(HttpError).url_context(url)?)
 }
 
+#[context("failed to fetch JSON at URL: {}", url)]
 pub async fn get_json_opt<T>(url: &str, context: &'static str)
     -> Result<Option<T>, anyhow::Error>
     where T: DeserializeOwned,
@@ -67,6 +70,7 @@ pub async fn get_json_opt<T>(url: &str, context: &'static str)
     }
 }
 
+#[context("failed to download file at URL: {}", url)]
 pub async fn get_file(dest: impl AsRef<Path>, url: &str)
     -> Result<(), anyhow::Error>
 {
