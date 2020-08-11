@@ -13,6 +13,6 @@ impl ExitCode {
         self.0
     }
     pub fn exit(&self) -> ! {
-        exit(self.0)
+        exit(self.code())
     }
 }

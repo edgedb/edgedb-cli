@@ -457,6 +457,14 @@ pub struct MigrationConfig {
 pub struct CreateMigration {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
+    /// Do not ask questions. By default works only if "safe" changes are
+    /// to be done. Unless `--allow-unsafe` is also specified.
+    #[clap(long)]
+    pub non_interactive: bool,
+    /// Apply the most propbable unsafe changes in case there are ones. This
+    /// is only useful in non-interactive mode
+    #[clap(long)]
+    pub allow_unsafe: bool,
 }
 
 #[derive(Clap, Clone, Debug)]

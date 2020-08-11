@@ -1,11 +1,10 @@
-use async_std::stream::StreamExt;
 use edgedb_protocol::value::Value;
 
 use crate::commands::{Options, ExitCode};
 use crate::commands::parser::ShowStatus;
 use crate::client::Connection;
 use crate::migrations::context::Context;
-use crate::migrations::create::{gen_create_migration, CurrentMigration};
+use crate::migrations::create::{gen_start_migration, CurrentMigration};
 use crate::migrations::migration;
 
 async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
@@ -39,7 +38,7 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
     Ok(())
 }
 
-pub async fn status(cli: &mut Connection, options: &Options,
+pub async fn status(cli: &mut Connection, _options: &Options,
     status: &ShowStatus)
     -> Result<(), anyhow::Error>
 {
@@ -79,14 +78,14 @@ pub async fn status(cli: &mut Connection, options: &Options,
         }
         return Err(ExitCode::new(3).into());
     }
-    let (text, sourcemap) = gen_create_migration(&ctx).await?;
+    let (text, sourcemap) = gen_start_migration(&ctx).await?;
     // TODO(tailhook) translate errors via sourcemap
     cli.execute(text).await?;
     let check = ensure_diff_is_empty(cli, status).await;
     let abort = cli.execute("ABORT MIGRATION").await;
     check.and(abort)?;
     if !status.quiet {
-        eprintln!("Database is up to date. Last migration {}.",
+        eprintln!("Database is up to date. Last migration: {}.",
             db_migration.as_ref().map(|x| &x[..]).unwrap_or("initial"));
     }
     Ok(())

@@ -15,7 +15,7 @@ fn skip_revisions(migrations: &mut LinkedHashMap<String, MigrationFile>,
     db_migration: &str)
     -> anyhow::Result<()>
 {
-    while let Some((key, value)) = migrations.pop_front() {
+    while let Some((key, _)) = migrations.pop_front() {
         if key == db_migration {
             return Ok(())
         }
@@ -25,7 +25,7 @@ fn skip_revisions(migrations: &mut LinkedHashMap<String, MigrationFile>,
         db_migration);
 }
 
-pub async fn migrate(cli: &mut Connection, options: &Options,
+pub async fn migrate(cli: &mut Connection, _options: &Options,
     migrate: &Migrate)
     -> Result<(), anyhow::Error>
 {
@@ -51,7 +51,7 @@ pub async fn migrate(cli: &mut Connection, options: &Options,
             .context("error re-reading migration file")?;
         cli.execute(data).await?;
         if !migrate.quiet {
-            eprintln!("Applied {}({})",
+            eprintln!("Applied {} ({})",
                 migration.data.id,
                 Path::new(migration.path.file_name().unwrap()).display());
         }
