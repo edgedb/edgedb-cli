@@ -85,7 +85,7 @@ fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
         }
         Ok(())
     } else {
-        anyhow::bail!("unknown version of migration id {:?}", migration.id);
+        anyhow::bail!("cannot parse migration name {:?}", migration.id);
     }
 }
 
