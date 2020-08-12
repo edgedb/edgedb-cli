@@ -333,8 +333,8 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected="File `0001.edgeql` should have parent migration \
-        \"initial\"")]
+    #[should_panic(expected="File `0001.edgeql` should have \"initial\" \
+        as the parent migration")]
     fn first_wrong_parent() {
         sort_revisions(mk_seq(&[
             ("m10001", "m10002", "0001.edgeql"),
@@ -398,7 +398,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected="Missing file `00002.edgeql` with parent \
+    #[should_panic(expected="could not find file `00002.edgeql` with parent \
         migration \"m10001\" (perhaps 0003.edgeql should be fixed?)")]
     fn two_missing_second() {
         sort_revisions(mk_seq(&[
@@ -409,8 +409,8 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected="File `0002.edgeql` should have \
-        parent migration \"m10001\"")]
+    #[should_panic(expected="File `0002.edgeql` should have \"m10001\" \
+        as the parent migration")]
     fn two_bad_next_parent() {
         sort_revisions(mk_seq(&[
             ("m10001", NULL_MIGRATION, "0001.edgeql"),
