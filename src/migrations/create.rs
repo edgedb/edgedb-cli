@@ -139,7 +139,7 @@ pub async fn write_migration(ctx: &Context,
     _write_migration(descr, parent, filename.as_ref()).await
 }
 
-#[context("error writing migration file {}", filepath.display())]
+#[context("could not write migration file {}", filepath.display())]
 async fn _write_migration(descr: &CurrentMigration, parent: &str,
     filepath: &Path)
     -> anyhow::Result<()>
