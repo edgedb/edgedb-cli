@@ -69,7 +69,7 @@ async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
     }
 }
 
-#[context("error reading schema at {}", ctx.schema_dir.display())]
+#[context("could not read schema in {}", ctx.schema_dir.display())]
 pub async fn gen_start_migration(ctx: &Context)
     -> anyhow::Result<(String, SourceMap<SourceName>)>
 {
