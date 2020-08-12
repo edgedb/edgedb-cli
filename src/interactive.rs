@@ -20,7 +20,7 @@ use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser::{self, full_statement};
 
-use crate::commands::backslash;
+use crate::commands::{backslash, ExitCode};
 use crate::options::Options;
 use crate::print::{self, PrintError};
 use crate::prompt;
@@ -203,10 +203,15 @@ async fn execute_backslash(mut state: &mut repl::State, text: &str)
         }
         Ok(Input(text)) => state.initial_text = text,
         Err(e) => {
-            eprintln!("Error executing command: {}", e);
-            // Quick-edit command on error
-            state.initial_text = text.into();
-            state.last_error = Some(e);
+            if e.is::<ExitCode>() {
+                // It's expected that command already printed all required
+                // messages, so ignoring it is safe
+            } else {
+                eprintln!("Error executing command: {}", e);
+                // Quick-edit command on error
+                state.initial_text = text.into();
+                state.last_error = Some(e);
+            }
         }
     }
     Ok(())

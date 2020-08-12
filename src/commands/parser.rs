@@ -27,6 +27,12 @@ pub enum Common {
     Dump(Dump),
     /// Restore a database backup from file
     Restore(Restore),
+    /// Create a migration script
+    CreateMigration(CreateMigration),
+    /// Bring current database to the latest or a specified revision
+    Migrate(Migrate),
+    /// Show current migration state
+    ShowStatus(ShowStatus),
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -437,6 +443,49 @@ pub struct PortParameter {
     /// application port.
     #[clap(long)]
     pub concurrency: i64,
+}
+
+#[derive(Clap, Clone, Debug)]
+pub struct MigrationConfig {
+    /// Directory where *.edgeql files are located
+    #[clap(long, default_value="./dbschema")]
+    pub schema_dir: PathBuf,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct CreateMigration {
+    #[clap(flatten)]
+    pub cfg: MigrationConfig,
+    /// Do not ask questions. By default works only if "safe" changes are
+    /// to be done. Unless `--allow-unsafe` is also specified.
+    #[clap(long)]
+    pub non_interactive: bool,
+    /// Apply the most propbable unsafe changes in case there are ones. This
+    /// is only useful in non-interactive mode
+    #[clap(long)]
+    pub allow_unsafe: bool,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Migrate {
+    #[clap(flatten)]
+    pub cfg: MigrationConfig,
+    /// Do not print any messages, only indicate success by exit status
+    #[clap(long)]
+    pub quiet: bool,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct ShowStatus {
+    #[clap(flatten)]
+    pub cfg: MigrationConfig,
+
+    /// Do not print any messages, only indicate success by exit status
+    #[clap(long)]
+    pub quiet: bool,
 }
 
 impl Setting {
