@@ -105,7 +105,7 @@ fn file_num(path: &Path) -> Option<u64> {
     path.file_stem().and_then(|x| x.to_str()).and_then(|x| x.parse().ok())
 }
 
-#[context("error reading migrations in {}", dir.display())]
+#[context("could not read migrations in {}", dir.display())]
 async fn _read_all(dir: &Path, validate_hashes: bool)
     -> anyhow::Result<LinkedHashMap<String, MigrationFile>>
 {
