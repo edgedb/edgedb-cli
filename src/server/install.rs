@@ -1,7 +1,7 @@
 use std::process::exit;
 
 use crate::server::options::Install;
-use crate::server::detect;
+use crate::server::detect::{self, VersionQuery};
 use crate::server::methods::InstallMethod;
 
 pub mod operation;
@@ -27,12 +27,10 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     let methods = avail_methods.instantiate_all(&*current_os, false)?;
     let effective_method = options.method.clone()
         .unwrap_or(InstallMethod::Package);
+    let version = VersionQuery::new(options.nightly, options.version.as_ref());
     for (meth_kind, meth) in &methods {
         for old_ver in meth.installed_versions()? {
-            if options.version.is_none() ||
-                matches!(&options.version,
-                         Some(v) if v == &old_ver.major_version)
-            {
+            if version.installed_matches(&old_ver) {
                 if &effective_method == meth_kind {
                     eprintln!("EdgeDB {} ({}-{}) is already installed. \
                         Use `edgedb server upgrade` for upgrade.",
