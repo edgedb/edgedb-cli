@@ -9,7 +9,7 @@ use prettytable::{Table, Row, Cell};
 use serde::{Serialize, Deserialize};
 use fn_error_context::context;
 
-use crate::platform::config_dir;
+use crate::platform::{ProcessGuard, config_dir, home_dir};
 use crate::server::control;
 use crate::server::detect::{self, VersionQuery, InstalledPackage};
 use crate::server::methods::{InstallMethod, Methods};
@@ -17,6 +17,7 @@ use crate::server::options::{Init, Start, StartConf};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
 use crate::table;
+use crate::credentials::Credentials;
 
 
 const MIN_PORT: u16 = 10700;
@@ -29,6 +30,7 @@ pub struct Settings {
     pub nightly: bool,
     pub method: InstallMethod,
     pub directory: PathBuf,
+    pub credentials: PathBuf,
     pub port: u16,
     pub start_conf: StartConf,
     pub inhibit_user_creation: bool,
@@ -250,6 +252,8 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         nightly: version_query.is_nightly(),
         method: meth_name,
         directory: data_path(options.system)?.join(&options.name),
+        credentials: home_dir()?.join(".edgedb").join("credentials")
+            .join(format!("{}.json", &options.name)),
         port,
         start_conf: options.start_conf,
         inhibit_user_creation: options.inhibit_user_creation,
@@ -260,12 +264,25 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
     if settings.system {
         anyhow::bail!("System instances are not implemented yet"); // TODO
     } else {
-        if settings.directory.exists() {
-            anyhow::bail!("Directory {0} already exists. \
+        if settings.credentials.exists() && !options.overwrite {
+            anyhow::bail!("Credential file {0} already exists. \
                 This may mean that instance is already initialized. \
-                Otherwise run: `rm -rf {0}` to clean up before \
-                re-running `edgedb server init`.",
-                settings.directory.display());
+                You may run `--overwrite` to overwrite the instance.",
+                settings.credentials.display());
+        }
+        if settings.directory.exists() {
+            if options.overwrite {
+                fs::remove_dir_all(&settings.directory)
+                    .with_context(|| format!("cannot remove previous \
+                        instance directory {}",
+                        settings.directory.display()))?;
+            } else {
+                anyhow::bail!("Directory {0} already exists. \
+                    This may mean that instance is already initialized. \
+                    Otherwise run: `rm -rf {0}` to clean up before \
+                    re-running `edgedb server init`.",
+                    settings.directory.display());
+            }
         }
         match try_bootstrap(&settings, &*method) {
             Ok(()) => {}
@@ -293,9 +310,18 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                         name: settings.name.clone(),
                         foreground: false,
                     })?;
+                init_credentials(&settings)?;
                 println!("Bootstrap complete. Server is up and runnning now.");
             }
             (StartConf::Manual, _) | (_, true) => {
+                let mut cmd = control::get_instance(&settings.name)?
+                    .run_command()?;
+                log::debug!("Running server: {:?}", cmd);
+                let child = ProcessGuard::run(&mut cmd)
+                    .with_context(||
+                        format!("error running server {:?}", cmd))?;
+                init_credentials(&settings)?;
+                drop(child);
                 println!("Bootstrap complete. To start a server:\n  \
                           edgedb server start {}",
                           settings.name.escape_default());
@@ -303,6 +329,34 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         }
         Ok(())
     }
+}
+
+fn init_credentials(settings: &Settings) -> anyhow::Result<()> {
+    use rand::{Rng, SeedableRng};
+
+    const PASSWORD_CHARS: &[u8] = b"0123456789\
+        abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let mut rng = rand::rngs::StdRng::from_entropy();
+    let password = (0..24).map(|_| {
+        PASSWORD_CHARS[rng.gen_range(0, PASSWORD_CHARS.len())] as char
+    }).collect();
+    let creds = Credentials {
+        port: settings.port,
+        user: settings.name.clone(),
+        password,
+        database: settings.name.clone(),
+    };
+    write_credentials(&settings.credentials, &creds)?;
+    Ok(())
+}
+
+#[context("cannot write credentials file {}", path.display())]
+fn write_credentials(path: &Path, credentials: &Credentials)
+    -> anyhow::Result<()>
+{
+    fs::create_dir_all(path.parent().unwrap())?;
+    fs::write(path, serde_json::to_vec_pretty(&credentials)?)?;
+    Ok(())
 }
 
 #[context("failed to write upgrade marker {}", path.display())]
@@ -337,6 +391,10 @@ impl Settings {
         table.add_row(Row::new(vec![
             Cell::new("Data Directory"),
             Cell::new(&self.directory.display().to_string()),
+        ]));
+        table.add_row(Row::new(vec![
+            Cell::new("Credentials Path"),
+            Cell::new(&self.credentials.display().to_string()),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Database Server Port"),

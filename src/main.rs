@@ -12,6 +12,7 @@ use crate::options::Options;
 
 mod commands;
 mod completion;
+mod credentials;
 mod error_display;
 mod highlight;
 mod interactive;

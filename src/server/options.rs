@@ -83,6 +83,12 @@ pub struct Init {
     #[clap(long, default_value="auto",
            possible_values=&["auto", "manual"][..])]
     pub start_conf: StartConf,
+
+    /// Overwrite data directory and credential file if any of these exists.
+    /// This is mainly useful for recovering from interruped initializations.
+    #[clap(long)]
+    pub overwrite: bool,
+
     /// Do not create a user and database named after current unix user
     #[clap(long, setting=ArgSettings::Hidden)]
     pub inhibit_user_creation: bool,
