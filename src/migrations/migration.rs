@@ -89,7 +89,7 @@ fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
     }
 }
 
-#[context("error reading migration file {}", path.display())]
+#[context("could not read migration file {}", path.display())]
 async fn read_file(path: &Path, validate_hashes:bool)
     -> anyhow::Result<Migration>
 {
