@@ -3,7 +3,7 @@ use async_std::prelude::StreamExt;
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use crate::commands::helpers::quote_namespaced;
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 use crate::highlight;
 
 

@@ -1,7 +1,7 @@
 use crate::commands::Options;
 use crate::commands::filter;
 use crate::commands::list;
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 
 
 pub async fn list_roles<'x>(cli: &mut Connection, options: &Options,

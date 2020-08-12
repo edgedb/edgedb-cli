@@ -7,7 +7,6 @@ use clap::Clap;
 
 use crate::options::Options;
 
-mod client;
 mod commands;
 mod completion;
 mod error_display;
@@ -21,11 +20,9 @@ mod print;
 mod process;
 mod prompt;
 mod platform;
-mod reader;
 mod repl;
 mod self_install;
 mod server;
-mod server_params;
 mod statement;
 mod table;
 mod variables;

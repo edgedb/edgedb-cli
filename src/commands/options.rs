@@ -1,5 +1,5 @@
 use crate::print::style::Styler;
-use crate::client;
+use edgedb_client::client;
 
 
 pub struct Options {

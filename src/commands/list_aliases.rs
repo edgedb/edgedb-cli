@@ -6,7 +6,7 @@ use edgedb_derive::Queryable;
 use crate::commands::Options;
 use crate::commands::filter;
 use crate::table;
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 
 
 

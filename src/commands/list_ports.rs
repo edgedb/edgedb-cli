@@ -5,7 +5,7 @@ use prettytable::{Table, Row, Cell};
 use edgedb_derive::Queryable;
 use edgedb_protocol::value::Value;
 use crate::commands::Options;
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 use crate::table;
 
 

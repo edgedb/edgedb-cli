@@ -632,6 +632,7 @@ dependencies = [
  "colorful",
  "combine",
  "dirs 2.0.2",
+ "edgedb-client",
  "edgedb-derive",
  "edgedb-protocol",
  "edgeql-parser",
@@ -681,6 +682,26 @@ dependencies = [
  "whoami",
  "winapi 0.3.8",
  "winreg",
+]
+
+[[package]]
+name = "edgedb-client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-listen",
+ "async-std",
+ "bytes 0.5.4",
+ "edgedb-protocol",
+ "humantime-serde",
+ "log",
+ "scram",
+ "serde",
+ "serde_json",
+ "snafu",
+ "thiserror",
+ "typemap",
+ "whoami",
 ]
 
 [[package]]

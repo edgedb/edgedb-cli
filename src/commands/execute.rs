@@ -1,8 +1,9 @@
 use edgeql_parser::helpers::quote_name;
+use edgedb_client::client::Connection;
+use edgedb_client::server_params::PostgresAddress;
 
 use crate::commands::{self, Options};
 use crate::commands::parser::Common;
-use crate::client::Connection;
 use crate::print;
 use crate::migrations;
 use crate::server_params::PostgresAddress;

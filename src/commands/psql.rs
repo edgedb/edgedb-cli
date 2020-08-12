@@ -3,9 +3,9 @@ use std::process::Command;
 use std::ffi::OsString;
 
 use anyhow::Context;
-use crate::client::Connection;
+use edgedb_client::client::Connection;
 use crate::commands::Options;
-use crate::server_params::PostgresAddress;
+use edgedb_client::server_params::PostgresAddress;
 
 
 pub async fn psql<'x>(cli: &mut Connection, _options: &Options)

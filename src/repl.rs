@@ -4,7 +4,7 @@ use async_std::prelude::FutureExt;
 use colorful::Colorful;
 use edgedb_protocol::server_message::TransactionState;
 
-use crate::client;
+use edgedb_client::client;
 use crate::prompt;
 use crate::print;
 

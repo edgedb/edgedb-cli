@@ -24,7 +24,7 @@ use crate::commands::{backslash, ExitCode};
 use crate::options::Options;
 use crate::print::{self, PrintError};
 use crate::prompt;
-use crate::reader::ReadError;
+use edgedb_client::reader::ReadError;
 use crate::repl;
 use crate::variables::input_variables;
 use crate::error_display::print_query_error;
