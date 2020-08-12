@@ -1,8 +1,8 @@
+use edgedb_client::client::Connection;
 use edgedb_protocol::value::Value;
 
 use crate::commands::{Options, ExitCode};
 use crate::commands::parser::ShowStatus;
-use crate::client::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::create::{gen_start_migration, CurrentMigration};
 use crate::migrations::migration;

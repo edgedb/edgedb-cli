@@ -7,11 +7,11 @@ use fn_error_context::context;
 use edgedb_derive::Queryable;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser::{full_statement, is_empty};
+use edgedb_client::client::Connection;
 use serde::Deserialize;
 
 use crate::commands::Options;
 use crate::commands::parser::CreateMigration;
-use crate::client::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::migration;
 use crate::migrations::sourcemap::{Builder, SourceMap};
