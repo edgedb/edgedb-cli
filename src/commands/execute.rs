@@ -6,8 +6,6 @@ use crate::commands::{self, Options};
 use crate::commands::parser::Common;
 use crate::print;
 use crate::migrations;
-use crate::server_params::PostgresAddress;
-
 
 pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
     -> Result<(), anyhow::Error>

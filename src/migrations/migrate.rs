@@ -2,11 +2,11 @@ use anyhow::Context as _;
 use async_std::fs;
 use async_std::path::Path;
 use edgedb_protocol::value::Value;
+use edgedb_client::client::Connection;
 use linked_hash_map::LinkedHashMap;
 
 use crate::commands::Options;
 use crate::commands::parser::Migrate;
-use crate::client::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::migration::{self, MigrationFile};
 
