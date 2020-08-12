@@ -174,7 +174,7 @@ fn sort_revisions(mut all: HashMap<String, MigrationFile>)
                 .map(|n| n == counter)
                 .unwrap_or(false);
             if valid_number {
-                anyhow::bail!("File `{}` should have parent migration {:?} \
+                anyhow::bail!("File `{}` should have {:?} as the parent migration \
                     (`CREATE MIGRATION {} ONTO {} {{...`)",
                     next.path.display(), parent_id,
                     next.data.id, parent_id);
