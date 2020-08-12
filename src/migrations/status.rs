@@ -16,7 +16,8 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
     ).await?;
     if !data.confirmed.is_empty() || !data.proposed.is_empty() {
         if !status.quiet {
-            eprintln!("Schema in database differ to on-disk schema, \
+            eprintln!("Detected differences between \
+                the database schema and the schema source, \
                 in particular:");
             let changes = data.confirmed.iter()
                 .chain(data.proposed.iter()
