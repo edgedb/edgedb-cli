@@ -52,7 +52,7 @@ pub struct CurrentMigration {
     pub proposed: Vec<Proposal>,
 }
 
-#[context("error reading schema file {}", path.display())]
+#[context("could not read schema file {}", path.display())]
 async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
     let data = fs::read_to_string(path).await?;
     let mut offset = 0;
