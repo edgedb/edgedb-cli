@@ -179,7 +179,7 @@ fn sort_revisions(mut all: HashMap<String, MigrationFile>)
                     next.path.display(), parent_id,
                     next.data.id, parent_id);
             } else {
-                anyhow::bail!("Missing file `{:05}.edgeql` with \
+                anyhow::bail!("could not find file `{:05}.edgeql` with \
                     parent migration {:?} (perhaps {} should be fixed?)",
                     counter, parent_id, next.path.display());
             }
