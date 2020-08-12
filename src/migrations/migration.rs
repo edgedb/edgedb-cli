@@ -138,7 +138,7 @@ async fn _read_all(dir: &Path, validate_hashes: bool)
                 anyhow::bail!("Two files {:?} and {:?} have the same \
                     parent revision {:?}. Multiple branches in revision \
                     history are not supported yet, please rebase one of the \
-                    branches on top of other.",
+                    branches on top of the other.",
                     path, o.get().path, data.parent_id);
             }
         }
