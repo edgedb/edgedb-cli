@@ -61,7 +61,7 @@ async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
             Ok(shift) => offset += shift,
             Err(_) => {
                 if !is_empty(&data[offset..]) {
-                    anyhow::bail!("Last statement must end with semicolon");
+                    anyhow::bail!("final statement does not end with a semicolon");
                 }
                 return Ok(data);
             }
