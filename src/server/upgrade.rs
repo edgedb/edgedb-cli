@@ -451,6 +451,7 @@ fn reinit_and_restore(inst: &Instance,
         inhibit_user_creation: true,
         inhibit_start: true,
         upgrade_marker: Some(serde_json::to_string(&meta).unwrap()),
+        overwrite: true,
     })?;
 
     let mut ctl = inst.get_control()?;

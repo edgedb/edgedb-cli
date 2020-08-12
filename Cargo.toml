@@ -62,6 +62,7 @@ fn-error-context = "0.1.1"
 combine = "4.2.1"
 sha2 = "0.9.1"
 base32 = "0.4.0"
+rand = "0.7.3"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
