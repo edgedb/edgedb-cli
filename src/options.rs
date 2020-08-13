@@ -1,16 +1,18 @@
 use std::env;
 use std::time::Duration;
-use std::process::exit;
 
+use anyhow::Context;
+use async_std::task;
 use atty;
 use clap::{Clap, AppSettings};
+use edgedb_client::Builder;
 use whoami;
 
-use crate::repl::OutputMode;
 use crate::commands::parser::Common;
+use crate::platform::home_dir;
+use crate::repl::OutputMode;
 use crate::self_install;
 use crate::server;
-use edgedb_client::Builder;
 
 
 #[derive(Clap, Debug)]
@@ -140,36 +142,65 @@ pub struct Options {
 }
 
 impl Options {
-    pub fn from_args_and_env() -> Options {
+    pub fn from_args_and_env() -> anyhow::Result<Options> {
         let tmp = TmpOptions::parse();
         let admin = tmp.admin;
-        let user = tmp.user
-            .or_else(|| env::var("EDGEDB_USER").ok())
-            .unwrap_or_else(|| if admin  {
-                String::from("edgedb")
-            } else {
-                whoami::username()
-            });
-        let host = tmp.host
-            .or_else(|| env::var("EDGEDB_HOST").ok())
-            .unwrap_or_else(|| String::from("localhost"));
-        let port = tmp.port
-            .or_else(|| env::var("EDGEDB_PORT").ok()
-                        .and_then(|x| x.parse().ok()))
-            .unwrap_or_else(|| 5656);
+        let user = tmp.user.or_else(|| env::var("EDGEDB_USER").ok());
+        let host = tmp.host.or_else(|| env::var("EDGEDB_HOST").ok());
+        let port = tmp.port.or_else(|| {
+            env::var("EDGEDB_PORT").ok().and_then(|x| x.parse().ok())
+        });
         let database = tmp.database
-            .or_else(|| env::var("EDGEDB_DATABASE").ok())
-            .unwrap_or_else(|| if admin  {
-                String::from("edgedb")
-            } else {
-                user.clone()
-            });
+            .or_else(|| env::var("EDGEDB_DATABASE").ok());
 
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
             && atty::is(atty::Stream::Stdin);
 
+        let mut conn_params = Builder::new();
+        if let Some(name) = tmp.instance {
+            conn_params = task::block_on(Builder::read_credentials(
+                home_dir()?.join(".edgedb").join("credentials")
+                .join(format!("{}.json", name))
+            ))?;
+            user.map(|user| conn_params.user(user));
+            database.map(|database| conn_params.database(database));
+        } else {
+            let user = user.unwrap_or_else(|| {
+                if admin {
+                    String::from("edgedb")
+                } else {
+                    whoami::username()
+                }
+            });
+            conn_params.user(user.clone());
+            conn_params.database(database.as_ref().map(|x| &x[..])
+                                 .unwrap_or(&user));
+            let host = host.unwrap_or_else(|| String::from("localhost"));
+            let port = port.unwrap_or(5656);
+            let unix_host = host.contains("/");
+            if admin || unix_host {
+                let prefix = if unix_host {
+                    &host
+                } else {
+                    "/var/run/edgedb"
+                };
+                let path = if prefix.contains(".s.EDGEDB") {
+                    // it's the full path
+                    prefix.into()
+                } else {
+                    if admin {
+                        format!("{}/.s.EDGEDB.admin.{}", prefix, port)
+                    } else {
+                        format!("{}/.s.EDGEDB.{}", prefix, port)
+                    }
+                };
+                conn_params.unix_addr(path);
+            } else {
+                conn_params.tcp_addr(host, port);
+            }
+        }
         let password = if tmp.password_from_stdin {
             let password = rpassword::read_password()
                 .expect("password can be read");
@@ -177,62 +208,25 @@ impl Options {
         } else if tmp.no_password {
             None
         } else if tmp.password {
+            let user = conn_params.get_user().expect("username is known");
             Some(rpassword::read_password_from_tty(
                     Some(&format!("Password for '{}': ",
                                   user.escape_default())))
-                 .unwrap_or_else(|e| {
-                     eprintln!("Error reading password: {:#}", e);
-                     exit(1);
-                }))
+                 .context("error reading password")?)
         } else {
             match env::var("EDGEDB_PASSWORD") {
                 Ok(p) => Some(p),
                 Err(_) => None,
             }
         };
-
-        let mut conn_params = Builder::new();
-        conn_params.user(user);
         password.map(|password| conn_params.password(password));
-        conn_params.database(database);
-        tmp.wait_until_available.map(|w| conn_params.wait_until_available(w));
 
-        let unix_host = host.contains("/");
-        if let Some(name) = tmp.instance {
-            let path = server::get_instance(&name)
-                .and_then(|inst| inst.get_socket(admin))
-                .unwrap_or_else(|e| {
-                    eprintln!("Could not find instance {:?}: {:#}.\n\
-                        Note: only instances created by `edgedb server init` \
-                        are supported by `--instance` argument.", name, e);
-                    exit(1);
-                });
-            conn_params.unix_addr(path);
-        } else if admin || unix_host {
-            let prefix = if unix_host {
-                &host
-            } else {
-                "/var/run/edgedb"
-            };
-            let path = if prefix.contains(".s.EDGEDB") {
-                // it's the full path
-                prefix.into()
-            } else {
-                if admin {
-                    format!("{}/.s.EDGEDB.admin.{}", prefix, port)
-                } else {
-                    format!("{}/.s.EDGEDB.{}", prefix, port)
-                }
-            };
-            conn_params.unix_addr(path);
-        } else {
-            conn_params.tcp_addr(host, port);
-        };
+        tmp.wait_until_available.map(|w| conn_params.wait_until_available(w));
 
         let subcommand = if let Some(query) = tmp.query {
             if tmp.subcommand.is_some() {
-                eprintln!("Option `-c` conflicts with specifying subcommand");
-                exit(1);
+                anyhow::bail!(
+                    "Option `-c` conflicts with specifying subcommand");
             } else {
                 Some(Command::Query(Query {
                     queries: vec![query],
@@ -242,7 +236,7 @@ impl Options {
             tmp.subcommand
         };
 
-        return Options {
+        Ok(Options {
             conn_params,
             interactive,
             subcommand,
@@ -258,6 +252,6 @@ impl Options {
             } else {
                 OutputMode::JsonElements
             },
-        }
+        })
     }
 }

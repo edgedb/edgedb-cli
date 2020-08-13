@@ -44,7 +44,7 @@ fn main() {
     }
 }
 
-fn _main() -> Result<(), anyhow::Error> {
+fn _main() -> anyhow::Result<()> {
     // If a crash happens we want the backtrace to be printed by default
     // to ease bug reporting and troubleshooting.
     // TODO: consider removing this once EdgeDB reaches 1.0 stable.
@@ -59,7 +59,7 @@ fn _main() -> Result<(), anyhow::Error> {
         }
     }
 
-    let opt = Options::from_args_and_env();
+    let opt = Options::from_args_and_env()?;
 
     let mut builder = env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or("warn")
