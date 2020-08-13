@@ -1,6 +1,7 @@
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Child};
+use std::ffi::OsString;
 
 
 #[cfg(windows)]
@@ -30,6 +31,18 @@ pub fn home_dir() -> anyhow::Result<PathBuf> {
 
 pub fn config_dir() -> anyhow::Result<PathBuf> {
     Ok(home_dir()?.join(".edgedb").join("config"))
+}
+
+pub fn tmp_file_name(path: &Path) -> OsString {
+    if let Some(file_name) = path.file_name() {
+        let mut buf = OsString::with_capacity(6 + file_name.len());
+        buf.push(".~");
+        buf.push(file_name);
+        buf.push(".tmp");
+        buf
+    } else {
+        OsString::from(".~.tmp")  // should never be relied on in practice
+    }
 }
 
 impl ProcessGuard {

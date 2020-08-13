@@ -34,6 +34,8 @@ pub enum Command {
     Status(Status),
     #[clap(about="Upgrade installations and instances")]
     Upgrade(Upgrade),
+    #[clap(about="Reset password for a user in the instance")]
+    ResetPassword(ResetPassword),
     #[clap(name="_detect")]
     _Detect(Detect),
 }
@@ -202,6 +204,33 @@ pub struct Upgrade {
     /// Force upgrade process even if there is no new version
     #[clap(long)]
     pub force: bool,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct ResetPassword {
+    /// Database server instance name
+    #[clap(default_value="default", validator(instance_name_opt))]
+    pub name: String,
+    /// User to change password for. Default is got from credentials file.
+    #[clap(long)]
+    pub user: Option<String>,
+    /// Read a password from the terminal rather than generating new one
+    #[clap(long)]
+    pub password: bool,
+    /// Read a password from stdin rather than generating new one
+    #[clap(long)]
+    pub password_from_stdin: bool,
+    /// Save new user and password password into a credentials file. By default
+    /// credentials file is updated only if user name matches.
+    #[clap(long)]
+    pub save_credentials: bool,
+    /// Do not save generated password into a credentials file even if user name matches.
+    #[clap(long)]
+    pub no_save_credentials: bool,
+    /// Do not print any messages, only indicate success by exit status
+    #[clap(long)]
+    pub quiet: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

@@ -13,6 +13,7 @@ use serde::Deserialize;
 
 use crate::commands::parser::CreateMigration;
 use crate::commands::{Options, ExitCode};
+use crate::platform::tmp_file_name;
 use crate::migrations::context::Context;
 use crate::migrations::migration;
 use crate::migrations::print_error::print_migration_error;
@@ -188,8 +189,7 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path)
     }
     let id = hasher.make_id();
     let dir = filepath.parent().unwrap();
-    let tmp_file = dir.join(format!(".~{}.tmp",
-        filepath.file_name().unwrap().to_str().unwrap()));
+    let tmp_file = filepath.with_file_name(tmp_file_name(&filepath.as_ref()));
     if !filepath.exists().await {
         fs::create_dir_all(&dir).await?;
     }

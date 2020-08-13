@@ -33,7 +33,7 @@ struct TmpOptions {
     pub database: Option<String>,
 
     /// Connect to a passwordless unix socket with superuser
-    /// privileges by default
+    /// privileges by default. (DEPRECATED)
     #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
     pub admin: bool,
 
