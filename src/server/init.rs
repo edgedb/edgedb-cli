@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use std::collections::{BTreeSet, BTreeMap};
 
 use anyhow::Context;
+use async_std::task;
+use edgeql_parser::helpers::{quote_string, quote_name};
 use prettytable::{Table, Row, Cell};
 use serde::{Serialize, Deserialize};
 use fn_error_context::context;
@@ -312,22 +314,22 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         }).context("failed to init service")?;
         match (settings.start_conf, settings.inhibit_start) {
             (StartConf::Auto, false) => {
-                control::get_instance(&settings.name)?
-                    .start(&Start {
+                let mut inst = control::get_instance(&settings.name)?;
+                inst.start(&Start {
                         name: settings.name.clone(),
                         foreground: false,
                     })?;
-                init_credentials(&settings)?;
+                init_credentials(&settings, &*inst)?;
                 println!("Bootstrap complete. Server is up and runnning now.");
             }
             (StartConf::Manual, _) | (_, true) => {
-                let mut cmd = control::get_instance(&settings.name)?
-                    .run_command()?;
+                let inst = control::get_instance(&settings.name)?;
+                let mut cmd = inst.run_command()?;
                 log::debug!("Running server: {:?}", cmd);
                 let child = ProcessGuard::run(&mut cmd)
                     .with_context(||
                         format!("error running server {:?}", cmd))?;
-                init_credentials(&settings)?;
+                init_credentials(&settings, &*inst)?;
                 drop(child);
                 println!("Bootstrap complete. To start a server:\n  \
                           edgedb server start {}",
@@ -338,14 +340,41 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
     }
 }
 
-fn init_credentials(settings: &Settings) -> anyhow::Result<()> {
+fn init_credentials(settings: &Settings, inst: &dyn control::Instance)
+    -> anyhow::Result<()>
+{
     let password = generate_password();
+
+    let mut conn_params = edgedb_client::Builder::new();
+    conn_params.user("edgedb");
+    conn_params.database("edgedb");
+    conn_params.unix_addr(inst.get_socket(true)?);
+    task::block_on(async {
+        let mut cli = conn_params.connect().await?;
+        if settings.user == "edgedb" {
+            cli.execute(&format!(r###"
+                ALTER ROLE {name} {{
+                    SET password := {password};
+                }}"###,
+                name=quote_name(&settings.user),
+                password=quote_string(&password))
+            ).await
+        } else {
+            cli.execute(&format!(r###"
+                CREATE SUPERUSER ROLE {name} {{
+                    SET password := {password};
+                }}"###,
+                name=quote_name(&settings.user),
+                password=quote_string(&password))
+            ).await
+        }
+    })?;
+
     let mut creds = Credentials::default();
     creds.port = settings.port;
     creds.user = settings.user.clone();
     creds.database = Some(settings.database.clone());
     creds.password = Some(password);
-    // TODO(tailhook) create actual user/set password
     write_credentials(&settings.credentials, &creds)?;
     Ok(())
 }
