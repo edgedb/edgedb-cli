@@ -12,6 +12,7 @@ use fn_error_context::context;
 
 use crate::platform::{ProcessGuard, config_dir, home_dir};
 use crate::server::control;
+use crate::server::reset_password::{generate_password, write_credentials};
 use crate::server::detect::{self, VersionQuery, InstalledPackage};
 use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::{Init, Start, StartConf};
@@ -338,29 +339,14 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
 }
 
 fn init_credentials(settings: &Settings) -> anyhow::Result<()> {
-    use rand::{Rng, SeedableRng};
-
-    const PASSWORD_CHARS: &[u8] = b"0123456789\
-        abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let mut rng = rand::rngs::StdRng::from_entropy();
-    let password = (0..24).map(|_| {
-        PASSWORD_CHARS[rng.gen_range(0, PASSWORD_CHARS.len())] as char
-    }).collect();
+    let password = generate_password();
     let mut creds = Credentials::default();
     creds.port = settings.port;
     creds.user = settings.user.clone();
     creds.database = Some(settings.database.clone());
     creds.password = Some(password);
+    // TODO(tailhook) create actual user/set password
     write_credentials(&settings.credentials, &creds)?;
-    Ok(())
-}
-
-#[context("cannot write credentials file {}", path.display())]
-fn write_credentials(path: &Path, credentials: &Credentials)
-    -> anyhow::Result<()>
-{
-    fs::create_dir_all(path.parent().unwrap())?;
-    fs::write(path, serde_json::to_vec_pretty(&credentials)?)?;
     Ok(())
 }
 

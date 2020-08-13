@@ -5,6 +5,7 @@ use crate::server::list_versions;
 use crate::server::init;
 use crate::server::control;
 use crate::server::upgrade;
+use crate::server::reset_password;
 use crate::server::status;
 
 
@@ -26,6 +27,7 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
             }
         }
         Upgrade(c) => upgrade::upgrade(c),
+        ResetPassword(c) => reset_password::reset_password(c),
         _Detect(c) => detect::main(c),
     }
 }

@@ -25,6 +25,7 @@ mod control;
 mod init;
 mod install;
 mod list_versions;
+mod reset_password;
 mod status;
 mod upgrade;
 

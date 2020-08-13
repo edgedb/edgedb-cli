@@ -1,4 +1,3 @@
-use std::ffi::OsString;
 use std::default::Default;
 
 use anyhow::Context;
@@ -10,9 +9,11 @@ use async_std::io::{self, Write, prelude::WriteExt};
 use edgedb_protocol::client_message::{ClientMessage, Dump};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
+use edgedb_client::client::Connection;
+
+use crate::platform::tmp_file_name;
 use crate::commands::Options;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
-use edgedb_client::client::Connection;
 
 
 type Output = Box<dyn Write + Unpin + Send>;
@@ -35,19 +36,15 @@ impl Guard {
                 .context(filename.display().to_string())?;
             Ok((Box::new(file), Guard { filenames: None }))
         } else {
-            let name = filename.file_name().unwrap();
-            let mut tmp_name = OsString::with_capacity(name.len() + 10);
-            tmp_name.push(".");
-            tmp_name.push(name);
-            tmp_name.push(".edb.tmp");
-            let tmp_filename = filename.with_file_name(tmp_name);
-            if tmp_filename.exists().await {
-                fs::remove_file(&tmp_filename).await.ok();
+            let tmp_path = filename.with_file_name(
+                tmp_file_name(filename.as_ref()));
+            if tmp_path.exists().await {
+                fs::remove_file(&tmp_path).await.ok();
             }
-            let tmpfile = fs::File::create(&tmp_filename).await
-                .context(tmp_filename.display().to_string())?;
-            Ok((Box::new(tmpfile), Guard {
-                filenames: Some((tmp_filename, filename.to_owned())),
+            let tmp_file = fs::File::create(&tmp_path).await
+                .context(tmp_path.display().to_string())?;
+            Ok((Box::new(tmp_file), Guard {
+                filenames: Some((tmp_path, filename.to_owned())),
             }))
         }
     }
