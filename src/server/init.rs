@@ -341,6 +341,7 @@ fn init_credentials(settings: &Settings) -> anyhow::Result<()> {
         PASSWORD_CHARS[rng.gen_range(0, PASSWORD_CHARS.len())] as char
     }).collect();
     let creds = Credentials {
+        host: None,
         port: settings.port,
         user: settings.name.clone(),
         password,
