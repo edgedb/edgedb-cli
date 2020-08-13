@@ -351,6 +351,11 @@ fn init_credentials(settings: &Settings, inst: &dyn control::Instance)
     conn_params.unix_addr(inst.get_socket(true)?);
     task::block_on(async {
         let mut cli = conn_params.connect().await?;
+        if settings.database != "edgedb" {
+            cli.execute(
+                &format!("CREATE DATABASE {}", quote_name(&settings.database))
+            ).await?;
+        }
         if settings.user == "edgedb" {
             cli.execute(&format!(r###"
                 ALTER ROLE {name} {{
