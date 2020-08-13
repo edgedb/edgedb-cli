@@ -84,6 +84,15 @@ pub struct Init {
            possible_values=&["auto", "manual"][..])]
     pub start_conf: StartConf,
 
+    /// Default database name (created during initialization, and saved in
+    /// credentials file)
+    #[clap(long, default_value="edgedb")]
+    pub default_database: String,
+    /// Default user name (created during initialization, and saved in
+    /// credentials file)
+    #[clap(long, default_value="edgedb")]
+    pub default_user: String,
+
     /// Overwrite data directory and credential file if any of these exists.
     /// This is mainly useful for recovering from interruped initializations.
     #[clap(long)]

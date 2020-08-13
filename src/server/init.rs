@@ -1,3 +1,4 @@
+use std::default::Default;
 use std::fs;
 use std::io;
 use std::process::Command;
@@ -17,7 +18,8 @@ use crate::server::options::{Init, Start, StartConf};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
 use crate::table;
-use crate::credentials::Credentials;
+
+use edgedb_client::credentials::Credentials;
 
 
 const MIN_PORT: u16 = 10700;
@@ -31,6 +33,8 @@ pub struct Settings {
     pub method: InstallMethod,
     pub directory: PathBuf,
     pub credentials: PathBuf,
+    pub user: String,
+    pub database: String,
     pub port: u16,
     pub start_conf: StartConf,
     pub inhibit_user_creation: bool,
@@ -254,6 +258,8 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         directory: data_path(options.system)?.join(&options.name),
         credentials: home_dir()?.join(".edgedb").join("credentials")
             .join(format!("{}.json", &options.name)),
+        user: options.default_user.clone(),
+        database: options.default_database.clone(),
         port,
         start_conf: options.start_conf,
         inhibit_user_creation: options.inhibit_user_creation,
@@ -340,13 +346,11 @@ fn init_credentials(settings: &Settings) -> anyhow::Result<()> {
     let password = (0..24).map(|_| {
         PASSWORD_CHARS[rng.gen_range(0, PASSWORD_CHARS.len())] as char
     }).collect();
-    let creds = Credentials {
-        host: None,
-        port: settings.port,
-        user: settings.name.clone(),
-        password,
-        database: settings.name.clone(),
-    };
+    let mut creds = Credentials::default();
+    creds.port = settings.port;
+    creds.user = settings.user.clone();
+    creds.database = Some(settings.database.clone());
+    creds.password = Some(password);
     write_credentials(&settings.credentials, &creds)?;
     Ok(())
 }
@@ -400,6 +404,14 @@ impl Settings {
         table.add_row(Row::new(vec![
             Cell::new("Database Server Port"),
             Cell::new(&self.port.to_string()),
+        ]));
+        table.add_row(Row::new(vec![
+            Cell::new("Default User"),
+            Cell::new(&self.user.to_string()),
+        ]));
+        table.add_row(Row::new(vec![
+            Cell::new("Default Database"),
+            Cell::new(&self.database.to_string()),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("EdgeDB Version"),
