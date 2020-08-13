@@ -11,7 +11,7 @@ use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
-use edgedb_client::client;
+use edgedb_client as client;
 use crate::server::control;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::init::{init, Metadata, data_path};
@@ -452,6 +452,8 @@ fn reinit_and_restore(inst: &Instance,
         inhibit_start: true,
         upgrade_marker: Some(serde_json::to_string(&meta).unwrap()),
         overwrite: true,
+        default_user: "edgedb".into(),
+        default_database: "edgedb".into(),
     })?;
 
     let mut ctl = inst.get_control()?;
