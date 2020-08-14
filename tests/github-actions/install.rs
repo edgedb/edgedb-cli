@@ -110,7 +110,7 @@ fn github_action_install() -> anyhow::Result<()> {
     if !cfg!(windows) {
         println!("Install");
         Command::new(&edgedb)
-            .arg("server").arg("install").arg("--nightly")
+            .arg("server").arg("install")
             .assert()
             .success();
 
