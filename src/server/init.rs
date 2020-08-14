@@ -1,9 +1,10 @@
+use std::collections::{BTreeSet, BTreeMap};
 use std::default::Default;
 use std::fs;
 use std::io;
-use std::process::Command;
 use std::path::{Path, PathBuf};
-use std::collections::{BTreeSet, BTreeMap};
+use std::process::Command;
+use std::time::Duration;
 
 use anyhow::Context;
 use async_std::task;
@@ -349,6 +350,7 @@ fn init_credentials(settings: &Settings, inst: &dyn control::Instance)
     conn_params.user("edgedb");
     conn_params.database("edgedb");
     conn_params.unix_addr(inst.get_socket(true)?);
+    conn_params.wait_until_available(Duration::from_secs(30));
     task::block_on(async {
         let mut cli = conn_params.connect().await?;
         if settings.database != "edgedb" {
