@@ -145,7 +145,7 @@ pub fn install_twice_test(dockerfile: &str, tagname: &str, nightly: bool)
             r###"
                 RUST_LOG=info edgedb server install {arg}
                 echo --- DONE --- 1>&2
-                RUST_LOG=info edgedb server install
+                RUST_LOG=info edgedb server install {arg}
             "###, arg=if nightly { "--nightly" } else {""})
         ).code(51)
         .stderr(predicates::str::contains("--- DONE ---"))
