@@ -4,6 +4,7 @@ use async_std::prelude::FutureExt;
 use colorful::Colorful;
 use edgedb_protocol::server_message::TransactionState;
 
+use edgedb_client::builder;
 use edgedb_client::client;
 use crate::prompt;
 use crate::print;
@@ -41,7 +42,7 @@ pub struct State {
     pub input_mode: InputMode,
     pub output_mode: OutputMode,
     pub history_limit: usize,
-    pub conn_params: client::Builder,
+    pub conn_params: builder::Builder,
     pub database: String,
     pub connection: Option<client::Connection>,
     pub last_version: Option<String>,
