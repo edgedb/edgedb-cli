@@ -11,7 +11,7 @@ use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
-use edgedb_client::client;
+use edgedb_client::builder;
 use crate::server::control;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::init::{init, Metadata, data_path};
@@ -321,7 +321,7 @@ async fn dump_instance(inst: &Instance, socket: &Path)
             "Removing old dump at {}", path.display());
         fs::remove_dir_all(&path)?;
     }
-    let mut conn_params = client::Builder::new();
+    let mut conn_params = builder::Builder::new();
     conn_params.user("edgedb");
     conn_params.database("edgedb");
     conn_params.unix_addr(socket);
@@ -344,7 +344,7 @@ async fn restore_instance(inst: &Instance, socket: &Path)
     log::info!(target: "edgedb::server::upgrade",
         "Restoring instance {:?}", inst.name);
     let path = inst.data_dir.with_file_name(format!("{}.dump", inst.name));
-    let mut conn_params = client::Builder::new();
+    let mut conn_params = builder::Builder::new();
     conn_params.user("edgedb");
     conn_params.database("edgedb");
     conn_params.unix_addr(socket);

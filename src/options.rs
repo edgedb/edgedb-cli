@@ -10,7 +10,7 @@ use crate::repl::OutputMode;
 use crate::commands::parser::Common;
 use crate::self_install;
 use crate::server;
-use edgedb_client::client::Builder;
+use edgedb_client::builder::Builder;
 
 
 #[derive(Clap, Debug)]
