@@ -126,12 +126,28 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+<% if tgt.family == "generic" %>
+    - name: Prepare docker context
+      run: |
+        mkdir -p dockerctx
+        cp artifacts/<< tgt.name >>/edgedb-cli* dockerctx/edgedb
+        chmod +x dockerctx/edgedb
+        printf 'FROM scratch\nENV EDGEDB_USER edgedb\nADD edgedb /usr/bin/\nENTRYPOINT ["/usr/bin/edgedb"]\n' \
+          >dockerctx/Dockerfile
+        tag=$(date +%Y%m%d%H%M%S)$(echo "${GITHUB_SHA}" | cut -c1-6)
+        echo ::set-env name=SNAPSHOT_TAG::${tag}
 
-    - uses: actions/checkout@v1
+    - name: Publish docker image
+      uses: elgohr/Publish-Docker-Github-Action@2.19
+      env:
+        PKG_PLATFORM_FULL: "<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
       with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
+        name: edgedb/edgedb-cli
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        workdir: dockerctx
+        tags: "${{ env.PKG_PLATFORM_FULL }}-nightly,${{ env.PKG_PLATFORM_FULL }}-nightly-${{ env.SNAPSHOT_TAG }}"
+<% endif %>
 <% endfor %>
 <% for tgt in targets.macos %>
   publish-<< tgt.name >>:
