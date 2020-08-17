@@ -113,7 +113,7 @@ pub fn completion(res: &Bytes) {
 }
 
 async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<'_, O>, rows: &mut S,
-    row_buf: &mut Vec<I>)
+    row_buf: &mut Vec<I>, end_of_stream: &mut bool)
     -> Result<(), Exception<PrintError<E, O::Error>>>
     where S: Stream<Item=Result<I, E>> + Send + Unpin,
           I: FormatExt,
@@ -140,6 +140,7 @@ async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<'_, O>, rows: &mut S,
         // Buffer rows up to one visual line.
         // After line is reached we get Exception::DisableFlow
     }
+    *end_of_stream = true;
     prn.close_block(&"}".clear(), true).wrap_err(PrintErr)?;
     Ok(())
 }
@@ -184,7 +185,7 @@ async fn format_rows<S, I, E, O>(prn: &mut Printer<'_, O>,
     Ok(())
 }
 
-pub async fn native_to_stdout<S, I, E>(mut rows: S, config: &Config)
+pub async fn native_to_stdout<S, I, E>(rows: S, config: &Config)
     -> Result<(), PrintError<E, io::Error>>
     where S: Stream<Item=Result<I, E>> + Send + Unpin,
           I: FormatExt,
@@ -193,19 +194,32 @@ pub async fn native_to_stdout<S, I, E>(mut rows: S, config: &Config)
     let w = config.max_width.unwrap_or_else(|| {
         term_size::dimensions_stdout().map(|(w, _h)| w).unwrap_or(80)
     });
+    let colors = config.colors
+            .unwrap_or_else(|| atty::is(atty::Stream::Stdout));
+    _native_format(rows, config, w, colors, Stdout {}).await
+}
+
+async fn _native_format<S, I, E, O>(mut rows: S, config: &Config,
+    max_width: usize, colors: bool, output: O)
+    -> Result<(), PrintError<E, O::Error>>
+    where S: Stream<Item=Result<I, E>> + Send + Unpin,
+          I: FormatExt,
+          E: fmt::Debug + Error + 'static,
+          O: Output,
+          O::Error: Error + 'static,
+{
     let mut prn = Printer {
-        colors: config.colors
-            .unwrap_or_else(|| atty::is(atty::Stream::Stdout)),
+        colors,
         indent: config.indent,
         expand_strings: config.expand_strings,
-        max_width: w,
+        max_width,
         implicit_properties: config.implicit_properties,
         type_names: &config.type_names,
         max_items: config.max_items,
         trailing_comma: true,
 
         buffer: String::with_capacity(8192),
-        stream: Stdout {},
+        stream: output,
         delim: Delim::None,
         flow: false,
         committed: 0,
@@ -215,10 +229,13 @@ pub async fn native_to_stdout<S, I, E>(mut rows: S, config: &Config)
         cur_indent: 0,
     };
     let mut row_buf = Vec::new();
-    match format_rows_buf(&mut prn, &mut rows, &mut row_buf).await {
+    let mut eos = false;
+    match format_rows_buf(&mut prn, &mut rows, &mut row_buf, &mut eos).await {
         Ok(()) => {},
         Err(Exception::DisableFlow) => {
-            format_rows(&mut prn, row_buf, &mut rows).await.unwrap_exc()?;
+            if !eos {
+                format_rows(&mut prn, row_buf, &mut rows).await.unwrap_exc()?;
+            }
         }
         Err(Exception::Error(e)) => return Err(e),
     };
@@ -242,57 +259,6 @@ fn format_rows_str<I: FormatExt>(prn: &mut Printer<&mut String>, items: &[I],
     }
     prn.close_block(&close.clear(), true)?;
     Ok(())
-}
-
-#[cfg(test)]
-pub fn test_format_cfg<I: FormatExt>(items: &[I], config: &Config)
-    -> Result<String, Infallible>
-{
-    let mut out = String::new();
-    let mut prn = Printer {
-        colors: false,
-        indent: config.indent,
-        expand_strings: config.expand_strings,
-        max_width: config.max_width.unwrap_or(80),
-        implicit_properties: config.implicit_properties,
-        type_names: &config.type_names,
-        max_items: config.max_items,
-        trailing_comma: true,
-
-        buffer: String::with_capacity(8192),
-        stream: &mut out,
-        delim: Delim::None,
-        flow: false,
-        committed: 0,
-        committed_indent: 0,
-        committed_column: 0,
-        column: 0,
-        cur_indent: 0,
-    };
-    match format_rows_str(&mut prn, &items, "{", "}", false) {
-        Ok(()) => {},
-        Err(Exception::DisableFlow) => {
-            format_rows_str(&mut prn, &items, "{", "}", true).unwrap_exc()?;
-        }
-        Err(Exception::Error(e)) => return Err(e),
-    };
-    prn.end().unwrap_exc()?;
-    Ok(out)
-}
-
-#[cfg(test)]
-pub fn test_format<I: FormatExt>(items: &[I])
-    -> Result<String, Infallible>
-{
-    test_format_cfg(items, &Config {
-        colors: Some(false),
-        indent: 2,
-        expand_strings: false,
-        max_width: Some(80),
-        implicit_properties: false,
-        type_names: None,
-        max_items: None,
-    })
 }
 
 pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
