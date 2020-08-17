@@ -1,12 +1,66 @@
+use std::convert::Infallible;
 use std::convert::TryFrom;
 use std::str::FromStr;
+use std::pin::Pin;
 
+use async_std::task;
+use async_std::stream::Stream;
 use bigdecimal::BigDecimal;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::codec::{ObjectShape, ShapeElement};
-use crate::print::{self, test_format, test_format_cfg, Config};
+use crate::print::{self, format_rows_str, _native_format, Config, Printer};
+use crate::print::native::FormatExt;
+use crate::print::buffer::{Delim, Exception, UnwrapExc};
 
+struct UnfusedStream<'a, I>(Option<&'a [I]>);
+
+impl<'a, I> UnfusedStream<'a, I> {
+    fn new(els: &'a [I]) -> UnfusedStream<'a, I> {
+        UnfusedStream(Some(els))
+    }
+}
+
+impl<I: Clone> Stream for UnfusedStream<'_, I> {
+    type Item = Result<I, Infallible>;
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>)
+        -> task::Poll<Option<Self::Item>>
+    {
+        let val = self.0.as_mut().expect("no poll after EOS");
+        if val.len() == 0 {
+            self.0.take().unwrap();
+            return task::Poll::Ready(None);
+        }
+        let item = val[0].clone();
+        *val = &val[1..];
+        return task::Poll::Ready(Some(Ok(item)));
+    }
+}
+
+fn test_format_cfg<I: FormatExt + Clone + Send + Sync>(items: &[I], config: &Config)
+    -> Result<String, Infallible>
+{
+    let mut out = String::new();
+    task::block_on(
+        _native_format(UnfusedStream::new(items),
+            config, config.max_width.unwrap_or(80), false, &mut out)
+    ).unwrap();
+    Ok(out)
+}
+
+fn test_format<I: FormatExt + Clone + Send + Sync>(items: &[I])
+    -> Result<String, Infallible>
+{
+    test_format_cfg(items, &Config {
+        colors: Some(false),
+        indent: 2,
+        expand_strings: false,
+        max_width: Some(80),
+        implicit_properties: false,
+        type_names: None,
+        max_items: None,
+    })
+}
 
 fn json_fmt(j: &str) -> String {
     print::json_to_string(
