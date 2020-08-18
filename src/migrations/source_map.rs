@@ -1,17 +1,10 @@
 use std::mem;
 
-use edgeql_parser::position::Pos;
-
-
-pub struct Span<N> {
-    pub name: N,
-    pub offset: Pos,
-}
 
 struct Slice<N> {
     name: N,
     byte_offset: usize,
-    line_offset: usize,
+    size: usize,
 }
 
 pub struct SourceMap<N> {
@@ -20,7 +13,6 @@ pub struct SourceMap<N> {
 
 pub struct Builder<N> {
     buffer: String,
-    lines: usize,
     source_map: SourceMap<N>,
 }
 
@@ -28,7 +20,6 @@ impl<N> Builder<N> {
     pub fn new() -> Builder<N> {
         Builder {
             buffer: String::new(),
-            lines: 0,
             source_map: SourceMap {
                 slices: Vec::new(),
             }
@@ -42,27 +33,34 @@ impl<N> Builder<N> {
         self.source_map.slices.push(Slice {
             name,
             byte_offset: self.buffer.len(),
-            line_offset: self.lines,
+            size: data.len(),
         });
         self.buffer.push_str(data);
         if !data.ends_with('\n') {
             self.buffer.push('\n');
         }
-        let mut carriage_return = true;
-        for b in self.buffer.as_bytes() {
-            if carriage_return {
-                carriage_return = false;
-                self.lines += 1;
-            } else if *b == b'\n' {
-                self.lines += 1;
-            }
-            if *b == b'\r' {
-                carriage_return = true;
-            }
-        }
         self
     }
 }
+
+impl<N> SourceMap<N> {
+    pub fn translate_range(&self, start: usize, end: usize)
+        -> Result<(&N, usize), ()>
+    {
+        // TODO(tailhook) use binary search instead
+        for slice in self.slices.iter().rev() {
+            if start > slice.byte_offset {
+                let local_end = end - slice.byte_offset;
+                if local_end > slice.size {
+                    return Err(())
+                }
+                return Ok((&slice.name, slice.byte_offset));
+            }
+        }
+        return Err(())
+    }
+}
+
 
 #[cfg(test)]
 mod test {

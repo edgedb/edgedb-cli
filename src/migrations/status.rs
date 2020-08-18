@@ -4,7 +4,7 @@ use edgedb_protocol::value::Value;
 use crate::commands::{Options, ExitCode};
 use crate::commands::parser::ShowStatus;
 use crate::migrations::context::Context;
-use crate::migrations::create::{gen_start_migration, CurrentMigration};
+use crate::migrations::create::{execute_start_migration, CurrentMigration};
 use crate::migrations::migration;
 
 
@@ -81,9 +81,7 @@ pub async fn status(cli: &mut Connection, _options: &Options,
         }
         return Err(ExitCode::new(3).into());
     }
-    let (text, sourcemap) = gen_start_migration(&ctx).await?;
-    // TODO(tailhook) translate errors via sourcemap
-    cli.execute(text).await?;
+    execute_start_migration(&ctx, cli).await?;
     let check = ensure_diff_is_empty(cli, status).await;
     let abort = cli.execute("ABORT MIGRATION").await;
     check.and(abort)?;

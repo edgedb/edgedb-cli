@@ -3,8 +3,9 @@ mod create;
 mod grammar;
 mod migrate;
 mod migration;
-mod sourcemap;
+mod source_map;
 mod status;
+mod print_error;
 
 const NULL_MIGRATION: &str = "initial";
 
