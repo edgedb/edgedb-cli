@@ -1,14 +1,15 @@
-use async_std::path::{Path, PathBuf};
 use async_std::fs;
-use async_std::io;
 use async_std::io::prelude::WriteExt;
+use async_std::io;
+use async_std::path::{Path, PathBuf};
 use async_std::stream::StreamExt;
-use fn_error_context::context;
-use edgedb_derive::Queryable;
-use edgedb_protocol::value::Value;
-use edgedb_protocol::server_message::ErrorResponse;
-use edgeql_parser::preparser::{full_statement, is_empty};
 use edgedb_client::client::Connection;
+use edgedb_derive::Queryable;
+use edgedb_protocol::queryable::Queryable;
+use edgedb_protocol::server_message::ErrorResponse;
+use edgedb_protocol::value::Value;
+use edgeql_parser::preparser::{full_statement, is_empty};
+use fn_error_context::context;
 use serde::Deserialize;
 
 use crate::commands::parser::CreateMigration;
@@ -24,6 +25,16 @@ pub enum SourceName {
     Prefix,
     Suffix,
     File(PathBuf),
+}
+
+pub enum Choice {
+    Yes,
+    No,
+    List,
+    Confirmed,
+    Back,
+    Split,
+    Quit,
 }
 
 #[derive(Deserialize, Debug)]
@@ -56,6 +67,24 @@ pub struct CurrentMigration {
     pub proposed: Option<Proposal>,
 }
 
+async fn execute(cli: &mut Connection, text: impl AsRef<str>)
+    -> anyhow::Result<()>
+{
+    let text = text.as_ref();
+    log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
+    cli.execute(text).await?;
+    Ok(())
+}
+
+async fn query_row<R>(cli: &mut Connection, text: &str)
+    -> anyhow::Result<R>
+    where R: Queryable
+{
+    let text = text.as_ref();
+    log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
+    cli.query_row(text, &Value::empty_tuple()).await
+}
+
 #[context("could not read schema file {}", path.display())]
 async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
     let data = fs::read_to_string(path).await?;
@@ -65,11 +94,54 @@ async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
             Ok(shift) => offset += shift,
             Err(_) => {
                 if !is_empty(&data[offset..]) {
-                    anyhow::bail!("final statement does not end with a semicolon");
+                    anyhow::bail!("final statement does not \
+                                   end with a semicolon");
                 }
                 return Ok(data);
             }
         }
+    }
+}
+
+async fn choice(prompt: &str) -> anyhow::Result<Choice> {
+    use Choice::*;
+
+    const HELP: &str = r###"
+y - confirm the prompt, use the DDL statements
+n - reject the prompt
+l - list the DDL statements associated with prompt
+c - list already confirmed EdgeQL statements
+b - revert back to previous save point, perhaps previous question
+s - stop and save changes (splits migration into multiple)
+q - quit without saving changes
+h or ? - print help
+"###;
+
+    let mut input = String::with_capacity(10);
+    loop {
+        println!("{} [y,n,l,c,b,s,q,?]", prompt);
+        input.truncate(0);
+        if io::stdin().read_line(&mut input).await? == 0 {
+            return Ok(Quit);
+        }
+        let val = match &input.trim().to_lowercase()[..] {
+            "y"|"yes" => Yes,
+            "n"|"no" => No,
+            "l"|"list" => List,
+            "c"|"confirmed" => Confirmed,
+            "b"|"back" => Back,
+            "s"|"stop"|"split" => Split,
+            "h"|"?"|"help" => {
+                print!("{}", HELP);
+                continue;
+            }
+            "q"|"quit" => Quit,
+            val => {
+                eprintln!("Error: unknown command {}", val);
+                continue;
+            }
+        };
+        return Ok(val);
     }
 }
 
@@ -100,8 +172,7 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
     -> anyhow::Result<()>
 {
     let (text, source_map) = gen_start_migration(&ctx).await?;
-    // TODO(tailhook) translate errors via sourcemap
-    match cli.execute(text).await {
+    match execute(cli, text).await {
         Ok(_) => Ok(()),
         Err(e) => match e.downcast::<ErrorResponse>() {
             Ok(e) => {
@@ -118,9 +189,8 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
     -> anyhow::Result<()>
 {
     let descr = loop {
-        let data = cli.query_row::<CurrentMigration>(
-            "DESCRIBE CURRENT MIGRATION AS JSON",
-            &Value::empty_tuple(),
+        let data = query_row::<CurrentMigration>(cli,
+            "DESCRIBE CURRENT MIGRATION AS JSON"
         ).await?;
         if data.complete {
             break data;
@@ -136,7 +206,7 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                             "cannot apply `{}` without user input",
                             statement.text);
                     }
-                    cli.execute(&statement.text).await?;
+                    execute(cli, &statement.text).await?;
                 }
             } else {
                 eprintln!("Server is about to apply the following migration:");
@@ -162,21 +232,132 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
         eprintln!("No schema changes detected.");
         return Err(ExitCode::new(4))?;
     }
-    write_migration(ctx, &descr, index).await?;
+    write_migration(ctx, &descr, index, false).await?;
+    Ok(())
+}
+
+async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64)
+    -> anyhow::Result<()>
+{
+    use Choice::*;
+
+    let mut save_point = 0;
+    execute(cli, format!("DECLARE SAVEPOINT migration_{}", save_point)).await?;
+    let descr = 'migration: loop {
+        let descr = query_row::<CurrentMigration>(cli,
+            "DESCRIBE CURRENT MIGRATION AS JSON",
+        ).await?;
+        if descr.complete {
+            break descr;
+        }
+        if let Some(proposal) = &descr.proposed {
+            let prompt = if let Some(prompt) = &proposal.prompt {
+                prompt
+            } else {
+                println!("Following DDL statements will be applied:");
+                for statement in &proposal.statements {
+                    for line in statement.text.lines() {
+                        println!("    {}", line);
+                    }
+                }
+                "Apply the DDL statements?"
+            };
+            loop {
+                match choice(prompt).await? {
+                    Yes => break,
+                    No => {
+                        execute(cli,
+                            "ALTER CURRENT MIGRATION REJECT PROPOSED"
+                        ).await?;
+                        save_point += 1;
+                        execute(cli,
+                            format!("DECLARE SAVEPOINT migration_{}",
+                                     save_point)
+                        ).await?;
+                        continue;
+                    }
+                    List => {
+                        println!("Following DDL statements will be applied:");
+                        for statement in &proposal.statements {
+                            for line in statement.text.lines() {
+                                println!("    {}", line);
+                            }
+                        }
+                        continue;
+                    }
+                    Confirmed => {
+                        if descr.confirmed.is_empty() {
+                            println!(
+                                "No EdgeQL statements were confirmed yet");
+                        } else {
+                            println!(
+                                "Following EdgeQL statements were confirmed:");
+                            for statement in &descr.confirmed {
+                                for line in statement.lines() {
+                                    println!("    {}", line);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    Back => {
+                        if save_point == 0 {
+                            eprintln!("Already at latest savepoint");
+                            continue;
+                        }
+                        save_point -= 1;
+                        execute(cli, format!(
+                            "ROLLBACK TO SAVEPOINT migration_{}", save_point)
+                        ).await?;
+                        continue 'migration;
+                    }
+                    Split => {
+                        break 'migration descr;
+                    }
+                    Quit => {
+                        eprintln!("Migration aborted no results are saved.");
+                        return Err(ExitCode::new(0))?;
+                    }
+                }
+            }
+            for statement in &proposal.statements {
+                if !statement.required_user_input.is_empty() {
+                    for input in &statement.required_user_input {
+                        eprintln!("Input required: {}", input.prompt);
+                    }
+                    anyhow::bail!(
+                        "cannot apply `{}` without user input. \
+                         User input is not implemented yet",
+                        statement.text);
+                }
+                execute(cli, &statement.text).await?;
+            }
+            save_point += 1;
+            execute(cli,
+                format!("DECLARE SAVEPOINT migration_{}", save_point)
+            ).await?;
+        } else {
+            anyhow::bail!("Server could not figure out \
+                migration with your answers. \
+                Please retry with different answers");
+        }
+    };
+    write_migration(ctx, &descr, index, true).await?;
     Ok(())
 }
 
 pub async fn write_migration(ctx: &Context, descr: &CurrentMigration,
-    index: u64)
+    index: u64, verbose: bool)
     -> anyhow::Result<()>
 {
     let dir = ctx.schema_dir.join("migrations");
     let filename = dir.join(format!("{:05}.edgeql", index));
-    _write_migration(descr, filename.as_ref()).await
+    _write_migration(descr, filename.as_ref(), verbose).await
 }
 
 #[context("could not write migration file {}", filepath.display())]
-async fn _write_migration(descr: &CurrentMigration, filepath: &Path)
+async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
+    verbose: bool)
     -> anyhow::Result<()>
 {
     let statements = descr.confirmed.iter()
@@ -192,6 +373,9 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path)
         filepath.file_name().unwrap().to_str().unwrap()));
     if !filepath.exists().await {
         fs::create_dir_all(&dir).await?;
+    }
+    if verbose {
+        eprintln!("Created {}, id: {}", filepath.display(), id);
     }
     fs::remove_file(&tmp_file).await.ok();
     let mut file = io::BufWriter::new(fs::File::create(&tmp_file).await?);
@@ -217,12 +401,15 @@ pub async fn create(cli: &mut Connection, _options: &Options,
     let ctx = Context::from_config(&create.cfg);
     let migrations = migration::read_all(&ctx, true).await?;
     execute_start_migration(&ctx, cli).await?;
-    let db_migration: Option<String> = cli.query_row_opt(r###"
-            WITH Last := (SELECT schema::Migration
-                          FILTER NOT EXISTS .<parents[IS schema::Migration])
-            SELECT name := Last.name
-        "###, &Value::empty_tuple()).await?;
-    if db_migration.as_ref() != migrations.keys().last() {
+    let descr = query_row::<CurrentMigration>(cli,
+        "DESCRIBE CURRENT MIGRATION AS JSON",
+    ).await?;
+    let db_migration = if descr.parent == "initial" {
+        None
+    } else {
+        Some(&descr.parent)
+    };
+    if db_migration != migrations.keys().last() {
         anyhow::bail!("Database must be updated to the last miration \
             on the filesystem for `create-migration`. Run:\n  \
             edgedb migrate");
@@ -232,9 +419,11 @@ pub async fn create(cli: &mut Connection, _options: &Options,
         run_non_interactive(&ctx, cli, migrations.len() as u64 +1,
             create.allow_unsafe).await
     } else {
-        // TODO(tailhook)
-        anyhow::bail!("interactive mode is not implemented yet, try:\n  \
-            edgedb create-migration --non-interactive");
+        if create.allow_unsafe {
+            log::warn!(
+                "The `--allow-unsafe` flag is unused in interactive mode");
+        }
+        run_interactive(&ctx, cli, migrations.len() as u64 + 1).await
     };
     let abort = cli.execute("ABORT MIGRATION").await;
     exec.and(abort)?;
