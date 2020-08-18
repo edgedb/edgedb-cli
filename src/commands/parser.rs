@@ -1,4 +1,4 @@
-use clap::{Clap, AppSettings};
+use clap::{Clap, AppSettings, ArgSettings};
 use std::path::PathBuf;
 
 use crate::repl;
@@ -465,6 +465,9 @@ pub struct CreateMigration {
     /// is only useful in non-interactive mode
     #[clap(long)]
     pub allow_unsafe: bool,
+    /// Print queries executed
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub debug_print_queries: bool,
 }
 
 #[derive(Clap, Clone, Debug)]

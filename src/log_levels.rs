@@ -12,6 +12,12 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
         Some(Command::Common(Common::Restore(r))) if r.verbose => {
             builder.filter_module("edgedb::restore", log::LevelFilter::Info);
         }
+        Some(Command::Common(Common::CreateMigration(c)))
+        if c.debug_print_queries
+        => {
+            builder.filter_module("edgedb::migrations::query",
+                log::LevelFilter::Debug);
+        }
         Some(Command::Server(s)) => match &s.subcommand {
             Server::Upgrade(u) if u.verbose => {
                 builder.filter_module(
