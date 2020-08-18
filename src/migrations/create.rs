@@ -6,15 +6,17 @@ use async_std::stream::StreamExt;
 use fn_error_context::context;
 use edgedb_derive::Queryable;
 use edgedb_protocol::value::Value;
+use edgedb_protocol::server_message::ErrorResponse;
 use edgeql_parser::preparser::{full_statement, is_empty};
 use edgedb_client::client::Connection;
 use serde::Deserialize;
 
-use crate::commands::{Options, ExitCode};
 use crate::commands::parser::CreateMigration;
+use crate::commands::{Options, ExitCode};
 use crate::migrations::context::Context;
 use crate::migrations::migration;
-use crate::migrations::sourcemap::{Builder, SourceMap};
+use crate::migrations::print_error::print_migration_error;
+use crate::migrations::source_map::{Builder, SourceMap};
 
 const SAFE_CONFIDENCE: f64 = 0.99999;
 
@@ -72,7 +74,7 @@ async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
 }
 
 #[context("could not read schema in {}", ctx.schema_dir.display())]
-pub async fn gen_start_migration(ctx: &Context)
+async fn gen_start_migration(ctx: &Context)
     -> anyhow::Result<(String, SourceMap<SourceName>)>
 {
     let mut bld = Builder::new();
@@ -92,6 +94,23 @@ pub async fn gen_start_migration(ctx: &Context)
     }
     bld.add_lines(SourceName::Suffix, "};");
     Ok(bld.done())
+}
+
+pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
+    -> anyhow::Result<()>
+{
+    let (text, source_map) = gen_start_migration(&ctx).await?;
+    // TODO(tailhook) translate errors via sourcemap
+    match cli.execute(text).await {
+        Ok(_) => Ok(()),
+        Err(e) => match e.downcast::<ErrorResponse>() {
+            Ok(e) => {
+                print_migration_error(&e, &source_map)?;
+                anyhow::bail!("cannot proceed until .esdl files are fixed");
+            }
+            Err(e) => Err(e)?,
+        }
+    }
 }
 
 async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
@@ -191,8 +210,7 @@ pub async fn create(cli: &mut Connection, _options: &Options,
 {
     let ctx = Context::from_config(&create.cfg);
     let migrations = migration::read_all(&ctx, true).await?;
-    let (text, sourcemap) = gen_start_migration(&ctx).await?;
-    cli.execute(text).await?;
+    execute_start_migration(&ctx, cli).await?;
     let db_migration: Option<String> = cli.query_row_opt(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])

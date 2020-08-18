@@ -161,3 +161,26 @@ Some migrations are missing, use `edgedb create-migration`
         .assert().code(4).stderr("No schema changes detected.\n");
     Ok(())
 }
+
+#[test]
+fn error() -> anyhow::Result<()> {
+    SERVER.admin_cmd()
+        .arg("create-database").arg("empty_err")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=empty_err")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/error")
+        .env("NO_COLOR", "1")
+        .assert().code(1)
+        .stderr(
+r###"error: Unexpected 'create'
+  ┌─ tests/migrations/db1/error/bad.esdl:3:9
+  │
+3 │         create property text -> str;
+  │         ^^^^^^^ error
+
+Error: cannot proceed until .esdl files are fixed
+"###);
+    Ok(())
+}
