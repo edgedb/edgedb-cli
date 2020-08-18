@@ -10,7 +10,7 @@ use edgeql_parser::preparser::{full_statement, is_empty};
 use edgedb_client::client::Connection;
 use serde::Deserialize;
 
-use crate::commands::Options;
+use crate::commands::{Options, ExitCode};
 use crate::commands::parser::CreateMigration;
 use crate::migrations::context::Context;
 use crate::migrations::migration;
@@ -119,6 +119,10 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64)
             }
         }
     };
+    if descr.confirmed.is_empty() {
+        eprintln!("No schema changes detected.");
+        return Err(ExitCode::new(4))?;
+    }
     // TODO(tailhook) read this from describe transaction
     let parent: Option<String> = cli.query_row_opt(r###"
             WITH Last := (SELECT schema::Migration

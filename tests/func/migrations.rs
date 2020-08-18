@@ -1,0 +1,163 @@
+use std::fs;
+use crate::SERVER;
+
+
+#[test]
+fn bare_status() -> anyhow::Result<()> {
+    SERVER.admin_cmd()
+        .arg("create-database").arg("empty")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=empty")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/bare")
+        .assert().code(2)
+        .stderr(
+r###"Detected differences between the database schema and the schema source, in particular:
+    CREATE TYPE default::Type1 {
+        CREATE OPTIONAL SINGLE PROPERTY field1 -> std::str;
+    };
+Some migrations are missing, use `edgedb create-migration`
+"###);
+    Ok(())
+}
+
+#[test]
+fn initial() -> anyhow::Result<()> {
+    fs::remove_file("tests/migrations/db1/initial/migrations/00002.edgeql")
+        .ok();
+    SERVER.admin_cmd()
+        .arg("create-database").arg("initial")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().code(3)
+        .stderr("Database is empty. While there are 1 migrations \
+            on the filesystem. Run `edgedb migrate` to apply\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("create-migration")
+        .arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().code(1).stderr("Error: Database must be updated \
+            to the last miration on the filesystem for `create-migration`. \
+            Run:\n  \
+              edgedb migrate\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().success()
+        .stderr("Applied \
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
+            (00001.edgeql)\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().success()
+        .stderr("Database is up to date. \
+            Last migration: \
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa.\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("create-migration")
+        .arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().code(4).stderr("No schema changes detected.\n");
+    Ok(())
+}
+
+#[test]
+fn modified1() -> anyhow::Result<()> {
+    fs::remove_file("tests/migrations/db1/modified1/migrations/00002.edgeql")
+        .ok();
+    SERVER.admin_cmd()
+        .arg("create-database").arg("modified1")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .assert().code(3)
+        .stderr("Database is empty. While there are 1 migrations \
+            on the filesystem. Run `edgedb migrate` to apply\n");
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("create-migration")
+        .arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .assert().code(1).stderr("Error: Database must be updated \
+            to the last miration on the filesystem for `create-migration`. \
+            Run:\n  \
+              edgedb migrate\n");
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .assert().success()
+        .stderr("Applied \
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
+            (00001.edgeql)\n");
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .assert().code(2)
+        .stderr(
+r###"Detected differences between the database schema and the schema source, in particular:
+    CREATE TYPE default::Type2 {
+        CREATE OPTIONAL SINGLE PROPERTY field2 -> std::str;
+    };
+Some migrations are missing, use `edgedb create-migration`
+"###);
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("create-migration")
+        .arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .assert().code(0).stderr("");
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .assert().code(3)
+        .stderr("Database is at migration \
+            \"m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa\" \
+            while sources contain 1 migrations ahead, \
+            starting from \
+            \"m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a\"\
+            (tests/migrations/db1/modified1/migrations/00002.edgeql)\n");
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .assert().success()
+        .stderr("Applied \
+            m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a \
+            (00002.edgeql)\n");
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .assert().code(0)
+        .stderr("Everything is up to date. Revision \
+            \"m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a\"\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().success()
+        .stderr("Database is up to date. \
+            Last migration: \
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa.\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("create-migration")
+        .arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().code(4).stderr("No schema changes detected.\n");
+    Ok(())
+}

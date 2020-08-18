@@ -22,6 +22,8 @@ mod dump_restore;
 mod configure;
 #[cfg(not(windows))]
 mod non_interactive;
+#[cfg(not(windows))]
+mod migrations;
 
 // for some reason rexpect doesn't work on macos
 // and also something wrong on musl libc
