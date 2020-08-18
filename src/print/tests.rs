@@ -9,9 +9,8 @@ use bigdecimal::BigDecimal;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::codec::{ObjectShape, ShapeElement};
-use crate::print::{self, format_rows_str, _native_format, Config, Printer};
+use crate::print::{self, _native_format, Config};
 use crate::print::native::FormatExt;
-use crate::print::buffer::{Delim, Exception, UnwrapExc};
 
 struct UnfusedStream<'a, I>(Option<&'a [I]>);
 

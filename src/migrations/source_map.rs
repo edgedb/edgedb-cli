@@ -49,7 +49,7 @@ impl<N> SourceMap<N> {
     {
         // TODO(tailhook) use binary search instead
         for slice in self.slices.iter().rev() {
-            if start > slice.byte_offset {
+            if start >= slice.byte_offset {
                 let local_end = end - slice.byte_offset;
                 if local_end > slice.size {
                     return Err(())
@@ -68,21 +68,25 @@ mod test {
 
     #[test]
     fn simple() {
-        let (text, map) = Builder::new()
+        let (_, map) = Builder::new()
             .add_lines("file1", "hello\nworld")
             .add_lines("file2", "another\nfile\n")
             .add_lines("file3", "file3")
             .done();
-        // TODO(tailhook) test the source map
+        assert_eq!(map.translate_range(0, 1).unwrap(), (&"file1", 0));
+        assert_eq!(map.translate_range(12, 14).unwrap(), (&"file2", 12));
+        assert_eq!(map.translate_range(25, 30).unwrap(), (&"file3", 25));
     }
 
     #[test]
     fn carriage_return() {
-        let (text, map) = Builder::new()
+        let (_, map) = Builder::new()
             .add_lines("file1", "hello\r\nworld")
             .add_lines("file2", "another\rfile\r")
             .add_lines("file3", "line5\r\rline7")
             .done();
-        // TODO(tailhook) test the source map
+        assert_eq!(map.translate_range(0, 1).unwrap(), (&"file1", 0));
+        assert_eq!(map.translate_range(13, 14).unwrap(), (&"file2", 13));
+        assert_eq!(map.translate_range(27, 39).unwrap(), (&"file3", 27));
     }
 }
