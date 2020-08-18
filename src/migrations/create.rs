@@ -48,8 +48,10 @@ pub struct Proposal {
 #[derive(Deserialize, Queryable, Debug)]
 #[edgedb(json)]
 pub struct CurrentMigration {
+    pub complete: bool,
+    pub parent: String,
     pub confirmed: Vec<String>,
-    pub proposed: Vec<Proposal>,
+    pub proposed: Option<Proposal>,
 }
 
 #[context("could not read schema file {}", path.display())]
@@ -92,7 +94,8 @@ pub async fn gen_start_migration(ctx: &Context)
     Ok(bld.done())
 }
 
-async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64)
+async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
+    allow_unsafe: bool)
     -> anyhow::Result<()>
 {
     let descr = loop {
@@ -100,11 +103,8 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64)
             "DESCRIBE CURRENT MIGRATION AS JSON",
             &Value::empty_tuple(),
         ).await?;
-        if data.proposed.is_empty() {
-            break data;
-        }
-        for proposal in data.proposed {
-            if proposal.confidence >= SAFE_CONFIDENCE {
+        if let Some(proposal) = data.proposed {
+            if proposal.confidence >= SAFE_CONFIDENCE || allow_unsafe {
                 for statement in proposal.statements {
                     if !statement.required_user_input.is_empty() {
                         for input in statement.required_user_input {
@@ -116,42 +116,48 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64)
                     }
                     cli.execute(&statement.text).await?;
                 }
+            } else {
+                eprintln!("Server is about to apply the following migration:");
+                for statement in proposal.statements {
+                    for line in statement.text.lines() {
+                        eprintln!("    {}", line);
+                    }
+                }
+                eprintln!("But confidence is {} (minimum is {})",
+                    proposal.confidence, SAFE_CONFIDENCE);
+                anyhow::bail!("Server cannot make decision. Please run in \
+                    interactive mode to confirm changes, \
+                    or use `--allow-unsafe`");
             }
+        } else {
+            break data;
         }
     };
     if descr.confirmed.is_empty() {
         eprintln!("No schema changes detected.");
         return Err(ExitCode::new(4))?;
     }
-    // TODO(tailhook) read this from describe transaction
-    let parent: Option<String> = cli.query_row_opt(r###"
-            WITH Last := (SELECT schema::Migration
-                          FILTER NOT EXISTS .<parents[IS schema::Migration])
-            SELECT name := Last.name
-        "###, &Value::empty_tuple()).await?;
-    let parent = parent.as_ref().map(|x| &x[..]).unwrap_or("initial");
-    write_migration(ctx, &descr, parent, index).await?;
+    write_migration(ctx, &descr, index).await?;
     Ok(())
 }
 
-pub async fn write_migration(ctx: &Context,
-    descr: &CurrentMigration, parent: &str, index: u64)
+pub async fn write_migration(ctx: &Context, descr: &CurrentMigration,
+    index: u64)
     -> anyhow::Result<()>
 {
     let dir = ctx.schema_dir.join("migrations");
     let filename = dir.join(format!("{:05}.edgeql", index));
-    _write_migration(descr, parent, filename.as_ref()).await
+    _write_migration(descr, filename.as_ref()).await
 }
 
 #[context("could not write migration file {}", filepath.display())]
-async fn _write_migration(descr: &CurrentMigration, parent: &str,
-    filepath: &Path)
+async fn _write_migration(descr: &CurrentMigration, filepath: &Path)
     -> anyhow::Result<()>
 {
     let statements = descr.confirmed.iter()
         .map(|s| s.clone() + ";")
         .collect::<Vec<_>>();
-    let mut hasher = migration::Hasher::new(&parent);
+    let mut hasher = migration::Hasher::new(&descr.parent);
     for statement in &statements {
         hasher.source(&statement)?;
     }
@@ -165,7 +171,7 @@ async fn _write_migration(descr: &CurrentMigration, parent: &str,
     fs::remove_file(&tmp_file).await.ok();
     let mut file = io::BufWriter::new(fs::File::create(&tmp_file).await?);
     file.write(format!("CREATE MIGRATION {}\n", id).as_bytes()).await?;
-    file.write(format!("    ONTO {}\n", parent).as_bytes()).await?;
+    file.write(format!("    ONTO {}\n", descr.parent).as_bytes()).await?;
     file.write(b"{\n").await?;
     for statement in &statements {
         for line in statement.lines() {
@@ -199,7 +205,8 @@ pub async fn create(cli: &mut Connection, _options: &Options,
     }
 
     let exec = if create.non_interactive {
-        run_non_interactive(&ctx, cli, migrations.len() as u64 +1).await
+        run_non_interactive(&ctx, cli, migrations.len() as u64 +1,
+            create.allow_unsafe).await
     } else {
         // TODO(tailhook)
         anyhow::bail!("interactive mode is not implemented yet, try:\n  \

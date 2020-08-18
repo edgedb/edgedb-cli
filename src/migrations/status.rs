@@ -7,6 +7,7 @@ use crate::migrations::context::Context;
 use crate::migrations::create::{gen_start_migration, CurrentMigration};
 use crate::migrations::migration;
 
+
 async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
     -> Result<(), anyhow::Error>
 {
@@ -14,7 +15,7 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
         "DESCRIBE CURRENT MIGRATION AS JSON",
         &Value::empty_tuple(),
     ).await?;
-    if !data.confirmed.is_empty() || !data.proposed.is_empty() {
+    if !data.confirmed.is_empty() || !data.proposed.is_none() {
         if !status.quiet {
             eprintln!("Detected differences between \
                 the database schema and the schema source, \
@@ -27,9 +28,10 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
                     text.lines().collect::<Vec<_>>()
                     .join("\n    "));
             }
-            if data.confirmed.len() + data.proposed.len() > 3 {
-                eprintln!("... and {} more changes",
-                    data.confirmed.len() + data.proposed.len() - 3);
+            let changes = data.confirmed.len() +
+                data.proposed.map(|_| 1).unwrap_or(0);
+            if changes > 3 {
+                eprintln!("... and {} more changes", changes - 3);
             }
             eprintln!("Some migrations are missing, \
                        use `edgedb create-migration`");
