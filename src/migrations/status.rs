@@ -15,7 +15,7 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
         "DESCRIBE CURRENT MIGRATION AS JSON",
         &Value::empty_tuple(),
     ).await?;
-    if !data.confirmed.is_empty() || !data.proposed.is_none() {
+    if !data.confirmed.is_empty() || !data.complete {
         if !status.quiet {
             eprintln!("Detected differences between \
                 the database schema and the schema source, \

@@ -122,6 +122,9 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
             "DESCRIBE CURRENT MIGRATION AS JSON",
             &Value::empty_tuple(),
         ).await?;
+        if data.complete {
+            break data;
+        }
         if let Some(proposal) = data.proposed {
             if proposal.confidence >= SAFE_CONFIDENCE || allow_unsafe {
                 for statement in proposal.statements {
@@ -149,7 +152,10 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                     or use `--allow-unsafe`");
             }
         } else {
-            break data;
+            anyhow::bail!("Server could not figure out \
+                migration automatically. Please run in \
+                interactive mode to confirm changes, \
+                or use `--allow-unsafe`");
         }
     };
     if descr.confirmed.is_empty() {
