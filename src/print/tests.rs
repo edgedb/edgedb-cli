@@ -23,7 +23,7 @@ impl<'a, I> UnfusedStream<'a, I> {
 
 impl<I: Clone> Stream for UnfusedStream<'_, I> {
     type Item = Result<I, Infallible>;
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>)
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut task::Context<'_>)
         -> task::Poll<Option<Self::Item>>
     {
         let val = self.0.as_mut().expect("no poll after EOS");
