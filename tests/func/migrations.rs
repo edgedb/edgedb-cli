@@ -146,18 +146,18 @@ Some migrations are missing, use `edgedb create-migration`
         .stderr("Everything is up to date. Revision \
             \"m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a\"\n");
     SERVER.admin_cmd()
-        .arg("--database=initial")
+        .arg("--database=modified1")
         .arg("show-status")
-        .arg("--schema-dir=tests/migrations/db1/initial")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().success()
         .stderr("Database is up to date. \
             Last migration: \
-            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa.\n");
+            m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a.\n");
     SERVER.admin_cmd()
-        .arg("--database=initial")
+        .arg("--database=modified1")
         .arg("create-migration")
         .arg("--non-interactive")
-        .arg("--schema-dir=tests/migrations/db1/initial")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(4).stderr("No schema changes detected.\n");
     Ok(())
 }
@@ -182,5 +182,109 @@ r###"error: Unexpected 'create'
 
 Error: cannot proceed until .esdl files are fixed
 "###);
+    Ok(())
+}
+
+#[test]
+fn modified2_interactive() -> anyhow::Result<()> {
+    fs::remove_file("tests/migrations/db1/modified2/migrations/00002.edgeql")
+        .ok();
+    SERVER.admin_cmd()
+        .arg("create-database").arg("modified2")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=modified2")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/modified2")
+        .assert().success()
+        .stderr("Applied \
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
+            (00001.edgeql)\n");
+
+    let mut cmd = SERVER.custom_interactive(|cmd| {
+        cmd.arg("--database=modified2");
+        cmd.arg("create-migration");
+        cmd.arg("--schema-dir=tests/migrations/db1/modified2");
+    });
+    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.send_line("y\n").unwrap();
+    cmd.exp_string("Created \
+        tests/migrations/db1/modified2/migrations/00002.edgeql, \
+        id: m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a").unwrap();
+
+    SERVER.admin_cmd()
+        .arg("--database=modified2")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/modified2")
+        .assert().success()
+        .stderr("Applied \
+            m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a \
+            (00002.edgeql)\n");
+    SERVER.admin_cmd()
+        .arg("--database=modified2")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/modified2")
+        .assert().success()
+        .stderr("Database is up to date. \
+            Last migration: \
+            m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a.\n");
+    SERVER.admin_cmd()
+        .arg("--database=modified2")
+        .arg("create-migration")
+        .arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db1/modified2")
+        .assert().code(4).stderr("No schema changes detected.\n");
+    Ok(())
+}
+
+#[test]
+fn modified3_interactive() -> anyhow::Result<()> {
+    fs::remove_file("tests/migrations/db1/modified3/migrations/00002.edgeql")
+        .ok();
+    SERVER.admin_cmd()
+        .arg("create-database").arg("modified3")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=modified3")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/modified3")
+        .assert().success()
+        .stderr("Applied \
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
+            (00001.edgeql)\n");
+
+    let mut cmd = SERVER.custom_interactive(|cmd| {
+        cmd.arg("--database=modified3");
+        cmd.arg("create-migration");
+        cmd.arg("--schema-dir=tests/migrations/db1/modified3");
+    });
+    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.send_line("yes\n").unwrap();
+    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.send_line("yes\n").unwrap();
+    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.send_line("back\n").unwrap();
+    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.send_line("yes\n").unwrap();
+    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.send_line("yes\n").unwrap();
+    cmd.exp_string("Created").unwrap();
+
+    SERVER.admin_cmd()
+        .arg("--database=modified3")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/modified3")
+        .assert().success();  // revision can be different because of order
+    SERVER.admin_cmd()
+        .arg("--database=modified3")
+        .arg("show-status")
+        .arg("--schema-dir=tests/migrations/db1/modified3")
+        .assert().success();  // revision can be different because of order
+    SERVER.admin_cmd()
+        .arg("--database=modified3")
+        .arg("create-migration")
+        .arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db1/modified3")
+        .assert().code(4).stderr("No schema changes detected.\n");
     Ok(())
 }
