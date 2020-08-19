@@ -153,6 +153,21 @@ impl ServerGuard {
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
         return spawn_command(cmd, Some(5000)).expect("start interactive");
     }
+    #[cfg(not(windows))]
+    pub fn custom_interactive(&self, f: impl FnOnce(&mut process::Command))
+        -> rexpect::session::PtySession
+    {
+        use assert_cmd::cargo::CommandCargoExt;
+        use rexpect::session::spawn_command;
+
+        let mut cmd = process::Command::cargo_bin("edgedb")
+            .expect("binary found");
+        cmd.arg("--admin");
+        cmd.arg("--port").arg(self.port.to_string());
+        cmd.env("EDGEDB_HOST", &self.runstate_dir);
+        f(&mut cmd);
+        return spawn_command(cmd, Some(5000)).expect("start interactive");
+    }
 
     pub fn database_cmd(&self, database_name: &str) -> Command {
         let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
