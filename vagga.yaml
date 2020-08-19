@@ -25,6 +25,9 @@ commands:
     description: Run normal rust tests
     container: ubuntu
     run: [cargo, test]
+    environ:
+      # to many threads make interactive tests fail
+      RUST_TEST_THREADS: 4
 
   test-musl: !Command
     description: Run musl (docker) tests
