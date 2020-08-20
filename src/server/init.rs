@@ -13,7 +13,8 @@ use prettytable::{Table, Row, Cell};
 use serde::{Serialize, Deserialize};
 use fn_error_context::context;
 
-use crate::platform::{ProcessGuard, config_dir, home_dir};
+use crate::process::ProcessGuard;
+use crate::platform::{config_dir, home_dir};
 use crate::server::control;
 use crate::server::reset_password::{generate_password, write_credentials};
 use crate::server::detect::{self, VersionQuery, InstalledPackage};

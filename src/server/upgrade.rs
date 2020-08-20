@@ -21,7 +21,7 @@ use crate::server::os_trait::Method;
 use crate::server::version::Version;
 use crate::server::is_valid_name;
 use crate::commands;
-use crate::platform::ProcessGuard;
+use crate::process::ProcessGuard;
 
 
 #[derive(Serialize, Deserialize, Debug)]
