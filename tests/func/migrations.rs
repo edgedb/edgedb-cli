@@ -26,6 +26,8 @@ Some migrations are missing, use `edgedb create-migration`
 fn initial() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db1/initial/migrations/00002.edgeql")
         .ok();
+    fs::remove_file("tests/migrations/db1/initial/migrations/00003.edgeql")
+        .ok();
     SERVER.admin_cmd()
         .arg("create-database").arg("initial")
         .assert().success();
@@ -67,6 +69,45 @@ fn initial() -> anyhow::Result<()> {
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(4).stderr("No schema changes detected.\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("create-migration")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().code(4).stderr("No schema changes detected.\n");
+
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("create-migration")
+        .arg("--allow-empty")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().code(0)
+        .stderr("Created \
+            tests/migrations/db1/initial/migrations/00002.edgeql, \
+            id: m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().success()
+        .stderr("Applied \
+            m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
+            (00002.edgeql)\n");
+
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("create-migration")
+        .arg("--allow-empty")
+        .arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().code(0).stderr("");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/initial")
+        .assert().success()
+        .stderr("Applied \
+            m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
+            (00003.edgeql)\n");
     Ok(())
 }
 
@@ -231,7 +272,6 @@ fn modified2_interactive() -> anyhow::Result<()> {
     SERVER.admin_cmd()
         .arg("--database=modified2")
         .arg("create-migration")
-        .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/modified2")
         .assert().code(4).stderr("No schema changes detected.\n");
     Ok(())
