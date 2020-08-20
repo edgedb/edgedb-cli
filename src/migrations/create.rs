@@ -186,7 +186,7 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
 }
 
 async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
-    allow_unsafe: bool)
+    options: &CreateMigration)
     -> anyhow::Result<()>
 {
     let descr = loop {
@@ -197,7 +197,7 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
             break data;
         }
         if let Some(proposal) = data.proposed {
-            if proposal.confidence >= SAFE_CONFIDENCE || allow_unsafe {
+            if proposal.confidence >= SAFE_CONFIDENCE || options.allow_unsafe {
                 for statement in proposal.statements {
                     if !statement.required_user_input.is_empty() {
                         for input in statement.required_user_input {
@@ -229,7 +229,7 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                 or use `--allow-unsafe`");
         }
     };
-    if descr.confirmed.is_empty() {
+    if descr.confirmed.is_empty() && !options.allow_empty {
         eprintln!("No schema changes detected.");
         return Err(ExitCode::new(4))?;
     }
@@ -237,7 +237,8 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
     Ok(())
 }
 
-async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64)
+async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
+    options: &CreateMigration)
     -> anyhow::Result<()>
 {
     use Choice::*;
@@ -343,6 +344,10 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64)
                 Please retry with different answers");
         }
     };
+    if descr.confirmed.is_empty() && !options.allow_empty {
+        eprintln!("No schema changes detected.");
+        return Err(ExitCode::new(4))?;
+    }
     write_migration(ctx, &descr, index, true).await?;
     Ok(())
 }
@@ -417,13 +422,13 @@ pub async fn create(cli: &mut Connection, _options: &Options,
 
     let exec = if create.non_interactive {
         run_non_interactive(&ctx, cli, migrations.len() as u64 +1,
-            create.allow_unsafe).await
+            &create).await
     } else {
         if create.allow_unsafe {
             log::warn!(
                 "The `--allow-unsafe` flag is unused in interactive mode");
         }
-        run_interactive(&ctx, cli, migrations.len() as u64 + 1).await
+        run_interactive(&ctx, cli, migrations.len() as u64 + 1, &create).await
     };
     let abort = cli.execute("ABORT MIGRATION").await;
     exec.and(abort)?;

@@ -465,6 +465,10 @@ pub struct CreateMigration {
     /// is only useful in non-interactive mode
     #[clap(long)]
     pub allow_unsafe: bool,
+    /// Create a new migration even if there are no changes (use this for
+    /// data-only migrations)
+    #[clap(long)]
+    pub allow_empty: bool,
     /// Print queries executed
     #[clap(long, setting=ArgSettings::Hidden)]
     pub debug_print_queries: bool,
