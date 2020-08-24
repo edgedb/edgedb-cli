@@ -18,6 +18,7 @@ use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
 use edgedb_protocol ::server_message::{ErrorResponse};
+use edgeql_parser::preparser::{is_empty};
 
 use crate::commands::Options;
 use crate::commands::parser::{Restore as RestoreCmd};
@@ -265,7 +266,7 @@ async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
         };
         let stmt = str::from_utf8(&stmt[..])
             .context("can't decode statement")?;
-        if !stmt.trim().is_empty() {
+        if !is_empty(stmt) {
             cli.execute(&stmt).await
                 .with_context(|| format!("failed statement {:?}", stmt))?;
         }
