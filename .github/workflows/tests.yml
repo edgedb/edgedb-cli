@@ -3,6 +3,7 @@ on: [push, pull_request]
 name: Tests
 env:
   EDGEDB_MAJOR_VERSION: 1-alpha4
+  RUST_TEST_THREADS: 2
 
 jobs:
   test:
