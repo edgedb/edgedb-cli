@@ -247,7 +247,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
         cmd.arg("create-migration");
         cmd.arg("--schema-dir=tests/migrations/db1/modified2");
     });
-    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("y\n").unwrap();
     cmd.exp_string("Created \
         tests/migrations/db1/modified2/migrations/00002.edgeql, \
@@ -298,15 +298,15 @@ fn modified3_interactive() -> anyhow::Result<()> {
         cmd.arg("create-migration");
         cmd.arg("--schema-dir=tests/migrations/db1/modified3");
     });
-    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("yes\n").unwrap();
-    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("yes\n").unwrap();
-    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("back\n").unwrap();
-    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("yes\n").unwrap();
-    cmd.exp_string("Apply the DDL statements?").unwrap();
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("yes\n").unwrap();
     cmd.exp_string("Created").unwrap();
 
