@@ -1,14 +1,18 @@
 use std::path::PathBuf;
+use std::time::SystemTime;
 
-use serde::Serialize;
+use async_std::task;
+use serde::{Serialize, Deserialize};
 
+use crate::server::detect::{Lazy, ARCH};
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
-use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::install;
 use crate::server::init;
-use crate::server::package::PackageInfo;
-use crate::server::version::Version;
+use crate::server::install;
 use crate::server::methods::InstallMethod;
+use crate::server::os_trait::{CurrentOs, Method, PreciseVersion};
+use crate::server::package::PackageInfo;
+use crate::server::remote;
+use crate::server::version::Version;
 
 
 #[derive(Debug, Serialize)]
@@ -20,11 +24,52 @@ pub struct DockerCandidate {
     socket_permissions_ok: bool,
 }
 
+#[derive(Debug)]
+pub enum Tag {
+    Stable(String),
+    Nightly(String),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TagList {
+    count: u64,
+    next: String,
+    previous: Option<String>,
+    results: Vec<TagInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ImageInfo {
+    architecture: String,
+    features: String,
+    digest: String,
+    os: String,
+    os_features: String,
+    size: u64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TagInfo {
+    creator: u64,
+    id: u64,
+    #[serde(with="humantime_serde")]
+    last_updated: SystemTime,
+    last_updater: u64,
+    last_updater_username: String,
+    name: String,
+    repository: u64,
+    full_size: u64,
+    v2: bool,
+    images: Vec<ImageInfo>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DockerMethod<'os, O: CurrentOs + ?Sized> {
     #[serde(skip)]
     os: &'os O,
     cli: PathBuf,
+    #[serde(skip)]
+    tags: Lazy<Vec<Tag>>,
 }
 
 impl DockerCandidate {
@@ -80,7 +125,43 @@ impl DockerCandidate {
         Ok(DockerMethod {
             os,
             cli: self.cli.as_ref().unwrap().clone(),
+            tags: Lazy::lazy(),
         })
+    }
+}
+
+impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
+    fn get_tags(&self) -> anyhow::Result<&[Tag]> {
+        self.tags.get_or_try_init(|| {
+            task::block_on(async {
+                let mut url = "https://registry.hub.docker.com/\
+                        v2/repositories/edgedb/edgedb/tags\
+                        ?page_size=1000".to_string();
+                let mut tags = Vec::new();
+                loop {
+                    let data: TagList = remote::get_json(&url,
+                        "failed to fetch tag list from the Docker registry"
+                    ).await?;
+                    if data.results.len() < 1000 {
+                        break;
+                    }
+                    tags.extend(data.results.into_iter().flat_map(|t| {
+                        if t.name.starts_with("1") {
+                            // examples: `1-alpha4`, `1.1`
+                            Some(Tag::Stable(t.name))
+                        } else if t.name.starts_with("202") {
+                            // example: `20200826052156c04ba5`
+                            Some(Tag::Nightly(t.name))
+                        } else {
+                            // maybe `latest` or something unrelated
+                            None
+                        }
+                    }));
+                    url = data.next;
+                }
+                Ok(tags)
+            })
+        }).map(|v| &v[..])
     }
 }
 

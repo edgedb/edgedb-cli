@@ -37,3 +37,17 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>;
 }
+
+#[derive(PartialEq, PartialOrd, Ord, Eq, Debug)]
+pub enum MajorVersion {
+    Stable(Version<String>),
+    Nightly,
+}
+
+#[derive(Debug)]
+pub struct PreciseVersion {
+    major: MajorVersion,
+    version: Version<String>,
+    major_length: usize,
+    revision_offset: usize,
+}

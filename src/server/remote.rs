@@ -56,6 +56,16 @@ pub async fn get_string(url: &str)
 }
 
 #[context("failed to fetch JSON at URL: {}", url)]
+pub async fn get_json<T>(url: &str, context: &'static str)
+    -> Result<T, anyhow::Error>
+    where T: DeserializeOwned,
+{
+    log::info!("Fetching JSON at {}", url);
+    Ok(surf::get(url).await.ensure200(context)?
+        .body_json::<T>().await.context(context)?)
+}
+
+#[context("failed to fetch JSON at URL: {}", url)]
 pub async fn get_json_opt<T>(url: &str, context: &'static str)
     -> Result<Option<T>, anyhow::Error>
     where T: DeserializeOwned,

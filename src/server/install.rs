@@ -19,14 +19,14 @@ pub const KEY_FILE_URL: &str = "https://packages.edgedb.com/keys/edgedb.asc";
 pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     let current_os = detect::current_os()?;
     let avail_methods = current_os.get_available_methods()?;
-    if options.method.is_none() && !options.interactive &&
-        !avail_methods.package.supported
-    {
-        anyhow::bail!(avail_methods.format_error());
-    }
     let methods = avail_methods.instantiate_all(&*current_os, false)?;
     let effective_method = options.method.clone()
         .unwrap_or(InstallMethod::Package);
+    if !options.interactive &&
+        !methods.contains_key(&effective_method)
+    {
+        anyhow::bail!(avail_methods.format_error());
+    }
     let version = VersionQuery::new(options.nightly, options.version.as_ref());
     for (meth_kind, meth) in &methods {
         for old_ver in meth.installed_versions()? {
