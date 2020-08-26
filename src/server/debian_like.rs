@@ -14,6 +14,7 @@ use crate::server::package::{RepositoryInfo, PackageCandidate};
 use crate::server::remote;
 use crate::server::methods::InstallationMethods;
 use crate::server::version::Version;
+use crate::server::os_trait::PreciseVersion;
 
 
 #[derive(Debug, Serialize)]
@@ -69,6 +70,17 @@ impl Debian {
                     "failed to fetch repository index"))
             }).map(|opt| opt.as_ref())
         }
+    }
+    pub fn all_versions(&self, nightly: bool)
+        -> anyhow::Result<Vec<PreciseVersion>>
+    {
+        Ok(self.get_repo(nightly)?
+            .map(|x| {
+                x.packages.iter()
+                .filter(|p| p.basename == "edgedb-server" && p.slot.is_some())
+                .map(|p| p.precise_version())
+                .collect()
+            }).unwrap_or_else(Vec::new))
     }
     pub fn get_available_methods(&self)
         -> Result<InstallationMethods, anyhow::Error>

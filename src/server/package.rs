@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use crate::server::version::Version;
 use crate::server::detect::{Lazy, InstalledPackage, VersionQuery};
 use crate::server::detect::{VersionResult};
-use crate::server::os_trait::CurrentOs;
+use crate::server::os_trait::{CurrentOs, PreciseVersion};
 
 
 #[derive(Debug, Serialize)]
@@ -128,6 +128,17 @@ pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
 }
 
 impl PackageInfo {
+    pub fn is_nightly(&self) -> bool {
+        return self.version.as_ref().contains(".dev")
+    }
+    pub fn precise_version(&self) -> PreciseVersion {
+        let slot = self.slot.as_ref().expect("only server packages supported");
+        if self.is_nightly() {
+            PreciseVersion::nightly(&format!("{}-{}", slot, self.revision))
+        } else {
+            PreciseVersion::from_pair(slot.num(), &self.revision)
+        }
+    }
     pub fn full_version(&self) -> Version<String> {
         Version(format!("{}-{}", self.version, self.revision))
     }

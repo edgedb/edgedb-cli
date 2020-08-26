@@ -8,8 +8,8 @@ use crate::server::install;
 use crate::server::init;
 use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{self, PackageMethod, PackageInfo};
+use crate::server::os_trait::{CurrentOs, Method, PreciseVersion};
+use crate::server::package::{self, PackageMethod};
 use crate::server::version::Version;
 
 
@@ -70,9 +70,10 @@ impl<'os> Method for PackageMethod<'os, Debian> {
             self.os.common.install_operations(settings)?,
             &self.os.linux)
     }
-    fn all_versions(&self, nightly: bool) -> anyhow::Result<&[PackageInfo]> {
-        Ok(self.os.common.get_repo(nightly)?
-            .map(|x| &x.packages[..]).unwrap_or(&[]))
+    fn all_versions(&self, nightly: bool)
+        -> anyhow::Result<Vec<PreciseVersion>>
+    {
+        self.os.common.all_versions(nightly)
     }
     fn get_version(&self, query: &VersionQuery)
         -> anyhow::Result<VersionResult>

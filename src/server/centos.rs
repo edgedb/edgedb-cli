@@ -15,8 +15,8 @@ use crate::server::install::{self, Operation, Command};
 use crate::server::linux;
 use crate::server::init;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{self, PackageMethod, PackageInfo};
+use crate::server::os_trait::{CurrentOs, Method, PreciseVersion};
+use crate::server::package::{self, PackageMethod};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
 use crate::server::remote;
 use crate::server::version::Version;
@@ -185,9 +185,16 @@ impl<'os> Method for PackageMethod<'os, Centos> {
             self.os.install_operations(settings)?,
             &self.os.linux)
     }
-    fn all_versions(&self, nightly: bool) -> anyhow::Result<&[PackageInfo]> {
+    fn all_versions(&self, nightly: bool)
+        -> anyhow::Result<Vec<PreciseVersion>>
+    {
         Ok(self.os.get_repo(nightly)?
-            .map(|x| &x.packages[..]).unwrap_or(&[]))
+            .map(|x| {
+                x.packages.iter()
+                .filter(|p| p.basename == "edgedb-server" && p.slot.is_some())
+                .map(|p| p.precise_version())
+                .collect()
+            }).unwrap_or_else(Vec::new))
     }
     fn get_version(&self, query: &VersionQuery)
         -> anyhow::Result<VersionResult>

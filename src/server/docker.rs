@@ -4,13 +4,12 @@ use std::time::SystemTime;
 use async_std::task;
 use serde::{Serialize, Deserialize};
 
-use crate::server::detect::{Lazy, ARCH};
+use crate::server::detect::Lazy;
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::init;
 use crate::server::install;
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::{CurrentOs, Method, PreciseVersion};
-use crate::server::package::PackageInfo;
 use crate::server::remote;
 use crate::server::version::Version;
 
@@ -26,7 +25,7 @@ pub struct DockerCandidate {
 
 #[derive(Debug)]
 pub enum Tag {
-    Stable(String),
+    Stable(String, String),
     Nightly(String),
 }
 
@@ -142,13 +141,20 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                     let data: TagList = remote::get_json(&url,
                         "failed to fetch tag list from the Docker registry"
                     ).await?;
-                    if data.results.len() < 1000 {
-                        break;
-                    }
+                    let last_page = data.results.len() < 1000;
                     tags.extend(data.results.into_iter().flat_map(|t| {
                         if t.name.starts_with("1") {
                             // examples: `1-alpha4`, `1.1`
-                            Some(Tag::Stable(t.name))
+                            let rev = t.images.get(0)
+                                .and_then(|img| {
+                                    img.digest.split(":").skip(1).next()
+                                });
+                            match rev {
+                                Some(rev) => {
+                                    Some(Tag::Stable(t.name, rev[..7].into()))
+                                }
+                                None => None,
+                            }
                         } else if t.name.starts_with("202") {
                             // example: `20200826052156c04ba5`
                             Some(Tag::Nightly(t.name))
@@ -157,6 +163,9 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                             None
                         }
                     }));
+                    if last_page {
+                        break;
+                    }
                     url = data.next;
                 }
                 Ok(tags)
@@ -174,9 +183,26 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     {
         anyhow::bail!("Docker support is not implemented yet"); // TODO
     }
-    fn all_versions(&self, _nightly: bool) -> anyhow::Result<&[PackageInfo]> {
-        // TODO(tailhook) implement fetching versions from docker
-        Ok(&[])
+    fn all_versions(&self, nightly: bool)
+        -> anyhow::Result<Vec<PreciseVersion>>
+    {
+        use Tag::*;
+
+        if nightly {
+            Ok(self.get_tags()?.iter().filter_map(|t| {
+                match t {
+                    Stable(..) => None,
+                    Nightly(v) => Some(PreciseVersion::nightly(v)),
+                }
+            }).collect())
+        } else {
+            Ok(self.get_tags()?.iter().filter_map(|t| {
+                match t {
+                    Stable(v, rev) => Some(PreciseVersion::from_pair(v, rev)),
+                    Nightly(..) => None,
+                }
+            }).collect())
+        }
     }
     fn get_version(&self, _query: &VersionQuery)
         -> anyhow::Result<VersionResult>
