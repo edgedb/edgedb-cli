@@ -276,7 +276,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                             format!("DECLARE SAVEPOINT migration_{}",
                                      save_point)
                         ).await?;
-                        continue;
+                        continue 'migration;
                     }
                     List => {
                         println!("Following DDL statements will be applied:");
