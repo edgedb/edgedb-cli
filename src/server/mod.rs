@@ -1,5 +1,6 @@
 pub mod options;
 mod main;
+mod metadata;
 mod methods;
 mod detect;
 mod remote;

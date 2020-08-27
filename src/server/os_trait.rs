@@ -3,6 +3,9 @@ use std::any::type_name;
 use std::path::PathBuf;
 use std::cmp::Ordering;
 
+use serde::{Deserialize, Serialize};
+use serde::{ser, de};
+
 use crate::server::install;
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::methods::{InstallationMethods, InstallMethod};
@@ -104,5 +107,29 @@ impl MajorVersion {
             MajorVersion::Stable(v) => v.num(),
             MajorVersion::Nightly => "nightly",
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for MajorVersion {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: de::Deserializer<'de>,
+    {
+        let s: &str = Deserialize::deserialize(deserializer)?;
+        match s {
+            "nightly" => Ok(MajorVersion::Nightly),
+            s => Ok(MajorVersion::Stable(Version(s.into()))),
+        }
+    }
+}
+
+impl Serialize for MajorVersion {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        serializer.serialize_str(match self {
+            MajorVersion::Stable(ver) => ver.num(),
+            MajorVersion::Nightly => "nightly",
+        })
     }
 }

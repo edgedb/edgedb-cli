@@ -394,7 +394,7 @@ fn write_upgrade(path: &Path, data: &str) -> anyhow::Result<()> {
 
 #[context("failed to write metadata file {}", path.display())]
 fn write_metadata(path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
-    fs::write(path, serde_json::to_vec(&metadata)?)?;
+    fs::write(path, serde_json::to_vec_pretty(&metadata)?)?;
     Ok(())
 }
 
