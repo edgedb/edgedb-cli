@@ -7,7 +7,7 @@ use crate::server::install;
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::version::Version;
-use crate::server::distribution::MajorVersion;
+use crate::server::distribution::{MajorVersion, DistributionRef};
 use crate::server::init;
 
 
@@ -26,7 +26,7 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn name(&self) -> InstallMethod;
     fn install(&self, settings: &install::Settings) -> anyhow::Result<()>;
     fn all_versions(&self, nightly: bool)
-        -> anyhow::Result<Vec<PreciseVersion>>;
+        -> anyhow::Result<Vec<DistributionRef>>;
     fn get_version(&self, query: &VersionQuery)
         -> anyhow::Result<VersionResult>;
     fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]>;

@@ -4,6 +4,7 @@ use crate::server::version::Version;
 use crate::server::detect::{Lazy, InstalledPackage, VersionQuery};
 use crate::server::detect::{VersionResult};
 use crate::server::os_trait::{CurrentOs, PreciseVersion};
+use crate::server::distribution::{Distribution, DistributionRef, MajorVersion};
 
 
 #[derive(Debug, Serialize)]
@@ -31,10 +32,42 @@ pub struct RepositoryInfo {
 #[derive(Deserialize, Debug, Clone)]
 pub struct PackageInfo {
     pub basename: String,
-    pub slot: Option<Version<String>>,
+    pub slot: Option<Version<String>>,  // TODO(tailhook) it's a string
     pub version: Version<String>,
     pub revision: String,
     pub architecture: String,
+}
+
+#[derive(Debug)]
+pub struct Package {
+    major_version: MajorVersion,
+    version: Version<String>,
+    slot: String,
+}
+
+impl<'a> Into<DistributionRef> for &'a PackageInfo {
+    fn into(self: &'a PackageInfo) -> DistributionRef {
+        let slot = self.slot.as_ref().expect("only server packages supported");
+        let major_version = if self.is_nightly() {
+            MajorVersion::Nightly
+        } else {
+            MajorVersion::Stable(slot.clone())
+        };
+        Package {
+            major_version,
+            version: self.version.clone(),
+            slot: slot.as_ref().to_owned(),
+        }.into_ref()
+    }
+}
+
+impl Distribution for Package {
+    fn major_version(&self) -> &MajorVersion {
+        &self.major_version
+    }
+    fn version(&self) -> &Version<String> {
+        &self.version
+    }
 }
 
 impl PackageCandidate {

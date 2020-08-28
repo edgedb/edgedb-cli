@@ -9,9 +9,10 @@ use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
 use crate::server::init;
 use crate::server::install;
 use crate::server::methods::InstallMethod;
-use crate::server::os_trait::{CurrentOs, Method, PreciseVersion};
+use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::remote;
 use crate::server::version::Version;
+use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 
 
 #[derive(Debug, Serialize)]
@@ -23,7 +24,7 @@ pub struct DockerCandidate {
     socket_permissions_ok: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Tag {
     Stable(String, String),
     Nightly(String),
@@ -69,6 +70,22 @@ pub struct DockerMethod<'os, O: CurrentOs + ?Sized> {
     cli: PathBuf,
     #[serde(skip)]
     tags: Lazy<Vec<Tag>>,
+}
+
+#[derive(Debug)]
+pub struct Image {
+    major_version: MajorVersion,
+    version: Version<String>,
+    tag: Tag,
+}
+
+impl Distribution for Image {
+    fn major_version(&self) -> &MajorVersion {
+        &self.major_version
+    }
+    fn version(&self) -> &Version<String> {
+        &self.version
+    }
 }
 
 impl DockerCandidate {
@@ -184,7 +201,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         anyhow::bail!("Docker support is not implemented yet"); // TODO
     }
     fn all_versions(&self, nightly: bool)
-        -> anyhow::Result<Vec<PreciseVersion>>
+        -> anyhow::Result<Vec<DistributionRef>>
     {
         use Tag::*;
 
@@ -192,13 +209,23 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             Ok(self.get_tags()?.iter().filter_map(|t| {
                 match t {
                     Stable(..) => None,
-                    Nightly(v) => Some(PreciseVersion::nightly(v)),
+                    Nightly(v) => {
+                        Some(Image {
+                            major_version: MajorVersion::Nightly,
+                            version: Version(v.clone()),
+                            tag: t.clone(),
+                        }.into_ref())
+                    }
                 }
             }).collect())
         } else {
             Ok(self.get_tags()?.iter().filter_map(|t| {
                 match t {
-                    Stable(v, rev) => Some(PreciseVersion::from_pair(v, rev)),
+                    Stable(v, rev) => Some(Image {
+                        major_version: MajorVersion::Stable(Version(v.clone())),
+                        version: Version(format!("{}-{}", v, rev)),
+                        tag: t.clone(),
+                    }.into_ref()),
                     Nightly(..) => None,
                 }
             }).collect())

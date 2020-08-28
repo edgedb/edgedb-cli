@@ -10,12 +10,13 @@ use serde::Serialize;
 
 use crate::server::detect::{Lazy, ARCH};
 use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
+use crate::server::distribution::DistributionRef;
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::linux;
 use crate::server::init;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::os_trait::{CurrentOs, Method, PreciseVersion};
+use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::package::{self, PackageMethod};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
 use crate::server::remote;
@@ -186,13 +187,13 @@ impl<'os> Method for PackageMethod<'os, Centos> {
             &self.os.linux)
     }
     fn all_versions(&self, nightly: bool)
-        -> anyhow::Result<Vec<PreciseVersion>>
+        -> anyhow::Result<Vec<DistributionRef>>
     {
         Ok(self.os.get_repo(nightly)?
             .map(|x| {
                 x.packages.iter()
                 .filter(|p| p.basename == "edgedb-server" && p.slot.is_some())
-                .map(|p| p.precise_version())
+                .map(|p| p.into())
                 .collect()
             }).unwrap_or_else(Vec::new))
     }

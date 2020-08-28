@@ -16,11 +16,12 @@ use crate::server::init;
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::StartConf;
-use crate::server::os_trait::{CurrentOs, Method, PreciseVersion};
+use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::package::{PackageMethod};
 use crate::server::package::{self, PackageCandidate, RepositoryInfo};
 use crate::server::remote;
 use crate::server::version::Version;
+use crate::server::distribution::DistributionRef;
 
 
 #[derive(Debug, Serialize)]
@@ -190,13 +191,13 @@ impl<'os> Method for PackageMethod<'os, Macos> {
         Ok(())
     }
     fn all_versions(&self, nightly: bool)
-        -> anyhow::Result<Vec<PreciseVersion>>
+        -> anyhow::Result<Vec<DistributionRef>>
     {
         Ok(self.os.get_repo(nightly)?
             .map(|x| {
                 x.packages.iter()
                 .filter(|p| p.basename == "edgedb-server" && p.slot.is_some())
-                .map(|p| p.precise_version())
+                .map(|p| p.into())
                 .collect()
             }).unwrap_or_else(Vec::new))
     }

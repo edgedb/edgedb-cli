@@ -6,16 +6,15 @@ use crate::server::detect;
 use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::ListVersions;
 use crate::server::version::Version;
-use crate::server::distribution::MajorVersion;
-use crate::server::os_trait::{PreciseVersion};
+use crate::server::distribution::{MajorVersion, DistributionRef};
 use crate::table;
 
 
 #[derive(Debug)]
 pub struct VersionInfo {
     available: BTreeSet<InstallMethod>,
-    installed: BTreeMap<InstallMethod, Version<String>>,
-    precise: PreciseVersion,
+    installed: BTreeMap<InstallMethod, DistributionRef>,
+    latest: Version<String>,
 }
 
 
@@ -72,16 +71,16 @@ fn remote(methods: &Methods,
     for (meth, method) in methods {
         let nightly = method.all_versions(true)?;
         let stable = method.all_versions(false)?;
-        for ver in stable.iter().chain(nightly.iter()) {
-            let info = versions.entry(ver.major().clone())
+        for distr in stable.iter().chain(nightly.iter()) {
+            let info = versions.entry(distr.major_version().clone())
                 .or_insert_with(|| VersionInfo {
                     available: BTreeSet::new(),
                     installed: BTreeMap::new(),
-                    precise: ver.clone(),
+                    latest: distr.version().clone(),
                 });
             info.available.insert(meth.clone());
-            if &info.precise < ver {
-                info.precise = ver.clone();
+            if &info.latest < distr.version() {
+                info.latest = distr.version().clone();
             }
         }
     }
@@ -101,11 +100,11 @@ fn print_versions(versions: BTreeMap<MajorVersion, VersionInfo>) {
     for (ver, info) in &versions {
         table.add_row(Row::new(vec![
             Cell::new(ver.title()),
-            Cell::new(info.precise.as_str())
+            Cell::new(info.latest.as_ref())
                 .style_spec(if info.installed.is_empty() {
                     ""
                 } else if info.installed.iter()
-                          .all(|(_m, ver)| ver == info.precise.as_ver())
+                          .all(|(_m, distr)| distr.version() == &info.latest)
                 {
                     "bFg"
                 } else {
@@ -116,11 +115,11 @@ fn print_versions(versions: BTreeMap<MajorVersion, VersionInfo>) {
                 .collect::<Vec<_>>()
                 .join(", ")),
             Cell::new(&info.installed.iter()
-                .map(|(meth, ver)| {
-                    if ver == info.precise.as_ver() {
+                .map(|(meth, distr)| {
+                    if distr.version() == &info.latest {
                         meth.short_name().to_owned()
                     } else {
-                        format!("{}:{}", meth.short_name(), ver)
+                        format!("{}:{}", meth.short_name(), distr.version())
                     }
                 })
                 .collect::<Vec<_>>()
