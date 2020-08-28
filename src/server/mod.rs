@@ -3,6 +3,7 @@ mod main;
 mod metadata;
 mod methods;
 mod detect;
+mod distribution;
 mod remote;
 mod version;
 mod os_trait;

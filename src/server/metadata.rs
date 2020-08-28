@@ -3,7 +3,7 @@ use serde::de;
 use serde_json::Value;
 
 use crate::server::version::Version;
-use crate::server::os_trait::{MajorVersion};
+use crate::server::distribution::{MajorVersion};
 use crate::server::methods::InstallMethod;
 use crate::server::options::StartConf;
 
@@ -122,7 +122,7 @@ impl Metadata {
 mod test {
     use super::Metadata;
     use crate::server::version::Version;
-    use crate::server::os_trait::{MajorVersion};
+    use crate::server::distribution::{MajorVersion};
     use crate::server::methods::InstallMethod;
     use crate::server::options::StartConf;
 

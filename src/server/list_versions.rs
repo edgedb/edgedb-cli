@@ -6,7 +6,8 @@ use crate::server::detect;
 use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::ListVersions;
 use crate::server::version::Version;
-use crate::server::os_trait::{MajorVersion, PreciseVersion};
+use crate::server::distribution::MajorVersion;
+use crate::server::os_trait::{PreciseVersion};
 use crate::table;
 
 
