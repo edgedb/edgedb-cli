@@ -353,11 +353,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-debian-buster:
     needs: [build-debian-buster]
@@ -383,11 +378,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-ubuntu-xenial:
     needs: [build-ubuntu-xenial]
@@ -413,11 +403,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-ubuntu-bionic:
     needs: [build-ubuntu-bionic]
@@ -443,11 +428,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-ubuntu-focal:
     needs: [build-ubuntu-focal]
@@ -473,11 +453,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-centos-7:
     needs: [build-centos-7]
@@ -503,11 +478,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-centos-8:
     needs: [build-centos-8]
@@ -533,11 +503,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-linux-x86_64:
     needs: [build-linux-x86_64]
@@ -563,11 +528,27 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
+    - name: Prepare docker context
+      run: |
+        mkdir -p dockerctx
+        cp artifacts/linux-x86_64/edgedb-cli* dockerctx/edgedb
+        chmod +x dockerctx/edgedb
+        printf 'FROM scratch\nENV EDGEDB_USER edgedb\nADD edgedb /usr/bin/\nENTRYPOINT ["/usr/bin/edgedb"]\n' \
+          >dockerctx/Dockerfile
+        ver=$(dockerctx/edgedb --version | cut -f2 -d' ')
+        echo ::set-env name=CLI_VERSION::${ver}
+
+    - name: Publish docker image
+      uses: elgohr/Publish-Docker-Github-Action@2.19
+      env:
+        PKG_PLATFORM_FULL: "linux-x86_64"
       with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
+        name: edgedb/edgedb-cli
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        workdir: dockerctx
+        tags: "${{ env.PKG_PLATFORM_FULL }}-latest,${{ env.PKG_PLATFORM_FULL }}-${{ env.CLI_VERSION }}"
+
 
 
   publish-macos-x86_64:
