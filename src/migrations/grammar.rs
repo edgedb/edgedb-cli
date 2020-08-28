@@ -114,7 +114,9 @@ fn braces<'a>() -> impl Parser<TokenStream<'a>, Output=Statement> {
     opaque!(
         no_partial(between(kind(Kind::OpenBrace), kind(Kind::CloseBrace),
             skip_many(
-                satisfy(|t: Token<'a>| !matches!(t.kind, Kind::CloseBrace))
+                satisfy(|t: Token<'a>| {
+                    !matches!(t.kind, Kind::OpenBrace|Kind::CloseBrace)
+                })
                 .map(|_| Ignored)
                 .or(braces())))
         .map(|_| Ignored))
@@ -215,6 +217,19 @@ mod test {
         assert_eq!(m.id, "u234");
         assert_eq!(m.parent_id, "u123");
         assert_eq!(m.message, Some(" hello world! ".into()));
+    }
+
+    #[test]
+    fn nested_braces() {
+        let m = parse_migration(r###"
+            CREATE MIGRATION u234 ONTO u123 {
+              {{};};
+              CREATE { };
+            };
+        "###)
+            .unwrap();
+        assert_eq!(m.id, "u234");
+        assert_eq!(m.parent_id, "u123");
     }
 
     #[test]
