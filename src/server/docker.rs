@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+use anyhow::Context;
 use async_std::task;
 use serde::{Serialize, Deserialize};
 
@@ -24,7 +25,7 @@ pub struct DockerCandidate {
     socket_permissions_ok: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Tag {
     Stable(String, String),
     Nightly(String),
@@ -77,6 +78,17 @@ pub struct Image {
     major_version: MajorVersion,
     version: Version<String>,
     tag: Tag,
+}
+
+impl Tag {
+    pub fn matches(&self, q: &VersionQuery) -> bool {
+        match (self, q) {
+            (Tag::Stable(_, _), VersionQuery::Stable(None)) => true,
+            (Tag::Stable(t, _), VersionQuery::Stable(Some(q))) => t == q.num(),
+            (Tag::Nightly(_), VersionQuery::Nightly) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Distribution for Image {
@@ -234,7 +246,23 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn get_version(&self, query: &VersionQuery)
         -> anyhow::Result<DistributionRef>
     {
-        anyhow::bail!("Docker support is not implemented yet"); // TODO
+        let tag = self.get_tags()?
+            .iter()
+            .filter(|tag| tag.matches(query))
+            .max()
+            .with_context(|| format!("version {} not found", query))?;
+        Ok(match tag {
+            Tag::Stable(v, rev) => Image {
+                major_version: MajorVersion::Stable(Version(v.clone())),
+                version: Version(format!("{}-{}", v, rev)),
+                tag: tag.clone(),
+            },
+            Tag::Nightly(v) => Image {
+                major_version: MajorVersion::Nightly,
+                version: Version(v.clone()),
+                tag: tag.clone(),
+            },
+        }.into_ref())
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         Ok(Vec::new())
