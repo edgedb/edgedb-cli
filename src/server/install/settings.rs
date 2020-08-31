@@ -4,8 +4,8 @@ use prettytable::{Table, Row, Cell};
 use crate::server::options::Install;
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::detect::VersionQuery;
-use crate::server::version::Version;
 use crate::server::methods::InstallMethod;
+use crate::server::distribution::DistributionRef;
 use crate::table;
 
 
@@ -13,9 +13,7 @@ use crate::table;
 pub struct SettingsBuilder<'a> {
     pub method: InstallMethod,
     pub version_query: VersionQuery,
-    pub package_name: Option<String>,
-    pub major_version: Option<Version<String>>,
-    pub version: Option<Version<String>>,
+    pub distribution: Option<DistributionRef>,
     pub extra: LinkedHashMap<String, String>,
     pub os: &'a dyn CurrentOs,
     pub methods: LinkedHashMap<InstallMethod, Box<dyn Method + 'a>>,
@@ -24,10 +22,7 @@ pub struct SettingsBuilder<'a> {
 #[derive(Debug)]
 pub struct Settings {
     pub method: InstallMethod,
-    pub package_name: String,
-    pub major_version: Version<String>,
-    pub version: Version<String>,
-    pub nightly: bool,
+    pub distribution: DistributionRef,
     pub extra: LinkedHashMap<String, String>,
 }
 
@@ -44,9 +39,7 @@ impl<'os> SettingsBuilder<'os> {
                 .or_else(|| methods.keys().next().cloned())
                 .unwrap_or(InstallMethod::Package),
             version_query,
-            package_name: None,
-            major_version: None,
-            version: None,
+            distribution: None,
             extra: LinkedHashMap::new(),
             methods,
         })
@@ -54,35 +47,26 @@ impl<'os> SettingsBuilder<'os> {
     pub fn build(mut self)
         -> anyhow::Result<(Settings, Box<dyn Method + 'os>)>
     {
-        if self.package_name.is_none() || self.major_version.is_none() ||
-            self.version.is_none()
-        {
+        if self.distribution.is_none() {
             anyhow::bail!("No installable version found");
         }
         let method = self.methods.remove(&self.method)
             .expect("method exists");
         let settings = Settings {
             method: self.method,
-            package_name: self.package_name.unwrap(),
-            major_version: self.major_version.unwrap(),
-            version: self.version.unwrap(),
-            nightly: self.version_query.is_nightly(),
+            distribution: self.distribution.unwrap(),
             extra: self.extra,
         };
         Ok((settings, method))
     }
     pub fn auto_version(&mut self) -> anyhow::Result<()> {
-        let res = self.methods.get(&self.method).expect("method exists")
+        self.distribution =
+            self.methods.get(&self.method).expect("method exists")
             .get_version(&self.version_query)
             .map_err(|e| {
                 log::warn!("Unable to determine version: {:#}", e);
             })
             .ok();
-        if let Some(res) = res {
-            self.version = Some(res.version);
-            self.package_name = Some(res.package_name);
-            self.major_version = Some(res.major_version);
-        }
         Ok(())
     }
 }
@@ -90,7 +74,6 @@ impl<'os> SettingsBuilder<'os> {
 impl Settings {
     pub fn print(&self) {
         let mut table = Table::new();
-        let version_opt = format!("--version={}", self.major_version);
         table.add_row(Row::new(vec![
             Cell::new("Installation method"),
             Cell::new(self.method.title()),
@@ -98,16 +81,12 @@ impl Settings {
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Major version"),
-            Cell::new(self.major_version.num()),
-            Cell::new(if self.nightly {
-                "--nightly"
-            } else {
-                &version_opt
-            }),
+            Cell::new(self.distribution.major_version().title()),
+            Cell::new(&self.distribution.major_version().option()),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Exact version"),
-            Cell::new(self.version.num()),
+            Cell::new(self.distribution.version().as_ref()),
         ]));
         for (k, v) in &self.extra {
             table.add_row(Row::new(vec![

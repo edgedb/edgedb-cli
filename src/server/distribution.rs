@@ -1,19 +1,21 @@
 use std::fmt;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use serde::{ser, de};
 
 use crate::server::version::Version;
+use crate::server::detect::VersionQuery;
 
 
-#[derive(Debug)]
-pub struct DistributionRef(Box<dyn Distribution>);
+#[derive(Debug, Clone)]
+pub struct DistributionRef(Arc<dyn Distribution>);
 
-pub trait Distribution: downcast_rs::Downcast + fmt::Debug {
+pub trait Distribution: downcast_rs::DowncastSync + fmt::Debug {
     fn major_version(&self) -> &MajorVersion;
     fn version(&self) -> &Version<String>;
     fn into_ref(self) -> DistributionRef where Self: Sized {
-        DistributionRef(Box::new(self))
+        DistributionRef(Arc::new(self))
     }
 }
 
@@ -26,6 +28,15 @@ pub enum MajorVersion {
 }
 
 impl MajorVersion {
+    pub fn is_nightly(&self) -> bool {
+        matches!(self, MajorVersion::Nightly)
+    }
+    pub fn as_stable(&self) -> Option<&Version<String>> {
+        match self {
+            MajorVersion::Stable(v) => Some(v),
+            MajorVersion::Nightly => None,
+        }
+    }
     pub fn option(&self) -> String {
         match self {
             MajorVersion::Stable(v) => format!("--version={}", v.num()),
@@ -36,6 +47,12 @@ impl MajorVersion {
         match self {
             MajorVersion::Stable(v) => v.num(),
             MajorVersion::Nightly => "nightly",
+        }
+    }
+    pub fn to_query(&self) -> VersionQuery {
+        match self {
+            MajorVersion::Stable(v) => VersionQuery::Stable(Some(v.clone())),
+            MajorVersion::Nightly => VersionQuery::Nightly,
         }
     }
 }
@@ -70,5 +87,8 @@ impl DistributionRef {
     }
     pub fn version(&self) -> &Version<String> {
         self.0.version()
+    }
+    pub fn downcast_ref<T: Distribution>(&self) -> Option<&T> {
+        self.0.downcast_ref()
     }
 }

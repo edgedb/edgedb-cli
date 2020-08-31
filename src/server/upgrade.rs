@@ -14,12 +14,14 @@ use serde::{Serialize, Deserialize};
 use edgedb_client as client;
 use crate::server::control;
 use crate::server::detect::{self, VersionQuery};
-use crate::server::init::{init, Metadata, data_path};
+use crate::server::init::{init, data_path};
 use crate::server::install;
+use crate::server::metadata::Metadata;
 use crate::server::options::{self, Upgrade};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
 use crate::server::is_valid_name;
+use crate::server::distribution::MajorVersion;
 use crate::commands;
 use crate::platform::ProcessGuard;
 
@@ -167,10 +169,10 @@ fn get_instances(todo: &ToDo)
 
     let instances = match todo {
         MinorUpgrade => all_instances()?.into_iter()
-            .filter(|inst| !inst.meta.nightly)
+            .filter(|inst| !inst.meta.version.is_nightly())
             .collect(),
         NightlyUpgrade => all_instances()?.into_iter()
-            .filter(|inst| inst.meta.nightly)
+            .filter(|inst| inst.meta.version.is_nightly())
             .collect(),
         InstanceUpgrade(name, ..) => all_instances()?.into_iter()
             .filter(|inst| &inst.name == name)
@@ -251,27 +253,27 @@ fn do_minor_upgrade(method: &dyn Method,
         let instances_str = instances
             .iter().map(|inst| &inst.name[..]).collect::<Vec<_>>().join(", ");
 
-        let version_query = VersionQuery::Stable(Some(version.clone()));
+        let version_query = version.to_query();
         let new = method.get_version(&version_query)
             .context("Unable to determine version")?;
         let old = get_installed(&version_query, method)?;
 
         if !options.force {
             if let Some(old_ver) = &old {
-                if old_ver >= &new.full_version() {
+                if old_ver >= new.version() {
                     log::info!(target: "edgedb::server::upgrade",
                         "Version {} is up to date {}, skipping instances: {}",
-                        version, old_ver, instances_str);
+                        version.title(), old_ver, instances_str);
                     return Ok(());
                 }
             }
         }
 
-        println!("Upgrading version: {} to {}-{}, instances: {}",
-            version, new.version, new.revision, instances_str);
+        println!("Upgrading version: {} to {}, instances: {}",
+            version.title(), new.version(), instances_str);
         for inst in &mut instances {
             inst.source = old.clone();
-            inst.version = Some(new.full_version());
+            inst.version = Some(new.version().clone());
         }
 
         // Stop instances first.
@@ -292,10 +294,7 @@ fn do_minor_upgrade(method: &dyn Method,
         log::info!(target: "edgedb::server::upgrade", "Upgrading the package");
         method.install(&install::Settings {
             method: method.name(),
-            package_name: new.package_name,
-            major_version: version,
-            version: new.version,
-            nightly: false,
+            distribution: new,
             extra: LinkedHashMap::new(),
         })?;
 
@@ -378,7 +377,7 @@ fn do_nightly_upgrade(method: &dyn Method,
 
     if !options.force {
         if let Some(old_ver) = &old {
-            if old_ver >= &new.full_version() {
+            if old_ver >= &new.version() {
                 log::info!(target: "edgedb::server::upgrade",
                     "Nightly is up to date {}, skipping instances: {}",
                     old_ver, instances_str);
@@ -388,25 +387,23 @@ fn do_nightly_upgrade(method: &dyn Method,
     }
     for inst in &mut instances {
         inst.source = old.clone();
-        inst.version = Some(new.full_version());
+        inst.version = Some(new.version().clone());
     }
 
     for inst in &instances {
         dump_and_stop(inst)?;
     }
 
+    let new_major = new.major_version().clone();
     log::info!(target: "edgedb::server::upgrade", "Upgrading the package");
     method.install(&install::Settings {
         method: method.name(),
-        package_name: new.package_name,
-        major_version: new.major_version.clone(),
-        version: new.version,
-        nightly: true,
+        distribution: new,
         extra: LinkedHashMap::new(),
     })?;
 
     for inst in instances {
-        reinit_and_restore(&inst, &new.major_version, true, method)?;
+        reinit_and_restore(&inst, &new_major, method)?;
     }
     Ok(())
 }
@@ -426,8 +423,7 @@ fn dump_and_stop(inst: &Instance) -> anyhow::Result<()> {
 }
 
 #[context("failed to restore {:?}", inst.name)]
-fn reinit_and_restore(inst: &Instance,
-    version: &Version<String>, nightly: bool,
+fn reinit_and_restore(inst: &Instance, version: &MajorVersion,
     method: &dyn Method)
     -> anyhow::Result<()>
 {
@@ -443,8 +439,8 @@ fn reinit_and_restore(inst: &Instance,
         name: inst.name.clone(),
         system: inst.system,
         interactive: false,
-        nightly,
-        version: Some(version.clone()),
+        nightly: version.is_nightly(),
+        version: version.as_stable().cloned(),
         method: Some(method.name()),
         port: Some(inst.meta.port),
         start_conf: inst.meta.start_conf,
@@ -479,10 +475,10 @@ fn get_installed(version: &VersionQuery, method: &dyn Method)
     -> anyhow::Result<Option<Version<String>>>
 {
     for ver in method.installed_versions()? {
-        if !version.installed_matches(ver) {
+        if !version.distribution_matches(&ver) {
             continue
         }
-        return Ok(Some(ver.full_version()));
+        return Ok(Some(ver.version().clone()));
     }
     return Ok(None);
 }
@@ -497,7 +493,7 @@ fn do_instance_upgrade(method: &dyn Method,
 
     if !options.force {
         if let Some(old_ver) = &old {
-            if old_ver >= &new.full_version() {
+            if old_ver >= &new.version() {
                 log::info!(target: "edgedb::server::upgrade",
                     "Version {} is up to date {}, skipping instance: {}",
                     version, old_ver, inst.name);
@@ -506,21 +502,19 @@ fn do_instance_upgrade(method: &dyn Method,
         }
     }
     inst.source = old;
-    inst.version = Some(new.full_version());
+    inst.version = Some(new.version().clone());
 
     dump_and_stop(&inst)?;
 
+    let new_major = new.major_version().clone();
     log::info!(target: "edgedb::server::upgrade", "Installing the package");
     method.install(&install::Settings {
         method: method.name(),
-        package_name: new.package_name,
-        major_version: new.major_version,
-        version: new.version.clone(),
-        nightly: version.is_nightly(),
+        distribution: new,
         extra: LinkedHashMap::new(),
     })?;
 
-    reinit_and_restore(&inst, &new.version, version.is_nightly(), method)?;
+    reinit_and_restore(&inst, &new_major, method)?;
     Ok(())
 }
 

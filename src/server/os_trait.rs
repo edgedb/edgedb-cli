@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::cmp::Ordering;
 
 use crate::server::install;
-use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
+use crate::server::detect::{VersionQuery};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::version::Version;
 use crate::server::distribution::{MajorVersion, DistributionRef};
@@ -28,13 +28,13 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn all_versions(&self, nightly: bool)
         -> anyhow::Result<Vec<DistributionRef>>;
     fn get_version(&self, query: &VersionQuery)
-        -> anyhow::Result<VersionResult>;
-    fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]>;
+        -> anyhow::Result<DistributionRef>;
+    fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>>;
     fn detect_all(&self) -> serde_json::Value;
     fn is_system_only(&self) -> bool {
         false
     }
-    fn get_server_path(&self, major_version: &Version<String>)
+    fn get_server_path(&self, distr: &DistributionRef)
         -> anyhow::Result<PathBuf>;
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>;

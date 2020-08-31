@@ -8,28 +8,25 @@ use crate::server::methods::InstallMethod;
 use crate::server::options::StartConf;
 
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, PartialEq, Serialize, Clone)]
+#[serde(into="MetadataV2")]
 pub struct Metadata {
-    #[serde(default="two")]
-    format: u16,
-    version: MajorVersion,
-    #[serde(skip_serializing_if="Option::is_none")]
-    binary_suffix: Option<String>,
-    #[serde(skip_serializing_if="Option::is_none")]
-    current_version: Option<Version<String>>,
-    method: InstallMethod,
-    port: u16,
-    start_conf: StartConf,
+    pub version: MajorVersion,
+    pub slot: Option<String>,
+    pub current_version: Option<Version<String>>,
+    pub method: InstallMethod,
+    pub port: u16,
+    pub start_conf: StartConf,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct MetadataV2 {
     format: u16,
     version: MajorVersion,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if="Option::is_none")]
     current_version: Option<Version<String>>,
-    #[serde(default)]
-    binary_suffix: Option<String>,
+    #[serde(default, skip_serializing_if="Option::is_none")]
+    slot: Option<String>,
     method: InstallMethod,
     port: u16,
     start_conf: StartConf,
@@ -77,8 +74,7 @@ impl<'de> Deserialize<'de> for Metadata {
 impl From<MetadataV1> for Metadata {
     fn from(m: MetadataV1) -> Metadata {
         Metadata {
-            format: 2,
-            binary_suffix: Some(m.version.as_ref().into()),
+            slot: Some(m.version.as_ref().into()),
             version: if m.nightly {
                 MajorVersion::Nightly
             } else {
@@ -95,9 +91,22 @@ impl From<MetadataV1> for Metadata {
 impl From<MetadataV2> for Metadata {
     fn from(m: MetadataV2) -> Metadata {
         Metadata {
-            format: m.format,
             version: m.version,
-            binary_suffix: m.binary_suffix,
+            slot: m.slot,
+            current_version: m.current_version,
+            method: m.method,
+            port: m.port,
+            start_conf: m.start_conf,
+        }
+    }
+}
+
+impl From<Metadata> for MetadataV2 {
+    fn from(m: Metadata) -> MetadataV2 {
+        MetadataV2 {
+            format: 2,
+            version: m.version,
+            slot: m.slot,
             current_version: m.current_version,
             method: m.method,
             port: m.port,
@@ -132,10 +141,9 @@ mod test {
             {"version":"1-alpha5","method":"Package","port":10700,
              "nightly":false,"start_conf":"Auto"}
         "###).unwrap(), Metadata {
-            format: 2,
             version: MajorVersion::Stable(Version("1-alpha5".into())),
             current_version: None,
-            binary_suffix: Some("1-alpha5".into()),
+            slot: Some("1-alpha5".into()),
             method: InstallMethod::Package,
             port: 10700,
             start_conf: StartConf::Auto,
@@ -145,10 +153,9 @@ mod test {
             {"version":"1-alpha6","method":"Package","port":10700,
              "nightly":true,"start_conf":"Auto"}
         "###).unwrap(), Metadata {
-            format: 2,
             version: MajorVersion::Nightly,
             current_version: None,
-            binary_suffix: Some("1-alpha6".into()),
+            slot: Some("1-alpha6".into()),
             method: InstallMethod::Package,
             port: 10700,
             start_conf: StartConf::Auto,
@@ -158,35 +165,33 @@ mod test {
     #[test]
     fn new_metadata() {
         assert_eq!(serde_json::to_string_pretty(&Metadata {
-            format: 2,
             version: MajorVersion::Stable(Version("1-alpha5".into())),
             current_version: None,
-            binary_suffix: Some("1-alpha5".into()),
+            slot: Some("1-alpha5".into()),
             method: InstallMethod::Package,
             port: 10700,
             start_conf: StartConf::Auto,
         }).unwrap(), r###"{
   "format": 2,
   "version": "1-alpha5",
-  "binary_suffix": "1-alpha5",
+  "slot": "1-alpha5",
   "method": "Package",
   "port": 10700,
   "start_conf": "Auto"
 }"###);
 
         assert_eq!(serde_json::to_string_pretty(&Metadata {
-            format: 2,
             version: MajorVersion::Nightly,
             current_version: Some(Version("1a3.dev.g124bc".into())),
-            binary_suffix: Some("1-alpha6".into()),
+            slot: Some("1-alpha6".into()),
             method: InstallMethod::Package,
             port: 10700,
             start_conf: StartConf::Auto,
         }).unwrap(), r###"{
   "format": 2,
   "version": "nightly",
-  "binary_suffix": "1-alpha6",
   "current_version": "1a3.dev.g124bc",
+  "slot": "1-alpha6",
   "method": "Package",
   "port": 10700,
   "start_conf": "Auto"

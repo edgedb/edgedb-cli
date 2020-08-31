@@ -9,19 +9,18 @@ use serde::Serialize;
 
 use crate::platform::{Uid, get_current_uid, home_dir};
 use crate::process::run;
-use crate::server::detect::{ARCH, Lazy, VersionQuery, VersionResult};
-use crate::server::detect::{InstalledPackage};
+use crate::server::detect::{ARCH, Lazy, VersionQuery};
 use crate::server::docker::DockerCandidate;
 use crate::server::init;
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::StartConf;
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{PackageMethod};
+use crate::server::package::{PackageMethod, Package};
 use crate::server::package::{self, PackageCandidate, RepositoryInfo};
 use crate::server::remote;
 use crate::server::version::Version;
-use crate::server::distribution::DistributionRef;
+use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 
 
 #[derive(Debug, Serialize)]
@@ -136,13 +135,13 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     fn install(&self, settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {
+        let pkg = settings.distribution.downcast_ref::<Package>()
+            .context("invalid macos package")?;
         let tmpdir = tempfile::tempdir()?;
-        let ver = self.get_version(&VersionQuery::new(
-            settings.nightly, Some(&settings.major_version)))?;
-        let package_name = format!("edgedb-server-{}_{}_{}.pkg",
-            settings.major_version, settings.version, ver.revision);
+        let package_name = format!("edgedb-server-{}_{}.pkg",
+            pkg.slot, pkg.version.as_ref().replace("-", "_"));
         let pkg_path = tmpdir.path().join(&package_name);
-        let url = if settings.nightly {
+        let url = if settings.distribution.major_version().is_nightly() {
             format!("https://packages.edgedb.com/archive/\
                 macos-{arch}.nightly/{name}",
                 arch=ARCH, name=package_name)
@@ -202,14 +201,14 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             }).unwrap_or_else(Vec::new))
     }
     fn get_version(&self, query: &VersionQuery)
-        -> anyhow::Result<VersionResult>
+        -> anyhow::Result<DistributionRef>
     {
         let packages = self.os.get_repo(query.is_nightly())?
             .ok_or_else(|| anyhow::anyhow!("No repository found"))?;
         package::find_version(packages, query)
     }
-    fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]> {
-        Ok(&self.installed.get_or_try_init(|| {
+    fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
+        Ok(self.installed.get_or_try_init(|| {
             let mut cmd = StdCommand::new("pkgutil");
             cmd.arg(r"--pkgs=com.edgedb.edgedb-server-\d.*");
             let out = cmd.output()
@@ -252,30 +251,29 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                     log::info!("Cannot get version of {:?}", line);
                     continue;
                 };
-                let mut pair_iter = version.splitn(2, "_");
-                let (ver, rev) = match (pair_iter.next(), pair_iter.next()) {
-                    (Some(ver), Some(rev)) => (ver, rev),
-                    (Some(ver), None) => (ver, "<unknown>"),
-                    _ => unreachable!(),
-                };
 
-                result.push(InstalledPackage {
-                    package_name: "edgedb-server".to_owned(),
-                    major_version: Version(major.to_string()),
-                    version: Version(ver.to_owned()),
-                    revision: rev.to_owned(),
-                });
+                result.push(Package {
+                    major_version: if version.contains(".dev") {
+                        MajorVersion::Nightly
+                    } else {
+                        MajorVersion::Stable(Version(major.to_string()))
+                    },
+                    version: Version(version.to_string()),
+                    slot: major.to_string(),
+                }.into_ref());
             }
             Ok(result)
-        })?)
+        })?.clone())
     }
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
-    fn get_server_path(&self, major_version: &Version<String>)
+    fn get_server_path(&self, distr: &DistributionRef)
         -> anyhow::Result<PathBuf>
     {
-        get_server_path(major_version)
+        let pkg = distr.downcast_ref::<Package>()
+            .context("invalid macos package")?;
+        Ok(get_server_path(&pkg.slot))
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>
@@ -293,14 +291,12 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     }
 }
 
-pub fn get_server_path(major_version: &Version<String>)
-    -> anyhow::Result<PathBuf>
-{
-    Ok(Path::new("/Library/Frameworks/EdgeDB.framework/Versions")
-        .join(major_version.as_ref())
+pub fn get_server_path(slot: &str) -> PathBuf {
+    Path::new("/Library/Frameworks/EdgeDB.framework/Versions")
+        .join(slot)
         .join("lib")
-        .join(&format!("edgedb-server-{}", major_version))
-        .join("bin/edgedb-server"))
+        .join(&format!("edgedb-server-{}", slot))
+        .join("bin/edgedb-server")
 }
 
 fn plist_dir(system: bool) -> anyhow::Result<PathBuf> {
@@ -320,9 +316,9 @@ pub fn launchd_plist_path(name: &str, system: bool)
     Ok(plist_dir(system)?.join(plist_name(name)))
 }
 
-fn plist_data(settings: &init::Settings)
-    -> anyhow::Result<String>
-{
+fn plist_data(settings: &init::Settings) -> anyhow::Result<String> {
+    let pkg = settings.distribution.downcast_ref::<Package>()
+        .context("invalid macos package")?;
     Ok(format!(r###"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
@@ -358,7 +354,7 @@ fn plist_data(settings: &init::Settings)
 "###,
         instance_name=settings.name,
         directory=settings.directory.display(),
-        server_path=get_server_path(&settings.version)?.display(),
+        server_path=get_server_path(&pkg.slot).display(),
         runtime_dir=home_dir()?
             .join(".edgedb/run").join(&settings.name)
             .display(),

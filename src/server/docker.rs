@@ -5,7 +5,7 @@ use async_std::task;
 use serde::{Serialize, Deserialize};
 
 use crate::server::detect::Lazy;
-use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
+use crate::server::detect::VersionQuery;
 use crate::server::init;
 use crate::server::install;
 use crate::server::methods::InstallMethod;
@@ -231,13 +231,13 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             }).collect())
         }
     }
-    fn get_version(&self, _query: &VersionQuery)
-        -> anyhow::Result<VersionResult>
+    fn get_version(&self, query: &VersionQuery)
+        -> anyhow::Result<DistributionRef>
     {
         anyhow::bail!("Docker support is not implemented yet"); // TODO
     }
-    fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]> {
-        Ok(&[])
+    fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
+        Ok(Vec::new())
     }
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
@@ -245,7 +245,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn is_system_only(&self) -> bool {
         true
     }
-    fn get_server_path(&self, _major_version: &Version<String>)
+    fn get_server_path(&self, _distr: &DistributionRef)
         -> anyhow::Result<PathBuf>
     {
         anyhow::bail!("Cannot directly run dockerized server");

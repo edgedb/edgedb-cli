@@ -13,9 +13,10 @@ use once_cell::unsync::OnceCell;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
-use crate::server::init::{Metadata, read_ports, data_path};
+use crate::server::init::{read_ports, data_path};
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
 use crate::server::control::read_metadata;
+use crate::server::metadata::Metadata;
 use crate::server::{linux, macos};
 use crate::server::is_valid_name;
 use crate::process::get_text;
@@ -108,11 +109,7 @@ impl Status {
 
         match &self.metadata {
             Ok(meta) => {
-                println!("  Version: {}{}", meta.version, if meta.nightly {
-                    " (nightly)"
-                } else {
-                    ""
-                });
+                println!("  Version: {}",meta.version.title());
                 println!("  Installation method: {}", meta.method.title());
                 println!("  Startup: {}", meta.start_conf);
                 if let Some(port) = self.reserved_port {
@@ -465,7 +462,7 @@ pub fn print_status_all(extended: bool) -> anyhow::Result<()> {
                 Cell::new(&status.metadata.as_ref()
                     .map(|m| m.port.to_string()).unwrap_or("?".into())),
                 Cell::new(&status.metadata.as_ref()
-                    .map(|m| m.version.to_string()).unwrap_or("?".into())),
+                    .map(|m| m.version.title()).unwrap_or("?".into())),
                 Cell::new(match status.service {
                     Service::Running {..} => "running",
                     Service::Failed {..} => "not running",

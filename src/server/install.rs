@@ -30,16 +30,16 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     let version = VersionQuery::new(options.nightly, options.version.as_ref());
     for (meth_kind, meth) in &methods {
         for old_ver in meth.installed_versions()? {
-            if version.installed_matches(&old_ver) {
+            if version.distribution_matches(&old_ver) {
                 if &effective_method == meth_kind {
-                    eprintln!("EdgeDB {} ({}-{}) is already installed. \
+                    eprintln!("EdgeDB {} ({}) is already installed. \
                         Use `edgedb server upgrade` for upgrade.",
-                        old_ver.major_version,
-                        old_ver.version, old_ver.revision);
+                        old_ver.major_version().title(),
+                        old_ver.version());
                 } else {
                     eprintln!("EdgeDB {} is already installed via {}. \
                         Please deinstall before installing via {}.",
-                        old_ver.major_version, meth_kind.option(),
+                        old_ver.major_version().title(), meth_kind.option(),
                         effective_method.option());
                 }
                 exit(exit_codes::ALREADY_INSTALLED);

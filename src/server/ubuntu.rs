@@ -1,16 +1,16 @@
 use std::path::PathBuf;
 
+use anyhow::Context;
 use serde::Serialize;
 
 use crate::server::debian_like;
-use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
+use crate::server::detect::VersionQuery;
 use crate::server::install;
 use crate::server::init;
 use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{self, PackageMethod};
-use crate::server::version::Version;
+use crate::server::package::{self, PackageMethod, Package};
 use crate::server::distribution::DistributionRef;
 
 
@@ -71,24 +71,26 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
         self.os.common.all_versions(nightly)
     }
     fn get_version(&self, query: &VersionQuery)
-        -> anyhow::Result<VersionResult>
+        -> anyhow::Result<DistributionRef>
     {
         let packages = self.os.common.get_repo(query.is_nightly())?
             .ok_or_else(|| anyhow::anyhow!("No repository found"))?;
         package::find_version(packages, query)
     }
-    fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]> {
-        Ok(&self.installed.get_or_try_init(|| {
+    fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
+        Ok(self.installed.get_or_try_init(|| {
             debian_like::get_installed()
-        })?)
+        })?.clone())
     }
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
-    fn get_server_path(&self, major_version: &Version<String>)
+    fn get_server_path(&self, distr: &DistributionRef)
         -> anyhow::Result<PathBuf>
     {
-        Ok(linux::get_server_path(major_version))
+        let pkg = distr.downcast_ref::<Package>()
+            .context("invalid debian package")?;
+        Ok(linux::get_server_path(Some(&pkg.slot)))
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>

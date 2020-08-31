@@ -1,8 +1,7 @@
 use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
-use crate::server::detect::{Lazy, InstalledPackage, VersionQuery};
-use crate::server::detect::{VersionResult};
+use crate::server::detect::{Lazy, VersionQuery};
 use crate::server::os_trait::{CurrentOs, PreciseVersion};
 use crate::server::distribution::{Distribution, DistributionRef, MajorVersion};
 
@@ -21,7 +20,7 @@ pub struct PackageMethod<'os, O: CurrentOs + ?Sized> {
     #[serde(skip)]
     pub os: &'os O,
     #[serde(skip)]
-    pub installed: Lazy<Vec<InstalledPackage>>,
+    pub installed: Lazy<Vec<DistributionRef>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -40,9 +39,9 @@ pub struct PackageInfo {
 
 #[derive(Debug)]
 pub struct Package {
-    major_version: MajorVersion,
-    version: Version<String>,
-    slot: String,
+    pub major_version: MajorVersion,
+    pub version: Version<String>,
+    pub slot: String,
 }
 
 impl<'a> Into<DistributionRef> for &'a PackageInfo {
@@ -127,7 +126,7 @@ fn version_matches(package: &PackageInfo, version: &VersionQuery) -> bool {
 
 
 pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
-    -> Result<VersionResult, anyhow::Error>
+    -> Result<DistributionRef, anyhow::Error>
 {
     let mut max_version = None::<(&PackageInfo, Version<String>)>;
     for package in &haystack.packages {
@@ -143,18 +142,16 @@ pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
         }
     }
     if let Some((target, _)) = max_version {
-        let major = target.slot.as_ref().unwrap().clone();
-        Ok(VersionResult {
-            package_name:
-                if major.to_ref() >= Version("1-alpha3") {
-                    "edgedb-server".into()
-                } else {
-                    "edgedb".into()
-                },
-            major_version: major,
+        let slot = target.slot.as_ref().unwrap().clone();
+        Ok(Package {
+            major_version: if ver.is_nightly() {
+                MajorVersion::Nightly
+            } else {
+                MajorVersion::Stable(slot.clone())
+            },
             version: target.version.clone(),
-            revision: target.revision.clone(),
-        })
+            slot: slot.as_ref().to_owned(),
+        }.into_ref())
     } else {
         anyhow::bail!("Version {} not found", ver)
     }

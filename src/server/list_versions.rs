@@ -47,20 +47,17 @@ fn installed(methods: &Methods,
     versions: &mut BTreeMap<MajorVersion, VersionInfo>)
     -> Result<(), anyhow::Error>
 {
-    /* TODO
     for (meth, method) in methods {
-        for ver in method.installed_versions()? {
-            let full_ver = format!("{}-{}", ver.version, ver.revision);
-            let entry = versions.entry(ver.major_version.clone())
+        for distr in method.installed_versions()? {
+            let entry = versions.entry(distr.major_version().clone())
                 .or_insert_with(|| VersionInfo {
                     available: BTreeSet::new(),
                     installed: BTreeMap::new(),
-                    full: Version(full_ver.clone()),
+                    latest: distr.version().clone(),
                 });
-            entry.installed.insert(meth.clone(), Version(full_ver));
+            entry.installed.insert(meth.clone(), distr);
         }
     }
-    */
     Ok(())
 }
 

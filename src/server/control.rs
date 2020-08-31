@@ -2,13 +2,14 @@ use std::fs;
 use std::path::{PathBuf, Path};
 use std::process::Command;
 
+use anyhow::Context;
 use fn_error_context::context;
 
 use crate::process::{run, exit_from};
 use crate::server::options::{Start, Stop, Restart, Status};
-use crate::server::init::{data_path, Metadata};
+use crate::server::init::data_path;
+use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
-use crate::server::version::Version;
 use crate::server::{linux, macos};
 use crate::server::status;
 use crate::platform::{home_dir, get_current_uid};
@@ -26,20 +27,16 @@ pub trait Instance {
 
 pub struct SystemdInstance {
     name: String,
-    #[allow(dead_code)]
     system: bool,
-    version: Version<String>,
+    slot: Option<String>,
     data_dir: PathBuf,
     port: u16,
 }
 
 pub struct LaunchdInstance {
-    #[allow(dead_code)]
     name: String,
-    #[allow(dead_code)]
     system: bool,
-    #[allow(dead_code)]
-    version: Version<String>,
+    slot: String,
     unit_path: PathBuf,
     data_dir: PathBuf,
     port: u16,
@@ -80,9 +77,9 @@ pub fn get_instance_from_metadata(name: &str, system: bool,
             Ok(Box::new(SystemdInstance {
                 name: name.to_owned(),
                 system,
-                version: metadata.version.to_owned(),
                 port: metadata.port,
                 data_dir: dir,
+                slot: metadata.slot.clone(),
             }))
         }
         InstallMethod::Package if cfg!(target_os="macos") => {
@@ -90,7 +87,8 @@ pub fn get_instance_from_metadata(name: &str, system: bool,
             Ok(Box::new(LaunchdInstance {
                 name: name.to_owned(),
                 system,
-                version: metadata.version.to_owned(),
+                slot: metadata.slot.clone()
+                    .context("invalid macos metadata, slot is absent")?,
                 data_dir: dir,
                 unit_path: home_dir()?.join("Library/LaunchAgents")
                     .join(&unit_name),
@@ -158,7 +156,7 @@ impl Instance for SystemdInstance {
     fn run_command(&self) -> anyhow::Result<Command> {
         let sock = self.get_socket(true)?;
         let socket_dir = sock.parent().unwrap();
-        let mut cmd = Command::new(linux::get_server_path(&self.version));
+        let mut cmd = Command::new(linux::get_server_path(self.slot.as_ref()));
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--data-dir").arg(&self.data_dir);
         cmd.arg("--runstate-dir").arg(&socket_dir);
@@ -222,7 +220,7 @@ impl Instance for LaunchdInstance {
     fn run_command(&self) -> anyhow::Result<Command> {
         let sock = self.get_socket(true)?;
         let socket_dir = sock.parent().unwrap();
-        let mut cmd = Command::new(macos::get_server_path(&self.version)?);
+        let mut cmd = Command::new(macos::get_server_path(&self.slot));
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--data-dir").arg(&self.data_dir);
         cmd.arg("--runstate-dir").arg(&socket_dir);

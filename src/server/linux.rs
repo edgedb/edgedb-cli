@@ -15,8 +15,7 @@ use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::StartConf;
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{PackageCandidate};
-use crate::server::version::Version;
+use crate::server::package::PackageCandidate;
 use crate::server::{debian, ubuntu, centos};
 
 
@@ -168,9 +167,12 @@ pub fn perform_install(operations: Vec<Operation>, linux: &Linux)
     Ok(())
 }
 
-pub fn get_server_path(major_version: &Version<String>) -> PathBuf {
-    Path::new("/usr/bin")
-    .join(format!("edgedb-server-{}", major_version))
+pub fn get_server_path(slot: Option<&String>) -> PathBuf {
+    if let Some(slot) = slot {
+        Path::new("/usr/bin").join(format!("edgedb-server-{}", slot))
+    } else {
+        PathBuf::from("/usr/bin/edgedb-server")
+    }
 }
 
 pub fn systemd_unit(settings: &init::Settings, meth: &dyn Method)
@@ -201,7 +203,7 @@ WantedBy=multi-user.target
     "###,
         instance_name=settings.name,
         directory=settings.directory.display(),
-        server_path=meth.get_server_path(&settings.version)?.display(),
+        server_path=meth.get_server_path(&settings.distribution)?.display(),
         port=settings.port,
         userinfo=if settings.system {
             "User=edgedb\n\
