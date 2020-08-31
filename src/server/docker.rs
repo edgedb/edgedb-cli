@@ -1,19 +1,21 @@
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::SystemTime;
 
 use anyhow::Context;
 use async_std::task;
 use serde::{Serialize, Deserialize};
 
+use crate::process::run;
 use crate::server::detect::Lazy;
 use crate::server::detect::VersionQuery;
+use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::init;
 use crate::server::install;
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::remote;
 use crate::server::version::Version;
-use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 
 
 #[derive(Debug, Serialize)]
@@ -207,10 +209,19 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn name(&self) -> InstallMethod {
         InstallMethod::Docker
     }
-    fn install(&self, _settings: &install::Settings)
+    fn install(&self, settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {
-        anyhow::bail!("Docker support is not implemented yet"); // TODO
+        let image = settings.distribution.downcast_ref::<Image>()
+            .context("invalid distribution for Docker")?;
+        run(Command::new(&self.cli)
+            .arg("image")
+            .arg("pull")
+            .arg(format!("edgedb/edgedb:{}", match &image.tag {
+                Tag::Stable(v, _) => v,
+                Tag::Nightly(n) => n,
+            })))?;
+        Ok(())
     }
     fn all_versions(&self, nightly: bool)
         -> anyhow::Result<Vec<DistributionRef>>
