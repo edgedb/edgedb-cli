@@ -54,7 +54,7 @@ impl<'a> Into<DistributionRef> for &'a PackageInfo {
         };
         Package {
             major_version,
-            version: self.version.clone(),
+            version: Version(format!("{}-{}", self.version, self.revision)),
             slot: slot.as_ref().to_owned(),
         }.into_ref()
     }
