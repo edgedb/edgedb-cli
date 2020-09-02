@@ -1,7 +1,8 @@
-use std::fmt;
 use std::any::type_name;
-use std::path::PathBuf;
 use std::cmp::Ordering;
+use std::fmt;
+use std::path::PathBuf;
+use std::process::Command;
 
 use crate::server::install;
 use crate::server::detect::{VersionQuery};
@@ -34,8 +35,7 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn is_system_only(&self) -> bool {
         false
     }
-    fn get_server_path(&self, distr: &DistributionRef)
-        -> anyhow::Result<PathBuf>;
+    fn bootstrap(&self, settings: &init::Settings) -> anyhow::Result<()>;
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>;
 }

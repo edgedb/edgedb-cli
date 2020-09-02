@@ -1,17 +1,19 @@
 use std::path::PathBuf;
+use std::process::Command;
 
 use anyhow::Context;
 use serde::Serialize;
 
 use crate::server::debian_like;
 use crate::server::detect::VersionQuery;
-use crate::server::install;
+use crate::server::distribution::DistributionRef;
 use crate::server::init;
+use crate::server::install;
 use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::package::{self, PackageMethod, Package};
-use crate::server::distribution::DistributionRef;
+use crate::server::unix;
 
 
 #[derive(Debug, Serialize)]
@@ -85,12 +87,8 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
-    fn get_server_path(&self, distr: &DistributionRef)
-        -> anyhow::Result<PathBuf>
-    {
-        let pkg = distr.downcast_ref::<Package>()
-            .context("invalid debian package")?;
-        Ok(linux::get_server_path(Some(&pkg.slot)))
+    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
+        unix::bootstrap(init)
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>

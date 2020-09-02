@@ -15,7 +15,7 @@ use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::StartConf;
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::PackageCandidate;
+use crate::server::package::{PackageCandidate, Package};
 use crate::server::{debian, ubuntu, centos};
 
 
@@ -178,6 +178,8 @@ pub fn get_server_path(slot: Option<&String>) -> PathBuf {
 pub fn systemd_unit(settings: &init::Settings, meth: &dyn Method)
     -> anyhow::Result<String>
 {
+    let pkg = settings.distribution.downcast_ref::<Package>()
+        .context("invalid linux package")?;
     Ok(format!(r###"
 [Unit]
 Description=EdgeDB Database Service, instance {instance_name:?}
@@ -203,7 +205,7 @@ WantedBy=multi-user.target
     "###,
         instance_name=settings.name,
         directory=settings.directory.display(),
-        server_path=meth.get_server_path(&settings.distribution)?.display(),
+        server_path=get_server_path(Some(&pkg.slot)).display(),
         port=settings.port,
         userinfo=if settings.system {
             "User=edgedb\n\

@@ -314,10 +314,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn is_system_only(&self) -> bool {
         true
     }
-    fn get_server_path(&self, _distr: &DistributionRef)
-        -> anyhow::Result<PathBuf>
-    {
-        anyhow::bail!("Cannot directly run dockerized server");
+    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
+        todo!();
     }
     fn create_user_service(&self, _settings: &init::Settings)
         -> anyhow::Result<()>

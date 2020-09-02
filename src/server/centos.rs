@@ -17,9 +17,10 @@ use crate::server::linux;
 use crate::server::init;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{self, PackageMethod, Package};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
+use crate::server::package::{self, PackageMethod, Package};
 use crate::server::remote;
+use crate::server::unix;
 use crate::server::version::Version;
 
 
@@ -281,12 +282,8 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
-    fn get_server_path(&self, distr: &DistributionRef)
-        -> anyhow::Result<PathBuf>
-    {
-        let pkg = distr.downcast_ref::<Package>()
-            .context("invalid centos package")?;
-        Ok(linux::get_server_path(Some(&pkg.slot)))
+    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
+        unix::bootstrap(init)
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>

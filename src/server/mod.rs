@@ -10,6 +10,7 @@ mod os_trait;
 mod debian_like;
 
 // OSs
+mod unix;
 mod linux;
 mod debian;
 mod ubuntu;

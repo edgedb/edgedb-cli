@@ -10,6 +10,7 @@ use serde::Serialize;
 use crate::platform::{Uid, get_current_uid, home_dir};
 use crate::process::run;
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
+use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
 use crate::server::init;
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
@@ -19,8 +20,8 @@ use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::package::{PackageMethod, Package};
 use crate::server::package::{self, PackageCandidate, RepositoryInfo};
 use crate::server::remote;
+use crate::server::unix;
 use crate::server::version::Version;
-use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 
 
 #[derive(Debug, Serialize)]
@@ -268,12 +269,8 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
-    fn get_server_path(&self, distr: &DistributionRef)
-        -> anyhow::Result<PathBuf>
-    {
-        let pkg = distr.downcast_ref::<Package>()
-            .context("invalid macos package")?;
-        Ok(get_server_path(&pkg.slot))
+    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
+        unix::bootstrap(init)
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>

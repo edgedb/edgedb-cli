@@ -51,7 +51,7 @@ pub struct Settings {
 
 pub fn data_path(system: bool) -> anyhow::Result<PathBuf> {
     if system {
-        anyhow::bail!("System instances are not implemented yet"); // TODO
+        todo!();
     } else {
         Ok(dirs::data_dir()
             .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
@@ -129,26 +129,7 @@ fn allocate_port(name: &str) -> anyhow::Result<u16> {
 fn try_bootstrap(settings: &Settings, method: &dyn Method)
     -> anyhow::Result<()>
 {
-    fs::create_dir_all(&settings.directory)
-        .with_context(|| format!("failed to create {}",
-                                 settings.directory.display()))?;
-
-    let mut cmd = Command::new(
-        method.get_server_path(&settings.distribution)?);
-    cmd.arg("--bootstrap");
-    cmd.arg("--log-level=warn");
-    cmd.arg("--data-dir").arg(&settings.directory);
-    if settings.inhibit_user_creation {
-        cmd.arg("--default-database=edgedb");
-        cmd.arg("--default-database-user=edgedb");
-    }
-
-    log::debug!("Running bootstrap {:?}", cmd);
-    match cmd.status() {
-        Ok(s) if s.success() => {}
-        Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
-        Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
-    }
+    crate::server::unix::bootstrap(settings)?;
 
     if let Some(upgrade_marker) = &settings.upgrade_marker {
         write_upgrade(
