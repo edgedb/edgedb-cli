@@ -269,10 +269,10 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 log::error!("Bootstrap error, cleaning up...");
                 method.clean_storage(&settings.storage)
                     .map_err(|e| {
-                        log::error!("Error cleaning up storage {}: {}",
+                        log::error!("Cannot clean up storage {}: {}",
                             settings.storage.display(), e);
                     }).ok();
-                Err(e).context(format!("Error bootstrapping {}",
+                Err(e).context(format!("cannot bootstrap {}",
                                        settings.storage.display()))?
             }
         }

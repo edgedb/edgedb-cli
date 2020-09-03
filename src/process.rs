@@ -34,16 +34,17 @@ pub fn get_text(cmd: &mut Command) -> anyhow::Result<String> {
 pub fn get_json_or_failure<T: DeserializeOwned>(cmd: &mut Command)
     -> anyhow::Result<Result<T, String>>
 {
-    let data = match cmd.output() {
-        Ok(out) if out.status.success() => out.stdout,
+    match cmd.output() {
+        Ok(out) if out.status.success() => {
+            Ok(Ok(serde_json::from_slice(&out.stdout[..])
+                .with_context(|| format!("can decode output of {:?}", cmd))?))
+        }
         Ok(out) => {
-            return Ok(Err(String::from_utf8(out.stderr)
+            Ok(Err(String::from_utf8(out.stderr)
                 .with_context(|| {
                     format!("can decode error output of {:?}", cmd)
                 })?))
         }
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd))?,
-    };
-    Ok(serde_json::from_slice(&data[..])
-        .with_context(|| format!("can decode output of {:?}", cmd))?)
+    }
 }

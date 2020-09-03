@@ -12,6 +12,7 @@ use crate::server::detect::VersionQuery;
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::init::{self, Storage};
 use crate::server::install;
+use crate::server::options::{StartConf};
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::remote;
@@ -84,7 +85,9 @@ pub struct Image {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code, non_snake_case)]
 pub struct DockerVolume {
+    Name: String,
     // extra fields are allowed
 }
 
@@ -357,7 +360,6 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         match storage {
             Storage::DockerVolume(name) => {
                 process::run(Command::new(&self.cli)
-                    .arg("docker")
                     .arg("volume")
                     .arg("rm")
                     .arg(name))?;
@@ -371,6 +373,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             Storage::DockerVolume(name) => name,
             other => anyhow::bail!("unsupported storage {:?}", other),
         };
+        let image = settings.distribution.downcast_ref::<Image>()
+            .context("invalid unix package")?;
         if let Some(upgrade_marker) = &settings.upgrade_marker {
             todo!();
         }
@@ -382,11 +386,19 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg("--label")
             .arg(format!("com.edgedb.metadata={}", md)))?;
 
-        let image = settings.distribution.downcast_ref::<Image>()
-            .context("invalid unix package")?;
+        process::run(Command::new(&self.cli)
+            .arg("run")
+            .arg("--rm")
+            .arg("--mount").arg(format!("source={},target=/mnt", volume))
+            .arg(image.tag.as_image_name())
+            .arg("chown")
+            .arg("edgedb:edgedb")
+            .arg("/mnt"))?;
+
         let mut cmd = Command::new(&self.cli);
         cmd.arg("run");
         cmd.arg("--rm");
+        cmd.arg("--user=999:999");
         cmd.arg("--mount")
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
         cmd.arg(image.tag.as_image_name());
@@ -408,9 +420,39 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         }
         Ok(())
     }
-    fn create_user_service(&self, _settings: &init::Settings)
+    fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>
     {
-        anyhow::bail!("Docker support is not implemented yet"); // TODO
+        let volume = match &settings.storage {
+            Storage::DockerVolume(name) => name,
+            other => anyhow::bail!("unsupported storage {:?}", other),
+        };
+        let image = settings.distribution.downcast_ref::<Image>()
+            .context("invalid unix package")?;
+        let mut cmd = Command::new(&self.cli);
+        cmd.arg("container");
+        match settings.start_conf {
+            StartConf::Auto => {
+                cmd.arg("run");
+                cmd.arg("--detach");
+                cmd.arg("--restart=always");
+            }
+            StartConf::Manual => {
+                cmd.arg("create");
+            }
+        }
+
+        cmd.arg("--user=999:999");
+        cmd.arg("--group=999");
+        cmd.arg(format!("--publish={0}:{0}", settings.port));
+        cmd.arg("--mount")
+           .arg(format!("source={},target=/var/lib/edgedb/data", volume));
+        cmd.arg(image.tag.as_image_name());
+        cmd.arg("edgedb-server");
+        cmd.arg("--data-dir")
+           .arg(format!("/var/lib/edgedb/data/{}", settings.name));
+        cmd.arg("--port").arg(settings.port.to_string());
+        process::run(&mut cmd)?;
+        Ok(())
     }
 }
