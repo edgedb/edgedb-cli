@@ -383,16 +383,22 @@ fn _get_status(base: &Path, name: &str, system: bool, cache: &Cache) -> Status
 }
 
 pub fn get_status(name: &str, system: bool) -> anyhow::Result<Status> {
+    todo!();
+    /*
     let base = data_path(system)?;
     let cache = Cache::new();
     Ok(_get_status(&base, name, system, &cache))
+    */
 }
 
 fn get_status_with(name: &str, system: bool, cache: &Cache)
     -> anyhow::Result<Status>
 {
+    todo!();
+    /*
     let base = data_path(system)?;
     Ok(_get_status(&base, name, system, cache))
+    */
 }
 
 #[context("error reading dir {}", dir.display())]
@@ -416,6 +422,7 @@ fn instances_from_data_dir(dir: &Path, system: bool,
 }
 
 fn all_instances() -> anyhow::Result<BTreeSet<(String, bool)>> {
+    /*
     let mut instances = BTreeSet::new();
     let user_base = data_path(false)?;
     if user_base.exists() {
@@ -424,6 +431,8 @@ fn all_instances() -> anyhow::Result<BTreeSet<(String, bool)>> {
     // TODO(tailhook) add a list of instances from the service directory
     // TODO(tailhook) add system instances
     Ok(instances)
+    */
+    todo!();
 }
 
 impl Cache {

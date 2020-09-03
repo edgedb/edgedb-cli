@@ -25,6 +25,7 @@ pub struct InstallationMethods {
 }
 
 
+
 impl InstallationMethods {
     pub fn instantiate_all<'x>(&self, os: &'x dyn CurrentOs,
         skip_on_error: bool)

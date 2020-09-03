@@ -86,6 +86,8 @@ fn interpret_options(options: &Upgrade) -> ToDo {
 }
 
 fn all_instances() -> anyhow::Result<Vec<Instance>> {
+    todo!();
+    /*
     let path = data_path(false)?;
     if !path.exists() {
         return Ok(Vec::new());
@@ -94,6 +96,7 @@ fn all_instances() -> anyhow::Result<Vec<Instance>> {
         dir: fs::read_dir(&path)?,
         path: path.into(),
     }.collect::<Result<Vec<_>,_>>()
+    */
 }
 
 fn read_metadata(path: &Path) -> anyhow::Result<Metadata> {
@@ -312,6 +315,8 @@ fn do_minor_upgrade(method: &dyn Method,
 async fn dump_instance(inst: &Instance, socket: &Path)
     -> anyhow::Result<()>
 {
+    todo!();
+    /*
     log::info!(target: "edgedb::server::upgrade",
         "Dumping instance {:?}", inst.name);
     let path = data_path(false)?.join(format!("{}.dump", inst.name));
@@ -333,6 +338,7 @@ async fn dump_instance(inst: &Instance, socket: &Path)
     };
     commands::dump_all(&mut cli, &options, path.as_ref()).await?;
     Ok(())
+    */
 }
 
 async fn restore_instance(inst: &Instance, socket: &Path)

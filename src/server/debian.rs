@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::server::debian_like;
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::DistributionRef;
-use crate::server::init;
+use crate::server::init::{self, Storage};
 use crate::server::install;
 use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
@@ -95,6 +95,15 @@ impl<'os> Method for PackageMethod<'os, Debian> {
     }
     fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
         unix::bootstrap(init)
+    }
+    fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage> {
+        unix::storage(system, name)
+    }
+    fn storage_exists(&self, storage: &Storage) -> anyhow::Result<bool> {
+        unix::storage_exists(storage)
+    }
+    fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
+        unix::clean_storage(storage)
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>

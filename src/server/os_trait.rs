@@ -9,7 +9,7 @@ use crate::server::detect::{VersionQuery};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::version::Version;
 use crate::server::distribution::{MajorVersion, DistributionRef};
-use crate::server::init;
+use crate::server::init::{self, Storage};
 
 
 pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
@@ -35,6 +35,9 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn is_system_only(&self) -> bool {
         false
     }
+    fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage>;
+    fn storage_exists(&self, storage: &Storage) -> anyhow::Result<bool>;
+    fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()>;
     fn bootstrap(&self, settings: &init::Settings) -> anyhow::Result<()>;
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>;

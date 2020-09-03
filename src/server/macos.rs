@@ -12,7 +12,7 @@ use crate::process::run;
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
-use crate::server::init;
+use crate::server::init::{self, Storage};
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::StartConf;
@@ -269,6 +269,15 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
+    fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage> {
+        unix::storage(system, name)
+    }
+    fn storage_exists(&self, storage: &Storage) -> anyhow::Result<bool> {
+        unix::storage_exists(storage)
+    }
+    fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
+        unix::clean_storage(storage)
+    }
     fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
         unix::bootstrap(init)
     }
@@ -316,6 +325,12 @@ pub fn launchd_plist_path(name: &str, system: bool)
 fn plist_data(settings: &init::Settings) -> anyhow::Result<String> {
     let pkg = settings.distribution.downcast_ref::<Package>()
         .context("invalid macos package")?;
+    let path = match &settings.storage {
+        Storage::UserDir(path) => path,
+        Storage::DockerVolume(..) => {
+            anyhow::bail!("launchd units for docker aren't supported");
+        }
+    };
     Ok(format!(r###"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
@@ -350,7 +365,7 @@ fn plist_data(settings: &init::Settings) -> anyhow::Result<String> {
 </plist>
 "###,
         instance_name=settings.name,
-        directory=settings.directory.display(),
+        directory=path.display(),
         server_path=get_server_path(&pkg.slot).display(),
         runtime_dir=home_dir()?
             .join(".edgedb/run").join(&settings.name)

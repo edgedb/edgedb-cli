@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::default::Default;
+use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -31,6 +32,14 @@ use edgedb_client::credentials::Credentials;
 const MIN_PORT: u16 = 10700;
 
 
+#[derive(Clone, Debug)]
+pub enum Storage {
+    UserDir(PathBuf),
+    DockerVolume(String),
+}
+
+pub struct StorageDisplay<'a>(&'a Storage);
+
 pub struct Settings {
     pub name: String,
     pub system: bool,
@@ -38,7 +47,7 @@ pub struct Settings {
     pub version: Version<String>,
     pub nightly: bool,
     pub method: InstallMethod,
-    pub directory: PathBuf,
+    pub storage: Storage,
     pub credentials: PathBuf,
     pub user: String,
     pub database: String,
@@ -49,13 +58,13 @@ pub struct Settings {
     pub upgrade_marker: Option<String>,
 }
 
-pub fn data_path(system: bool) -> anyhow::Result<PathBuf> {
+pub fn data_path(system: bool) -> anyhow::Result<Storage> {
     if system {
         todo!();
     } else {
-        Ok(dirs::data_dir()
+        Ok(Storage::UserDir(dirs::data_dir()
             .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-            .join("edgedb/data"))
+            .join("edgedb/data")))
     }
 }
 
@@ -124,30 +133,6 @@ fn allocate_port(name: &str) -> anyhow::Result<u16> {
         format!("failed writing port mapping {}", port_file.display())
     })?;
     Ok(port)
-}
-
-fn try_bootstrap(settings: &Settings, method: &dyn Method)
-    -> anyhow::Result<()>
-{
-    crate::server::unix::bootstrap(settings)?;
-
-    if let Some(upgrade_marker) = &settings.upgrade_marker {
-        write_upgrade(
-            &settings.directory.join("UPGRADE_IN_PROGRESS"),
-            upgrade_marker)?;
-    }
-
-    let metapath = settings.directory.join("metadata.json");
-    write_metadata(&metapath, &Metadata {
-        version: settings.distribution.major_version().clone(),
-        current_version: Some(settings.distribution.version().clone()),
-        slot: settings.distribution.downcast_ref::<Package>()
-            .map(|p| p.slot.clone()),
-        method: settings.method.clone(),
-        port: settings.port,
-        start_conf: settings.start_conf,
-    })?;
-    Ok(())
 }
 
 fn find_version<F>(methods: &Methods, mut cond: F)
@@ -242,7 +227,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         distribution: distr,
         nightly: version_query.is_nightly(),
         method: meth_name,
-        directory: data_path(options.system)?.join(&options.name),
+        storage: method.get_storage(options.system, &options.name)?,
         credentials: home_dir()?.join(".edgedb").join("credentials")
             .join(format!("{}.json", &options.name)),
         user: options.default_user.clone(),
@@ -263,29 +248,32 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 You may run `--overwrite` to overwrite the instance.",
                 settings.credentials.display());
         }
-        if settings.directory.exists() {
+        if method.storage_exists(&settings.storage)? {
             if options.overwrite {
-                fs::remove_dir_all(&settings.directory)
-                    .with_context(|| format!("cannot remove previous \
-                        instance directory {}",
-                        settings.directory.display()))?;
+                method.clean_storage(&settings.storage)
+                    .with_context(|| {
+                        format!("can't clean previous storage directory {}",
+                                settings.storage.display())
+                    })?;
             } else {
-                anyhow::bail!("Directory {0} already exists. \
-                    This may mean that instance is already initialized. \
-                    Otherwise run: `rm -rf {0}` to clean up before \
-                    re-running `edgedb server init`.",
-                    settings.directory.display());
+                anyhow::bail!("Storage {} already exists. \
+                    This may mean that instance is already \
+                    initialized. Otherwise rerun with \
+                    `--owerwrite` flag.",
+                    settings.storage.display());
             }
         }
-        match try_bootstrap(&settings, &*method) {
+        match method.bootstrap(&settings) {
             Ok(()) => {}
             Err(e) => {
                 log::error!("Bootstrap error, cleaning up...");
-                fs::remove_dir_all(&settings.directory)
-                    .with_context(|| format!("failed to clean up {}",
-                                             settings.directory.display()))?;
+                method.clean_storage(&settings.storage)
+                    .map_err(|e| {
+                        log::error!("Error cleaning up storage {}: {}",
+                            settings.storage.display(), e);
+                    }).ok();
                 Err(e).context(format!("Error bootstrapping {}",
-                                       settings.directory.display()))?
+                                       settings.storage.display()))?
             }
         }
         method.create_user_service(&settings).map_err(|e| {
@@ -369,19 +357,18 @@ fn init_credentials(settings: &Settings, inst: &dyn control::Instance)
     Ok(())
 }
 
-#[context("failed to write upgrade marker {}", path.display())]
-fn write_upgrade(path: &Path, data: &str) -> anyhow::Result<()> {
-    fs::write(path, data.as_bytes())?;
-    Ok(())
-}
-
-#[context("failed to write metadata file {}", path.display())]
-fn write_metadata(path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
-    fs::write(path, serde_json::to_vec_pretty(&metadata)?)?;
-    Ok(())
-}
-
 impl Settings {
+    pub fn metadata(&self) -> Metadata {
+        Metadata {
+            version: self.distribution.major_version().clone(),
+            current_version: Some(self.distribution.version().clone()),
+            slot: self.distribution.downcast_ref::<Package>()
+                .map(|p| p.slot.clone()),
+            method: self.method.clone(),
+            port: self.port,
+            start_conf: self.start_conf,
+        }
+    }
     pub fn print(&self) {
         let mut table = Table::new();
         table.add_row(Row::new(vec![
@@ -400,7 +387,7 @@ impl Settings {
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Data Directory"),
-            Cell::new(&self.directory.display().to_string()),
+            Cell::new(&self.storage.display().to_string()),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Credentials Path"),
@@ -428,5 +415,21 @@ impl Settings {
         ]));
         table.set_format(*table::FORMAT);
         table.printstd();
+    }
+}
+
+impl Storage {
+    pub fn display(&self) -> StorageDisplay {
+        StorageDisplay(self)
+    }
+}
+
+impl fmt::Display for StorageDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Storage::*;
+        match self.0 {
+            UserDir(path) => path.display().fmt(f),
+            DockerVolume(name) => write!(f, "<docker volume {:?}>", name),
+        }
     }
 }

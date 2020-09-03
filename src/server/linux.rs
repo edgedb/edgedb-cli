@@ -10,7 +10,7 @@ use crate::platform::{Uid, get_current_uid};
 use crate::process::run;
 use crate::server::detect::Lazy;
 use crate::server::docker::DockerCandidate;
-use crate::server::init;
+use crate::server::init::{self, Storage};
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::StartConf;
@@ -180,6 +180,12 @@ pub fn systemd_unit(settings: &init::Settings, meth: &dyn Method)
 {
     let pkg = settings.distribution.downcast_ref::<Package>()
         .context("invalid linux package")?;
+    let path = match &settings.storage {
+        Storage::UserDir(path) => path,
+        Storage::DockerVolume(..) => {
+            anyhow::bail!("systemd units for docker aren't supported");
+        }
+    };
     Ok(format!(r###"
 [Unit]
 Description=EdgeDB Database Service, instance {instance_name:?}
@@ -204,7 +210,7 @@ TimeoutSec=0
 WantedBy=multi-user.target
     "###,
         instance_name=settings.name,
-        directory=settings.directory.display(),
+        directory=path.display(),
         server_path=get_server_path(Some(&pkg.slot)).display(),
         port=settings.port,
         userinfo=if settings.system {

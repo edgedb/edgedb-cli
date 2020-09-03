@@ -10,11 +10,12 @@ use crate::process;
 use crate::server::detect::Lazy;
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
-use crate::server::init;
+use crate::server::init::{self, Storage};
 use crate::server::install;
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::{CurrentOs, Method};
 use crate::server::remote;
+use crate::server::unix;
 use crate::server::version::Version;
 
 
@@ -82,6 +83,11 @@ pub struct Image {
     tag: Tag,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DockerVolume {
+    // extra fields are allowed
+}
+
 impl Tag {
     pub fn matches(&self, q: &VersionQuery) -> bool {
         match (self, q) {
@@ -104,6 +110,12 @@ impl Tag {
                 tag: self,
             },
         }.into_ref()
+    }
+    pub fn as_image_name(&self) -> String {
+        format!("edgedb/edgedb:{}", match &self {
+                Tag::Stable(v, _) => v,
+                Tag::Nightly(n) => n,
+        })
     }
 }
 
@@ -237,10 +249,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         process::run(Command::new(&self.cli)
             .arg("image")
             .arg("pull")
-            .arg(format!("edgedb/edgedb:{}", match &image.tag {
-                Tag::Stable(v, _) => v,
-                Tag::Nightly(n) => n,
-            })))?;
+            .arg(image.tag.as_image_name()))?;
         Ok(())
     }
     fn all_versions(&self, nightly: bool)
@@ -314,8 +323,90 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn is_system_only(&self) -> bool {
         true
     }
-    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
-        todo!();
+    fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage> {
+        Ok(Storage::DockerVolume(format!("edgedb_{}", name)))
+    }
+    fn storage_exists(&self, storage: &Storage) -> anyhow::Result<bool> {
+        match storage {
+            Storage::DockerVolume(name) => {
+                let mut cmd = Command::new(&self.cli);
+                cmd.arg("volume");
+                cmd.arg("inspect");
+                cmd.arg(name);
+                match process::get_json_or_failure::<Vec<DockerVolume>>(&mut cmd)? {
+                    Ok(imgs) => {
+                        if imgs.is_empty() {
+                            return Ok(false);
+                        }
+                        // TODO(tailhook) check labels
+                        return Ok(true);
+                    }
+                    Err(e) => {
+                        if e.contains("No such volume") {
+                            return Ok(false);
+                        }
+                        anyhow::bail!("cannot lookup docker volume {:?}: {}",
+                            name, e);
+                    }
+                }
+            }
+            _ => unix::storage_exists(storage),
+        }
+    }
+    fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
+        match storage {
+            Storage::DockerVolume(name) => {
+                process::run(Command::new(&self.cli)
+                    .arg("docker")
+                    .arg("volume")
+                    .arg("rm")
+                    .arg(name))?;
+                Ok(())
+            }
+            _ => unix::clean_storage(storage),
+        }
+    }
+    fn bootstrap(&self, settings: &init::Settings) -> anyhow::Result<()> {
+        let volume = match &settings.storage {
+            Storage::DockerVolume(name) => name,
+            other => anyhow::bail!("unsupported storage {:?}", other),
+        };
+        if let Some(upgrade_marker) = &settings.upgrade_marker {
+            todo!();
+        }
+        let md = serde_json::to_string(&settings.metadata())?;
+        process::get_text(Command::new(&self.cli)
+            .arg("volume")
+            .arg("create")
+            .arg(volume)
+            .arg("--label")
+            .arg(format!("com.edgedb.metadata={}", md)))?;
+
+        let image = settings.distribution.downcast_ref::<Image>()
+            .context("invalid unix package")?;
+        let mut cmd = Command::new(&self.cli);
+        cmd.arg("run");
+        cmd.arg("--rm");
+        cmd.arg("--mount")
+           .arg(format!("source={},target=/var/lib/edgedb/data", volume));
+        cmd.arg(image.tag.as_image_name());
+        cmd.arg("edgedb-server");
+        cmd.arg("--bootstrap");
+        cmd.arg("--log-level=warn");
+        cmd.arg("--data-dir")
+           .arg(format!("/var/lib/edgedb/data/{}", settings.name));
+        if settings.inhibit_user_creation {
+            cmd.arg("--default-database=edgedb");
+            cmd.arg("--default-database-user=edgedb");
+        }
+
+        log::debug!("Running bootstrap {:?}", cmd);
+        match cmd.status() {
+            Ok(s) if s.success() => {}
+            Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
+            Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
+        }
+        Ok(())
     }
     fn create_user_service(&self, _settings: &init::Settings)
         -> anyhow::Result<()>

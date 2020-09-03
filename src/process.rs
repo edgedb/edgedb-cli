@@ -1,5 +1,7 @@
 use std::process::{Command, exit};
 
+use serde::de::DeserializeOwned;
+
 use anyhow::Context;
 
 
@@ -26,5 +28,22 @@ pub fn get_text(cmd: &mut Command) -> anyhow::Result<String> {
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd))?,
     };
     String::from_utf8(data)
-        .context(format!("can decode output of {:?}", cmd))
+        .with_context(|| format!("can decode output of {:?}", cmd))
+}
+
+pub fn get_json_or_failure<T: DeserializeOwned>(cmd: &mut Command)
+    -> anyhow::Result<Result<T, String>>
+{
+    let data = match cmd.output() {
+        Ok(out) if out.status.success() => out.stdout,
+        Ok(out) => {
+            return Ok(Err(String::from_utf8(out.stderr)
+                .with_context(|| {
+                    format!("can decode error output of {:?}", cmd)
+                })?))
+        }
+        Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd))?,
+    };
+    Ok(serde_json::from_slice(&data[..])
+        .with_context(|| format!("can decode output of {:?}", cmd))?)
 }

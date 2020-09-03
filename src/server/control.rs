@@ -49,6 +49,8 @@ pub fn read_metadata(dir: &Path) -> anyhow::Result<Metadata> {
 }
 
 pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
+    todo!();
+    /*
     let dir = data_path(false)?.join(name);
     let system = if dir.exists() {
         false
@@ -65,12 +67,15 @@ pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
     log::debug!("Instance {:?} data path: {:?}", name, dir);
     let metadata = read_metadata(&dir)?;
     get_instance_from_metadata(name, system, &metadata)
+    */
 }
 
 pub fn get_instance_from_metadata(name: &str, system: bool,
     metadata: &Metadata)
  -> anyhow::Result<Box<dyn Instance>>
 {
+    todo!();
+    /*
     let dir = data_path(false)?.join(name);
     match metadata.method {
         InstallMethod::Package if cfg!(target_os="linux") => {
@@ -99,6 +104,7 @@ pub fn get_instance_from_metadata(name: &str, system: bool,
             anyhow::bail!("Unknown installation method and OS combination");
         }
     }
+    */
 }
 
 impl Instance for SystemdInstance {
