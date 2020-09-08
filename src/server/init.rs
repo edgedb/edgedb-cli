@@ -307,9 +307,9 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
             }
         }
         method.create_user_service(&settings).map_err(|e| {
-            eprintln!("Bootrapping complete, \
+            eprintln!("Bootstrap complete, \
                 but there was an error creating a service. \
-                You can run server manually via: \n  \
+                You can run a server manually via: \n  \
                 edgedb server start --foreground {}",
                 settings.name.escape_default());
             e
@@ -322,7 +322,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                         foreground: false,
                     })?;
                 init_credentials(&settings, &*inst)?;
-                println!("Bootstrap complete. Server is up and runnning now.");
+                println!("Bootstrap complete. Server is up and running now.");
             }
             (StartConf::Manual, _) | (_, true) => {
                 let inst = control::get_instance(&settings.name)?;
