@@ -14,7 +14,7 @@ use serde::{Serialize, Deserialize};
 use edgedb_client as client;
 use crate::server::control;
 use crate::server::detect::{self, VersionQuery};
-use crate::server::init::{init, data_path};
+use crate::server::init::{init};
 use crate::server::install;
 use crate::server::metadata::Metadata;
 use crate::server::options::{self, Upgrade};

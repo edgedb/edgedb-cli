@@ -7,7 +7,6 @@ use fn_error_context::context;
 
 use crate::process::{run, exit_from};
 use crate::server::options::{Start, Stop, Restart, Status};
-use crate::server::init::data_path;
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
 use crate::server::{linux, macos};

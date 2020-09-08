@@ -13,7 +13,7 @@ use once_cell::unsync::OnceCell;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
-use crate::server::init::{read_ports, data_path};
+use crate::server::init::{read_ports};
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
 use crate::server::control::read_metadata;
 use crate::server::metadata::Metadata;

@@ -58,16 +58,6 @@ pub struct Settings {
     pub upgrade_marker: Option<String>,
 }
 
-pub fn data_path(system: bool) -> anyhow::Result<Storage> {
-    if system {
-        todo!();
-    } else {
-        Ok(Storage::UserDir(dirs::data_dir()
-            .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-            .join("edgedb/data")))
-    }
-}
-
 fn port_file() -> anyhow::Result<PathBuf> {
     Ok(config_dir()?.join("instance_ports.json"))
 }
