@@ -6,12 +6,16 @@ use std::process::Command;
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::server::init::{self, Storage};
+use crate::platform::home_dir;
+use crate::server::init::{self, read_ports, Storage};
 use crate::server::metadata::Metadata;
 use crate::server::linux;
 use crate::server::macos;
 use crate::server::package::Package;
+use crate::server::status::{Service, Status, DataDirectory};
+use crate::server::status::{read_upgrade, backup_status, probe_port};
 use crate::server::is_valid_name;
+use crate::server::control::read_metadata;
 
 
 pub fn bootstrap(settings: &init::Settings) -> anyhow::Result<()> {
@@ -105,4 +109,56 @@ pub fn instances_from_data_dir(dir: &Path, system: bool,
         }
     }
     Ok(())
+}
+
+pub fn status(name: &String, data_dir: &Path,
+    service_exists: bool, service: Service)
+    -> Status
+{
+    use DataDirectory::*;
+
+    let base = data_dir.parent().expect("data dir is not root");
+
+    let (data_status, metadata) = if data_dir.exists() {
+        let metadata = read_metadata(&data_dir);
+        if metadata.is_ok() {
+            let upgrade_file = data_dir.join("UPGRADE_IN_PROGRESS");
+            if upgrade_file.exists() {
+                (Upgrading(read_upgrade(&upgrade_file)), metadata)
+            } else {
+                (Normal, metadata)
+            }
+        } else {
+            (NoMetadata, metadata)
+        }
+    } else {
+        (Absent, Err(anyhow::anyhow!("No data directory")))
+    };
+    let reserved_port =
+        // TODO(tailhook) cache ports
+        read_ports()
+        .map_err(|e| log::warn!("{:#}", e))
+        .ok()
+        .and_then(|ports| ports.get(name).cloned());
+    let port_status = probe_port(&metadata, &reserved_port);
+    let backup = backup_status(&base.join(format!("{}.backup", name)));
+    let credentials_file_exists = home_dir().map(|home| {
+        home.join(".edgedb")
+            .join("credentials")
+            .join(format!("{}.json", name))
+            .exists()
+    }).unwrap_or(false);
+
+    Status {
+        name: name.into(),
+        service,
+        metadata,
+        reserved_port,
+        port_status,
+        data_dir: data_dir.into(),
+        data_status,
+        backup,
+        service_exists,
+        credentials_file_exists,
+    }
 }

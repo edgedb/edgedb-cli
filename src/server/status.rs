@@ -62,7 +62,7 @@ pub struct Status {
     pub data_status: DataDirectory,
     pub backup: BackupStatus,
     pub credentials_file_exists: bool,
-    pub service_file_exists: bool,
+    pub service_exists: bool,
 }
 
 pub struct Cache {
@@ -103,8 +103,12 @@ impl Status {
                 println!("inactive");
             }
         }
-        println!("  Service file: {}", match self.service_file_exists {
+        println!("  Service/Container: {}", match self.service_exists {
             true => "exists",
+            false => "NOT FOUND",
+        });
+        println!("  Credentials: {}", match self.credentials_file_exists {
+            true => "exist",
             false => "NOT FOUND",
         });
 
@@ -197,7 +201,7 @@ impl Status {
 }
 
 
-fn probe_port(metadata: &anyhow::Result<Metadata>, reserved: &Option<u16>)
+pub fn probe_port(metadata: &anyhow::Result<Metadata>, reserved: &Option<u16>)
     -> Port
 {
     use Port::*;
@@ -223,11 +227,11 @@ fn probe_port(metadata: &anyhow::Result<Metadata>, reserved: &Option<u16>)
 }
 
 #[context("failed to read upgrade file {}", file.display())]
-fn read_upgrade(file: &Path) -> anyhow::Result<UpgradeMeta> {
+pub fn read_upgrade(file: &Path) -> anyhow::Result<UpgradeMeta> {
     Ok(serde_json::from_slice(&fs::read(&file)?)?)
 }
 
-fn backup_status(dir: &Path) -> BackupStatus {
+pub fn backup_status(dir: &Path) -> BackupStatus {
     use BackupStatus::*;
     if !dir.exists() {
         return Absent;
@@ -239,91 +243,6 @@ fn backup_status(dir: &Path) -> BackupStatus {
         .with_context(|| format!("erorr decoding {}", meta_json.display())));
     Exists(meta)
 }
-
-fn _get_status(base: &Path, name: &str, system: bool, cache: &Cache) -> Status
-{
-    /*
-    use DataDirectory::*;
-
-    let service = if cfg!(target_os="linux") {
-        systemd_status(name, system)
-    } else if cfg!(target_os="macos") {
-        launchctl_status(name, system, &cache)
-    } else {
-        Service::Inactive { error: "unsupported os".into() }
-    };
-    let data_dir = base.join(name);
-    let (data_status, metadata) = if data_dir.exists() {
-        let metadata = read_metadata(&data_dir);
-        if metadata.is_ok() {
-            let upgrade_file = data_dir.join("UPGRADE_IN_PROGRESS");
-            if upgrade_file.exists() {
-                (Upgrading(read_upgrade(&upgrade_file)), metadata)
-            } else {
-                (Normal, metadata)
-            }
-        } else {
-            (NoMetadata, metadata)
-        }
-    } else {
-        (Absent, Err(anyhow::anyhow!("No data directory")))
-    };
-    let reserved_port =
-        cache.reserved_ports.get_or_init(|| {
-            read_ports()
-            .map_err(|e| log::warn!("{:#}", e))
-        }).as_ref()
-        .ok()
-        .and_then(|ports| ports.get(name).cloned());
-    let port_status = probe_port(&metadata, &reserved_port);
-    let backup = backup_status(&base.join(format!("{}.backup", name)));
-    let service_file_exists = if cfg!(target_os="linux") {
-        linux::systemd_service_path(&name, system)
-        .map(|p| p.exists())
-        .unwrap_or(false)
-    } else if cfg!(target_os="macos") {
-        macos::launchd_plist_path(&name, system)
-        .map(|p| p.exists())
-        .unwrap_or(false)
-    } else {
-        false
-    };
-
-    Status {
-        name: name.into(),
-        service,
-        metadata,
-        reserved_port,
-        port_status,
-        data_dir,
-        data_status,
-        backup,
-        service_file_exists,
-        credentials_file_exists: todo!(),
-    }
-    */
-    todo!();
-}
-
-pub fn get_status(name: &str, system: bool) -> anyhow::Result<Status> {
-    todo!();
-    /*
-    let base = data_path(system)?;
-    let cache = Cache::new();
-    Ok(_get_status(&base, name, system, &cache))
-    */
-}
-
-fn get_status_with(name: &str, system: bool, cache: &Cache)
-    -> anyhow::Result<Status>
-{
-    todo!();
-    /*
-    let base = data_path(system)?;
-    Ok(_get_status(&base, name, system, cache))
-    */
-}
-
 
 impl Cache {
     fn new() -> Cache {

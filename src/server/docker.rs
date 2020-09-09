@@ -8,10 +8,11 @@ use async_std::task;
 use serde::{Serialize, Deserialize};
 
 use crate::process;
+use crate::platform::home_dir;
 use crate::server::detect::Lazy;
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
-use crate::server::init::{self, Storage};
+use crate::server::init::{self, read_ports, Storage};
 use crate::server::install;
 use crate::server::options::{StartConf};
 use crate::server::methods::InstallMethod;
@@ -19,7 +20,8 @@ use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::remote;
 use crate::server::unix;
 use crate::server::version::Version;
-use crate::server::status::{Status};
+use crate::server::status::{Service, Status, DataDirectory, BackupStatus};
+use crate::server::status::{probe_port};
 
 
 #[derive(Debug, Serialize)]
@@ -70,6 +72,20 @@ pub struct TagInfo {
     images: Vec<ImageInfo>,
 }
 
+#[derive(Debug, Deserialize)]
+#[allow(dead_code, non_snake_case)]
+pub struct ContainerState {
+    Running: bool,
+    Pid: u32,
+    ExitCode: u16,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code, non_snake_case)]
+pub struct Container {
+    State: ContainerState,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DockerMethod<'os, O: CurrentOs + ?Sized> {
     #[serde(skip)]
@@ -93,8 +109,8 @@ pub struct DockerVolume {
     // extra fields are allowed
 }
 
-pub struct DockerInstance<'a> {
-    method: &'a dyn Method,
+pub struct DockerInstance<'a, O: CurrentOs + ?Sized> {
+    method: &'a DockerMethod<'a, O>,
     name: String,
 }
 
@@ -245,6 +261,46 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             })
         }).map(|v| &v[..])
     }
+    pub fn inspect_container(&self, name: &str)
+        -> anyhow::Result<Option<Container>>
+    {
+        let mut cmd = Command::new(&self.cli);
+        cmd.arg("container");
+        cmd.arg("inspect");
+        cmd.arg(name);
+        match process::get_json_or_failure::<Vec<_>>(&mut cmd)? {
+            Ok(containers) => Ok(containers.into_iter().next()),
+            Err(e) => {
+                if e.contains("No such container") {
+                    Ok(None)
+                } else {
+                    anyhow::bail!("cannot inspect container {}: {}",
+                        name, e);
+                }
+            }
+        }
+    }
+    pub fn inspect_volume(&self, name: &str)
+        -> anyhow::Result<Option<DockerVolume>>
+    {
+        let mut cmd = Command::new(&self.cli);
+        cmd.arg("volume");
+        cmd.arg("inspect");
+        cmd.arg(name);
+        match process::get_json_or_failure::<Vec<_>>(&mut cmd)? {
+            Ok(imgs) => {
+                Ok(imgs.into_iter().next())
+            }
+            Err(e) => {
+                if e.contains("No such volume") {
+                    Ok(None)
+                } else {
+                    anyhow::bail!("cannot lookup docker volume {:?}: {}",
+                        name, e);
+                }
+            }
+        }
+    }
 }
 
 impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
@@ -339,25 +395,10 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn storage_exists(&self, storage: &Storage) -> anyhow::Result<bool> {
         match storage {
             Storage::DockerVolume(name) => {
-                let mut cmd = Command::new(&self.cli);
-                cmd.arg("volume");
-                cmd.arg("inspect");
-                cmd.arg(name);
-                match process::get_json_or_failure::<Vec<DockerVolume>>(&mut cmd)? {
-                    Ok(imgs) => {
-                        if imgs.is_empty() {
-                            return Ok(false);
-                        }
-                        // TODO(tailhook) check labels
-                        return Ok(true);
-                    }
-                    Err(e) => {
-                        if e.contains("No such volume") {
-                            return Ok(false);
-                        }
-                        anyhow::bail!("cannot lookup docker volume {:?}: {}",
-                            name, e);
-                    }
+                match self.inspect_volume(name)? {
+                    // TODO(tailhook) check volume's metadata
+                    Some(_) => Ok(true),
+                    None => Ok(false),
                 }
             }
             _ => unix::storage_exists(storage),
@@ -483,16 +524,80 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     }
 }
 
-impl Instance for DockerInstance<'_> {
+
+impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     fn name(&self) -> &str {
         &self.name
     }
     fn get_status(&self) -> Status {
-        todo!();
+        use DataDirectory::*;
+        use Service::*;
+
+        let container_name = format!("edgedb_{}", self.name);
+        let (service, service_exists) =
+            match self.method.inspect_container(&container_name) {
+                Ok(Some(info)) => {
+                    if info.State.Running {
+                        (Running { pid: info.State.Pid }, true)
+                    } else {
+                        (Failed { exit_code: Some(info.State.ExitCode) }, true)
+                    }
+                }
+                Ok(None) => (Inactive { error: "Not found".into() }, false),
+                Err(e) => (Inactive { error: e.to_string() }, false),
+            };
+
+        /*
+        let (data_status, metadata) = if data_dir.exists() {
+            let metadata = read_metadata(&data_dir);
+            if metadata.is_ok() {
+                let upgrade_file = data_dir.join("UPGRADE_IN_PROGRESS");
+                if upgrade_file.exists() {
+                    (Upgrading(read_upgrade(&upgrade_file)), metadata)
+                } else {
+                    (Normal, metadata)
+                }
+            } else {
+                (NoMetadata, metadata)
+            }
+        } else {
+            (Absent, Err(anyhow::anyhow!("No data directory")))
+        };
+        */
+        let data_status = NoMetadata; // TODO
+        let metadata = Err(anyhow::anyhow!("unimplemented")); // TODO
+        let reserved_port =
+            // TODO(tailhook) cache ports
+            read_ports()
+            .map_err(|e| log::warn!("{:#}", e))
+            .ok()
+            .and_then(|ports| ports.get(&self.name).cloned());
+        let port_status = probe_port(&metadata, &reserved_port);
+        //let backup = backup_status(&base.join(format!("{}.backup", name)));
+        let backup = BackupStatus::Absent;
+        let credentials_file_exists = home_dir().map(|home| {
+            home.join(".edgedb")
+                .join("credentials")
+                .join(format!("{}.json", self.name))
+                .exists()
+        }).unwrap_or(false);
+
+        Status {
+            name: self.name.clone(),
+            service,
+            metadata,
+            reserved_port,
+            port_status,
+            data_dir: "todo".into(), // TODO
+            data_status,
+            backup,
+            service_exists,
+            credentials_file_exists,
+        }
     }
 }
 
-impl fmt::Debug for DockerInstance<'_> {
+impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let DockerInstance {
             name,

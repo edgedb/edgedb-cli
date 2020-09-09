@@ -146,7 +146,8 @@ impl Instance for SystemdInstance {
         Ok(())
     }
     fn get_status(&self) -> anyhow::Result<status::Status> {
-        status::get_status(&self.name, self.system)
+        todo!();
+        //status::get_status(&self.name, self.system)
     }
     fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
         Ok(dirs::runtime_dir()
@@ -212,7 +213,8 @@ impl Instance for LaunchdInstance {
         Ok(())
     }
     fn get_status(&self) -> anyhow::Result<status::Status> {
-        status::get_status(&self.name, self.system)
+        todo!();
+        //status::get_status(&self.name, self.system)
     }
     fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
         Ok(home_dir()?

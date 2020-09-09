@@ -39,6 +39,7 @@ pub struct Linux {
 #[derive(Debug)]
 pub struct LocalInstance {
     pub name: String,
+    pub path: PathBuf,
 }
 
 impl Instance for LocalInstance {
@@ -46,7 +47,12 @@ impl Instance for LocalInstance {
         &self.name
     }
     fn get_status(&self) -> Status {
-        todo!();
+        let system = false;
+        let service = systemd_status(&self.name, system);
+        let service_exists = systemd_service_path(&self.name, system)
+            .map(|p| p.exists())
+            .unwrap_or(false);
+        unix::status(&self.name, &self.path, service_exists, service)
     }
 }
 
@@ -334,6 +340,9 @@ pub fn all_instances<'x>() -> anyhow::Result<Vec<InstanceRef<'x>>> {
         unix::instances_from_data_dir(&user_base, false, &mut instances)?;
     }
     Ok(instances.into_iter()
-        .map(|(name, _)| LocalInstance { name }.into_ref())
+        .map(|(name, _)| LocalInstance {
+            path: user_base.join(&name),
+            name,
+        }.into_ref())
         .collect())
 }
