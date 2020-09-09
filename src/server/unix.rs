@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -10,6 +11,7 @@ use crate::server::metadata::Metadata;
 use crate::server::linux;
 use crate::server::macos;
 use crate::server::package::Package;
+use crate::server::is_valid_name;
 
 
 pub fn bootstrap(settings: &init::Settings) -> anyhow::Result<()> {
@@ -83,4 +85,24 @@ pub fn storage_exists(storage: &Storage) -> anyhow::Result<bool> {
         Storage::UserDir(path) => Ok(path.exists()),
         _ => anyhow::bail!("Storage {} is unsupported", storage.display()),
     }
+}
+
+#[context("error reading dir {}", dir.display())]
+pub fn instances_from_data_dir(dir: &Path, system: bool,
+    instances: &mut BTreeSet<(String, bool)>)
+    -> anyhow::Result<()>
+{
+    for item in fs::read_dir(&dir)? {
+        let item = item?;
+        if !item.file_type()?.is_dir() {
+            continue;
+        }
+        if let Some(name) = item.file_name().to_str() {
+            if !is_valid_name(name) {
+                continue;
+            }
+            instances.insert((name.to_owned(), system));
+        }
+    }
+    Ok(())
 }

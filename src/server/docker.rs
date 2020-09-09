@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::SystemTime;
@@ -14,10 +15,11 @@ use crate::server::init::{self, Storage};
 use crate::server::install;
 use crate::server::options::{StartConf};
 use crate::server::methods::InstallMethod;
-use crate::server::os_trait::{CurrentOs, Method};
+use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::remote;
 use crate::server::unix;
 use crate::server::version::Version;
+use crate::server::status::{Status};
 
 
 #[derive(Debug, Serialize)]
@@ -89,6 +91,11 @@ pub struct Image {
 pub struct DockerVolume {
     Name: String,
     // extra fields are allowed
+}
+
+pub struct DockerInstance<'a> {
+    method: &'a dyn Method,
+    name: String,
 }
 
 impl Tag {
@@ -454,5 +461,45 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--port").arg(settings.port.to_string());
         process::run(&mut cmd)?;
         Ok(())
+    }
+    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>
+         where Self: 'os
+    {
+        let output = process::get_text(Command::new(&self.cli)
+            .arg("volume")
+            .arg("list")
+            .arg("--filter").arg("label=com.edgedb.metadata")
+            .arg("--format").arg("{{.Name}}"))?;
+        let mut result = Vec::new();
+        for volume in output.lines() {
+            if let Some(name) = volume.strip_prefix("edgedb_") {
+                result.push(DockerInstance {
+                    name: name.into(),
+                    method: self,
+                }.into_ref());
+            }
+        }
+        Ok(result)
+    }
+}
+
+impl Instance for DockerInstance<'_> {
+    fn name(&self) -> &str {
+        &self.name
+    }
+    fn get_status(&self) -> Status {
+        todo!();
+    }
+}
+
+impl fmt::Debug for DockerInstance<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let DockerInstance {
+            name,
+            method: _method,
+        } = self;
+        f.debug_struct("DockerInstance")
+            .field("name", name)
+            .finish()
     }
 }

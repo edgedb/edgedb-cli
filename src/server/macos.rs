@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::str;
 use std::path::{Path, PathBuf};
@@ -6,9 +7,10 @@ use std::process::{exit, Command as StdCommand};
 use anyhow::Context;
 use async_std::task;
 use serde::Serialize;
+use once_cell::unsync::OnceCell;
 
 use crate::platform::{Uid, get_current_uid, home_dir};
-use crate::process::run;
+use crate::process;
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
@@ -16,12 +18,13 @@ use crate::server::init::{self, Storage};
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::StartConf;
-use crate::server::os_trait::{CurrentOs, Method};
+use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::{PackageMethod, Package};
 use crate::server::package::{self, PackageCandidate, RepositoryInfo};
 use crate::server::remote;
 use crate::server::unix;
 use crate::server::version::Version;
+use crate::server::status::{Service, Status};
 
 
 #[derive(Debug, Serialize)]
@@ -32,6 +35,15 @@ pub struct Macos {
     stable_repo: Lazy<Option<RepositoryInfo>>,
     #[serde(skip)]
     nightly_repo: Lazy<Option<RepositoryInfo>>,
+}
+
+pub struct StatusCache {
+    launchctl_list: OnceCell<anyhow::Result<String>>,
+}
+
+#[derive(Debug)]
+pub struct LocalInstance {
+    pub name: String,
 }
 
 impl Macos {
@@ -290,10 +302,31 @@ impl<'os> Method for PackageMethod<'os, Macos> {
         fs::write(&plist_path, plist_data(&settings)?)?;
         fs::create_dir_all(home_dir()?.join(".edgedb/run"))?;
 
-        run(StdCommand::new("launchctl")
+        process::run(StdCommand::new("launchctl")
             .arg("load")
             .arg(plist_path))?;
         Ok(())
+    }
+    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
+        let mut instances = BTreeSet::new();
+        let user_base = dirs::data_dir()
+            .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
+            .join("edgedb").join("data");
+        if user_base.exists() {
+            unix::instances_from_data_dir(&user_base, false, &mut instances)?;
+        }
+        Ok(instances.into_iter()
+            .map(|(name, _)| LocalInstance { name }.into_ref())
+            .collect())
+    }
+}
+
+impl Instance for LocalInstance {
+    fn name(&self) -> &str {
+        &self.name
+    }
+    fn get_status(&self) -> Status {
+        todo!();
     }
 }
 
@@ -381,4 +414,52 @@ fn plist_data(settings: &init::Settings) -> anyhow::Result<String> {
             ""
         },
     ))
+}
+
+impl StatusCache {
+    pub fn new() -> StatusCache {
+        StatusCache {
+            launchctl_list: OnceCell::new(),
+        }
+    }
+}
+
+pub fn launchctl_status(name: &str, _system: bool, cache: &StatusCache)
+    -> Service
+{
+    use Service::*;
+    let list = cache.launchctl_list.get_or_init(|| {
+        process::get_text(&mut StdCommand::new("launchctl").arg("list"))
+    });
+    let txt = match list {
+        Ok(txt) => txt,
+        Err(e) => {
+            return Service::Inactive {
+                error: format!("cannot determine service status: {:#}", e),
+            }
+        }
+    };
+    let svc_name = format!("edgedb-server-{}", name);
+    for line in txt.lines() {
+        let mut iter = line.split_whitespace();
+        let pid = iter.next().unwrap_or("-");
+        let exit_code = iter.next();
+        let cur_name = iter.next();
+        if let Some(cur_name) = cur_name {
+            if cur_name == svc_name {
+                if pid == "-" {
+                    return Failed {
+                        exit_code: exit_code.and_then(|v| v.parse().ok()),
+                    };
+                }
+                match pid.parse() {
+                    Ok(pid) => return Running { pid },
+                    Err(e) => return Inactive {
+                        error: format!("invalid pid {:?}: {}", pid, e),
+                    },
+                }
+            }
+        }
+    }
+    Inactive { error: format!("service {:?} not found", svc_name) }
 }

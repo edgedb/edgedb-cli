@@ -10,6 +10,7 @@ use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::version::Version;
 use crate::server::distribution::{MajorVersion, DistributionRef};
 use crate::server::init::{self, Storage};
+use crate::server::status::Status;
 
 
 pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
@@ -22,6 +23,19 @@ pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
         methods: &InstallationMethods)
         -> anyhow::Result<Box<dyn Method + 'x>>;
 }
+
+pub trait Instance: fmt::Debug {
+    fn name(&self) -> &str;
+    fn get_status(&self) -> Status;
+    fn into_ref<'x>(self) -> InstanceRef<'x>
+        where Self: Sized + 'x
+    {
+        InstanceRef(Box::new(self))
+    }
+}
+
+#[derive(Debug)]
+pub struct InstanceRef<'a>(Box<dyn Instance + 'a>);
 
 pub trait Method: fmt::Debug + Send + Sync {
     fn name(&self) -> InstallMethod;
@@ -41,6 +55,7 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn bootstrap(&self, settings: &init::Settings) -> anyhow::Result<()>;
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>;
+    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>;
 }
 
 
@@ -88,5 +103,15 @@ impl PreciseVersion {
     }
     pub fn as_ver(&self) -> &Version<String> {
         &self.version
+    }
+
+}
+
+impl InstanceRef<'_> {
+    pub fn name(&self) -> &str {
+        self.0.name()
+    }
+    pub fn get_status(&self) -> Status {
+        self.0.get_status()
     }
 }

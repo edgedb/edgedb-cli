@@ -16,7 +16,7 @@ use crate::server::install::{self, Operation, Command};
 use crate::server::linux;
 use crate::server::init::{self, Storage};
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::os_trait::{CurrentOs, Method};
+use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
 use crate::server::package::{self, PackageMethod, Package};
 use crate::server::remote;
@@ -298,5 +298,8 @@ impl<'os> Method for PackageMethod<'os, Centos> {
         -> anyhow::Result<()>
     {
         linux::create_systemd_service(settings, self)
+    }
+    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
+        linux::all_instances()
     }
 }

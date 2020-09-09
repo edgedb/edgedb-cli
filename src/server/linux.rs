@@ -1,22 +1,26 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
 
 use anyhow::Context;
 use dirs::home_dir;
+use fn_error_context::context;
 use serde::Serialize;
 
 use crate::platform::{Uid, get_current_uid};
-use crate::process::run;
+use crate::process;
 use crate::server::detect::Lazy;
 use crate::server::docker::DockerCandidate;
 use crate::server::init::{self, Storage};
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::StartConf;
-use crate::server::os_trait::{CurrentOs, Method};
+use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::{PackageCandidate, Package};
 use crate::server::{debian, ubuntu, centos};
+use crate::server::unix;
+use crate::server::status::{Service, Status};
 
 
 #[derive(Debug)]
@@ -30,6 +34,20 @@ pub struct Unknown {
 pub struct Linux {
     user_id: Lazy<Uid>,
     sudo_path: Lazy<Option<PathBuf>>,
+}
+
+#[derive(Debug)]
+pub struct LocalInstance {
+    pub name: String,
+}
+
+impl Instance for LocalInstance {
+    fn name(&self) -> &str {
+        &self.name
+    }
+    fn get_status(&self) -> Status {
+        todo!();
+    }
 }
 
 
@@ -250,14 +268,72 @@ pub fn create_systemd_service(settings: &init::Settings, meth: &dyn Method)
     let unit_name = unit_name(&settings.name);
     let unit_path = unit_dir.join(&unit_name);
     fs::write(&unit_path, systemd_unit(&settings, meth)?)?;
-    run(Command::new("systemctl")
+    process::run(Command::new("systemctl")
         .arg("--user")
         .arg("daemon-reload"))?;
     if settings.start_conf == StartConf::Auto {
-        run(Command::new("systemctl")
+        process::run(Command::new("systemctl")
             .arg("--user")
             .arg("enable")
             .arg(&unit_name))?;
     }
     Ok(())
+}
+
+pub fn systemd_status(name: &str, system: bool) -> Service {
+    use Service::*;
+
+    let mut cmd = Command::new("systemctl");
+    if !system {
+        cmd.arg("--user");
+    }
+    cmd.arg("show");
+    cmd.arg(format!("edgedb-server@{}", name));
+    let txt = match process::get_text(&mut cmd) {
+        Ok(txt) => txt,
+        Err(e) => {
+            return Service::Inactive {
+                error: format!("cannot determine service status: {:#}", e),
+            }
+        }
+    };
+    let mut pid = None;
+    let mut exit = None;
+    let mut load_error = None;
+    for line in txt.lines() {
+        if let Some(pid_str) = line.strip_prefix("MainPID=") {
+            pid = pid_str.trim().parse().ok();
+        }
+        if let Some(status_str) = line.strip_prefix("ExecMainStatus=") {
+            exit = status_str.trim().parse().ok();
+        }
+        if let Some(err) = line.strip_prefix("LoadError=") {
+            load_error = Some(err.trim().to_string());
+        }
+    }
+    match pid {
+        None | Some(0) => {
+            if let Some(error) = load_error {
+                Inactive { error }
+            } else {
+                Failed { exit_code: exit }
+            }
+        }
+        Some(pid) => {
+            Running { pid }
+        }
+    }
+}
+
+pub fn all_instances<'x>() -> anyhow::Result<Vec<InstanceRef<'x>>> {
+    let mut instances = BTreeSet::new();
+    let user_base = dirs::data_dir()
+        .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
+        .join("edgedb").join("data");
+    if user_base.exists() {
+        unix::instances_from_data_dir(&user_base, false, &mut instances)?;
+    }
+    Ok(instances.into_iter()
+        .map(|(name, _)| LocalInstance { name }.into_ref())
+        .collect())
 }
