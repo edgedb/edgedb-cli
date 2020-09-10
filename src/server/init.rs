@@ -16,6 +16,7 @@ use fn_error_context::context;
 use crate::platform::{ProcessGuard, config_dir, home_dir};
 use crate::server::control;
 use crate::server::reset_password::{generate_password, write_credentials};
+use crate::server::reset_password::{password_hash};
 use crate::server::detect::{self, VersionQuery};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallMethod, Methods};
@@ -249,7 +250,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 anyhow::bail!("Storage {} already exists. \
                     This may mean that instance is already \
                     initialized. Otherwise rerun with \
-                    `--owerwrite` flag.",
+                    `--overwrite` flag.",
                     settings.storage.display());
             }
         }
@@ -266,43 +267,54 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                                        settings.storage.display()))?
             }
         }
-        method.create_user_service(&settings).map_err(|e| {
-            eprintln!("Bootrapping complete, \
-                but there was an error creating a service. \
-                You can run server manually via: \n  \
-                edgedb server start --foreground {}",
-                settings.name.escape_default());
-            e
-        }).context("failed to init service")?;
-        match (settings.start_conf, settings.inhibit_start) {
-            (StartConf::Auto, false) => {
-                let mut inst = control::get_instance(&settings.name)?;
-                inst.start(&Start {
-                        name: settings.name.clone(),
-                        foreground: false,
-                    })?;
-                init_credentials(&settings, &*inst)?;
-                println!("Bootstrap complete. Server is up and runnning now.");
-            }
-            (StartConf::Manual, _) | (_, true) => {
-                let inst = control::get_instance(&settings.name)?;
-                let mut cmd = inst.run_command()?;
-                log::debug!("Running server: {:?}", cmd);
-                let child = ProcessGuard::run(&mut cmd)
-                    .with_context(||
-                        format!("error running server {:?}", cmd))?;
-                init_credentials(&settings, &*inst)?;
-                drop(child);
-                println!("Bootstrap complete. To start a server:\n  \
-                          edgedb server start {}",
-                          settings.name.escape_default());
-            }
-        }
         Ok(())
     }
 }
 
-fn init_credentials(settings: &Settings, inst: &dyn control::Instance)
+pub fn bootstrap_script(settings: &Settings, password: &str) -> String {
+    use std::fmt::Write;
+
+    let mut output = String::with_capacity(1024);
+    if settings.database != "edgedb" {
+        writeln!(&mut output,
+            "CREATE DATABASE {};",
+            quote_name(&settings.database),
+        ).unwrap();
+    }
+    if settings.user == "edgedb" {
+        writeln!(&mut output, r###"
+            ALTER ROLE {name} {{
+                SET password_hash := {password_hash};
+            }};
+            "###,
+            name=quote_name(&settings.user),
+            password_hash=quote_string(&password_hash(password)),
+        ).unwrap();
+    } else {
+        writeln!(&mut output, r###"
+            CREATE SUPERUSER ROLE {name} {{
+                SET password_hash := {password_hash};
+            }}"###,
+            name=quote_name(&settings.user),
+            password_hash=quote_string(&password_hash(password)),
+        ).unwrap();
+    }
+    return output;
+}
+
+pub fn save_credentials(settings: &Settings, password: &str)
+    -> anyhow::Result<()>
+{
+    let mut creds = Credentials::default();
+    creds.port = settings.port;
+    creds.user = settings.user.clone();
+    creds.database = Some(settings.database.clone());
+    creds.password = Some(password.into());
+    write_credentials(&settings.credentials, &creds)?;
+    Ok(())
+}
+
+pub fn init_credentials(settings: &Settings, inst: &dyn control::Instance)
     -> anyhow::Result<()>
 {
     let password = generate_password();
@@ -314,36 +326,11 @@ fn init_credentials(settings: &Settings, inst: &dyn control::Instance)
     conn_params.wait_until_available(Duration::from_secs(30));
     task::block_on(async {
         let mut cli = conn_params.connect().await?;
-        if settings.database != "edgedb" {
-            cli.execute(
-                &format!("CREATE DATABASE {}", quote_name(&settings.database))
-            ).await?;
-        }
-        if settings.user == "edgedb" {
-            cli.execute(&format!(r###"
-                ALTER ROLE {name} {{
-                    SET password := {password};
-                }}"###,
-                name=quote_name(&settings.user),
-                password=quote_string(&password))
-            ).await
-        } else {
-            cli.execute(&format!(r###"
-                CREATE SUPERUSER ROLE {name} {{
-                    SET password := {password};
-                }}"###,
-                name=quote_name(&settings.user),
-                password=quote_string(&password))
-            ).await
-        }
+        cli.execute(&bootstrap_script(settings, &password)).await?;
+        Ok::<(), anyhow::Error>(())
     })?;
 
-    let mut creds = Credentials::default();
-    creds.port = settings.port;
-    creds.user = settings.user.clone();
-    creds.database = Some(settings.database.clone());
-    creds.password = Some(password);
-    write_credentials(&settings.credentials, &creds)?;
+    save_credentials(settings, &password)?;
     Ok(())
 }
 

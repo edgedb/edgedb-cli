@@ -6,19 +6,25 @@ use std::process::Command;
 use anyhow::Context;
 use fn_error_context::context;
 
+use crate::platform::ProcessGuard;
 use crate::platform::home_dir;
-use crate::server::init::{self, read_ports, Storage};
-use crate::server::metadata::Metadata;
+use crate::server::control::read_metadata;
+use crate::server::control;
+use crate::server::init::{self, read_ports, init_credentials, Storage};
+use crate::server::is_valid_name;
 use crate::server::linux;
 use crate::server::macos;
+use crate::server::metadata::Metadata;
+use crate::server::options::{Start, StartConf};
+use crate::server::os_trait::{Method};
 use crate::server::package::Package;
 use crate::server::status::{Service, Status, DataDirectory};
 use crate::server::status::{read_upgrade, backup_status, probe_port};
-use crate::server::is_valid_name;
-use crate::server::control::read_metadata;
 
 
-pub fn bootstrap(settings: &init::Settings) -> anyhow::Result<()> {
+pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
+    -> anyhow::Result<()>
+{
     let dir = match &settings.storage {
         Storage::UserDir(path) => path,
         other => anyhow::bail!("unsupported storage {:?}", other),
@@ -56,6 +62,39 @@ pub fn bootstrap(settings: &init::Settings) -> anyhow::Result<()> {
 
     let metapath = dir.join("metadata.json");
     write_metadata(&metapath, &settings.metadata())?;
+
+    method.create_user_service(&settings).map_err(|e| {
+        eprintln!("Bootrapping complete, \
+            but there was an error creating a service. \
+            You can run server manually via: \n  \
+            edgedb server start --foreground {}",
+            settings.name.escape_default());
+        e
+    }).context("failed to init service")?;
+    match (settings.start_conf, settings.inhibit_start) {
+        (StartConf::Auto, false) => {
+            let mut inst = control::get_instance(&settings.name)?;
+            inst.start(&Start {
+                    name: settings.name.clone(),
+                    foreground: false,
+                })?;
+            init_credentials(&settings, &*inst)?;
+            println!("Bootstrap complete. Server is up and runnning now.");
+        }
+        (StartConf::Manual, _) | (_, true) => {
+            let inst = control::get_instance(&settings.name)?;
+            let mut cmd = inst.run_command()?;
+            log::debug!("Running server: {:?}", cmd);
+            let child = ProcessGuard::run(&mut cmd)
+                .with_context(||
+                    format!("error running server {:?}", cmd))?;
+            init_credentials(&settings, &*inst)?;
+            drop(child);
+            println!("Bootstrap complete. To start a server:\n  \
+                      edgedb server start {}",
+                      settings.name.escape_default());
+        }
+    }
     Ok(())
 }
 

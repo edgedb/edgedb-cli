@@ -283,7 +283,7 @@ impl<'os> Method for PackageMethod<'os, Centos> {
         serde_json::to_value(self).expect("can serialize")
     }
     fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
-        unix::bootstrap(init)
+        unix::bootstrap(self, init)
     }
     fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage> {
         unix::storage(system, name)

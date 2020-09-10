@@ -8,11 +8,13 @@ use async_std::task;
 use serde::{Serialize, Deserialize};
 
 use crate::process;
+use crate::platform::ProcessGuard;
 use crate::platform::home_dir;
 use crate::server::detect::Lazy;
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::init::{self, read_ports, Storage};
+use crate::server::init::{bootstrap_script, save_credentials};
 use crate::server::install;
 use crate::server::options::{StartConf};
 use crate::server::methods::InstallMethod;
@@ -22,6 +24,7 @@ use crate::server::unix;
 use crate::server::version::Version;
 use crate::server::status::{Service, Status, DataDirectory, BackupStatus};
 use crate::server::status::{probe_port};
+use crate::server::reset_password::{generate_password};
 
 
 #[derive(Debug, Serialize)]
@@ -440,9 +443,10 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg("--mount").arg(format!("source={},target=/mnt", volume))
             .arg(image.tag.as_image_name())
             .arg("chown")
-            .arg("edgedb:edgedb")
+            .arg("999:999")
             .arg("/mnt"))?;
 
+        let password = generate_password();
         let mut cmd = Command::new(&self.cli);
         cmd.arg("run");
         cmd.arg("--rm");
@@ -451,7 +455,9 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
         cmd.arg(image.tag.as_image_name());
         cmd.arg("edgedb-server");
-        cmd.arg("--bootstrap");
+        cmd.arg("--bootstrap-only");
+        cmd.arg("--bootstrap-commmand")
+            .arg(bootstrap_script(settings, &password));
         cmd.arg("--log-level=warn");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
@@ -466,17 +472,10 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
             Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
         }
-        Ok(())
-    }
-    fn create_user_service(&self, settings: &init::Settings)
-        -> anyhow::Result<()>
-    {
-        let volume = match &settings.storage {
-            Storage::DockerVolume(name) => name,
-            other => anyhow::bail!("unsupported storage {:?}", other),
-        };
-        let image = settings.distribution.downcast_ref::<Image>()
-            .context("invalid unix package")?;
+
+        save_credentials(&settings, &password)?;
+        drop(password);
+
         let mut cmd = Command::new(&self.cli);
         cmd.arg("container");
         match settings.start_conf {
@@ -500,7 +499,17 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
         cmd.arg("--port").arg(settings.port.to_string());
-        process::run(&mut cmd)?;
+        process::run(&mut cmd).with_context(|| {
+            match settings.start_conf {
+                StartConf::Auto => {
+                    format!("error starting server {:?}", cmd)
+                }
+                StartConf::Manual => {
+                    format!("error creating container {:?}", cmd)
+                }
+            }
+        })?;
+
         Ok(())
     }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>
@@ -521,6 +530,11 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             }
         }
         Ok(result)
+    }
+    fn create_user_service(&self, settings: &init::Settings)
+        -> anyhow::Result<()>
+    {
+        unreachable!();
     }
 }
 
@@ -608,3 +622,4 @@ impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {
             .finish()
     }
 }
+

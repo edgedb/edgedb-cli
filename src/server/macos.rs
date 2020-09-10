@@ -292,7 +292,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
         unix::clean_storage(storage)
     }
     fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
-        unix::bootstrap(init)
+        unix::bootstrap(self, init)
     }
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>
