@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::Context;
@@ -73,26 +73,29 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     }).context("failed to init service")?;
     match (settings.start_conf, settings.inhibit_start) {
         (StartConf::Auto, false) => {
-            let mut inst = control::get_instance(&settings.name)?;
+            let inst = method.get_instance(&settings.name)?;
             inst.start(&Start {
-                    name: settings.name.clone(),
-                    foreground: false,
-                })?;
-            init_credentials(&settings, &*inst)?;
+                name: settings.name.clone(),
+                foreground: false,
+            })?;
+            init_credentials(&settings, &inst)?;
             println!("Bootstrap complete. Server is up and runnning now.");
         }
         (StartConf::Manual, _) | (_, true) => {
-            let inst = control::get_instance(&settings.name)?;
+            todo!();
+            /*
+            let inst = method.get_instance(&settings.name)?;
             let mut cmd = inst.run_command()?;
             log::debug!("Running server: {:?}", cmd);
             let child = ProcessGuard::run(&mut cmd)
                 .with_context(||
                     format!("error running server {:?}", cmd))?;
-            init_credentials(&settings, &*inst)?;
+            init_credentials(&settings, &inst)?;
             drop(child);
             println!("Bootstrap complete. To start a server:\n  \
                       edgedb server start {}",
                       settings.name.escape_default());
+            */
         }
     }
     Ok(())
@@ -200,4 +203,10 @@ pub fn status(name: &String, data_dir: &Path,
         service_exists,
         credentials_file_exists,
     }
+}
+
+pub fn base_data_dir() -> anyhow::Result<PathBuf> {
+    Ok(dirs::data_dir()
+        .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
+        .join("edgedb").join("data"))
 }

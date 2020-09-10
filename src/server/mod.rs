@@ -33,7 +33,6 @@ mod status;
 mod upgrade;
 
 pub use main::main;
-pub use control::get_instance;
 
 
 fn is_valid_name(name: &str) -> bool {

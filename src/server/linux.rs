@@ -333,9 +333,7 @@ pub fn systemd_status(name: &str, system: bool) -> Service {
 
 pub fn all_instances<'x>() -> anyhow::Result<Vec<InstanceRef<'x>>> {
     let mut instances = BTreeSet::new();
-    let user_base = dirs::data_dir()
-        .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-        .join("edgedb").join("data");
+    let user_base = unix::base_data_dir()?;
     if user_base.exists() {
         unix::instances_from_data_dir(&user_base, false, &mut instances)?;
     }
@@ -345,4 +343,16 @@ pub fn all_instances<'x>() -> anyhow::Result<Vec<InstanceRef<'x>>> {
             name,
         }.into_ref())
         .collect())
+}
+
+pub fn get_instance<'x>(name: &str) -> anyhow::Result<InstanceRef<'x>> {
+    let dir = unix::base_data_dir()?.join(name);
+    if dir.exists() {
+        Ok(LocalInstance {
+            path: dir,
+            name: name.to_owned(),
+        }.into_ref())
+    } else {
+        anyhow::bail!("Directory '{}' does not exists", dir.display());
+    }
 }

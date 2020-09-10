@@ -6,11 +6,13 @@ use anyhow::Context;
 use fn_error_context::context;
 
 use crate::process::{run, exit_from};
-use crate::server::options::{Start, Stop, Restart, Status};
+use crate::server::detect;
+use crate::server::options::{InstanceCommand, Start, Stop, Restart, Status};
 use crate::server::metadata::Metadata;
-use crate::server::methods::InstallMethod;
+use crate::server::methods::{Methods, InstallMethod};
 use crate::server::{linux, macos};
 use crate::server::status;
+use crate::server::os_trait::{InstanceRef};
 use crate::platform::{home_dir, get_current_uid};
 
 
@@ -47,6 +49,7 @@ pub fn read_metadata(dir: &Path) -> anyhow::Result<Metadata> {
     Ok(serde_json::from_slice(&fs::read(&metadata_path)?)?)
 }
 
+/*
 pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
     todo!();
     /*
@@ -68,6 +71,7 @@ pub fn get_instance(name: &str) -> anyhow::Result<Box<dyn Instance>> {
     get_instance_from_metadata(name, system, &metadata)
     */
 }
+*/
 
 pub fn get_instance_from_metadata(name: &str, system: bool,
     metadata: &Metadata)
@@ -232,5 +236,58 @@ impl Instance for LaunchdInstance {
         cmd.arg("--data-dir").arg(&self.data_dir);
         cmd.arg("--runstate-dir").arg(&socket_dir);
         Ok(cmd)
+    }
+}
+
+pub fn get_instance<'x>(methods: &'x Methods, name: &str)
+    -> anyhow::Result<InstanceRef<'x>>
+{
+    let mut errors = Vec::new();
+    for (meth_name, meth) in methods {
+        match meth.get_instance(name) {
+            Ok(inst) => return Ok(inst),
+            Err(e) => {
+                errors.push(format!("  {}: {}", meth_name.short_name(), e));
+            }
+        }
+    }
+    anyhow::bail!("Cannot find instance {:?}:\n{}", name,
+        errors.join("\n"))
+}
+
+pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
+    use InstanceCommand::*;
+
+    let name = match cmd {
+        Start(c) => &c.name,
+        Stop(c) => &c.name,
+        Restart(c) => &c.name,
+        Status(c) => {
+            if c.all {
+                return status::print_status_all(c.extended);
+            } else {
+                &c.name
+            }
+        }
+    };
+    let os = detect::current_os()?;
+    let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
+    let inst = get_instance(&methods, name)?;
+    match cmd {
+        Start(c) => inst.start(c),
+        Stop(c) => inst.stop(c),
+        Restart(c) => inst.restart(c),
+        Status(options) => {
+            if options.service {
+                inst.service_status()
+            } else {
+                let status = inst.get_status();
+                if options.extended {
+                    status.print_extended_and_exit();
+                } else {
+                    status.print_and_exit();
+                }
+            }
+        }
     }
 }

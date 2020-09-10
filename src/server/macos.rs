@@ -310,9 +310,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
         let mut instances = BTreeSet::new();
-        let user_base = dirs::data_dir()
-            .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-            .join("edgedb").join("data");
+        let user_base = unix::base_data_dir()?;
         if user_base.exists() {
             unix::instances_from_data_dir(&user_base, false, &mut instances)?;
         }
@@ -322,6 +320,17 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                 name,
             }.into_ref())
             .collect())
+    }
+    fn get_instance(&self, name: &str) -> anyhow::Result<InstanceRef> {
+        let dir = unix::base_data_dir()?.join(name);
+        if dir.exists() {
+            Ok(LocalInstance {
+                path: dir,
+                name: name.to_owned(),
+            }.into_ref())
+        } else {
+            anyhow::bail!("Directory '{}' does not exists", dir.display());
+        }
     }
 }
 

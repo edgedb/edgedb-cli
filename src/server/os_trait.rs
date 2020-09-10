@@ -4,13 +4,14 @@ use std::fmt;
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::server::install;
 use crate::server::detect::{VersionQuery};
-use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::version::Version;
 use crate::server::distribution::{MajorVersion, DistributionRef};
 use crate::server::init::{self, Storage};
+use crate::server::install;
+use crate::server::methods::{InstallationMethods, InstallMethod};
+use crate::server::options::{Start, Stop, Restart};
 use crate::server::status::Status;
+use crate::server::version::Version;
 
 
 pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
@@ -27,6 +28,21 @@ pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
 pub trait Instance: fmt::Debug {
     fn name(&self) -> &str;
     fn get_status(&self) -> Status;
+    fn start(&self, start: &Start) -> anyhow::Result<()> {
+        todo!();
+    }
+    fn stop(&self, stop: &Stop) -> anyhow::Result<()> {
+        todo!();
+    }
+    fn restart(&self, restart: &Restart) -> anyhow::Result<()> {
+        todo!();
+    }
+    fn service_status(&self) -> anyhow::Result<()> {
+        todo!();
+    }
+    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
+        todo!();
+    }
     fn into_ref<'x>(self) -> InstanceRef<'x>
         where Self: Sized + 'x
     {
@@ -56,6 +72,8 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>;
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>;
+    fn get_instance<'x>(&'x self, name: &str)
+        -> anyhow::Result<InstanceRef<'x>>;
 }
 
 
@@ -113,5 +131,20 @@ impl InstanceRef<'_> {
     }
     pub fn get_status(&self) -> Status {
         self.0.get_status()
+    }
+    pub fn start(&self, start: &Start) -> anyhow::Result<()> {
+        self.0.start(start)
+    }
+    pub fn stop(&self, stop: &Stop) -> anyhow::Result<()> {
+        self.0.stop(stop)
+    }
+    pub fn restart(&self, restart: &Restart) -> anyhow::Result<()> {
+        self.0.restart(restart)
+    }
+    pub fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
+        self.0.get_socket(admin)
+    }
+    pub fn service_status(&self) -> anyhow::Result<()> {
+        self.0.service_status()
     }
 }

@@ -536,6 +536,20 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     {
         unreachable!();
     }
+    fn get_instance<'x>(&'x self, name: &str)
+        -> anyhow::Result<InstanceRef<'x>>
+    {
+        let volume = format!("edgedb_{}", name);
+        match self.inspect_volume(&volume)? {
+            Some(_) => {
+                Ok(DockerInstance {
+                    name: name.into(),
+                    method: self,
+                }.into_ref())
+            }
+            None => anyhow::bail!("No docker volume {:?} found", volume),
+        }
+    }
 }
 
 

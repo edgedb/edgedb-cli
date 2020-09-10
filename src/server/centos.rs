@@ -302,4 +302,9 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
         linux::all_instances()
     }
+    fn get_instance<'x>(&'x self, name: &str)
+        -> anyhow::Result<InstanceRef<'x>>
+    {
+        linux::get_instance(name)
+    }
 }

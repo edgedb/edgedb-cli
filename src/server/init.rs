@@ -21,7 +21,7 @@ use crate::server::detect::{self, VersionQuery};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::{Init, Start, StartConf};
-use crate::server::os_trait::Method;
+use crate::server::os_trait::{Method, InstanceRef};
 use crate::server::version::Version;
 use crate::server::distribution::DistributionRef;
 use crate::server::package::Package;
@@ -314,7 +314,7 @@ pub fn save_credentials(settings: &Settings, password: &str)
     Ok(())
 }
 
-pub fn init_credentials(settings: &Settings, inst: &dyn control::Instance)
+pub fn init_credentials(settings: &Settings, inst: &InstanceRef)
     -> anyhow::Result<()>
 {
     let password = generate_password();

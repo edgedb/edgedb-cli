@@ -16,16 +16,7 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
         Install(c) => install::install(c),
         Init(c) => init::init(c),
         ListVersions(c) => list_versions::list_versions(c),
-        Start(c) => control::get_instance(&c.name)?.start(c),
-        Stop(c) => control::get_instance(&c.name)?.stop(c),
-        Restart(c) => control::get_instance(&c.name)?.restart(c),
-        Status(c) => {
-            if c.all {
-                status::print_status_all(c.extended)
-            } else {
-                control::get_instance(&c.name)?.status(c)
-            }
-        }
+        Instance(c) => control::instance_command(c),
         Upgrade(c) => upgrade::upgrade(c),
         ResetPassword(c) => reset_password::reset_password(c),
         _Detect(c) => detect::main(c),

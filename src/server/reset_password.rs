@@ -15,6 +15,8 @@ use rand::{Rng, SeedableRng};
 
 use crate::server;
 use crate::server::options::ResetPassword;
+use crate::server::detect;
+use crate::server::control;
 use crate::platform::{home_dir, tmp_file_name};
 
 const PASSWORD_LENGTH: usize = 24;
@@ -82,7 +84,10 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     } else {
         generate_password()
     };
-    let path = server::get_instance(&options.name)
+
+    let os = detect::current_os()?;
+    let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
+    let path = control::get_instance(&methods, &options.name)
         .and_then(|inst| inst.get_socket(true))
         .with_context(|| format!("cannot find instance {:?}", options.name))?;
     let mut conn_params = Builder::new();
