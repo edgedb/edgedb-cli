@@ -410,10 +410,18 @@ impl Instance for LocalInstance {
         Ok(())
     }
     fn service_status(&self) -> anyhow::Result<()> {
-        todo!();
+        process::exit_from(&mut StdCommand::new("launchctl")
+            .arg("print")
+            .arg(self.launchd_name()))?;
+        Ok(())
     }
     fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
-        todo!();
+        Ok(home_dir()?
+            .join(".edgedb/run")
+            .join(&self.name)
+            .join(format!(".s.EDGEDB{}.{}",
+                if admin { ".admin" } else { "" },
+                self.get_meta()?.port)))
     }
 }
 

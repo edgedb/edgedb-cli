@@ -209,9 +209,6 @@ impl Instance for LaunchdInstance {
         if options.extended {
             self.get_status()?.print_extended_and_exit();
         } else if options.service {
-            exit_from(Command::new("launchctl")
-                .arg("print")
-                .arg(self.launchd_name()))?;
         } else {
             self.get_status()?.print_and_exit();
         }
