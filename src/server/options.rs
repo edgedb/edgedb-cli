@@ -166,6 +166,10 @@ pub struct Status {
     #[clap(long)]
     pub extended: bool,
 
+    /// Output all available debug info about each instance
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub debug: bool,
+
     /// Print status of all instances
     #[clap(long)]
     pub all: bool,

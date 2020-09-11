@@ -262,7 +262,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         Restart(c) => &c.name,
         Status(c) => {
             if c.all {
-                return status::print_status_all(c.extended);
+                return status::print_status_all(c.extended, c.debug);
             } else {
                 &c.name
             }
@@ -280,7 +280,10 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
                 inst.service_status()
             } else {
                 let status = inst.get_status();
-                if options.extended {
+                if options.debug {
+                    println!("{:#?}", status);
+                    Ok(())
+                } else if options.extended {
                     status.print_extended_and_exit();
                 } else {
                     status.print_and_exit();

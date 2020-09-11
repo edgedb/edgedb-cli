@@ -14,7 +14,7 @@ use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
 use crate::server::detect;
-use crate::server::init::{read_ports};
+use crate::server::init::{read_ports, Storage};
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
 use crate::server::control::read_metadata;
 use crate::server::metadata::Metadata;
@@ -58,7 +58,7 @@ pub struct Status {
     pub metadata: anyhow::Result<Metadata>,
     pub reserved_port: Option<u16>,
     pub port_status: Port,
-    pub data_dir: PathBuf,
+    pub storage: Storage,
     pub data_status: DataDirectory,
     pub backup: BackupStatus,
     pub credentials_file_exists: bool,
@@ -139,7 +139,7 @@ impl Status {
             Port::Unknown => "unknown",
         });
 
-        println!("  Data directory: {}", self.data_dir.display());
+        println!("  Data directory: {}", self.storage.display());
         println!("  Data status: {}", match &self.data_status {
             DataDirectory::Absent => "NOT FOUND".into(),
             DataDirectory::NoMetadata => "METADATA ERROR".into(),
@@ -253,7 +253,7 @@ impl Cache {
     }
 }
 
-pub fn print_status_all(extended: bool) -> anyhow::Result<()> {
+pub fn print_status_all(extended: bool, debug: bool) -> anyhow::Result<()> {
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
     let mut statuses = Vec::new();
@@ -268,7 +268,11 @@ pub fn print_status_all(extended: bool) -> anyhow::Result<()> {
         eprintln!("No instances found");
         return Ok(());
     }
-    if extended {
+    if debug {
+        for status in statuses {
+            println!("{:#?}", status);
+        }
+    } else if extended {
         for status in statuses {
             status.print_extended();
         }

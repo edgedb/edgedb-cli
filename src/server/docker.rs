@@ -1,5 +1,5 @@
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::SystemTime;
 
@@ -17,6 +17,7 @@ use crate::server::init::{self, read_ports, Storage};
 use crate::server::init::{bootstrap_script, save_credentials};
 use crate::server::install;
 use crate::server::options::{StartConf, Start, Stop, Restart};
+use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::remote;
@@ -85,8 +86,22 @@ pub struct ContainerState {
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code, non_snake_case)]
+pub struct EdgedbLabels {
+    #[serde(rename="com.edgedb.upgrade-in-progress")]
+    upgrading: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code, non_snake_case)]
+pub struct ContainerConfig {
+    Labels: EdgedbLabels,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code, non_snake_case)]
 pub struct Container {
     State: ContainerState,
+    Config: ContainerConfig,
 }
 
 #[derive(Debug, Serialize)]
@@ -555,6 +570,41 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     }
 }
 
+impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
+    fn get_metadata(&self) -> anyhow::Result<Metadata> {
+        let volume_name = format!("edgedb_{}", self.name);
+        let data = process::get_text(Command::new(&self.method.cli)
+            .arg("run")
+            .arg("--rm")
+            .arg("--mount").arg(format!("source={},target=/mnt", volume_name))
+            .arg("busybox")
+            .arg("cat")
+            .arg(format!("/mnt/{}/metadata.json", self.name)))?;
+        Ok(serde_json::from_str(&data)?)
+    }
+    fn get_backup(&self) -> BackupStatus {
+        let volume_name = format!("edgedb_{}", self.name);
+        let mut cmd = Command::new(&self.method.cli);
+        cmd.arg("run");
+        cmd.arg("--rm");
+        cmd.arg("--mount").arg(format!("source={},target=/mnt", volume_name));
+        cmd.arg("busybox");
+        cmd.arg("cat");
+        cmd.arg(format!("/mnt/{}/metadata.json", self.name));
+        match process::get_json_or_failure(&mut cmd) {
+            Ok(Ok(meta)) => BackupStatus::Exists(Ok(meta)),
+            Ok(Err(text)) if text.contains("No such file") => {
+                BackupStatus::Absent
+            }
+            Ok(Err(text)) => {
+                BackupStatus::Exists(Err(anyhow::anyhow!("error: {}", text)))
+            }
+            Err(e) => {
+                BackupStatus::Exists(Err(e.into()))
+            }
+        }
+    }
+}
 
 impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     fn name(&self) -> &str {
@@ -565,6 +615,9 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         use Service::*;
 
         let container_name = format!("edgedb_{}", self.name);
+        let storage = Storage::DockerVolume(container_name.clone());
+        let volume_exists = self.method.storage_exists(&storage)
+            .unwrap_or(false);
         let (service, service_exists) =
             match self.method.inspect_container(&container_name) {
                 Ok(Some(info)) => {
@@ -577,26 +630,29 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
                 Ok(None) => (Inactive { error: "Not found".into() }, false),
                 Err(e) => (Inactive { error: e.to_string() }, false),
             };
-
-        /*
-        let (data_status, metadata) = if data_dir.exists() {
-            let metadata = read_metadata(&data_dir);
-            if metadata.is_ok() {
-                let upgrade_file = data_dir.join("UPGRADE_IN_PROGRESS");
-                if upgrade_file.exists() {
-                    (Upgrading(read_upgrade(&upgrade_file)), metadata)
-                } else {
-                    (Normal, metadata)
-                }
-            } else {
-                (NoMetadata, metadata)
-            }
+        let up_container = format!("edgedb_upgrade_{}", self.name);
+        let metadata = if volume_exists {
+            self.get_metadata()
         } else {
-            (Absent, Err(anyhow::anyhow!("No data directory")))
+            Err(anyhow::anyhow!("no volume named {:?}", container_name))
         };
-        */
-        let data_status = NoMetadata; // TODO
-        let metadata = Err(anyhow::anyhow!("unimplemented")); // TODO
+        let data_status = match self.method.inspect_container(&up_container) {
+            Ok(Some(c)) => {
+                Upgrading(c.Config.Labels.upgrading
+                    .as_ref()
+                    .ok_or_else(|| anyhow::anyhow!("no upgrade metadata"))
+                    .and_then(|s| {
+                        Ok(serde_json::from_str(s)
+                            .context("cannot decode upgrade metadata")?)
+                    }))
+            }
+            Ok(None) => match metadata {
+                Ok(_) => Normal,
+                Err(_) if volume_exists => NoMetadata,
+                Err(_) => Absent,
+            },
+            Err(_) => Absent,
+        };
         let reserved_port =
             // TODO(tailhook) cache ports
             read_ports()
@@ -604,8 +660,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             .ok()
             .and_then(|ports| ports.get(&self.name).cloned());
         let port_status = probe_port(&metadata, &reserved_port);
-        //let backup = backup_status(&base.join(format!("{}.backup", name)));
-        let backup = BackupStatus::Absent;
+        let backup = self.get_backup();
         let credentials_file_exists = home_dir().map(|home| {
             home.join(".edgedb")
                 .join("credentials")
@@ -619,7 +674,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             metadata,
             reserved_port,
             port_status,
-            data_dir: "todo".into(), // TODO
+            storage,
             data_status,
             backup,
             service_exists,
@@ -664,7 +719,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         Ok(())
     }
     fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
-        todo!();
+        unimplemented!();
     }
 }
 
