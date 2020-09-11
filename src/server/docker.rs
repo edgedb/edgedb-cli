@@ -16,7 +16,7 @@ use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::init::{self, read_ports, Storage};
 use crate::server::init::{bootstrap_script, save_credentials};
 use crate::server::install;
-use crate::server::options::{StartConf};
+use crate::server::options::{StartConf, Start, Stop, Restart};
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::remote;
@@ -625,6 +625,46 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             service_exists,
             credentials_file_exists,
         }
+    }
+    fn start(&self, options: &Start) -> anyhow::Result<()> {
+        if options.foreground {
+            process::run(Command::new(&self.method.cli)
+                .arg("container")
+                .arg("start")
+                .arg("--attach")
+                .arg("--interactive")
+                .arg(format!("edgedb_{}", self.name)))?;
+        } else {
+            process::run(Command::new(&self.method.cli)
+                .arg("container")
+                .arg("start")
+                .arg(format!("edgedb_{}", self.name)))?;
+        }
+        Ok(())
+    }
+    fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
+        process::run(Command::new(&self.method.cli)
+            .arg("container")
+            .arg("stop")
+            .arg(format!("edgedb_{}", self.name)))?;
+        Ok(())
+    }
+    fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
+        process::run(Command::new(&self.method.cli)
+            .arg("container")
+            .arg("restart")
+            .arg(format!("edgedb_{}", self.name)))?;
+        Ok(())
+    }
+    fn service_status(&self) -> anyhow::Result<()> {
+        process::run(Command::new(&self.method.cli)
+            .arg("container")
+            .arg("inspect")
+            .arg(format!("edgedb_{}", self.name)))?;
+        Ok(())
+    }
+    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
+        todo!();
     }
 }
 

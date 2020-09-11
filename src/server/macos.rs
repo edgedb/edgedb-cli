@@ -14,10 +14,11 @@ use crate::process;
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
+use crate::server::control::read_metadata;
 use crate::server::init::{self, Storage};
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::StartConf;
+use crate::server::options::{StartConf, Start, Stop, Restart};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::{PackageMethod, Package};
 use crate::server::package::{self, PackageCandidate, RepositoryInfo};
@@ -25,6 +26,7 @@ use crate::server::remote;
 use crate::server::unix;
 use crate::server::version::Version;
 use crate::server::status::{Service, Status};
+use crate::server::metadata::Metadata;
 
 
 #[derive(Debug, Serialize)]
@@ -45,6 +47,8 @@ pub struct StatusCache {
 pub struct LocalInstance {
     pub name: String,
     pub path: PathBuf,
+    metadata: Lazy<Metadata>,
+    slot: Lazy<String>,
 }
 
 impl Macos {
@@ -318,6 +322,8 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             .map(|(name, _)| LocalInstance {
                 path: user_base.join(&name),
                 name,
+                metadata: Lazy::lazy(),
+                slot: Lazy::lazy(),
             }.into_ref())
             .collect())
     }
@@ -327,10 +333,42 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             Ok(LocalInstance {
                 path: dir,
                 name: name.to_owned(),
+                metadata: Lazy::lazy(),
+                slot: Lazy::lazy(),
             }.into_ref())
         } else {
             anyhow::bail!("Directory '{}' does not exists", dir.display());
         }
+    }
+}
+
+impl LocalInstance {
+    fn launchd_name(&self) -> String {
+        format!("gui/{}/edgedb-server-{}", get_current_uid(), self.name)
+    }
+    fn get_meta(&self) -> anyhow::Result<&Metadata> {
+        self.metadata.get_or_try_init(|| read_metadata(&self.path))
+    }
+    fn get_slot(&self) -> anyhow::Result<&String> {
+        self.slot.get_or_try_init(|| {
+            match &self.get_meta()?.slot {
+                Some(s) => Ok(s.clone()),
+                None => anyhow::bail!("missing `slot` in metadata"),
+            }
+        })
+    }
+    fn run_command(&self) -> anyhow::Result<StdCommand> {
+        let sock = self.get_socket(true)?;
+        let socket_dir = sock.parent().unwrap();
+        let mut cmd = StdCommand::new(get_server_path(&self.get_slot()?));
+        cmd.arg("--port").arg(self.get_meta()?.port.to_string());
+        cmd.arg("--data-dir").arg(&self.path);
+        cmd.arg("--runstate-dir").arg(&socket_dir);
+        Ok(cmd)
+    }
+    fn unit_path(&self) -> anyhow::Result<PathBuf> {
+        let plist = format!("com.edgedb.edgedb-server-{}.plist", &self.name);
+        Ok(home_dir()?.join("Library/LaunchAgents").join(plist))
     }
 }
 
@@ -347,6 +385,35 @@ impl Instance for LocalInstance {
             .map(|p| p.exists())
             .unwrap_or(false);
         unix::status(&self.name, &self.path, service_exists, service)
+    }
+    fn start(&self, options: &Start) -> anyhow::Result<()> {
+        if options.foreground {
+            process::run(&mut self.run_command()?)?;
+        } else {
+            process::run(&mut StdCommand::new("launchctl")
+                .arg("load").arg("-w")
+                .arg(&self.unit_path()?))?;
+        }
+        Ok(())
+    }
+    fn stop(&self, stop: &Stop) -> anyhow::Result<()> {
+        process::run(&mut StdCommand::new("launchctl")
+            .arg("unload")
+            .arg(&self.unit_path()?))?;
+        Ok(())
+    }
+    fn restart(&self, restart: &Restart) -> anyhow::Result<()> {
+        process::run(&mut StdCommand::new("launchctl")
+            .arg("kickstart")
+            .arg("-k")
+            .arg(self.launchd_name()))?;
+        Ok(())
+    }
+    fn service_status(&self) -> anyhow::Result<()> {
+        todo!();
+    }
+    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
+        todo!();
     }
 }
 

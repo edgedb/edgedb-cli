@@ -28,21 +28,11 @@ pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
 pub trait Instance: fmt::Debug {
     fn name(&self) -> &str;
     fn get_status(&self) -> Status;
-    fn start(&self, start: &Start) -> anyhow::Result<()> {
-        todo!();
-    }
-    fn stop(&self, stop: &Stop) -> anyhow::Result<()> {
-        todo!();
-    }
-    fn restart(&self, restart: &Restart) -> anyhow::Result<()> {
-        todo!();
-    }
-    fn service_status(&self) -> anyhow::Result<()> {
-        todo!();
-    }
-    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
-        todo!();
-    }
+    fn start(&self, start: &Start) -> anyhow::Result<()>;
+    fn stop(&self, stop: &Stop) -> anyhow::Result<()>;
+    fn restart(&self, restart: &Restart) -> anyhow::Result<()>;
+    fn service_status(&self) -> anyhow::Result<()>;
+    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf>;
     fn into_ref<'x>(self) -> InstanceRef<'x>
         where Self: Sized + 'x
     {

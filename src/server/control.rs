@@ -185,9 +185,10 @@ impl Instance for LaunchdInstance {
         if options.foreground {
             run(&mut self.run_command()?)?;
         } else {
-            run(Command::new("launchctl")
-                .arg("load").arg("-w")
-                .arg(&self.unit_path))?;
+            run(Command::new("systemctl")
+                .arg("--user")
+                .arg("start")
+                .arg(format!("edgedb-server@{}", self.name)))?;
         }
         Ok(())
     }

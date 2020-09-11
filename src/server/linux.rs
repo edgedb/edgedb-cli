@@ -106,6 +106,13 @@ impl Instance for LocalInstance {
                 if admin { ".admin" } else { "" },
                 self.get_meta()?.port)))
     }
+    fn service_status(&self) -> anyhow::Result<()> {
+        process::exit_from(Command::new("systemctl")
+            .arg("--user")
+            .arg("status")
+            .arg(format!("edgedb-server@{}", self.name)))?;
+        Ok(())
+    }
     fn name(&self) -> &str {
         &self.name
     }
