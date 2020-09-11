@@ -282,6 +282,16 @@ jobs:
       run: |
         edgedb-pkg/integration/win/build.sh
 
+    - name: Set up VC tools environment
+      uses: elprans/gha-setup-vcpp-build-tools@v1
+
+    - name: Sign
+      uses: elprans/gha-win-code-sign@v1
+      with:
+        certificate: "${{ secrets.WIN_CODE_SIGNING_CERT }}"
+        certificate-password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
+        folder: artifacts/win-x86_64
+
     - uses: actions/upload-artifact@v1
       with:
         name: builds-win-x86_64
