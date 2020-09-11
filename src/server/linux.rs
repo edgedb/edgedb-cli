@@ -10,17 +10,19 @@ use serde::Serialize;
 
 use crate::platform::{Uid, get_current_uid};
 use crate::process;
+use crate::server::control::read_metadata;
 use crate::server::detect::Lazy;
 use crate::server::docker::DockerCandidate;
 use crate::server::init::{self, Storage};
 use crate::server::install::{operation, exit_codes, Operation};
+use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::StartConf;
+use crate::server::options::{StartConf, Start, Stop, Restart};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::{PackageCandidate, Package};
-use crate::server::{debian, ubuntu, centos};
-use crate::server::unix;
 use crate::server::status::{Service, Status};
+use crate::server::unix;
+use crate::server::{debian, ubuntu, centos};
 
 
 #[derive(Debug)]
@@ -40,9 +42,70 @@ pub struct Linux {
 pub struct LocalInstance {
     pub name: String,
     pub path: PathBuf,
+    metadata: Lazy<Metadata>,
+    slot: Lazy<String>,
+}
+
+impl LocalInstance {
+    fn get_meta(&self) -> anyhow::Result<&Metadata> {
+        self.metadata.get_or_try_init(|| read_metadata(&self.path))
+    }
+    fn get_slot(&self) -> anyhow::Result<&String> {
+        self.slot.get_or_try_init(|| {
+            match &self.get_meta()?.slot {
+                Some(s) => Ok(s.clone()),
+                None => anyhow::bail!("missing `slot` in metadata"),
+            }
+        })
+    }
+    fn run_command(&self) -> anyhow::Result<Command> {
+        let sock = self.get_socket(true)?;
+        let socket_dir = sock.parent().unwrap();
+        let mut cmd = Command::new(get_server_path(Some(self.get_slot()?)));
+        cmd.arg("--port").arg(self.get_meta()?.port.to_string());
+        cmd.arg("--data-dir").arg(&self.path);
+        cmd.arg("--runstate-dir").arg(&socket_dir);
+        Ok(cmd)
+    }
+
 }
 
 impl Instance for LocalInstance {
+    fn start(&self, options: &Start) -> anyhow::Result<()> {
+        if options.foreground {
+            process::run(&mut self.run_command()?)?;
+        } else {
+            process::run(Command::new("systemctl")
+                .arg("--user")
+                .arg("start")
+                .arg(format!("edgedb-server@{}", self.name)))?;
+        }
+        Ok(())
+    }
+    fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
+        process::run(Command::new("systemctl")
+            .arg("--user")
+            .arg("stop")
+            .arg(format!("edgedb-server@{}", self.name)))?;
+        Ok(())
+    }
+    fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
+        process::run(Command::new("systemctl")
+            .arg("--user")
+            .arg("restart")
+            .arg(format!("edgedb-server@{}", self.name)))?;
+        Ok(())
+    }
+    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
+        Ok(dirs::runtime_dir()
+            .unwrap_or_else(|| {
+                Path::new("/run/user").join(get_current_uid().to_string())
+            })
+            .join(format!("edgedb-{}", self.name))
+            .join(format!(".s.EDGEDB{}.{}",
+                if admin { ".admin" } else { "" },
+                self.get_meta()?.port)))
+    }
     fn name(&self) -> &str {
         &self.name
     }
@@ -341,6 +404,8 @@ pub fn all_instances<'x>() -> anyhow::Result<Vec<InstanceRef<'x>>> {
         .map(|(name, _)| LocalInstance {
             path: user_base.join(&name),
             name,
+            metadata: Lazy::lazy(),
+            slot: Lazy::lazy(),
         }.into_ref())
         .collect())
 }
@@ -351,6 +416,8 @@ pub fn get_instance<'x>(name: &str) -> anyhow::Result<InstanceRef<'x>> {
         Ok(LocalInstance {
             path: dir,
             name: name.to_owned(),
+            metadata: Lazy::lazy(),
+            slot: Lazy::lazy(),
         }.into_ref())
     } else {
         anyhow::bail!("Directory '{}' does not exists", dir.display());

@@ -456,7 +456,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg(image.tag.as_image_name());
         cmd.arg("edgedb-server");
         cmd.arg("--bootstrap-only");
-        cmd.arg("--bootstrap-commmand")
+        cmd.arg("--bootstrap-command")
             .arg(bootstrap_script(settings, &password));
         cmd.arg("--log-level=warn");
         cmd.arg("--data-dir")
@@ -489,8 +489,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             }
         }
 
+        cmd.arg("--name").arg(format!("edgedb_{}", settings.name));
         cmd.arg("--user=999:999");
-        cmd.arg("--group=999");
         cmd.arg(format!("--publish={0}:{0}", settings.port));
         cmd.arg("--mount")
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
@@ -498,7 +498,10 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("edgedb-server");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
+        cmd.arg("--runstate-dir")
+           .arg("/var/lib/edgedb/data/run");
         cmd.arg("--port").arg(settings.port.to_string());
+        cmd.arg("--bind-address=0.0.0.0");
         process::run(&mut cmd).with_context(|| {
             match settings.start_conf {
                 StartConf::Auto => {
