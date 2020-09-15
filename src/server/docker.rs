@@ -610,6 +610,15 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     fn name(&self) -> &str {
         &self.name
     }
+    fn get_version(&self) -> anyhow::Result<&MajorVersion> {
+        todo!();
+    }
+    fn get_port(&self) -> anyhow::Result<u16> {
+        todo!();
+    }
+    fn get_start_conf(&self) -> anyhow::Result<StartConf> {
+        todo!();
+    }
     fn get_status(&self) -> Status {
         use DataDirectory::*;
         use Service::*;

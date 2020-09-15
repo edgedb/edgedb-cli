@@ -9,7 +9,7 @@ use crate::server::distribution::{MajorVersion, DistributionRef};
 use crate::server::init::{self, Storage};
 use crate::server::install;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::{Start, Stop, Restart};
+use crate::server::options::{Start, Stop, Restart, StartConf};
 use crate::server::status::Status;
 use crate::server::version::Version;
 
@@ -27,6 +27,9 @@ pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
 
 pub trait Instance: fmt::Debug {
     fn name(&self) -> &str;
+    fn get_version(&self) -> anyhow::Result<&MajorVersion>;
+    fn get_port(&self) -> anyhow::Result<u16> { todo!(); }
+    fn get_start_conf(&self) -> anyhow::Result<StartConf> { todo!(); }
     fn get_status(&self) -> Status;
     fn start(&self, start: &Start) -> anyhow::Result<()>;
     fn stop(&self, stop: &Stop) -> anyhow::Result<()>;
@@ -118,6 +121,15 @@ impl PreciseVersion {
 impl InstanceRef<'_> {
     pub fn name(&self) -> &str {
         self.0.name()
+    }
+    pub fn get_version(&self) -> anyhow::Result<&MajorVersion> {
+        self.0.get_version()
+    }
+    pub fn get_port(&self) -> anyhow::Result<u16> {
+        self.0.get_port()
+    }
+    pub fn get_start_conf(&self) -> anyhow::Result<StartConf> {
+        self.0.get_start_conf()
     }
     pub fn get_status(&self) -> Status {
         self.0.get_status()

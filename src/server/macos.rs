@@ -376,6 +376,15 @@ impl Instance for LocalInstance {
     fn name(&self) -> &str {
         &self.name
     }
+    fn get_version(&self) -> anyhow::Result<&MajorVersion> {
+        Ok(&self.get_meta()?.version)
+    }
+    fn get_port(&self) -> anyhow::Result<u16> {
+        Ok(self.get_meta()?.port)
+    }
+    fn get_start_conf(&self) -> anyhow::Result<StartConf> {
+        Ok(self.get_meta()?.start_conf)
+    }
     fn get_status(&self) -> Status {
         let system = false;
         let service = launchctl_status(&self.name, system,

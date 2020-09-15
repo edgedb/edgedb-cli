@@ -17,8 +17,9 @@ use crate::server::detect::{self, VersionQuery};
 use crate::server::init::{init};
 use crate::server::install;
 use crate::server::metadata::Metadata;
+use crate::server::methods::Methods;
 use crate::server::options::{self, Upgrade};
-use crate::server::os_trait::Method;
+use crate::server::os_trait::{Method, InstanceRef};
 use crate::server::version::Version;
 use crate::server::is_valid_name;
 use crate::server::distribution::MajorVersion;
@@ -41,11 +42,8 @@ pub struct BackupMeta {
     pub timestamp: SystemTime,
 }
 
-struct Instance {
-    name: String,
-    meta: Metadata,
-    system: bool,
-    data_dir: PathBuf,
+struct Instance<'a> {
+    instance: InstanceRef<'a>,
     source: Option<Version<String>>,
     version: Option<Version<String>>,
 }
@@ -85,20 +83,6 @@ fn interpret_options(options: &Upgrade) -> ToDo {
     }
 }
 
-fn all_instances() -> anyhow::Result<Vec<Instance>> {
-    todo!();
-    /*
-    let path = data_path(false)?;
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    InstanceIterator {
-        dir: fs::read_dir(&path)?,
-        path: path.into(),
-    }.collect::<Result<Vec<_>,_>>()
-    */
-}
-
 fn read_metadata(path: &Path) -> anyhow::Result<Metadata> {
     let file = fs::read(path)
         .with_context(|| format!("error reading {}", path.display()))?;
@@ -107,88 +91,41 @@ fn read_metadata(path: &Path) -> anyhow::Result<Metadata> {
     Ok(metadata)
 }
 
-impl Iterator for InstanceIterator {
-    type Item = anyhow::Result<Instance>;
-    fn next(&mut self) -> Option<Self::Item> {
-        while let Some(item) = self.dir.next() {
-            match self.read_item(item).transpose() {
-                None => continue,
-                val => return val,
-            }
-        }
-        return None;
-    }
-}
-
-impl InstanceIterator {
-    fn read_item(&self, item: Result<fs::DirEntry, io::Error>)
-        -> anyhow::Result<Option<Instance>>
-    {
-        let item = item.with_context(
-            || format!("error listing instances dir {}",
-                       self.path.display()))?;
-        if !item.file_type()
-            .with_context(|| format!(
-                "error listing {}: cannot determine entry type",
-                self.path.display()))?
-            .is_dir()
-        {
-            return Ok(None);
-        }
-        if let Some(name) = item.file_name().to_str() {
-            if !is_valid_name(name) {
-                return Ok(None);
-            }
-            let meta = match
-                read_metadata(&item.path().join("metadata.json"))
-            {
-                Ok(metadata) => metadata,
-                Err(e) => {
-                    log::warn!(target: "edgedb::server::upgrade",
-                        "Error reading metadata for \
-                        instance {:?}: {:#}. Skipping...",
-                        name, e);
-                    return Ok(None);
-                }
-            };
-            return Ok(Some(Instance {
-                    name: name.into(),
-                    meta,
-                    system: false,
-                    data_dir: item.path(),
-                    source: None,
-                    version: None,
-            }));
-        } else {
-            return Ok(None);
-        }
-    }
-}
-
-fn get_instances(todo: &ToDo)
-    -> anyhow::Result<Vec<Instance>>
+fn get_instances<'x>(todo: &ToDo, methods: &'x Methods)
+    -> anyhow::Result<Vec<(&'x dyn Method, Vec<Instance<'x>>)>>
 {
     use ToDo::*;
-
-    let instances = match todo {
-        MinorUpgrade => all_instances()?.into_iter()
-            .filter(|inst| !inst.meta.version.is_nightly())
-            .collect(),
-        NightlyUpgrade => all_instances()?.into_iter()
-            .filter(|inst| inst.meta.version.is_nightly())
-            .collect(),
-        InstanceUpgrade(name, ..) => all_instances()?.into_iter()
-            .filter(|inst| &inst.name == name)
-            .collect(),
-    };
-    Ok(instances)
+    let mut result = Vec::new();
+    for meth in methods.values() {
+        let mut chunk = Vec::new();
+        for instance in meth.all_instances()?.into_iter() {
+            let include = match todo {
+                MinorUpgrade => !instance.get_version()?.is_nightly(),
+                NightlyUpgrade => instance.get_version()?.is_nightly(),
+                InstanceUpgrade(name, ..) => instance.name() == name,
+            };
+            if include {
+                chunk.push(Instance {
+                    instance,
+                    source: None,
+                    version: None,
+                });
+            }
+        }
+        if !chunk.is_empty() {
+            result.push((&**meth, chunk));
+        }
+    }
+    Ok(result)
 }
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     use ToDo::*;
+    let os = detect::current_os()?;
+    let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
 
     let todo = interpret_options(&options);
-    let instances = get_instances(&todo)?;
+    let instances = get_instances(&todo, &methods)?;
     if instances.is_empty() {
         if options.nightly {
             log::warn!(target: "edgedb::server::upgrade",
@@ -201,40 +138,18 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
         }
         return Ok(());
     }
-    let mut by_method = BTreeMap::new();
-    for instance in instances {
-        by_method.entry(instance.meta.method.clone())
-            .or_insert_with(Vec::new)
-            .push(instance);
-    }
 
-    let os = detect::current_os()?;
-    let avail = os.get_available_methods()?;
-    for (meth_name, instances) in by_method {
-        if !avail.is_supported(&meth_name) {
-            log::warn!(target: "edgedb::server::upgrade",
-                "method {} is not available. \
-                Instances using it {}. Skipping...",
-                meth_name.title(),
-                instances
-                    .iter()
-                    .map(|inst| &inst.name[..])
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            );
-            continue;
-        }
-        let method = os.make_method(&meth_name, &avail)?;
+    for (meth, instances) in instances {
         match todo {
             MinorUpgrade => {
-                do_minor_upgrade(&*method, instances, options)?;
+                do_minor_upgrade(meth, instances, options)?;
             }
             NightlyUpgrade => {
-                do_nightly_upgrade(&*method, instances, options)?;
+                do_nightly_upgrade(meth, instances, options)?;
             }
             InstanceUpgrade(.., ref version) => {
                 for inst in instances {
-                    do_instance_upgrade(&*method, inst, version, options)?;
+                    do_instance_upgrade(meth, inst, version, options)?;
                 }
             }
         }
@@ -248,13 +163,13 @@ fn do_minor_upgrade(method: &dyn Method,
 {
     let mut by_major = BTreeMap::new();
     for inst in instances {
-        by_major.entry(inst.meta.version.clone())
+        by_major.entry(inst.instance.get_version()?.clone())
             .or_insert_with(Vec::new)
             .push(inst);
     }
     for (version, mut instances) in by_major {
         let instances_str = instances
-            .iter().map(|inst| &inst.name[..]).collect::<Vec<_>>().join(", ");
+            .iter().map(|inst| inst.name()).collect::<Vec<_>>().join(", ");
 
         let version_query = version.to_query();
         let new = method.get_version(&version_query)
@@ -285,11 +200,10 @@ fn do_minor_upgrade(method: &dyn Method,
         // the pacakge. On other systems, this is also useful as in-place
         // modifying the running package isn't very good idea.
         for inst in &mut instances {
-            let mut ctl = inst.get_control()?;
-            ctl.stop(&options::Stop { name: inst.name.clone() })
+            inst.instance.stop(&options::Stop { name: inst.name().into() })
                 .map_err(|e| {
                     log::warn!("Failed to stop instance {:?}: {:#}",
-                        inst.name, e);
+                        inst.name(), e);
                 })
                 .ok();
         }
@@ -302,9 +216,8 @@ fn do_minor_upgrade(method: &dyn Method,
         })?;
 
         for inst in &instances {
-            let mut ctl = inst.get_control()?;
-            ctl.start(&options::Start {
-                name: inst.name.clone(),
+            inst.instance.start(&options::Start {
+                name: inst.name().into(),
                 foreground: false,
             })?;
         }
@@ -312,14 +225,14 @@ fn do_minor_upgrade(method: &dyn Method,
     Ok(())
 }
 
-async fn dump_instance(inst: &Instance, socket: &Path)
+async fn dump_instance(inst: &Instance<'_>, socket: &Path)
     -> anyhow::Result<()>
 {
     todo!();
     /*
     log::info!(target: "edgedb::server::upgrade",
-        "Dumping instance {:?}", inst.name);
-    let path = data_path(false)?.join(format!("{}.dump", inst.name));
+        "Dumping instance {:?}", inst.name());
+    let path = data_path(false)?.join(format!("{}.dump", inst.name()));
     if path.exists() {
         log::info!(target: "edgedb::server::upgrade",
             "Removing old dump at {}", path.display());
@@ -341,14 +254,16 @@ async fn dump_instance(inst: &Instance, socket: &Path)
     */
 }
 
-async fn restore_instance(inst: &Instance, socket: &Path)
+async fn restore_instance(inst: &Instance<'_>, socket: &Path)
     -> anyhow::Result<()>
 {
+    todo!();
+    /*
     use crate::commands::parser::Restore;
 
     log::info!(target: "edgedb::server::upgrade",
-        "Restoring instance {:?}", inst.name);
-    let path = inst.data_dir.with_file_name(format!("{}.dump", inst.name));
+        "Restoring instance {:?}", inst.name());
+    let path = inst.data_dir.with_file_name(format!("{}.dump", inst.name()));
     let mut conn_params = client::Builder::new();
     conn_params.user("edgedb");
     conn_params.database("edgedb");
@@ -367,6 +282,7 @@ async fn restore_instance(inst: &Instance, socket: &Path)
         verbose: false,
     }).await?;
     Ok(())
+    */
 }
 
 fn do_nightly_upgrade(method: &dyn Method,
@@ -374,7 +290,7 @@ fn do_nightly_upgrade(method: &dyn Method,
     -> anyhow::Result<()>
 {
     let instances_str = instances
-        .iter().map(|inst| &inst.name[..]).collect::<Vec<_>>().join(", ");
+        .iter().map(|inst| inst.name()).collect::<Vec<_>>().join(", ");
 
     let version_query = VersionQuery::Nightly;
     let new = method.get_version(&version_query)
@@ -414,27 +330,31 @@ fn do_nightly_upgrade(method: &dyn Method,
     Ok(())
 }
 
-#[context("failed to dump {:?}", inst.name)]
+#[context("failed to dump {:?}", inst.name())]
 fn dump_and_stop(inst: &Instance) -> anyhow::Result<()> {
-    let mut ctl = inst.get_control()?;
     // in case not started for now
     log::info!(target: "edgedb::server::upgrade",
         "Ensuring instance is started");
-    ctl.start(&options::Start { name: inst.name.clone(), foreground: false })?;
-    task::block_on(dump_instance(inst, &ctl.get_socket(true)?))?;
+    inst.instance.start(&options::Start {
+        name: inst.name().into(),
+        foreground: false,
+    })?;
+    task::block_on(dump_instance(inst, &inst.instance.get_socket(true)?))?;
     log::info!(target: "edgedb::server::upgrade",
         "Stopping the instance before package upgrade");
-    ctl.stop(&options::Stop { name: inst.name.clone() })?;
+    inst.instance.stop(&options::Stop { name: inst.name().into() })?;
     Ok(())
 }
 
-#[context("failed to restore {:?}", inst.name)]
+#[context("failed to restore {:?}", inst.name())]
 fn reinit_and_restore(inst: &Instance, version: &MajorVersion,
     method: &dyn Method)
     -> anyhow::Result<()>
 {
+    todo!();
+    /*
     let base = inst.data_dir.parent().unwrap();
-    let backup = base.join(&format!("{}.backup", &inst.name));
+    let backup = base.join(&format!("{}.backup", inst.name()));
     fs::rename(&inst.data_dir, &backup)?;
     write_backup_meta(&backup.join("backup.json"), &BackupMeta {
         timestamp: SystemTime::now(),
@@ -442,14 +362,14 @@ fn reinit_and_restore(inst: &Instance, version: &MajorVersion,
 
     let meta = inst.upgrade_meta();
     init(&options::Init {
-        name: inst.name.clone(),
-        system: inst.system,
+        name: inst.name().into(),
+        system: false,
         interactive: false,
         nightly: version.is_nightly(),
         version: version.as_stable().cloned(),
         method: Some(method.name()),
-        port: Some(inst.meta.port),
-        start_conf: inst.meta.start_conf,
+        port: Some(inst.instance.get_port()?),
+        start_conf: inst.instance.get_start_conf()?,
         inhibit_user_creation: true,
         inhibit_start: true,
         upgrade_marker: Some(serde_json::to_string(&meta).unwrap()),
@@ -470,11 +390,12 @@ fn reinit_and_restore(inst: &Instance, version: &MajorVersion,
     task::block_on(restore_instance(inst, &ctl.get_socket(true)?))?;
     log::info!(target: "edgedb::server::upgrade",
         "Restarting instance {:?} to apply changes from `restore --all`",
-        &inst.name);
+        &inst.name());
     drop(child);
 
-    ctl.start(&options::Start { name: inst.name.clone(), foreground: false })?;
+    ctl.start(&options::Start { name: inst.name().into(), foreground: false })?;
     Ok(())
+    */
 }
 
 fn get_installed(version: &VersionQuery, method: &dyn Method)
@@ -502,7 +423,7 @@ fn do_instance_upgrade(method: &dyn Method,
             if old_ver >= &new.version() {
                 log::info!(target: "edgedb::server::upgrade",
                     "Version {} is up to date {}, skipping instance: {}",
-                    version, old_ver, inst.name);
+                    version, old_ver, inst.name());
                 return Ok(());
             }
         }
@@ -532,10 +453,9 @@ fn write_backup_meta(path: &Path, metadata: &BackupMeta)
     Ok(())
 }
 
-impl Instance {
-    fn get_control(&self) -> anyhow::Result<Box<dyn control::Instance>> {
-        control::get_instance_from_metadata(
-            &self.name, self.system, &self.meta)
+impl Instance<'_> {
+    fn name(&self) -> &str {
+        self.instance.name()
     }
     fn upgrade_meta(&self) -> UpgradeMeta {
         UpgradeMeta {

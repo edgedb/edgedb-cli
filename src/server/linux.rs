@@ -12,6 +12,7 @@ use crate::platform::{Uid, get_current_uid};
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::detect::Lazy;
+use crate::server::distribution::{MajorVersion};
 use crate::server::docker::DockerCandidate;
 use crate::server::init::{self, Storage};
 use crate::server::install::{operation, exit_codes, Operation};
@@ -71,6 +72,15 @@ impl LocalInstance {
 }
 
 impl Instance for LocalInstance {
+    fn get_version(&self) -> anyhow::Result<&MajorVersion> {
+        Ok(&self.get_meta()?.version)
+    }
+    fn get_port(&self) -> anyhow::Result<u16> {
+        Ok(self.get_meta()?.port)
+    }
+    fn get_start_conf(&self) -> anyhow::Result<StartConf> {
+        Ok(self.get_meta()?.start_conf)
+    }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
             process::run(&mut self.run_command()?)?;
