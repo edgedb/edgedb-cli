@@ -28,8 +28,8 @@ pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
 pub trait Instance: fmt::Debug {
     fn name(&self) -> &str;
     fn get_version(&self) -> anyhow::Result<&MajorVersion>;
-    fn get_port(&self) -> anyhow::Result<u16> { todo!(); }
-    fn get_start_conf(&self) -> anyhow::Result<StartConf> { todo!(); }
+    fn get_port(&self) -> anyhow::Result<u16>;
+    fn get_start_conf(&self) -> anyhow::Result<StartConf>;
     fn get_status(&self) -> Status;
     fn start(&self, start: &Start) -> anyhow::Result<()>;
     fn stop(&self, stop: &Stop) -> anyhow::Result<()>;

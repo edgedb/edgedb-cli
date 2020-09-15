@@ -86,15 +86,25 @@ pub struct ContainerState {
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code, non_snake_case)]
-pub struct EdgedbLabels {
+pub struct ContainerLabels {
     #[serde(rename="com.edgedb.upgrade-in-progress")]
     upgrading: Option<String>,
+    #[serde(rename="com.edgedb.metadata.user")]
+    user: Option<String>,
+    #[serde(rename="com.edgedb.metadata.port")]
+    port: Option<u16>,
+    #[serde(rename="com.edgedb.metadata.version")]
+    version: Option<MajorVersion>,
+    #[serde(rename="com.edgedb.metadata.current-version")]
+    current_version: Option<Version<String>>,
+    #[serde(rename="com.edgedb.metadata.start-conf")]
+    start_conf: Option<StartConf>,
 }
 
 #[derive(Debug, Deserialize)]
 #[allow(dead_code, non_snake_case)]
 pub struct ContainerConfig {
-    Labels: EdgedbLabels,
+    Labels: Option<ContainerLabels>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,6 +140,8 @@ pub struct DockerVolume {
 pub struct DockerInstance<'a, O: CurrentOs + ?Sized> {
     method: &'a DockerMethod<'a, O>,
     name: String,
+    container: Lazy<Option<Container>>,
+    metadata: Lazy<Metadata>,
 }
 
 impl Tag {
@@ -444,22 +456,27 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         if let Some(upgrade_marker) = &settings.upgrade_marker {
             todo!();
         }
+        let user = whoami::username();
         let md = serde_json::to_string(&settings.metadata())?;
         process::get_text(Command::new(&self.cli)
             .arg("volume")
             .arg("create")
             .arg(volume)
-            .arg("--label")
-            .arg(format!("com.edgedb.metadata={}", md)))?;
+            .arg(format!("--label=com.edgedb.metadata.user={}", user)))?;
 
         process::run(Command::new(&self.cli)
             .arg("run")
             .arg("--rm")
             .arg("--mount").arg(format!("source={},target=/mnt", volume))
             .arg(image.tag.as_image_name())
-            .arg("chown")
-            .arg("999:999")
-            .arg("/mnt"))?;
+            .arg("sh")
+            .arg("-c")
+            .arg(format!(r###"
+                    echo {} > /mnt/metadata.json
+                    chown -R 999:999 /mnt
+                "###,
+                shell_words::quote(&md))
+            ))?;
 
         let password = generate_password();
         let mut cmd = Command::new(&self.cli);
@@ -509,6 +526,16 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg(format!("--publish={0}:{0}", settings.port));
         cmd.arg("--mount")
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
+        cmd.arg(format!("--label=com.edgedb.metadata.user={}",
+                        whoami::username()));
+        cmd.arg(format!("--label=com.edgedb.metadata.version={}",
+                        settings.distribution.major_version().title()));
+        cmd.arg(format!("--label=com.edgedb.metadata.current-version={}",
+                        settings.version));
+        cmd.arg(format!("--label=com.edgedb.metadata.port={}",
+                        settings.port));
+        cmd.arg(format!("--label=com.edgedb.metadata.start-conf={}",
+                        settings.start_conf));
         cmd.arg(image.tag.as_image_name());
         cmd.arg("edgedb-server");
         cmd.arg("--data-dir")
@@ -536,7 +563,9 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         let output = process::get_text(Command::new(&self.cli)
             .arg("volume")
             .arg("list")
-            .arg("--filter").arg("label=com.edgedb.metadata")
+            .arg("--filter")
+            .arg(format!("label=com.edgedb.metadata.user={}",
+                          whoami::username()))
             .arg("--format").arg("{{.Name}}"))?;
         let mut result = Vec::new();
         for volume in output.lines() {
@@ -544,6 +573,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 result.push(DockerInstance {
                     name: name.into(),
                     method: self,
+                    container: Lazy::lazy(),
+                    metadata: Lazy::lazy(),
                 }.into_ref());
             }
         }
@@ -563,6 +594,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 Ok(DockerInstance {
                     name: name.into(),
                     method: self,
+                    container: Lazy::lazy(),
+                    metadata: Lazy::lazy(),
                 }.into_ref())
             }
             None => anyhow::bail!("No docker volume {:?} found", volume),
@@ -604,6 +637,29 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
             }
         }
     }
+    fn get_meta(&self) -> anyhow::Result<&Metadata> {
+        self.metadata.get_or_try_init(|| {
+            let volume_name = format!("edgedb_{}", self.name);
+            let data = process::get_text(Command::new(&self.method.cli)
+                .arg("run")
+                .arg("--rm")
+                .arg("--mount")
+                    .arg(format!("source={},target=/mnt", volume_name))
+                .arg("busybox")
+                .arg("cat")
+                .arg(format!("/mnt/{}/metadata.json", self.name)))?;
+            Ok(serde_json::from_str(&data)?)
+        })
+    }
+    fn get_container(&self) -> anyhow::Result<&Option<Container>> {
+        self.container.get_or_try_init(|| {
+            self.method.inspect_container(&format!("edgedb_{}", self.name))
+        })
+    }
+    fn get_labels(&self) -> anyhow::Result<Option<&ContainerLabels>> {
+        Ok(self.get_container()?.as_ref()
+            .and_then(|c| c.Config.Labels.as_ref()))
+    }
 }
 
 impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
@@ -611,13 +667,28 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         &self.name
     }
     fn get_version(&self) -> anyhow::Result<&MajorVersion> {
-        todo!();
+        if let Some(ver) = self.get_labels()?
+            .and_then(|labels| labels.version.as_ref())
+        {
+            return Ok(ver)
+        }
+        Ok(&self.get_meta()?.version)
     }
     fn get_port(&self) -> anyhow::Result<u16> {
-        todo!();
+        if let Some(port) = self.get_labels()?
+            .and_then(|labels| labels.port.as_ref())
+        {
+            return Ok(*port)
+        }
+        Ok(self.get_meta()?.port)
     }
     fn get_start_conf(&self) -> anyhow::Result<StartConf> {
-        todo!();
+        if let Some(start_conf) = self.get_labels()?
+            .and_then(|labels| labels.start_conf.as_ref())
+        {
+            return Ok(*start_conf)
+        }
+        Ok(self.get_meta()?.start_conf)
     }
     fn get_status(&self) -> Status {
         use DataDirectory::*;
@@ -647,8 +718,8 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         };
         let data_status = match self.method.inspect_container(&up_container) {
             Ok(Some(c)) => {
-                Upgrading(c.Config.Labels.upgrading
-                    .as_ref()
+                Upgrading(c.Config.Labels.as_ref()
+                    .and_then(|x| x.upgrading.as_ref())
                     .ok_or_else(|| anyhow::anyhow!("no upgrade metadata"))
                     .and_then(|s| {
                         Ok(serde_json::from_str(s)
@@ -737,6 +808,8 @@ impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {
         let DockerInstance {
             name,
             method: _method,
+            metadata: _,
+            container: _,
         } = self;
         f.debug_struct("DockerInstance")
             .field("name", name)
