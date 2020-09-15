@@ -36,6 +36,7 @@ unicode-segmentation = "1.6.0"
 typemap = "0.3.3"
 serde = "1.0"
 serde_json = "1.0"
+serde_str = {git="https://github.com/tailhook/serde-str", rev="5310c8d"}
 dirs = "2.0.2"
 uuid = "0.8.1"
 prettytable-rs = {version="0.8.0", default-features=false}

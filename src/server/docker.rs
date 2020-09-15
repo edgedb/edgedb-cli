@@ -91,13 +91,13 @@ pub struct ContainerLabels {
     upgrading: Option<String>,
     #[serde(rename="com.edgedb.metadata.user")]
     user: Option<String>,
-    #[serde(rename="com.edgedb.metadata.port")]
+    #[serde(rename="com.edgedb.metadata.port", with="serde_str::opt")]
     port: Option<u16>,
     #[serde(rename="com.edgedb.metadata.version")]
     version: Option<MajorVersion>,
     #[serde(rename="com.edgedb.metadata.current-version")]
     current_version: Option<Version<String>>,
-    #[serde(rename="com.edgedb.metadata.start-conf")]
+    #[serde(rename="com.edgedb.metadata.start-conf", with="serde_str::opt")]
     start_conf: Option<StartConf>,
 }
 
@@ -605,15 +605,14 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
 
 impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
     fn get_metadata(&self) -> anyhow::Result<Metadata> {
-        let volume_name = format!("edgedb_{}", self.name);
-        let data = process::get_text(Command::new(&self.method.cli)
-            .arg("run")
-            .arg("--rm")
-            .arg("--mount").arg(format!("source={},target=/mnt", volume_name))
-            .arg("busybox")
-            .arg("cat")
-            .arg(format!("/mnt/{}/metadata.json", self.name)))?;
-        Ok(serde_json::from_str(&data)?)
+        Ok(Metadata {
+            version: self.get_version()?.clone(),
+            slot: None,
+            current_version: None, // TODO
+            method: InstallMethod::Docker,
+            port: self.get_port()?,
+            start_conf: self.get_start_conf()?,
+        })
     }
     fn get_backup(&self) -> BackupStatus {
         let volume_name = format!("edgedb_{}", self.name);
@@ -698,18 +697,17 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         let storage = Storage::DockerVolume(container_name.clone());
         let volume_exists = self.method.storage_exists(&storage)
             .unwrap_or(false);
-        let (service, service_exists) =
-            match self.method.inspect_container(&container_name) {
-                Ok(Some(info)) => {
-                    if info.State.Running {
-                        (Running { pid: info.State.Pid }, true)
-                    } else {
-                        (Failed { exit_code: Some(info.State.ExitCode) }, true)
-                    }
+        let (service, service_exists) = match self.get_container() {
+            Ok(Some(info)) => {
+                if info.State.Running {
+                    (Running { pid: info.State.Pid }, true)
+                } else {
+                    (Failed { exit_code: Some(info.State.ExitCode) }, true)
                 }
-                Ok(None) => (Inactive { error: "Not found".into() }, false),
-                Err(e) => (Inactive { error: e.to_string() }, false),
-            };
+            }
+            Ok(None) => (Inactive { error: "Not found".into() }, false),
+            Err(e) => (Inactive { error: e.to_string() }, false),
+        };
         let up_container = format!("edgedb_upgrade_{}", self.name);
         let metadata = if volume_exists {
             self.get_metadata()

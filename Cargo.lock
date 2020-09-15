@@ -667,6 +667,7 @@ dependencies = [
  "scram",
  "serde",
  "serde_json",
+ "serde_str",
  "sha1",
  "sha2",
  "shell-words",
@@ -2056,6 +2057,14 @@ checksum = "993948e75b189211a9b31a7528f950c6adc21f9720b6438ff80a7fa2f864cea2"
 dependencies = [
  "itoa",
  "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serde_str"
+version = "1.0.0"
+source = "git+https://github.com/tailhook/serde-str?rev=5310c8d#5310c8df4416ff3192c2c13c14e227f834465b1e"
+dependencies = [
  "serde",
 ]
 
