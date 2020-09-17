@@ -13,6 +13,19 @@ pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
     }
 }
 
+pub fn run_or_stderr(cmd: &mut Command) -> anyhow::Result<Result<(), String>> {
+    match cmd.output() {
+        Ok(child) if child.status.success() => Ok(Ok(())),
+        Ok(out) => {
+            Ok(Err(String::from_utf8(out.stderr)
+                .with_context(|| {
+                    format!("can decode error output of {:?}", cmd)
+                })?))
+        }
+        Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd)),
+    }
+}
+
 pub fn exit_from(cmd: &mut Command) -> anyhow::Result<()> {
     match cmd.status() {
         Ok(s) if s.code().is_some() => exit(s.code().unwrap()),
@@ -31,7 +44,7 @@ pub fn get_text(cmd: &mut Command) -> anyhow::Result<String> {
         .with_context(|| format!("can decode output of {:?}", cmd))
 }
 
-pub fn get_json_or_failure<T: DeserializeOwned>(cmd: &mut Command)
+pub fn get_json_or_stderr<T: DeserializeOwned>(cmd: &mut Command)
     -> anyhow::Result<Result<T, String>>
 {
     match cmd.output() {

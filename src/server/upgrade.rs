@@ -48,7 +48,7 @@ struct Instance<'a> {
     version: Option<Version<String>>,
 }
 
-enum ToDo {
+pub enum ToDo {
     MinorUpgrade,
     InstanceUpgrade(String, VersionQuery),
     NightlyUpgrade,
@@ -120,11 +120,18 @@ fn get_instances<'x>(todo: &ToDo, methods: &'x Methods)
 }
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
-    use ToDo::*;
+    let todo = interpret_options(&options);
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
 
-    let todo = interpret_options(&options);
+    for meth in methods.values() {
+        meth.upgrade(&todo, options)?;
+    }
+    Ok(())
+}
+
+/*
+
     let instances = get_instances(&todo, &methods)?;
     if instances.is_empty() {
         if options.nightly {
@@ -156,74 +163,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     }
     Ok(())
 }
-
-fn do_minor_upgrade(method: &dyn Method,
-    instances: Vec<Instance>, options: &Upgrade)
-    -> anyhow::Result<()>
-{
-    let mut by_major = BTreeMap::new();
-    for inst in instances {
-        by_major.entry(inst.instance.get_version()?.clone())
-            .or_insert_with(Vec::new)
-            .push(inst);
-    }
-    for (version, mut instances) in by_major {
-        let instances_str = instances
-            .iter().map(|inst| inst.name()).collect::<Vec<_>>().join(", ");
-
-        let version_query = version.to_query();
-        let new = method.get_version(&version_query)
-            .context("Unable to determine version")?;
-        let old = get_installed(&version_query, method)?;
-
-        if !options.force {
-            if let Some(old_ver) = &old {
-                if old_ver >= new.version() {
-                    log::info!(target: "edgedb::server::upgrade",
-                        "Version {} is up to date {}, skipping instances: {}",
-                        version.title(), old_ver, instances_str);
-                    return Ok(());
-                }
-            }
-        }
-
-        println!("Upgrading version: {} to {}, instances: {}",
-            version.title(), new.version(), instances_str);
-        for inst in &mut instances {
-            inst.source = old.clone();
-            inst.version = Some(new.version().clone());
-        }
-
-        // Stop instances first.
-        //
-        // This (launchctl unload) is required for MacOS to reinstall
-        // the pacakge. On other systems, this is also useful as in-place
-        // modifying the running package isn't very good idea.
-        for inst in &mut instances {
-            inst.instance.stop(&options::Stop { name: inst.name().into() })
-                .map_err(|e| {
-                    log::warn!("Failed to stop instance {:?}: {:#}",
-                        inst.name(), e);
-                })
-                .ok();
-        }
-
-        log::info!(target: "edgedb::server::upgrade", "Upgrading the package");
-        method.install(&install::Settings {
-            method: method.name(),
-            distribution: new,
-            extra: LinkedHashMap::new(),
-        })?;
-
-        for inst in &instances {
-            inst.instance.start(&options::Start {
-                name: inst.name().into(),
-                foreground: false,
-            })?;
-        }
-    }
-    Ok(())
-}
+*/
 
 async fn dump_instance(inst: &Instance<'_>, socket: &Path)
     -> anyhow::Result<()>
@@ -398,7 +338,7 @@ fn reinit_and_restore(inst: &Instance, version: &MajorVersion,
     */
 }
 
-fn get_installed(version: &VersionQuery, method: &dyn Method)
+pub fn get_installed(version: &VersionQuery, method: &dyn Method)
     -> anyhow::Result<Option<Version<String>>>
 {
     for ver in method.installed_versions()? {

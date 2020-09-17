@@ -12,8 +12,10 @@ use crate::server::install;
 use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
+use crate::server::options::{Upgrade};
 use crate::server::package::{self, PackageMethod, Package};
 use crate::server::unix;
+use crate::server::upgrade;
 
 
 #[derive(Debug, Serialize)]
@@ -117,5 +119,10 @@ impl<'os> Method for PackageMethod<'os, Debian> {
         -> anyhow::Result<InstanceRef<'x>>
     {
         linux::get_instance(name)
+    }
+    fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
+        -> anyhow::Result<()>
+    {
+        unix::upgrade(todo, options, self)
     }
 }

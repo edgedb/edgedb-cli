@@ -1,9 +1,10 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, BTreeMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::Context;
+use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
 
 use crate::platform::ProcessGuard;
@@ -11,15 +12,17 @@ use crate::platform::home_dir;
 use crate::server::control::read_metadata;
 use crate::server::control;
 use crate::server::init::{self, read_ports, init_credentials, Storage};
+use crate::server::install;
 use crate::server::is_valid_name;
 use crate::server::linux;
 use crate::server::macos;
 use crate::server::metadata::Metadata;
-use crate::server::options::{Start, StartConf};
-use crate::server::os_trait::{Method};
+use crate::server::options::{self, Start, Upgrade, StartConf};
+use crate::server::os_trait::{Method, Instance};
 use crate::server::package::Package;
 use crate::server::status::{Service, Status, DataDirectory};
 use crate::server::status::{read_upgrade, backup_status, probe_port};
+use crate::server::upgrade;
 
 
 pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
@@ -209,4 +212,93 @@ pub fn base_data_dir() -> anyhow::Result<PathBuf> {
     Ok(dirs::data_dir()
         .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
         .join("edgedb").join("data"))
+}
+
+pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &Method)
+    -> anyhow::Result<()>
+{
+    use upgrade::ToDo::*;
+
+    match todo {
+        MinorUpgrade => {
+            do_minor_upgrade(meth, options)?;
+        }
+        NightlyUpgrade => {
+            todo!();
+            //do_nightly_upgrade(meth, instances, options)?;
+        }
+        InstanceUpgrade(.., ref version) => {
+            todo!();
+            //for inst in instances {
+            //    do_instance_upgrade(meth, inst, version, options)?;
+            //}
+        }
+    }
+    Ok(())
+}
+
+fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
+    -> anyhow::Result<()>
+{
+    let mut by_major = BTreeMap::new();
+    for inst in method.all_instances()? {
+        if inst.get_version()?.is_nightly() {
+            continue;
+        }
+        by_major.entry(inst.get_version()?.clone())
+            .or_insert_with(Vec::new)
+            .push(inst);
+    }
+    for (version, mut instances) in by_major {
+        let instances_str = instances
+            .iter().map(|inst| inst.name()).collect::<Vec<_>>().join(", ");
+
+        let version_query = version.to_query();
+        let new = method.get_version(&version_query)
+            .context("Unable to determine version")?;
+        let old = upgrade::get_installed(&version_query, method)?;
+
+        if !options.force {
+            if let Some(old_ver) = &old {
+                if old_ver >= new.version() {
+                    log::info!(target: "edgedb::server::upgrade",
+                        "Version {} is up to date {}, skipping instances: {}",
+                        version.title(), old_ver, instances_str);
+                    return Ok(());
+                }
+            }
+        }
+
+        log::info!("Upgrading version: {} to {}, instances: {}",
+            version.title(), new.version(), instances_str);
+
+        // Stop instances first.
+        //
+        // This (launchctl unload) is required for MacOS to reinstall
+        // the pacakge. On other systems, this is also useful as in-place
+        // modifying the running package isn't very good idea.
+        for inst in &mut instances {
+            inst.stop(&options::Stop { name: inst.name().into() })
+                .map_err(|e| {
+                    log::warn!("Failed to stop instance {:?}: {:#}",
+                        inst.name(), e);
+                })
+                .ok();
+        }
+
+        log::info!(target: "edgedb::server::upgrade", "Upgrading the package");
+        method.install(&install::Settings {
+            method: method.name(),
+            distribution: new,
+            extra: LinkedHashMap::new(),
+        })?;
+
+        for inst in &instances {
+            inst.start(&options::Start {
+                name: inst.name().into(),
+                foreground: false,
+            })?;
+        }
+    }
+    Ok(())
 }

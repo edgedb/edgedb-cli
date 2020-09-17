@@ -11,22 +11,23 @@ use once_cell::unsync::OnceCell;
 
 use crate::platform::{Uid, get_current_uid, home_dir};
 use crate::process;
+use crate::server::control::read_metadata;
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
-use crate::server::control::read_metadata;
 use crate::server::init::{self, Storage};
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
+use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::{StartConf, Start, Stop, Restart};
+use crate::server::options::{StartConf, Start, Stop, Restart, Upgrade};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::{PackageMethod, Package};
 use crate::server::package::{self, PackageCandidate, RepositoryInfo};
 use crate::server::remote;
-use crate::server::unix;
-use crate::server::version::Version;
 use crate::server::status::{Service, Status};
-use crate::server::metadata::Metadata;
+use crate::server::unix;
+use crate::server::upgrade;
+use crate::server::version::Version;
 
 
 #[derive(Debug, Serialize)]
@@ -339,6 +340,11 @@ impl<'os> Method for PackageMethod<'os, Macos> {
         } else {
             anyhow::bail!("Directory '{}' does not exists", dir.display());
         }
+    }
+    fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
+        -> anyhow::Result<()>
+    {
+        unix::upgrade(todo, options, self)
     }
 }
 

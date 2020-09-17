@@ -16,12 +16,13 @@ use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::init::{self, read_ports, Storage};
 use crate::server::init::{bootstrap_script, save_credentials};
 use crate::server::install;
-use crate::server::options::{StartConf, Start, Stop, Restart};
+use crate::server::options::{StartConf, Start, Stop, Restart, Upgrade};
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::remote;
 use crate::server::unix;
+use crate::server::upgrade;
 use crate::server::version::Version;
 use crate::server::status::{Service, Status, DataDirectory, BackupStatus};
 use crate::server::status::{probe_port};
@@ -137,6 +138,14 @@ pub struct DockerVolume {
     // extra fields are allowed
 }
 
+#[derive(Debug)]
+pub struct Create<'a> {
+    name: &'a str,
+    image: &'a Image,
+    port: u16,
+    start_conf: StartConf,
+}
+
 pub struct DockerInstance<'a, O: CurrentOs + ?Sized> {
     method: &'a DockerMethod<'a, O>,
     name: String,
@@ -153,7 +162,7 @@ impl Tag {
             _ => false,
         }
     }
-    pub fn into_distr(self) -> DistributionRef {
+    fn into_image(self) -> Image {
         match &self {
             Tag::Stable(v, rev) => Image {
                 major_version: MajorVersion::Stable(Version(v.clone())),
@@ -165,7 +174,10 @@ impl Tag {
                 version: Version(v.clone()),
                 tag: self,
             },
-        }.into_ref()
+        }
+    }
+    pub fn into_distr(self) -> DistributionRef {
+        self.into_image().into_ref()
     }
     pub fn as_image_name(&self) -> String {
         format!("edgedb/edgedb:{}", match &self {
@@ -298,7 +310,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         cmd.arg("container");
         cmd.arg("inspect");
         cmd.arg(name);
-        match process::get_json_or_failure::<Vec<_>>(&mut cmd)? {
+        match process::get_json_or_stderr::<Vec<_>>(&mut cmd)? {
             Ok(containers) => Ok(containers.into_iter().next()),
             Err(e) => {
                 if e.contains("No such container") {
@@ -317,7 +329,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         cmd.arg("volume");
         cmd.arg("inspect");
         cmd.arg(name);
-        match process::get_json_or_failure::<Vec<_>>(&mut cmd)? {
+        match process::get_json_or_stderr::<Vec<_>>(&mut cmd)? {
             Ok(imgs) => {
                 Ok(imgs.into_iter().next())
             }
@@ -330,6 +342,125 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 }
             }
         }
+    }
+    fn minor_upgrade(&self, options: &Upgrade) -> anyhow::Result<()> {
+        for inst in self._all_instances()? {
+            if inst.get_version()?.is_nightly() {
+                continue;
+            }
+            let version = inst.get_version()?;
+            let version_query = version.to_query();
+            let new = self._get_version(&version_query)
+                .context("Unable to determine version")?;
+            let old = inst.get_current_version()?;
+            if !options.force {
+                if let Some(old_ver) = &old {
+                    if old_ver >= &new.version() {
+                        log::info!(target: "edgedb::server::upgrade",
+                            "Instance {} is up to date {}",
+                            inst.name(), old_ver);
+                        return Ok(());
+                    }
+                }
+            }
+            log::info!(target: "edgedb::server::upgrade",
+                "Upgrading instance {}, version: {} to {}",
+                inst.name(), version.title(), new.version());
+            let create = Create {
+                name: inst.name(),
+                image: &new,
+                port: inst.get_port()?,
+                start_conf: inst.get_start_conf()?,
+            };
+
+            inst.delete()?;
+            self.create(&create)?;
+        }
+        Ok(())
+    }
+    fn _all_instances<'x>(&'x self)
+        -> anyhow::Result<Vec<DockerInstance<'x, O>>>
+         where Self: 'os
+    {
+        let output = process::get_text(Command::new(&self.cli)
+            .arg("volume")
+            .arg("list")
+            .arg("--filter")
+            .arg(format!("label=com.edgedb.metadata.user={}",
+                          whoami::username()))
+            .arg("--format").arg("{{.Name}}"))?;
+        let mut result = Vec::new();
+        for volume in output.lines() {
+            if let Some(name) = volume.strip_prefix("edgedb_") {
+                result.push(DockerInstance {
+                    name: name.into(),
+                    method: self,
+                    container: Lazy::lazy(),
+                    metadata: Lazy::lazy(),
+                });
+            }
+        }
+        Ok(result)
+    }
+    fn _get_version(&self, query: &VersionQuery)
+        -> anyhow::Result<Image>
+    {
+        let tag = self.get_tags()?
+            .iter()
+            .filter(|tag| tag.matches(query))
+            .max()
+            .with_context(|| format!("version {} not found", query))?;
+        Ok(tag.clone().into_image())
+    }
+    fn create(&self, options: &Create) -> anyhow::Result<()> {
+        let mut cmd = Command::new(&self.cli);
+        cmd.arg("container");
+        match options.start_conf {
+            StartConf::Auto => {
+                cmd.arg("run");
+                cmd.arg("--detach");
+                cmd.arg("--restart=always");
+            }
+            StartConf::Manual => {
+                cmd.arg("create");
+            }
+        }
+        let container_name = format!("edgedb_{}", options.name);
+        let volume_name = &container_name;
+        cmd.arg("--name").arg(&container_name);
+        cmd.arg("--user=999:999");
+        cmd.arg(format!("--publish={0}:{0}", options.port));
+        cmd.arg("--mount")
+           .arg(format!("source={},target=/var/lib/edgedb/data",
+                        volume_name));
+        cmd.arg(format!("--label=com.edgedb.metadata.user={}",
+                        whoami::username()));
+        cmd.arg(format!("--label=com.edgedb.metadata.version={}",
+                        options.image.major_version.title()));
+        cmd.arg(format!("--label=com.edgedb.metadata.current-version={}",
+                        options.image.version));
+        cmd.arg(format!("--label=com.edgedb.metadata.port={}",
+                        options.port));
+        cmd.arg(format!("--label=com.edgedb.metadata.start-conf={}",
+                        options.start_conf));
+        cmd.arg(options.image.tag.as_image_name());
+        cmd.arg("edgedb-server");
+        cmd.arg("--data-dir")
+            .arg(format!("/var/lib/edgedb/data/{}", options.name));
+        cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
+        cmd.arg("--port").arg(options.port.to_string());
+        cmd.arg("--bind-address=0.0.0.0");
+        process::run(&mut cmd).with_context(|| {
+            match options.start_conf {
+                StartConf::Auto => {
+                    format!("error starting server {:?}", cmd)
+                }
+                StartConf::Manual => {
+                    format!("error creating container {:?}", cmd)
+                }
+            }
+        })?;
+        Ok(())
     }
 }
 
@@ -382,12 +513,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn get_version(&self, query: &VersionQuery)
         -> anyhow::Result<DistributionRef>
     {
-        let tag = self.get_tags()?
-            .iter()
-            .filter(|tag| tag.matches(query))
-            .max()
-            .with_context(|| format!("version {} not found", query))?;
-        Ok(tag.clone().into_distr())
+        Ok(self._get_version(query)?.into_ref())
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         let data = process::get_text(Command::new(&self.cli)
@@ -508,51 +634,11 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         save_credentials(&settings, &password)?;
         drop(password);
 
-        let mut cmd = Command::new(&self.cli);
-        cmd.arg("container");
-        match settings.start_conf {
-            StartConf::Auto => {
-                cmd.arg("run");
-                cmd.arg("--detach");
-                cmd.arg("--restart=always");
-            }
-            StartConf::Manual => {
-                cmd.arg("create");
-            }
-        }
-
-        cmd.arg("--name").arg(format!("edgedb_{}", settings.name));
-        cmd.arg("--user=999:999");
-        cmd.arg(format!("--publish={0}:{0}", settings.port));
-        cmd.arg("--mount")
-           .arg(format!("source={},target=/var/lib/edgedb/data", volume));
-        cmd.arg(format!("--label=com.edgedb.metadata.user={}",
-                        whoami::username()));
-        cmd.arg(format!("--label=com.edgedb.metadata.version={}",
-                        settings.distribution.major_version().title()));
-        cmd.arg(format!("--label=com.edgedb.metadata.current-version={}",
-                        settings.version));
-        cmd.arg(format!("--label=com.edgedb.metadata.port={}",
-                        settings.port));
-        cmd.arg(format!("--label=com.edgedb.metadata.start-conf={}",
-                        settings.start_conf));
-        cmd.arg(image.tag.as_image_name());
-        cmd.arg("edgedb-server");
-        cmd.arg("--data-dir")
-           .arg(format!("/var/lib/edgedb/data/{}", settings.name));
-        cmd.arg("--runstate-dir")
-           .arg("/var/lib/edgedb/data/run");
-        cmd.arg("--port").arg(settings.port.to_string());
-        cmd.arg("--bind-address=0.0.0.0");
-        process::run(&mut cmd).with_context(|| {
-            match settings.start_conf {
-                StartConf::Auto => {
-                    format!("error starting server {:?}", cmd)
-                }
-                StartConf::Manual => {
-                    format!("error creating container {:?}", cmd)
-                }
-            }
+        self.create(&Create {
+            name: &settings.name,
+            image: &image,
+            port: settings.port,
+            start_conf: settings.start_conf,
         })?;
 
         Ok(())
@@ -601,6 +687,23 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             None => anyhow::bail!("No docker volume {:?} found", volume),
         }
     }
+    fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
+        -> anyhow::Result<()>
+    {
+        use upgrade::ToDo::*;
+
+        match todo {
+            MinorUpgrade => {
+                self.minor_upgrade(options)
+            }
+            NightlyUpgrade => {
+                todo!();
+            }
+            InstanceUpgrade(.., ref version) => {
+                todo!();
+            }
+        }
+    }
 }
 
 impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
@@ -615,7 +718,7 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
         })
     }
     fn get_backup(&self) -> BackupStatus {
-        let volume_name = format!("edgedb_{}", self.name);
+        let volume_name = self.volume_name();
         let mut cmd = Command::new(&self.method.cli);
         cmd.arg("run");
         cmd.arg("--rm");
@@ -623,7 +726,7 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
         cmd.arg("busybox");
         cmd.arg("cat");
         cmd.arg(format!("/mnt/{}/metadata.json", self.name));
-        match process::get_json_or_failure(&mut cmd) {
+        match process::get_json_or_stderr(&mut cmd) {
             Ok(Ok(meta)) => BackupStatus::Exists(Ok(meta)),
             Ok(Err(text)) if text.contains("No such file") => {
                 BackupStatus::Absent
@@ -638,7 +741,7 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
     }
     fn get_meta(&self) -> anyhow::Result<&Metadata> {
         self.metadata.get_or_try_init(|| {
-            let volume_name = format!("edgedb_{}", self.name);
+            let volume_name = self.volume_name();
             let data = process::get_text(Command::new(&self.method.cli)
                 .arg("run")
                 .arg("--rm")
@@ -652,12 +755,43 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
     }
     fn get_container(&self) -> anyhow::Result<&Option<Container>> {
         self.container.get_or_try_init(|| {
-            self.method.inspect_container(&format!("edgedb_{}", self.name))
+            self.method.inspect_container(&self.volume_name())
         })
     }
     fn get_labels(&self) -> anyhow::Result<Option<&ContainerLabels>> {
         Ok(self.get_container()?.as_ref()
             .and_then(|c| c.Config.Labels.as_ref()))
+    }
+    fn get_current_version(&self) -> anyhow::Result<Option<&Version<String>>> {
+        Ok(self.get_labels()?
+            .and_then(|labels| labels.current_version.as_ref()))
+    }
+    fn container_name(&self) -> String {
+        format!("edgedb_{}", self.name)
+    }
+    fn volume_name(&self) -> String {
+        format!("edgedb_{}", self.name)
+    }
+    fn delete(&self) -> anyhow::Result<()> {
+        match process::run_or_stderr(Command::new(&self.method.cli)
+            .arg("container")
+            .arg("stop")
+            .arg(self.container_name()))?
+        {
+            Ok(_) => {}
+            Err(text) if text.contains("No such container") => return Ok(()),
+            Err(text) => anyhow::bail!("docker error: {}", text),
+        }
+        match process::run_or_stderr(Command::new(&self.method.cli)
+            .arg("container")
+            .arg("rm")
+            .arg(self.container_name()))?
+        {
+            Ok(_) => {}
+            Err(text) if text.contains("No such container") => return Ok(()),
+            Err(text) => anyhow::bail!("docker error: {}", text),
+        }
+        Ok(())
     }
 }
 
@@ -693,8 +827,8 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         use DataDirectory::*;
         use Service::*;
 
-        let container_name = format!("edgedb_{}", self.name);
-        let storage = Storage::DockerVolume(container_name.clone());
+        let container_name = self.container_name();
+        let storage = Storage::DockerVolume(self.volume_name());
         let volume_exists = self.method.storage_exists(&storage)
             .unwrap_or(false);
         let (service, service_exists) = match self.get_container() {
@@ -766,12 +900,12 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
                 .arg("start")
                 .arg("--attach")
                 .arg("--interactive")
-                .arg(format!("edgedb_{}", self.name)))?;
+                .arg(self.container_name()))?;
         } else {
             process::run(Command::new(&self.method.cli)
                 .arg("container")
                 .arg("start")
-                .arg(format!("edgedb_{}", self.name)))?;
+                .arg(self.container_name()))?;
         }
         Ok(())
     }
@@ -779,21 +913,21 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         process::run(Command::new(&self.method.cli)
             .arg("container")
             .arg("stop")
-            .arg(format!("edgedb_{}", self.name)))?;
+            .arg(self.container_name()))?;
         Ok(())
     }
     fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
         process::run(Command::new(&self.method.cli)
             .arg("container")
             .arg("restart")
-            .arg(format!("edgedb_{}", self.name)))?;
+            .arg(self.container_name()))?;
         Ok(())
     }
     fn service_status(&self) -> anyhow::Result<()> {
         process::run(Command::new(&self.method.cli)
             .arg("container")
             .arg("inspect")
-            .arg(format!("edgedb_{}", self.name)))?;
+            .arg(self.container_name()))?;
         Ok(())
     }
     fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
