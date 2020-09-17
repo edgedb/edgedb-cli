@@ -61,8 +61,8 @@ impl<'de> Deserialize<'de> for MajorVersion {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: de::Deserializer<'de>,
     {
-        let s: &str = Deserialize::deserialize(deserializer)?;
-        match s {
+        let s: String = Deserialize::deserialize(deserializer)?;
+        match &s[..] {
             "nightly" => Ok(MajorVersion::Nightly),
             s => Ok(MajorVersion::Stable(Version(s.into()))),
         }

@@ -60,8 +60,9 @@ impl<'de> Deserialize<'de> for Metadata {
                     .into())
             }
             Some(2) => {
-                Ok(Metadata::deserialize(v)
-                    .map_err(de::Error::custom)?)
+                Ok(MetadataV2::deserialize(v)
+                    .map_err(de::Error::custom)?
+                    .into())
             }
             Some(ver) => {
                 Err(de::Error::custom(
