@@ -4,10 +4,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
 
 use anyhow::Context;
+use async_std::task;
 use dirs::home_dir;
+use edgedb_client as client;
 use fn_error_context::context;
 use serde::Serialize;
 
+use crate::credentials::get_connector;
 use crate::platform::{Uid, get_current_uid};
 use crate::process;
 use crate::server::control::read_metadata;
@@ -22,6 +25,7 @@ use crate::server::options::{StartConf, Start, Stop, Restart};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::{PackageCandidate, Package};
 use crate::server::status::{Service, Status};
+use crate::server::version::Version;
 use crate::server::unix;
 use crate::server::{debian, ubuntu, centos};
 
@@ -40,14 +44,16 @@ pub struct Linux {
 }
 
 #[derive(Debug)]
-pub struct LocalInstance {
+pub struct LocalInstance<'a> {
+    method: &'a dyn Method,
     pub name: String,
     pub path: PathBuf,
     metadata: Lazy<Metadata>,
     slot: Lazy<String>,
+    current_version: Lazy<Version<String>>,
 }
 
-impl LocalInstance {
+impl LocalInstance<'_> {
     fn get_meta(&self) -> anyhow::Result<&Metadata> {
         self.metadata.get_or_try_init(|| read_metadata(&self.path))
     }
@@ -59,21 +65,29 @@ impl LocalInstance {
             }
         })
     }
-    fn run_command(&self) -> anyhow::Result<Command> {
-        let sock = self.get_socket(true)?;
-        let socket_dir = sock.parent().unwrap();
-        let mut cmd = Command::new(get_server_path(Some(self.get_slot()?)));
-        cmd.arg("--port").arg(self.get_meta()?.port.to_string());
-        cmd.arg("--data-dir").arg(&self.path);
-        cmd.arg("--runstate-dir").arg(&socket_dir);
-        Ok(cmd)
+    fn socket_dir(&self) -> anyhow::Result<PathBuf> {
+        Ok(dirs::runtime_dir()
+            .unwrap_or_else(|| {
+                Path::new("/run/user").join(get_current_uid().to_string())
+            })
+            .join(format!("edgedb-{}", self.name)))
     }
-
 }
 
-impl Instance for LocalInstance {
+impl Instance for LocalInstance<'_> {
     fn get_version(&self) -> anyhow::Result<&MajorVersion> {
         Ok(&self.get_meta()?.version)
+    }
+    fn get_current_version(&self) -> anyhow::Result<Option<&Version<String>>> {
+        let meta = self.get_meta()?;
+        if meta.version.is_nightly() {
+            Ok(self.get_meta()?.current_version.as_ref())
+        } else {
+            self.current_version.get_or_try_init(|| {
+                Ok(self.method.get_version(&meta.version.to_query())?
+                    .version().clone())
+            }).map(Some)
+        }
     }
     fn get_port(&self) -> anyhow::Result<u16> {
         Ok(self.get_meta()?.port)
@@ -83,7 +97,7 @@ impl Instance for LocalInstance {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            process::run(&mut self.run_command()?)?;
+            process::run(&mut self.get_command()?)?;
         } else {
             process::run(Command::new("systemctl")
                 .arg("--user")
@@ -106,15 +120,20 @@ impl Instance for LocalInstance {
             .arg(format!("edgedb-server@{}", self.name)))?;
         Ok(())
     }
-    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
-        Ok(dirs::runtime_dir()
-            .unwrap_or_else(|| {
-                Path::new("/run/user").join(get_current_uid().to_string())
-            })
-            .join(format!("edgedb-{}", self.name))
-            .join(format!(".s.EDGEDB{}.{}",
-                if admin { ".admin" } else { "" },
-                self.get_meta()?.port)))
+    fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
+        if admin {
+            let socket = self.socket_dir()?
+                .join(format!(".s.EDGEDB{}.{}",
+                    if admin { ".admin" } else { "" },
+                    self.get_meta()?.port));
+            let mut conn_params = client::Builder::new();
+            conn_params.user("edgedb");
+            conn_params.database("edgedb");
+            conn_params.unix_addr(socket);
+            Ok(conn_params)
+        } else {
+            get_connector(self.name())
+        }
     }
     fn service_status(&self) -> anyhow::Result<()> {
         process::exit_from(Command::new("systemctl")
@@ -126,6 +145,9 @@ impl Instance for LocalInstance {
     fn name(&self) -> &str {
         &self.name
     }
+    fn method(&self) -> &dyn Method {
+        self.method
+    }
     fn get_status(&self) -> Status {
         let system = false;
         let service = systemd_status(&self.name, system);
@@ -133,6 +155,14 @@ impl Instance for LocalInstance {
             .map(|p| p.exists())
             .unwrap_or(false);
         unix::status(&self.name, &self.path, service_exists, service)
+    }
+    fn get_command(&self) -> anyhow::Result<Command> {
+        let socket_dir = self.socket_dir()?;
+        let mut cmd = Command::new(get_server_path(Some(self.get_slot()?)));
+        cmd.arg("--port").arg(self.get_meta()?.port.to_string());
+        cmd.arg("--data-dir").arg(&self.path);
+        cmd.arg("--runstate-dir").arg(&socket_dir);
+        Ok(cmd)
     }
 }
 
@@ -411,7 +441,9 @@ pub fn systemd_status(name: &str, system: bool) -> Service {
     }
 }
 
-pub fn all_instances<'x>() -> anyhow::Result<Vec<InstanceRef<'x>>> {
+pub fn all_instances<'x>(method: &'x dyn Method)
+    -> anyhow::Result<Vec<InstanceRef<'x>>>
+{
     let mut instances = BTreeSet::new();
     let user_base = unix::base_data_dir()?;
     if user_base.exists() {
@@ -419,22 +451,28 @@ pub fn all_instances<'x>() -> anyhow::Result<Vec<InstanceRef<'x>>> {
     }
     Ok(instances.into_iter()
         .map(|(name, _)| LocalInstance {
+            method,
             path: user_base.join(&name),
             name,
             metadata: Lazy::lazy(),
             slot: Lazy::lazy(),
+            current_version: Lazy::lazy(),
         }.into_ref())
         .collect())
 }
 
-pub fn get_instance<'x>(name: &str) -> anyhow::Result<InstanceRef<'x>> {
+pub fn get_instance<'x>(method: &'x dyn Method, name: &str)
+    -> anyhow::Result<InstanceRef<'x>>
+{
     let dir = unix::base_data_dir()?.join(name);
     if dir.exists() {
         Ok(LocalInstance {
+            method,
             path: dir,
             name: name.to_owned(),
             metadata: Lazy::lazy(),
             slot: Lazy::lazy(),
+            current_version: Lazy::lazy(),
         }.into_ref())
     } else {
         anyhow::bail!("Directory '{}' does not exists", dir.display());

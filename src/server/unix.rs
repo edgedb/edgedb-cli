@@ -1,9 +1,11 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{self, Command};
+use std::time::SystemTime;
 
 use anyhow::Context;
+use async_std::task;
 use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
 
@@ -11,18 +13,20 @@ use crate::platform::ProcessGuard;
 use crate::platform::home_dir;
 use crate::server::control::read_metadata;
 use crate::server::control;
+use crate::server::detect::VersionQuery;
 use crate::server::init::{self, read_ports, init_credentials, Storage};
 use crate::server::install;
 use crate::server::is_valid_name;
 use crate::server::linux;
 use crate::server::macos;
 use crate::server::metadata::Metadata;
-use crate::server::options::{self, Start, Upgrade, StartConf};
-use crate::server::os_trait::{Method, Instance};
+use crate::server::options::{self, Start, Stop, Upgrade, StartConf};
+use crate::server::os_trait::{Method, Instance, InstanceRef};
 use crate::server::package::Package;
 use crate::server::status::{Service, Status, DataDirectory};
 use crate::server::status::{read_upgrade, backup_status, probe_port};
 use crate::server::upgrade;
+use crate::server::version::Version;
 
 
 pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
@@ -85,10 +89,8 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             println!("Bootstrap complete. Server is up and runnning now.");
         }
         (StartConf::Manual, _) | (_, true) => {
-            todo!();
-            /*
             let inst = method.get_instance(&settings.name)?;
-            let mut cmd = inst.run_command()?;
+            let mut cmd = inst.get_command()?;
             log::debug!("Running server: {:?}", cmd);
             let child = ProcessGuard::run(&mut cmd)
                 .with_context(||
@@ -98,7 +100,6 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             println!("Bootstrap complete. To start a server:\n  \
                       edgedb server start {}",
                       settings.name.escape_default());
-            */
         }
     }
     Ok(())
@@ -116,10 +117,14 @@ fn write_metadata(path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn storage(system: bool, name: &str) -> anyhow::Result<Storage> {
-    Ok(Storage::UserDir(dirs::data_dir()
+fn storage_dir(name: &str) -> anyhow::Result<PathBuf> {
+    Ok(dirs::data_dir()
         .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-        .join("edgedb").join("data").join(name)))
+        .join("edgedb").join("data").join(name))
+}
+
+pub fn storage(system: bool, name: &str) -> anyhow::Result<Storage> {
+    Ok(Storage::UserDir(storage_dir(name)?))
 }
 
 pub fn clean_storage(storage: &Storage) -> anyhow::Result<()> {
@@ -220,13 +225,8 @@ pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &Method)
     use upgrade::ToDo::*;
 
     match todo {
-        MinorUpgrade => {
-            do_minor_upgrade(meth, options)?;
-        }
-        NightlyUpgrade => {
-            todo!();
-            //do_nightly_upgrade(meth, instances, options)?;
-        }
+        MinorUpgrade => do_minor_upgrade(meth, options),
+        NightlyUpgrade => do_nightly_upgrade(meth, options),
         InstanceUpgrade(.., ref version) => {
             todo!();
             //for inst in instances {
@@ -234,7 +234,6 @@ pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &Method)
             //}
         }
     }
-    Ok(())
 }
 
 fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
@@ -300,5 +299,124 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
             })?;
         }
     }
+    Ok(())
+}
+
+fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
+    -> anyhow::Result<()>
+{
+    let version_query = VersionQuery::Nightly;
+    let new = method.get_version(&version_query)
+        .context("Unable to determine version")?;
+    log::info!(target: "edgedb::server::upgrade",
+        "Installing nightly {}", new.version());
+    let new_version = new.version().clone();
+    let new_major = new.major_version().clone();
+    method.install(&install::Settings {
+        method: method.name(),
+        distribution: new,
+        extra: LinkedHashMap::new(),
+    })?;
+
+    for inst in method.all_instances()? {
+        if !inst.get_version()?.is_nightly() {
+            continue;
+        }
+
+        let old = inst.get_current_version()?;
+
+        if !options.force {
+            if let Some(old_ver) = old {
+                if old_ver >= &new_version {
+                    log::info!(target: "edgedb::server::upgrade",
+                        "Instance {} is up to date {}. Skipping.",
+                        inst.name(), old_ver);
+                    return Ok(());
+                }
+            }
+        }
+
+        dump_and_stop(&inst)?;
+        let meta = upgrade::UpgradeMeta {
+            source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
+            target: new_version.clone(),
+            started: SystemTime::now(),
+            pid: process::id(),
+        };
+        reinit_and_restore(&inst, &meta)?;
+    }
+    Ok(())
+}
+
+#[context("failed to dump {:?}", inst.name())]
+fn dump_and_stop(inst: &InstanceRef) -> anyhow::Result<()> {
+    // in case not started for now
+    log::info!(target: "edgedb::server::upgrade",
+        "Ensuring instance is started");
+    inst.start(&Start { name: inst.name().into(), foreground: false })?;
+    let dump_path = storage_dir(inst.name())?
+        .parent().expect("instance path can't be root")
+        .join(format!("{}.dump", inst.name()));
+    task::block_on(
+        upgrade::dump_instance(inst, &dump_path, inst.get_connector(false)?))?;
+    log::info!(target: "edgedb::server::upgrade",
+        "Stopping the instance before package upgrade");
+    inst.stop(&Stop { name: inst.name().into() })?;
+    Ok(())
+}
+
+
+#[context("failed to restore {:?}", inst.name())]
+fn reinit_and_restore(inst: &InstanceRef, meta: &upgrade::UpgradeMeta)
+    -> anyhow::Result<()>
+{
+    let instance_dir = storage_dir(inst.name())?;
+    let base = instance_dir.parent().expect("instancedir is not root");
+    let backup = base.join(&format!("{}.backup", inst.name()));
+    fs::rename(&instance_dir, &backup)?;
+    upgrade::write_backup_meta(&backup.join("backup.json"),
+        &upgrade::BackupMeta {
+            timestamp: SystemTime::now(),
+        })?;
+
+    init::init(&options::Init {
+        name: inst.name().into(),
+        system: false,
+        interactive: false,
+        nightly: inst.get_version()?.is_nightly(),
+        version: inst.get_version()?.as_stable().cloned(),
+        method: Some(inst.method().name()),
+        port: Some(inst.get_port()?),
+        start_conf: inst.get_start_conf()?,
+        inhibit_user_creation: true,
+        inhibit_start: true,
+        upgrade_marker: Some(serde_json::to_string(&meta).unwrap()),
+        overwrite: true,
+        default_user: "edgedb".into(),
+        default_database: "edgedb".into(),
+    })?;
+
+    let mut cmd = inst.get_command()?;
+    // temporarily patch the edgedb issue of 1-alpha.4
+    cmd.arg("--default-database=edgedb");
+    cmd.arg("--default-database-user=edgedb");
+    log::debug!("Running server: {:?}", cmd);
+    let child = ProcessGuard::run(&mut cmd)
+        .with_context(|| format!("error running server {:?}", cmd))?;
+
+    let dump_path = storage_dir(inst.name())?
+        .parent().expect("instance path can't be root")
+        .join(format!("{}.dump", inst.name()));
+    task::block_on(
+        upgrade::restore_instance(inst, &dump_path, inst.get_connector(true)?)
+    )?;
+    log::info!(target: "edgedb::server::upgrade",
+        "Restarting instance {:?} to apply changes from `restore --all`",
+        &inst.name());
+    drop(child);
+
+    // TODO(tailhook) remove upgrade marker
+
+    inst.start(&Start { name: inst.name().into(), foreground: false })?;
     Ok(())
 }

@@ -165,23 +165,17 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
 }
 */
 
-async fn dump_instance(inst: &Instance<'_>, socket: &Path)
+pub async fn dump_instance(inst: &InstanceRef<'_>, destination: &Path,
+    mut conn_params: client::Builder)
     -> anyhow::Result<()>
 {
-    todo!();
-    /*
     log::info!(target: "edgedb::server::upgrade",
         "Dumping instance {:?}", inst.name());
-    let path = data_path(false)?.join(format!("{}.dump", inst.name()));
-    if path.exists() {
+    if destination.exists() {
         log::info!(target: "edgedb::server::upgrade",
-            "Removing old dump at {}", path.display());
-        fs::remove_dir_all(&path)?;
+            "Removing old dump at {}", destination.display());
+        fs::remove_dir_all(&destination)?;
     }
-    let mut conn_params = client::Builder::new();
-    conn_params.user("edgedb");
-    conn_params.database("edgedb");
-    conn_params.unix_addr(socket);
     conn_params.wait_until_available(Duration::from_secs(30));
     let mut cli = conn_params.connect().await?;
     let options = commands::Options {
@@ -189,25 +183,18 @@ async fn dump_instance(inst: &Instance<'_>, socket: &Path)
         styler: None,
         conn_params,
     };
-    commands::dump_all(&mut cli, &options, path.as_ref()).await?;
+    commands::dump_all(&mut cli, &options, destination.as_ref()).await?;
     Ok(())
-    */
 }
 
-async fn restore_instance(inst: &Instance<'_>, socket: &Path)
+pub async fn restore_instance(inst: &InstanceRef<'_>,
+    path: &Path, mut conn_params: client::Builder)
     -> anyhow::Result<()>
 {
-    todo!();
-    /*
     use crate::commands::parser::Restore;
 
     log::info!(target: "edgedb::server::upgrade",
         "Restoring instance {:?}", inst.name());
-    let path = inst.data_dir.with_file_name(format!("{}.dump", inst.name()));
-    let mut conn_params = client::Builder::new();
-    conn_params.user("edgedb");
-    conn_params.database("edgedb");
-    conn_params.unix_addr(socket);
     conn_params.wait_until_available(Duration::from_secs(30));
     let mut cli = conn_params.connect().await?;
     let options = commands::Options {
@@ -216,127 +203,14 @@ async fn restore_instance(inst: &Instance<'_>, socket: &Path)
         conn_params,
     };
     commands::restore_all(&mut cli, &options, &Restore {
-        path,
+        path: path.into(),
         all: true,
         allow_non_empty: false,
         verbose: false,
     }).await?;
     Ok(())
-    */
 }
 
-fn do_nightly_upgrade(method: &dyn Method,
-    mut instances: Vec<Instance>, options: &Upgrade)
-    -> anyhow::Result<()>
-{
-    let instances_str = instances
-        .iter().map(|inst| inst.name()).collect::<Vec<_>>().join(", ");
-
-    let version_query = VersionQuery::Nightly;
-    let new = method.get_version(&version_query)
-        .context("Unable to determine version")?;
-    let old = get_installed(&version_query, method)?;
-
-    if !options.force {
-        if let Some(old_ver) = &old {
-            if old_ver >= &new.version() {
-                log::info!(target: "edgedb::server::upgrade",
-                    "Nightly is up to date {}, skipping instances: {}",
-                    old_ver, instances_str);
-                return Ok(());
-            }
-        }
-    }
-    for inst in &mut instances {
-        inst.source = old.clone();
-        inst.version = Some(new.version().clone());
-    }
-
-    for inst in &instances {
-        dump_and_stop(inst)?;
-    }
-
-    let new_major = new.major_version().clone();
-    log::info!(target: "edgedb::server::upgrade", "Upgrading the package");
-    method.install(&install::Settings {
-        method: method.name(),
-        distribution: new,
-        extra: LinkedHashMap::new(),
-    })?;
-
-    for inst in instances {
-        reinit_and_restore(&inst, &new_major, method)?;
-    }
-    Ok(())
-}
-
-#[context("failed to dump {:?}", inst.name())]
-fn dump_and_stop(inst: &Instance) -> anyhow::Result<()> {
-    // in case not started for now
-    log::info!(target: "edgedb::server::upgrade",
-        "Ensuring instance is started");
-    inst.instance.start(&options::Start {
-        name: inst.name().into(),
-        foreground: false,
-    })?;
-    task::block_on(dump_instance(inst, &inst.instance.get_socket(true)?))?;
-    log::info!(target: "edgedb::server::upgrade",
-        "Stopping the instance before package upgrade");
-    inst.instance.stop(&options::Stop { name: inst.name().into() })?;
-    Ok(())
-}
-
-#[context("failed to restore {:?}", inst.name())]
-fn reinit_and_restore(inst: &Instance, version: &MajorVersion,
-    method: &dyn Method)
-    -> anyhow::Result<()>
-{
-    todo!();
-    /*
-    let base = inst.data_dir.parent().unwrap();
-    let backup = base.join(&format!("{}.backup", inst.name()));
-    fs::rename(&inst.data_dir, &backup)?;
-    write_backup_meta(&backup.join("backup.json"), &BackupMeta {
-        timestamp: SystemTime::now(),
-    })?;
-
-    let meta = inst.upgrade_meta();
-    init(&options::Init {
-        name: inst.name().into(),
-        system: false,
-        interactive: false,
-        nightly: version.is_nightly(),
-        version: version.as_stable().cloned(),
-        method: Some(method.name()),
-        port: Some(inst.instance.get_port()?),
-        start_conf: inst.instance.get_start_conf()?,
-        inhibit_user_creation: true,
-        inhibit_start: true,
-        upgrade_marker: Some(serde_json::to_string(&meta).unwrap()),
-        overwrite: true,
-        default_user: "edgedb".into(),
-        default_database: "edgedb".into(),
-    })?;
-
-    let mut ctl = inst.get_control()?;
-    let mut cmd = ctl.run_command()?;
-    // temporarily patch the edgedb issue of 1-alpha.4
-    cmd.arg("--default-database=edgedb");
-    cmd.arg("--default-database-user=edgedb");
-    log::debug!("Running server: {:?}", cmd);
-    let child = ProcessGuard::run(&mut cmd)
-        .with_context(|| format!("error running server {:?}", cmd))?;
-
-    task::block_on(restore_instance(inst, &ctl.get_socket(true)?))?;
-    log::info!(target: "edgedb::server::upgrade",
-        "Restarting instance {:?} to apply changes from `restore --all`",
-        &inst.name());
-    drop(child);
-
-    ctl.start(&options::Start { name: inst.name().into(), foreground: false })?;
-    Ok(())
-    */
-}
 
 pub fn get_installed(version: &VersionQuery, method: &dyn Method)
     -> anyhow::Result<Option<Version<String>>>
@@ -350,6 +224,7 @@ pub fn get_installed(version: &VersionQuery, method: &dyn Method)
     return Ok(None);
 }
 
+/*
 fn do_instance_upgrade(method: &dyn Method,
     mut inst: Instance, version: &VersionQuery, options: &Upgrade)
     -> anyhow::Result<()>
@@ -384,9 +259,10 @@ fn do_instance_upgrade(method: &dyn Method,
     reinit_and_restore(&inst, &new_major, method)?;
     Ok(())
 }
+*/
 
 #[context("failed to write backup metadata file {}", path.display())]
-fn write_backup_meta(path: &Path, metadata: &BackupMeta)
+pub fn write_backup_meta(path: &Path, metadata: &BackupMeta)
     -> anyhow::Result<()>
 {
     fs::write(path, serde_json::to_vec(&metadata)?)?;

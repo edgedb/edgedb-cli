@@ -87,13 +87,9 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
 
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
-    let path = control::get_instance(&methods, &options.name)
-        .and_then(|inst| inst.get_socket(true))
+    let conn_params = control::get_instance(&methods, &options.name)
+        .and_then(|inst| inst.get_connector(true))
         .with_context(|| format!("cannot find instance {:?}", options.name))?;
-    let mut conn_params = Builder::new();
-    conn_params.user("edgedb");
-    conn_params.database("edgedb");
-    conn_params.unix_addr(path);
     task::block_on(async {
         let mut cli = conn_params.connect().await?;
         cli.execute(&format!(r###"

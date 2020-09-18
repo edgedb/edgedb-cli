@@ -113,12 +113,12 @@ impl<'os> Method for PackageMethod<'os, Debian> {
         linux::create_systemd_service(settings, self)
     }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
-        linux::all_instances()
+        linux::all_instances(self)
     }
     fn get_instance<'x>(&'x self, name: &str)
         -> anyhow::Result<InstanceRef<'x>>
     {
-        linux::get_instance(name)
+        linux::get_instance(self, name)
     }
     fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
         -> anyhow::Result<()>

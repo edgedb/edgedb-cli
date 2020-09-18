@@ -6,9 +6,11 @@ use std::process::{exit, Command as StdCommand};
 
 use anyhow::Context;
 use async_std::task;
+use edgedb_client as client;
 use serde::Serialize;
 use once_cell::unsync::OnceCell;
 
+use crate::credentials::get_connector;
 use crate::platform::{Uid, get_current_uid, home_dir};
 use crate::process;
 use crate::server::control::read_metadata;
@@ -45,11 +47,13 @@ pub struct StatusCache {
 }
 
 #[derive(Debug)]
-pub struct LocalInstance {
+pub struct LocalInstance<'a> {
     pub name: String,
     pub path: PathBuf,
     metadata: Lazy<Metadata>,
     slot: Lazy<String>,
+    method: &'a PackageMethod<'a, Macos>,
+    current_version: Lazy<Version<String>>,
 }
 
 impl Macos {
@@ -321,21 +325,27 @@ impl<'os> Method for PackageMethod<'os, Macos> {
         }
         Ok(instances.into_iter()
             .map(|(name, _)| LocalInstance {
+                method: self,
                 path: user_base.join(&name),
                 name,
                 metadata: Lazy::lazy(),
                 slot: Lazy::lazy(),
+                current_version: Lazy::lazy(),
             }.into_ref())
             .collect())
     }
-    fn get_instance(&self, name: &str) -> anyhow::Result<InstanceRef> {
+    fn get_instance<'x>(&'x self, name: &str)
+        -> anyhow::Result<InstanceRef<'x>>
+    {
         let dir = unix::base_data_dir()?.join(name);
         if dir.exists() {
             Ok(LocalInstance {
+                method: self,
                 path: dir,
                 name: name.to_owned(),
                 metadata: Lazy::lazy(),
                 slot: Lazy::lazy(),
+                current_version: Lazy::lazy(),
             }.into_ref())
         } else {
             anyhow::bail!("Directory '{}' does not exists", dir.display());
@@ -348,7 +358,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     }
 }
 
-impl LocalInstance {
+impl LocalInstance<'_> {
     fn launchd_name(&self) -> String {
         format!("gui/{}/edgedb-server-{}", get_current_uid(), self.name)
     }
@@ -363,27 +373,37 @@ impl LocalInstance {
             }
         })
     }
-    fn run_command(&self) -> anyhow::Result<StdCommand> {
-        let sock = self.get_socket(true)?;
-        let socket_dir = sock.parent().unwrap();
-        let mut cmd = StdCommand::new(get_server_path(&self.get_slot()?));
-        cmd.arg("--port").arg(self.get_meta()?.port.to_string());
-        cmd.arg("--data-dir").arg(&self.path);
-        cmd.arg("--runstate-dir").arg(&socket_dir);
-        Ok(cmd)
-    }
     fn unit_path(&self) -> anyhow::Result<PathBuf> {
         let plist = format!("com.edgedb.edgedb-server-{}.plist", &self.name);
         Ok(home_dir()?.join("Library/LaunchAgents").join(plist))
     }
+    fn socket_dir(&self) -> anyhow::Result<PathBuf> {
+        Ok(home_dir()?
+            .join(".edgedb/run")
+            .join(&self.name))
+    }
 }
 
-impl Instance for LocalInstance {
+impl Instance for LocalInstance<'_> {
     fn name(&self) -> &str {
         &self.name
     }
+    fn method(&self) -> &dyn Method {
+        self.method
+    }
     fn get_version(&self) -> anyhow::Result<&MajorVersion> {
         Ok(&self.get_meta()?.version)
+    }
+    fn get_current_version(&self) -> anyhow::Result<Option<&Version<String>>> {
+        let meta = self.get_meta()?;
+        if meta.version.is_nightly() {
+            Ok(self.get_meta()?.current_version.as_ref())
+        } else {
+            self.current_version.get_or_try_init(|| {
+                Ok(self.method.get_version(&meta.version.to_query())?
+                    .version().clone())
+            }).map(Some)
+        }
     }
     fn get_port(&self) -> anyhow::Result<u16> {
         Ok(self.get_meta()?.port)
@@ -403,7 +423,7 @@ impl Instance for LocalInstance {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            process::run(&mut self.run_command()?)?;
+            process::run(&mut self.get_command()?)?;
         } else {
             process::run(&mut StdCommand::new("launchctl")
                 .arg("load").arg("-w")
@@ -430,13 +450,28 @@ impl Instance for LocalInstance {
             .arg(self.launchd_name()))?;
         Ok(())
     }
-    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
-        Ok(home_dir()?
-            .join(".edgedb/run")
-            .join(&self.name)
-            .join(format!(".s.EDGEDB{}.{}",
-                if admin { ".admin" } else { "" },
-                self.get_meta()?.port)))
+    fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
+        if admin {
+            let socket = self.socket_dir()?
+                .join(format!(".s.EDGEDB{}.{}",
+                    if admin { ".admin" } else { "" },
+                    self.get_meta()?.port));
+            let mut conn_params = client::Builder::new();
+            conn_params.user("edgedb");
+            conn_params.database("edgedb");
+            conn_params.unix_addr(socket);
+            Ok(conn_params)
+        } else {
+            get_connector(self.name())
+        }
+    }
+    fn get_command(&self) -> anyhow::Result<StdCommand> {
+        let socket_dir = self.socket_dir()?;
+        let mut cmd = StdCommand::new(get_server_path(&self.get_slot()?));
+        cmd.arg("--port").arg(self.get_meta()?.port.to_string());
+        cmd.arg("--data-dir").arg(&self.path);
+        cmd.arg("--runstate-dir").arg(&socket_dir);
+        Ok(cmd)
     }
 }
 

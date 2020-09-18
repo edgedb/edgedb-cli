@@ -6,7 +6,9 @@ use std::time::SystemTime;
 use anyhow::Context;
 use async_std::task;
 use serde::{Serialize, Deserialize};
+use edgedb_client as client;
 
+use crate::credentials::get_connector;
 use crate::process;
 use crate::platform::ProcessGuard;
 use crate::platform::home_dir;
@@ -799,6 +801,9 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     fn name(&self) -> &str {
         &self.name
     }
+    fn method(&self) -> &dyn Method {
+        self.method
+    }
     fn get_version(&self) -> anyhow::Result<&MajorVersion> {
         if let Some(ver) = self.get_labels()?
             .and_then(|labels| labels.version.as_ref())
@@ -806,6 +811,14 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             return Ok(ver)
         }
         Ok(&self.get_meta()?.version)
+    }
+    fn get_current_version(&self) -> anyhow::Result<Option<&Version<String>>> {
+        if let Some(ver) = self.get_labels()?
+            .and_then(|labels| labels.current_version.as_ref())
+        {
+            return Ok(Some(ver))
+        }
+        Ok(self.get_meta()?.current_version.as_ref())
     }
     fn get_port(&self) -> anyhow::Result<u16> {
         if let Some(port) = self.get_labels()?
@@ -930,7 +943,14 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             .arg(self.container_name()))?;
         Ok(())
     }
-    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
+    fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
+        if admin {
+            anyhow::bail!("Cannot connect to admin socket in docker")
+        } else {
+            get_connector(self.name())
+        }
+    }
+    fn get_command(&self) -> anyhow::Result<Command> {
         unimplemented!();
     }
 }

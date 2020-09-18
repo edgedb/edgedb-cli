@@ -8,6 +8,7 @@ use clap::{Clap, AppSettings};
 use edgedb_client::Builder;
 use whoami;
 
+use crate::credentials::get_connector;
 use crate::commands::parser::Common;
 use crate::platform::home_dir;
 use crate::repl::OutputMode;
@@ -160,10 +161,7 @@ impl Options {
 
         let mut conn_params = Builder::new();
         if let Some(name) = tmp.instance {
-            conn_params = task::block_on(Builder::read_credentials(
-                home_dir()?.join(".edgedb").join("credentials")
-                .join(format!("{}.json", name))
-            ))?;
+            conn_params = get_connector(&name)?;
             user.map(|user| conn_params.user(user));
             database.map(|database| conn_params.database(database));
         } else {

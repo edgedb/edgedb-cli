@@ -4,6 +4,8 @@ use std::fmt;
 use std::path::PathBuf;
 use std::process::Command;
 
+use edgedb_client as client;
+
 use crate::server::detect::{VersionQuery};
 use crate::server::distribution::{MajorVersion, DistributionRef};
 use crate::server::init::{self, Storage};
@@ -28,7 +30,9 @@ pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
 
 pub trait Instance: fmt::Debug {
     fn name(&self) -> &str;
+    fn method(&self) -> &dyn Method;
     fn get_version(&self) -> anyhow::Result<&MajorVersion>;
+    fn get_current_version(&self) -> anyhow::Result<Option<&Version<String>>>;
     fn get_port(&self) -> anyhow::Result<u16>;
     fn get_start_conf(&self) -> anyhow::Result<StartConf>;
     fn get_status(&self) -> Status;
@@ -36,7 +40,8 @@ pub trait Instance: fmt::Debug {
     fn stop(&self, stop: &Stop) -> anyhow::Result<()>;
     fn restart(&self, restart: &Restart) -> anyhow::Result<()>;
     fn service_status(&self) -> anyhow::Result<()>;
-    fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf>;
+    fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder>;
+    fn get_command(&self) -> anyhow::Result<Command>;
     fn into_ref<'x>(self) -> InstanceRef<'x>
         where Self: Sized + 'x
     {
@@ -125,8 +130,16 @@ impl InstanceRef<'_> {
     pub fn name(&self) -> &str {
         self.0.name()
     }
+    pub fn method(&self) -> &dyn Method {
+        self.0.method()
+    }
     pub fn get_version(&self) -> anyhow::Result<&MajorVersion> {
         self.0.get_version()
+    }
+    pub fn get_current_version(&self)
+        -> anyhow::Result<Option<&Version<String>>>
+    {
+        self.0.get_current_version()
     }
     pub fn get_port(&self) -> anyhow::Result<u16> {
         self.0.get_port()
@@ -146,8 +159,13 @@ impl InstanceRef<'_> {
     pub fn restart(&self, restart: &Restart) -> anyhow::Result<()> {
         self.0.restart(restart)
     }
-    pub fn get_socket(&self, admin: bool) -> anyhow::Result<PathBuf> {
-        self.0.get_socket(admin)
+    pub fn get_connector(&self, admin: bool)
+        -> anyhow::Result<client::Builder>
+    {
+        self.0.get_connector(admin)
+    }
+    pub fn get_command(&self) -> anyhow::Result<Command> {
+        self.0.get_command()
     }
     pub fn service_status(&self) -> anyhow::Result<()> {
         self.0.service_status()

@@ -319,10 +319,7 @@ pub fn init_credentials(settings: &Settings, inst: &InstanceRef)
 {
     let password = generate_password();
 
-    let mut conn_params = edgedb_client::Builder::new();
-    conn_params.user("edgedb");
-    conn_params.database("edgedb");
-    conn_params.unix_addr(inst.get_socket(true)?);
+    let mut conn_params = inst.get_connector(true)?;
     conn_params.wait_until_available(Duration::from_secs(30));
     task::block_on(async {
         let mut cli = conn_params.connect().await?;
