@@ -156,43 +156,6 @@ pub fn get_installed(version: &VersionQuery, method: &dyn Method)
     return Ok(None);
 }
 
-/*
-fn do_instance_upgrade(method: &dyn Method,
-    mut inst: Instance, version: &VersionQuery, options: &Upgrade)
-    -> anyhow::Result<()>
-{
-    let new = method.get_version(&version)
-        .context("Unable to determine version")?;
-    let old = get_installed(version, method)?;
-
-    if !options.force {
-        if let Some(old_ver) = &old {
-            if old_ver >= &new.version() {
-                log::info!(target: "edgedb::server::upgrade",
-                    "Version {} is up to date {}, skipping instance: {}",
-                    version, old_ver, inst.name());
-                return Ok(());
-            }
-        }
-    }
-    inst.source = old;
-    inst.version = Some(new.version().clone());
-
-    dump_and_stop(&inst)?;
-
-    let new_major = new.major_version().clone();
-    log::info!(target: "edgedb::server::upgrade", "Installing the package");
-    method.install(&install::Settings {
-        method: method.name(),
-        distribution: new,
-        extra: LinkedHashMap::new(),
-    })?;
-
-    reinit_and_restore(&inst, &new_major, method)?;
-    Ok(())
-}
-*/
-
 #[context("failed to write backup metadata file {}", path.display())]
 pub fn write_backup_meta(path: &Path, metadata: &BackupMeta)
     -> anyhow::Result<()>

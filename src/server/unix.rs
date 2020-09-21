@@ -227,11 +227,9 @@ pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &Method)
     match todo {
         MinorUpgrade => do_minor_upgrade(meth, options),
         NightlyUpgrade => do_nightly_upgrade(meth, options),
-        InstanceUpgrade(.., ref version) => {
-            todo!();
-            //for inst in instances {
-            //    do_instance_upgrade(meth, inst, version, options)?;
-            //}
+        InstanceUpgrade(name, ref version) => {
+            let inst = meth.get_instance(name)?;
+            do_instance_upgrade(meth, inst, version, options)
         }
     }
 }
@@ -402,5 +400,59 @@ fn reinit_and_restore(inst: &dyn Instance, meta: &upgrade::UpgradeMeta)
     // TODO(tailhook) remove upgrade marker
 
     inst.start(&Start { name: inst.name().into(), foreground: false })?;
+    Ok(())
+}
+
+fn do_instance_upgrade(method: &dyn Method,
+    inst: InstanceRef, version: &VersionQuery, options: &Upgrade)
+    -> anyhow::Result<()>
+{
+    let new = method.get_version(&version)
+        .context("Unable to determine version")?;
+    let old = inst.get_current_version()?;
+
+    let new_major = new.major_version().clone();
+    let old_major = inst.get_version()?;
+    let new_version = new.version().clone();
+    if !options.force {
+        if &new_major == old_major && !new_major.is_nightly() {
+            log::warn!(target: "edgedb::server::upgrade",
+                "Instance has up to date major version {}. \
+                 Use `edgedb server upgrade` (without instance name) \
+                 to upgrade minor versions.",
+                 old.map_or_else(|| old_major.title(), |v| v.num()));
+            return Ok(());
+        }
+        if let Some(old_ver) = &old {
+            if old_ver >= &new.version() {
+                log::info!(target: "edgedb::server::upgrade",
+                    "Version {} is up to date {}, skipping instance: {}",
+                    version, old_ver, inst.name());
+                return Ok(());
+            }
+        }
+    }
+
+    log::info!(target: "edgedb::server::upgrade", "Installing the package");
+    method.install(&install::Settings {
+        method: method.name(),
+        distribution: new,
+        extra: LinkedHashMap::new(),
+    })?;
+
+    let dump_path = storage_dir(inst.name())?
+        .parent().expect("instance path can't be root")
+        .join(format!("{}.dump", inst.name()));
+
+    upgrade::dump_and_stop(inst.as_ref(), &dump_path)?;
+
+
+    let meta = upgrade::UpgradeMeta {
+        source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
+        target: new_version,
+        started: SystemTime::now(),
+        pid: process::id(),
+    };
+    reinit_and_restore(inst.as_ref(), &meta)?;
     Ok(())
 }

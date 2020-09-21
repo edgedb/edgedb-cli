@@ -631,7 +631,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         let image = settings.distribution.downcast_ref::<Image>()
             .context("invalid unix package")?;
         if let Some(upgrade_marker) = &settings.upgrade_marker {
-            todo!();
+            anyhow::bail!("no upgrade marker supported in docker boostrap");
         }
         let user = whoami::username();
         let md = serde_json::to_string(&settings.metadata())?;
@@ -1000,7 +1000,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         }
     }
     fn get_command(&self) -> anyhow::Result<Command> {
-        unimplemented!();
+        anyhow::bail!("no get_command is supported for docker instances");
     }
 }
 
