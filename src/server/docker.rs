@@ -129,7 +129,7 @@ pub struct DockerMethod<'os, O: CurrentOs + ?Sized> {
     tags: Lazy<Vec<Tag>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Image {
     major_version: MajorVersion,
     version: Version<String>,
@@ -429,6 +429,60 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         }
         Ok(())
     }
+    fn instance_upgrade(&self, name: &str, version_query: &VersionQuery,
+        options: &Upgrade) -> anyhow::Result<()>
+    {
+        let inst = self._get_instance(name)?;
+        let new = self._get_version(&version_query)
+            .context("Unable to determine version")?;
+        let old = inst.get_current_version()?;
+        let new_version = new.version().clone();
+        let new_major = new.major_version().clone();
+        let old_major = inst.get_version()?;
+
+        if !options.force {
+            if let Some(old_ver) = old {
+                if old_ver >= &new_version {
+                    log::info!(target: "edgedb::server::upgrade",
+                        "Instance {} is up to date {}. Skipping.",
+                        inst.name(), old_ver);
+                    return Ok(());
+                }
+            }
+        }
+
+        log::info!(target: "edgedb::server::upgrade",
+            "Installing version {}", new.version());
+        self.install(&install::Settings {
+            method: self.name(),
+            distribution: new.clone().into_ref(),
+            extra: LinkedHashMap::new(),
+        })?;
+
+        if &new_major == old_major {
+            let create = Create {
+                name: inst.name(),
+                image: &new,
+                port: inst.get_port()?,
+                start_conf: inst.get_start_conf()?,
+            };
+
+            inst.delete()?;
+            self.create(&create)?;
+        } else {
+            let dump_path = format!("./upgrade.{}.dump", inst.name());
+            upgrade::dump_and_stop(&inst, dump_path.as_ref())?;
+            let meta = upgrade::UpgradeMeta {
+                source: old.cloned()
+                    .unwrap_or_else(|| Version("unknown".into())),
+                target: new_version.clone(),
+                started: SystemTime::now(),
+                pid: std::process::id(),
+            };
+            reinit_and_restore(inst, &meta, dump_path.as_ref(), &new)?;
+        }
+        Ok(())
+    }
     fn _all_instances<'x>(&'x self)
         -> anyhow::Result<Vec<DockerInstance<'x, O>>>
          where Self: 'os
@@ -462,6 +516,22 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             .max()
             .with_context(|| format!("version {} not found", query))?;
         Ok(tag.clone().into_image())
+    }
+    fn _get_instance<'x>(&'x self, name: &str)
+        -> anyhow::Result<DockerInstance<'x, O>>
+    {
+        let volume = format!("edgedb_{}", name);
+        match self.inspect_volume(&volume)? {
+            Some(_) => {
+                Ok(DockerInstance {
+                    name: name.into(),
+                    method: self,
+                    container: Lazy::lazy(),
+                    metadata: Lazy::lazy(),
+                })
+            }
+            None => anyhow::bail!("No docker volume {:?} found", volume),
+        }
     }
     fn create(&self, options: &Create) -> anyhow::Result<()> {
         let mut cmd = Command::new(&self.cli);
@@ -725,18 +795,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn get_instance<'x>(&'x self, name: &str)
         -> anyhow::Result<InstanceRef<'x>>
     {
-        let volume = format!("edgedb_{}", name);
-        match self.inspect_volume(&volume)? {
-            Some(_) => {
-                Ok(DockerInstance {
-                    name: name.into(),
-                    method: self,
-                    container: Lazy::lazy(),
-                    metadata: Lazy::lazy(),
-                }.into_ref())
-            }
-            None => anyhow::bail!("No docker volume {:?} found", volume),
-        }
+        self._get_instance(name).map(|inst| inst.into_ref())
     }
     fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
         -> anyhow::Result<()>
@@ -750,8 +809,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             NightlyUpgrade => {
                 self.nightly_upgrade(options)
             }
-            InstanceUpgrade(.., ref version) => {
-                todo!();
+            InstanceUpgrade(name, ref version) => {
+                self.instance_upgrade(name, version, options)
             }
         }
     }
@@ -1047,7 +1106,7 @@ fn reinit_and_restore<O>(inst: DockerInstance<O>, meta: &upgrade::UpgradeMeta,
                 timestamp: SystemTime::now(),
             })?,
         ))
-    );
+    )?;
 
     let tmp_role = format!("tmp_upgrade_{}",
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
