@@ -171,3 +171,9 @@ impl InstanceRef<'_> {
         self.0.service_status()
     }
 }
+
+impl<'a> AsRef<dyn Instance+'a> for InstanceRef<'a> {
+    fn as_ref(&self) -> &(dyn Instance + 'a) {
+        &*self.0
+    }
+}

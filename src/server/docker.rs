@@ -1,12 +1,15 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::time::SystemTime;
+use std::process::{Command};
+use std::time::{SystemTime, Duration, UNIX_EPOCH};
 
 use anyhow::Context;
 use async_std::task;
-use serde::{Serialize, Deserialize};
 use edgedb_client as client;
+use edgeql_parser::helpers::quote_string;
+use fn_error_context::context;
+use linked_hash_map::LinkedHashMap;
+use serde::{Serialize, Deserialize};
 
 use crate::credentials::get_connector;
 use crate::process;
@@ -380,6 +383,52 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         }
         Ok(())
     }
+    fn nightly_upgrade(&self, options: &Upgrade) -> anyhow::Result<()> {
+        let version_query = VersionQuery::Nightly;
+        let new = self.get_version(&version_query)
+            .context("Unable to determine version")?;
+        log::info!(target: "edgedb::server::upgrade",
+            "Installing nightly {}", new.version());
+        let new_version = new.version().clone();
+        let new_major = new.major_version().clone();
+        self.install(&install::Settings {
+            method: self.name(),
+            distribution: new,
+            extra: LinkedHashMap::new(),
+        })?;
+
+        for inst in self._all_instances()? {
+            if !inst.get_version()?.is_nightly() {
+                continue;
+            }
+
+            let old = inst.get_current_version()?;
+            let new = self._get_version(&version_query)
+                .context("Unable to determine version")?;
+
+            if !options.force {
+                if let Some(old_ver) = old {
+                    if old_ver >= &new_version {
+                        log::info!(target: "edgedb::server::upgrade",
+                            "Instance {} is up to date {}. Skipping.",
+                            inst.name(), old_ver);
+                        return Ok(());
+                    }
+                }
+            }
+
+            let dump_path = format!("./upgrade.{}.dump", inst.name());
+            upgrade::dump_and_stop(&inst, dump_path.as_ref())?;
+            let meta = upgrade::UpgradeMeta {
+                source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
+                target: new_version.clone(),
+                started: SystemTime::now(),
+                pid: std::process::id(),
+            };
+            reinit_and_restore(inst, &meta, dump_path.as_ref(), &new)?;
+        }
+        Ok(())
+    }
     fn _all_instances<'x>(&'x self)
         -> anyhow::Result<Vec<DockerInstance<'x, O>>>
          where Self: 'os
@@ -699,7 +748,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 self.minor_upgrade(options)
             }
             NightlyUpgrade => {
-                todo!();
+                self.nightly_upgrade(options)
             }
             InstanceUpgrade(.., ref version) => {
                 todo!();
@@ -969,3 +1018,95 @@ impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {
     }
 }
 
+#[context("failed to restore {:?}", inst.name())]
+fn reinit_and_restore<O>(inst: DockerInstance<O>, meta: &upgrade::UpgradeMeta,
+    dump_path: &Path, new_image: &Image)
+    -> anyhow::Result<()>
+    where O: CurrentOs + ?Sized
+{
+    let volume = inst.volume_name();
+    let port = inst.get_port()?;
+
+    process::run(
+        Command::new(&inst.method.cli)
+        .arg("container")
+        .arg("run")
+        .arg("--rm")
+        .arg("--user=999:999")
+        .arg("--mount")
+            .arg(format!("source={},target=/mnt", volume))
+        .arg("busybox")
+        .arg("sh")
+        .arg("-c")
+        .arg(format!(r###"
+                mv /mnt/{name} /mnt/{name}.backup
+                echo {backup_meta} > /mnt/{name}.backup/backup.json
+            "###,
+            name=inst.name(),
+            backup_meta=serde_json::to_string(&upgrade::BackupMeta {
+                timestamp: SystemTime::now(),
+            })?,
+        ))
+    );
+
+    let tmp_role = format!("tmp_upgrade_{}",
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+    let tmp_password = generate_password();
+    let mut cmd = Command::new(&inst.method.cli);
+    cmd.arg("run");
+    cmd.arg("--rm");
+    cmd.arg("--user=999:999");
+    cmd.arg(format!("--publish={0}:{0}", port));
+    cmd.arg("--mount")
+       .arg(format!("source={},target=/var/lib/edgedb/data", volume));
+    cmd.arg(new_image.tag.as_image_name());
+    cmd.arg("edgedb-server");
+    cmd.arg("--bootstrap-command")
+        .arg(format!(r###"
+            CREATE SUPERUSER ROLE {role} {{
+                SET password := {password};
+            }};
+        "###, role=tmp_role, password=quote_string(&tmp_password)));
+    cmd.arg("--log-level=warn");
+    cmd.arg("--data-dir")
+       .arg(format!("/var/lib/edgedb/data/{}", inst.name()));
+    cmd.arg("--default-database=edgedb");
+    cmd.arg("--default-database-user=edgedb");
+    cmd.arg("--port").arg(port.to_string());
+    cmd.arg("--bind-address=0.0.0.0");
+    log::debug!("Running server: {:?}", cmd);
+    let child = ProcessGuard::run(&mut cmd)
+        .with_context(|| format!("error running server {:?}", cmd))?;
+
+    let mut params = inst.get_connector(true)?;
+    params.user(&tmp_role);
+    params.password(&tmp_password);
+    params.database("edgedb");
+    task::block_on(
+        upgrade::restore_instance(&inst, &dump_path, params.clone())
+    )?;
+    let mut conn_params = inst.get_connector(true)?;
+    conn_params.wait_until_available(Duration::from_secs(30));
+    task::block_on(async {
+        let mut cli = conn_params.connect().await?;
+        cli.execute(&format!(r###"
+            DROP ROLE {}
+        "###, role=tmp_role)).await?;
+        Ok::<(), anyhow::Error>(())
+    })?;
+    log::info!(target: "edgedb::server::upgrade",
+        "Restarting instance {:?} to apply changes from `restore --all`",
+        &inst.name());
+    drop(child);
+
+    let method = inst.method;
+    let create = Create {
+        name: inst.name(),
+        image: new_image,
+        port,
+        start_conf: inst.get_start_conf()?,
+    };
+    inst.delete()?;
+    method.create(&create)?;
+    Ok(())
+}

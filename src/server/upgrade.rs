@@ -18,11 +18,12 @@ use crate::server::init::{init};
 use crate::server::install;
 use crate::server::metadata::Metadata;
 use crate::server::methods::Methods;
-use crate::server::options::{self, Upgrade};
-use crate::server::os_trait::{Method, InstanceRef};
+use crate::server::options::{self, Upgrade, Start, Stop};
+use crate::server::os_trait::{Method, Instance};
 use crate::server::version::Version;
 use crate::server::is_valid_name;
 use crate::server::distribution::MajorVersion;
+use crate::server::upgrade;
 use crate::commands;
 use crate::platform::ProcessGuard;
 
@@ -40,12 +41,6 @@ pub struct UpgradeMeta {
 pub struct BackupMeta {
     #[serde(with="humantime_serde")]
     pub timestamp: SystemTime,
-}
-
-struct Instance<'a> {
-    instance: InstanceRef<'a>,
-    source: Option<Version<String>>,
-    version: Option<Version<String>>,
 }
 
 pub enum ToDo {
@@ -91,34 +86,6 @@ fn read_metadata(path: &Path) -> anyhow::Result<Metadata> {
     Ok(metadata)
 }
 
-fn get_instances<'x>(todo: &ToDo, methods: &'x Methods)
-    -> anyhow::Result<Vec<(&'x dyn Method, Vec<Instance<'x>>)>>
-{
-    use ToDo::*;
-    let mut result = Vec::new();
-    for meth in methods.values() {
-        let mut chunk = Vec::new();
-        for instance in meth.all_instances()?.into_iter() {
-            let include = match todo {
-                MinorUpgrade => !instance.get_version()?.is_nightly(),
-                NightlyUpgrade => instance.get_version()?.is_nightly(),
-                InstanceUpgrade(name, ..) => instance.name() == name,
-            };
-            if include {
-                chunk.push(Instance {
-                    instance,
-                    source: None,
-                    version: None,
-                });
-            }
-        }
-        if !chunk.is_empty() {
-            result.push((&**meth, chunk));
-        }
-    }
-    Ok(result)
-}
-
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let todo = interpret_options(&options);
     let os = detect::current_os()?;
@@ -130,42 +97,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     Ok(())
 }
 
-/*
-
-    let instances = get_instances(&todo, &methods)?;
-    if instances.is_empty() {
-        if options.nightly {
-            log::warn!(target: "edgedb::server::upgrade",
-                "No instances found. Nothing to upgrade.");
-        } else {
-            log::warn!(target: "edgedb::server::upgrade",
-                "No instances found. Nothing to upgrade \
-                (Note: nightly instances are upgraded only if `--nightly` \
-                is specified).");
-        }
-        return Ok(());
-    }
-
-    for (meth, instances) in instances {
-        match todo {
-            MinorUpgrade => {
-                do_minor_upgrade(meth, instances, options)?;
-            }
-            NightlyUpgrade => {
-                do_nightly_upgrade(meth, instances, options)?;
-            }
-            InstanceUpgrade(.., ref version) => {
-                for inst in instances {
-                    do_instance_upgrade(meth, inst, version, options)?;
-                }
-            }
-        }
-    }
-    Ok(())
-}
-*/
-
-pub async fn dump_instance(inst: &InstanceRef<'_>, destination: &Path,
+pub async fn dump_instance(inst: &dyn Instance, destination: &Path,
     mut conn_params: client::Builder)
     -> anyhow::Result<()>
 {
@@ -187,7 +119,7 @@ pub async fn dump_instance(inst: &InstanceRef<'_>, destination: &Path,
     Ok(())
 }
 
-pub async fn restore_instance(inst: &InstanceRef<'_>,
+pub async fn restore_instance(inst: &dyn Instance,
     path: &Path, mut conn_params: client::Builder)
     -> anyhow::Result<()>
 {
@@ -269,16 +201,16 @@ pub fn write_backup_meta(path: &Path, metadata: &BackupMeta)
     Ok(())
 }
 
-impl Instance<'_> {
-    fn name(&self) -> &str {
-        self.instance.name()
-    }
-    fn upgrade_meta(&self) -> UpgradeMeta {
-        UpgradeMeta {
-            source: self.source.clone().unwrap_or(Version("unknown".into())),
-            target: self.version.clone().unwrap_or(Version("unknown".into())),
-            started: SystemTime::now(),
-            pid: process::id(),
-        }
-    }
+#[context("failed to dump {:?} -> {}", inst.name(), path.display())]
+pub fn dump_and_stop(inst: &dyn Instance, path: &Path) -> anyhow::Result<()> {
+    // in case not started for now
+    log::info!(target: "edgedb::server::upgrade",
+        "Ensuring instance is started");
+    inst.start(&Start { name: inst.name().into(), foreground: false })?;
+    task::block_on(
+        upgrade::dump_instance(inst, &path, inst.get_connector(false)?))?;
+    log::info!(target: "edgedb::server::upgrade",
+        "Stopping the instance before package upgrade");
+    inst.stop(&Stop { name: inst.name().into() })?;
+    Ok(())
 }

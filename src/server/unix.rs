@@ -335,39 +335,23 @@ fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
                 }
             }
         }
-
-        dump_and_stop(&inst)?;
+        let dump_path = storage_dir(inst.name())?
+            .parent().expect("instance path can't be root")
+            .join(format!("{}.dump", inst.name()));
+        upgrade::dump_and_stop(inst.as_ref(), &dump_path)?;
         let meta = upgrade::UpgradeMeta {
             source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
             target: new_version.clone(),
             started: SystemTime::now(),
             pid: process::id(),
         };
-        reinit_and_restore(&inst, &meta)?;
+        reinit_and_restore(inst.as_ref(), &meta)?;
     }
     Ok(())
 }
 
-#[context("failed to dump {:?}", inst.name())]
-fn dump_and_stop(inst: &InstanceRef) -> anyhow::Result<()> {
-    // in case not started for now
-    log::info!(target: "edgedb::server::upgrade",
-        "Ensuring instance is started");
-    inst.start(&Start { name: inst.name().into(), foreground: false })?;
-    let dump_path = storage_dir(inst.name())?
-        .parent().expect("instance path can't be root")
-        .join(format!("{}.dump", inst.name()));
-    task::block_on(
-        upgrade::dump_instance(inst, &dump_path, inst.get_connector(false)?))?;
-    log::info!(target: "edgedb::server::upgrade",
-        "Stopping the instance before package upgrade");
-    inst.stop(&Stop { name: inst.name().into() })?;
-    Ok(())
-}
-
-
 #[context("failed to restore {:?}", inst.name())]
-fn reinit_and_restore(inst: &InstanceRef, meta: &upgrade::UpgradeMeta)
+fn reinit_and_restore(inst: &dyn Instance, meta: &upgrade::UpgradeMeta)
     -> anyhow::Result<()>
 {
     let instance_dir = storage_dir(inst.name())?;
