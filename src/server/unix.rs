@@ -12,7 +12,6 @@ use fn_error_context::context;
 use crate::platform::ProcessGuard;
 use crate::platform::home_dir;
 use crate::server::control::read_metadata;
-use crate::server::control;
 use crate::server::detect::VersionQuery;
 use crate::server::init::{self, read_ports, init_credentials, Storage};
 use crate::server::install;
@@ -20,7 +19,7 @@ use crate::server::is_valid_name;
 use crate::server::linux;
 use crate::server::macos;
 use crate::server::metadata::Metadata;
-use crate::server::options::{self, Start, Stop, Upgrade, StartConf};
+use crate::server::options::{self, Start, Upgrade, StartConf};
 use crate::server::os_trait::{Method, Instance, InstanceRef};
 use crate::server::package::Package;
 use crate::server::status::{Service, Status, DataDirectory};
@@ -124,6 +123,7 @@ fn storage_dir(name: &str) -> anyhow::Result<PathBuf> {
 }
 
 pub fn storage(system: bool, name: &str) -> anyhow::Result<Storage> {
+    assert!(!system);
     Ok(Storage::UserDir(storage_dir(name)?))
 }
 
@@ -219,7 +219,7 @@ pub fn base_data_dir() -> anyhow::Result<PathBuf> {
         .join("edgedb").join("data"))
 }
 
-pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &Method)
+pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &dyn Method)
     -> anyhow::Result<()>
 {
     use upgrade::ToDo::*;
@@ -303,24 +303,30 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
 fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
     -> anyhow::Result<()>
 {
+    let mut instances = Vec::new();
+    for inst in method.all_instances()? {
+        if !inst.get_version()?.is_nightly() {
+            continue;
+        }
+        instances.push(inst);
+    }
+    if instances.is_empty() {
+        return Ok(());
+    }
+
     let version_query = VersionQuery::Nightly;
     let new = method.get_version(&version_query)
         .context("Unable to determine version")?;
     log::info!(target: "edgedb::server::upgrade",
         "Installing nightly {}", new.version());
     let new_version = new.version().clone();
-    let new_major = new.major_version().clone();
     method.install(&install::Settings {
         method: method.name(),
         distribution: new,
         extra: LinkedHashMap::new(),
     })?;
 
-    for inst in method.all_instances()? {
-        if !inst.get_version()?.is_nightly() {
-            continue;
-        }
-
+    for inst in instances {
         let old = inst.get_current_version()?;
 
         if !options.force {

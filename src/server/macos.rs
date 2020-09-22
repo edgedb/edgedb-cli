@@ -431,13 +431,13 @@ impl Instance for LocalInstance<'_> {
         }
         Ok(())
     }
-    fn stop(&self, stop: &Stop) -> anyhow::Result<()> {
+    fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
         process::run(&mut StdCommand::new("launchctl")
             .arg("unload")
             .arg(&self.unit_path()?))?;
         Ok(())
     }
-    fn restart(&self, restart: &Restart) -> anyhow::Result<()> {
+    fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
         process::run(&mut StdCommand::new("launchctl")
             .arg("kickstart")
             .arg("-k")

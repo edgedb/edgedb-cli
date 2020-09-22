@@ -1,19 +1,16 @@
 use std::fs;
 use std::path::Path;
 use std::default::Default;
-use std::convert::TryFrom;
 use std::num::NonZeroU32;
 
 use anyhow::Context;
 use async_std::task;
 use base64::display::Base64Display;
-use edgedb_client::Builder;
 use edgedb_client::credentials::Credentials;
 use edgeql_parser::helpers::{quote_string, quote_name};
 use fn_error_context::context;
 use rand::{Rng, SeedableRng};
 
-use crate::server;
 use crate::server::options::ResetPassword;
 use crate::server::detect;
 use crate::server::control;

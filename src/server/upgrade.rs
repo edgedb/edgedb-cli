@@ -1,31 +1,18 @@
 use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
-use std::process;
-use std::collections::BTreeMap;
+use std::path::Path;
 use std::time::{SystemTime, Duration};
 
-use anyhow::Context;
 use async_std::task;
 use fn_error_context::context;
-use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
 use edgedb_client as client;
-use crate::server::control;
 use crate::server::detect::{self, VersionQuery};
-use crate::server::init::{init};
-use crate::server::install;
-use crate::server::metadata::Metadata;
-use crate::server::methods::Methods;
-use crate::server::options::{self, Upgrade, Start, Stop};
+use crate::server::options::{Upgrade, Start, Stop};
 use crate::server::os_trait::{Method, Instance};
 use crate::server::version::Version;
-use crate::server::is_valid_name;
-use crate::server::distribution::MajorVersion;
 use crate::server::upgrade;
 use crate::commands;
-use crate::platform::ProcessGuard;
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -49,12 +36,6 @@ pub enum ToDo {
     NightlyUpgrade,
 }
 
-struct InstanceIterator {
-    dir: fs::ReadDir,
-    path: PathBuf,
-}
-
-
 fn interpret_options(options: &Upgrade) -> ToDo {
     if let Some(name) = &options.name {
         if options.nightly {
@@ -76,14 +57,6 @@ fn interpret_options(options: &Upgrade) -> ToDo {
     } else {
         ToDo::MinorUpgrade
     }
-}
-
-fn read_metadata(path: &Path) -> anyhow::Result<Metadata> {
-    let file = fs::read(path)
-        .with_context(|| format!("error reading {}", path.display()))?;
-    let metadata = serde_json::from_slice(&file)
-        .with_context(|| format!("error decoding json {}", path.display()))?;
-    Ok(metadata)
 }
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {

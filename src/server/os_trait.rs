@@ -1,7 +1,6 @@
 use std::any::type_name;
 use std::cmp::Ordering;
 use std::fmt;
-use std::path::PathBuf;
 use std::process::Command;
 
 use edgedb_client as client;
@@ -130,9 +129,6 @@ impl InstanceRef<'_> {
     pub fn name(&self) -> &str {
         self.0.name()
     }
-    pub fn method(&self) -> &dyn Method {
-        self.0.method()
-    }
     pub fn get_version(&self) -> anyhow::Result<&MajorVersion> {
         self.0.get_version()
     }
@@ -140,12 +136,6 @@ impl InstanceRef<'_> {
         -> anyhow::Result<Option<&Version<String>>>
     {
         self.0.get_current_version()
-    }
-    pub fn get_port(&self) -> anyhow::Result<u16> {
-        self.0.get_port()
-    }
-    pub fn get_start_conf(&self) -> anyhow::Result<StartConf> {
-        self.0.get_start_conf()
     }
     pub fn get_status(&self) -> Status {
         self.0.get_status()

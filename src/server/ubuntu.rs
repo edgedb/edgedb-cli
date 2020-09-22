@@ -1,7 +1,3 @@
-use std::path::PathBuf;
-use std::process::Command;
-
-use anyhow::Context;
 use serde::Serialize;
 
 use crate::server::debian_like;
@@ -13,7 +9,7 @@ use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::{Upgrade};
 use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
-use crate::server::package::{self, PackageMethod, Package};
+use crate::server::package::{self, PackageMethod};
 use crate::server::unix;
 use crate::server::upgrade;
 
@@ -104,7 +100,7 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>
     {
-        linux::create_systemd_service(settings, self)
+        linux::create_systemd_service(settings)
     }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
         linux::all_instances(self)

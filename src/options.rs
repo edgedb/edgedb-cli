@@ -2,7 +2,6 @@ use std::env;
 use std::time::Duration;
 
 use anyhow::Context;
-use async_std::task;
 use atty;
 use clap::{Clap, AppSettings};
 use edgedb_client::Builder;
@@ -10,7 +9,6 @@ use whoami;
 
 use crate::credentials::get_connector;
 use crate::commands::parser::Common;
-use crate::platform::home_dir;
 use crate::repl::OutputMode;
 use crate::self_install;
 use crate::server;

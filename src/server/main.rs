@@ -6,7 +6,6 @@ use crate::server::init;
 use crate::server::control;
 use crate::server::upgrade;
 use crate::server::reset_password;
-use crate::server::status;
 
 
 pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {

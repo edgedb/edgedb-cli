@@ -390,7 +390,6 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         log::info!(target: "edgedb::server::upgrade",
             "Installing nightly {}", new.version());
         let new_version = new.version().clone();
-        let new_major = new.major_version().clone();
         self.install(&install::Settings {
             method: self.name(),
             distribution: new,
@@ -667,6 +666,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         true
     }
     fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage> {
+        assert!(!system);
         Ok(Storage::DockerVolume(format!("edgedb_{}", name)))
     }
     fn storage_exists(&self, storage: &Storage) -> anyhow::Result<bool> {
@@ -700,7 +700,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         };
         let image = settings.distribution.downcast_ref::<Image>()
             .context("invalid unix package")?;
-        if let Some(upgrade_marker) = &settings.upgrade_marker {
+        if let Some(_) = &settings.upgrade_marker {
             anyhow::bail!("no upgrade marker supported in docker boostrap");
         }
         let user = whoami::username();
@@ -787,7 +787,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         }
         Ok(result)
     }
-    fn create_user_service(&self, settings: &init::Settings)
+    fn create_user_service(&self, _settings: &init::Settings)
         -> anyhow::Result<()>
     {
         unreachable!();
@@ -1137,14 +1137,14 @@ fn reinit_and_restore<O>(inst: DockerInstance<O>, meta: &upgrade::UpgradeMeta,
     let child = ProcessGuard::run(&mut cmd)
         .with_context(|| format!("error running server {:?}", cmd))?;
 
-    let mut params = inst.get_connector(true)?;
+    let mut params = inst.get_connector(false)?;
     params.user(&tmp_role);
     params.password(&tmp_password);
     params.database("edgedb");
     task::block_on(
         upgrade::restore_instance(&inst, &dump_path, params.clone())
     )?;
-    let mut conn_params = inst.get_connector(true)?;
+    let mut conn_params = inst.get_connector(false)?;
     conn_params.wait_until_available(Duration::from_secs(30));
     task::block_on(async {
         let mut cli = conn_params.connect().await?;

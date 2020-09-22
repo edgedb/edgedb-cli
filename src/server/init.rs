@@ -4,7 +4,6 @@ use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -13,15 +12,14 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 use prettytable::{Table, Row, Cell};
 use fn_error_context::context;
 
-use crate::platform::{ProcessGuard, config_dir, home_dir};
-use crate::server::control;
+use crate::platform::{config_dir, home_dir};
 use crate::server::reset_password::{generate_password, write_credentials};
 use crate::server::reset_password::{password_hash};
 use crate::server::detect::{self, VersionQuery};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallMethod, Methods};
-use crate::server::options::{Init, Start, StartConf};
-use crate::server::os_trait::{Method, InstanceRef};
+use crate::server::options::{Init, StartConf};
+use crate::server::os_trait::{InstanceRef};
 use crate::server::version::Version;
 use crate::server::distribution::DistributionRef;
 use crate::server::package::Package;

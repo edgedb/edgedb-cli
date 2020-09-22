@@ -4,10 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
 
 use anyhow::Context;
-use async_std::task;
 use dirs::home_dir;
 use edgedb_client as client;
-use fn_error_context::context;
 use serde::Serialize;
 
 use crate::credentials::get_connector;
@@ -309,9 +307,7 @@ pub fn get_server_path(slot: Option<&String>) -> PathBuf {
     }
 }
 
-pub fn systemd_unit(settings: &init::Settings, meth: &dyn Method)
-    -> anyhow::Result<String>
-{
+pub fn systemd_unit(settings: &init::Settings) -> anyhow::Result<String> {
     let pkg = settings.distribution.downcast_ref::<Package>()
         .context("invalid linux package")?;
     let path = match &settings.storage {
@@ -376,14 +372,12 @@ pub fn systemd_service_path(name: &str, system: bool)
     Ok(unit_dir(system)?.join(&unit_name(name)))
 }
 
-pub fn create_systemd_service(settings: &init::Settings, meth: &dyn Method)
-    -> anyhow::Result<()>
-{
+pub fn create_systemd_service(settings: &init::Settings) -> anyhow::Result<()> {
     let unit_dir = unit_dir(settings.system)?;
     fs::create_dir_all(&unit_dir)?;
     let unit_name = unit_name(&settings.name);
     let unit_path = unit_dir.join(&unit_name);
-    fs::write(&unit_path, systemd_unit(&settings, meth)?)?;
+    fs::write(&unit_path, systemd_unit(&settings)?)?;
     process::run(Command::new("systemctl")
         .arg("--user")
         .arg("daemon-reload"))?;

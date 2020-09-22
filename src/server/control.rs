@@ -1,19 +1,14 @@
 use std::fs;
-use std::path::{PathBuf, Path};
-use std::process::Command;
+use std::path::{Path};
 
-use anyhow::Context;
 use fn_error_context::context;
 
-use crate::process::{run, exit_from};
 use crate::server::detect;
-use crate::server::options::{InstanceCommand, Start, Stop, Restart, Status};
+use crate::server::options::InstanceCommand;
 use crate::server::metadata::Metadata;
-use crate::server::methods::{Methods, InstallMethod};
-use crate::server::{linux, macos};
+use crate::server::methods::Methods;
 use crate::server::status;
 use crate::server::os_trait::{InstanceRef};
-use crate::platform::{home_dir, get_current_uid};
 
 
 #[context("failed to read metadata {}/metadata.json", dir.display())]

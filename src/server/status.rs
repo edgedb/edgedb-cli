@@ -1,25 +1,20 @@
 use std::io;
 use std::fs;
-use std::collections::{BTreeMap, BTreeSet};
-use std::process::{Command, exit};
+use std::process::exit;
 use std::time::Duration;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::Context;
 use async_std::task;
 use async_std::net::TcpStream;
 use async_std::io::timeout;
-use once_cell::unsync::OnceCell;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
 use crate::server::detect;
-use crate::server::init::{read_ports, Storage};
+use crate::server::init::Storage;
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
-use crate::server::control::read_metadata;
 use crate::server::metadata::Metadata;
-use crate::server::{linux, macos};
-use crate::process::get_text;
 use crate::table;
 
 
@@ -63,11 +58,6 @@ pub struct Status {
     pub backup: BackupStatus,
     pub credentials_file_exists: bool,
     pub service_exists: bool,
-}
-
-pub struct Cache {
-    launchctl_list: OnceCell<anyhow::Result<String>>,
-    reserved_ports: OnceCell<Result<BTreeMap<String, u16>, ()>>,
 }
 
 fn format_duration(mut dur: Duration) -> String {
@@ -242,15 +232,6 @@ pub fn backup_status(dir: &Path) -> BackupStatus {
         .and_then(|data| serde_json::from_slice(&data)
         .with_context(|| format!("erorr decoding {}", meta_json.display())));
     Exists(meta)
-}
-
-impl Cache {
-    fn new() -> Cache {
-        Cache {
-            launchctl_list: OnceCell::new(),
-            reserved_ports: OnceCell::new(),
-        }
-    }
 }
 
 pub fn print_status_all(extended: bool, debug: bool) -> anyhow::Result<()> {

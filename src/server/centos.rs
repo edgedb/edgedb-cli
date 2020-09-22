@@ -1,6 +1,5 @@
 use std::fs;
 use std::io;
-use std::path::{PathBuf};
 use std::process::Command as StdCommand;
 use std::str;
 
@@ -299,7 +298,7 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     fn create_user_service(&self, settings: &init::Settings)
         -> anyhow::Result<()>
     {
-        linux::create_systemd_service(settings, self)
+        linux::create_systemd_service(settings)
     }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
         linux::all_instances(self)
