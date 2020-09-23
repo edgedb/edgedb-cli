@@ -15,6 +15,7 @@ use crate::server::control::read_metadata;
 use crate::server::detect::Lazy;
 use crate::server::distribution::{MajorVersion};
 use crate::server::docker::DockerCandidate;
+use crate::server::errors::InstanceNotFound;
 use crate::server::init::{self, Storage};
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::metadata::Metadata;
@@ -469,6 +470,8 @@ pub fn get_instance<'x>(method: &'x dyn Method, name: &str)
             current_version: Lazy::lazy(),
         }.into_ref())
     } else {
-        anyhow::bail!("Directory '{}' does not exists", dir.display());
+        Err(InstanceNotFound(
+            anyhow::anyhow!("Directory '{}' does not exists", dir.display())
+        ).into())
     }
 }

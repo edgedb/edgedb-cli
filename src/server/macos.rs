@@ -17,6 +17,7 @@ use crate::server::control::read_metadata;
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
+use crate::server::errors::InstanceNotFound;
 use crate::server::init::{self, Storage};
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
 use crate::server::metadata::Metadata;
@@ -348,7 +349,9 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                 current_version: Lazy::lazy(),
             }.into_ref())
         } else {
-            anyhow::bail!("Directory '{}' does not exists", dir.display());
+            Err(InstanceNotFound(
+                anyhow::anyhow!("Directory '{}' does not exists", dir.display())
+            ).into())
         }
     }
     fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)

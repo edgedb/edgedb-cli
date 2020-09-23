@@ -258,6 +258,7 @@ fn path_to_database_name(path: &Path) -> anyhow::Result<String> {
 async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
     let mut input = fs::File::open(path).await?;
     let mut inbuf = BytesMut::with_capacity(8192);
+    log::debug!("Restoring init script");
     loop {
         let stmt = match ReadStatement::new(&mut inbuf, &mut input).await {
             Ok(chunk) => chunk,
@@ -267,6 +268,7 @@ async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
         let stmt = str::from_utf8(&stmt[..])
             .context("can't decode statement")?;
         if !is_empty(stmt) {
+            log::trace!("Executing {:?}", stmt);
             cli.execute(&stmt).await
                 .with_context(|| format!("failed statement {:?}", stmt))?;
         }
@@ -294,6 +296,7 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
             continue;
         }
         let database = path_to_database_name(&path)?;
+        log::debug!("Restoring database {:?}", database);
         let create_db = format!("CREATE DATABASE {}", quote_name(&database));
         let db_error = match cli.execute(create_db).await {
             Ok(_) => None,

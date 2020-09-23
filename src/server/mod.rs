@@ -24,6 +24,7 @@ mod docker;
 mod package;
 
 // commands
+mod errors;
 mod control;
 mod init;
 mod install;

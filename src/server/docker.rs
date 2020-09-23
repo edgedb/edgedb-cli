@@ -18,6 +18,7 @@ use crate::platform::home_dir;
 use crate::server::detect::Lazy;
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
+use crate::server::errors::InstanceNotFound;
 use crate::server::init::{self, read_ports, Storage};
 use crate::server::init::{bootstrap_script, save_credentials};
 use crate::server::install;
@@ -416,7 +417,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 }
             }
 
-            let dump_path = format!("./upgrade.{}.dump", inst.name());
+            let dump_path = format!("./edgedb.upgrade.{}.dump", inst.name());
             upgrade::dump_and_stop(&inst, dump_path.as_ref())?;
             let meta = upgrade::UpgradeMeta {
                 source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
@@ -428,10 +429,19 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         }
         Ok(())
     }
-    fn instance_upgrade(&self, name: &str, version_query: &VersionQuery,
+    fn instance_upgrade(&self, name: &str,
+        version_query: &Option<VersionQuery>,
         options: &Upgrade) -> anyhow::Result<()>
     {
         let inst = self._get_instance(name)?;
+        let version_query = if let Some(q) = version_query {
+            q
+        } else if inst.get_version()?.is_nightly() {
+            &VersionQuery::Nightly
+        } else {
+            &VersionQuery::Stable(None)
+        };
+
         let new = self._get_version(&version_query)
             .context("Unable to determine version")?;
         let old = inst.get_current_version()?;
@@ -458,7 +468,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             extra: LinkedHashMap::new(),
         })?;
 
-        if &new_major == old_major {
+        if !old_major.is_nightly() && &new_major == old_major {
             let create = Create {
                 name: inst.name(),
                 image: &new,
@@ -529,7 +539,11 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                     metadata: Lazy::lazy(),
                 })
             }
-            None => anyhow::bail!("No docker volume {:?} found", volume),
+            None => {
+                Err(InstanceNotFound(
+                    anyhow::anyhow!("No docker volume {:?} found", volume)
+                ).into())
+            }
         }
     }
     fn create(&self, options: &Create) -> anyhow::Result<()> {
@@ -565,9 +579,9 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                         options.start_conf));
         cmd.arg(options.image.tag.as_image_name());
         cmd.arg("edgedb-server");
+        cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
             .arg(format!("/var/lib/edgedb/data/{}", options.name));
-        cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--port").arg(options.port.to_string());
         cmd.arg("--bind-address=0.0.0.0");
         process::run(&mut cmd).with_context(|| {
@@ -1111,6 +1125,7 @@ fn reinit_and_restore<O>(inst: DockerInstance<O>, meta: &upgrade::UpgradeMeta,
     let tmp_role = format!("tmp_upgrade_{}",
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
     let tmp_password = generate_password();
+
     let mut cmd = Command::new(&inst.method.cli);
     cmd.arg("run");
     cmd.arg("--rm");
@@ -1127,6 +1142,7 @@ fn reinit_and_restore<O>(inst: DockerInstance<O>, meta: &upgrade::UpgradeMeta,
             }};
         "###, role=tmp_role, password=quote_string(&tmp_password)));
     cmd.arg("--log-level=warn");
+    cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
     cmd.arg("--data-dir")
        .arg(format!("/var/lib/edgedb/data/{}", inst.name()));
     cmd.arg("--default-database=edgedb");
@@ -1149,7 +1165,7 @@ fn reinit_and_restore<O>(inst: DockerInstance<O>, meta: &upgrade::UpgradeMeta,
     task::block_on(async {
         let mut cli = conn_params.connect().await?;
         cli.execute(&format!(r###"
-            DROP ROLE {}
+            DROP ROLE {};
         "###, role=tmp_role)).await?;
         Ok::<(), anyhow::Error>(())
     })?;

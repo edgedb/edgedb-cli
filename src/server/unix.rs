@@ -410,12 +410,19 @@ fn reinit_and_restore(inst: &dyn Instance, meta: &upgrade::UpgradeMeta)
 }
 
 fn do_instance_upgrade(method: &dyn Method,
-    inst: InstanceRef, version: &VersionQuery, options: &Upgrade)
+    inst: InstanceRef, version_query: &Option<VersionQuery>, options: &Upgrade)
     -> anyhow::Result<()>
 {
-    let new = method.get_version(&version)
-        .context("Unable to determine version")?;
+    let version_query = if let Some(q) = version_query {
+        q
+    } else if inst.get_version()?.is_nightly() {
+        &VersionQuery::Nightly
+    } else {
+        &VersionQuery::Stable(None)
+    };
     let old = inst.get_current_version()?;
+    let new = method.get_version(&version_query)
+        .context("Unable to determine version")?;
 
     let new_major = new.major_version().clone();
     let old_major = inst.get_version()?;
@@ -433,7 +440,7 @@ fn do_instance_upgrade(method: &dyn Method,
             if old_ver >= &new.version() {
                 log::info!(target: "edgedb::server::upgrade",
                     "Version {} is up to date {}, skipping instance: {}",
-                    version, old_ver, inst.name());
+                    version_query, old_ver, inst.name());
                 return Ok(());
             }
         }

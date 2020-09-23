@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 
 use edgedb_client as client;
 use crate::server::detect::{self, VersionQuery};
+use crate::server::errors::InstanceNotFound;
 use crate::server::options::{Upgrade, Start, Stop};
 use crate::server::os_trait::{Method, Instance};
 use crate::server::version::Version;
@@ -32,7 +33,7 @@ pub struct BackupMeta {
 
 pub enum ToDo {
     MinorUpgrade,
-    InstanceUpgrade(String, VersionQuery),
+    InstanceUpgrade(String, Option<VersionQuery>),
     NightlyUpgrade,
 }
 
@@ -45,11 +46,11 @@ fn interpret_options(options: &Upgrade) -> ToDo {
                 instances");
         }
         let nver = if options.to_nightly {
-            VersionQuery::Nightly
+            Some(VersionQuery::Nightly)
         } else if let Some(ver) = &options.to_version {
-            VersionQuery::Stable(Some(ver.clone()))
+            Some(VersionQuery::Stable(Some(ver.clone())))
         } else {
-            VersionQuery::Stable(None)
+            None
         };
         ToDo::InstanceUpgrade(name.into(), nver)
     } else if options.nightly {
@@ -63,11 +64,25 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let todo = interpret_options(&options);
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
-
+    let mut errors = Vec::new();
     for meth in methods.values() {
-        meth.upgrade(&todo, options)?;
+        match meth.upgrade(&todo, options) {
+            Ok(()) => {}
+            Err(e) if e.is::<InstanceNotFound>() => {
+                errors.push((meth.name(), e));
+            }
+            Err(e) => Err(e)?,
+        }
     }
-    Ok(())
+    if errors.len() == methods.len() {
+        eprintln!("No instances found:");
+        for (meth, err) in errors {
+            eprintln!("  * {}: {:#}", meth.title(), err);
+        }
+        Err(commands::ExitCode::new(1).into())
+    } else {
+        Ok(())
+    }
 }
 
 pub async fn dump_instance(inst: &dyn Instance, destination: &Path,
@@ -146,7 +161,7 @@ pub fn dump_and_stop(inst: &dyn Instance, path: &Path) -> anyhow::Result<()> {
     task::block_on(
         upgrade::dump_instance(inst, &path, inst.get_connector(false)?))?;
     log::info!(target: "edgedb::server::upgrade",
-        "Stopping the instance before package upgrade");
+        "Stopping the instance before executable upgrade");
     inst.stop(&Stop { name: inst.name().into() })?;
     Ok(())
 }
