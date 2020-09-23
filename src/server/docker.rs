@@ -479,7 +479,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             inst.delete()?;
             self.create(&create)?;
         } else {
-            let dump_path = format!("./upgrade.{}.dump", inst.name());
+            let dump_path = format!("./edgedb.upgrade.{}.dump", inst.name());
             upgrade::dump_and_stop(&inst, dump_path.as_ref())?;
             let meta = upgrade::UpgradeMeta {
                 source: old.cloned()

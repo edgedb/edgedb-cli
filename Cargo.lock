@@ -689,6 +689,7 @@ dependencies = [
  "unicode-segmentation",
  "urlencoding",
  "uuid",
+ "wait-timeout",
  "warp",
  "which",
  "whoami",
@@ -699,7 +700,6 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#86fd2b1c204597dbe0ec4869f933452fc71dc07d"
 dependencies = [
  "anyhow",
  "async-listen",
@@ -708,6 +708,7 @@ dependencies = [
  "edgedb-protocol",
  "humantime-serde",
  "log",
+ "rand",
  "scram",
  "serde",
  "serde_json",
@@ -720,7 +721,6 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#86fd2b1c204597dbe0ec4869f933452fc71dc07d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -731,7 +731,6 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#86fd2b1c204597dbe0ec4869f933452fc71dc07d"
 dependencies = [
  "bigdecimal",
  "bytes 0.5.4",
