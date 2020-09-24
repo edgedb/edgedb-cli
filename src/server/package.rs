@@ -149,7 +149,7 @@ pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
             } else {
                 MajorVersion::Stable(slot.clone())
             },
-            version: target.version.clone(),
+            version: Version(format!("{}-{}", target.version, target.revision)),
             slot: slot.as_ref().to_owned(),
         }.into_ref())
     } else {
