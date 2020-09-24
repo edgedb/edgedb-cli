@@ -38,3 +38,8 @@ targets:
           platform: macos
           platform_version: x86_64
           family: generic
+
+    win:
+       - name: win-x86_64
+         platform: win
+         platform_version: x86_64

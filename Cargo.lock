@@ -620,7 +620,7 @@ checksum = "4358a9e11b9a09cf52383b451b49a169e8d797b68aa02301ff586d70d9661ea3"
 
 [[package]]
 name = "edgedb-cli"
-version = "1.0.0-alpha.4"
+version = "1.0.0-alpha.5"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -700,7 +700,7 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#6be5a7973ef0aeea6b143a1789840ca2f69a296c"
+source = "git+https://github.com/edgedb/edgedb-rust#32dd51bdc11976d08fc79a078439b4af823c374e"
 dependencies = [
  "anyhow",
  "async-listen",
@@ -722,7 +722,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#6be5a7973ef0aeea6b143a1789840ca2f69a296c"
+source = "git+https://github.com/edgedb/edgedb-rust#32dd51bdc11976d08fc79a078439b4af823c374e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -733,7 +733,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#6be5a7973ef0aeea6b143a1789840ca2f69a296c"
+source = "git+https://github.com/edgedb/edgedb-rust#32dd51bdc11976d08fc79a078439b4af823c374e"
 dependencies = [
  "bigdecimal",
  "bytes 0.5.4",
@@ -747,7 +747,7 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb#b0e6111a853cd50f4dc723c06103da5d2d1bc489"
+source = "git+https://github.com/edgedb/edgedb#324a5a8db139ac6eb48ae47f2077b3781e3cc55f"
 dependencies = [
  "combine",
  "snafu",

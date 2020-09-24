@@ -12,9 +12,9 @@ use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
 use crate::credentials::get_connector;
-use crate::process;
-use crate::platform::ProcessGuard;
+use crate::process::{self, ProcessGuard};
 use crate::platform::home_dir;
+
 use crate::server::detect::Lazy;
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};

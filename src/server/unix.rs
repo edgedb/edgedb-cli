@@ -9,7 +9,7 @@ use async_std::task;
 use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
 
-use crate::platform::ProcessGuard;
+use crate::process::ProcessGuard;
 use crate::platform::home_dir;
 use crate::server::control::read_metadata;
 use crate::server::detect::VersionQuery;

@@ -221,6 +221,11 @@ jobs:
         toolchain: stable
         default: true
 
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+
     - name: Build
       env:
         PKG_REVISION: "<current-date>"
@@ -240,6 +245,57 @@ jobs:
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
+
+
+  build-win-x86_64:
+    runs-on: windows-latest
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: win
+        path: edgedb-cli/edgedb-pkg
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+
+    - name: Build
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "win"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+
+      shell: bash
+      run: |
+        edgedb-pkg/integration/win/build.sh
+
+    - name: Set up VC tools environment
+      uses: elprans/gha-setup-vcpp-build-tools@v1
+
+    - name: Sign
+      uses: elprans/gha-win-code-sign@v1
+      with:
+        certificate: "${{ secrets.WIN_CODE_SIGNING_CERT }}"
+        certificate-password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
+        folder: artifacts/win-x86_64
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-win-x86_64
+        path: artifacts/win-x86_64
 
 
   publish-debian-stretch:
@@ -267,11 +323,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-debian-buster:
     needs: [build-debian-buster]
@@ -298,11 +349,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-ubuntu-xenial:
     needs: [build-ubuntu-xenial]
@@ -329,11 +375,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-ubuntu-bionic:
     needs: [build-ubuntu-bionic]
@@ -360,11 +401,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-ubuntu-focal:
     needs: [build-ubuntu-focal]
@@ -391,11 +427,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-centos-7:
     needs: [build-centos-7]
@@ -422,11 +453,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-centos-8:
     needs: [build-centos-8]
@@ -453,11 +479,6 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
 
   publish-linux-x86_64:
     needs: [build-linux-x86_64]
@@ -484,11 +505,27 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
-    - uses: actions/checkout@v1
+    - name: Prepare docker context
+      run: |
+        mkdir -p dockerctx
+        cp artifacts/linux-x86_64/edgedb-cli* dockerctx/edgedb
+        chmod +x dockerctx/edgedb
+        printf 'FROM scratch\nENV EDGEDB_USER edgedb\nADD edgedb /usr/bin/\nENTRYPOINT ["/usr/bin/edgedb"]\n' \
+          >dockerctx/Dockerfile
+        tag=$(date +%Y%m%d%H%M%S)$(echo "${GITHUB_SHA}" | cut -c1-6)
+        echo ::set-env name=SNAPSHOT_TAG::${tag}
+
+    - name: Publish docker image
+      uses: elgohr/Publish-Docker-Github-Action@2.19
+      env:
+        PKG_PLATFORM_FULL: "linux-x86_64"
       with:
-        repository: edgedb/edgedb-docker
-        ref: master
-        path: edgedb/dockerfile
+        name: edgedb/edgedb-cli
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        workdir: dockerctx
+        tags: "${{ env.PKG_PLATFORM_FULL }}-nightly,${{ env.PKG_PLATFORM_FULL }}-nightly-${{ env.SNAPSHOT_TAG }}"
+
 
 
   publish-macos-x86_64:
@@ -520,6 +557,40 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+      run: |
+        edgedb-pkg/integration/macos/publish.sh
+
+
+  publish-win-x86_64:
+    needs: [build-win-x86_64]
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-win-x86_64
+        path: artifacts/win-x86_64
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: win
+        path: edgedb-cli/edgedb-pkg
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: win-x86_64
+
+    - name: Publish
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "win"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+      shell: bash
       run: |
         edgedb-pkg/integration/macos/publish.sh
 
