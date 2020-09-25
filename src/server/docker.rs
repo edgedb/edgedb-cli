@@ -1,6 +1,7 @@
+use std::ffi::OsStr;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::process::{Command};
+use std::process::{Command, Child};
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
 
 use anyhow::Context;
@@ -12,7 +13,7 @@ use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
 use crate::credentials::get_connector;
-use crate::process::{self, ProcessGuard};
+use crate::process;
 use crate::platform::home_dir;
 
 use crate::server::detect::Lazy;
@@ -157,6 +158,69 @@ pub struct DockerInstance<'a, O: CurrentOs + ?Sized> {
     name: String,
     container: Lazy<Option<Container>>,
     metadata: Lazy<Metadata>,
+}
+
+pub struct DockerRun {
+    docker_cmd: PathBuf,
+    name: String,
+    command: Command,
+}
+
+pub struct DockerGuard {
+    docker_cmd: PathBuf,
+    name: String,
+    child: Child,
+}
+
+impl fmt::Debug for DockerRun {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(&self.command, f)
+    }
+}
+
+impl DockerRun {
+    fn new(docker_cmd: impl AsRef<Path>) -> DockerRun {
+        let name = format!("edgedb_{}_{}", std::process::id(), timestamp());
+        let mut command = Command::new(docker_cmd.as_ref());
+        command.arg("run");
+        command.arg("--rm");
+        command.arg("--name").arg(&name);
+        DockerRun {
+            docker_cmd: docker_cmd.as_ref().to_path_buf(),
+            name,
+            command,
+        }
+    }
+    fn arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Command {
+        self.command.arg(arg)
+    }
+    fn run(&mut self) -> anyhow::Result<DockerGuard> {
+        Ok(DockerGuard {
+            docker_cmd: self.docker_cmd.clone(),
+            name: self.name.clone(),
+            child: self.command.spawn()?,
+        })
+    }
+}
+
+impl Drop for DockerGuard {
+    fn drop(&mut self) {
+        process::run(Command::new(&self.docker_cmd)
+            .arg("stop")
+            .arg(&self.name))
+            .map_err(|e| {
+                log::warn!("Error stopping container {:?}: {:#}",
+                           self.name, e);
+            }).ok();
+         self.child.wait().map_err(|e| {
+             log::error!("Error waiting for stopped container: {}", e);
+         }).ok();
+    }
+}
+
+
+fn timestamp() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
 }
 
 impl Tag {
@@ -1122,13 +1186,10 @@ fn reinit_and_restore<O>(inst: DockerInstance<O>, meta: &upgrade::UpgradeMeta,
         ))
     )?;
 
-    let tmp_role = format!("tmp_upgrade_{}",
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+    let tmp_role = format!("tmp_upgrade_{}", timestamp());
     let tmp_password = generate_password();
 
-    let mut cmd = Command::new(&inst.method.cli);
-    cmd.arg("run");
-    cmd.arg("--rm");
+    let mut cmd = DockerRun::new(&inst.method.cli);
     cmd.arg("--user=999:999");
     cmd.arg(format!("--publish={0}:{0}", port));
     cmd.arg("--mount")
@@ -1150,7 +1211,7 @@ fn reinit_and_restore<O>(inst: DockerInstance<O>, meta: &upgrade::UpgradeMeta,
     cmd.arg("--port").arg(port.to_string());
     cmd.arg("--bind-address=0.0.0.0");
     log::debug!("Running server: {:?}", cmd);
-    let child = ProcessGuard::run(&mut cmd)
+    let child = cmd.run()
         .with_context(|| format!("error running server {:?}", cmd))?;
 
     let mut params = inst.get_connector(false)?;
