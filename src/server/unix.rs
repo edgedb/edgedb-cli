@@ -48,10 +48,6 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     cmd.arg("--bootstrap");
     cmd.arg("--log-level=warn");
     cmd.arg("--data-dir").arg(&dir);
-    if settings.inhibit_user_creation {
-        cmd.arg("--default-database=edgedb");
-        cmd.arg("--default-database-user=edgedb");
-    }
 
     log::debug!("Running bootstrap {:?}", cmd);
     match cmd.status() {
@@ -60,16 +56,11 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
         Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
     }
 
-    if let Some(upgrade_marker) = &settings.upgrade_marker {
-        write_upgrade(
-            &dir.join("UPGRADE_IN_PROGRESS"),
-            upgrade_marker)?;
-    }
-
     let metapath = dir.join("metadata.json");
-    write_metadata(&metapath, &settings.metadata())?;
+    let metadata = settings.metadata();
+    write_metadata(&metapath, &metadata)?;
 
-    method.create_user_service(&settings).map_err(|e| {
+    create_user_service(&settings.name, &metadata).map_err(|e| {
         eprintln!("Bootrapping complete, \
             but there was an error creating a service. \
             You can run server manually via: \n  \
@@ -77,8 +68,9 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             settings.name.escape_default());
         e
     }).context("failed to init service")?;
-    match (settings.start_conf, settings.inhibit_start) {
-        (StartConf::Auto, false) => {
+
+    match settings.start_conf {
+        StartConf::Auto => {
             let inst = method.get_instance(&settings.name)?;
             inst.start(&Start {
                 name: settings.name.clone(),
@@ -87,7 +79,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             init_credentials(&settings, &inst)?;
             println!("Bootstrap complete. Server is up and runnning now.");
         }
-        (StartConf::Manual, _) | (_, true) => {
+        StartConf::Manual => {
             let inst = method.get_instance(&settings.name)?;
             let mut cmd = inst.get_command()?;
             log::debug!("Running server: {:?}", cmd);
@@ -104,6 +96,16 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     Ok(())
 }
 
+fn create_user_service(name: &str, meta: &Metadata) -> anyhow::Result<()> {
+    if cfg!(target_os="macos") {
+        macos::create_launchctl_service(&name, &meta)
+    } else if cfg!(target_os="linux") {
+        linux::create_systemd_service(&name, &meta)
+    } else {
+        anyhow::bail!("unsupported OS");
+    }
+}
+
 #[context("failed to write upgrade marker {}", path.display())]
 fn write_upgrade(path: &Path, data: &str) -> anyhow::Result<()> {
     fs::write(path, data.as_bytes())?;
@@ -112,11 +114,14 @@ fn write_upgrade(path: &Path, data: &str) -> anyhow::Result<()> {
 
 #[context("failed to write metadata file {}", path.display())]
 fn write_metadata(path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
-    fs::write(path, serde_json::to_vec_pretty(&metadata)?)?;
+    let tmp_path = path.with_extension("tmp");
+    fs::remove_file(&tmp_path).ok();
+    fs::write(&tmp_path, serde_json::to_vec_pretty(&metadata)?)?;
+    fs::rename(&tmp_path, path)?;
     Ok(())
 }
 
-fn storage_dir(name: &str) -> anyhow::Result<PathBuf> {
+pub fn storage_dir(name: &str) -> anyhow::Result<PathBuf> {
     Ok(dirs::data_dir()
         .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
         .join("edgedb").join("data").join(name))
@@ -254,6 +259,11 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
         let new = method.get_version(&version_query)
             .context("Unable to determine version")?;
         let old = upgrade::get_installed(&version_query, method)?;
+        let new_major = new.major_version().clone();
+        let new_version = new.version().clone();
+        let slot = new.downcast_ref::<Package>()
+            .context("invalid linux package")?
+            .slot.clone();
 
         if !options.force {
             if let Some(old_ver) = &old {
@@ -291,6 +301,16 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
         })?;
 
         for inst in &instances {
+            let new_meta = Metadata {
+                version: new_major.clone(),
+                slot: Some(slot.clone()),
+                current_version: Some(new_version.clone()),
+                method: method.name(),
+                port: inst.get_port()?,
+                start_conf: inst.get_start_conf()?,
+            };
+            let metapath = storage_dir(inst.name())?.join("metadata.json");
+            write_metadata(&metapath, &new_meta)?;
             inst.start(&options::Start {
                 name: inst.name().into(),
                 foreground: false,
@@ -317,9 +337,14 @@ fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
     let version_query = VersionQuery::Nightly;
     let new = method.get_version(&version_query)
         .context("Unable to determine version")?;
+    let slot = new.downcast_ref::<Package>()
+        .context("invalid linux package")?
+        .slot.clone();
+
     log::info!(target: "edgedb::server::upgrade",
         "Installing nightly {}", new.version());
     let new_version = new.version().clone();
+    let new_major = new.major_version().clone();
     method.install(&install::Settings {
         method: method.name(),
         distribution: new,
@@ -342,20 +367,29 @@ fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
         let dump_path = storage_dir(inst.name())?
             .parent().expect("instance path can't be root")
             .join(format!("{}.dump", inst.name()));
+        let new_meta = Metadata {
+            version: new_major.clone(),
+            slot: Some(slot.clone()),
+            current_version: None,
+            method: method.name(),
+            port: inst.get_port()?,
+            start_conf: inst.get_start_conf()?,
+        };
         upgrade::dump_and_stop(inst.as_ref(), &dump_path)?;
-        let meta = upgrade::UpgradeMeta {
+        let upgrade_meta = upgrade::UpgradeMeta {
             source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
             target: new_version.clone(),
             started: SystemTime::now(),
             pid: process::id(),
         };
-        reinit_and_restore(inst.as_ref(), &meta)?;
+        reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta)?;
     }
     Ok(())
 }
 
 #[context("failed to restore {:?}", inst.name())]
-fn reinit_and_restore(inst: &dyn Instance, meta: &upgrade::UpgradeMeta)
+fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
+    upgrade_meta: &upgrade::UpgradeMeta)
     -> anyhow::Result<()>
 {
     let instance_dir = storage_dir(inst.name())?;
@@ -367,22 +401,15 @@ fn reinit_and_restore(inst: &dyn Instance, meta: &upgrade::UpgradeMeta)
             timestamp: SystemTime::now(),
         })?;
 
-    init::init(&options::Init {
-        name: inst.name().into(),
-        system: false,
-        interactive: false,
-        nightly: inst.get_version()?.is_nightly(),
-        version: inst.get_version()?.as_stable().cloned(),
-        method: Some(inst.method().name()),
-        port: Some(inst.get_port()?),
-        start_conf: inst.get_start_conf()?,
-        inhibit_user_creation: true,
-        inhibit_start: true,
-        upgrade_marker: Some(serde_json::to_string(&meta).unwrap()),
-        overwrite: true,
-        default_user: "edgedb".into(),
-        default_database: "edgedb".into(),
-    })?;
+    fs::create_dir_all(&instance_dir)
+        .with_context(|| {
+            format!("failed to create {}", instance_dir.display())
+        })?;
+
+    // TODO(tailhook) can't write before initializing postgres
+    // let upgrade_marker = instance_dir.join("UPGRADE_IN_PROGRESS");
+    // write_upgrade(&upgrade_marker,
+    //    &serde_json::to_string(&upgrade_meta).unwrap())?;
 
     let mut cmd = inst.get_command()?;
     log::debug!("Running server: {:?}", cmd);
@@ -400,7 +427,14 @@ fn reinit_and_restore(inst: &dyn Instance, meta: &upgrade::UpgradeMeta)
         &inst.name());
     drop(child);
 
-    // TODO(tailhook) remove upgrade marker
+    let metapath = instance_dir.join("metadata.json");
+    write_metadata(&metapath, &new_meta)?;
+
+    create_user_service(inst.name(), &new_meta)?;
+
+    // TODO(tailhook) is not written at the moment
+    //fs::remove_file(&upgrade_marker)
+    //    .with_context(|| format!("removing {:?}", upgrade_marker.display()))?;
 
     inst.start(&Start { name: inst.name().into(), foreground: false })?;
     Ok(())
@@ -442,27 +476,38 @@ fn do_instance_upgrade(method: &dyn Method,
             }
         }
     }
+    let slot = new.downcast_ref::<Package>()
+        .context("invalid linux package")?
+        .slot.clone();
 
     log::info!(target: "edgedb::server::upgrade", "Installing the package");
     method.install(&install::Settings {
         method: method.name(),
-        distribution: new,
+        distribution: new.clone(),
         extra: LinkedHashMap::new(),
     })?;
 
     let dump_path = storage_dir(inst.name())?
         .parent().expect("instance path can't be root")
         .join(format!("{}.dump", inst.name()));
-
+    let new_meta = Metadata {
+        version: new_major,
+        slot: Some(slot),
+        current_version: None,
+        method: method.name(),
+        port: inst.get_port()?,
+        start_conf: inst.get_start_conf()?,
+    };
     upgrade::dump_and_stop(inst.as_ref(), &dump_path)?;
 
 
-    let meta = upgrade::UpgradeMeta {
+    let upgrade_meta = upgrade::UpgradeMeta {
         source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
         target: new_version,
         started: SystemTime::now(),
         pid: process::id(),
     };
-    reinit_and_restore(inst.as_ref(), &meta)?;
+    reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta)?;
+
     Ok(())
 }

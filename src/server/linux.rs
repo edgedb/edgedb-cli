@@ -16,13 +16,12 @@ use crate::server::detect::Lazy;
 use crate::server::distribution::{MajorVersion};
 use crate::server::docker::DockerCandidate;
 use crate::server::errors::InstanceNotFound;
-use crate::server::init::{self, Storage};
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::{StartConf, Start, Stop, Restart};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
-use crate::server::package::{PackageCandidate, Package};
+use crate::server::package::PackageCandidate;
 use crate::server::status::{Service, Status};
 use crate::server::version::Version;
 use crate::server::unix;
@@ -311,15 +310,9 @@ pub fn get_server_path(slot: Option<&String>) -> PathBuf {
     }
 }
 
-pub fn systemd_unit(settings: &init::Settings) -> anyhow::Result<String> {
-    let pkg = settings.distribution.downcast_ref::<Package>()
-        .context("invalid linux package")?;
-    let path = match &settings.storage {
-        Storage::UserDir(path) => path,
-        Storage::DockerVolume(..) => {
-            anyhow::bail!("systemd units for docker aren't supported");
-        }
-    };
+pub fn systemd_unit(name: &str, meta: &Metadata) -> anyhow::Result<String> {
+    let system = false;
+    let path = unix::storage_dir(name)?;
     Ok(format!(r###"
 [Unit]
 Description=EdgeDB Database Service, instance {instance_name:?}
@@ -343,11 +336,11 @@ TimeoutSec=0
 [Install]
 WantedBy=multi-user.target
     "###,
-        instance_name=settings.name,
+        instance_name=name,
         directory=path.display(),
-        server_path=get_server_path(Some(&pkg.slot)).display(),
-        port=settings.port,
-        userinfo=if settings.system {
+        server_path=get_server_path(meta.slot.as_ref()).display(),
+        port=meta.port,
+        userinfo=if system {
             "User=edgedb\n\
              Group=edgedb"
         } else {
@@ -376,16 +369,18 @@ pub fn systemd_service_path(name: &str, system: bool)
     Ok(unit_dir(system)?.join(&unit_name(name)))
 }
 
-pub fn create_systemd_service(settings: &init::Settings) -> anyhow::Result<()> {
-    let unit_dir = unit_dir(settings.system)?;
+pub fn create_systemd_service(name: &str, meta: &Metadata)
+    -> anyhow::Result<()>
+{
+    let unit_dir = unit_dir(false)?;
     fs::create_dir_all(&unit_dir)?;
-    let unit_name = unit_name(&settings.name);
+    let unit_name = unit_name(name);
     let unit_path = unit_dir.join(&unit_name);
-    fs::write(&unit_path, systemd_unit(&settings)?)?;
+    fs::write(&unit_path, systemd_unit(name, meta)?)?;
     process::run(Command::new("systemctl")
         .arg("--user")
         .arg("daemon-reload"))?;
-    if settings.start_conf == StartConf::Auto {
+    if meta.start_conf == StartConf::Auto {
         process::run(Command::new("systemctl")
             .arg("--user")
             .arg("enable")

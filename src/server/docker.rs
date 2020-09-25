@@ -778,9 +778,6 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         };
         let image = settings.distribution.downcast_ref::<Image>()
             .context("invalid unix package")?;
-        if let Some(_) = &settings.upgrade_marker {
-            anyhow::bail!("no upgrade marker supported in docker boostrap");
-        }
         let user = whoami::username();
         let md = serde_json::to_string(&settings.metadata())?;
         process::get_text(Command::new(&self.cli)
@@ -818,10 +815,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--log-level=warn");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
-        if settings.inhibit_user_creation {
-            cmd.arg("--default-database=edgedb");
-            cmd.arg("--default-database-user=edgedb");
-        }
+        cmd.arg("--default-database=edgedb");
+        cmd.arg("--default-database-user=edgedb");
 
         log::debug!("Running bootstrap {:?}", cmd);
         match cmd.status() {
@@ -864,11 +859,6 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             }
         }
         Ok(result)
-    }
-    fn create_user_service(&self, _settings: &init::Settings)
-        -> anyhow::Result<()>
-    {
-        unreachable!();
     }
     fn get_instance<'x>(&'x self, name: &str)
         -> anyhow::Result<InstanceRef<'x>>

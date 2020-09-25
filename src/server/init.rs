@@ -52,9 +52,6 @@ pub struct Settings {
     pub database: String,
     pub port: u16,
     pub start_conf: StartConf,
-    pub inhibit_user_creation: bool,
-    pub inhibit_start: bool,
-    pub upgrade_marker: Option<String>,
 }
 
 fn port_file() -> anyhow::Result<PathBuf> {
@@ -223,9 +220,6 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         database: options.default_database.clone(),
         port,
         start_conf: options.start_conf,
-        inhibit_user_creation: options.inhibit_user_creation,
-        inhibit_start: options.inhibit_start,
-        upgrade_marker: options.upgrade_marker.clone(),
     };
     settings.print();
     if settings.system {

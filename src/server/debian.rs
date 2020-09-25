@@ -103,11 +103,6 @@ impl<'os> Method for PackageMethod<'os, Debian> {
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
         unix::clean_storage(storage)
     }
-    fn create_user_service(&self, settings: &init::Settings)
-        -> anyhow::Result<()>
-    {
-        linux::create_systemd_service(settings)
-    }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
         linux::all_instances(self)
     }

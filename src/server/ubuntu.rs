@@ -97,11 +97,6 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
     fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
         unix::bootstrap(self, init)
     }
-    fn create_user_service(&self, settings: &init::Settings)
-        -> anyhow::Result<()>
-    {
-        linux::create_systemd_service(settings)
-    }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
         linux::all_instances(self)
     }

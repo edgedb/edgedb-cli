@@ -116,18 +116,6 @@ impl From<Metadata> for MetadataV2 {
     }
 }
 
-/*
-impl Metadata {
-    fn major_version(&self) -> MajorVersion {
-        if self.nightly {
-            MajorVersion::Nightly
-        } else {
-            MajorVersion::Stable(self.version.clone())
-        }
-    }
-}
-*/
-
 #[cfg(test)]
 mod test {
     use super::Metadata;

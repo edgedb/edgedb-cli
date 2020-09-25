@@ -117,6 +117,7 @@ pub async fn restore_instance(inst: &dyn Instance,
         "Restoring instance {:?}", inst.name());
     conn_params.wait_until_available(Duration::from_secs(30));
     let mut cli = conn_params.connect().await?;
+
     let options = commands::Options {
         command_line: true,
         styler: None,

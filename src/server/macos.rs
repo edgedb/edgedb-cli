@@ -304,20 +304,6 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
         unix::bootstrap(self, init)
     }
-    fn create_user_service(&self, settings: &init::Settings)
-        -> anyhow::Result<()>
-    {
-        let plist_dir = plist_dir(settings.system)?;
-        fs::create_dir_all(&plist_dir)?;
-        let plist_path = plist_dir.join(&plist_name(&settings.name));
-        fs::write(&plist_path, plist_data(&settings)?)?;
-        fs::create_dir_all(home_dir()?.join(".edgedb/run"))?;
-
-        process::run(StdCommand::new("launchctl")
-            .arg("load")
-            .arg(plist_path))?;
-        Ok(())
-    }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
         let mut instances = BTreeSet::new();
         let user_base = unix::base_data_dir()?;
@@ -506,15 +492,13 @@ pub fn launchd_plist_path(name: &str, system: bool)
     Ok(plist_dir(system)?.join(plist_name(name)))
 }
 
-fn plist_data(settings: &init::Settings) -> anyhow::Result<String> {
-    let pkg = settings.distribution.downcast_ref::<Package>()
-        .context("invalid macos package")?;
-    let path = match &settings.storage {
-        Storage::UserDir(path) => path,
-        Storage::DockerVolume(..) => {
-            anyhow::bail!("launchd units for docker aren't supported");
-        }
-    };
+fn plist_data(name: &str, meta: &Metadata)
+    -> anyhow::Result<String>
+{
+    let system = false;
+    let path = get_server_path(
+        meta.slot.as_ref().ok_or_else(|| anyhow::anyhow!("no slot on MacOS"))?
+    );
     Ok(format!(r###"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
@@ -548,18 +532,18 @@ fn plist_data(settings: &init::Settings) -> anyhow::Result<String> {
 </dict>
 </plist>
 "###,
-        instance_name=settings.name,
-        directory=path.display(),
-        server_path=get_server_path(&pkg.slot).display(),
+        instance_name=name,
+        directory=unix::storage_dir(name)?.display(),
+        server_path=path.display(),
         runtime_dir=home_dir()?
-            .join(".edgedb/run").join(&settings.name)
+            .join(".edgedb/run").join(&name)
             .display(),
-        disabled=match settings.start_conf {
+        disabled=match meta.start_conf {
             StartConf::Auto => "<false/>",
             StartConf::Manual => "<true/>",
         },
-        port=settings.port,
-        userinfo=if settings.system {
+        port=meta.port,
+        userinfo=if system {
             "<key>UserName</key><string>edgedb</string>"
         } else {
             ""
@@ -613,4 +597,19 @@ pub fn launchctl_status(name: &str, _system: bool, cache: &StatusCache)
         }
     }
     Inactive { error: format!("service {:?} not found", svc_name) }
+}
+
+pub fn create_launchctl_service(name: &str, meta: &Metadata)
+    -> anyhow::Result<()>
+{
+    let plist_dir = plist_dir(false)?;
+    fs::create_dir_all(&plist_dir)?;
+    let plist_path = plist_dir.join(&plist_name(name));
+    fs::write(&plist_path, plist_data(name, meta)?)?;
+    fs::create_dir_all(home_dir()?.join(".edgedb/run"))?;
+
+    process::run(StdCommand::new("launchctl")
+        .arg("load")
+        .arg(plist_path))?;
+    Ok(())
 }

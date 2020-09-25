@@ -69,8 +69,6 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn bootstrap(&self, settings: &init::Settings) -> anyhow::Result<()>;
     fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
         -> anyhow::Result<()>;
-    fn create_user_service(&self, settings: &init::Settings)
-        -> anyhow::Result<()>;
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>;
     fn get_instance<'x>(&'x self, name: &str)
         -> anyhow::Result<InstanceRef<'x>>;
@@ -139,6 +137,12 @@ impl InstanceRef<'_> {
     }
     pub fn get_status(&self) -> Status {
         self.0.get_status()
+    }
+    pub fn get_port(&self) -> anyhow::Result<u16> {
+        self.0.get_port()
+    }
+    pub fn get_start_conf(&self) -> anyhow::Result<StartConf> {
+        self.0.get_start_conf()
     }
     pub fn start(&self, start: &Start) -> anyhow::Result<()> {
         self.0.start(start)
