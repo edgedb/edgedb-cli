@@ -385,9 +385,6 @@ fn reinit_and_restore(inst: &dyn Instance, meta: &upgrade::UpgradeMeta)
     })?;
 
     let mut cmd = inst.get_command()?;
-    // temporarily patch the edgedb issue of 1-alpha.4
-    cmd.arg("--default-database=edgedb");
-    cmd.arg("--default-database-user=edgedb");
     log::debug!("Running server: {:?}", cmd);
     let child = ProcessGuard::run(&mut cmd)
         .with_context(|| format!("error running server {:?}", cmd))?;
