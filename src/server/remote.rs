@@ -61,8 +61,10 @@ pub async fn get_json<T>(url: &str, context: &'static str)
     where T: DeserializeOwned,
 {
     log::info!("Fetching JSON at {}", url);
-    Ok(surf::get(url).await.ensure200(context)?
-        .body_json::<T>().await.context(context)?)
+    let body_bytes = surf::get(url).await.ensure200(context)?
+        .body_bytes().await.context(context)?;
+    let jd = &mut serde_json::Deserializer::from_slice(&body_bytes);
+    Ok(serde_path_to_error::deserialize(jd).context(context)?)
 }
 
 #[context("failed to fetch JSON at URL: {}", url)]
@@ -75,7 +77,11 @@ pub async fn get_json_opt<T>(url: &str, context: &'static str)
         Ok(res) if res.status() == 404 => Ok(None),
         Ok(res) if res.status() != 200
             => Err(HttpFailure(res)).context(context),
-        Ok(mut res) => Ok(Some(res.body_json::<T>().await.context(context)?)),
+        Ok(mut res) => {
+            let body_bytes = res.body_bytes().await.context(context)?;
+            let jd = &mut serde_json::Deserializer::from_slice(&body_bytes);
+            Ok(serde_path_to_error::deserialize(jd).context(context)?)
+        }
         Err(e) => Err(HttpError(e)).context(context),
     }
 }
