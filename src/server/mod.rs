@@ -1,13 +1,16 @@
 pub mod options;
 mod main;
+mod metadata;
 mod methods;
 mod detect;
+mod distribution;
 mod remote;
 mod version;
 mod os_trait;
 mod debian_like;
 
 // OSs
+mod unix;
 mod linux;
 mod debian;
 mod ubuntu;
@@ -21,6 +24,7 @@ mod docker;
 mod package;
 
 // commands
+mod errors;
 mod control;
 mod init;
 mod install;
@@ -30,7 +34,6 @@ mod status;
 mod upgrade;
 
 pub use main::main;
-pub use control::get_instance;
 
 
 fn is_valid_name(name: &str) -> bool {

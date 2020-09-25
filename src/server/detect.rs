@@ -7,6 +7,7 @@ use serde::Serialize;
 use crate::server::version::Version;
 use crate::server::os_trait::CurrentOs;
 use crate::server::methods::{self, InstallMethod};
+use crate::server::distribution::{DistributionRef};
 
 use anyhow::Context;
 
@@ -141,6 +142,17 @@ impl VersionQuery {
             Stable(Some(v)) => &pkg.major_version == v && !pkg.is_nightly(),
         }
     }
+    pub fn distribution_matches(&self, distr: &DistributionRef) -> bool {
+        use VersionQuery as Q;
+        use crate::server::distribution::MajorVersion as V;
+
+        match (self, distr.major_version()) {
+            (Q::Nightly, V::Nightly) => true,
+            (Q::Stable(None), V::Stable(_)) => true,
+            (Q::Stable(Some(q)), V::Stable(v)) if q == v => true,
+            _ => false,
+         }
+    }
 }
 
 impl fmt::Display for VersionQuery {
@@ -159,12 +171,6 @@ impl InstalledPackage {
         // TODO(tailhook) get nightly flag from the source index
         return self.version.as_ref().contains(".dev")
     }
-    pub fn full_version(&self) -> Version<String> {
-        Version(format!("{}-{}", self.version, self.revision))
-    }
-}
-
-impl VersionResult {
     pub fn full_version(&self) -> Version<String> {
         Version(format!("{}-{}", self.version, self.revision))
     }

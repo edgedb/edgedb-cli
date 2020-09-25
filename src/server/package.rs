@@ -1,9 +1,9 @@
 use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
-use crate::server::detect::{Lazy, InstalledPackage, VersionQuery};
-use crate::server::detect::{VersionResult};
-use crate::server::os_trait::CurrentOs;
+use crate::server::detect::{Lazy, VersionQuery};
+use crate::server::os_trait::{CurrentOs, PreciseVersion};
+use crate::server::distribution::{Distribution, DistributionRef, MajorVersion};
 
 
 #[derive(Debug, Serialize)]
@@ -20,7 +20,7 @@ pub struct PackageMethod<'os, O: CurrentOs + ?Sized> {
     #[serde(skip)]
     pub os: &'os O,
     #[serde(skip)]
-    pub installed: Lazy<Vec<InstalledPackage>>,
+    pub installed: Lazy<Vec<DistributionRef>>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -31,10 +31,42 @@ pub struct RepositoryInfo {
 #[derive(Deserialize, Debug, Clone)]
 pub struct PackageInfo {
     pub basename: String,
-    pub slot: Option<Version<String>>,
+    pub slot: Option<Version<String>>,  // TODO(tailhook) it's a string
     pub version: Version<String>,
     pub revision: String,
     pub architecture: String,
+}
+
+#[derive(Debug)]
+pub struct Package {
+    pub major_version: MajorVersion,
+    pub version: Version<String>,
+    pub slot: String,
+}
+
+impl<'a> Into<DistributionRef> for &'a PackageInfo {
+    fn into(self: &'a PackageInfo) -> DistributionRef {
+        let slot = self.slot.as_ref().expect("only server packages supported");
+        let major_version = if self.is_nightly() {
+            MajorVersion::Nightly
+        } else {
+            MajorVersion::Stable(slot.clone())
+        };
+        Package {
+            major_version,
+            version: Version(format!("{}-{}", self.version, self.revision)),
+            slot: slot.as_ref().to_owned(),
+        }.into_ref()
+    }
+}
+
+impl Distribution for Package {
+    fn major_version(&self) -> &MajorVersion {
+        &self.major_version
+    }
+    fn version(&self) -> &Version<String> {
+        &self.version
+    }
 }
 
 impl PackageCandidate {
@@ -94,7 +126,7 @@ fn version_matches(package: &PackageInfo, version: &VersionQuery) -> bool {
 
 
 pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
-    -> Result<VersionResult, anyhow::Error>
+    -> Result<DistributionRef, anyhow::Error>
 {
     let mut max_version = None::<(&PackageInfo, Version<String>)>;
     for package in &haystack.packages {
@@ -110,24 +142,33 @@ pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
         }
     }
     if let Some((target, _)) = max_version {
-        let major = target.slot.as_ref().unwrap().clone();
-        Ok(VersionResult {
-            package_name:
-                if major.to_ref() >= Version("1-alpha3") {
-                    "edgedb-server".into()
-                } else {
-                    "edgedb".into()
-                },
-            major_version: major,
-            version: target.version.clone(),
-            revision: target.revision.clone(),
-        })
+        let slot = target.slot.as_ref().unwrap().clone();
+        Ok(Package {
+            major_version: if ver.is_nightly() {
+                MajorVersion::Nightly
+            } else {
+                MajorVersion::Stable(slot.clone())
+            },
+            version: Version(format!("{}-{}", target.version, target.revision)),
+            slot: slot.as_ref().to_owned(),
+        }.into_ref())
     } else {
         anyhow::bail!("Version {} not found", ver)
     }
 }
 
 impl PackageInfo {
+    pub fn is_nightly(&self) -> bool {
+        return self.version.as_ref().contains(".dev")
+    }
+    pub fn precise_version(&self) -> PreciseVersion {
+        let slot = self.slot.as_ref().expect("only server packages supported");
+        if self.is_nightly() {
+            PreciseVersion::nightly(&format!("{}-{}", slot, self.revision))
+        } else {
+            PreciseVersion::from_pair(slot.num(), &self.revision)
+        }
+    }
     pub fn full_version(&self) -> Version<String> {
         Version(format!("{}-{}", self.version, self.revision))
     }

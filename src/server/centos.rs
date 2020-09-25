@@ -1,6 +1,5 @@
 use std::fs;
 use std::io;
-use std::path::{PathBuf};
 use std::process::Command as StdCommand;
 use std::str;
 
@@ -9,16 +8,20 @@ use anyhow::Context;
 use serde::Serialize;
 
 use crate::server::detect::{Lazy, ARCH};
-use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
+use crate::server::detect::VersionQuery;
+use crate::server::distribution::{DistributionRef, MajorVersion, Distribution};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::linux;
-use crate::server::init;
+use crate::server::init::{self, Storage};
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{self, PackageMethod, PackageInfo};
+use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
+use crate::server::options::{Upgrade};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
+use crate::server::package::{self, PackageMethod, Package};
 use crate::server::remote;
+use crate::server::unix;
+use crate::server::upgrade;
 use crate::server::version::Version;
 
 
@@ -95,9 +98,12 @@ impl Centos {
     fn install_operations(&self, settings: &install::Settings)
         -> anyhow::Result<Vec<Operation>>
     {
+        let pkg = settings.distribution.downcast_ref::<Package>()
+            .context("invalid centos package")?;
         let mut operations = Vec::new();
-        let repo_data = repo_data(settings.nightly);
-        let repo_path = repo_file(settings.nightly);
+        let nightly = settings.distribution.major_version().is_nightly();
+        let repo_data = repo_data(nightly);
+        let repo_path = repo_file(nightly);
         let update_list = match fs::read(&repo_path) {
             Ok(data) => {
                 let data_text = str::from_utf8(&data).map(|x| x.trim());
@@ -120,8 +126,7 @@ impl Centos {
             Command::new("yum")
             .arg("-y")
             .arg("install")
-            .arg(format!("{}-{}",
-                settings.package_name, settings.major_version))
+            .arg(format!("edgedb-server-{}", pkg.slot))
             .env("_EDGEDB_INSTALL_SKIP_BOOTSTRAP", "1")
         ));
         Ok(operations)
@@ -185,19 +190,26 @@ impl<'os> Method for PackageMethod<'os, Centos> {
             self.os.install_operations(settings)?,
             &self.os.linux)
     }
-    fn all_versions(&self, nightly: bool) -> anyhow::Result<&[PackageInfo]> {
+    fn all_versions(&self, nightly: bool)
+        -> anyhow::Result<Vec<DistributionRef>>
+    {
         Ok(self.os.get_repo(nightly)?
-            .map(|x| &x.packages[..]).unwrap_or(&[]))
+            .map(|x| {
+                x.packages.iter()
+                .filter(|p| p.basename == "edgedb-server" && p.slot.is_some())
+                .map(|p| p.into())
+                .collect()
+            }).unwrap_or_else(Vec::new))
     }
     fn get_version(&self, query: &VersionQuery)
-        -> anyhow::Result<VersionResult>
+        -> anyhow::Result<DistributionRef>
     {
         let packages = self.os.get_repo(query.is_nightly())?
             .ok_or_else(|| anyhow::anyhow!("No repository found"))?;
         package::find_version(packages, query)
     }
-    fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]> {
-        Ok(&self.installed.get_or_try_init(|| {
+    fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
+        Ok(self.installed.get_or_try_init(|| {
             let mut cmd = StdCommand::new("yum");
             cmd.arg("--showduplicates");
             cmd.arg("list").arg("installed");
@@ -229,19 +241,21 @@ impl<'os> Method for PackageMethod<'os, Centos> {
                     Ok(line) => line.split_whitespace(),
                     Err(_) => continue,
                 };
-                let (pkg, ver) = match (it.next(), it.next(), it.next()) {
-                    | (Some(name), Some(ver),
-                        Some("@edgedb-server-install"))
-                    | (Some(name), Some(ver),
-                        Some("@edgedb-server-install-nightly"))
-                    => (name, ver),
-                    _ => continue,
-                };
+                let (pkg, ver, nightly) =
+                    match (it.next(), it.next(), it.next()) {
+                        (Some(name), Some(ver),
+                            Some("@edgedb-server-install"))
+                        => (name, ver, false),
+                        (Some(name), Some(ver),
+                            Some("@edgedb-server-install-nightly"))
+                        => (name, ver, true),
+                        _ => continue,
+                    };
                 let (pkg_name, arch) = split_on(pkg, '.');
                 if arch != ARCH {
                     continue;
                 }
-                let (package_name, major_version) =
+                let (_pkg_name, major_version) =
                     if pkg_name.starts_with("edgedb-server-") {
                         ("edgedb-server", &pkg_name["edgedb-server-".len()..])
                     } else {
@@ -253,28 +267,45 @@ impl<'os> Method for PackageMethod<'os, Centos> {
                 {
                     continue;
                 }
-                let (version, revision) = split_on(ver, '-');
-                result.push(InstalledPackage {
-                    package_name: package_name.to_owned(),
-                    major_version: Version(major_version.to_owned()),
-                    version: Version(version.to_owned()),
-                    revision: revision.to_owned(),
-                });
+                result.push(Package {
+                    major_version: if nightly {
+                        MajorVersion::Nightly
+                    } else {
+                        MajorVersion::Stable(Version(major_version.to_owned()))
+                    },
+                    version: Version(ver.to_owned()),
+                    slot: major_version.to_owned(),
+                }.into_ref());
             }
             Ok(result)
-        })?)
+        })?.clone())
     }
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
-    fn get_server_path(&self, major_version: &Version<String>)
-        -> anyhow::Result<PathBuf>
-    {
-        Ok(linux::get_server_path(major_version))
+    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
+        unix::bootstrap(self, init)
     }
-    fn create_user_service(&self, settings: &init::Settings)
+    fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage> {
+        unix::storage(system, name)
+    }
+    fn storage_exists(&self, storage: &Storage) -> anyhow::Result<bool> {
+        unix::storage_exists(storage)
+    }
+    fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
+        unix::clean_storage(storage)
+    }
+    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
+        linux::all_instances(self)
+    }
+    fn get_instance<'x>(&'x self, name: &str)
+        -> anyhow::Result<InstanceRef<'x>>
+    {
+        linux::get_instance(self, name)
+    }
+    fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
         -> anyhow::Result<()>
     {
-        linux::create_systemd_service(settings, self)
+        unix::upgrade(todo, options, self)
     }
 }

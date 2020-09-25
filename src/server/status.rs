@@ -1,24 +1,20 @@
 use std::io;
 use std::fs;
-use std::collections::{BTreeMap, BTreeSet};
-use std::process::{Command, exit};
+use std::process::exit;
 use std::time::Duration;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::Context;
 use async_std::task;
 use async_std::net::TcpStream;
 use async_std::io::timeout;
-use once_cell::unsync::OnceCell;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
-use crate::server::init::{Metadata, read_ports, data_path};
+use crate::server::detect;
+use crate::server::init::Storage;
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
-use crate::server::control::read_metadata;
-use crate::server::{linux, macos};
-use crate::server::is_valid_name;
-use crate::process::get_text;
+use crate::server::metadata::Metadata;
 use crate::table;
 
 
@@ -52,20 +48,16 @@ pub enum BackupStatus {
 
 #[derive(Debug)]
 pub struct Status {
-    name: String,
-    service: Service,
-    metadata: anyhow::Result<Metadata>,
-    reserved_port: Option<u16>,
-    port_status: Port,
-    data_dir: PathBuf,
-    data_status: DataDirectory,
-    backup: BackupStatus,
-    service_file_exists: bool,
-}
-
-pub struct Cache {
-    launchctl_list: OnceCell<anyhow::Result<String>>,
-    reserved_ports: OnceCell<Result<BTreeMap<String, u16>, ()>>,
+    pub name: String,
+    pub service: Service,
+    pub metadata: anyhow::Result<Metadata>,
+    pub reserved_port: Option<u16>,
+    pub port_status: Port,
+    pub storage: Storage,
+    pub data_status: DataDirectory,
+    pub backup: BackupStatus,
+    pub credentials_file_exists: bool,
+    pub service_exists: bool,
 }
 
 fn format_duration(mut dur: Duration) -> String {
@@ -101,18 +93,18 @@ impl Status {
                 println!("inactive");
             }
         }
-        println!("  Service file: {}", match self.service_file_exists {
+        println!("  Service/Container: {}", match self.service_exists {
             true => "exists",
+            false => "NOT FOUND",
+        });
+        println!("  Credentials: {}", match self.credentials_file_exists {
+            true => "exist",
             false => "NOT FOUND",
         });
 
         match &self.metadata {
             Ok(meta) => {
-                println!("  Version: {}{}", meta.version, if meta.nightly {
-                    " (nightly)"
-                } else {
-                    ""
-                });
+                println!("  Version: {}",meta.version.title());
                 println!("  Installation method: {}", meta.method.title());
                 println!("  Startup: {}", meta.start_conf);
                 if let Some(port) = self.reserved_port {
@@ -137,7 +129,7 @@ impl Status {
             Port::Unknown => "unknown",
         });
 
-        println!("  Data directory: {}", self.data_dir.display());
+        println!("  Data directory: {}", self.storage.display());
         println!("  Data status: {}", match &self.data_status {
             DataDirectory::Absent => "NOT FOUND".into(),
             DataDirectory::NoMetadata => "METADATA ERROR".into(),
@@ -198,90 +190,8 @@ impl Status {
     }
 }
 
-fn systemd_status(name: &str, system: bool) -> Service {
-    use Service::*;
 
-    let mut cmd = Command::new("systemctl");
-    if !system {
-        cmd.arg("--user");
-    }
-    cmd.arg("show");
-    cmd.arg(format!("edgedb-server@{}", name));
-    let txt = match get_text(&mut cmd) {
-        Ok(txt) => txt,
-        Err(e) => {
-            return Service::Inactive {
-                error: format!("cannot determine service status: {:#}", e),
-            }
-        }
-    };
-    let mut pid = None;
-    let mut exit = None;
-    let mut load_error = None;
-    for line in txt.lines() {
-        if let Some(pid_str) = line.strip_prefix("MainPID=") {
-            pid = pid_str.trim().parse().ok();
-        }
-        if let Some(status_str) = line.strip_prefix("ExecMainStatus=") {
-            exit = status_str.trim().parse().ok();
-        }
-        if let Some(err) = line.strip_prefix("LoadError=") {
-            load_error = Some(err.trim().to_string());
-        }
-    }
-    match pid {
-        None | Some(0) => {
-            if let Some(error) = load_error {
-                Inactive { error }
-            } else {
-                Failed { exit_code: exit }
-            }
-        }
-        Some(pid) => {
-            Running { pid }
-        }
-    }
-}
-
-fn launchctl_status(name: &str, _system: bool, cache: &Cache) -> Service {
-    use Service::*;
-    let list = cache.launchctl_list.get_or_init(|| {
-        get_text(&mut Command::new("launchctl").arg("list"))
-    });
-    let txt = match list {
-        Ok(txt) => txt,
-        Err(e) => {
-            return Service::Inactive {
-                error: format!("cannot determine service status: {:#}", e),
-            }
-        }
-    };
-    let svc_name = format!("edgedb-server-{}", name);
-    for line in txt.lines() {
-        let mut iter = line.split_whitespace();
-        let pid = iter.next().unwrap_or("-");
-        let exit_code = iter.next();
-        let cur_name = iter.next();
-        if let Some(cur_name) = cur_name {
-            if cur_name == svc_name {
-                if pid == "-" {
-                    return Failed {
-                        exit_code: exit_code.and_then(|v| v.parse().ok()),
-                    };
-                }
-                match pid.parse() {
-                    Ok(pid) => return Running { pid },
-                    Err(e) => return Inactive {
-                        error: format!("invalid pid {:?}: {}", pid, e),
-                    },
-                }
-            }
-        }
-    }
-    Inactive { error: format!("service {:?} not found", svc_name) }
-}
-
-fn probe_port(metadata: &anyhow::Result<Metadata>, reserved: &Option<u16>)
+pub fn probe_port(metadata: &anyhow::Result<Metadata>, reserved: &Option<u16>)
     -> Port
 {
     use Port::*;
@@ -307,11 +217,11 @@ fn probe_port(metadata: &anyhow::Result<Metadata>, reserved: &Option<u16>)
 }
 
 #[context("failed to read upgrade file {}", file.display())]
-fn read_upgrade(file: &Path) -> anyhow::Result<UpgradeMeta> {
+pub fn read_upgrade(file: &Path) -> anyhow::Result<UpgradeMeta> {
     Ok(serde_json::from_slice(&fs::read(&file)?)?)
 }
 
-fn backup_status(dir: &Path) -> BackupStatus {
+pub fn backup_status(dir: &Path) -> BackupStatus {
     use BackupStatus::*;
     if !dir.exists() {
         return Absent;
@@ -324,132 +234,26 @@ fn backup_status(dir: &Path) -> BackupStatus {
     Exists(meta)
 }
 
-fn _get_status(base: &Path, name: &str, system: bool, cache: &Cache) -> Status
-{
-    use DataDirectory::*;
-
-    let service = if cfg!(target_os="linux") {
-        systemd_status(name, system)
-    } else if cfg!(target_os="macos") {
-        launchctl_status(name, system, &cache)
-    } else {
-        Service::Inactive { error: "unsupported os".into() }
-    };
-    let data_dir = base.join(name);
-    let (data_status, metadata) = if data_dir.exists() {
-        let metadata = read_metadata(&data_dir);
-        if metadata.is_ok() {
-            let upgrade_file = data_dir.join("UPGRADE_IN_PROGRESS");
-            if upgrade_file.exists() {
-                (Upgrading(read_upgrade(&upgrade_file)), metadata)
-            } else {
-                (Normal, metadata)
-            }
-        } else {
-            (NoMetadata, metadata)
-        }
-    } else {
-        (Absent, Err(anyhow::anyhow!("No data directory")))
-    };
-    let reserved_port =
-        cache.reserved_ports.get_or_init(|| {
-            read_ports()
-            .map_err(|e| log::warn!("{:#}", e))
-        }).as_ref()
-        .ok()
-        .and_then(|ports| ports.get(name).cloned());
-    let port_status = probe_port(&metadata, &reserved_port);
-    let backup = backup_status(&base.join(format!("{}.backup", name)));
-    let service_file_exists = if cfg!(target_os="linux") {
-        linux::systemd_service_path(&name, system)
-        .map(|p| p.exists())
-        .unwrap_or(false)
-    } else if cfg!(target_os="macos") {
-        macos::launchd_plist_path(&name, system)
-        .map(|p| p.exists())
-        .unwrap_or(false)
-    } else {
-        false
-    };
-
-    Status {
-        name: name.into(),
-        service,
-        metadata,
-        reserved_port,
-        port_status,
-        data_dir,
-        data_status,
-        backup,
-        service_file_exists,
-    }
-}
-
-pub fn get_status(name: &str, system: bool) -> anyhow::Result<Status> {
-    let base = data_path(system)?;
-    let cache = Cache::new();
-    Ok(_get_status(&base, name, system, &cache))
-}
-
-fn get_status_with(name: &str, system: bool, cache: &Cache)
-    -> anyhow::Result<Status>
-{
-    let base = data_path(system)?;
-    Ok(_get_status(&base, name, system, cache))
-}
-
-#[context("error reading dir {}", dir.display())]
-fn instances_from_data_dir(dir: &Path, system: bool,
-    instances: &mut BTreeSet<(String, bool)>)
-    -> anyhow::Result<()>
-{
-    for item in fs::read_dir(&dir)? {
-        let item = item?;
-        if !item.file_type()?.is_dir() {
-            continue;
-        }
-        if let Some(name) = item.file_name().to_str() {
-            if !is_valid_name(name) {
-                continue;
-            }
-            instances.insert((name.to_owned(), system));
-        }
-    }
-    Ok(())
-}
-
-fn all_instances() -> anyhow::Result<BTreeSet<(String, bool)>> {
-    let mut instances = BTreeSet::new();
-    let user_base = data_path(false)?;
-    if user_base.exists() {
-        instances_from_data_dir(&user_base, false, &mut instances)?;
-    }
-    // TODO(tailhook) add a list of instances from the service directory
-    // TODO(tailhook) add system instances
-    Ok(instances)
-}
-
-impl Cache {
-    fn new() -> Cache {
-        Cache {
-            launchctl_list: OnceCell::new(),
-            reserved_ports: OnceCell::new(),
-        }
-    }
-}
-
-pub fn print_status_all(extended: bool) -> anyhow::Result<()> {
-    let instances = all_instances()?;
-    let cache = Cache::new();
+pub fn print_status_all(extended: bool, debug: bool) -> anyhow::Result<()> {
+    let os = detect::current_os()?;
+    let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
     let mut statuses = Vec::new();
-    for (name, system) in instances {
-        statuses.push(get_status_with(&name, system, &cache)?);
+    for meth in methods.values() {
+        statuses.extend(
+            meth.all_instances()?
+            .into_iter()
+            .map(|i| i.get_status())
+        );
     }
     if statuses.is_empty() {
         eprintln!("No instances found");
         return Ok(());
     }
-    if extended {
+    if debug {
+        for status in statuses {
+            println!("{:#?}", status);
+        }
+    } else if extended {
         for status in statuses {
             status.print_extended();
         }
@@ -465,7 +269,7 @@ pub fn print_status_all(extended: bool) -> anyhow::Result<()> {
                 Cell::new(&status.metadata.as_ref()
                     .map(|m| m.port.to_string()).unwrap_or("?".into())),
                 Cell::new(&status.metadata.as_ref()
-                    .map(|m| m.version.to_string()).unwrap_or("?".into())),
+                    .map(|m| m.version.title()).unwrap_or("?".into())),
                 Cell::new(match status.service {
                     Service::Running {..} => "running",
                     Service::Failed {..} => "not running",

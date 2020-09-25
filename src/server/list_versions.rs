@@ -6,15 +6,15 @@ use crate::server::detect;
 use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::ListVersions;
 use crate::server::version::Version;
+use crate::server::distribution::{MajorVersion, DistributionRef};
 use crate::table;
 
 
 #[derive(Debug)]
 pub struct VersionInfo {
     available: BTreeSet<InstallMethod>,
-    installed: BTreeMap<InstallMethod, Version<String>>,
-    full: Version<String>,
-    nightly: bool,
+    installed: BTreeMap<InstallMethod, DistributionRef>,
+    latest: Version<String>,
 }
 
 
@@ -44,68 +44,47 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
 }
 
 fn installed(methods: &Methods,
-    versions: &mut BTreeMap<Version<String>, VersionInfo>)
+    versions: &mut BTreeMap<MajorVersion, VersionInfo>)
     -> Result<(), anyhow::Error>
 {
     for (meth, method) in methods {
-        for ver in method.installed_versions()? {
-            let full_ver = format!("{}-{}", ver.version, ver.revision);
-            let entry = versions.entry(ver.major_version.clone())
+        for distr in method.installed_versions()? {
+            let entry = versions.entry(distr.major_version().clone())
                 .or_insert_with(|| VersionInfo {
                     available: BTreeSet::new(),
                     installed: BTreeMap::new(),
-                    full: Version(full_ver.clone()),
-                    nightly: false,
+                    latest: distr.version().clone(),
                 });
-            entry.installed.insert(meth.clone(), Version(full_ver));
+            entry.installed.insert(meth.clone(), distr);
         }
     }
     Ok(())
 }
 
-fn remote(methods: &Methods, versions: &mut BTreeMap<Version<String>, VersionInfo>)
+fn remote(methods: &Methods,
+    versions: &mut BTreeMap<MajorVersion, VersionInfo>)
     -> anyhow::Result<()>
 {
     for (meth, method) in methods {
-        for pkg in method.all_versions(false)? {
-            if let Some(major) = &pkg.slot {
-                let full_ver = Version(format!("{}-{}",
-                    pkg.version, pkg.revision));
-                let ver = versions.entry(major.clone())
-                    .or_insert_with(|| VersionInfo {
-                        available: BTreeSet::new(),
-                        installed: BTreeMap::new(),
-                        full: pkg.version.clone(),
-                        nightly: false,
-                    });
-                ver.available.insert(meth.clone());
-                if ver.full < full_ver {
-                    ver.full = full_ver;
-                }
-            }
-        }
-        for pkg in method.all_versions(true)? {
-            if let Some(major) = &pkg.slot {
-                let ver = versions.entry(major.clone())
-                    .or_insert_with(|| VersionInfo {
-                        available: BTreeSet::new(),
-                        installed: BTreeMap::new(),
-                        full: pkg.version.clone(),
-                        nightly: true,
-                    });
-                if ver.nightly {
-                    ver.available.insert(meth.clone());
-                    if ver.full < pkg.version {
-                        ver.full = pkg.version.clone();
-                    }
-                }
+        let nightly = method.all_versions(true)?;
+        let stable = method.all_versions(false)?;
+        for distr in stable.iter().chain(nightly.iter()) {
+            let info = versions.entry(distr.major_version().clone())
+                .or_insert_with(|| VersionInfo {
+                    available: BTreeSet::new(),
+                    installed: BTreeMap::new(),
+                    latest: distr.version().clone(),
+                });
+            info.available.insert(meth.clone());
+            if &info.latest < distr.version() {
+                info.latest = distr.version().clone();
             }
         }
     }
     Ok(())
 }
 
-fn print_versions(versions: BTreeMap<Version<String>, VersionInfo>) {
+fn print_versions(versions: BTreeMap<MajorVersion, VersionInfo>) {
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
     table.add_row(Row::new(vec![
@@ -116,19 +95,13 @@ fn print_versions(versions: BTreeMap<Version<String>, VersionInfo>) {
         table::header_cell("Param"),
     ]));
     for (ver, info) in &versions {
-        let ver_option = format!("--version={}", ver);
-        let nightly_ver = format!("{} (nightly)", ver);
         table.add_row(Row::new(vec![
-            Cell::new(if info.nightly {
-                    &nightly_ver
-                } else {
-                    ver.as_ref()
-                }),
-            Cell::new(info.full.as_ref())
+            Cell::new(ver.title()),
+            Cell::new(info.latest.as_ref())
                 .style_spec(if info.installed.is_empty() {
                     ""
                 } else if info.installed.iter()
-                          .all(|(_m, ver)| ver == &info.full)
+                          .all(|(_m, distr)| distr.version() == &info.latest)
                 {
                     "bFg"
                 } else {
@@ -139,20 +112,16 @@ fn print_versions(versions: BTreeMap<Version<String>, VersionInfo>) {
                 .collect::<Vec<_>>()
                 .join(", ")),
             Cell::new(&info.installed.iter()
-                .map(|(meth, ver)| {
-                    if ver == &info.full {
+                .map(|(meth, distr)| {
+                    if distr.version() == &info.latest {
                         meth.short_name().to_owned()
                     } else {
-                        format!("{}:{}", meth.short_name(), ver)
+                        format!("{}:{}", meth.short_name(), distr.version())
                     }
                 })
                 .collect::<Vec<_>>()
                 .join(", ")),
-            Cell::new(if info.nightly {
-                    "--nightly"
-                } else {
-                    &ver_option
-                }),
+            Cell::new(&ver.option()),
         ]));
     }
     table.printstd();

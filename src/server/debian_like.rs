@@ -7,13 +7,14 @@ use anyhow::Context;
 use async_std::task;
 use serde::Serialize;
 
-use crate::server::detect::{Lazy, ARCH, InstalledPackage};
+use crate::server::detect::{Lazy, ARCH};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
-use crate::server::package::{RepositoryInfo, PackageCandidate};
+use crate::server::package::{RepositoryInfo, PackageCandidate, Package};
 use crate::server::remote;
 use crate::server::methods::InstallationMethods;
 use crate::server::version::Version;
+use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 
 
 #[derive(Debug, Serialize)]
@@ -70,6 +71,17 @@ impl Debian {
             }).map(|opt| opt.as_ref())
         }
     }
+    pub fn all_versions(&self, nightly: bool)
+        -> anyhow::Result<Vec<DistributionRef>>
+    {
+        Ok(self.get_repo(nightly)?
+            .map(|x| {
+                x.packages.iter()
+                .filter(|p| p.basename == "edgedb-server" && p.slot.is_some())
+                .map(|p| p.into())
+                .collect()
+            }).unwrap_or_else(Vec::new))
+    }
     pub fn get_available_methods(&self)
         -> Result<InstallationMethods, anyhow::Error>
     {
@@ -93,6 +105,8 @@ impl Debian {
     pub fn install_operations(&self, settings: &install::Settings)
         -> anyhow::Result<Vec<Operation>>
     {
+        let pkg = settings.distribution.downcast_ref::<Package>()
+            .context("invalid debian package")?;
         let key = task::block_on(remote::get_string(install::KEY_FILE_URL))
             .context("downloading key file")?;
         let mut operations = Vec::new();
@@ -102,8 +116,9 @@ impl Debian {
                 .arg("add")
                 .arg("-"),
         });
-        let sources_list = sources_list(&self.codename, settings.nightly);
-        let list_path = sources_list_path(settings.nightly);
+        let nightly = settings.distribution.major_version().is_nightly();
+        let sources_list = sources_list(&self.codename, nightly);
+        let list_path = sources_list_path(nightly);
         let update_list = match fs::read(list_path) {
             Ok(data) => {
                 let data_text = str::from_utf8(&data).map(|x| x.trim());
@@ -138,15 +153,14 @@ impl Debian {
             .arg("install")
             .arg("-y")
             // TODO(tailhook) version
-            .arg(format!("{}-{}",
-                         settings.package_name, settings.major_version))
+            .arg(format!("edgedb-server-{}", pkg.slot))
             .env("_EDGEDB_INSTALL_SKIP_BOOTSTRAP", "1")
         ));
         return Ok(operations);
     }
 }
 
-pub fn get_installed() -> anyhow::Result<Vec<InstalledPackage>> {
+pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
     let mut cmd = StdCommand::new("apt-cache");
     cmd.arg("search");
     cmd.arg("^edgedb(-server)?-[0-9]");
@@ -188,21 +202,21 @@ pub fn get_installed() -> anyhow::Result<Vec<InstalledPackage>> {
                 if ver == "(none)" {
                     break;
                 }
-                let (package_name, major_version) =
+                let (_pkg_name, major_version) =
                     if pkg_name.starts_with("edgedb-server-") {
                         ("edgedb-server", &pkg_name["edgedb-server-".len()..])
                     } else {
                         ("edgedb", &pkg_name["edgedb-".len()..])
                     };
-                let mut split = ver.splitn(2, "-");
-                let version = split.next().unwrap();
-                let revision = split.next().unwrap_or("");
-                result.push(InstalledPackage {
-                    package_name: package_name.to_owned(),
-                    major_version: Version(major_version.to_owned()),
-                    version: Version(version.to_owned()),
-                    revision: revision.to_owned(),
-                });
+                result.push(Package {
+                    slot: major_version.to_owned(),
+                    version: Version(ver.to_owned()),
+                    major_version: if ver.contains(".dev") {
+                        MajorVersion::Nightly
+                    } else {
+                        MajorVersion::Stable(Version(major_version.into()))
+                    },
+                }.into_ref());
                 break;
             }
         }

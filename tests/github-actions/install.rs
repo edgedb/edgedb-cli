@@ -202,6 +202,20 @@ fn github_action_install() -> anyhow::Result<()> {
                 .arg("server").arg("status").arg("inst1")
                 .assert()
                 .success();
+
+            println!("Upgrading");
+            Command::new(&edgedb)
+                .arg("server").arg("upgrade").arg("inst1").arg("--force")
+                .assert()
+                .success();
+
+            println!("Execute query after upgrade");
+            Command::new(&edgedb)
+                .arg("--admin").arg("--instance").arg("inst1")
+                .arg("--wait-until-available=20s")
+                .arg("query").arg("SELECT 1")
+                .assert()
+                .success();
         }
     }
 

@@ -17,13 +17,7 @@ pub struct ServerCommand {
 }
 
 #[derive(Clap, Clone, Debug)]
-pub enum Command {
-    #[clap(about="Install edgedb-server")]
-    Install(Install),
-    #[clap(about="List available and installed versions of the server")]
-    ListVersions(ListVersions),
-    #[clap(about="Initialize a new server instance")]
-    Init(Init),
+pub enum InstanceCommand {
     #[clap(about="Start an instance")]
     Start(Start),
     #[clap(about="Stop an instance")]
@@ -32,6 +26,18 @@ pub enum Command {
     Restart(Restart),
     #[clap(about="Status of an instance")]
     Status(Status),
+}
+
+#[derive(Clap, Clone, Debug)]
+pub enum Command {
+    #[clap(about="Install edgedb-server")]
+    Install(Install),
+    #[clap(about="List available and installed versions of the server")]
+    ListVersions(ListVersions),
+    #[clap(about="Initialize a new server instance")]
+    Init(Init),
+    #[clap(flatten)]
+    Instance(InstanceCommand),
     #[clap(about="Upgrade installations and instances")]
     Upgrade(Upgrade),
     #[clap(about="Reset password for a user in the instance")]
@@ -159,6 +165,10 @@ pub struct Status {
     /// Output more debug info about each instance
     #[clap(long)]
     pub extended: bool,
+
+    /// Output all available debug info about each instance
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub debug: bool,
 
     /// Print status of all instances
     #[clap(long)]

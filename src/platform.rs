@@ -38,4 +38,3 @@ pub fn tmp_file_name(path: &Path) -> OsString {
         OsString::from(".~.tmp")  // should never be relied on in practice
     }
 }
-

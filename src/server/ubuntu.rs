@@ -1,16 +1,17 @@
-use std::path::PathBuf;
-
 use serde::Serialize;
 
 use crate::server::debian_like;
-use crate::server::detect::{VersionQuery, InstalledPackage, VersionResult};
+use crate::server::detect::VersionQuery;
+use crate::server::distribution::DistributionRef;
+use crate::server::init::{self, Storage};
 use crate::server::install;
-use crate::server::init;
 use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::package::{self, PackageMethod, PackageInfo};
-use crate::server::version::Version;
+use crate::server::options::{Upgrade};
+use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
+use crate::server::package::{self, PackageMethod};
+use crate::server::unix;
+use crate::server::upgrade;
 
 
 #[derive(Debug, Serialize)]
@@ -64,33 +65,49 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
             self.os.common.install_operations(settings)?,
             &self.os.linux)
     }
-    fn all_versions(&self, nightly: bool) -> anyhow::Result<&[PackageInfo]> {
-        Ok(self.os.common.get_repo(nightly)?
-            .map(|x| &x.packages[..]).unwrap_or(&[]))
+    fn all_versions(&self, nightly: bool)
+        -> anyhow::Result<Vec<DistributionRef>>
+    {
+        self.os.common.all_versions(nightly)
     }
     fn get_version(&self, query: &VersionQuery)
-        -> anyhow::Result<VersionResult>
+        -> anyhow::Result<DistributionRef>
     {
         let packages = self.os.common.get_repo(query.is_nightly())?
             .ok_or_else(|| anyhow::anyhow!("No repository found"))?;
         package::find_version(packages, query)
     }
-    fn installed_versions(&self) -> anyhow::Result<&[InstalledPackage]> {
-        Ok(&self.installed.get_or_try_init(|| {
+    fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
+        Ok(self.installed.get_or_try_init(|| {
             debian_like::get_installed()
-        })?)
+        })?.clone())
     }
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
-    fn get_server_path(&self, major_version: &Version<String>)
-        -> anyhow::Result<PathBuf>
-    {
-        Ok(linux::get_server_path(major_version))
+    fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage> {
+        unix::storage(system, name)
     }
-    fn create_user_service(&self, settings: &init::Settings)
+    fn storage_exists(&self, storage: &Storage) -> anyhow::Result<bool> {
+        unix::storage_exists(storage)
+    }
+    fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
+        unix::clean_storage(storage)
+    }
+    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
+        unix::bootstrap(self, init)
+    }
+    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
+        linux::all_instances(self)
+    }
+    fn get_instance<'x>(&'x self, name: &str)
+        -> anyhow::Result<InstanceRef<'x>>
+    {
+        linux::get_instance(self, name)
+    }
+    fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
         -> anyhow::Result<()>
     {
-        linux::create_systemd_service(settings, self)
+        unix::upgrade(todo, options, self)
     }
 }

@@ -1,27 +1,28 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::default::Default;
+use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::Duration;
 
 use anyhow::Context;
 use async_std::task;
 use edgeql_parser::helpers::{quote_string, quote_name};
 use prettytable::{Table, Row, Cell};
-use serde::{Serialize, Deserialize};
 use fn_error_context::context;
 
-use crate::process::ProcessGuard;
 use crate::platform::{config_dir, home_dir};
-use crate::server::control;
 use crate::server::reset_password::{generate_password, write_credentials};
-use crate::server::detect::{self, VersionQuery, InstalledPackage};
+use crate::server::reset_password::{password_hash};
+use crate::server::detect::{self, VersionQuery};
+use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallMethod, Methods};
-use crate::server::options::{Init, Start, StartConf};
-use crate::server::os_trait::Method;
+use crate::server::options::{Init, StartConf};
+use crate::server::os_trait::{InstanceRef};
 use crate::server::version::Version;
+use crate::server::distribution::DistributionRef;
+use crate::server::package::Package;
 use crate::table;
 
 use edgedb_client::credentials::Credentials;
@@ -30,40 +31,27 @@ use edgedb_client::credentials::Credentials;
 const MIN_PORT: u16 = 10700;
 
 
+#[derive(Clone, Debug)]
+pub enum Storage {
+    UserDir(PathBuf),
+    DockerVolume(String),
+}
+
+pub struct StorageDisplay<'a>(&'a Storage);
+
 pub struct Settings {
     pub name: String,
     pub system: bool,
+    pub distribution: DistributionRef,
     pub version: Version<String>,
     pub nightly: bool,
     pub method: InstallMethod,
-    pub directory: PathBuf,
+    pub storage: Storage,
     pub credentials: PathBuf,
     pub user: String,
     pub database: String,
     pub port: u16,
     pub start_conf: StartConf,
-    pub inhibit_user_creation: bool,
-    pub inhibit_start: bool,
-    pub upgrade_marker: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Metadata {
-    pub version: Version<String>,
-    pub method: InstallMethod,
-    pub port: u16,
-    pub nightly: bool,
-    pub start_conf: StartConf,
-}
-
-pub fn data_path(system: bool) -> anyhow::Result<PathBuf> {
-    if system {
-        anyhow::bail!("System instances are not implemented yet"); // TODO
-    } else {
-        Ok(dirs::data_dir()
-            .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-            .join("edgedb/data"))
-    }
 }
 
 fn port_file() -> anyhow::Result<PathBuf> {
@@ -133,71 +121,34 @@ fn allocate_port(name: &str) -> anyhow::Result<u16> {
     Ok(port)
 }
 
-fn try_bootstrap(settings: &Settings, method: &dyn Method)
-    -> anyhow::Result<()>
-{
-    fs::create_dir_all(&settings.directory)
-        .with_context(|| format!("failed to create {}",
-                                 settings.directory.display()))?;
-
-    let mut cmd = Command::new(method.get_server_path(&settings.version)?);
-    cmd.arg("--bootstrap");
-    cmd.arg("--log-level=warn");
-    cmd.arg("--data-dir").arg(&settings.directory);
-    if settings.inhibit_user_creation {
-        cmd.arg("--default-database=edgedb");
-        cmd.arg("--default-database-user=edgedb");
-    }
-
-    log::debug!("Running bootstrap {:?}", cmd);
-    match cmd.status() {
-        Ok(s) if s.success() => {}
-        Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
-        Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
-    }
-
-    if let Some(upgrade_marker) = &settings.upgrade_marker {
-        write_upgrade(
-            &settings.directory.join("UPGRADE_IN_PROGRESS"),
-            upgrade_marker)?;
-    }
-
-    let metapath = settings.directory.join("metadata.json");
-    write_metadata(&metapath, &Metadata {
-        version: settings.version.clone(),
-        method: settings.method.clone(),
-        port: settings.port,
-        nightly: settings.nightly,
-        start_conf: settings.start_conf,
-    })?;
-    Ok(())
-}
-
 fn find_version<F>(methods: &Methods, mut cond: F)
-    -> anyhow::Result<Option<(Version<String>, InstallMethod)>>
-    where F: FnMut(&InstalledPackage) -> bool
+    -> anyhow::Result<Option<(DistributionRef, InstallMethod)>>
+    where F: FnMut(&DistributionRef) -> bool
 {
-    let mut max_ver = None;
+    let mut max_ver = None::<DistributionRef>;
     let mut ver_methods = BTreeSet::new();
     for (meth, method) in methods {
-        for ver in method.installed_versions()? {
-            if cond(ver) {
+        for distr in method.installed_versions()? {
+            if cond(&distr) {
                 if let Some(ref mut max_ver) = max_ver {
-                    if *max_ver == ver.major_version {
+                    if max_ver.major_version() == distr.major_version() {
+                        if max_ver.version() < distr.version() {
+                            *max_ver = distr;
+                        }
                         ver_methods.insert(meth.clone());
-                    } else if *max_ver < ver.major_version {
-                        *max_ver = ver.major_version.clone();
+                    } else if max_ver.major_version() < distr.major_version() {
+                        *max_ver = distr;
                         ver_methods.clear();
                         ver_methods.insert(meth.clone());
                     }
                 } else {
-                    max_ver = Some(ver.major_version.clone());
+                    max_ver = Some(distr);
                     ver_methods.insert(meth.clone());
                 }
             }
         }
     }
-    Ok(max_ver.map(|ver| (ver, ver_methods.into_iter().next().unwrap())))
+    Ok(max_ver.map(|distr| (distr, ver_methods.into_iter().next().unwrap())))
 }
 
 pub fn init(options: &Init) -> anyhow::Result<()> {
@@ -205,16 +156,17 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         options.nightly, options.version.as_ref());
     let current_os = detect::current_os()?;
     let avail_methods = current_os.get_available_methods()?;
-    let (version, meth_name, method) = if let Some(ref meth) = options.method {
+    let (distr, meth_name, method) = if let Some(ref meth) = options.method {
         let method = current_os.make_method(meth, &avail_methods)?;
-        let mut max_ver = None;
-        for ver in method.installed_versions()? {
+        let mut max_ver = None::<DistributionRef>;
+        for distr in method.installed_versions()? {
             if let Some(ref mut max_ver) = max_ver {
-                if *max_ver < ver.major_version {
-                    *max_ver = ver.major_version.clone();
+                if (max_ver.major_version(), max_ver.version()) <
+                    (distr.major_version(), max_ver.version()) {
+                    *max_ver = distr;
                 }
             } else {
-                max_ver = Some(ver.major_version.clone());
+                max_ver = Some(distr);
             }
         }
         if let Some(ver) = max_ver {
@@ -226,7 +178,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
     } else if version_query.is_nightly() || version_query.is_specific() {
         let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
         if let Some((ver, meth_name)) =
-            find_version(&methods, |p| version_query.installed_matches(p))?
+            find_version(&methods, |p| version_query.distribution_matches(p))?
         {
             let meth = methods.remove(&meth_name)
                 .expect("method is recently used");
@@ -241,7 +193,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
     } else {
         let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
         if let Some((ver, meth_name)) =
-            find_version(&methods, |p| !p.revision.contains("nightly"))?
+            find_version(&methods, |p| !p.major_version().is_nightly())?
         {
             let meth = methods.remove(&meth_name)
                 .expect("method is recently used");
@@ -257,19 +209,17 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
     let settings = Settings {
         name: options.name.clone(),
         system: options.system,
-        version,
+        version: distr.version().clone(),
+        distribution: distr,
         nightly: version_query.is_nightly(),
         method: meth_name,
-        directory: data_path(options.system)?.join(&options.name),
+        storage: method.get_storage(options.system, &options.name)?,
         credentials: home_dir()?.join(".edgedb").join("credentials")
             .join(format!("{}.json", &options.name)),
         user: options.default_user.clone(),
         database: options.default_database.clone(),
         port,
         start_conf: options.start_conf,
-        inhibit_user_creation: options.inhibit_user_creation,
-        inhibit_start: options.inhibit_start,
-        upgrade_marker: options.upgrade_marker.clone(),
     };
     settings.print();
     if settings.system {
@@ -281,125 +231,110 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 You may run `--overwrite` to overwrite the instance.",
                 settings.credentials.display());
         }
-        if settings.directory.exists() {
+        if method.storage_exists(&settings.storage)? {
             if options.overwrite {
-                fs::remove_dir_all(&settings.directory)
-                    .with_context(|| format!("cannot remove previous \
-                        instance directory {}",
-                        settings.directory.display()))?;
+                method.clean_storage(&settings.storage)
+                    .with_context(|| {
+                        format!("can't clean previous storage directory {}",
+                                settings.storage.display())
+                    })?;
             } else {
-                anyhow::bail!("Directory {0} already exists. \
-                    This may mean that instance is already initialized. \
-                    Otherwise run: `rm -rf {0}` to clean up before \
-                    re-running `edgedb server init`.",
-                    settings.directory.display());
+                anyhow::bail!("Storage {} already exists. \
+                    This may mean that instance is already \
+                    initialized. Otherwise rerun with \
+                    `--overwrite` flag.",
+                    settings.storage.display());
             }
         }
-        match try_bootstrap(&settings, &*method) {
+        match method.bootstrap(&settings) {
             Ok(()) => {}
             Err(e) => {
                 log::error!("Bootstrap error, cleaning up...");
-                fs::remove_dir_all(&settings.directory)
-                    .with_context(|| format!("failed to clean up {}",
-                                             settings.directory.display()))?;
-                Err(e).context(format!("Error bootstrapping {}",
-                                       settings.directory.display()))?
-            }
-        }
-        method.create_user_service(&settings).map_err(|e| {
-            eprintln!("Bootstrap complete, \
-                but there was an error creating a service. \
-                You can run a server manually via: \n  \
-                edgedb server start --foreground {}",
-                settings.name.escape_default());
-            e
-        }).context("failed to init service")?;
-        match (settings.start_conf, settings.inhibit_start) {
-            (StartConf::Auto, false) => {
-                let mut inst = control::get_instance(&settings.name)?;
-                inst.start(&Start {
-                        name: settings.name.clone(),
-                        foreground: false,
-                    })?;
-                init_credentials(&settings, &*inst)?;
-                println!("Bootstrap complete. Server is up and running now.");
-            }
-            (StartConf::Manual, _) | (_, true) => {
-                let inst = control::get_instance(&settings.name)?;
-                let mut cmd = inst.run_command()?;
-                log::debug!("Running server: {:?}", cmd);
-                let child = ProcessGuard::run(&mut cmd)
-                    .with_context(||
-                        format!("error running server {:?}", cmd))?;
-                init_credentials(&settings, &*inst)?;
-                drop(child);
-                println!("Bootstrap complete. To start a server:\n  \
-                          edgedb server start {}",
-                          settings.name.escape_default());
+                method.clean_storage(&settings.storage)
+                    .map_err(|e| {
+                        log::error!("Cannot clean up storage {}: {}",
+                            settings.storage.display(), e);
+                    }).ok();
+                Err(e).context(format!("cannot bootstrap {}",
+                                       settings.storage.display()))?
             }
         }
         Ok(())
     }
 }
 
-fn init_credentials(settings: &Settings, inst: &dyn control::Instance)
+pub fn bootstrap_script(settings: &Settings, password: &str) -> String {
+    use std::fmt::Write;
+
+    let mut output = String::with_capacity(1024);
+    if settings.database != "edgedb" {
+        writeln!(&mut output,
+            "CREATE DATABASE {};",
+            quote_name(&settings.database),
+        ).unwrap();
+    }
+    if settings.user == "edgedb" {
+        writeln!(&mut output, r###"
+            ALTER ROLE {name} {{
+                SET password_hash := {password_hash};
+            }};
+            "###,
+            name=quote_name(&settings.user),
+            password_hash=quote_string(&password_hash(password)),
+        ).unwrap();
+    } else {
+        writeln!(&mut output, r###"
+            CREATE SUPERUSER ROLE {name} {{
+                SET password_hash := {password_hash};
+            }}"###,
+            name=quote_name(&settings.user),
+            password_hash=quote_string(&password_hash(password)),
+        ).unwrap();
+    }
+    return output;
+}
+
+pub fn save_credentials(settings: &Settings, password: &str)
     -> anyhow::Result<()>
 {
-    let password = generate_password();
-
-    let mut conn_params = edgedb_client::Builder::new();
-    conn_params.user("edgedb");
-    conn_params.database("edgedb");
-    conn_params.unix_addr(inst.get_socket(true)?);
-    conn_params.wait_until_available(Duration::from_secs(30));
-    task::block_on(async {
-        let mut cli = conn_params.connect().await?;
-        if settings.database != "edgedb" {
-            cli.execute(
-                &format!("CREATE DATABASE {}", quote_name(&settings.database))
-            ).await?;
-        }
-        if settings.user == "edgedb" {
-            cli.execute(&format!(r###"
-                ALTER ROLE {name} {{
-                    SET password := {password};
-                }}"###,
-                name=quote_name(&settings.user),
-                password=quote_string(&password))
-            ).await
-        } else {
-            cli.execute(&format!(r###"
-                CREATE SUPERUSER ROLE {name} {{
-                    SET password := {password};
-                }}"###,
-                name=quote_name(&settings.user),
-                password=quote_string(&password))
-            ).await
-        }
-    })?;
-
     let mut creds = Credentials::default();
     creds.port = settings.port;
     creds.user = settings.user.clone();
     creds.database = Some(settings.database.clone());
-    creds.password = Some(password);
+    creds.password = Some(password.into());
     write_credentials(&settings.credentials, &creds)?;
     Ok(())
 }
 
-#[context("failed to write upgrade marker {}", path.display())]
-fn write_upgrade(path: &Path, data: &str) -> anyhow::Result<()> {
-    fs::write(path, data.as_bytes())?;
-    Ok(())
-}
+pub fn init_credentials(settings: &Settings, inst: &InstanceRef)
+    -> anyhow::Result<()>
+{
+    let password = generate_password();
 
-#[context("failed to write metadata file {}", path.display())]
-fn write_metadata(path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
-    fs::write(path, serde_json::to_vec(&metadata)?)?;
+    let mut conn_params = inst.get_connector(true)?;
+    conn_params.wait_until_available(Duration::from_secs(30));
+    task::block_on(async {
+        let mut cli = conn_params.connect().await?;
+        cli.execute(&bootstrap_script(settings, &password)).await?;
+        Ok::<(), anyhow::Error>(())
+    })?;
+
+    save_credentials(settings, &password)?;
     Ok(())
 }
 
 impl Settings {
+    pub fn metadata(&self) -> Metadata {
+        Metadata {
+            version: self.distribution.major_version().clone(),
+            current_version: Some(self.distribution.version().clone()),
+            slot: self.distribution.downcast_ref::<Package>()
+                .map(|p| p.slot.clone()),
+            method: self.method.clone(),
+            port: self.port,
+            start_conf: self.start_conf,
+        }
+    }
     pub fn print(&self) {
         let mut table = Table::new();
         table.add_row(Row::new(vec![
@@ -418,7 +353,7 @@ impl Settings {
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Data Directory"),
-            Cell::new(&self.directory.display().to_string()),
+            Cell::new(&self.storage.display().to_string()),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Credentials Path"),
@@ -446,5 +381,21 @@ impl Settings {
         ]));
         table.set_format(*table::FORMAT);
         table.printstd();
+    }
+}
+
+impl Storage {
+    pub fn display(&self) -> StorageDisplay {
+        StorageDisplay(self)
+    }
+}
+
+impl fmt::Display for StorageDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Storage::*;
+        match self.0 {
+            UserDir(path) => path.display().fmt(f),
+            DockerVolume(name) => write!(f, "<docker volume {:?}>", name),
+        }
     }
 }
