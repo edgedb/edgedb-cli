@@ -62,10 +62,10 @@ pub struct TagList {
 #[derive(Debug, Deserialize)]
 pub struct ImageInfo {
     architecture: String,
-    features: String,
+    features: Option<String>,
     digest: String,
     os: String,
-    os_features: String,
+    os_features: Option<String>,
     size: u64,
 }
 
