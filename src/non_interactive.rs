@@ -21,8 +21,7 @@ pub async fn main(options: Options)
     -> Result<(), anyhow::Error>
 {
     let mut conn = options.conn_params.connect().await?;
-    let stdin_obj = stdin();
-    let mut stdin = stdin_obj.lock().await; // only lock *after* authentication
+    let mut stdin = stdin();
     let mut inbuf = BytesMut::with_capacity(8192);
     loop {
         let stmt = match ReadStatement::new(&mut inbuf, &mut stdin).await {

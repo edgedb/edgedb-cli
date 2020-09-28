@@ -18,19 +18,19 @@ use crate::server;
 #[clap(version=clap::crate_version!())]
 struct TmpOptions {
     /// Host of the EdgeDB instance
-    #[clap(short="H", long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(short='H', long, help_heading=Some("CONNECTION OPTIONS"))]
     pub host: Option<String>,
 
     /// Port to connect to EdgeDB
-    #[clap(short="P", long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(short='P', long, help_heading=Some("CONNECTION OPTIONS"))]
     pub port: Option<u16>,
 
     /// User name of the EdgeDB user
-    #[clap(short="u", long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(short='u', long, help_heading=Some("CONNECTION OPTIONS"))]
     pub user: Option<String>,
 
     /// Database name to connect to
-    #[clap(short="d", long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(short='d', long, help_heading=Some("CONNECTION OPTIONS"))]
     pub database: Option<String>,
 
     /// Connect to a passwordless unix socket with superuser
@@ -57,7 +57,7 @@ struct TmpOptions {
 
     /// Local instance name created with `edgedb server init` to connect to
     /// (overrides host and port)
-    #[clap(short="I", long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(short='I', long, help_heading=Some("CONNECTION OPTIONS"))]
     pub instance: Option<String>,
 
     #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
@@ -76,15 +76,15 @@ struct TmpOptions {
     pub debug_print_codecs: bool,
 
     /// Tab-separated output of the queries
-    #[clap(short="t", long, overrides_with="json")]
+    #[clap(short='t', long, overrides_with="json")]
     pub tab_separated: bool,
 
     /// JSON output for the queries (single JSON list per query)
-    #[clap(short="j", long, overrides_with="tab_separated")]
+    #[clap(short='j', long, overrides_with="tab_separated")]
     pub json: bool,
 
     /// Execute a query instead of starting REPL (alias to `edgedb query`)
-    #[clap(short="c")]
+    #[clap(short='c')]
     pub query: Option<String>,
 
     #[clap(subcommand)]

@@ -22,13 +22,13 @@ pub struct SelfInstall {
     #[clap(long)]
     pub nightly: bool,
     /// Enable verbose output
-    #[clap(short="v", long)]
+    #[clap(short='v', long)]
     pub verbose: bool,
     /// Disable progress output
-    #[clap(short="q", long)]
+    #[clap(short='q', long)]
     pub quiet: bool,
     /// Disable confirmation prompt
-    #[clap(short="y")]
+    #[clap(short='y')]
     pub no_confirm: bool,
     /// Do not configure the PATH environment variable
     #[clap(long)]

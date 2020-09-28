@@ -150,6 +150,7 @@ containers:
         size: 1G
     environ: &environ
       HOME: /work/target
+      CARGO_HOME: /work/target
       RUST_BACKTRACE: 1
       # needed for musl build
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin

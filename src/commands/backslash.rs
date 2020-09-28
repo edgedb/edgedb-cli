@@ -278,17 +278,17 @@ impl CommandCache {
         aliases.insert("?", "help");
         aliases.insert("h", "help");
         let mut setting_cmd = None;
-        let commands: BTreeMap<_,_> = clap.get_subcommands().iter()
+        let commands: BTreeMap<_,_> = clap.get_subcommands()
             .map(|cmd| {
                 let name = cmd.get_name().to_owned();
                 if name == "set" {
                     setting_cmd = Some(cmd);
                 }
                 (name, CommandInfo {
-                    options: cmd.get_arguments().iter()
+                    options: cmd.get_arguments()
                         .filter_map(|a| a.get_short())
                         .collect(),
-                    arguments: cmd.get_arguments().iter()
+                    arguments: cmd.get_arguments()
                         .filter(|a| a.get_short().is_none())
                         .filter(|a| a.get_long().is_none())
                         .map(|a| Argument {
@@ -302,7 +302,6 @@ impl CommandCache {
             .collect();
         let setting_cmd = setting_cmd.expect("set command exists");
         let mut setting_cmd: BTreeMap<_, _> = setting_cmd.get_subcommands()
-            .iter()
             .map(|cmd| (cmd.get_name(), cmd))
             .collect();
         let settings = vec![
@@ -317,7 +316,7 @@ impl CommandCache {
             ].into_iter().map(|setting| {
                 let cmd = setting_cmd.remove(&setting.name())
                     .expect("all settings have cmd");
-                let arg = cmd.get_arguments().get(0)
+                let arg = cmd.get_arguments().next()
                     .expect("setting has argument");
                 let values = arg.get_possible_values()
                     .map(|v| v.iter().map(|x| (*x).to_owned()).collect());
@@ -391,11 +390,7 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
     }
     Backslash::try_parse_from(arguments)
     .map_err(|e| ParseError {
-        message: if e.cause.is_empty() {
-            e.to_string()
-        } else {
-            e.cause
-        },
+        message: e.to_string(),
         span: None,
     })
 }

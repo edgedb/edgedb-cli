@@ -12,13 +12,10 @@ edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust"}
 edgedb-client = {git = "https://github.com/edgedb/edgedb-rust"}
 snafu = {version="0.6.0", features=["backtraces"]}
 anyhow = "1.0.23"
-async-std = {version="1.6.*", features=[
-    # we need stdin/stdout and channel
-    "unstable",
-]}
+async-std = {version="1.6"}
 bytes = "0.5.3"
 rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb_20200710"}
-clap = { git="https://github.com/clap-rs/clap", branch="master" }
+clap = "3.0.0-beta.2"
 strsim = "0.10.0"
 whoami = "0.6.0"
 atty = "0.2.13"

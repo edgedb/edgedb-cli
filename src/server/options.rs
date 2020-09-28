@@ -48,7 +48,7 @@ pub enum Command {
 
 #[derive(Clap, Debug, Clone)]
 pub struct Install {
-    #[clap(short="i", long)]
+    #[clap(short='i', long)]
     pub interactive: bool,
     #[clap(long)]
     pub nightly: bool,
@@ -78,7 +78,7 @@ pub struct Init {
     pub name: String,
     #[clap(long)]
     pub system: bool,
-    #[clap(short="i", long)]
+    #[clap(short='i', long)]
     pub interactive: bool,
     #[clap(long)]
     pub nightly: bool,
@@ -208,7 +208,7 @@ pub struct Upgrade {
     pub name: Option<String>,
 
     /// Verbose output
-    #[clap(short="v", long)]
+    #[clap(short='v', long)]
     pub verbose: bool,
 
     /// Force upgrade process even if there is no new version

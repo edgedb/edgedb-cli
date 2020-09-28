@@ -144,11 +144,11 @@ pub struct CreateDatabase {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ListAliases {
     pub pattern: Option<String>,
-    #[clap(long, short="I")]
+    #[clap(long, short='I')]
     pub case_sensitive: bool,
-    #[clap(long, short="s")]
+    #[clap(long, short='s')]
     pub system: bool,
-    #[clap(long, short="v")]
+    #[clap(long, short='v')]
     pub verbose: bool,
 }
 
@@ -156,7 +156,7 @@ pub struct ListAliases {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ListCasts {
     pub pattern: Option<String>,
-    #[clap(long, short="I")]
+    #[clap(long, short='I')]
     pub case_sensitive: bool,
 }
 
@@ -164,11 +164,11 @@ pub struct ListCasts {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ListIndexes {
     pub pattern: Option<String>,
-    #[clap(long, short="I")]
+    #[clap(long, short='I')]
     pub case_sensitive: bool,
-    #[clap(long, short="s")]
+    #[clap(long, short='s')]
     pub system: bool,
-    #[clap(long, short="v")]
+    #[clap(long, short='v')]
     pub verbose: bool,
 }
 
@@ -176,9 +176,9 @@ pub struct ListIndexes {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ListTypes {
     pub pattern: Option<String>,
-    #[clap(long, short="I")]
+    #[clap(long, short='I')]
     pub case_sensitive: bool,
-    #[clap(long, short="s")]
+    #[clap(long, short='s')]
     pub system: bool,
 }
 
@@ -186,7 +186,7 @@ pub struct ListTypes {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ListRoles {
     pub pattern: Option<String>,
-    #[clap(long, short="I")]
+    #[clap(long, short='I')]
     pub case_sensitive: bool,
 }
 
@@ -194,7 +194,7 @@ pub struct ListRoles {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ListModules {
     pub pattern: Option<String>,
-    #[clap(long, short="I")]
+    #[clap(long, short='I')]
     pub case_sensitive: bool,
 }
 
@@ -202,7 +202,7 @@ pub struct ListModules {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Describe {
     pub name: String,
-    #[clap(long, short="v")]
+    #[clap(long, short='v')]
     pub verbose: bool,
 }
 
@@ -245,7 +245,7 @@ pub struct Restore {
     pub allow_non_empty: bool,
 
     /// Verbose output
-    #[clap(long, short="v")]
+    #[clap(long, short='v')]
     pub verbose: bool,
 }
 

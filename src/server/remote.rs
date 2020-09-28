@@ -1,8 +1,8 @@
 use std::path::Path;
+
 use anyhow::Context;
 use async_std::fs;
 use async_std::io;
-
 use fn_error_context::context;
 use serde::de::DeserializeOwned;
 
@@ -23,6 +23,9 @@ trait HttpErrorExt<T> {
 trait HttpOkExt<T> {
     fn ensure200(self, url: &str) -> Result<T, anyhow::Error>;
 }
+trait HttpErrExt<T> {
+    fn context(self, context: &'static str) -> Result<T, anyhow::Error>;
+}
 
 impl HttpOkExt<surf::Response> for Result<surf::Response, surf::Error> {
     fn ensure200(self, url: &str)
@@ -34,6 +37,15 @@ impl HttpOkExt<surf::Response> for Result<surf::Response, surf::Error> {
             }
             Err(e) => Err(HttpError(e)).url_context(url),
             Ok(res) => Ok(res),
+        }
+    }
+}
+
+impl<T> HttpErrExt<T> for Result<T, surf::Error> {
+    fn context(self, context: &'static str) -> Result<T, anyhow::Error> {
+        match self {
+            Ok(v) => Ok(v),
+            Err(e) => Err(HttpError(e)).context(context),
         }
     }
 }
