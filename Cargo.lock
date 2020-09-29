@@ -183,9 +183,9 @@ dependencies = [
 
 [[package]]
 name = "async-io"
-version = "1.1.4"
+version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33be191d05a54ec120e4667375e2ad49fe506b846463df384460ab801c7ae5dc"
+checksum = "6e727cebd055ab2861a854f79def078c4b99ea722d54c6800a0e274389882d4c"
 dependencies = [
  "concurrent-queue",
  "fastrand",
@@ -906,7 +906,7 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb#4eb4ecfdc40c7cd0e61c5d6dac802e5c2ae79a44"
+source = "git+https://github.com/edgedb/edgedb#58dd6947e95bcd1d9ab0925b3d1dc3b622e4b0db"
 dependencies = [
  "combine",
  "snafu",
@@ -1595,9 +1595,9 @@ dependencies = [
 
 [[package]]
 name = "nb-connect"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e847c76b390f44529c2071ef06d0b52fbb4bdb04cc8987a5cfa63954c000abca"
+checksum = "701f47aeb98466d0a7fea67e2c2f667c33efa1f2e4fd7f76743aac1153196f72"
 dependencies = [
  "libc",
  "winapi 0.3.9",
