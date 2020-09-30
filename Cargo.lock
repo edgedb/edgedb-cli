@@ -1024,6 +1024,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs2"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+dependencies = [
+ "libc",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "fuchsia-zircon"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1641,6 +1651,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83450fe6a6142ddd95fb064b746083fc4ef1705fe81f64a64e1d4b39f54a1055"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if",
+ "libc",
+]
+
+[[package]]
 name = "normalize-line-endings"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2134,15 +2156,15 @@ dependencies = [
 [[package]]
 name = "rustyline"
 version = "6.2.0"
-source = "git+https://github.com/tailhook/rustyline?branch=edgedb_20200710#51419b98149059efb881918abaa7d8ec904b2ac3"
+source = "git+https://github.com/tailhook/rustyline?branch=edgedb_20200930#42e983611e1bf88f527cdbdfa5e032c6a309b57f"
 dependencies = [
  "cfg-if",
  "dirs-next",
+ "fs2",
  "libc",
  "log",
- "matches",
  "memchr",
- "nix 0.17.0",
+ "nix 0.18.0",
  "scopeguard",
  "unicode-segmentation",
  "unicode-width",
