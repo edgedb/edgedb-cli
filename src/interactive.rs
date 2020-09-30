@@ -476,10 +476,6 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                 return Err(CleanShutdown)?;
             }
             prompt::Input::Interrupt => {
-                if state.in_transaction() {
-                    eprintln!("WARNING: Transaction cancelled")
-                }
-                state.reconnect().await?;
                 continue;
             }
             prompt::Input::Text(inp) => inp,
