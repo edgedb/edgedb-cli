@@ -23,6 +23,10 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
                 builder.filter_module(
                     "edgedb::server::upgrade", log::LevelFilter::Info);
             }
+            Server::Destroy(d) if d.verbose => {
+                builder.filter_module(
+                    "edgedb::server::destroy", log::LevelFilter::Info);
+            }
             _ => {}
         },
         _ => {}

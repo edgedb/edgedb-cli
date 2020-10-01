@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::fs;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Child};
@@ -12,7 +13,7 @@ use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
-use crate::credentials::get_connector;
+use crate::credentials::{self, get_connector};
 use crate::process;
 use crate::platform::home_dir;
 
@@ -23,7 +24,7 @@ use crate::server::errors::InstanceNotFound;
 use crate::server::init::{self, read_ports, Storage};
 use crate::server::init::{bootstrap_script, save_credentials};
 use crate::server::install;
-use crate::server::options::{StartConf, Start, Stop, Restart, Upgrade};
+use crate::server::options::{StartConf, Start, Stop, Restart, Upgrade, Destroy};
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
@@ -660,6 +661,27 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         })?;
         Ok(())
     }
+    fn delete_container(&self, name: &str) -> anyhow::Result<bool> {
+        match process::run_or_stderr(Command::new(&self.cli)
+            .arg("container")
+            .arg("stop")
+            .arg(name))?
+        {
+            Ok(_) => {}
+            Err(text) if text.contains("No such container") => return Ok(false),
+            Err(text) => anyhow::bail!("docker error: {}", text),
+        }
+        match process::run_or_stderr(Command::new(&self.cli)
+            .arg("container")
+            .arg("rm")
+            .arg(name))?
+        {
+            Ok(_) => {}
+            Err(text) if text.contains("No such container") => return Ok(false),
+            Err(text) => anyhow::bail!("docker error: {}", text),
+        }
+        Ok(true)
+    }
 }
 
 impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
@@ -882,6 +904,41 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             }
         }
     }
+    fn destroy(&self, options: &Destroy) -> anyhow::Result<()> {
+        let mut found = false;
+        let container_name = format!("edgedb_{}", options.name);
+        if self.delete_container(&container_name)? {
+            log::info!(target: "edgedb::server::destroy",
+                "Removed container {:?}", container_name);
+            found = true;
+        }
+        match process::run_or_stderr(Command::new(&self.cli)
+            .arg("volume")
+            .arg("remove")
+            .arg(&container_name))?
+        {
+            Ok(_) => {
+                log::info!(target: "edgedb::server::destroy",
+                    "Removed volume {:?}", container_name);
+                found = true;
+            }
+            Err(text) if text.contains("No such volume") => {},
+            Err(text) => anyhow::bail!("docker error: {}", text),
+        }
+        let credentials = credentials::path(&options.name)?;
+        if credentials.exists() {
+            found = true;
+            log::info!(target: "edgedb::server::destroy",
+                "Removing credentials file {}", credentials.display());
+            fs::remove_file(&credentials)?;
+        }
+        if found {
+            Ok(())
+        } else {
+            Err(InstanceNotFound(anyhow::anyhow!(
+                "no instance {:?} found", options.name)).into())
+        }
+    }
 }
 
 impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
@@ -951,24 +1008,7 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
         format!("edgedb_{}", self.name)
     }
     fn delete(&self) -> anyhow::Result<()> {
-        match process::run_or_stderr(Command::new(&self.method.cli)
-            .arg("container")
-            .arg("stop")
-            .arg(self.container_name()))?
-        {
-            Ok(_) => {}
-            Err(text) if text.contains("No such container") => return Ok(()),
-            Err(text) => anyhow::bail!("docker error: {}", text),
-        }
-        match process::run_or_stderr(Command::new(&self.method.cli)
-            .arg("container")
-            .arg("rm")
-            .arg(self.container_name()))?
-        {
-            Ok(_) => {}
-            Err(text) if text.contains("No such container") => return Ok(()),
-            Err(text) => anyhow::bail!("docker error: {}", text),
-        }
+        self.method.delete_container(&self.container_name())?;
         Ok(())
     }
 }
