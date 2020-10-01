@@ -10,7 +10,7 @@ use edgedb_client as client;
 use serde::Serialize;
 use once_cell::unsync::OnceCell;
 
-use crate::credentials::get_connector;
+use crate::credentials::{self, get_connector};
 use crate::platform::{Uid, get_current_uid, home_dir};
 use crate::process;
 use crate::server::control::read_metadata;
@@ -22,7 +22,7 @@ use crate::server::init::{self, Storage};
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::{StartConf, Start, Stop, Restart, Upgrade};
+use crate::server::options::{StartConf, Start, Stop, Restart, Upgrade, Destroy};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::{PackageMethod, Package};
 use crate::server::package::{self, PackageCandidate, RepositoryInfo};
@@ -324,7 +324,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     fn get_instance<'x>(&'x self, name: &str)
         -> anyhow::Result<InstanceRef<'x>>
     {
-        let dir = unix::base_data_dir()?.join(name);
+        let dir = unix::storage_dir(name)?;
         if dir.exists() {
             Ok(LocalInstance {
                 method: self,
@@ -345,6 +345,40 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     {
         unix::upgrade(todo, options, self)
     }
+    fn destroy(&self, options: &Destroy) -> anyhow::Result<()> {
+        let mut found = false;
+        log::info!(target: "edgedb::server::destroy",
+            "Unloading service");
+        let unit_path = unit_path(&options.name)?;
+        process::run(&mut StdCommand::new("launchctl")
+            .arg("unload").arg(&unit_path))?;
+        if unit_path.exists() {
+            found = true;
+            log::info!(target: "edgedb::server::destroy",
+                "Removing unit file {}", unit_path.display());
+            fs::remove_file(unit_path)?;
+        }
+        let dir = unix::storage_dir(&options.name)?;
+        if dir.exists() {
+            found = true;
+            log::info!(target: "edgedb::server::destroy",
+                "Removing data directory {}", dir.display());
+            fs::remove_dir_all(&dir)?;
+        }
+        let credentials = credentials::path(&options.name)?;
+        if credentials.exists() {
+            found = true;
+            log::info!(target: "edgedb::server::destroy",
+                "Removing credentials file {}", credentials.display());
+            fs::remove_file(&credentials)?;
+        }
+        if found {
+            Ok(())
+        } else {
+            Err(InstanceNotFound(anyhow::anyhow!(
+                "no instance {:?} found", options.name)).into())
+        }
+    }
 }
 
 impl LocalInstance<'_> {
@@ -363,8 +397,7 @@ impl LocalInstance<'_> {
         })
     }
     fn unit_path(&self) -> anyhow::Result<PathBuf> {
-        let plist = format!("com.edgedb.edgedb-server-{}.plist", &self.name);
-        Ok(home_dir()?.join("Library/LaunchAgents").join(plist))
+        unit_path(&self.name)
     }
     fn socket_dir(&self) -> anyhow::Result<PathBuf> {
         Ok(home_dir()?
@@ -612,4 +645,9 @@ pub fn create_launchctl_service(name: &str, meta: &Metadata)
         .arg("load")
         .arg(plist_path))?;
     Ok(())
+}
+
+fn unit_path(name: &str) -> anyhow::Result<PathBuf> {
+    let plist = format!("com.edgedb.edgedb-server-{}.plist", &name);
+    Ok(home_dir()?.join("Library/LaunchAgents").join(plist))
 }

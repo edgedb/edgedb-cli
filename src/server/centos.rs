@@ -16,7 +16,7 @@ use crate::server::linux;
 use crate::server::init::{self, Storage};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
-use crate::server::options::{Upgrade};
+use crate::server::options::{Upgrade, Destroy};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
 use crate::server::package::{self, PackageMethod, Package};
 use crate::server::remote;
@@ -307,5 +307,8 @@ impl<'os> Method for PackageMethod<'os, Centos> {
         -> anyhow::Result<()>
     {
         unix::upgrade(todo, options, self)
+    }
+    fn destroy(&self, options: &Destroy) -> anyhow::Result<()> {
+        linux::destroy(options)
     }
 }

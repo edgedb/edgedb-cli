@@ -36,6 +36,8 @@ pub enum Command {
     ListVersions(ListVersions),
     #[clap(about="Initialize a new server instance")]
     Init(Init),
+    #[clap(about="Destroy a server instance and remove the data stored")]
+    Destroy(Destroy),
     #[clap(flatten)]
     Instance(InstanceCommand),
     #[clap(about="Upgrade installations and instances")]
@@ -115,6 +117,16 @@ pub struct Init {
     /// Write upgrade metadata marker with specified contents
     #[clap(long, setting=ArgSettings::Hidden)]
     pub upgrade_marker: Option<String>,
+}
+
+#[derive(Clap, Debug, Clone)]
+pub struct Destroy {
+    /// Database server instance name to destroy
+    #[clap(validator(instance_name_opt))]
+    pub name: String,
+    /// Verbose output
+    #[clap(short='v', long)]
+    pub verbose: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

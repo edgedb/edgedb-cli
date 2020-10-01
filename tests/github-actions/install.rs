@@ -216,6 +216,20 @@ fn github_action_install() -> anyhow::Result<()> {
                 .arg("query").arg("SELECT 1")
                 .assert()
                 .success();
+
+            println!("Delete second instance");
+            Command::new(&edgedb)
+                .arg("server").arg("destroy").arg("second")
+                .assert()
+                .success();
+
+            println!("Execute query after deleting second");
+            Command::new(&edgedb)
+                .arg("--admin").arg("--instance").arg("inst1")
+                .arg("--wait-until-available=20s")
+                .arg("query").arg("SELECT 1")
+                .assert()
+                .success();
         }
     }
 

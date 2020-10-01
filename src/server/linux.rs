@@ -8,7 +8,7 @@ use dirs::home_dir;
 use edgedb_client as client;
 use serde::Serialize;
 
-use crate::credentials::get_connector;
+use crate::credentials::{self, get_connector};
 use crate::platform::{Uid, get_current_uid};
 use crate::process;
 use crate::server::control::read_metadata;
@@ -19,7 +19,7 @@ use crate::server::errors::InstanceNotFound;
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::{StartConf, Start, Stop, Restart};
+use crate::server::options::{StartConf, Start, Stop, Restart, Destroy};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::PackageCandidate;
 use crate::server::status::{Service, Status};
@@ -471,5 +471,68 @@ pub fn get_instance<'x>(method: &'x dyn Method, name: &str)
         Err(InstanceNotFound(
             anyhow::anyhow!("Directory '{}' does not exists", dir.display())
         ).into())
+    }
+}
+
+pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
+    let system = false;
+    let mut found = false;
+    let name = &options.name;
+    let svc_name = format!("edgedb-server@{}", name);
+    log::info!(target: "edgedb::server::destroy",
+        "Stopping service {}", svc_name);
+    let mut not_found_error = None;
+    let mut cmd = Command::new("systemctl");
+    cmd.arg("--user");
+    cmd.arg("stop");
+    cmd.arg(&svc_name);
+    match process::run_or_stderr(&mut cmd)? {
+        Ok(()) => found = true,
+        Err(e) if e.contains("Failed to get D-Bus connection") => {
+            not_found_error = Some(e);
+        }
+        Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
+    }
+
+    let mut cmd = Command::new("systemctl");
+    cmd.arg("--user");
+    cmd.arg("disable");
+    cmd.arg(&svc_name);
+    match process::run_or_stderr(&mut cmd)? {
+        Ok(()) => found = true,
+        Err(e) if e.contains("Failed to get D-Bus connection") => {
+            not_found_error = Some(e);
+        }
+        Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
+    }
+
+    let svc_path = systemd_service_path(name, system)?;
+    if svc_path.exists() {
+        found = true;
+        fs::remove_file(&svc_path)?;
+    }
+
+    let dir = unix::storage_dir(name)?;
+    if dir.exists() {
+        found = true;
+        log::info!(target: "edgedb::server::destroy",
+            "Removing data directory {}", dir.display());
+        fs::remove_dir_all(&dir)?;
+    }
+    let credentials = credentials::path(&options.name)?;
+    if credentials.exists() {
+        found = true;
+        log::info!(target: "edgedb::server::destroy",
+            "Removing credentials file {}", credentials.display());
+        fs::remove_file(&credentials)?;
+    }
+    if found {
+        Ok(())
+    } else if let Some(e) = not_found_error {
+        Err(InstanceNotFound(anyhow::anyhow!(
+            "no instance {:?} found: {}", options.name, e.trim())).into())
+    } else {
+        Err(InstanceNotFound(anyhow::anyhow!(
+            "no instance {:?} found", options.name)).into())
     }
 }

@@ -26,6 +26,7 @@ mod package;
 // commands
 mod errors;
 mod control;
+mod destroy;
 mod init;
 mod install;
 mod list_versions;

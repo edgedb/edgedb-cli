@@ -11,7 +11,7 @@ use crate::server::init::{self, Storage};
 use crate::server::install;
 use crate::server::upgrade;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::{Start, Stop, Restart, StartConf, Upgrade};
+use crate::server::options::{Start, Stop, Restart, StartConf, Upgrade, Destroy};
 use crate::server::status::Status;
 use crate::server::version::Version;
 
@@ -72,6 +72,7 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>;
     fn get_instance<'x>(&'x self, name: &str)
         -> anyhow::Result<InstanceRef<'x>>;
+    fn destroy(&self, options: &Destroy) -> anyhow::Result<()>;
 }
 
 
