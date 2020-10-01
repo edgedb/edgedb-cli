@@ -41,10 +41,10 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         Stop(c) => &c.name,
         Restart(c) => &c.name,
         Status(c) => {
-            if c.all {
-                return status::print_status_all(c.extended, c.debug);
+            if let Some(name) = &c.name {
+                name
             } else {
-                &c.name
+                return status::print_status_all(c.extended, c.debug);
             }
         }
     };

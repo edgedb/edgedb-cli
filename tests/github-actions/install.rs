@@ -129,7 +129,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .code(51);
 
         if cfg!(target_os="macos") {
-            println!("Init first"); // TODO(tailhook) replace to default
+            println!("Init first");
             Command::new(&edgedb)
                 .arg("server").arg("init").arg("inst1")
                 .assert()
@@ -185,7 +185,7 @@ fn github_action_install() -> anyhow::Result<()> {
                 .assert()
                 .success();
 
-            println!("Start default simultaneously to second");
+            println!("Start first simultaneously to second");
             Command::new(&edgedb)
                 .arg("server").arg("start").arg("inst1")
                 .assert()
@@ -197,7 +197,7 @@ fn github_action_install() -> anyhow::Result<()> {
                 .assert()
                 .success();
 
-            println!("Status default");
+            println!("Status first");
             Command::new(&edgedb)
                 .arg("server").arg("status").arg("inst1")
                 .assert()
