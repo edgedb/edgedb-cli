@@ -74,7 +74,7 @@ pub enum StartConf {
 #[derive(Clap, Debug, Clone)]
 pub struct Init {
     /// Database server instance name
-    #[clap(default_value="default", validator(instance_name_opt))]
+    #[clap(validator(instance_name_opt))]
     pub name: String,
     #[clap(long)]
     pub system: bool,
@@ -121,7 +121,7 @@ pub struct Init {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Start {
     /// Database server instance name
-    #[clap(default_value="default", validator(instance_name_opt))]
+    #[clap(validator(instance_name_opt))]
     pub name: String,
     #[clap(long)]
     #[cfg_attr(target_os="linux",
@@ -139,7 +139,7 @@ pub struct Start {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Stop {
     /// Database server instance name
-    #[clap(default_value="default", validator(instance_name_opt))]
+    #[clap(validator(instance_name_opt))]
     pub name: String,
 }
 
@@ -147,7 +147,7 @@ pub struct Stop {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Restart {
     /// Database server instance name
-    #[clap(default_value="default", validator(instance_name_opt))]
+    #[clap(validator(instance_name_opt))]
     pub name: String,
 }
 
@@ -155,8 +155,8 @@ pub struct Restart {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct Status {
     /// Database server instance name
-    #[clap(default_value="default", validator(instance_name_opt))]
-    pub name: String,
+    #[clap(validator(instance_name_opt))]
+    pub name: Option<String>,
 
     /// Show current systems service info
     #[clap(long)]
@@ -169,10 +169,6 @@ pub struct Status {
     /// Output all available debug info about each instance
     #[clap(long, setting=ArgSettings::Hidden)]
     pub debug: bool,
-
-    /// Print status of all instances
-    #[clap(long)]
-    pub all: bool,
 }
 
 #[derive(Clap, Debug, Clone)]
@@ -220,7 +216,7 @@ pub struct Upgrade {
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ResetPassword {
     /// Database server instance name
-    #[clap(default_value="default", validator(instance_name_opt))]
+    #[clap(validator(instance_name_opt))]
     pub name: String,
     /// User to change password for. Default is got from credentials file.
     #[clap(long)]

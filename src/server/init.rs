@@ -110,9 +110,6 @@ fn allocate_port(name: &str) -> anyhow::Result<u16> {
     if let Some(port) = port_map.get(name) {
         return Ok(*port);
     }
-    if name == "default" {
-        return Ok(5656);
-    }
     let port = next_min_port(&port_map);
     port_map.insert(name.to_string(), port);
     _write_ports(&port_map, &port_file).with_context(|| {
