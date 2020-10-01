@@ -54,7 +54,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     method.install(&settings)?;
     println!("\nEdgedb server is installed now. Great!\n\
         Initialize and start a new database instance with:\n  \
-          edgedb server init{arg}",
+          edgedb server init{arg} <instance-name>",
           arg=if options.nightly { " --nightly" } else { "" });
     Ok(())
 }
