@@ -100,14 +100,14 @@ pub struct ContainerLabels {
     upgrading: Option<String>,
     #[serde(rename="com.edgedb.metadata.user")]
     user: Option<String>,
-    #[serde(rename="com.edgedb.metadata.port", with="serde_str::opt")]
-    port: Option<u16>,
+    #[serde(rename="com.edgedb.metadata.port")]
+    port: Option<String>,
     #[serde(rename="com.edgedb.metadata.version")]
     version: Option<MajorVersion>,
     #[serde(rename="com.edgedb.metadata.current-version")]
     current_version: Option<Version<String>>,
-    #[serde(rename="com.edgedb.metadata.start-conf", with="serde_str::opt")]
-    start_conf: Option<StartConf>,
+    #[serde(rename="com.edgedb.metadata.start-conf")]
+    start_conf: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -490,7 +490,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 started: SystemTime::now(),
                 pid: std::process::id(),
             };
-            reinit_and_restore(inst, &meta, dump_path.as_ref(), &new)?;
+            self.reinit_and_restore(inst, &meta, dump_path.as_ref(), &new)?;
         }
         Ok(())
     }
@@ -553,7 +553,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 started: SystemTime::now(),
                 pid: std::process::id(),
             };
-            reinit_and_restore(inst, &meta, dump_path.as_ref(), &new)?;
+            self.reinit_and_restore(inst, &meta, dump_path.as_ref(), &new)?;
         }
         Ok(())
     }
@@ -681,6 +681,120 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             Err(text) => anyhow::bail!("docker error: {}", text),
         }
         Ok(true)
+    }
+    #[context("failed to restore {:?}", inst.name())]
+    fn reinit_and_restore(&self, inst: DockerInstance<O>,
+        meta: &upgrade::UpgradeMeta, dump_path: &Path, new_image: &Image)
+        -> anyhow::Result<()>
+    {
+        let volume = inst.volume_name();
+        let port = inst.get_port()?;
+
+        let upgrade_container = format!("edgedb_upgrade_{}", inst.name());
+        if self.inspect_container(&upgrade_container)?.is_some() {
+            anyhow::bail!("upgrade is already in progress");
+        }
+        process::run(
+            Command::new(&inst.method.cli)
+            .arg("container")
+            .arg("create")
+            .arg("--name").arg(&upgrade_container)
+            .arg("--label").arg(format!("com.edgedb.upgrade-in-progress={}",
+                serde_json::to_string(&meta).unwrap()))
+            .arg("busybox")
+            .arg("true")
+        )?;
+
+        process::run(
+            Command::new(&inst.method.cli)
+            .arg("container")
+            .arg("run")
+            .arg("--rm")
+            .arg("--user=999:999")
+            .arg("--mount")
+                .arg(format!("source={},target=/mnt", volume))
+            .arg("busybox")
+            .arg("sh")
+            .arg("-ec")
+            .arg(format!(r###"
+                    rm -rf /mnt/{name}.backup
+                    mv /mnt/{name} /mnt/{name}.backup
+                    echo {backup_meta} > /mnt/{name}.backup/backup.json
+                "###,
+                name=inst.name(),
+                backup_meta=serde_json::to_string(&upgrade::BackupMeta {
+                    timestamp: SystemTime::now(),
+                })?,
+            ))
+        )?;
+
+        let tmp_role = format!("tmp_upgrade_{}", timestamp());
+        let tmp_password = generate_password();
+
+        let mut cmd = DockerRun::new(&inst.method.cli);
+        cmd.arg("--user=999:999");
+        cmd.arg(format!("--publish={0}:{0}", port));
+        cmd.arg("--mount")
+           .arg(format!("source={},target=/var/lib/edgedb/data", volume));
+        cmd.arg(new_image.tag.as_image_name());
+        cmd.arg("edgedb-server");
+        cmd.arg("--bootstrap-command")
+            .arg(format!(r###"
+                CREATE SUPERUSER ROLE {role} {{
+                    SET password := {password};
+                }};
+            "###, role=tmp_role, password=quote_string(&tmp_password)));
+        cmd.arg("--log-level=warn");
+        cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
+        cmd.arg("--data-dir")
+           .arg(format!("/var/lib/edgedb/data/{}", inst.name()));
+        cmd.arg("--default-database=edgedb");
+        cmd.arg("--default-database-user=edgedb");
+        cmd.arg("--port").arg(port.to_string());
+        cmd.arg("--bind-address=0.0.0.0");
+        log::debug!("Running server: {:?}", cmd);
+        let child = cmd.run()
+            .with_context(|| format!("error running server {:?}", cmd))?;
+
+        let mut params = inst.get_connector(false)?;
+        params.user(&tmp_role);
+        params.password(&tmp_password);
+        params.database("edgedb");
+        task::block_on(
+            upgrade::restore_instance(&inst, &dump_path, params.clone())
+        )?;
+        let mut conn_params = inst.get_connector(false)?;
+        conn_params.wait_until_available(Duration::from_secs(30));
+        task::block_on(async {
+            let mut cli = conn_params.connect().await?;
+            cli.execute(&format!(r###"
+                DROP ROLE {};
+            "###, role=tmp_role)).await?;
+            Ok::<(), anyhow::Error>(())
+        })?;
+        log::info!(target: "edgedb::server::upgrade",
+            "Restarting instance {:?} to apply changes from `restore --all`",
+            &inst.name());
+        drop(child);
+
+        let method = inst.method;
+        let create = Create {
+            name: inst.name(),
+            image: new_image,
+            port,
+            start_conf: inst.get_start_conf()?,
+        };
+        inst.delete()?;
+        method.create(&create)?;
+
+        process::run(
+            Command::new(&inst.method.cli)
+            .arg("container")
+            .arg("rm")
+            .arg(&upgrade_container)
+        )?;
+
+        Ok(())
     }
 }
 
@@ -1011,6 +1125,7 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
         self.method.delete_container(&self.container_name())?;
         Ok(())
     }
+
 }
 
 impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
@@ -1039,16 +1154,18 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     fn get_port(&self) -> anyhow::Result<u16> {
         if let Some(port) = self.get_labels()?
             .and_then(|labels| labels.port.as_ref())
+            .and_then(|port| port.parse().ok())
         {
-            return Ok(*port)
+            return Ok(port)
         }
         Ok(self.get_meta()?.port)
     }
     fn get_start_conf(&self) -> anyhow::Result<StartConf> {
         if let Some(start_conf) = self.get_labels()?
             .and_then(|labels| labels.start_conf.as_ref())
+            .and_then(|start_conf| start_conf.parse().ok())
         {
-            return Ok(*start_conf)
+            return Ok(start_conf)
         }
         Ok(self.get_meta()?.start_conf)
     }
@@ -1185,94 +1302,3 @@ impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {
     }
 }
 
-#[context("failed to restore {:?}", inst.name())]
-fn reinit_and_restore<O>(inst: DockerInstance<O>, meta: &upgrade::UpgradeMeta,
-    dump_path: &Path, new_image: &Image)
-    -> anyhow::Result<()>
-    where O: CurrentOs + ?Sized
-{
-    let volume = inst.volume_name();
-    let port = inst.get_port()?;
-
-    process::run(
-        Command::new(&inst.method.cli)
-        .arg("container")
-        .arg("run")
-        .arg("--rm")
-        .arg("--user=999:999")
-        .arg("--mount")
-            .arg(format!("source={},target=/mnt", volume))
-        .arg("busybox")
-        .arg("sh")
-        .arg("-c")
-        .arg(format!(r###"
-                mv /mnt/{name} /mnt/{name}.backup
-                echo {backup_meta} > /mnt/{name}.backup/backup.json
-            "###,
-            name=inst.name(),
-            backup_meta=serde_json::to_string(&upgrade::BackupMeta {
-                timestamp: SystemTime::now(),
-            })?,
-        ))
-    )?;
-
-    let tmp_role = format!("tmp_upgrade_{}", timestamp());
-    let tmp_password = generate_password();
-
-    let mut cmd = DockerRun::new(&inst.method.cli);
-    cmd.arg("--user=999:999");
-    cmd.arg(format!("--publish={0}:{0}", port));
-    cmd.arg("--mount")
-       .arg(format!("source={},target=/var/lib/edgedb/data", volume));
-    cmd.arg(new_image.tag.as_image_name());
-    cmd.arg("edgedb-server");
-    cmd.arg("--bootstrap-command")
-        .arg(format!(r###"
-            CREATE SUPERUSER ROLE {role} {{
-                SET password := {password};
-            }};
-        "###, role=tmp_role, password=quote_string(&tmp_password)));
-    cmd.arg("--log-level=warn");
-    cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
-    cmd.arg("--data-dir")
-       .arg(format!("/var/lib/edgedb/data/{}", inst.name()));
-    cmd.arg("--default-database=edgedb");
-    cmd.arg("--default-database-user=edgedb");
-    cmd.arg("--port").arg(port.to_string());
-    cmd.arg("--bind-address=0.0.0.0");
-    log::debug!("Running server: {:?}", cmd);
-    let child = cmd.run()
-        .with_context(|| format!("error running server {:?}", cmd))?;
-
-    let mut params = inst.get_connector(false)?;
-    params.user(&tmp_role);
-    params.password(&tmp_password);
-    params.database("edgedb");
-    task::block_on(
-        upgrade::restore_instance(&inst, &dump_path, params.clone())
-    )?;
-    let mut conn_params = inst.get_connector(false)?;
-    conn_params.wait_until_available(Duration::from_secs(30));
-    task::block_on(async {
-        let mut cli = conn_params.connect().await?;
-        cli.execute(&format!(r###"
-            DROP ROLE {};
-        "###, role=tmp_role)).await?;
-        Ok::<(), anyhow::Error>(())
-    })?;
-    log::info!(target: "edgedb::server::upgrade",
-        "Restarting instance {:?} to apply changes from `restore --all`",
-        &inst.name());
-    drop(child);
-
-    let method = inst.method;
-    let create = Create {
-        name: inst.name(),
-        image: new_image,
-        port,
-        start_conf: inst.get_start_conf()?,
-    };
-    inst.delete()?;
-    method.create(&create)?;
-    Ok(())
-}
