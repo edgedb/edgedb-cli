@@ -177,7 +177,8 @@ pub fn status(name: &String, data_dir: &Path,
     let (data_status, metadata) = if data_dir.exists() {
         let metadata = read_metadata(&data_dir);
         if metadata.is_ok() {
-            let upgrade_file = data_dir.join("UPGRADE_IN_PROGRESS");
+            let upgrade_file = base
+                .join(format!("{}.UPGRADE_IN_PROGRESS", name));
             if upgrade_file.exists() {
                 (Upgrading(read_upgrade(&upgrade_file)), metadata)
             } else {
@@ -394,7 +395,19 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
 {
     let instance_dir = storage_dir(inst.name())?;
     let base = instance_dir.parent().expect("instancedir is not root");
+
+    let upgrade_marker = base
+        .join(format!("{}.UPGRADE_IN_PROGRESS", inst.name()));
+    if upgrade_marker.exists() {
+        anyhow::bail!("Upgrade is already in progress");
+    }
+    write_upgrade(&upgrade_marker,
+        &serde_json::to_string(&upgrade_meta).unwrap())?;
+
     let backup = base.join(&format!("{}.backup", inst.name()));
+    if backup.exists() {
+        fs::remove_dir_all(&backup)?;
+    }
     fs::rename(&instance_dir, &backup)?;
     upgrade::write_backup_meta(&backup.join("backup.json"),
         &upgrade::BackupMeta {
@@ -405,11 +418,6 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
         .with_context(|| {
             format!("failed to create {}", instance_dir.display())
         })?;
-
-    // TODO(tailhook) can't write before initializing postgres
-    // let upgrade_marker = instance_dir.join("UPGRADE_IN_PROGRESS");
-    // write_upgrade(&upgrade_marker,
-    //    &serde_json::to_string(&upgrade_meta).unwrap())?;
 
     let mut cmd = inst.get_command()?;
     log::debug!("Running server: {:?}", cmd);
@@ -432,9 +440,8 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
 
     create_user_service(inst.name(), &new_meta)?;
 
-    // TODO(tailhook) is not written at the moment
-    //fs::remove_file(&upgrade_marker)
-    //    .with_context(|| format!("removing {:?}", upgrade_marker.display()))?;
+    fs::remove_file(&upgrade_marker)
+        .with_context(|| format!("removing {:?}", upgrade_marker.display()))?;
 
     inst.start(&Start { name: inst.name().into(), foreground: false })?;
     Ok(())
