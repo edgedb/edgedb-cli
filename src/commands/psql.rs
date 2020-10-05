@@ -8,7 +8,7 @@ use crate::commands::Options;
 use edgedb_client::server_params::PostgresAddress;
 
 
-pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
+pub async fn psql<'x>(cli: &mut Connection, options: &Options)
     -> Result<(), anyhow::Error>
 {
     match cli.get_param::<PostgresAddress>() {
@@ -45,7 +45,7 @@ pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
             cmd.arg("-h").arg(&addr.host);
             cmd.arg("-U").arg(&addr.user);
             cmd.arg("-p").arg(addr.port.to_string());
-            cmd.arg("-d").arg(&addr.database);
+            cmd.arg("-d").arg(options.conn_params.get_effective_database());
             if let Some(path) = path.as_ref() {
                 cmd.env("PATH", path);
             }
