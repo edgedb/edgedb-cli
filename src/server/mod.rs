@@ -4,8 +4,8 @@ mod metadata;
 mod methods;
 mod detect;
 mod distribution;
-mod remote;
-mod version;
+pub mod remote;
+pub mod version;
 mod os_trait;
 mod debian_like;
 
@@ -21,7 +21,7 @@ mod unknown_os;
 
 // Methods
 mod docker;
-mod package;
+pub mod package;
 
 // commands
 mod errors;

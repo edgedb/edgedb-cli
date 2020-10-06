@@ -115,9 +115,10 @@ pub async fn _main(options: Options, mut state: repl::State)
 {
     let mut conn = state.conn_params.connect().await?;
     let fetched_version = conn.get_version().await?;
-    println!("{} {}",
+    println!("{} {} (repl {})",
         "EdgeDB".light_gray(),
-        fetched_version[..].light_gray());
+        fetched_version[..].light_gray(),
+        env!("CARGO_PKG_VERSION"));
     state.last_version = Some(fetched_version);
     println!("{}", r#"Type "\?" for help."#.light_gray());
     state.connection = Some(conn);

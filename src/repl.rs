@@ -72,9 +72,10 @@ impl State {
         let mut conn = self.conn_params.connect().await?;
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_ref() != Some(&fetched_version) {
-            println!("{} {}",
+            println!("{} {} (repl v{})",
                 "EdgeDB".light_gray(),
-                fetched_version[..].light_gray());
+                fetched_version[..].light_gray(),
+                env!("CARGO_PKG_VERSION"));
             self.last_version = Some(fetched_version);
         }
         self.database = self.conn_params.get_effective_database();
@@ -87,9 +88,10 @@ impl State {
         let mut conn = params.connect().await?;
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_ref() != Some(&fetched_version) {
-            println!("{} {}",
+            println!("{} {} (repl v{})",
                 "EdgeDB".light_gray(),
-                fetched_version[..].light_gray());
+                fetched_version[..].light_gray(),
+                env!("CARGO_PKG_VERSION"));
             self.last_version = Some(fetched_version);
         }
         self.conn_params = params;

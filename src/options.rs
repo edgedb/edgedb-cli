@@ -87,6 +87,10 @@ struct TmpOptions {
     #[clap(short='c')]
     pub query: Option<String>,
 
+    /// Disable version check
+    #[clap(long)]
+    pub no_version_check: bool,
+
     #[clap(subcommand)]
     pub subcommand: Option<Command>,
 }
@@ -138,6 +142,7 @@ pub struct Options {
     pub debug_print_descriptors: bool,
     pub debug_print_codecs: bool,
     pub output_mode: OutputMode,
+    pub no_version_check: bool,
 }
 
 impl Options {
@@ -248,6 +253,7 @@ impl Options {
             } else {
                 OutputMode::JsonElements
             },
+            no_version_check: tmp.no_version_check,
         })
     }
 }

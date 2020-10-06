@@ -31,6 +31,7 @@ mod server;
 mod statement;
 mod table;
 mod variables;
+mod version_check;
 mod migrations;
 
 fn main() {
@@ -68,6 +69,8 @@ fn _main() -> anyhow::Result<()> {
     );
     log_levels::init(&mut builder, &opt);
     builder.init();
+
+    version_check::check(opt.no_version_check);
 
     if opt.subcommand.is_some() {
         commands::cli::main(opt)
