@@ -9,11 +9,10 @@ use std::process::exit;
 
 use anyhow::Context;
 use clap::Clap;
-use dirs::home_dir;
 use prettytable::{Table, Row, Cell};
 
 use crate::table;
-use crate::platform::get_current_uid;
+use crate::platform::{home_dir, get_current_uid};
 
 
 #[derive(Clap, Clone, Debug)]
@@ -76,7 +75,7 @@ modifying the profile file{s} located at:
             )
         } else if should_modify_path(&settings.installation_path) {
             format!(r###"
-Path {installation_path} should be added to ath PATH manually after
+Path {installation_path} should be added to the PATH manually after
 installation.
 "###,
                 installation_path=settings.installation_path.display())
@@ -104,8 +103,7 @@ fn should_modify_path(dir: &Path) -> bool {
 fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
     let mut rc_files = Vec::new();
 
-    let home_dir = home_dir()
-        .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?;
+    let home_dir = home_dir()?;
     rc_files.push(home_dir.join(".profile"));
 
     if let Ok(shell) = env::var("SHELL") {
@@ -236,9 +234,7 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
         anyhow::bail!("Installation as root is not supported. \
             Try running without sudo.")
     } else {
-        let base = home_dir()
-            .ok_or_else(|| anyhow::anyhow!("Cannot determine home dir"))?
-            .join(".edgedb");
+        let base = home_dir()?.join(".edgedb");
         let installation_path = base.join("bin");
         Settings {
             rc_files: get_rc_files()?,
