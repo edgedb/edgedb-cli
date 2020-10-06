@@ -11,6 +11,7 @@ use crate::credentials::get_connector;
 use crate::commands::parser::Common;
 use crate::repl::OutputMode;
 use crate::self_install;
+use crate::self_upgrade;
 use crate::server;
 
 
@@ -104,6 +105,8 @@ pub enum Command {
     Server(server::options::ServerCommand),
     #[clap(setting=AppSettings::Hidden, name="_self_install")]
     _SelfInstall(self_install::SelfInstall),
+    /// Upgrade this edgedb binary
+    SelfUpgrade(self_upgrade::SelfUpgrade),
     #[clap(flatten)]
     Common(Common),
 }

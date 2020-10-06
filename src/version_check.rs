@@ -1,20 +1,15 @@
 use std::env;
-use std::io;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
 
-use anyhow::Context;
-use async_std::future::Future;
-use async_std::task;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use serde::{Serialize, Deserialize};
 
 use crate::platform::home_dir;
 use crate::server::version::Version;
-use crate::server::remote;
-use crate::server::package::RepositoryInfo;
+use crate::self_upgrade;
 
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,25 +29,6 @@ fn negative_cache_age() -> Duration {
     Duration::from_secs(thread_rng().gen_range(6*3600, 12*3600))
 }
 
-#[allow(dead_code)]
-fn can_update() -> bool {
-    _can_update().unwrap_or_else(|e| {
-        log::info!("Cannot compare current binary to default: {}", e);
-        false
-    })
-}
-
-fn _can_update() -> anyhow::Result<bool> {
-    let dir = home_dir()?.join(".edgedb").join("bin");
-    let default_path = if cfg!(windows) {
-        dir.join("edgedb.exe")
-    } else {
-        dir.join("edgedb")
-    };
-    let exe_path = env::current_exe()
-        .with_context(|| format!("cannot determine running executable path"))?;
-    Ok(exe_path == default_path)
-}
 
 fn read_cache(dir: &Path) -> anyhow::Result<Cache> {
     let file = fs::File::open(dir.join("version_check.json"))?;
@@ -65,13 +41,17 @@ fn write_cache(dir: &Path, data: &Cache) -> anyhow::Result<()> {
     Ok(serde_json::to_writer_pretty(file, data)?)
 }
 
-pub async fn timeout<F, T>(dur: Duration, f: F) -> anyhow::Result<T>
-    where F: Future<Output = anyhow::Result<T>>,
-{
-    use async_std::future::timeout;
-
-    timeout(dur, f).await
-    .unwrap_or_else(|_| Err(io::Error::from(io::ErrorKind::TimedOut).into()))
+fn newer_warning(ver: &Version<String>) {
+    if self_upgrade::can_upgrade() {
+        log::warn!(
+            "Newer version of edgedb tool exists {} (current {}). \
+                To upgrade run `edgedb self-upgrade`",
+            ver, env!("CARGO_PKG_VERSION"));
+    } else {
+        log::warn!(
+            "Newer version of edgedb tool exists {} (current {})",
+            ver, env!("CARGO_PKG_VERSION"));
+    }
 }
 
 fn _check(cache_dir: &Path) -> anyhow::Result<()> {
@@ -80,9 +60,7 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
             log::debug!("Cached version {:?}", cache.version);
             if let Some(ver) = cache.version {
                 if Version(env!("CARGO_PKG_VERSION").into()) < ver {
-                    log::warn!(
-                        "Newer version of edgedb tool exists {} (current {})",
-                        ver, env!("CARGO_PKG_VERSION"));
+                    newer_warning(&ver);
                 }
             }
             return Ok(());
@@ -92,33 +70,8 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
             log::debug!("Error reading cache: {}", e);
         }
     }
-    let platform =
-        if cfg!(windows) {
-            "windows"
-        } else if cfg!(target_os="linux") {
-            "linux"
-        } else if cfg!(target_os="macos") {
-            "macos"
-        } else {
-            anyhow::bail!("unknown OS");
-        };
-    let suffix = if env!("CARGO_PKG_VERSION").contains(".g") {
-        ".nightly"
-    } else {
-        ""
-    };
-    let url = format!(
-        "https://packages.edgedb.com/archive/.jsonindexes/{}-x86_64{}.json",
-        platform, suffix
-    );
-
     let timestamp = SystemTime::now();
-    let repo: RepositoryInfo = match
-        task::block_on(timeout(
-            Duration::from_secs(1),
-            remote::get_json(&url, "cannot get package index for CLI tools"),
-        ))
-    {
+    let repo = match self_upgrade::get_repo(Duration::from_secs(1)) {
         Ok(repo) => repo,
         Err(e) => {
             log::info!("Error while checking for updates: {}", e);
@@ -136,8 +89,7 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
         .max();
     if let Some(ver) = &max {
         if Version(env!("CARGO_PKG_VERSION").into()) < **ver {
-            log::warn!("Newer version of edgedb tool exists {} (current {})",
-                ver, env!("CARGO_PKG_VERSION"));
+            newer_warning(&ver);
         }
     }
     log::debug!("Remote version {:?}", max);

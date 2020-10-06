@@ -47,7 +47,7 @@ textwrap = "0.12"
 log = "0.4.8"
 env_logger = "0.7.1"
 os-release = "0.1.0"
-surf = {version="2.0.0-alpha.6", features=["h1-client"], default-features=false}
+surf = {version="2.0.0", features=["h1-client"], default-features=false}
 native-tls = {version="0.2.4"}
 thiserror = "1.0.16"
 which = {version="4", default-features=false}
@@ -66,6 +66,7 @@ base64 = "0.12.3"
 ring = "0.16.15"
 shell-words = "1.0.0"
 wait-timeout = "0.2.0"
+indicatif = "0.15.0"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}

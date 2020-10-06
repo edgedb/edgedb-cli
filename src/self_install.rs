@@ -23,7 +23,7 @@ pub struct SelfInstall {
     /// Enable verbose output
     #[clap(short='v', long)]
     pub verbose: bool,
-    /// Disable progress output
+    /// Skip printing messages and confirmation prompts
     #[clap(short='q', long)]
     pub quiet: bool,
     /// Disable confirmation prompt

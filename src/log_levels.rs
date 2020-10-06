@@ -9,6 +9,10 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
                               log::LevelFilter::Debug);
     }
     match &opt.subcommand {
+        Some(Command::SelfUpgrade(s)) if s.verbose => {
+            builder.filter_module("edgedb::self_upgrade",
+                log::LevelFilter::Info);
+        }
         Some(Command::Common(Common::Restore(r))) if r.verbose => {
             builder.filter_module("edgedb::restore", log::LevelFilter::Info);
         }
