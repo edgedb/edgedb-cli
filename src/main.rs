@@ -27,6 +27,7 @@ mod prompt;
 mod platform;
 mod repl;
 mod self_install;
+mod self_upgrade;
 mod server;
 mod statement;
 mod table;

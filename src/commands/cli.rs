@@ -4,6 +4,7 @@ use crate::options::{Options, Command};
 use crate::non_interactive;
 use crate::commands;
 use crate::self_install;
+use crate::self_upgrade;
 use crate::server;
 use crate::print::style::Styler;
 
@@ -62,6 +63,9 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         },
         Command::_SelfInstall(s) => {
             self_install::main(s)
+        }
+        Command::SelfUpgrade(s) => {
+            self_upgrade::main(s)
         }
     }
 }

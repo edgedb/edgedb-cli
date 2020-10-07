@@ -35,6 +35,7 @@ pub struct PackageInfo {
     pub version: Version<String>,
     pub revision: String,
     pub architecture: String,
+    pub installref: String,
 }
 
 #[derive(Debug)]
