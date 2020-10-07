@@ -1,0 +1,44 @@
+name: Run Slow Nightly Tests
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  repository_dispatch:
+    types: ["nightly-test"]
+  push:
+    branches:
+      - nightly-test
+
+env:
+  EDGEDB_MAJOR_VERSION: 1-alpha5
+  RUST_TEST_THREADS: 1
+
+jobs:
+
+  nightly-test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      max-parallel: 4
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@master
+      - name: Install musl-tools
+        run: "sudo apt-get install musl-tools"
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.46.0
+          target: x86_64-unknown-linux-musl
+          default: true
+      - name: Docker Permissions
+        run: sudo chmod a+rw /var/run/docker.sock
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: |
+            --target=x86_64-unknown-linux-musl
+            --test=github-nightly
+            --features=github_nightly

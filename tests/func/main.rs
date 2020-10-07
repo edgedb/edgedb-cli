@@ -13,7 +13,7 @@ use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use serde_json::from_str;
 
-const DEFAULT_EDGEDB_VERSION: &str = "1-alpha4";
+const DEFAULT_EDGEDB_VERSION: &str = "1-alpha5";
 
 // Can't run server on windows
 #[cfg(not(windows))]

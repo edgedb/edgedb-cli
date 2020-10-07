@@ -96,6 +96,24 @@ pub fn run(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
         .assert()
 }
 
+pub fn run_with_socket(tagname: &str, script: &str)
+    -> assert_cmd::assert::Assert
+{
+    let path = if let Ok(path) = env::var("DOCKER_VOLUME_PATH") {
+        path.to_string()
+    } else {
+        "/var/run/docker.sock".to_string()
+    };
+    Command::new("docker")
+        .arg("run")
+        .arg("--rm")
+        .arg("-u").arg("1000")
+        .arg(format!("--volume={0}:{0}", path))
+        .arg(tagname)
+        .args(&["sh", "-exc", script])
+        .assert()
+}
+
 pub fn run_with(tagname: &str, script: &str, link: &str)
     -> assert_cmd::assert::Assert
 {
