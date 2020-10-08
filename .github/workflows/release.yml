@@ -1,8 +1,8 @@
 name: Build, Test, and Publish a Release
 
 on:
-  repository_dispatch:
-    types: ["release"]
+  workflow_dispatch:
+    inputs: {}
 
 jobs:
 
@@ -17,13 +17,13 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -48,13 +48,13 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
@@ -79,13 +79,13 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -110,13 +110,13 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -141,13 +141,13 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "ubuntu"
@@ -172,13 +172,13 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "centos"
@@ -203,13 +203,13 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "centos"
@@ -234,13 +234,13 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "linux"
@@ -268,7 +268,7 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - uses: actions/cache@v2
@@ -309,7 +309,7 @@ jobs:
 
     - name: Build
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
