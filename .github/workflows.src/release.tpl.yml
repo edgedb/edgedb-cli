@@ -1,8 +1,8 @@
 name: Build, Test, and Publish a Release
 
 on:
-  repository_dispatch:
-    types: ["release"]
+  workflow_dispatch:
+    inputs: {}
 
 jobs:
 <% for tgt in targets.linux %>
@@ -17,13 +17,13 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "<< tgt.platform >>"
@@ -51,7 +51,7 @@ jobs:
         path: edgedb-cli/edgedb-pkg
 
     - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py ${{ github.event.client_payload.branch }}
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
     - uses: actions/cache@v2
@@ -92,7 +92,7 @@ jobs:
 
     - name: Build
       env:
-        SRC_REF: "${{ github.event.client_payload.branch }}"
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "<< tgt.platform >>"
