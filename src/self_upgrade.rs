@@ -103,7 +103,9 @@ async fn download(url: &str, path: &Path, quiet: bool) -> anyhow::Result<()> {
         opt.mode(0o777);
     }
     let mut out = opt.open(path).await?;
-    let mut body = surf::get(url).await
+    let mut body = surf::get(url)
+        .header("User-Agent", remote::USER_AGENT)
+        .await
         .map_err(|e| anyhow::anyhow!("{}", e))?
         .take_body();
     let bar = if quiet {
