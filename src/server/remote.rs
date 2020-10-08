@@ -7,6 +7,8 @@ use fn_error_context::context;
 use serde::de::DeserializeOwned;
 
 
+pub const USER_AGENT: &str = "edgedb";
+
 #[derive(Debug, thiserror::Error)]
 #[error("HTTP error: {0}")]
 pub struct HttpError(surf::Error);
@@ -63,8 +65,11 @@ pub async fn get_string(url: &str)
     -> Result<String, anyhow::Error>
 {
     log::info!("Fetching {}", url);
-    Ok(surf::get(url).await.ensure200(url)?
-        .body_string().await.map_err(HttpError).url_context(url)?)
+    Ok(surf::get(url)
+       .header("User-Agent", USER_AGENT)
+       .await.ensure200(url)?
+       .body_string().await
+       .map_err(HttpError).url_context(url)?)
 }
 
 #[context("failed to fetch JSON at URL: {}", url)]
@@ -73,7 +78,9 @@ pub async fn get_json<T>(url: &str, context: &'static str)
     where T: DeserializeOwned,
 {
     log::info!("Fetching JSON at {}", url);
-    let body_bytes = surf::get(url).await.ensure200(context)?
+    let body_bytes = surf::get(url)
+        .header("User-Agent", USER_AGENT)
+        .await.ensure200(context)?
         .body_bytes().await.context(context)?;
     let jd = &mut serde_json::Deserializer::from_slice(&body_bytes);
     Ok(serde_path_to_error::deserialize(jd).context(context)?)
@@ -85,7 +92,11 @@ pub async fn get_json_opt<T>(url: &str, context: &'static str)
     where T: DeserializeOwned,
 {
     log::info!("Fetching optional JSON at {}", url);
-    match surf::get(url).await {
+    match
+        surf::get(url)
+        .header("User-Agent", USER_AGENT)
+        .await
+    {
         Ok(res) if res.status() == 404 => Ok(None),
         Ok(res) if res.status() != 200
             => Err(HttpFailure(res)).context(context),
@@ -104,7 +115,9 @@ pub async fn get_file(dest: impl AsRef<Path>, url: &str)
 {
     let dest = dest.as_ref();
     log::info!("Downloading {} -> {}", url, dest.display());
-    let response = surf::get(url).await.ensure200(url)?;
+    let response = surf::get(url)
+        .header("User-Agent", USER_AGENT)
+        .await.ensure200(url)?;
     let file = fs::File::create(dest).await
         .with_context(|| format!("writing {:?}", dest.display()))?;
     io::copy(response, file).await
