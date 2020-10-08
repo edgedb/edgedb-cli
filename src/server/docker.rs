@@ -1,6 +1,7 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::fmt;
+use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Child};
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
@@ -270,12 +271,29 @@ impl Distribution for Image {
 impl DockerCandidate {
     pub fn detect() -> anyhow::Result<DockerCandidate> {
         let cli = which::which("docker").ok();
-        let supported = cli.is_some();  // TODO(tailhook) check socket
+        let socket = if let Ok(url) = env::var("DOCKER_HOST") {
+            if let Some(path) = url.strip_prefix("unix://") {
+                if Path::new(path).exists() {
+                    Some(PathBuf::from(path))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            if Path::new("/var/run/docker.sock").exists() {
+                Some(PathBuf::from("/var/run/docker.sock"))
+            } else {
+                None
+            }
+        };
+        let supported = cli.is_some() && socket.is_some();
         Ok(DockerCandidate {
             supported,
             platform_supported: cfg!(unix) || cfg!(windows),
             cli,
-            socket: None,  // TODO(tailhook)
+            socket,
             socket_permissions_ok: true,
         })
     }

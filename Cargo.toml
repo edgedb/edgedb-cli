@@ -82,6 +82,7 @@ warp = {version="0.2.3", default-features=false, features=["tls"]}
 [features]
 dev_mode = []
 github_action_install = []
+github_nightly = []
 
 [target.'cfg(unix)'.dependencies]
 signal = "0.7.0"
