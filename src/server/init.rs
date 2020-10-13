@@ -250,7 +250,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
             Err(e) => {
                 if e.is::<CannotCreateService>() {
                     eprintln!("Error: {:#}", e);
-                    eprintln!("Bootrapping complete, \
+                    eprintln!("Bootstrapping complete, \
                         but there was an error creating the service. \
                         You can run server manually via: \n  \
                         edgedb server start --foreground {}",

@@ -1,8 +1,8 @@
 use test_case::test_case;
 
-use crate::docker::{Context, build_image, run, run_with_socket};
+use crate::docker::{Context, build_image};
+use crate::docker::{run_with_socket, run_systemd};
 use crate::common::{dock_ubuntu, dock_centos, dock_debian};
-
 
 
 #[test_case("edbtest_bionic", &dock_ubuntu("bionic"))]
@@ -18,7 +18,7 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run(tagname, r###"
+    run_systemd(tagname, r###"
         edgedb server install --version=1-alpha5
     "###).success();
     Ok(())
