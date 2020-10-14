@@ -12,10 +12,12 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 use prettytable::{Table, Row, Cell};
 use fn_error_context::context;
 
+use crate::commands::ExitCode;
 use crate::platform::{config_dir, home_dir};
 use crate::server::reset_password::{generate_password, write_credentials};
 use crate::server::reset_password::{password_hash};
 use crate::server::detect::{self, VersionQuery};
+use crate::server::errors::CannotCreateService;
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::{Init, StartConf};
@@ -246,14 +248,24 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         match method.bootstrap(&settings) {
             Ok(()) => {}
             Err(e) => {
-                log::error!("Bootstrap error, cleaning up...");
-                method.clean_storage(&settings.storage)
-                    .map_err(|e| {
-                        log::error!("Cannot clean up storage {}: {}",
-                            settings.storage.display(), e);
-                    }).ok();
-                Err(e).context(format!("cannot bootstrap {}",
-                                       settings.storage.display()))?
+                if e.is::<CannotCreateService>() {
+                    eprintln!("Error: {:#}", e);
+                    eprintln!("Bootrapping complete, \
+                        but there was an error creating the service. \
+                        You can run server manually via: \n  \
+                        edgedb server start --foreground {}",
+                        settings.name.escape_default());
+                    return Err(ExitCode::new(2))?;
+                } else {
+                    log::error!("Bootstrap error, cleaning up...");
+                    method.clean_storage(&settings.storage)
+                        .map_err(|e| {
+                            log::error!("Cannot clean up storage {}: {}",
+                                settings.storage.display(), e);
+                        }).ok();
+                    Err(e).context(format!("cannot bootstrap {}",
+                                           settings.storage.display()))?
+                }
             }
         }
         Ok(())
