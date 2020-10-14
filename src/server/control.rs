@@ -25,7 +25,7 @@ pub fn get_instance<'x>(methods: &'x Methods, name: &str)
         match meth.get_instance(name) {
             Ok(inst) => return Ok(inst),
             Err(e) => {
-                errors.push(format!("  {}: {}", meth_name.short_name(), e));
+                errors.push(format!("  {}: {:#}", meth_name.short_name(), e));
             }
         }
     }

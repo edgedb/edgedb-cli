@@ -13,6 +13,7 @@ use crate::process::ProcessGuard;
 use crate::platform::home_dir;
 use crate::server::control::read_metadata;
 use crate::server::detect::VersionQuery;
+use crate::server::errors::CannotCreateService;
 use crate::server::init::{self, read_ports, init_credentials, Storage};
 use crate::server::install;
 use crate::server::is_valid_name;
@@ -60,17 +61,10 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     let metadata = settings.metadata();
     write_metadata(&metapath, &metadata)?;
 
-    create_user_service(&settings.name, &metadata).map_err(|e| {
-        eprintln!("Bootrapping complete, \
-            but there was an error creating a service. \
-            You can run server manually via: \n  \
-            edgedb server start --foreground {}",
-            settings.name.escape_default());
-        e
-    }).context("failed to init service")?;
+    let res = create_user_service(&settings.name, &metadata);
 
     match settings.start_conf {
-        StartConf::Auto => {
+        StartConf::Auto if res.is_ok() => {
             let inst = method.get_instance(&settings.name)?;
             inst.start(&Start {
                 name: settings.name.clone(),
@@ -79,7 +73,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             init_credentials(&settings, &inst)?;
             println!("Bootstrap complete. Server is up and runnning now.");
         }
-        StartConf::Manual => {
+        _ => {
             let inst = method.get_instance(&settings.name)?;
             let mut cmd = inst.get_command()?;
             log::debug!("Running server: {:?}", cmd);
@@ -88,11 +82,14 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
                     format!("error running server {:?}", cmd))?;
             init_credentials(&settings, &inst)?;
             drop(child);
-            println!("Bootstrap complete. To start a server:\n  \
-                      edgedb server start {}",
-                      settings.name.escape_default());
+            if settings.start_conf == StartConf::Manual {
+                println!("Bootstrap complete. To start a server:\n  \
+                          edgedb server start {}",
+                          settings.name.escape_default());
+            }
         }
     }
+    res.map_err(CannotCreateService)?;
     Ok(())
 }
 
