@@ -83,7 +83,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             init_credentials(&settings, &inst)?;
             drop(child);
             if settings.start_conf == StartConf::Manual {
-                println!("Bootstrap complete. To start a server:\n  \
+                println!("Bootstrap complete. To start the server:\n  \
                           edgedb server start {}",
                           settings.name.escape_default());
             }
