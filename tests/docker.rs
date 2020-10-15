@@ -97,9 +97,16 @@ pub fn run(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
         .assert()
 }
 
-pub fn run_with_socket(tagname: &str, script: &str)
+pub fn run_docker(tagname: &str, script: &str)
     -> assert_cmd::assert::Assert
 {
+    let script = format!(r###"
+        docker ps -q -f 'name=edgedb_test' | xargs -r docker container kill
+        docker system prune --all --force
+        docker volume list -q -f 'name=edgedb_test' | xargs -r docker volume rm
+
+        {script}
+    "###, script=script);
     let path = if let Ok(path) = env::var("DOCKER_VOLUME_PATH") {
         path.to_string()
     } else {
@@ -112,7 +119,7 @@ pub fn run_with_socket(tagname: &str, script: &str)
         .arg(format!("--volume={0}:{0}", path))
         .arg("--net=host")
         .arg(tagname)
-        .args(&["sh", "-exc", script])
+        .args(&["bash", "-exc", &script])
         .assert()
 }
 
@@ -129,7 +136,7 @@ pub fn run_systemd(tagname: &str, script: &str)
         cg_path=$(cat /proc/self/cgroup | grep -oP '(?<=name=).*' | sed s/://)
         mkdir -p /run/user/1000 /sys/fs/cgroup/$cg_path
         chown user1 /sys/fs/cgroup/$cg_path /run/user/1000
-        sudo -H -u user1 sh -exc {script}
+        sudo -H -u user1 bash -exc {script}
     "###, script=shell_words::quote(&script));
     Command::new("docker")
         .arg("run")
