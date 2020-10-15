@@ -15,7 +15,7 @@ pub struct Context {
 pub fn sudoers() -> &'static str {
     r###"
         root        ALL=(ALL:ALL) SETENV: ALL
-        user        ALL=(ALL:ALL) NOPASSWD: ALL
+        user1       ALL=(ALL:ALL) NOPASSWD: ALL
     "###
 }
 
@@ -90,6 +90,7 @@ pub fn run(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
     Command::new("docker")
         .arg("run")
         .arg("--rm")
+        .arg("--mount=type=tmpfs,destination=/run/user/1000,tmpfs-mode=777")
         .arg("-u").arg("1000")
         .arg(tagname)
         .args(&["sh", "-exc", script])
@@ -112,6 +113,32 @@ pub fn run_with_socket(tagname: &str, script: &str)
         .arg("--net=host")
         .arg(tagname)
         .args(&["sh", "-exc", script])
+        .assert()
+}
+
+pub fn run_systemd(tagname: &str, script: &str)
+    -> assert_cmd::assert::Assert
+{
+    let script = format!(r###"
+        export XDG_RUNTIME_DIR=/run/user/1000
+        /lib/systemd/systemd --user --log-level=debug &
+
+        {script}
+    "###, script=script);
+    let script = format!(r###"
+        cg_path=$(cat /proc/self/cgroup | grep -oP '(?<=name=).*' | sed s/://)
+        mkdir -p /run/user/1000 /sys/fs/cgroup/$cg_path
+        chown user1 /sys/fs/cgroup/$cg_path /run/user/1000
+        sudo -H -u user1 sh -exc {script}
+    "###, script=shell_words::quote(&script));
+    Command::new("docker")
+        .arg("run")
+        .arg("--rm")
+        .arg("--tmpfs=/run")
+        .arg("--tmpfs=/run/systemd/system")
+        .arg("--privileged")
+        .arg(tagname)
+        .args(&["sh", "-exc", &script])
         .assert()
 }
 

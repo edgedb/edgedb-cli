@@ -6,9 +6,9 @@ pub fn dockerfile(codename: &str) -> String {
     format!(r###"
         FROM centos:{codename}
         RUN yum -y install sudo
-        RUN adduser --uid 1000 --home /home/user \
+        RUN adduser --uid 1000 --home /home/user1 \
             --shell /bin/bash --group users \
-            user
+            user1
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
     "###, codename=codename)

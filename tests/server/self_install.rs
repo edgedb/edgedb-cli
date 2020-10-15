@@ -71,9 +71,9 @@ pub fn dockerfile_centos(release: &str) -> String {
         ADD ./selfsigned.crt /etc/pki/ca-trust/source/anchors/selfsigned.crt
         ADD ./sudoers /etc/sudoers
         RUN update-ca-trust
-        RUN useradd --uid 1000 --home /home/user \
+        RUN useradd --uid 1000 --home /home/user1 \
             --shell /bin/bash --group users \
-            user
+            user1
         ENV EDGEDB_PKG_ROOT {url}
     "###,
         url=HTTP.url(),
@@ -89,9 +89,9 @@ pub fn dockerfile_deb(distro: &str, codename: &str) -> String {
         ADD ./selfsigned.crt /usr/local/share/ca-certificates/selfsigned.crt
         ADD ./sudoers /etc/sudoers
         RUN update-ca-certificates
-        RUN adduser --uid 1000 --home /home/user \
+        RUN adduser --uid 1000 --home /home/user1 \
             --shell /bin/bash --ingroup users \
-            user
+            user1
         ENV EDGEDB_PKG_ROOT {url}
     "###,
         url=HTTP.url(),
