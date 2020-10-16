@@ -2,7 +2,7 @@ use test_case::test_case;
 use predicates::str::contains;
 
 use crate::docker::{Context, build_image};
-use crate::docker::{run, run_with_socket, run_systemd};
+use crate::docker::{run, run_docker, run_systemd};
 use crate::common::{dock_ubuntu, dock_centos, dock_debian};
 
 
@@ -58,11 +58,7 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_with_socket(tagname, r###"
-        docker ps -q -f 'name=edgedb_test' | xargs -r docker container kill
-        docker system prune --all --force
-        docker volume list -q -f 'name=edgedb_test' | xargs -r docker volume rm
-
+    run_docker(tagname, r###"
         edgedb server install --nightly --method=docker
     "###).success();
     Ok(())
