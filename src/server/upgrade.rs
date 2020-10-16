@@ -2,18 +2,20 @@ use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, Duration};
 
+use anyhow::Context;
 use async_std::task;
 use fn_error_context::context;
 use serde::{Serialize, Deserialize};
 
 use edgedb_client as client;
+use crate::commands;
+use crate::process::ProcessGuard;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::errors::InstanceNotFound;
 use crate::server::options::{Upgrade, Start, Stop};
 use crate::server::os_trait::{Method, Instance};
-use crate::server::version::Version;
 use crate::server::upgrade;
-use crate::commands;
+use crate::server::version::Version;
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -158,11 +160,28 @@ pub fn dump_and_stop(inst: &dyn Instance, path: &Path) -> anyhow::Result<()> {
     // in case not started for now
     log::info!(target: "edgedb::server::upgrade",
         "Ensuring instance is started");
-    inst.start(&Start { name: inst.name().into(), foreground: false })?;
-    task::block_on(
-        upgrade::dump_instance(inst, &path, inst.get_connector(false)?))?;
-    log::info!(target: "edgedb::server::upgrade",
-        "Stopping the instance before executable upgrade");
-    inst.stop(&Stop { name: inst.name().into() })?;
+    let res = inst.start(&Start {
+        name: inst.name().into(),
+        foreground: false,
+    });
+    if let Err(err) = res {
+        log::warn!("Error starting service: {:#}. Trying to start manually.",
+            err);
+        let mut cmd = inst.get_command()?;
+        log::info!("Running server manually: {:?}", cmd);
+        let child = ProcessGuard::run(&mut cmd)
+            .with_context(|| format!("error running server {:?}", cmd))?;
+        task::block_on(
+            upgrade::dump_instance(inst, &path, inst.get_connector(false)?))?;
+        log::info!(target: "edgedb::server::upgrade",
+            "Stopping the instance before executable upgrade");
+        drop(child);
+    } else {
+        task::block_on(
+            upgrade::dump_instance(inst, &path, inst.get_connector(false)?))?;
+        log::info!(target: "edgedb::server::upgrade",
+            "Stopping the instance before executable upgrade");
+        inst.stop(&Stop { name: inst.name().into() })?;
+    }
     Ok(())
 }

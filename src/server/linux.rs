@@ -165,6 +165,20 @@ impl Instance for LocalInstance<'_> {
         cmd.arg("--default-database-user=edgedb");
         Ok(cmd)
     }
+    fn upgrade<'x>(&'x self, meta: &Metadata)
+        -> anyhow::Result<InstanceRef<'x>>
+    {
+        Ok(LocalInstance {
+            method: self.method,
+            name: self.name.clone(),
+            path: self.path.clone(),
+            slot: Lazy::eager(meta.slot.as_ref()
+                .expect("linux packages always have a slot").clone()),
+            current_version: Lazy::eager(meta.current_version.as_ref()
+                .expect("current version is known during upgrade").clone()),
+            metadata: Lazy::eager(meta.clone()),
+        }.into_ref())
+    }
 }
 
 

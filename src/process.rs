@@ -11,13 +11,46 @@ pub struct ProcessGuard {
     child: Child,
 }
 
-
+#[cfg(not(unix))]
 pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
     match cmd.status() {
         Ok(s) if s.success() => Ok(()),
         Ok(s) => anyhow::bail!("process {:?} failed: {}", cmd, s),
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd)),
     }
+}
+
+#[cfg(unix)]
+pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
+    use signal::Signal::*;
+
+    let trap = signal::trap::Trap::trap(&[SIGINT, SIGTERM, SIGCHLD]);
+    let mut child = cmd.spawn()
+        .with_context(|| format!("process {:?} failed", cmd))?;
+    let pid = child.id() as i32;
+    let status = 'child: loop {
+        for sig in trap {
+            match sig {
+                SIGINT|SIGTERM => {
+                    log::info!("Interrupted by {:?}. Propagating signal",
+                               sig);
+                    if unsafe { libc::kill(pid, sig as libc::c_int) } != 0 {
+                        log::debug!("Error signalling process: {}",
+                            io::Error::last_os_error());
+                    }
+                }
+                _ => {}
+            }
+            if let Some(status) = child.try_wait()? {
+                break 'child status;
+            }
+        }
+        unreachable!();
+    };
+    if status.success() {
+        return Ok(())
+    }
+    anyhow::bail!("process {:?} failed: {}", cmd, status);
 }
 
 pub fn run_or_stderr(cmd: &mut Command) -> anyhow::Result<Result<(), String>> {
