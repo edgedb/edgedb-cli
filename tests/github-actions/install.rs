@@ -197,6 +197,18 @@ fn github_action_install() -> anyhow::Result<()> {
                 .assert()
                 .success();
 
+            println!("Logs inst1");
+            Command::new(&edgedb)
+                .arg("server").arg("logs").arg("inst1")
+                .assert()
+                .success();
+
+            println!("Logs second");
+            Command::new(&edgedb)
+                .arg("server").arg("logs").arg("second")
+                .assert()
+                .success();
+
             println!("Status first");
             Command::new(&edgedb)
                 .arg("server").arg("status").arg("inst1")

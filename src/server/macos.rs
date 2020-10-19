@@ -22,7 +22,8 @@ use crate::server::init::{self, Storage};
 use crate::server::install::{self, operation, exit_codes, Operation, Command};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::{StartConf, Start, Stop, Restart, Upgrade, Destroy};
+use crate::server::options::{Start, Stop, Restart, Upgrade, Destroy, Logs};
+use crate::server::options::{StartConf};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::{PackageMethod, Package};
 use crate::server::package::{self, PackageCandidate, RepositoryInfo};
@@ -400,9 +401,7 @@ impl LocalInstance<'_> {
         unit_path(&self.name)
     }
     fn socket_dir(&self) -> anyhow::Result<PathBuf> {
-        Ok(home_dir()?
-            .join(".edgedb/run")
-            .join(&self.name))
+        Ok(runtime_dir(&self.name)?)
     }
 }
 
@@ -512,6 +511,17 @@ impl<'a> Instance for LocalInstance<'a> {
             metadata: Lazy::eager(meta.clone()),
         }.into_ref())
     }
+    fn logs(&self, options: &Logs) -> anyhow::Result<()> {
+        let mut cmd = StdCommand::new("tail");
+        if let Some(n) = options.tail {
+            cmd.arg("-n").arg(n.to_string());
+        }
+        if options.follow {
+            cmd.arg("-F");
+        }
+        cmd.arg(log_file(&self.name)?);
+        process::run(&mut cmd)
+    }
 }
 
 pub fn get_server_path(slot: &str) -> PathBuf {
@@ -569,6 +579,11 @@ fn plist_data(name: &str, meta: &Metadata)
     <key>RunAtLoad</key>
     <true/>
 
+    <key>StandardOutPath</key>
+    <string>{log_path}</string>
+    <key>StandardErrorPath</key>
+    <string>{log_path}</string>
+
     {userinfo}
 
     <key>KeepAlive</key>
@@ -582,9 +597,8 @@ fn plist_data(name: &str, meta: &Metadata)
         instance_name=name,
         directory=unix::storage_dir(name)?.display(),
         server_path=path.display(),
-        runtime_dir=home_dir()?
-            .join(".edgedb/run").join(&name)
-            .display(),
+        runtime_dir=runtime_dir(&name)?.display(),
+        log_path=log_file(&name)?.display(),
         disabled=match meta.start_conf {
             StartConf::Auto => "<false/>",
             StartConf::Manual => "<true/>",
@@ -646,6 +660,18 @@ pub fn launchctl_status(name: &str, _system: bool, cache: &StatusCache)
     Inactive { error: format!("service {:?} not found", svc_name) }
 }
 
+fn runtime_base() -> anyhow::Result<PathBuf> {
+    Ok(home_dir()?.join(".edgedb/run"))
+}
+
+fn runtime_dir(name: &str) -> anyhow::Result<PathBuf> {
+    Ok(runtime_base()?.join(name))
+}
+
+fn log_file(name: &str) -> anyhow::Result<PathBuf> {
+    Ok(home_dir()?.join(format!(".edgedb/logs/{}.log", name)))
+}
+
 pub fn create_launchctl_service(name: &str, meta: &Metadata)
     -> anyhow::Result<()>
 {
@@ -653,7 +679,7 @@ pub fn create_launchctl_service(name: &str, meta: &Metadata)
     fs::create_dir_all(&plist_dir)?;
     let plist_path = plist_dir.join(&plist_name(name));
     fs::write(&plist_path, plist_data(name, meta)?)?;
-    fs::create_dir_all(home_dir()?.join(".edgedb/run"))?;
+    fs::create_dir_all(runtime_base()?)?;
 
     process::run(StdCommand::new("launchctl")
         .arg("load")

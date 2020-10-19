@@ -26,6 +26,8 @@ pub enum InstanceCommand {
     Restart(Restart),
     #[clap(about="Status of an instance")]
     Status(Status),
+    #[clap(about="Show logs of an instance")]
+    Logs(Logs),
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -181,6 +183,22 @@ pub struct Status {
     /// Output all available debug info about each instance
     #[clap(long, setting=ArgSettings::Hidden)]
     pub debug: bool,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Logs {
+    /// Database server instance name
+    #[clap(validator(instance_name_opt))]
+    pub name: String,
+
+    /// Number of lines to show
+    #[clap(short='n', long)]
+    pub tail: Option<usize>,
+
+    /// Show log's tail and the continue watching for the new entries
+    #[clap(short='f', long)]
+    pub follow: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

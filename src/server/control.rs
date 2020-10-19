@@ -40,6 +40,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         Start(c) => &c.name,
         Stop(c) => &c.name,
         Restart(c) => &c.name,
+        Logs(c) => &c.name,
         Status(c) => {
             if let Some(name) = &c.name {
                 name
@@ -55,6 +56,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         Start(c) => inst.start(c),
         Stop(c) => inst.stop(c),
         Restart(c) => inst.restart(c),
+        Logs(c) => inst.logs(c),
         Status(options) => {
             if options.service {
                 inst.service_status()

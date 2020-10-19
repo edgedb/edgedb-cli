@@ -19,7 +19,7 @@ use crate::server::errors::InstanceNotFound;
 use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::{StartConf, Start, Stop, Restart, Destroy};
+use crate::server::options::{StartConf, Start, Stop, Restart, Logs, Destroy};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::PackageCandidate;
 use crate::server::status::{Service, Status};
@@ -178,6 +178,17 @@ impl Instance for LocalInstance<'_> {
                 .expect("current version is known during upgrade").clone()),
             metadata: Lazy::eager(meta.clone()),
         }.into_ref())
+    }
+    fn logs(&self, logs: &Logs) -> anyhow::Result<()> {
+        let mut cmd = Command::new("journalctl");
+        cmd.arg("--user-unit").arg(unit_name(&self.name));
+        if let Some(n) = logs.tail  {
+            cmd.arg(format!("--lines={}", n));
+        }
+        if logs.follow {
+            cmd.arg("--follow");
+        }
+        process::run(&mut cmd)
     }
 }
 

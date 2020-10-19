@@ -25,7 +25,8 @@ use crate::server::errors::InstanceNotFound;
 use crate::server::init::{self, read_ports, Storage};
 use crate::server::init::{bootstrap_script, save_credentials};
 use crate::server::install;
-use crate::server::options::{StartConf, Start, Stop, Restart, Upgrade, Destroy};
+use crate::server::options::{Start, Stop, Restart, Upgrade, Destroy, Logs};
+use crate::server::options::{StartConf};
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
@@ -1286,6 +1287,19 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             .arg("restart")
             .arg(self.container_name()))?;
         Ok(())
+    }
+    fn logs(&self, options: &Logs) -> anyhow::Result<()> {
+        let mut cmd = Command::new(&self.method.cli);
+        cmd.arg("container");
+        cmd.arg("logs");
+        cmd.arg(self.container_name());
+        if let Some(n) = options.tail {
+            cmd.arg(format!("--tail={}", n));
+        }
+        if options.follow {
+            cmd.arg("--follow");
+        }
+        process::run(&mut cmd)
     }
     fn service_status(&self) -> anyhow::Result<()> {
         process::run(Command::new(&self.method.cli)

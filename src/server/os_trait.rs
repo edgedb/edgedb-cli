@@ -12,7 +12,8 @@ use crate::server::install;
 use crate::server::upgrade;
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::options::{Start, Stop, Restart, StartConf, Upgrade, Destroy};
+use crate::server::options::{Start, Stop, Restart, Logs};
+use crate::server::options::{StartConf, Upgrade, Destroy};
 use crate::server::status::Status;
 use crate::server::version::Version;
 
@@ -39,6 +40,7 @@ pub trait Instance: fmt::Debug {
     fn start(&self, start: &Start) -> anyhow::Result<()>;
     fn stop(&self, stop: &Stop) -> anyhow::Result<()>;
     fn restart(&self, restart: &Restart) -> anyhow::Result<()>;
+    fn logs(&self, logs: &Logs) -> anyhow::Result<()>;
     fn service_status(&self) -> anyhow::Result<()>;
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder>;
     fn get_command(&self) -> anyhow::Result<Command>;
@@ -155,6 +157,9 @@ impl InstanceRef<'_> {
     }
     pub fn restart(&self, restart: &Restart) -> anyhow::Result<()> {
         self.0.restart(restart)
+    }
+    pub fn logs(&self, logs: &Logs) -> anyhow::Result<()> {
+        self.0.logs(logs)
     }
     pub fn get_connector(&self, admin: bool)
         -> anyhow::Result<client::Builder>
