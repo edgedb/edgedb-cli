@@ -41,6 +41,7 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         edgedb server init test1
         val=$(edgedb -Itest1 --wait-until-available=30s query "SELECT 1+1")
         test "$val" = "2"
+        edgedb server logs test1
     "###).success();
     Ok(())
 }
@@ -60,6 +61,10 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
     build_image(context, tagname)?;
     run_docker(tagname, r###"
         edgedb server install --nightly --method=docker
+        edgedb server init test1
+        val=$(edgedb -Itest1 --wait-until-available=30s query "SELECT 1+1")
+        test "$val" = "2"
+        edgedb server logs test1
     "###).success();
     Ok(())
 }
