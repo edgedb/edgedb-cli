@@ -128,6 +128,7 @@ pub fn run_systemd(tagname: &str, script: &str)
 {
     let script = format!(r###"
         export XDG_RUNTIME_DIR=/run/user/1000
+        export RUST_LOG=info
         /lib/systemd/systemd --user --log-level=debug &
 
         {script}

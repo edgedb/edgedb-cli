@@ -9,11 +9,12 @@ use async_std::task;
 use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
 
+use crate::commands::ExitCode;
 use crate::process::ProcessGuard;
 use crate::platform::home_dir;
 use crate::server::control::read_metadata;
 use crate::server::detect::VersionQuery;
-use crate::server::errors::CannotCreateService;
+use crate::server::errors::{CannotCreateService, CannotStartService};
 use crate::server::init::{self, read_ports, init_credentials, Storage};
 use crate::server::install;
 use crate::server::is_valid_name;
@@ -249,6 +250,7 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
             .or_insert_with(Vec::new)
             .push(inst);
     }
+    let mut errors = Vec::new();
     for (version, mut instances) in by_major {
         let instances_str = instances
             .iter().map(|inst| inst.name()).collect::<Vec<_>>().join(", ");
@@ -309,13 +311,31 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
             };
             let metapath = storage_dir(inst.name())?.join("metadata.json");
             write_metadata(&metapath, &new_meta)?;
-            inst.start(&options::Start {
-                name: inst.name().into(),
-                foreground: false,
-            })?;
+            if inst.get_start_conf()? == StartConf::Auto {
+                inst.start(&options::Start {
+                        name: inst.name().into(),
+                        foreground: false,
+                    })
+                    .with_context(|| format!("failed to start instance {:?}",
+                                             inst.name()))
+                    .map_err(|e| errors.push(format!("{:#}", e)))
+                    .ok();
+            }
         }
     }
+    print_errors(errors)?;
     Ok(())
+}
+
+fn print_errors(errors: Vec<String>) -> anyhow::Result<()> {
+    if errors.is_empty() {
+        return Ok(());
+    }
+    eprintln!("Upgrade complete, but cannot start instances:");
+    for er in errors {
+        eprintln!("  {}", er);
+    }
+    return Err(ExitCode::new(2))?;
 }
 
 fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
@@ -349,6 +369,8 @@ fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
         extra: LinkedHashMap::new(),
     })?;
 
+    let mut errors = Vec::new();
+
     for inst in instances {
         let old = inst.get_current_version()?;
 
@@ -368,7 +390,7 @@ fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
         let new_meta = Metadata {
             version: new_major.clone(),
             slot: Some(slot.clone()),
-            current_version: None,
+            current_version: Some(new_version.clone()),
             method: method.name(),
             port: inst.get_port()?,
             start_conf: inst.get_start_conf()?,
@@ -380,8 +402,18 @@ fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
             started: SystemTime::now(),
             pid: process::id(),
         };
-        reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta)?;
+        let inst = inst.upgrade(&new_meta)?;
+        match reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta) {
+            Ok(()) => {}
+            Err(e) if e.is::<CannotStartService>() => {
+                errors.push(
+                    format!("failed to start instance {:?}: {:#}",
+                        inst.name(), e));
+            }
+            Err(e) => return Err(e)?,
+        }
     }
+    print_errors(errors)?;
     Ok(())
 }
 
@@ -435,12 +467,23 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
     let metapath = instance_dir.join("metadata.json");
     write_metadata(&metapath, &new_meta)?;
 
-    create_user_service(inst.name(), &new_meta)?;
+    let res = create_user_service(inst.name(), &new_meta)
+        .map_err(CannotStartService);
 
     fs::remove_file(&upgrade_marker)
         .with_context(|| format!("removing {:?}", upgrade_marker.display()))?;
 
-    inst.start(&Start { name: inst.name().into(), foreground: false })?;
+    if inst.get_start_conf()? == StartConf::Auto {
+        res?;
+        inst.start(&Start { name: inst.name().into(), foreground: false })
+            .map_err(CannotStartService)?;
+    } else {
+        res.map_err(|e| {
+            log::warn!("Could not update service file. \
+                Only `start --foreground` is supported. Error: {:#}",
+                    anyhow::anyhow!(e));
+        }).ok();
+    }
     Ok(())
 }
 
@@ -487,7 +530,7 @@ fn do_instance_upgrade(method: &dyn Method,
     log::info!(target: "edgedb::server::upgrade", "Installing the package");
     method.install(&install::Settings {
         method: method.name(),
-        distribution: new.clone(),
+        distribution: new,
         extra: LinkedHashMap::new(),
     })?;
 
@@ -497,7 +540,7 @@ fn do_instance_upgrade(method: &dyn Method,
     let new_meta = Metadata {
         version: new_major,
         slot: Some(slot),
-        current_version: None,
+        current_version: Some(new_version.clone()),
         method: method.name(),
         port: inst.get_port()?,
         start_conf: inst.get_start_conf()?,
@@ -511,7 +554,15 @@ fn do_instance_upgrade(method: &dyn Method,
         started: SystemTime::now(),
         pid: process::id(),
     };
-    reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta)?;
+    let inst = inst.upgrade(&new_meta)?;
+    match reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta) {
+        Ok(()) => {}
+        Err(e) if e.is::<CannotStartService>() => {
+            eprintln!("Upgrade complete, but cannot start instance: {:#}", e);
+            return Err(ExitCode::new(2))?;
+        }
+        Err(e) => return Err(e)?,
+    }
 
     Ok(())
 }

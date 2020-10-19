@@ -1304,6 +1304,16 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     fn get_command(&self) -> anyhow::Result<Command> {
         anyhow::bail!("no get_command is supported for docker instances");
     }
+    fn upgrade<'x>(&'x self, meta: &Metadata)
+        -> anyhow::Result<InstanceRef<'x>>
+    {
+        Ok(DockerInstance {
+            method: self.method,
+            name: self.name.clone(),
+            container: Lazy::lazy(),
+            metadata: Lazy::eager(meta.clone()),
+        }.into_ref())
+    }
 }
 
 impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {

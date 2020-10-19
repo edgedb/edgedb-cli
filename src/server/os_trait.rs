@@ -10,6 +10,7 @@ use crate::server::distribution::{MajorVersion, DistributionRef};
 use crate::server::init::{self, Storage};
 use crate::server::install;
 use crate::server::upgrade;
+use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::{Start, Stop, Restart, StartConf, Upgrade, Destroy};
 use crate::server::status::Status;
@@ -41,6 +42,7 @@ pub trait Instance: fmt::Debug {
     fn service_status(&self) -> anyhow::Result<()>;
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder>;
     fn get_command(&self) -> anyhow::Result<Command>;
+    fn upgrade(&self, meta: &Metadata) -> anyhow::Result<InstanceRef<'_>>;
     fn into_ref<'x>(self) -> InstanceRef<'x>
         where Self: Sized + 'x
     {
@@ -164,6 +166,11 @@ impl InstanceRef<'_> {
     }
     pub fn service_status(&self) -> anyhow::Result<()> {
         self.0.service_status()
+    }
+    pub fn upgrade(&self, meta: &Metadata)
+        -> anyhow::Result<InstanceRef<'_>>
+    {
+        self.0.upgrade(meta)
     }
 }
 

@@ -56,6 +56,11 @@ impl<T> Lazy<T> {
     pub fn lazy() -> Lazy<T> {
         Lazy(OnceCell::new())
     }
+    pub fn eager(val:T) -> Lazy<T> {
+        let cell = OnceCell::new();
+        cell.set(val).map_err(|_| "cell failed").unwrap();
+        Lazy(cell)
+    }
     pub fn get_or_init<F>(&self, f: F) -> &T
         where F: FnOnce() -> T
     {
