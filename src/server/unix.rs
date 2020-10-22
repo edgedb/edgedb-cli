@@ -6,17 +6,18 @@ use std::time::SystemTime;
 
 use anyhow::Context;
 use async_std::task;
+use serde::Serialize;
 use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
 use crate::process::ProcessGuard;
-use crate::platform::home_dir;
+use crate::platform::{Uid, home_dir, get_current_uid};
 use crate::server::control::read_metadata;
-use crate::server::detect::VersionQuery;
+use crate::server::detect::{VersionQuery, Lazy};
 use crate::server::errors::{CannotCreateService, CannotStartService};
 use crate::server::init::{self, read_ports, init_credentials, Storage};
-use crate::server::install;
+use crate::server::install::{self, exit_codes, Operation, operation};
 use crate::server::is_valid_name;
 use crate::server::linux;
 use crate::server::macos;
@@ -28,6 +29,71 @@ use crate::server::status::{Service, Status, DataDirectory};
 use crate::server::status::{read_upgrade, backup_status, probe_port};
 use crate::server::upgrade;
 use crate::server::version::Version;
+
+
+#[derive(Debug, Serialize)]
+pub struct Unix {
+    user_id: Lazy<Uid>,
+    sudo_path: Lazy<Option<PathBuf>>,
+}
+
+impl Unix {
+    pub fn new() -> Unix {
+        Unix {
+            user_id: Lazy::lazy(),
+            sudo_path: Lazy::lazy(),
+        }
+    }
+    pub fn detect_all(&self) {
+        self.get_user_id();
+        self.get_sudo_path();
+    }
+    pub fn get_user_id(&self) -> Uid {
+        *self.user_id.get_or_init(|| {
+            get_current_uid()
+        })
+    }
+    pub fn get_sudo_path(&self) -> Option<&PathBuf> {
+        self.sudo_path.get_or_init(|| {
+            which::which("sudo").ok()
+        }).as_ref()
+    }
+}
+
+impl Unix {
+    pub fn perform(&self, operations: Vec<Operation>,
+        operation_name: &str, hint_cmd: &str)
+        -> anyhow::Result<()>
+    {
+        let mut ctx = operation::Context::new();
+        let has_privileged = operations.iter().any(|x| x.is_privileged());
+        if has_privileged && self.get_user_id() != 0 {
+            println!("The following commands will be run with elevated \
+                privileges using sudo:");
+            for op in &operations {
+                if op.is_privileged() {
+                    println!("    {}", op.format(true));
+                }
+            }
+            println!("Depending on system settings sudo may now ask \
+                      you for your password...");
+            match self.get_sudo_path() {
+                Some(cmd) => ctx.set_elevation_cmd(cmd),
+                None => {
+                    eprintln!("`sudo` command not found. \
+                               Cannot elevate privileges needed for \
+                               {}. Please run `{}` as root user.",
+                               operation_name, hint_cmd);
+                    return Err(ExitCode::new(exit_codes::NO_SUDO))?;
+                }
+            }
+        }
+        for op in &operations {
+            op.perform(&ctx)?;
+        }
+        Ok(())
+    }
+}
 
 
 pub fn bootstrap(method: &dyn Method, settings: &init::Settings)

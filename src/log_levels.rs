@@ -23,6 +23,10 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
                 log::LevelFilter::Debug);
         }
         Some(Command::Server(s)) => match &s.subcommand {
+            Server::Uninstall(u) if u.verbose => {
+                builder.filter_module(
+                    "edgedb::server::uninstall", log::LevelFilter::Info);
+            }
             Server::Upgrade(u) if u.verbose => {
                 builder.filter_module(
                     "edgedb::server::upgrade", log::LevelFilter::Info);

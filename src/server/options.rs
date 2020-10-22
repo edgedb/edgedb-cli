@@ -34,6 +34,8 @@ pub enum InstanceCommand {
 pub enum Command {
     #[clap(about="Install edgedb-server")]
     Install(Install),
+    #[clap(about="Uninstall edgedb-server")]
+    Uninstall(Uninstall),
     #[clap(about="List available and installed versions of the server")]
     ListVersions(ListVersions),
     #[clap(about="Initialize a new server instance")]
@@ -60,6 +62,25 @@ pub struct Install {
     pub version: Option<Version<String>>,
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub method: Option<InstallMethod>,
+}
+
+#[derive(Clap, Debug, Clone)]
+pub struct Uninstall {
+    /// Uninstall all versions
+    #[clap(long)]
+    pub all: bool,
+    /// Uninstall unused versions
+    #[clap(long)]
+    pub unused: bool,
+    /// Uninstall nightly versions
+    #[clap(long)]
+    pub nightly: bool,
+    /// Uninstall specific version
+    #[clap(long, conflicts_with="nightly")]
+    pub version: Option<Version<String>>,
+    /// Increase verbosity
+    #[clap(short='v', long)]
+    pub verbose: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

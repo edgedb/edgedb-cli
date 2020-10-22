@@ -158,6 +158,20 @@ impl Debian {
         ));
         return Ok(operations);
     }
+    pub fn uninstall_operations(&self, distr: &DistributionRef)
+        -> anyhow::Result<Vec<Operation>>
+    {
+        let pkg = distr.downcast_ref::<Package>()
+            .context("invalid debian package")?;
+        let mut operations = Vec::new();
+        operations.push(Operation::PrivilegedCmd(
+            Command::new("apt-get")
+                .arg("remove")
+                .arg("-y")
+                .arg(format!("edgedb-server-{}", pkg.slot))
+        ));
+        return Ok(operations);
+    }
 }
 
 pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {

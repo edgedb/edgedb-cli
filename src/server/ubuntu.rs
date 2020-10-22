@@ -17,7 +17,7 @@ use crate::server::upgrade;
 #[derive(Debug, Serialize)]
 pub struct Ubuntu {
     #[serde(flatten)]
-    linux: linux::Linux,
+    unix: unix::Unix,
     #[serde(flatten)]
     common: debian_like::Debian,
 }
@@ -25,7 +25,7 @@ pub struct Ubuntu {
 impl Ubuntu {
     pub fn new(rel: &os_release::OsRelease) -> anyhow::Result<Ubuntu> {
         Ok(Ubuntu {
-            linux: linux::Linux::new(),
+            unix: unix::Unix::new(),
             common: debian_like::Debian::new(
                 "Ubuntu", rel.version_codename.clone()),
         })
@@ -39,7 +39,7 @@ impl CurrentOs for Ubuntu {
         self.common.get_available_methods()
     }
     fn detect_all(&self) -> serde_json::Value {
-        self.linux.detect_all();
+        self.unix.detect_all();
         serde_json::to_value(self).expect("can serialize")
     }
     fn make_method<'x>(&'x self, method: &InstallMethod,
@@ -61,9 +61,18 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
     fn install(&self, settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {
-        linux::perform_install(
+        self.os.unix.perform(
             self.os.common.install_operations(settings)?,
-            &self.os.linux)
+            "installation",
+            "edgedb server install")
+    }
+    fn uninstall(&self, distr: &DistributionRef)
+        -> Result<(), anyhow::Error>
+    {
+        self.os.unix.perform(
+            self.os.common.uninstall_operations(distr)?,
+            "uninstallation",
+            "edgedb server uninstall")
     }
     fn all_versions(&self, nightly: bool)
         -> anyhow::Result<Vec<DistributionRef>>

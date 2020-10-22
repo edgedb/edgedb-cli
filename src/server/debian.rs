@@ -17,7 +17,7 @@ use crate::server::upgrade;
 #[derive(Debug, Serialize)]
 pub struct Debian {
     #[serde(flatten)]
-    linux: linux::Linux,
+    unix: unix::Unix,
     #[serde(flatten)]
     common: debian_like::Debian,
 }
@@ -32,7 +32,7 @@ impl Debian {
         };
         Ok(Debian {
             common: debian_like::Debian::new("Debian", codename.into()),
-            linux: linux::Linux::new(),
+            unix: unix::Unix::new(),
         })
     }
 }
@@ -44,7 +44,7 @@ impl CurrentOs for Debian {
         self.common.get_available_methods()
     }
     fn detect_all(&self) -> serde_json::Value {
-        self.linux.detect_all();
+        self.unix.detect_all();
         serde_json::to_value(self).expect("can serialize")
     }
     fn make_method<'x>(&'x self, method: &InstallMethod,
@@ -67,9 +67,18 @@ impl<'os> Method for PackageMethod<'os, Debian> {
     fn install(&self, settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {
-        linux::perform_install(
+        self.os.unix.perform(
             self.os.common.install_operations(settings)?,
-            &self.os.linux)
+            "installation",
+            "edgedb server install")
+    }
+    fn uninstall(&self, distr: &DistributionRef)
+        -> Result<(), anyhow::Error>
+    {
+        self.os.unix.perform(
+            self.os.common.uninstall_operations(distr)?,
+            "uninstallation",
+            "edgedb server uninstall")
     }
     fn all_versions(&self, nightly: bool)
         -> anyhow::Result<Vec<DistributionRef>>

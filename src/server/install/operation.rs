@@ -81,6 +81,14 @@ impl Command {
         self.arguments.push(arg.into());
         self
     }
+    pub fn args(mut self, args: impl IntoIterator<Item=impl Into<OsString>>)
+        -> Self
+    {
+        for arg in args {
+            self.arguments.push(arg.into());
+        }
+        self
+    }
     pub fn env(mut self, key: impl Into<OsString>, arg: impl Into<OsString>)
         -> Self
     {
