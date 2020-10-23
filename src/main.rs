@@ -11,6 +11,7 @@ use clap::Clap;
 
 use crate::options::Options;
 
+mod async_util;
 mod commands;
 mod completion;
 mod credentials;
