@@ -1,6 +1,6 @@
 // We don't need to hunt of unused imports on windows, as they are harmless
 #![cfg_attr(windows, allow(unused_imports))]
-#![type_length_limit="2097152"]
+#![type_length_limit="2134214"]
 
 use std::env;
 use std::path::Path;
