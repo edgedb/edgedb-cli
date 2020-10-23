@@ -337,7 +337,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             }.into_ref())
         } else {
             Err(InstanceNotFound(
-                anyhow::anyhow!("Directory '{}' does not exists", dir.display())
+                anyhow::anyhow!("Directory '{}' does not exist", dir.display())
             ).into())
         }
     }
