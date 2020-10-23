@@ -494,7 +494,7 @@ pub fn get_instance<'x>(method: &'x dyn Method, name: &str)
         }.into_ref())
     } else {
         Err(InstanceNotFound(
-            anyhow::anyhow!("Directory '{}' does not exists", dir.display())
+            anyhow::anyhow!("Directory '{}' does not exist", dir.display())
         ).into())
     }
 }
