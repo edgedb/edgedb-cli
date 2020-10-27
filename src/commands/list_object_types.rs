@@ -21,23 +21,18 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
     -> Result<(), anyhow::Error>
 {
     let pat = filter::pattern_to_value(pattern, case_sensitive);
-    let filter = match (pattern, system) {
-        (None, true) => "FILTER NOT .is_from_alias",
-        (None, false) => {
-            r#"FILTER NOT
-                re_test("^(?:std|schema|math|sys|cfg|cal|stdgraphql)::",
-                .name)"#
-        }
-        (Some(_), true) => {
-            "FILTER NOT .is_from_alias AND re_test(<str>$0, .name)"
-        }
-        (Some(_), false) => {
-            r#"FILTER NOT .is_from_alias
-                AND re_test(<str>$0, .name) AND
-                NOT re_test("^(?:std|schema|math|sys|cfg|cal|stdgraphql)::",
-                .name)"#
-        }
-    };
+    let mut filter = Vec::with_capacity(3);
+    filter.push("NOT .is_compound_type AND NOT .is_from_alias");
+    if !system {
+        filter.push(r###"
+            NOT re_test(
+                "^(?:std|schema|math|sys|cfg|cal|stdgraphql)::",
+                .name)
+        "###);
+    }
+    if pattern.is_some() {
+        filter.push("re_test(<str>$0, .name)");
+    }
 
     let query = &format!(r###"
         WITH MODULE schema
@@ -45,9 +40,9 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
             name,
             `extending` := to_str(array_agg(.ancestors.name), ', '),
         }}
-        {filter}
+        FILTER ({filter})
         ORDER BY .name;
-    "###, filter=filter);
+    "###, filter=filter.join(") AND ("));
 
     let mut items = cli.query::<TypeRow>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
