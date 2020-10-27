@@ -178,7 +178,7 @@ containers:
       LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
       EDGEDB_HOST: '/work/tmp/run'
       PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-server-1-alpha5/bin
-      EDGEDB_MAJOR_VERSION: 1-alpha4
+      EDGEDB_MAJOR_VERSION: 1-alpha5
 
   tools:
     setup:

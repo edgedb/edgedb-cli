@@ -208,7 +208,7 @@ async fn execute_backslash(mut state: &mut repl::State, text: &str)
                 // It's expected that command already printed all required
                 // messages, so ignoring it is safe
             } else {
-                eprintln!("Error executing command: {}", e);
+                eprintln!("Error executing command: {:#}", e);
                 // Quick-edit command on error
                 state.initial_text = text.into();
                 state.last_error = Some(e);
@@ -286,7 +286,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             ServerMessage::ErrorResponse(err) => {
                 eprintln!("{}", err.display(state.verbose_errors));
                 state.last_error = Some(err.into());
-                seq.expect_ready().await?;
+                seq.err_sync().await?;
                 return Err(QueryError)?;
             }
             _ => {
