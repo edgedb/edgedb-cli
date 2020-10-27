@@ -34,7 +34,7 @@ jobs:
 
   musl-test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 25
+    timeout-minutes: 35
     strategy:
       max-parallel: 4
       matrix:
