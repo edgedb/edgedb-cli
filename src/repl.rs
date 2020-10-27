@@ -1,10 +1,12 @@
-use async_std::sync::{Sender, Receiver, RecvError};
+use std::time::Duration;
 
 use async_std::prelude::FutureExt;
+use async_std::sync::{Sender, Receiver, RecvError};
 use colorful::Colorful;
+use edgedb_client::{self as client, client::Connection};
 use edgedb_protocol::server_message::TransactionState;
 
-use edgedb_client::{self as client, client::Connection};
+use crate::async_util::timeout;
 use crate::prompt;
 use crate::print;
 
@@ -115,7 +117,7 @@ impl State {
     pub async fn terminate(&mut self) {
         if let Some(conn) = self.connection.take() {
             if conn.is_consistent() {
-                conn.terminate().await
+                timeout(Duration::from_secs(1), conn.terminate()).await
                     .map_err(|e| log::warn!("Termination error: {:#}", e))
                     .ok();
             }

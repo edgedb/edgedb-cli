@@ -1,16 +1,15 @@
 use std::env;
 use std::fs;
-use std::io;
 use std::time::{Duration};
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use async_std::future::Future;
 use async_std::task;
 use clap::Clap;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
 
+use crate::async_util::timeout;
 use crate::platform::home_dir;
 use crate::server::remote;
 use crate::server::version::Version;
@@ -28,15 +27,6 @@ pub struct SelfUpgrade {
     /// Reinstall even if there is no newer version
     #[clap(long)]
     pub force: bool,
-}
-
-pub async fn timeout<F, T>(dur: Duration, f: F) -> anyhow::Result<T>
-    where F: Future<Output = anyhow::Result<T>>,
-{
-    use async_std::future::timeout;
-
-    timeout(dur, f).await
-    .unwrap_or_else(|_| Err(io::Error::from(io::ErrorKind::TimedOut).into()))
 }
 
 
