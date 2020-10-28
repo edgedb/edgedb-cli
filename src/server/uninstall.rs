@@ -26,7 +26,7 @@ pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
                     => a == b,
                     _ => false,
                 };
-                if !options.unused {
+                if del && !options.unused {
                     log::warn!("Version {} is used by {:?}",
                         cand.version(), inst.name());
                     all = false;
