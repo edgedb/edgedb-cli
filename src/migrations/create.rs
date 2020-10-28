@@ -367,7 +367,7 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
     -> anyhow::Result<()>
 {
     let statements = descr.confirmed.iter()
-        .map(|s| s.clone() + ";")
+        .map(|s| s.clone())
         .collect::<Vec<_>>();
     let mut hasher = migration::Hasher::new(&descr.parent);
     for statement in &statements {

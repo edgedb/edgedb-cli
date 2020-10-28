@@ -159,10 +159,10 @@ containers:
             postgres
     - !UbuntuRepo
       url: https://packages.edgedb.com/apt
-      suite: bionic.nightly
+      suite: bionic
       components: [main]
       trusted: true
-    - !Install [edgedb-1-alpha5]
+    - !Install [edgedb-1-alpha6]
     - !Text
       /var/docker.sock: ""
 
@@ -177,8 +177,8 @@ containers:
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
       EDGEDB_HOST: '/work/tmp/run'
-      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-server-1-alpha5/bin
-      EDGEDB_MAJOR_VERSION: 1-alpha5
+      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-server-1-alpha6/bin
+      EDGEDB_MAJOR_VERSION: 1-alpha6
 
   tools:
     setup:
