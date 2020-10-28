@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, exit};
+use std::process::Command;
 
 use anyhow::Context;
 use dirs::home_dir;
@@ -9,14 +9,13 @@ use edgedb_client as client;
 use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
-use crate::platform::{Uid, get_current_uid};
+use crate::platform::{get_current_uid};
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::detect::Lazy;
 use crate::server::distribution::{MajorVersion};
 use crate::server::docker::DockerCandidate;
 use crate::server::errors::InstanceNotFound;
-use crate::server::install::{operation, exit_codes, Operation};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::{StartConf, Start, Stop, Restart, Logs, Destroy};
@@ -35,11 +34,6 @@ pub struct Unknown {
     error: anyhow::Error,
 }
 
-#[derive(Debug, Serialize)]
-pub struct Linux {
-    user_id: Lazy<Uid>,
-    sudo_path: Lazy<Option<PathBuf>>,
-}
 
 #[derive(Debug)]
 pub struct LocalInstance<'a> {
@@ -193,28 +187,6 @@ impl Instance for LocalInstance<'_> {
 }
 
 
-impl Linux {
-    pub fn new() -> Linux {
-        Linux {
-            user_id: Lazy::lazy(),
-            sudo_path: Lazy::lazy(),
-        }
-    }
-    pub fn detect_all(&self) {
-        self.get_user_id();
-        self.get_sudo_path();
-    }
-    pub fn get_user_id(&self) -> Uid {
-        *self.user_id.get_or_init(|| {
-            get_current_uid()
-        })
-    }
-    pub fn get_sudo_path(&self) -> Option<&PathBuf> {
-        self.sudo_path.get_or_init(|| {
-            which::which("sudo").ok()
-        }).as_ref()
-    }
-}
 
 
 impl CurrentOs for Unknown {
@@ -293,38 +265,6 @@ pub fn detect_distro() -> Result<Box<dyn CurrentOs>, anyhow::Error> {
             no known /etc/*-release file found"),
         }))
     }
-}
-
-pub fn perform_install(operations: Vec<Operation>, linux: &Linux)
-    -> anyhow::Result<()>
-{
-    let mut ctx = operation::Context::new();
-    let has_privileged = operations.iter().any(|x| x.is_privileged());
-    if has_privileged && linux.get_user_id() != 0 {
-        println!("The following commands will be run with elevated \
-            privileges using sudo:");
-        for op in &operations {
-            if op.is_privileged() {
-                println!("    {}", op.format(true));
-            }
-        }
-        println!("Depending on system settings sudo may now ask \
-                  you for your password...");
-        match linux.get_sudo_path() {
-            Some(cmd) => ctx.set_elevation_cmd(cmd),
-            None => {
-                eprintln!("`sudo` command not found. \
-                           Cannot elevate acquire needed for \
-                           installation. Please run \
-                           `edgedb server install` as root user.");
-                exit(exit_codes::NO_SUDO);
-            }
-        }
-    }
-    for op in &operations {
-        op.perform(&ctx)?;
-    }
-    Ok(())
 }
 
 pub fn get_server_path(slot: Option<&String>) -> PathBuf {

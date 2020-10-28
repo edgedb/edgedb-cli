@@ -29,7 +29,7 @@ use crate::server::version::Version;
 pub struct Centos {
     release: u32,
     #[serde(flatten)]
-    linux: linux::Linux,
+    unix: unix::Unix,
     #[serde(skip)]
     stable_repo: Lazy<Option<RepositoryInfo>>,
     #[serde(skip)]
@@ -69,7 +69,7 @@ impl Centos {
     pub fn from_release(release: u32) -> anyhow::Result<Centos> {
         Ok(Centos {
             release,
-            linux: linux::Linux::new(),
+            unix: unix::Unix::new(),
             stable_repo: Lazy::lazy(),
             nightly_repo: Lazy::lazy(),
         })
@@ -131,6 +131,20 @@ impl Centos {
         ));
         Ok(operations)
     }
+    fn uninstall_operations(&self, distr: &DistributionRef)
+        -> anyhow::Result<Vec<Operation>>
+    {
+        let pkg = distr.downcast_ref::<Package>()
+            .context("invalid centos package")?;
+        let mut operations = Vec::new();
+        operations.push(Operation::PrivilegedCmd(
+            Command::new("yum")
+            .arg("-y")
+            .arg("remove")
+            .arg(format!("edgedb-server-{}", pkg.slot))
+        ));
+        Ok(operations)
+    }
 }
 
 impl CurrentOs for Centos {
@@ -155,7 +169,7 @@ impl CurrentOs for Centos {
         })
     }
     fn detect_all(&self) -> serde_json::Value {
-        self.linux.detect_all();
+        self.unix.detect_all();
         serde_json::to_value(self).expect("can serialize")
     }
     fn make_method<'x>(&'x self, method: &InstallMethod,
@@ -186,9 +200,18 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     fn install(&self, settings: &install::Settings)
         -> Result<(), anyhow::Error>
     {
-        linux::perform_install(
+        self.os.unix.perform(
             self.os.install_operations(settings)?,
-            &self.os.linux)
+            "installation",
+            "edgedb server install")
+    }
+    fn uninstall(&self, distr: &DistributionRef)
+        -> Result<(), anyhow::Error>
+    {
+        self.os.unix.perform(
+            self.os.uninstall_operations(distr)?,
+            "uninstallation",
+            "edgedb server uninstall")
     }
     fn all_versions(&self, nightly: bool)
         -> anyhow::Result<Vec<DistributionRef>>

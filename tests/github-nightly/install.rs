@@ -42,6 +42,8 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         val=$(edgedb -Itest1 --wait-until-available=30s query "SELECT 1+1")
         test "$val" = "2"
         edgedb server logs test1
+        edgedb server destroy test1
+        edgedb server uninstall --all --verbose
     "###).success();
     Ok(())
 }
@@ -65,6 +67,7 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         val=$(edgedb -Itest1 --wait-until-available=30s query "SELECT 1+1")
         test "$val" = "2"
         edgedb server logs test1
+        edgedb server uninstall --all --verbose
     "###).success();
     Ok(())
 }

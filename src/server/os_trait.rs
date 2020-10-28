@@ -77,6 +77,7 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn get_instance<'x>(&'x self, name: &str)
         -> anyhow::Result<InstanceRef<'x>>;
     fn destroy(&self, options: &Destroy) -> anyhow::Result<()>;
+    fn uninstall(&self, distr: &DistributionRef) -> anyhow::Result<()>;
 }
 
 

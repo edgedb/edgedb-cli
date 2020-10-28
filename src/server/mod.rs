@@ -29,6 +29,7 @@ mod control;
 mod destroy;
 mod init;
 mod install;
+mod uninstall;
 mod list_versions;
 mod reset_password;
 mod status;

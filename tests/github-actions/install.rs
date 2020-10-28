@@ -128,6 +128,12 @@ fn github_action_install() -> anyhow::Result<()> {
             .assert()
             .code(51);
 
+        println!("Install different version");
+        Command::new(&edgedb)
+            .arg("server").arg("install").arg("--version=1-alpha5")
+            .assert()
+            .success();
+
         if cfg!(target_os="macos") {
             println!("Init first");
             Command::new(&edgedb)
@@ -176,6 +182,7 @@ fn github_action_install() -> anyhow::Result<()> {
             println!("Init second one");
             Command::new(&edgedb)
                 .arg("server").arg("init").arg("second")
+                    .arg("--version=1-alpha5")
                 .assert()
                 .success();
 
@@ -232,6 +239,12 @@ fn github_action_install() -> anyhow::Result<()> {
             println!("Delete second instance");
             Command::new(&edgedb)
                 .arg("server").arg("destroy").arg("second")
+                .assert()
+                .success();
+
+            println!("Uninstall the old version");
+            Command::new(&edgedb)
+                .arg("server").arg("uninstall").arg("--version=1-alpha5")
                 .assert()
                 .success();
 

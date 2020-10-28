@@ -832,6 +832,15 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg(image.tag.as_image_name()))?;
         Ok(())
     }
+    fn uninstall(&self, distr: &DistributionRef) -> anyhow::Result<()> {
+        let image = distr.downcast_ref::<Image>()
+            .context("invalid distribution for Docker")?;
+        process::run(Command::new(&self.cli)
+            .arg("image")
+            .arg("rm")
+            .arg(image.tag.as_image_name()))?;
+        Ok(())
+    }
     fn all_versions(&self, nightly: bool)
         -> anyhow::Result<Vec<DistributionRef>>
     {

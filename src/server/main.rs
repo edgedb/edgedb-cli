@@ -1,12 +1,14 @@
 use crate::server::options::{ServerCommand, Command};
-use crate::server::install;
+
+use crate::server::control;
 use crate::server::destroy;
 use crate::server::detect;
-use crate::server::list_versions;
 use crate::server::init;
-use crate::server::control;
-use crate::server::upgrade;
+use crate::server::install;
+use crate::server::list_versions;
 use crate::server::reset_password;
+use crate::server::uninstall;
+use crate::server::upgrade;
 
 
 pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
@@ -14,6 +16,7 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
 
     match &cmd.subcommand {
         Install(c) => install::install(c),
+        Uninstall(c) => uninstall::uninstall(c),
         Init(c) => init::init(c),
         Destroy(c) => destroy::destroy(c),
         ListVersions(c) => list_versions::list_versions(c),

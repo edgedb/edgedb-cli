@@ -2,16 +2,17 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::str;
 use std::path::{Path, PathBuf};
-use std::process::{exit, Command as StdCommand};
+use std::process::{Command as StdCommand};
 
 use anyhow::Context;
 use async_std::task;
 use edgedb_client as client;
-use serde::Serialize;
+use fn_error_context::context;
 use once_cell::unsync::OnceCell;
+use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
-use crate::platform::{Uid, get_current_uid, home_dir};
+use crate::platform::{get_current_uid, home_dir};
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
@@ -19,7 +20,7 @@ use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
 use crate::server::errors::InstanceNotFound;
 use crate::server::init::{self, Storage};
-use crate::server::install::{self, operation, exit_codes, Operation, Command};
+use crate::server::install::{self, Operation, Command};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::options::{Start, Stop, Restart, Upgrade, Destroy, Logs};
@@ -36,8 +37,8 @@ use crate::server::version::Version;
 
 #[derive(Debug, Serialize)]
 pub struct Macos {
-    user_id: Lazy<Uid>,
-    sudo_path: Lazy<Option<PathBuf>>,
+    #[serde(flatten)]
+    unix: unix::Unix,
     #[serde(skip)]
     stable_repo: Lazy<Option<RepositoryInfo>>,
     #[serde(skip)]
@@ -56,19 +57,6 @@ pub struct LocalInstance<'a> {
     slot: Lazy<String>,
     method: &'a PackageMethod<'a, Macos>,
     current_version: Lazy<Version<String>>,
-}
-
-impl Macos {
-    pub fn get_user_id(&self) -> Uid {
-        *self.user_id.get_or_init(|| {
-            get_current_uid()
-        })
-    }
-    pub fn get_sudo_path(&self) -> Option<&PathBuf> {
-        self.sudo_path.get_or_init(|| {
-            which::which("sudo").ok()
-        }).as_ref()
-    }
 }
 
 
@@ -94,8 +82,7 @@ impl CurrentOs for Macos {
         })
     }
     fn detect_all(&self) -> serde_json::Value {
-        self.get_user_id();
-        self.get_sudo_path();
+        self.unix.detect_all();
         serde_json::to_value(self).expect("can serialize")
     }
     fn make_method<'x>(&'x self, method: &InstallMethod,
@@ -114,8 +101,7 @@ impl CurrentOs for Macos {
 impl Macos {
     pub fn new() -> Macos {
         Macos {
-            user_id: Lazy::lazy(),
-            sudo_path: Lazy::lazy(),
+            unix: unix::Unix::new(),
             stable_repo: Lazy::lazy(),
             nightly_repo: Lazy::lazy(),
         }
@@ -187,31 +173,25 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             )
         ];
 
-        let mut ctx = operation::Context::new();
-        if self.os.get_user_id() != 0 {
-            println!("The following commands will be run with elevated \
-                privileges using sudo:");
-            for op in &operations {
-                if op.is_privileged() {
-                    println!("    {}", op.format(true));
-                }
-            }
-            println!("Depending on system settings sudo may now ask \
-                      you for your password...");
-            match self.os.get_sudo_path() {
-                Some(cmd) => ctx.set_elevation_cmd(cmd),
-                None => {
-                    eprintln!("`sudo` command not found. \
-                               Cannot elevate acquire needed for \
-                               installation. Please run \
-                               `edgedb server install` as root user.");
-                    exit(exit_codes::NO_SUDO);
-                }
-            }
-        }
-        for op in &operations {
-            op.perform(&ctx)?;
-        }
+        self.os.unix.perform(operations,
+            "installation",
+            "edgedb server install")?;
+        Ok(())
+    }
+    fn uninstall(&self, distr: &DistributionRef)
+        -> Result<(), anyhow::Error>
+    {
+        let pkg = distr.downcast_ref::<Package>()
+            .context("invalid macos package")?;
+        let entries = get_package_paths(&pkg)?;
+        let operations = vec![
+            Operation::PrivilegedCmd(Command::new("rm")
+                .arg("-rf")
+                .args(entries)),
+        ];
+        self.os.unix.perform(operations,
+            "uninstallation",
+            "edgedb server uninstall")?;
         Ok(())
     }
     fn all_versions(&self, nightly: bool)
@@ -539,6 +519,7 @@ fn plist_dir(system: bool) -> anyhow::Result<PathBuf> {
         Ok(home_dir()?.join("Library/LaunchAgents"))
     }
 }
+
 fn plist_name(name: &str) -> String {
     format!("com.edgedb.edgedb-server-{}.plist", name)
 }
@@ -690,4 +671,47 @@ pub fn create_launchctl_service(name: &str, meta: &Metadata)
 fn unit_path(name: &str) -> anyhow::Result<PathBuf> {
     let plist = format!("com.edgedb.edgedb-server-{}.plist", &name);
     Ok(home_dir()?.join("Library/LaunchAgents").join(plist))
+}
+
+#[context("cannot scan package paths of edgedb-server-{}", pkg.slot)]
+fn get_package_paths(pkg: &Package) -> anyhow::Result<Vec<PathBuf>> {
+    let root = PathBuf::from("/");
+    let paths: BTreeSet<_> = process::get_text(
+        &mut StdCommand::new("pkgutil")
+            .arg("--files")
+            .arg(format!("com.edgedb.edgedb-server-{}", pkg.slot))
+        )?
+        .lines()
+        .map(|p| root.join(p))
+        .collect();
+    let mut exclude1 = BTreeSet::new();
+    for path in &paths {
+        if path.is_dir() {
+            let mut dir = fs::read_dir(path)?;
+            while let Some(entry) = dir.next().transpose()? {
+                if !paths.contains(&path.join(entry.file_name())) {
+                    exclude1.insert(path.clone());
+                    break;
+                }
+            }
+        }
+    }
+    let mut exclude2 = BTreeSet::new();
+    for path in &exclude1 {
+        for parent in path.ancestors() {
+            exclude2.insert(parent);
+        }
+    }
+    let mut result = Vec::new();
+    for path in paths {
+        if exclude1.contains(&path) || exclude2.contains(path.as_path()) {
+            continue;
+        }
+        if let Some(parent) = path.parent() {
+            if exclude1.contains(parent) {
+                result.push(path);
+            }
+        }
+    }
+    Ok(result)
 }
