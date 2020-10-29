@@ -3,7 +3,7 @@
 set -Exeo pipefail
 
 if [[ "${OS_NAME}" == macos* ]]; then
-    wget https://packages.edgedb.com/dist/macos-x86_64.nightly/edgedb-server-${SLOT}_latest_nightly.pkg \
+    wget https://packages.edgedb.com/dist/macos-x86_64/edgedb-server-${SLOT}_latest.pkg \
         -O edgedb.pkg -nv
     sudo env _EDGEDB_INSTALL_SKIP_BOOTSTRAP=1 installer \
         -dumplog -verbose -pkg "$(pwd)/edgedb.pkg" -target /
@@ -24,7 +24,7 @@ elif [[ "${OS_NAME}" == ubuntu* ]]; then
     dist=$(awk -F"=" '/VERSION_CODENAME=/ {print $2}' /etc/os-release)
     [ -n "${dist}" ] || \
         dist=$(awk -F"[)(]+" '/VERSION=/ {print $2}' /etc/os-release)
-    echo deb https://packages.edgedb.com/apt ${dist}.nightly main \
+    echo deb https://packages.edgedb.com/apt ${dist} main \
         | sudo tee /etc/apt/sources.list.d/edgedb.list
 
     sudo apt-get update
