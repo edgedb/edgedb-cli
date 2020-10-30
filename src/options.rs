@@ -18,6 +18,11 @@ use crate::server;
 #[derive(Clap, Debug)]
 #[clap(version=clap::crate_version!())]
 struct TmpOptions {
+    /// DSN for EdgeDB to connect to (overrides all other options
+    /// except password)
+    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
+    pub dsn: Option<String>,
+
     /// Host of the EdgeDB instance
     #[clap(short='H', long, help_heading=Some("CONNECTION OPTIONS"))]
     pub host: Option<String>,
@@ -151,60 +156,15 @@ pub struct Options {
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
         let tmp = TmpOptions::parse();
-        let admin = tmp.admin;
-        let user = tmp.user.or_else(|| env::var("EDGEDB_USER").ok());
-        let host = tmp.host.or_else(|| env::var("EDGEDB_HOST").ok());
-        let port = tmp.port.or_else(|| {
-            env::var("EDGEDB_PORT").ok().and_then(|x| x.parse().ok())
-        });
-        let database = tmp.database
-            .or_else(|| env::var("EDGEDB_DATABASE").ok());
-
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
             && atty::is(atty::Stream::Stdin);
-
-        let mut conn_params = Builder::new();
-        if let Some(name) = tmp.instance {
-            conn_params = get_connector(&name)?;
-            user.map(|user| conn_params.user(user));
-            database.map(|database| conn_params.database(database));
+        let mut conn_params = if let Some(dsn) = &tmp.dsn {
+            Builder::from_dsn(dsn)?
         } else {
-            let user = user.unwrap_or_else(|| {
-                if admin {
-                    String::from("edgedb")
-                } else {
-                    whoami::username()
-                }
-            });
-            conn_params.user(user.clone());
-            conn_params.database(database.as_ref().map(|x| &x[..])
-                                 .unwrap_or(&user));
-            let host = host.unwrap_or_else(|| String::from("localhost"));
-            let port = port.unwrap_or(5656);
-            let unix_host = host.contains("/");
-            if admin || unix_host {
-                let prefix = if unix_host {
-                    &host
-                } else {
-                    "/var/run/edgedb"
-                };
-                let path = if prefix.contains(".s.EDGEDB") {
-                    // it's the full path
-                    prefix.into()
-                } else {
-                    if admin {
-                        format!("{}/.s.EDGEDB.admin.{}", prefix, port)
-                    } else {
-                        format!("{}/.s.EDGEDB.{}", prefix, port)
-                    }
-                };
-                conn_params.unix_addr(path);
-            } else {
-                conn_params.tcp_addr(host, port);
-            }
-        }
+            conn_params(&tmp)?
+        };
         let password = if tmp.password_from_stdin {
             let password = rpassword::read_password()
                 .expect("password can be read");
@@ -224,7 +184,6 @@ impl Options {
             }
         };
         password.map(|password| conn_params.password(password));
-
         tmp.wait_until_available.map(|w| conn_params.wait_until_available(w));
 
         let subcommand = if let Some(query) = tmp.query {
@@ -259,4 +218,56 @@ impl Options {
             no_version_check: tmp.no_version_check,
         })
     }
+}
+fn conn_params(tmp: &TmpOptions) -> anyhow::Result<Builder> {
+    let admin = tmp.admin;
+    let user = tmp.user.clone().or_else(|| env::var("EDGEDB_USER").ok());
+    let host = tmp.host.clone().or_else(|| env::var("EDGEDB_HOST").ok());
+    let port = tmp.port.or_else(|| {
+        env::var("EDGEDB_PORT").ok().and_then(|x| x.parse().ok())
+    });
+    let database = tmp.database.clone()
+        .or_else(|| env::var("EDGEDB_DATABASE").ok());
+
+    let mut conn_params = Builder::new();
+    if let Some(name) = &tmp.instance {
+        conn_params = get_connector(name)?;
+        user.map(|user| conn_params.user(user));
+        database.map(|database| conn_params.database(database));
+    } else {
+        let user = user.unwrap_or_else(|| {
+            if admin {
+                String::from("edgedb")
+            } else {
+                whoami::username()
+            }
+        });
+        conn_params.user(user.clone());
+        conn_params.database(database.as_ref().map(|x| &x[..])
+                             .unwrap_or(&user));
+        let host = host.unwrap_or_else(|| String::from("localhost"));
+        let port = port.unwrap_or(5656);
+        let unix_host = host.contains("/");
+        if admin || unix_host {
+            let prefix = if unix_host {
+                &host
+            } else {
+                "/var/run/edgedb"
+            };
+            let path = if prefix.contains(".s.EDGEDB") {
+                // it's the full path
+                prefix.into()
+            } else {
+                if admin {
+                    format!("{}/.s.EDGEDB.admin.{}", prefix, port)
+                } else {
+                    format!("{}/.s.EDGEDB.{}", prefix, port)
+                }
+            };
+            conn_params.unix_addr(path);
+        } else {
+            conn_params.tcp_addr(host, port);
+        }
+    }
+    Ok(conn_params)
 }
