@@ -1,3 +1,4 @@
+use std::env;
 use std::fs;
 use std::io;
 use std::str;
@@ -155,6 +156,9 @@ impl Debian {
             // TODO(tailhook) version
             .arg(format!("edgedb-server-{}", pkg.slot))
             .env("_EDGEDB_INSTALL_SKIP_BOOTSTRAP", "1")
+            .env("DEBIAN_FRONTEND",
+                env::var("DEBIAN_FRONTEND")
+                .unwrap_or_else(|_| "noninteractive".into()))
         ));
         return Ok(operations);
     }
