@@ -19,6 +19,21 @@ pub fn sudoers() -> &'static str {
     "###
 }
 
+pub fn edbconnect() -> &'static str {
+    r###"
+import asyncio
+import sys
+import edgedb
+
+assert edgedb.connect(sys.argv[1]).query_one("SELECT 1+1") == 2
+
+async def test_async():
+    conn = await edgedb.async_connect(sys.argv[1])
+    return await conn.query_one("SELECT 1+1")
+assert asyncio.get_event_loop().run_until_complete(test_async()) == 2
+    "###
+}
+
 impl Context {
     pub fn new() -> Context {
         Context {
@@ -47,6 +62,9 @@ impl Context {
     }
     pub fn add_sudoers(self) -> anyhow::Result<Self> {
         self.add_file("sudoers", sudoers())
+    }
+    pub fn add_edbconnect(self) -> anyhow::Result<Self> {
+        self.add_file("edbconnect.py", edbconnect())
     }
     pub fn add_bin(self) -> anyhow::Result<Self> {
         self.add_file_mode("edgedb",
