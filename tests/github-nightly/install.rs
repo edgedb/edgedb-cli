@@ -53,6 +53,18 @@ fn package(tagname: &str, dockerfile: &str, version: &str)
                 query "SELECT 1+1")
             test "$val" = "2"
             python3 /usr/bin/edbconnect.py test1
+
+            edgedb server stop test1
+            edgedb server start test1
+            val=$(edgedb -Itest1 --wait-until-available=30s \
+                query "SELECT 2+3")
+            test "$val" = "5"
+
+            edgedb server restart test1
+            val=$(edgedb -Itest1 --wait-until-available=30s \
+                query "SELECT 4+5")
+            test "$val" = "9"
+
             edgedb server logs test1
             edgedb server destroy test1
             edgedb server uninstall --all --verbose
@@ -92,6 +104,18 @@ fn docker(tagname: &str, dockerfile: &str, version: &str)
                 query "SELECT 1+1")
             test "$val" = "2"
             python3 /usr/bin/edbconnect.py test1
+
+            edgedb server stop test1
+            edgedb server start test1
+            val=$(edgedb -Itest1 --wait-until-available=30s \
+                query "SELECT 2+3")
+            test "$val" = "5"
+
+            edgedb server restart test1
+            val=$(edgedb -Itest1 --wait-until-available=30s \
+                query "SELECT 4+5")
+            test "$val" = "9"
+
             edgedb server logs test1
             edgedb server destroy test1
             edgedb server uninstall --all --verbose
