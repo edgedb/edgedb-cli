@@ -98,7 +98,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         output_mode: options.output_mode,
         input_mode: repl::InputMode::Emacs,
         history_limit: 100,
-        database: options.conn_params.get_effective_database(),
+        database: options.conn_params.get_database().into(),
         conn_params: options.conn_params.clone(),
         last_version: None,
         connection: None,

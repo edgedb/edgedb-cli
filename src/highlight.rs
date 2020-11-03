@@ -92,7 +92,6 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
 
         T::At => Some(S::Punctuation),  // TODO(tailhook) but also decorators
         T::Dot => Some(S::Punctuation),
-        T::ForwardLink => Some(S::Punctuation),
         T::BackwardLink => Some(S::Punctuation),
 
         T::Assign => None,

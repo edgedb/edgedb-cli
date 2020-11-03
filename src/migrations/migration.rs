@@ -5,8 +5,7 @@ use async_std::io;
 use async_std::fs;
 use async_std::path::{Path, PathBuf};
 use async_std::stream::StreamExt;
-use sha2::digest::Digest;
-use edgeql_parser::tokenizer::TokenStream;
+use edgeql_parser::hash::{self, Hasher};
 use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
 
@@ -29,49 +28,26 @@ pub struct MigrationFile {
     pub data: Migration,
 }
 
-#[derive(Debug, Clone)]
-pub struct Hasher {
-    hasher: sha2::Sha256
-}
-
 #[derive(PartialOrd, PartialEq, Eq, Ord)]
 pub enum SortKey<'a> {
     Numeric(u64),
     Text(&'a OsStr),
 }
 
-impl Hasher {
-    pub fn new(parent_id: &str) -> Hasher {
-        let mut me = Hasher {
-            hasher: sha2::Sha256::new(),
-        };
-        me.hasher.update(b"CREATE\0MIGRATION\0ONTO\0");
-        me.hasher.update(parent_id.as_bytes());
-        me.hasher.update(b"\0{\0");
-        return me;
-    }
-    pub fn source(&mut self, data: &str) -> anyhow::Result<&mut Self> {
-        for token in &mut TokenStream::new(data) {
-            let token = token.map_err(|e| anyhow::anyhow!("{}", e))?;
-            self.hasher.update(token.token.value.as_bytes());
-            self.hasher.update(b"\0");
+pub fn hashing_error(_source: &str, e: hash::Error) -> anyhow::Error {
+    match e {
+        hash::Error::Tokenizer(msg, pos) => {
+            return anyhow::anyhow!("Tokenizer error at {}: {}", pos, msg);
         }
-        Ok(self)
-    }
-    pub fn make_id(mut self) -> String {
-        self.hasher.update(b"}\0");
-        let hash = base32::encode(
-            base32::Alphabet::RFC4648 { padding: false },
-            &self.hasher.finalize());
-        return format!("m1{}", hash.to_ascii_lowercase());
     }
 }
 
 fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
     if migration.id.starts_with("m1") {
-        let mut hasher = Hasher::new(&migration.parent_id);
-        hasher.source(&text[migration.text_range.0..migration.text_range.1])?;
-        let id = hasher.make_id();
+        let mut hasher = Hasher::start_migration(&migration.parent_id);
+        let txt = &text[migration.text_range.0..migration.text_range.1];
+        hasher.add_source(txt).map_err(|e| hashing_error(txt, e))?;
+        let id = hasher.make_migration_id();
         if id != migration.id {
             anyhow::bail!("migration name should be `{computed}` \
                 but `{file}` is used instead.\n\
