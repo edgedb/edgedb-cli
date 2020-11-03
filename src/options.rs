@@ -5,7 +5,6 @@ use anyhow::Context;
 use atty;
 use clap::{Clap, AppSettings};
 use edgedb_client::Builder;
-use whoami;
 
 use crate::credentials::get_connector;
 use crate::commands::parser::Common;
@@ -235,16 +234,8 @@ fn conn_params(tmp: &TmpOptions) -> anyhow::Result<Builder> {
         user.map(|user| conn_params.user(user));
         database.map(|database| conn_params.database(database));
     } else {
-        let user = user.unwrap_or_else(|| {
-            if admin {
-                String::from("edgedb")
-            } else {
-                whoami::username()
-            }
-        });
-        conn_params.user(user.clone());
-        conn_params.database(database.as_ref().map(|x| &x[..])
-                             .unwrap_or(&user));
+        user.as_ref().map(|user| conn_params.user(user));
+        database.as_ref().map(|db| conn_params.database(db));
         let host = host.unwrap_or_else(|| String::from("localhost"));
         let port = port.unwrap_or(5656);
         let unix_host = host.contains("/");
