@@ -172,7 +172,7 @@ impl Options {
         } else if tmp.no_password {
             None
         } else if tmp.password {
-            let user = conn_params.get_user().expect("username is known");
+            let user = conn_params.get_user();
             Some(rpassword::read_password_from_tty(
                     Some(&format!("Password for '{}': ",
                                   user.escape_default())))

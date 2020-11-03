@@ -80,7 +80,7 @@ impl State {
                 env!("CARGO_PKG_VERSION"));
             self.last_version = Some(fetched_version);
         }
-        self.database = self.conn_params.get_effective_database();
+        self.database = self.conn_params.get_database().into();
         self.connection = Some(conn);
         Ok(())
     }
