@@ -9,6 +9,7 @@ use edgedb_protocol::queryable::Queryable;
 use edgedb_protocol::server_message::ErrorResponse;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser::{full_statement, is_empty};
+use edgeql_parser::hash::Hasher;
 use fn_error_context::context;
 use serde::Deserialize;
 
@@ -369,11 +370,12 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
     let statements = descr.confirmed.iter()
         .map(|s| s.clone())
         .collect::<Vec<_>>();
-    let mut hasher = migration::Hasher::new(&descr.parent);
+    let mut hasher = Hasher::start_migration(&descr.parent);
     for statement in &statements {
-        hasher.source(&statement)?;
+        hasher.add_source(&statement)
+            .map_err(|e| migration::hashing_error(statement, e))?;
     }
-    let id = hasher.make_id();
+    let id = hasher.make_migration_id();
     let dir = filepath.parent().unwrap();
     let tmp_file = filepath.with_file_name(tmp_file_name(&filepath.as_ref()));
     if !filepath.exists().await {
