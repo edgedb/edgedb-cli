@@ -55,10 +55,17 @@ struct TmpOptions {
     #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
     pub password_from_stdin: bool,
 
-    /// In case EdgeDB connection can't be established, retry up to N seconds.
-    #[clap(long, name="N", help_heading=Some("CONNECTION OPTIONS"),
+    /// In case EdgeDB connection can't be established, retry up to
+    /// WAIT_TIME (e.g. '30s').
+    #[clap(long, name="WAIT_TIME", help_heading=Some("CONNECTION OPTIONS"),
                 parse(try_from_str=humantime::parse_duration))]
     pub wait_until_available: Option<Duration>,
+
+    /// In case EdgeDB doesn't respond for a TIMEOUT, fail
+    /// (or retry if --wait-until-available is also specified). Default '10s'.
+    #[clap(long, name="TIMEOUT", help_heading=Some("CONNECTION OPTIONS"),
+           parse(try_from_str=humantime::parse_duration))]
+    pub connect_timeout: Option<Duration>,
 
     /// Local instance name created with `edgedb server init` to connect to
     /// (overrides host and port)
@@ -184,6 +191,7 @@ impl Options {
         };
         password.map(|password| conn_params.password(password));
         tmp.wait_until_available.map(|w| conn_params.wait_until_available(w));
+        tmp.connect_timeout.map(|t| conn_params.connect_timeout(t));
 
         let subcommand = if let Some(query) = tmp.query {
             if tmp.subcommand.is_some() {
