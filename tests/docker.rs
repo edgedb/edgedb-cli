@@ -19,7 +19,7 @@ pub fn sudoers() -> &'static str {
     "###
 }
 
-pub fn edbconnect() -> &'static str {
+pub fn edbconnect_py() -> &'static str {
     r###"
 import asyncio
 import sys
@@ -31,6 +31,24 @@ async def test_async():
     conn = await edgedb.async_connect(sys.argv[1])
     return await conn.query_one("SELECT 1+1")
 assert asyncio.get_event_loop().run_until_complete(test_async()) == 2
+    "###
+}
+
+pub fn edbconnect_js() -> &'static str {
+    r###"
+const edgedb = require('edgedb')
+edgedb.connect(process.argv[2])
+.then(function(conn) {
+    return conn.queryOne('SELECT 1+1')
+})
+.then(function(value) {
+    console.assert(value == 2, value)
+    process.exit(0)
+})
+.catch(e => {
+    console.error("Error", e)
+    process.exit(1)
+})
     "###
 }
 
@@ -64,7 +82,10 @@ impl Context {
         self.add_file("sudoers", sudoers())
     }
     pub fn add_edbconnect(self) -> anyhow::Result<Self> {
-        self.add_file("edbconnect.py", edbconnect())
+        Ok(self
+            .add_file("edbconnect.py", edbconnect_py())?
+            .add_file("edbconnect.js", edbconnect_js())?
+        )
     }
     pub fn add_bin(self) -> anyhow::Result<Self> {
         self.add_file_mode("edgedb",
