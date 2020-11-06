@@ -439,6 +439,12 @@ pub fn get_instance<'x>(method: &'x dyn Method, name: &str)
     }
 }
 
+fn systemd_is_not_found_error(e: &str) -> bool {
+    e.contains("Failed to get D-Bus connection") ||
+    e.contains("Failed to connect to bus") ||
+    e.contains("No such file or directory")
+}
+
 pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     let system = false;
     let mut found = false;
@@ -453,9 +459,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     cmd.arg(&svc_name);
     match process::run_or_stderr(&mut cmd)? {
         Ok(()) => found = true,
-        Err(e) if e.contains("Failed to get D-Bus connection") ||
-                  e.contains("Failed to connect to bus")
-        => {
+        Err(e) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
         Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
@@ -467,7 +471,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     cmd.arg(&svc_name);
     match process::run_or_stderr(&mut cmd)? {
         Ok(()) => found = true,
-        Err(e) if e.contains("Failed to get D-Bus connection") => {
+        Err(e) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
         Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
