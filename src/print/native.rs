@@ -110,9 +110,9 @@ impl FormatExt for Value {
             V::LocalDatetime(t)
             => prn.typed("cal::local_datetime", format!("{:?}", t)),
             V::LocalDate(d)
-            => prn.typed("std::local_date", format!("{:?}", d)),
+            => prn.typed("cal::local_date", format!("{:?}", d)),
             V::LocalTime(t)
-            => prn.typed("std::local_time", format!("{:?}", t)),
+            => prn.typed("cal::local_time", format!("{:?}", t)),
             V::Duration(d) => {
                 // TODO(tailhook) implement more DB-like duration display
                 prn.const_scalar(format_args!("{}{:?}",
