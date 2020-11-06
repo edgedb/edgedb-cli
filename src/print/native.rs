@@ -108,7 +108,7 @@ impl FormatExt for Value {
             V::Bool(v) => prn.const_scalar(v),
             V::Datetime(t) => prn.typed("datetime", format!("{:?}", t)),
             V::LocalDatetime(t)
-            => prn.typed("std::local_datetime", format!("{:?}", t)),
+            => prn.typed("cal::local_datetime", format!("{:?}", t)),
             V::LocalDate(d)
             => prn.typed("std::local_date", format!("{:?}", d)),
             V::LocalTime(t)
