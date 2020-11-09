@@ -8,6 +8,7 @@ use async_std::stream::Stream;
 use bigdecimal::BigDecimal;
 
 use edgedb_protocol::value::Value;
+use edgedb_protocol::model::Datetime;
 use edgedb_protocol::codec::{ObjectShape, ShapeElement};
 use crate::print::{self, _native_format, Config};
 use crate::print::native::FormatExt;
@@ -103,6 +104,16 @@ fn bigint() {
         Value::BigInt(10000.into()),
         Value::BigInt(100000000000i64.into()),
     ]).unwrap(), "{10n, 10000n, 1e11n}");
+}
+
+#[test]
+fn datetime() {
+    assert_eq!(test_format(&[
+        Value::Datetime(Datetime::from_micros(-1000000000000000)),
+        Value::Datetime(Datetime::from_micros(1604506938347258)),
+    ]).unwrap(),
+    "{<datetime>\'1968-04-23T22:13:20Z\', \
+      <datetime>\'2050-11-04T16:22:18.347258Z\'}");
 }
 
 #[test]
