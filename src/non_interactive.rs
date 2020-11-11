@@ -13,7 +13,8 @@ use crate::options::Options;
 use crate::print::{self, PrintError};
 use edgedb_client::reader::ReadError;
 use crate::statement::{ReadStatement, EndOfFile};
-use edgedb_client::client::{Connection, NoResultExpected};
+use edgedb_client::client::Connection;
+use edgedb_client::errors::NoResultExpected;
 use crate::outputs::tab_separated;
 
 

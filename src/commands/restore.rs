@@ -22,7 +22,8 @@ use edgeql_parser::preparser::{is_empty};
 
 use crate::commands::Options;
 use crate::commands::parser::{Restore as RestoreCmd};
-use edgedb_client::client::{Connection, Reader, Writer};
+use edgedb_client::client::{Connection, Writer};
+use edgedb_client::reader::Reader;
 use crate::statement::{ReadStatement, EndOfFile};
 
 type Input = Box<dyn Read + Unpin + Send>;
