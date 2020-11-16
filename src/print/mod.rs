@@ -255,55 +255,6 @@ fn format_rows_str<I: FormatExt>(prn: &mut Printer<&mut String>, items: &[I],
     Ok(())
 }
 
-#[cfg(test)]
-pub fn test_format_cfg<I: FormatExt>(items: &[I], config: &Config)
-    -> Result<String, Infallible>
-{
-    let mut out = String::new();
-    let mut prn = Printer {
-        colors: false,
-        indent: config.indent,
-        expand_strings: config.expand_strings,
-        max_width: config.max_width.unwrap_or(80),
-        implicit_properties: config.implicit_properties,
-        max_items: config.max_items,
-        trailing_comma: true,
-
-        buffer: String::with_capacity(8192),
-        stream: &mut out,
-        delim: Delim::None,
-        flow: false,
-        committed: 0,
-        committed_indent: 0,
-        committed_column: 0,
-        column: 0,
-        cur_indent: 0,
-    };
-    match format_rows_str(&mut prn, &items, "{", "}", false) {
-        Ok(()) => {},
-        Err(Exception::DisableFlow) => {
-            format_rows_str(&mut prn, &items, "{", "}", true).unwrap_exc()?;
-        }
-        Err(Exception::Error(e)) => return Err(e),
-    };
-    prn.end().unwrap_exc()?;
-    Ok(out)
-}
-
-#[cfg(test)]
-pub fn test_format<I: FormatExt>(items: &[I])
-    -> Result<String, Infallible>
-{
-    test_format_cfg(items, &Config {
-        colors: Some(false),
-        indent: 2,
-        expand_strings: false,
-        max_width: Some(80),
-        implicit_properties: false,
-        max_items: None,
-    })
-}
-
 pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
     -> Result<String, Infallible>
 {
