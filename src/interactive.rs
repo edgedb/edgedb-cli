@@ -32,6 +32,7 @@ use crate::outputs::tab_separated;
 
 
 const QUERY_OPT_IMPLICIT_LIMIT: u16 = 0xFF01;
+const QUERY_OPT_INLINE_TYPENAMES: u16 = 0xFF02;
 
 #[derive(Debug, thiserror::Error)]
 #[error("Shutting down on user request")]
@@ -233,6 +234,11 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             Bytes::from(format!("{}", implicit_limit+1)));
     }
     let cli = state.connection.as_mut().expect("connection established");
+
+    if cli.protocol().supports_inline_typenames() {
+        headers.insert(QUERY_OPT_INLINE_TYPENAMES,
+                       Bytes::from_static(b"true"));
+    }
 
     let mut seq = cli.start_sequence().await?;
     seq.send_messages(&[

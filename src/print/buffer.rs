@@ -80,7 +80,7 @@ impl<T, E> WrapErr<T, E> for std::result::Result<T, E> {
     }
 }
 
-impl<'a, T: Output> Printer<'a, T> {
+impl<T: Output> Printer<T> {
     pub(in crate::print) fn flush_buf(&mut self) -> Result<T::Error> {
         debug_assert_eq!(self.committed, self.buffer.len());
         self.stream.write(&self.buffer).map_err(Exception::Error)?;

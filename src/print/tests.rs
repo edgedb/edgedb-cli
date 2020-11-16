@@ -57,7 +57,6 @@ fn test_format<I: FormatExt + Clone + Send + Sync>(items: &[I])
         expand_strings: false,
         max_width: Some(80),
         implicit_properties: false,
-        type_names: None,
         max_items: None,
     })
 }
