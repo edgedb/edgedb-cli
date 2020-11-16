@@ -355,3 +355,25 @@ fn modified3_interactive() -> anyhow::Result<()> {
         .assert().code(4).stderr("No schema changes detected.\n");
     Ok(())
 }
+
+#[test]
+fn prompt_id() -> anyhow::Result<()> {
+    fs::remove_file("tests/migrations/db2/migrations/00002.edgeql")
+        .ok();
+    SERVER.admin_cmd()
+        .arg("create-database").arg("db2")
+        .assert().success();
+    let mut cmd = SERVER.custom_interactive(|cmd| {
+        cmd.arg("--database=db2");
+        cmd.arg("create-migration");
+        cmd.arg("--schema-dir=tests/migrations/db2");
+    });
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
+    cmd.send_line("yes").unwrap();
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
+    cmd.send_line("yes").unwrap();
+    // on pre-prompt_id version this would require an extra prompt
+    cmd.exp_string("extra DDL statements").unwrap();
+    cmd.exp_string("Created").unwrap();
+    Ok(())
+}

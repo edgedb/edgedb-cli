@@ -8,9 +8,10 @@ use edgedb_derive::Queryable;
 use edgedb_protocol::queryable::Queryable;
 use edgedb_protocol::server_message::ErrorResponse;
 use edgedb_protocol::value::Value;
-use edgeql_parser::preparser::{full_statement, is_empty};
 use edgeql_parser::hash::Hasher;
+use edgeql_parser::preparser::{full_statement, is_empty};
 use fn_error_context::context;
+use immutable_chunkmap::set::Set;
 use serde::Deserialize;
 
 use crate::commands::parser::CreateMigration;
@@ -54,6 +55,7 @@ pub struct StatementProposal {
 
 #[derive(Deserialize, Debug)]
 pub struct Proposal {
+    pub prompt_id: Option<String>,
     pub statements: Vec<StatementProposal>,
     pub confidence: f64,
     #[serde(default)]
@@ -244,6 +246,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
 {
     use Choice::*;
 
+    let mut operations = vec![Set::new()];
     let mut save_point = 0;
     execute(cli, format!("DECLARE SAVEPOINT migration_{}", save_point)).await?;
     let descr = 'migration: loop {
@@ -254,72 +257,87 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
             break descr;
         }
         if let Some(proposal) = &descr.proposed {
-            let prompt = if let Some(prompt) = &proposal.prompt {
-                prompt
-            } else {
-                println!("Following DDL statements will be applied:");
+            let cur_oper = operations.last().unwrap();
+            let already_approved = proposal.prompt_id.as_ref()
+                .map(|op| cur_oper.contains(op))
+                .unwrap_or(false);
+            if already_approved {
+                println!("Following extra DDL statements will be applied:");
                 for statement in &proposal.statements {
                     for line in statement.text.lines() {
                         println!("    {}", line);
                     }
                 }
-                "Apply the DDL statements?"
-            };
-            loop {
-                match choice(prompt).await? {
-                    Yes => break,
-                    No => {
-                        execute(cli,
-                            "ALTER CURRENT MIGRATION REJECT PROPOSED"
-                        ).await?;
-                        save_point += 1;
-                        execute(cli,
-                            format!("DECLARE SAVEPOINT migration_{}",
-                                     save_point)
-                        ).await?;
-                        continue 'migration;
-                    }
-                    List => {
-                        println!("Following DDL statements will be applied:");
-                        for statement in &proposal.statements {
-                            for line in statement.text.lines() {
-                                println!("    {}", line);
-                            }
+                println!("(approved as part as part of an earlier prompt)");
+            } else {
+                let prompt = if let Some(prompt) = &proposal.prompt {
+                    prompt
+                } else {
+                    println!("Following DDL statements will be applied:");
+                    for statement in &proposal.statements {
+                        for line in statement.text.lines() {
+                            println!("    {}", line);
                         }
-                        continue;
                     }
-                    Confirmed => {
-                        if descr.confirmed.is_empty() {
-                            println!(
-                                "No EdgeQL statements were confirmed yet");
-                        } else {
-                            println!(
-                                "Following EdgeQL statements were confirmed:");
-                            for statement in &descr.confirmed {
-                                for line in statement.lines() {
+                    "Apply the DDL statements?"
+                };
+                loop {
+                    match choice(prompt).await? {
+                        Yes => break,
+                        No => {
+                            execute(cli,
+                                "ALTER CURRENT MIGRATION REJECT PROPOSED"
+                            ).await?;
+                            save_point += 1;
+                            execute(cli,
+                                format!("DECLARE SAVEPOINT migration_{}",
+                                         save_point)
+                            ).await?;
+                            continue 'migration;
+                        }
+                        List => {
+                            println!("Following DDL statements will be applied:");
+                            for statement in &proposal.statements {
+                                for line in statement.text.lines() {
                                     println!("    {}", line);
                                 }
                             }
-                        }
-                        continue;
-                    }
-                    Back => {
-                        if save_point == 0 {
-                            eprintln!("Already at latest savepoint");
                             continue;
                         }
-                        save_point -= 1;
-                        execute(cli, format!(
-                            "ROLLBACK TO SAVEPOINT migration_{}", save_point)
-                        ).await?;
-                        continue 'migration;
-                    }
-                    Split => {
-                        break 'migration descr;
-                    }
-                    Quit => {
-                        eprintln!("Migration aborted no results are saved.");
-                        return Err(ExitCode::new(0))?;
+                        Confirmed => {
+                            if descr.confirmed.is_empty() {
+                                println!(
+                                    "No EdgeQL statements were confirmed yet");
+                            } else {
+                                println!(
+                                    "Following EdgeQL statements were confirmed:");
+                                for statement in &descr.confirmed {
+                                    for line in statement.lines() {
+                                        println!("    {}", line);
+                                    }
+                                }
+                            }
+                            continue;
+                        }
+                        Back => {
+                            if save_point == 0 {
+                                eprintln!("Already at latest savepoint");
+                                continue;
+                            }
+                            save_point -= 1;
+                            execute(cli, format!(
+                                "ROLLBACK TO SAVEPOINT migration_{}", save_point)
+                            ).await?;
+                            operations.truncate(save_point + 1);
+                            continue 'migration;
+                        }
+                        Split => {
+                            break 'migration descr;
+                        }
+                        Quit => {
+                            eprintln!("Migration aborted no results are saved.");
+                            return Err(ExitCode::new(0))?;
+                        }
                     }
                 }
             }
@@ -334,6 +352,13 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                         statement.text);
                 }
                 execute(cli, &statement.text).await?;
+            }
+            if let Some(prompt_id) = &proposal.prompt_id {
+                operations.push(
+                    operations.last().unwrap().insert(prompt_id.clone()).0
+                );
+            } else {
+                operations.push(operations.last().unwrap().clone());
             }
             save_point += 1;
             execute(cli,
