@@ -513,7 +513,7 @@ jobs:
         printf 'FROM scratch\nENV EDGEDB_USER edgedb\nADD edgedb /usr/bin/\nENTRYPOINT ["/usr/bin/edgedb"]\n' \
           >dockerctx/Dockerfile
         tag=$(date +%Y%m%d%H%M%S)$(echo "${GITHUB_SHA}" | cut -c1-6)
-        echo ::set-env name=SNAPSHOT_TAG::${tag}
+        echo "SNAPSHOT_TAG=${tag}" >> $GITHUB_ENV
 
     - name: Publish docker image
       uses: elgohr/Publish-Docker-Github-Action@2.19
