@@ -536,7 +536,7 @@ jobs:
         printf 'FROM scratch\nENV EDGEDB_USER edgedb\nADD edgedb /usr/bin/\nENTRYPOINT ["/usr/bin/edgedb"]\n' \
           >dockerctx/Dockerfile
         ver=$(dockerctx/edgedb --version | cut -f2 -d' ')
-        echo ::set-env name=CLI_VERSION::${ver}
+        echo "CLI_VERSION=${ver}" >> $GITHUB_ENV
 
     - name: Publish docker image
       uses: elgohr/Publish-Docker-Github-Action@2.19
