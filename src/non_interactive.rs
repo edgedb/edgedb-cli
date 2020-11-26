@@ -94,9 +94,9 @@ pub async fn query(conn: &mut Connection, stmt: &str, options: &Options)
                             },
                             ..
                         } => {
-                            eprintln!("{}", error);
+                            eprintln!("edgedb error: {}", error);
                         }
-                        _ => eprintln!("{:#?}", e),
+                        _ => eprintln!("edgedb error: {:#}", e),
                     }
                     return Ok(());
                 }

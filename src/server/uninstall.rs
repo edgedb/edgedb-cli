@@ -49,7 +49,8 @@ pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
         }
     }
     if !all {
-        eprintln!("Error: some instances are used. See messages above.");
+        eprintln!(
+            "edgedb error: some instances are used. See messages above.");
         return Err(ExitCode::new(2))?;
     }
     Ok(())

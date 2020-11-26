@@ -249,7 +249,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
             Ok(()) => {}
             Err(e) => {
                 if e.is::<CannotCreateService>() {
-                    eprintln!("Error: {:#}", e);
+                    eprintln!("edgedb error: {:#}", e);
                     eprintln!("Bootstrapping complete, \
                         but there was an error creating the service. \
                         You can run server manually via: \n  \
