@@ -59,6 +59,7 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
         Descriptor::BaseScalar(s) => {
             let type_name = match s.id {
                 codec::STD_STR => "str",
+                codec::STD_UUID => "uuid",
                 codec::STD_INT16 => "int16",
                 codec::STD_INT32 => "int32",
                 codec::STD_INT64 => "int64",
@@ -75,6 +76,10 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
             match s.id {
                 codec::STD_STR => {
                     Ok(Value::Str(val))
+                }
+                codec::STD_UUID => {
+                    let v = val.parse().context("invalid uuid value")?;
+                    Ok(Value::Uuid(v))
                 }
                 codec::STD_INT16 => {
                     let v = val.parse::<i16>().context("invalid int16 value")?;
