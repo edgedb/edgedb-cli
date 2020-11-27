@@ -43,7 +43,7 @@ fn main() {
             if let Some(e) = e.downcast_ref::<commands::ExitCode>() {
                 e.exit();
             }
-            eprintln!("Error: {:#}", e);
+            eprintln!("edgedb error: {:#}", e);
             exit(1);
         }
     }

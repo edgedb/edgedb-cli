@@ -191,7 +191,7 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
             if cfg!(windows) && !options.no_confirm {
                 // This is needed so user can read the message if console
                 // was open just for this process
-                eprintln!("Error: {:#}", e);
+                eprintln!("edgedb error: {:#}", e);
                 eprintln!("Press the Enter key to continue");
                 read_choice()?;
                 exit(1);

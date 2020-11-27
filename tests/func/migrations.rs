@@ -43,7 +43,7 @@ fn initial() -> anyhow::Result<()> {
         .arg("create-migration")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/initial")
-        .assert().code(1).stderr("Error: Database must be updated \
+        .assert().code(1).stderr("edgedb error: Database must be updated \
             to the last miration on the filesystem for `create-migration`. \
             Run:\n  \
               edgedb migrate\n");
@@ -130,7 +130,7 @@ fn modified1() -> anyhow::Result<()> {
         .arg("create-migration")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/modified1")
-        .assert().code(1).stderr("Error: Database must be updated \
+        .assert().code(1).stderr("edgedb error: Database must be updated \
             to the last miration on the filesystem for `create-migration`. \
             Run:\n  \
               edgedb migrate\n");
@@ -221,7 +221,7 @@ r###"error: Unexpected 'create'
 3 │         create property text -> str;
   │         ^^^^^^^ error
 
-Error: cannot proceed until .esdl files are fixed
+edgedb error: cannot proceed until .esdl files are fixed
 "###);
     Ok(())
 }
