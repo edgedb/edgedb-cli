@@ -255,7 +255,7 @@ jobs:
     - uses: actions/checkout@v1
       with:
         repository: edgedb/edgedb-pkg
-        ref: win
+        ref: master
         path: edgedb-cli/edgedb-pkg
 
     - name: Install Rust toolchain
@@ -574,7 +574,7 @@ jobs:
     - uses: actions/checkout@v1
       with:
         repository: edgedb/edgedb-pkg
-        ref: win
+        ref: master
         path: edgedb-cli/edgedb-pkg
 
     - name: Describe
