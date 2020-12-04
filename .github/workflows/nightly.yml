@@ -592,5 +592,5 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
       shell: bash
       run: |
-        edgedb-pkg/integration/macos/publish.sh
+        edgedb-pkg/integration/win/publish.sh
 
