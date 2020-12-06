@@ -150,7 +150,7 @@ async fn get_databases(cli: &mut Connection)
     -> Result<Vec<String>, anyhow::Error>
 {
     let mut query = cli.query(
-        "SELECT sys::Database.name",
+        "SELECT (SELECT sys::Database FILTER NOT .builtin).name",
         &Value::empty_tuple(),
     ).await?;
     let mut databases: Vec<String> = Vec::new();
@@ -200,7 +200,6 @@ pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
 
     let mut conn_params = options.conn_params.clone();
     for database in &databases {
-        if database == "edgedb0" { continue; }
         let mut db_conn = conn_params.database(database).connect().await?;
         let filename = dir.join(urlencoding::encode(database) + ".dump");
         dump_db(&mut db_conn, options, &filename).await?;
