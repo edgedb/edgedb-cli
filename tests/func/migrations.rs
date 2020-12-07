@@ -161,6 +161,14 @@ Some migrations are missing, use `edgedb create-migration`
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(0).stderr("");
     SERVER.admin_cmd()
+        .arg("migration-log")
+        .arg("--from-fs")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .arg("--newest-first")
+        .arg("--limit=1")
+        .assert().code(0)
+        .stdout("m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a\n");
+    SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("show-status")
         .arg("--schema-dir=tests/migrations/db1/modified1")
@@ -200,6 +208,25 @@ Some migrations are missing, use `edgedb create-migration`
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(4).stderr("No schema changes detected.\n");
+    SERVER.admin_cmd()
+        .arg("migration-log")
+        .arg("--from-fs")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .arg("--newest-first")
+        .assert().code(0)
+        .stdout("\
+            m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a\n\
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa\n\
+        ");
+    SERVER.admin_cmd()
+        .arg("migration-log")
+        .arg("--from-fs")
+        .arg("--schema-dir=tests/migrations/db1/modified1")
+        .assert().code(0)
+        .stdout("\
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa\n\
+            m12udjjofxzy3nygel35cq4tbz3v56vw7w3d3co6h5hmqhcnodqv3a\n\
+        ");
     Ok(())
 }
 

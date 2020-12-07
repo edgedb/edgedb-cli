@@ -1,8 +1,10 @@
 use async_std::task;
 
 use crate::options::{Options, Command};
+use crate::commands::parser::Common;
 use crate::non_interactive;
 use crate::commands;
+use crate::migrations;
 use crate::self_install;
 use crate::self_upgrade;
 use crate::server;
@@ -21,11 +23,21 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
     };
     match options.subcommand.as_ref().expect("subcommand is present") {
         Command::Common(cmd) => {
-            task::block_on(async {
-                let mut conn = options.conn_params.connect().await?;
-                commands::execute::common(&mut conn, cmd, &cmdopt).await?;
-                Ok(())
-            }).into()
+            match cmd {
+                Common::MigrationLog(mlog) if mlog.from_fs => {
+                    // no need for connection
+                    task::block_on(migrations::log_fs(&cmdopt, &mlog)).into()
+                }
+                cmd => {
+                    task::block_on(async {
+                        let mut conn = options.conn_params.connect().await?;
+                        commands::execute::common(
+                            &mut conn, cmd, &cmdopt
+                        ).await?;
+                        Ok(())
+                    }).into()
+                }
+            }
         },
         Command::Server(cmd) => {
             server::main(cmd)
