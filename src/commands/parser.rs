@@ -33,6 +33,8 @@ pub enum Common {
     Migrate(Migrate),
     /// Show current migration state
     ShowStatus(ShowStatus),
+    /// Show all migration versions
+    MigrationLog(MigrationLog),
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -490,6 +492,32 @@ pub struct ShowStatus {
     /// Do not print any messages, only indicate success by exit status
     #[clap(long)]
     pub quiet: bool,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct MigrationLog {
+    #[clap(flatten)]
+    pub cfg: MigrationConfig,
+
+    /// Print revisions from the filesystem
+    /// (doesn't require database connection)
+    #[clap(long)]
+    pub from_fs: bool,
+
+    /// Print revisions from the database
+    /// (no filesystem schema is required)
+    #[clap(long)]
+    pub from_db: bool,
+
+    /// Sort migrations starting from never to older,
+    /// by default older revisions go first
+    #[clap(long)]
+    pub newest_first: bool,
+
+    /// Show maximum N revisions (default is unlimited)
+    #[clap(long)]
+    pub limit: Option<usize>,
 }
 
 impl Setting {
