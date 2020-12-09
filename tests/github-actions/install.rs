@@ -61,37 +61,16 @@ fn github_action_install() -> anyhow::Result<()> {
     } else {
         let mut tmpfile = tempfile::NamedTempFile::new()?;
         tmpfile.write_all(&certs.ca_cert)?;
-        if cfg!(target_os="macos") {
-            Command::new("sudo")
-                .arg("security")
-                .arg("add-trusted-cert")
-                .arg("-d")
-                .arg("-r").arg("trustRoot")
-                .arg("-k").arg("/Library/Keychains/System.keychain")
-                .arg(tmpfile.path())
-                .assert()
-                .success();
-            Command::new("sh")
-                .arg("-c")
-                .arg("-e")
-                .arg(UNIX_INST)
-                .env("EDGEDB_PKG_ROOT", "https://localhost:8443")
-                .assert()
-                .success()
-                .stdout(predicates::str::contains(
-                    "EdgeDB command-line tool is installed now"));
-        } else {
-            Command::new("sh")
-                .arg("-c")
-                .arg("-e")
-                .arg(UNIX_INST)
-                .env("CURL_CA_BUNDLE", tmpfile.path())
-                .env("EDGEDB_PKG_ROOT", "https://localhost:8443")
-                .assert()
-                .success()
-                .stdout(predicates::str::contains(
-                    "EdgeDB command-line tool is installed now"));
-        }
+        Command::new("sh")
+            .arg("-c")
+            .arg("-e")
+            .arg(UNIX_INST)
+            .env("CURL_CA_BUNDLE", tmpfile.path())
+            .env("EDGEDB_PKG_ROOT", "https://localhost:8443")
+            .assert()
+            .success()
+            .stdout(predicates::str::contains(
+                "EdgeDB command-line tool is installed now"));
     }
 
     shut_tx.send(()).ok();
