@@ -27,6 +27,7 @@ pub mod package;
 mod errors;
 mod control;
 mod destroy;
+mod info;
 mod init;
 mod install;
 mod uninstall;

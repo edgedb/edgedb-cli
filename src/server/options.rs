@@ -48,6 +48,8 @@ pub enum Command {
     Upgrade(Upgrade),
     #[clap(about="Reset password for a user in the instance")]
     ResetPassword(ResetPassword),
+    #[clap(about="Show server information")]
+    Info(Info),
     #[clap(name="_detect")]
     _Detect(Detect),
 }
@@ -289,6 +291,22 @@ pub struct ResetPassword {
     #[clap(long)]
     pub quiet: bool,
 }
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Info {
+    /// Display only the server binary path
+    #[clap(long)]
+    pub bin_path: bool,
+
+    #[clap(long)]
+    pub nightly: bool,
+    #[clap(long, conflicts_with="nightly")]
+    pub version: Option<Version<String>>,
+    #[clap(long, possible_values=&["package", "docker"][..])]
+    pub method: Option<InstallMethod>,
+}
+
 
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::Hidden)]

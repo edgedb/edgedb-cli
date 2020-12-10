@@ -3,6 +3,7 @@ use crate::server::options::{ServerCommand, Command};
 use crate::server::control;
 use crate::server::destroy;
 use crate::server::detect;
+use crate::server::info;
 use crate::server::init;
 use crate::server::install;
 use crate::server::list_versions;
@@ -23,6 +24,7 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
         Instance(c) => control::instance_command(c),
         Upgrade(c) => upgrade::upgrade(c),
         ResetPassword(c) => reset_password::reset_password(c),
+        Info(c) => info::info(c),
         _Detect(c) => detect::main(c),
     }
 }

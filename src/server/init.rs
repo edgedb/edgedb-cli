@@ -19,9 +19,9 @@ use crate::server::reset_password::{password_hash};
 use crate::server::detect::{self, VersionQuery};
 use crate::server::errors::CannotCreateService;
 use crate::server::metadata::Metadata;
-use crate::server::methods::{InstallMethod, Methods};
+use crate::server::methods::{InstallationMethods, InstallMethod, Methods};
 use crate::server::options::{Init, StartConf};
-use crate::server::os_trait::{InstanceRef};
+use crate::server::os_trait::{Method, CurrentOs, InstanceRef};
 use crate::server::version::Version;
 use crate::server::distribution::DistributionRef;
 use crate::server::package::Package;
@@ -150,12 +150,12 @@ fn find_version<F>(methods: &Methods, mut cond: F)
     Ok(max_ver.map(|distr| (distr, ver_methods.into_iter().next().unwrap())))
 }
 
-pub fn init(options: &Init) -> anyhow::Result<()> {
-    let version_query = VersionQuery::new(
-        options.nightly, options.version.as_ref());
-    let current_os = detect::current_os()?;
-    let avail_methods = current_os.get_available_methods()?;
-    let (distr, meth_name, method) = if let Some(ref meth) = options.method {
+pub fn find_distribution<'x>(current_os: &'x dyn CurrentOs,
+    avail_methods: &'x InstallationMethods,
+    version_query: &VersionQuery, method_opt: &Option<InstallMethod>)
+    -> anyhow::Result<(DistributionRef, InstallMethod, Box<dyn Method + 'x>)>
+{
+    if let Some(ref meth) = method_opt {
         let method = current_os.make_method(meth, &avail_methods)?;
         let mut max_ver = None::<DistributionRef>;
         for distr in method.installed_versions()? {
@@ -169,7 +169,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
             }
         }
         if let Some(ver) = max_ver {
-            (ver, meth.clone(), method)
+            Ok((ver, meth.clone(), method))
         } else {
             anyhow::bail!("Cannot find any installed version. Run: \n  \
                 edgedb server install {}", meth.option());
@@ -181,7 +181,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         {
             let meth = methods.remove(&meth_name)
                 .expect("method is recently used");
-            (ver, meth_name, meth)
+            Ok((ver, meth_name, meth))
         } else {
             anyhow::bail!("Cannot find version {} installed. Run: \n  \
                 edgedb server install {}",
@@ -196,14 +196,24 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         {
             let meth = methods.remove(&meth_name)
                 .expect("method is recently used");
-            (ver, meth_name, meth)
+            Ok((ver, meth_name, meth))
         } else {
             anyhow::bail!("Cannot find any installed version \
                 (note: nightly versions are skipped unless `--nightly` \
                 is used).\nRun: \n  \
                 edgedb server install");
         }
-    };
+    }
+}
+
+pub fn init(options: &Init) -> anyhow::Result<()> {
+    let version_query = VersionQuery::new(
+        options.nightly, options.version.as_ref());
+    let current_os = detect::current_os()?;
+    let avail_methods = current_os.get_available_methods()?;
+    let (distr, meth_name, method) = find_distribution(
+        &*current_os, &avail_methods,
+        &version_query, &options.method)?;
     let port = allocate_port(&options.name)?;
     let settings = Settings {
         name: options.name.clone(),
