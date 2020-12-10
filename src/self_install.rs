@@ -438,7 +438,7 @@ impl Settings {
     pub fn print(&self) {
         let mut table = Table::new();
         table.add_row(Row::new(vec![
-            Cell::new("Instalation Path"),
+            Cell::new("Installation Path"),
             Cell::new(&self.installation_path.display().to_string()),
         ]));
         table.add_row(Row::new(vec![
