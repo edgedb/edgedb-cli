@@ -13,6 +13,7 @@ use edgedb_client::client::Connection;
 
 use crate::platform::tmp_file_name;
 use crate::commands::Options;
+use crate::commands::list_databases::get_databases;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
 
 
@@ -144,20 +145,6 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     }
     guard.commit().await?;
     Ok(())
-}
-
-async fn get_databases(cli: &mut Connection)
-    -> Result<Vec<String>, anyhow::Error>
-{
-    let mut query = cli.query(
-        "SELECT (SELECT sys::Database FILTER NOT .builtin).name",
-        &Value::empty_tuple(),
-    ).await?;
-    let mut databases: Vec<String> = Vec::new();
-    while let Some(name) = query.next().await.transpose()? {
-        databases.push(name)
-    }
-    Ok(databases)
 }
 
 async fn get_text(cli: &mut Connection, query: &str)
