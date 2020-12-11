@@ -12,12 +12,12 @@ use crate::common::{dock_ubuntu, dock_centos, dock_debian};
 #[test_case("edbtest_stretch", &dock_debian("stretch"), "")]
 #[test_case("edbtest_focal", &dock_ubuntu("focal"), "")]
 // alpha5
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--version=1-alpha.5")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--version=1-alpha.5")]
-#[test_case("edbtest_centos8", &dock_centos(8), "--version=1-alpha.5")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "--version=1-alpha.5")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "--version=1-alpha.5")]
-#[test_case("edbtest_focal", &dock_ubuntu("focal"), "--version=1-alpha.5")]
+#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--version=1-alpha5")]
+#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--version=1-alpha5")]
+#[test_case("edbtest_centos8", &dock_centos(8), "--version=1-alpha5")]
+#[test_case("edbtest_buster", &dock_debian("buster"), "--version=1-alpha5")]
+#[test_case("edbtest_stretch", &dock_debian("stretch"), "--version=1-alpha5")]
+#[test_case("edbtest_focal", &dock_ubuntu("focal"), "--version=1-alpha5")]
 // nightly
 #[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--nightly")]
 #[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--nightly")]
