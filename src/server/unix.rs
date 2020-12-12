@@ -139,6 +139,8 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             })?;
             init_credentials(&settings, &inst)?;
             println!("Bootstrap complete. Server is up and runnning now.");
+            println!("To connect run:\n  edgedb -I{}",
+                     settings.name.escape_default());
         }
         _ => {
             let inst = method.get_instance(&settings.name)?;
