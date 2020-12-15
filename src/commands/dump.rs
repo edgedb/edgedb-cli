@@ -112,6 +112,11 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
             output.write_all(&header_buf).await?;
             output.write_all(&packet.data).await?;
         }
+        ServerMessage::ErrorResponse(err) => {
+            seq.err_sync().await.ok();
+            return Err(anyhow::anyhow!(err)
+                .context("Error receiving dump header"));
+        }
         _ => {
             return Err(anyhow::anyhow!(
                 "WARNING: unsolicited message {:?}", msg));
@@ -136,6 +141,11 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
                     &(packet.data.len() as u32).to_be_bytes()[..]);
                 output.write_all(&header_buf).await?;
                 output.write_all(&packet.data).await?;
+            }
+            ServerMessage::ErrorResponse(err) => {
+                seq.err_sync().await.ok();
+                return Err(anyhow::anyhow!(err)
+                    .context("Error receiving dump block"));
             }
             _ => {
                 return Err(anyhow::anyhow!(
