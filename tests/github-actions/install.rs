@@ -109,7 +109,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
         println!("Install different version");
         Command::new(&edgedb)
-            .arg("server").arg("install").arg("--version=1-alpha5")
+            .arg("server").arg("install").arg("--version=1-alpha6")
             .assert()
             .success();
 
@@ -161,7 +161,7 @@ fn github_action_install() -> anyhow::Result<()> {
             println!("Init second one");
             Command::new(&edgedb)
                 .arg("server").arg("init").arg("second")
-                    .arg("--version=1-alpha5")
+                    .arg("--version=1-alpha6")
                 .assert()
                 .success();
 
@@ -223,7 +223,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
             println!("Uninstall the old version");
             Command::new(&edgedb)
-                .arg("server").arg("uninstall").arg("--version=1-alpha5")
+                .arg("server").arg("uninstall").arg("--version=1-alpha6")
                 .assert()
                 .success();
 
