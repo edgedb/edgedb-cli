@@ -13,8 +13,6 @@ use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use serde_json::from_str;
 
-const DEFAULT_EDGEDB_VERSION: &str = "1-alpha6";
-
 // Can't run server on windows
 #[cfg(not(windows))]
 mod dump_restore;
@@ -64,9 +62,11 @@ impl ServerGuard {
     fn start() -> ServerGuard {
         use std::process::{Command, Stdio};
 
-        let bin_name = format!("edgedb-server-{}",
-            env::var("EDGEDB_MAJOR_VERSION")
-            .expect(DEFAULT_EDGEDB_VERSION));
+        let bin_name = if let Ok(ver) = env::var("EDGEDB_MAJOR_VERSION") {
+            format!("edgedb-server-{}", ver)
+        } else {
+            "edgedb-server".to_string()
+        };
         let mut cmd = Command::new(&bin_name);
         cmd.arg("--temp-dir");
         cmd.arg("--testmode");
