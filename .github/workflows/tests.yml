@@ -22,6 +22,7 @@ jobs:
 
       - name: Install EdgeDB
         uses: edgedb/setup-edgedb@v1
+        if: ${{ matrix.os != 'windows-latest' }}
         with:
           server-version: ${{ matrix.edgedb-version }}
 
