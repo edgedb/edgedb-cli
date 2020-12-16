@@ -863,6 +863,7 @@ dependencies = [
  "tokio",
  "typemap",
  "unicode-segmentation",
+ "url",
  "urlencoding",
  "uuid",
  "wait-timeout",

@@ -8,6 +8,7 @@ use async_std::task;
 use clap::Clap;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
+use url::Url;
 
 use crate::async_util::timeout;
 use crate::platform::home_dir;
@@ -140,9 +141,12 @@ pub fn main(options: &SelfUpgrade) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let url = format!("https://packages.edgedb.com{}", pkg.installref);
+    let url = Url::parse("https://packages.edgedb.com/")
+        .expect("hardcoded URL is valid")
+        .join(&pkg.installref)
+        .context("package installref is invalid")?;
     let tmp_path = path.with_extension("download");
-    task::block_on(download(&url, &tmp_path, options.quiet))?;
+    task::block_on(download(&url.to_string(), &tmp_path, options.quiet))?;
     let backup_path = path.with_extension("backup");
     if cfg!(unix) {
         fs::remove_file(&backup_path).ok();
