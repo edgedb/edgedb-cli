@@ -46,6 +46,8 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         }
         return Ok(());
     }
+    // TODO(tailhook) use special transaction facility
+    cli.execute("START TRANSACTION").await?;
     for (_, migration) in migrations {
         let data = fs::read_to_string(&migration.path).await
             .context("error re-reading migration file")?;
@@ -56,5 +58,6 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
                 Path::new(migration.path.file_name().unwrap()).display());
         }
     }
+    cli.execute("COMMIT").await?;
     return Ok(())
 }
