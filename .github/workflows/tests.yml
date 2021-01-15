@@ -2,7 +2,6 @@ on: [push, pull_request]
 
 name: Tests
 env:
-  EDGEDB_MAJOR_VERSION: 1-alpha6
   RUST_TEST_THREADS: 2
 
 jobs:
@@ -22,11 +21,10 @@ jobs:
           default: true
 
       - name: Install EdgeDB
-        env:
-          OS_NAME: ${{ matrix.os }}
-          SLOT: ${{ env.EDGEDB_MAJOR_VERSION }}
-        run: |
-          .github/workflows/install-edgedb.sh
+        uses: edgedb/setup-edgedb@v1
+        if: ${{ matrix.os != 'windows-latest' }}
+        with:
+          server-version: ${{ matrix.edgedb-version }}
 
       - uses: actions-rs/cargo@v1
         with:
@@ -51,11 +49,10 @@ jobs:
           default: true
 
       - name: Install EdgeDB
-        env:
-          OS_NAME: ${{ matrix.os }}
-          SLOT: ${{ env.EDGEDB_MAJOR_VERSION }}
-        run: |
-          .github/workflows/install-edgedb.sh
+        uses: edgedb/setup-edgedb@v1
+        if: ${{ matrix.os != 'windows-latest' }}
+        with:
+          server-version: ${{ matrix.edgedb-version }}
 
       - uses: actions-rs/cargo@v1
         with:
