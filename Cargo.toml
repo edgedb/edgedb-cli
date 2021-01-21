@@ -6,7 +6,7 @@ authors = ["MagicStack Inc. <hello@magic.io>"]
 edition = "2018"
 
 [dependencies]
-edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
+edgeql-parser = {git = "https://github.com/edgedb/edgedb", branch="expr_check"}
 edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust", features=["all-types"]}
 edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust"}
 edgedb-client = {git = "https://github.com/edgedb/edgedb-rust"}
@@ -76,7 +76,7 @@ predicates = "1.0.4"
 pretty_assertions = "0.6.1"
 shutdown_hooks = "0.1.0"
 tar = "0.4.26"
-test-case = "1.0.0"
+test-case = "1.1.0"
 openssl = "0.10.30"
 tokio = {version="0.2.21", features=["rt-threaded"]}
 warp = {version="0.2.3", default-features=false, features=["tls"]}

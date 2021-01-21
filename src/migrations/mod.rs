@@ -7,6 +7,7 @@ mod migration;
 mod print_error;
 mod source_map;
 mod status;
+mod prompt;
 
 const NULL_MIGRATION: &str = "initial";
 

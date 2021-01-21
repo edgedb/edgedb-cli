@@ -377,3 +377,45 @@ fn prompt_id() -> anyhow::Result<()> {
     cmd.exp_string("Created").unwrap();
     Ok(())
 }
+
+#[test]
+fn input_required() -> anyhow::Result<()> {
+    fs::remove_file("tests/migrations/db3/migrations/00002.edgeql")
+        .ok();
+    SERVER.admin_cmd()
+        .arg("create-database").arg("db3")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db3")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db3")
+        .assert().success()
+        .stderr("Applied \
+            m1d6kfhjnqmrw4lleqvx6fibf5hpmndpw2tn2f6o4wm6fjyf55dhcq \
+            (00001.edgeql)\n");
+
+    let mut cmd = SERVER.custom_interactive(|cmd| {
+        cmd.arg("--database=db3");
+        cmd.arg("create-migration");
+        cmd.arg("--schema-dir=tests/migrations/db3");
+    });
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
+    cmd.send_line("yes").unwrap();
+    cmd.exp_string("cast_expr>").unwrap();
+    cmd.send_line(".foo[IS Child2]").unwrap();
+    cmd.exp_string("Created").unwrap();
+
+    fs::remove_file("tests/migrations/db3/migrations/00002.edgeql")
+        .ok();
+    let mut cmd = SERVER.custom_interactive(|cmd| {
+        cmd.arg("--database=db3");
+        cmd.arg("create-migration");
+        cmd.arg("--schema-dir=tests/migrations/db3");
+    });
+    cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
+    cmd.send_line("yes").unwrap();
+    cmd.exp_string("cast_expr>").unwrap();
+    cmd.send_line(".foo[IS Child2] # comment").unwrap();
+    cmd.exp_string("Created").unwrap();
+    Ok(())
+}

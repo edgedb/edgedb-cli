@@ -1,3 +1,6 @@
+use std::borrow::Cow;
+use std::collections::BTreeMap;
+
 use async_std::fs;
 use async_std::io::prelude::WriteExt;
 use async_std::io;
@@ -9,18 +12,24 @@ use edgedb_protocol::queryable::Queryable;
 use edgedb_protocol::server_message::ErrorResponse;
 use edgedb_protocol::value::Value;
 use edgeql_parser::hash::Hasher;
+use edgeql_parser::expr;
 use edgeql_parser::preparser::{full_statement, is_empty};
+use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
 use fn_error_context::context;
 use immutable_chunkmap::set::Set;
+use rustyline::error::ReadlineError;
 use serde::Deserialize;
 
+use crate::bug;
 use crate::commands::parser::CreateMigration;
 use crate::commands::{Options, ExitCode};
-use crate::platform::tmp_file_name;
+use crate::error_display::print_query_error;
 use crate::migrations::context::Context;
 use crate::migrations::migration;
 use crate::migrations::print_error::print_migration_error;
+use crate::migrations::prompt;
 use crate::migrations::source_map::{Builder, SourceMap};
+use crate::platform::tmp_file_name;
 
 const SAFE_CONFIDENCE: f64 = 0.99999;
 
@@ -42,15 +51,13 @@ pub enum Choice {
 
 #[derive(Deserialize, Debug)]
 pub struct RequiredUserInput {
-    name: String,
+    placeholder: String,
     prompt: String,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct StatementProposal {
     pub text: String,
-    #[serde(default)]
-    pub required_user_input: Vec<RequiredUserInput>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -60,6 +67,8 @@ pub struct Proposal {
     pub confidence: f64,
     #[serde(default)]
     pub prompt: Option<String>,
+    #[serde(default)]
+    pub required_user_input: Vec<RequiredUserInput>,
 }
 
 #[derive(Deserialize, Queryable, Debug)]
@@ -70,6 +79,10 @@ pub struct CurrentMigration {
     pub confirmed: Vec<String>,
     pub proposed: Option<Proposal>,
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("refused to input data required for placeholder")]
+struct Refused;
 
 async fn execute(cli: &mut Connection, text: impl AsRef<str>)
     -> anyhow::Result<()>
@@ -201,15 +214,13 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
         }
         if let Some(proposal) = data.proposed {
             if proposal.confidence >= SAFE_CONFIDENCE || options.allow_unsafe {
-                for statement in proposal.statements {
-                    if !statement.required_user_input.is_empty() {
-                        for input in statement.required_user_input {
-                            eprintln!("Input required: {}", input.prompt);
-                        }
-                        anyhow::bail!(
-                            "cannot apply `{}` without user input",
-                            statement.text);
+                if !proposal.required_user_input.is_empty() {
+                    for input in proposal.required_user_input {
+                        eprintln!("Input required: {}", input.prompt);
                     }
+                    anyhow::bail!("cannot apply migration without user input");
+                }
+                for statement in proposal.statements {
                     execute(cli, &statement.text).await?;
                 }
             } else {
@@ -261,14 +272,22 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
             let already_approved = proposal.prompt_id.as_ref()
                 .map(|op| cur_oper.contains(op))
                 .unwrap_or(false);
+            let input;
             if already_approved {
-                println!("Following extra DDL statements will be applied:");
-                for statement in &proposal.statements {
-                    for line in statement.text.lines() {
-                        println!("    {}", line);
+                input = loop {
+                    println!("Following extra DDL statements will be applied:");
+                    for statement in &proposal.statements {
+                        for line in statement.text.lines() {
+                            println!("    {}", line);
+                        }
                     }
-                }
-                println!("(approved as part as part of an earlier prompt)");
+                    println!("(approved as part as part of an earlier prompt)");
+                    match get_user_input(&proposal.required_user_input) {
+                        Ok(data) => break data,
+                        Err(e) if e.is::<Refused>() => continue,
+                        Err(e) => return Err(e.into()),
+                    };
+                };
             } else {
                 let prompt = if let Some(prompt) = &proposal.prompt {
                     prompt
@@ -283,7 +302,14 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                 };
                 loop {
                     match choice(prompt).await? {
-                        Yes => break,
+                        Yes => {
+                            match get_user_input(&proposal.required_user_input) {
+                                Ok(data) => input = data,
+                                Err(e) if e.is::<Refused>() => continue,
+                                Err(e) => return Err(e.into()),
+                            };
+                            break;
+                        }
                         No => {
                             execute(cli,
                                 "ALTER CURRENT MIGRATION REJECT PROPOSED"
@@ -342,16 +368,26 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                 }
             }
             for statement in &proposal.statements {
-                if !statement.required_user_input.is_empty() {
-                    for input in &statement.required_user_input {
-                        eprintln!("Input required: {}", input.prompt);
+                let text = substitute_placeholders(&statement.text, &input)?;
+                match execute(cli, &text).await {
+                    Ok(()) => {}
+                    Err(e) => {
+                        match e.downcast::<ErrorResponse>() {
+                            Ok(err) => {
+                                print_query_error(&err, &text, false)?;
+                            }
+                            Err(err) => {
+                                eprintln!("Error applying statement: {:#}",
+                                    err);
+                            }
+                        }
+                        eprintln!("Rolling back last operation...");
+                        execute(cli, format!(
+                            "ROLLBACK TO SAVEPOINT migration_{}", save_point)
+                        ).await?;
+                        continue 'migration;
                     }
-                    anyhow::bail!(
-                        "cannot apply `{}` without user input. \
-                         User input is not implemented yet",
-                        statement.text);
                 }
-                execute(cli, &statement.text).await?;
             }
             if let Some(prompt_id) = &proposal.prompt_id {
                 operations.push(
@@ -460,4 +496,113 @@ pub async fn create(cli: &mut Connection, _options: &Options,
     let abort = cli.execute("ABORT MIGRATION").await;
     exec.and(abort)?;
     Ok(())
+}
+
+fn add_newline_after_comment(value: &mut String) -> Result<(), anyhow::Error> {
+    let last_token = TokenStream::new(value).last()
+        .ok_or_else(|| bug::error("input should not be empty"))?
+        .map_err(|e| bug::error(
+            format!("tokenizer failed on reparsing: {}", e)))?;
+    let token_end = last_token.end.offset as usize;
+    if token_end < value.len()
+        && !value[token_end..].trim().is_empty()
+    {
+        // Non-empty data after last token means comment.
+        // Let's add a newline after input to make sure that
+        // adding data after the input is safe
+        value.push('\n');
+    }
+    Ok(())
+}
+
+fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
+    let prompt = format!("{}> ", req.placeholder);
+    loop {
+        println!("{}:", req.prompt);
+        let mut value = match prompt::expression(&prompt, &req.placeholder) {
+            Ok(val) => val,
+            Err(e) => match e.downcast::<ReadlineError>() {
+                Ok(ReadlineError::Eof) => return Err(Refused.into()),
+                Ok(e) => return Err(e.into()),
+                Err(e) => return Err(e),
+            },
+        };
+        match expr::check(&value) {
+            Ok(()) => {}
+            Err(e) => {
+                println!("Invalid expression: {}", e);
+                continue;
+            }
+        }
+        add_newline_after_comment(&mut value)?;
+        return Ok(value);
+    }
+}
+
+fn get_user_input(req: &[RequiredUserInput])
+    -> Result<BTreeMap<String, String>, anyhow::Error>
+{
+    let mut result = BTreeMap::new();
+    for item in req {
+        result.insert(item.placeholder.clone(), get_input(item)?);
+    }
+    Ok(result)
+}
+
+fn substitute_placeholders<'x>(input: &'x str,
+    placeholders: &BTreeMap<String, String>)
+    -> Result<Cow<'x, str>, anyhow::Error>
+{
+    let mut output = String::with_capacity(input.len());
+    let mut parser = TokenStream::new(input);
+    let mut start = 0;
+    for item in &mut parser {
+        let item = match item {
+            Ok(item) => item,
+            Err(e) => Err(bug::error(format!(
+                "server sent invalid query: {}", e)))?,
+        };
+        if item.token.kind == TokenKind::Substitution {
+            output.push_str(&input[start..item.start.offset as usize]);
+            let name = item.token.value.strip_prefix(r"\(")
+                .and_then(|item| item.strip_suffix(")"))
+                .ok_or_else(|| bug::error(format!("bad substitution token")))?;
+            let expr = placeholders.get(name)
+                .ok_or_else(|| bug::error(format!(
+                    "missing input for {:?} placeholder", name)))?;
+            output.push_str(expr);
+            start = item.end.offset as usize;
+        }
+    }
+    if start == 0 {
+        return Ok(input.into());
+    }
+    output.push_str(&input[start..]);
+    Ok(output.into())
+}
+
+#[test]
+fn placeholders() {
+    let mut inputs = BTreeMap::new();
+    inputs.insert("one".into(), " 1 ".into());
+    inputs.insert("two".into(), "'two'".into());
+    assert_eq!(substitute_placeholders(r"SELECT \(one);", &inputs).unwrap(),
+        "SELECT  1 ;");
+    assert_eq!(
+        substitute_placeholders(r"SELECT {\(one), \(two)};", &inputs).unwrap(),
+        "SELECT { 1 , 'two'};");
+}
+
+#[test]
+fn add_newline() {
+    fn wrapper(s: &str) -> String {
+        let mut data = s.to_string();
+        add_newline_after_comment(&mut data).unwrap();
+        return data;
+    }
+    assert_eq!(wrapper("1+1"), "1+1");
+    assert_eq!(wrapper("1    "), "1    ");
+    assert_eq!(wrapper("1  #xx  "), "1  #xx  \n");
+    assert_eq!(wrapper("(1 + 7) #xx"), "(1 + 7) #xx\n");
+    assert_eq!(wrapper("(1 #one\n + 3 #three\n)"), "(1 #one\n + 3 #three\n)");
 }
