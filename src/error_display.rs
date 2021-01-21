@@ -42,7 +42,7 @@ pub fn print_query_error(err: &ErrorResponse, query: &str, verbose: bool)
             Label {
                 file_id,
                 style: LabelStyle::Primary,
-                range: pstart as usize..pend as usize+1,
+                range: pstart as usize..pend as usize,
                 message: hint.into(),
             },
         ])
