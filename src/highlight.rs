@@ -139,5 +139,6 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
         if UNRESERVED_KEYWORDS.contains(&value.to_lowercase()[..])
         => Some(S::Keyword),
         T::Ident => None,
+        T::Substitution => Some(S::Decorator),
     }
 }

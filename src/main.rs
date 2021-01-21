@@ -12,6 +12,7 @@ use clap::Clap;
 use crate::options::Options;
 
 mod async_util;
+mod bug;
 mod commands;
 mod completion;
 mod credentials;
@@ -42,6 +43,15 @@ fn main() {
         Err(e) => {
             if let Some(e) = e.downcast_ref::<commands::ExitCode>() {
                 e.exit();
+            }
+            if let Some(e) = e.downcast_ref::<bug::Bug>() {
+                eprintln!("edgedb error: {:#}", e);
+                eprintln!("  Hint: This is most likely a bug in EdgeDB \
+                    or command-line tools. Please consider opening an \
+                    issue ticket at \
+                    https://github.com/edgedb/edgedb-cli/issues/new\
+                    ?template=bug_report.md");
+                exit(13);
             }
             eprintln!("edgedb error: {:#}", e);
             exit(1);

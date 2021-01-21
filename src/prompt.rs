@@ -166,7 +166,7 @@ impl Completer for EdgeqlHelper {
     }
 }
 
-fn load_history<H: rustyline::Helper>(ed: &mut Editor<H>, name: &str)
+pub fn load_history<H: rustyline::Helper>(ed: &mut Editor<H>, name: &str)
     -> Result<(), anyhow::Error>
 {
     let dir = data_local_dir().context("cannot find local data dir")?;
@@ -192,7 +192,7 @@ fn _save_history<H: Helper>(ed: &mut Editor<H>, name: &str)
     Ok(())
 }
 
-fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
+pub fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
     _save_history(ed, name).map_err(|e| {
         eprintln!("Can't save history: {:#}", e);
     }).ok();
@@ -245,7 +245,6 @@ pub fn edgeql_input(prompt: &str, editor: &mut Editor<EdgeqlHelper>,
     task::block_on(data.send(Input::Text(text)));
     save_history(editor, "edgeql");
 }
-
 
 pub fn main(data: Sender<Input>, control: Receiver<Control>)
     -> Result<(), anyhow::Error>
