@@ -1,9 +1,9 @@
-use std::fmt;
 use std::error;
-use std::pin::Pin;
-use std::task::{Poll, Context};
+use std::fmt;
 use std::future::Future;
-use std::mem::transmute;
+use std::pin::Pin;
+use std::slice;
+use std::task::{Poll, Context};
 
 use anyhow;
 use async_std::io::{Read as AsyncRead};
@@ -51,7 +51,9 @@ impl<'a, T> Future for ReadStatement<'a, T>
             unsafe {
                 // this is safe because the underlying ByteStream always
                 // initializes read bytes
-                let dest: &mut [u8] = transmute(buf.bytes_mut());
+                let chunk = buf.chunk_mut();
+                let dest: &mut [u8] = slice::from_raw_parts_mut(
+                    chunk.as_mut_ptr(), chunk.len());
                 match Pin::new(&mut *stream).poll_read(cx, dest) {
                     Poll::Ready(Ok(0)) => {
                         *eof = true;

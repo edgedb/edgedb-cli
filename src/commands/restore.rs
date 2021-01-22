@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::ffi::OsString;
-use std::mem::transmute;
+use std::slice;
 use std::str;
 use std::time::{Instant, Duration};
 
@@ -68,7 +68,12 @@ async fn read_packet(input: &mut Input, expected: PacketType)
     let mut buf = BytesMut::with_capacity(len);
     unsafe {
         // this is safe because we use read_exact which initializes whole slice
-        let dest: &mut [u8] = transmute(buf.bytes_mut());
+
+        let chunk = buf.chunk_mut();
+        // BytesMut is contiguous, so this assertion should hold
+        assert_eq!(chunk.len(), len);
+        let dest: &mut [u8] = slice::from_raw_parts_mut(
+            chunk.as_mut_ptr(), chunk.len());
         input.read_exact(dest).await
             .with_context(|| format!("Error reading block of {} bytes", len))?;
         buf.advance_mut(dest.len());
