@@ -13,7 +13,7 @@ edgedb-client = {git = "https://github.com/edgedb/edgedb-rust"}
 snafu = {version="0.6.0", features=["backtraces"]}
 anyhow = "1.0.23"
 async-std = {version="1.6"}
-bytes = "0.5.3"
+bytes = "1.0.1"
 rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb_20201001"}
 clap = "3.0.0-beta.2"
 strsim = "0.10.0"
