@@ -2,7 +2,7 @@ use std::fs;
 use std::default::Default;
 use std::str;
 
-use codespan::Files;
+use codespan_reporting::files::SimpleFile;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
 use codespan_reporting::term::{emit};
 use termcolor::{StandardStream, ColorChoice};
@@ -57,13 +57,13 @@ pub fn print_migration_error(err: &ErrorResponse,
         .unwrap_or("error");
     let detail = err.attributes.get(&FIELD_DETAILS)
         .and_then(|x| String::from_utf8(x.to_vec()).ok());
-    let mut files = Files::new();
-    let file_id = files.add(file_name, data);
+    let file_name_display = file_name.display();
+    let files = SimpleFile::new(&file_name_display, data);
     let diag = Diagnostic::error()
         .with_message(&err.message)
         .with_labels(vec![
             Label {
-                file_id,
+                file_id: (),
                 style: LabelStyle::Primary,
                 range: pstart as usize..pend as usize+1,
                 message: hint.into(),
