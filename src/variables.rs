@@ -67,7 +67,7 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
                         "Unimplemented input type {}", s.id))
             };
 
-            let val = match state.variable_input(name, type_name, "").await {
+            let val = match state.variable_input(name, type_name, "").await? {
                 | prompt::Input::Text(val) => val,
                 | prompt::Input::Interrupt
                 | prompt::Input::Eof => Err(Canceled)?,
