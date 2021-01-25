@@ -22,11 +22,11 @@ struct Cache {
 }
 
 fn cache_age() -> Duration {
-    Duration::from_secs(thread_rng().gen_range(16*3600, 32*3600))
+    Duration::from_secs(thread_rng().gen_range(16*3600..32*3600))
 }
 
 fn negative_cache_age() -> Duration {
-    Duration::from_secs(thread_rng().gen_range(6*3600, 12*3600))
+    Duration::from_secs(thread_rng().gen_range(6*3600..12*3600))
 }
 
 

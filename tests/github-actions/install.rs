@@ -15,10 +15,8 @@ const UNIX_INST: &str =
 
 #[test]
 fn github_action_install() -> anyhow::Result<()> {
-    let mut tokio = tokio::runtime::Builder::new()
-        .basic_scheduler()
-        .threaded_scheduler()
-        .core_threads(2)
+    let mut tokio = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
         .enable_all()
         .build()?;
     let certs = Certs::new()?;

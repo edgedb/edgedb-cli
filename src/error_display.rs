@@ -1,7 +1,7 @@
 use std::default::Default;
 use std::str;
 
-use codespan::Files;
+use codespan_reporting::files::SimpleFile;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
 use codespan_reporting::term::{emit};
 use termcolor::{StandardStream, ColorChoice};
@@ -34,13 +34,12 @@ pub fn print_query_error(err: &ErrorResponse, query: &str, verbose: bool)
         .unwrap_or("error");
     let detail = err.attributes.get(&FIELD_DETAILS)
         .and_then(|x| String::from_utf8(x.to_vec()).ok());
-    let mut files = Files::new();
-    let file_id = files.add("query", query);
+    let files = SimpleFile::new("query", query);
     let diag = Diagnostic::error()
         .with_message(&err.message)
         .with_labels(vec![
             Label {
-                file_id,
+                file_id: (),
                 style: LabelStyle::Primary,
                 range: pstart as usize..pend as usize,
                 message: hint.into(),

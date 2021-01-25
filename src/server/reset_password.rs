@@ -25,7 +25,7 @@ const SALT_LENGTH: usize = 16;
 pub fn generate_password() -> String {
     let mut rng = rand::rngs::StdRng::from_entropy();
     (0..PASSWORD_LENGTH).map(|_| {
-        PASSWORD_CHARS[rng.gen_range(0, PASSWORD_CHARS.len())] as char
+        PASSWORD_CHARS[rng.gen_range(0..PASSWORD_CHARS.len())] as char
     }).collect()
 }
 
