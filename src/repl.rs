@@ -1,7 +1,8 @@
 use std::time::Duration;
 
+use anyhow::Context;
 use async_std::prelude::FutureExt;
-use async_std::sync::{Sender, Receiver, RecvError};
+use async_std::channel::{Sender, Receiver, RecvError};
 use colorful::Colorful;
 use edgedb_client::{self as client, client::Connection};
 use edgedb_protocol::server_message::TransactionState;
@@ -53,18 +54,19 @@ pub struct State {
 impl PromptRpc {
     pub async fn variable_input(&mut self,
         name: &str, type_name: &str, initial: &str)
-        -> prompt::Input
+        -> anyhow::Result<prompt::Input>
     {
         self.control.send(
-            prompt::Control::ParameterInput {
-                name: name.to_owned(),
-                type_name: type_name.to_owned(),
-                initial: initial.to_owned(),
-            }
-        ).await;
+                prompt::Control::ParameterInput {
+                    name: name.to_owned(),
+                    type_name: type_name.to_owned(),
+                    initial: initial.to_owned(),
+                }
+            ).await
+            .context("cannot send to input thread")?;
         match self.data.recv().await {
-            Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
-            Ok(x) => x,
+            Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
+            Ok(x) => Ok(x),
         }
     }
 }
@@ -123,7 +125,9 @@ impl State {
             }
         }
     }
-    pub async fn edgeql_input(&mut self, initial: &str) -> prompt::Input {
+    pub async fn edgeql_input(&mut self, initial: &str)
+        -> anyhow::Result<prompt::Input>
+    {
         use TransactionState::*;
 
         let prompt = format!("{}{}> ",
@@ -136,42 +140,52 @@ impl State {
             }
         );
         self.prompt.control.send(
-            prompt::Control::EdgeqlInput {
-                prompt,
-                initial: initial.to_owned(),
-            }
-        ).await;
+                prompt::Control::EdgeqlInput {
+                    prompt,
+                    initial: initial.to_owned(),
+                }
+            ).await
+            .context("cannot send to input thread")?;
         let result = if let Some(conn) = &mut self.connection {
             self.prompt.data.recv().race(conn.passive_wait()).await
         } else {
             self.prompt.data.recv().await
         };
         match result {
-            Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
-            Ok(x) => x,
+            Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
+            Ok(x) => Ok(x),
         }
     }
-    pub async fn input_mode(&mut self, value: InputMode) {
+    pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()>
+    {
         self.input_mode = value;
         let msg = match value {
             InputMode::Vi => prompt::Control::ViMode,
             InputMode::Emacs => prompt::Control::EmacsMode,
         };
         self.prompt.control.send(msg).await
+            .context("cannot send to input thread")
     }
-    pub async fn show_history(&self) {
-        self.prompt.control.send(prompt::Control::ShowHistory).await;
+    pub async fn show_history(&self) -> anyhow::Result<()> {
+        self.prompt.control.send(prompt::Control::ShowHistory).await
+            .context("cannot send to input thread")
     }
-    pub async fn spawn_editor(&self, entry: Option<isize>) -> prompt::Input {
-        self.prompt.control.send(prompt::Control::SpawnEditor { entry }).await;
+    pub async fn spawn_editor(&self, entry: Option<isize>)
+        -> anyhow::Result<prompt::Input>
+    {
+        self.prompt.control.send(prompt::Control::SpawnEditor { entry }).await
+            .context("cannot send to input thread")?;
         match self.prompt.data.recv().await {
-            Err(RecvError) | Ok(prompt::Input::Eof) => prompt::Input::Eof,
-            Ok(x) => x,
+            Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
+            Ok(x) => Ok(x),
         }
     }
-    pub async fn set_history_limit(&mut self, val: usize) {
+    pub async fn set_history_limit(&mut self, val: usize)
+        -> anyhow::Result<()>
+    {
         self.history_limit = val;
-        self.prompt.control.send(prompt::Control::SetHistoryLimit(val)).await;
+        self.prompt.control.send(prompt::Control::SetHistoryLimit(val)).await
+            .context("cannot send to input thread")
     }
     pub fn in_transaction(&self) -> bool {
         match &self.connection {

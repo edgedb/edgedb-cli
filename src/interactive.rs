@@ -7,7 +7,7 @@ use async_std::task;
 use async_std::prelude::{StreamExt, FutureExt};
 use async_std::io::stdout;
 use async_std::io::prelude::WriteExt;
-use async_std::sync::{channel};
+use async_std::channel::{bounded as channel};
 use async_ctrlc::CtrlC;
 use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
@@ -477,7 +477,7 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
     loop {
         state.ensure_connection().await?;
         let cur_initial = replace(&mut state.initial_text, String::new());
-        let inp = match state.edgeql_input(&cur_initial).await {
+        let inp = match state.edgeql_input(&cur_initial).await? {
             prompt::Input::Eof => {
                 state.terminate().await;
                 return Err(CleanShutdown)?;

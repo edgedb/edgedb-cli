@@ -511,7 +511,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         Set(SetCommand {setting: Some(ref cmd)}) => {
             match cmd {
                 InputMode(m) => {
-                    prompt.input_mode(m.mode.expect("only writes here")).await;
+                    prompt.input_mode(m.mode.expect("only writes here")).await?;
                 }
                 ImplicitProperties(b) => {
                     prompt.print.implicit_properties = b.unwrap_value();
@@ -531,7 +531,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                 }
                 HistorySize(c) => {
                     let limit = c.value.expect("only set here");
-                    prompt.set_history_limit(limit).await;
+                    prompt.set_history_limit(limit).await?;
                 }
                 OutputMode(c) => {
                     prompt.output_mode = c.mode.expect("only writes here");
@@ -566,11 +566,11 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             Ok(Skip)
         }
         History => {
-            prompt.show_history().await;
+            prompt.show_history().await?;
             Ok(Skip)
         }
         Edit(c) => {
-            match prompt.spawn_editor(c.entry).await {
+            match prompt.spawn_editor(c.entry).await? {
                 | prompt::Input::Text(text) => Ok(Input(text)),
                 | prompt::Input::Interrupt
                 | prompt::Input::Eof => Ok(Skip),

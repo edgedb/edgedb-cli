@@ -5,7 +5,7 @@ use std::env;
 use std::process::{Command, Stdio};
 
 use anyhow::{self, Context as _Context};
-use async_std::sync::{Sender, Receiver, RecvError};
+use async_std::channel::{Sender, Receiver, RecvError};
 use async_std::task;
 use dirs::data_local_dir;
 use rustyline::{self, error::ReadlineError, KeyPress, Cmd};
@@ -223,27 +223,29 @@ pub fn var_editor(config: &ConfigBuilder, type_name: &str) -> Editor<()> {
 
 pub fn edgeql_input(prompt: &str, editor: &mut Editor<EdgeqlHelper>,
     data: &Sender<Input>, initial: &str)
+    -> anyhow::Result<()>
 {
     let text = match
         editor.readline_with_initial(&prompt, (&initial, ""))
     {
         Ok(text) => text,
         Err(ReadlineError::Eof) => {
-            task::block_on(data.send(Input::Eof));
-            return;
+            task::block_on(data.send(Input::Eof))?;
+            return Ok(());
         }
         Err(ReadlineError::Interrupted) => {
-            task::block_on(data.send(Input::Interrupt));
-            return;
+            task::block_on(data.send(Input::Interrupt))?;
+            return Ok(());
         }
         Err(e) => {
             eprintln!("Readline error: {}", e);
-            return;
+            return Ok(());
         }
     };
     editor.add_history_entry(&text);
-    task::block_on(data.send(Input::Text(text)));
+    task::block_on(data.send(Input::Text(text)))?;
     save_history(editor, "edgeql");
+    Ok(())
 }
 
 pub fn main(data: Sender<Input>, control: Receiver<Control>)
@@ -269,7 +271,7 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 editor = create_editor(&config);
             }
             Ok(Control::EdgeqlInput { prompt, initial }) => {
-                edgeql_input(&prompt, &mut editor, &data, &initial);
+                edgeql_input(&prompt, &mut editor, &data, &initial)?;
             }
             Ok(Control::ParameterInput { name, type_name, initial })
             => {
@@ -280,18 +282,18 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 {
                     Ok(text) => text,
                     Err(ReadlineError::Eof) => {
-                        task::block_on(data.send(Input::Eof));
+                        task::block_on(data.send(Input::Eof))?;
                         continue;
                     }
                     Err(ReadlineError::Interrupted) => {
-                        task::block_on(data.send(Input::Interrupt));
+                        task::block_on(data.send(Input::Interrupt))?;
                         continue;
                     }
                     Err(e) => Err(e)?,
                 };
                 editor.add_history_entry(&text);
                 save_history(&mut editor, &format!("var_{}", &type_name));
-                task::block_on(data.send(Input::Text(text)))
+                task::block_on(data.send(Input::Text(text)))?;
             }
             Ok(Control::ShowHistory) => {
                 match show_history(editor.history()) {
@@ -315,26 +317,26 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 };
                 if normal < 0 {
                     eprintln!("No history entry {}", e);
-                    task::block_on(data.send(Input::Interrupt));
+                    task::block_on(data.send(Input::Interrupt))?;
                     continue;
                 }
                 let value = if let Some(value) = h.get(normal as usize) {
                     value
                 } else {
                     eprintln!("No history entry {}", e);
-                    task::block_on(data.send(Input::Interrupt));
+                    task::block_on(data.send(Input::Interrupt))?;
                     continue;
                 };
                 let mut text = match spawn_editor(value) {
                     Ok(text) => text,
                     Err(e) => {
                         eprintln!("Error editing history entry: {}", e);
-                        task::block_on(data.send(Input::Interrupt));
+                        task::block_on(data.send(Input::Interrupt))?;
                         continue;
                     }
                 };
                 text.truncate(text.trim_end().len());
-                task::block_on(data.send(Input::Text(text)));
+                task::block_on(data.send(Input::Text(text)))?;
             }
         }
     }
