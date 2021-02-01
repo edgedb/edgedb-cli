@@ -15,6 +15,7 @@ mod async_util;
 mod bug;
 mod commands;
 mod completion;
+mod connect;
 mod credentials;
 mod error_display;
 mod highlight;
