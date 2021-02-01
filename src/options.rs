@@ -6,8 +6,9 @@ use atty;
 use clap::{Clap, AppSettings};
 use edgedb_client::Builder;
 
-use crate::credentials::get_connector;
 use crate::commands::parser::Common;
+use crate::connect::Connector;
+use crate::credentials::get_connector;
 use crate::repl::OutputMode;
 use crate::self_install;
 use crate::self_upgrade;
@@ -149,7 +150,7 @@ pub struct RoleName {
 
 #[derive(Debug, Clone)]
 pub struct Options {
-    pub conn_params: Builder,
+    pub conn_params: Connector,
     pub subcommand: Option<Command>,
     pub interactive: bool,
     pub debug_print_frames: bool,
@@ -207,7 +208,7 @@ impl Options {
         };
 
         Ok(Options {
-            conn_params,
+            conn_params: Connector::new(conn_params),
             interactive,
             subcommand,
             debug_print_frames: tmp.debug_print_frames,

@@ -4,10 +4,11 @@ use anyhow::Context;
 use async_std::prelude::FutureExt;
 use async_std::channel::{Sender, Receiver, RecvError};
 use colorful::Colorful;
-use edgedb_client::{self as client, client::Connection};
+use edgedb_client::client::Connection;
 use edgedb_protocol::server_message::TransactionState;
 
 use crate::async_util::timeout;
+use crate::connect::Connector;
 use crate::prompt;
 use crate::print;
 
@@ -53,7 +54,7 @@ pub struct State {
     pub output_mode: OutputMode,
     pub print_stats: PrintStats,
     pub history_limit: usize,
-    pub conn_params: client::Builder,
+    pub conn_params: Connector,
     pub database: String,
     pub connection: Option<Connection>,
     pub last_version: Option<String>,
