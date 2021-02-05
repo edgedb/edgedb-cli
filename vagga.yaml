@@ -86,6 +86,11 @@ commands:
     container: ubuntu
     run: [cargo, run, --bin, edgedb, --features=dev_mode, '--']
 
+  repl-release: !Command
+    description: Run edgedb repl
+    container: ubuntu
+    run: [cargo, run, --release, --bin, edgedb, --features=dev_mode, '--']
+
   repl-local: !Command
     description: Run edgedb repl to locally run edgdeb
     container: ubuntu

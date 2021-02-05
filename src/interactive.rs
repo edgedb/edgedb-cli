@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::mem::replace;
 use std::str;
+use std::time::Instant;
 
 use anyhow::{self, Context};
 use async_std::task;
@@ -98,6 +99,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         implicit_limit: Some(100),
         output_mode: options.output_mode,
         input_mode: repl::InputMode::Emacs,
+        print_stats: repl::PrintStats::Off,
         history_limit: 100,
         database: options.conn_params.get_database().into(),
         conn_params: options.conn_params.clone(),
@@ -224,6 +226,8 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
     -> anyhow::Result<()>
 {
     use crate::repl::OutputMode::*;
+    use crate::repl::PrintStats::*;
+    let start = Instant::now();
 
     let statement_name = Bytes::from_static(b"");
 
@@ -240,6 +244,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                        Bytes::from_static(b"true"));
     }
 
+    let start_prepare = Instant::now();
     let mut seq = cli.start_sequence().await?;
     seq.send_messages(&[
         ClientMessage::Prepare(Prepare {
@@ -273,7 +278,12 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             }
         }
     }
+    if state.print_stats == Detailed {
+        eprintln!("{}",
+            format!("Prepare: {:?}", start_prepare.elapsed()).dark_gray());
+    }
 
+    let start_describe = Instant::now();
     seq.send_messages(&[
         ClientMessage::DescribeStatement(DescribeStatement {
             headers: HashMap::new(),
@@ -300,6 +310,10 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             }
         }
     };
+    if state.print_stats == Detailed {
+        eprintln!("{}",
+            format!("Describe: {:?}", start_describe.elapsed()).dark_gray());
+    }
     if options.debug_print_descriptors {
         println!("Descriptor: {:?}", data_description);
     }
@@ -318,6 +332,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
         println!("Input Codec {:#?}", incodec);
     }
 
+    let first_part = start.elapsed();
     let input = match input_variables(&indesc, &mut state.prompt).await {
         Ok(input) => input,
         Err(e) => {
@@ -328,6 +343,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
         }
     };
 
+    let start_execute = Instant::now();
     let mut arguments = BytesMut::with_capacity(8);
     incodec.encode(&mut arguments, &input)?;
 
@@ -362,6 +378,12 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
         TabSeparated => {
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
+                if index == 0 && state.print_stats == Detailed {
+                    eprintln!("{}",
+                        format!("First row: {:?}", start_execute.elapsed())
+                        .dark_gray()
+                    );
+                }
                 if let Some(limit) = state.implicit_limit {
                     if index >= limit {
                         eprintln!("Error: Too many rows. Consider \
@@ -409,7 +431,15 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             println!();
         }
         Json => {
+            let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
+                if index == 0 && state.print_stats == Detailed {
+                    eprintln!("{}",
+                        format!("First row: {:?}", start_execute.elapsed())
+                        .dark_gray()
+                    );
+                }
+                index += 1;
                 let text = match row {
                     Value::Str(s) => s,
                     _ => return Err(anyhow::anyhow!(
@@ -437,6 +467,12 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
         JsonElements => {
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
+                if index == 0 && state.print_stats == Detailed {
+                    eprintln!("{}",
+                        format!("First row: {:?}", start_execute.elapsed())
+                        .dark_gray()
+                    );
+                }
                 let text = match row {
                     Value::Str(s) => s,
                     _ => return Err(anyhow::anyhow!(
@@ -465,6 +501,13 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 index += 1;
             }
         }
+    }
+    if state.print_stats != Off {
+        eprintln!("{}",
+            format!("Query time (including output formatting): {:?}",
+            first_part + start_execute.elapsed())
+            .dark_gray()
+        );
     }
     state.last_error = None;
     return Ok(());
