@@ -44,7 +44,7 @@ fn initial() -> anyhow::Result<()> {
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(1).stderr("edgedb error: Database must be updated \
-            to the last miration on the filesystem for `create-migration`. \
+            to the last migration on the filesystem for `create-migration`. \
             Run:\n  \
               edgedb migrate\n");
     SERVER.admin_cmd()
@@ -131,7 +131,7 @@ fn modified1() -> anyhow::Result<()> {
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(1).stderr("edgedb error: Database must be updated \
-            to the last miration on the filesystem for `create-migration`. \
+            to the last migration on the filesystem for `create-migration`. \
             Run:\n  \
               edgedb migrate\n");
     SERVER.admin_cmd()
