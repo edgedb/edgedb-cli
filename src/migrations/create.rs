@@ -478,7 +478,7 @@ pub async fn create(cli: &mut Connection, _options: &Options,
         Some(&descr.parent)
     };
     if db_migration != migrations.keys().last() {
-        anyhow::bail!("Database must be updated to the last miration \
+        anyhow::bail!("Database must be updated to the last migration \
             on the filesystem for `create-migration`. Run:\n  \
             edgedb migrate");
     }
