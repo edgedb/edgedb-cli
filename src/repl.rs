@@ -30,6 +30,14 @@ pub enum InputMode {
     Emacs,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrintStats {
+    Off,
+    Query,
+    Detailed,
+}
+
+
 pub struct PromptRpc {
     pub control: Sender<prompt::Control>,
     pub data: Receiver<prompt::Input>,
@@ -43,6 +51,7 @@ pub struct State {
     pub implicit_limit: Option<usize>,
     pub input_mode: InputMode,
     pub output_mode: OutputMode,
+    pub print_stats: PrintStats,
     pub history_limit: usize,
     pub conn_params: client::Builder,
     pub database: String,
@@ -222,6 +231,19 @@ impl std::str::FromStr for OutputMode {
     }
 }
 
+impl std::str::FromStr for PrintStats {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<PrintStats, anyhow::Error> {
+        match s {
+            "off" => Ok(PrintStats::Off),
+            "query" => Ok(PrintStats::Query),
+            "detailed" => Ok(PrintStats::Detailed),
+            _ => Err(anyhow::anyhow!("unsupported stats mode {:?}", s)),
+        }
+    }
+}
+
+
 impl InputMode {
     pub fn as_str(&self) -> &'static str {
         use InputMode::*;
@@ -240,6 +262,17 @@ impl OutputMode {
             Json => "json",
             JsonElements => "json-elements",
             TabSeparated => "tab-separated",
+        }
+    }
+}
+
+impl PrintStats {
+    pub fn as_str(&self) -> &'static str {
+        use PrintStats::*;
+        match self {
+            Off => "off",
+            Query => "query",
+            Detailed => "detailed",
         }
     }
 }

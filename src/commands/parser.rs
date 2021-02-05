@@ -65,7 +65,6 @@ pub struct SetCommand {
     pub setting: Option<Setting>,
 }
 
-
 #[derive(Clap, Clone, Debug)]
 pub enum Setting {
     /// Set input mode. One of: vi, emacs
@@ -82,6 +81,8 @@ pub enum Setting {
     ExpandStrings(SettingBool),
     /// Set number of entries retained in history
     HistorySize(SettingUsize),
+    /// Print statistics on each query
+    PrintStats(PrintStats),
 }
 
 #[derive(Clap, Clone, Debug, Default)]
@@ -125,6 +126,15 @@ pub struct OutputMode {
         &["json", "json-elements", "default", "tab-separated"][..]
     )]
     pub mode: Option<repl::OutputMode>,
+}
+
+#[derive(Clap, Clone, Debug, Default)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct PrintStats {
+    #[clap(possible_values=
+        &["off", "query", "detailed"][..]
+    )]
+    pub value: Option<repl::PrintStats>,
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -531,6 +541,7 @@ impl Setting {
             HistorySize(_) => "history-size",
             OutputMode(_) => "output-mode",
             ExpandStrings(_) => "expand-strings",
+            PrintStats(_) => "print-stats",
         }
     }
     pub fn is_show(&self) -> bool {
@@ -544,6 +555,7 @@ impl Setting {
             HistorySize(a) => a.value.is_none(),
             OutputMode(a) => a.mode.is_none(),
             ExpandStrings(a) => a.value.is_none(),
+            PrintStats(a) => a.value.is_none(),
         }
     }
 }

@@ -311,6 +311,7 @@ impl CommandCache {
                 OutputMode(Default::default()),
                 ExpandStrings(Default::default()),
                 HistorySize(Default::default()),
+                PrintStats(Default::default()),
             ].into_iter().map(|setting| {
                 let cmd = setting_cmd.remove(&setting.name())
                     .expect("all settings have cmd");
@@ -458,6 +459,9 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
         ExpandStrings(_) => {
             bool_str(prompt.print.expand_strings).into()
         }
+        PrintStats(_) => {
+            prompt.print_stats.as_str().into()
+        }
      }
 }
 
@@ -538,6 +542,9 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                 }
                 ExpandStrings(b) => {
                     prompt.print.expand_strings = b.unwrap_value();
+                }
+                PrintStats(v) => {
+                    prompt.print_stats = v.value.expect("only writes here");
                 }
             }
             Ok(Skip)
