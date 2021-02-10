@@ -405,8 +405,7 @@ fn input_required() -> anyhow::Result<()> {
     cmd.send_line(".foo[IS Child2]").unwrap();
     cmd.exp_string("Created").unwrap();
 
-    fs::remove_file("tests/migrations/db3/migrations/00002.edgeql")
-        .ok();
+    fs::remove_file("tests/migrations/db3/migrations/00002.edgeql").unwrap();
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=db3");
         cmd.arg("create-migration");
