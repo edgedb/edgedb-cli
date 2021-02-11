@@ -442,9 +442,6 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
     if !filepath.exists().await {
         fs::create_dir_all(&dir).await?;
     }
-    if verbose {
-        eprintln!("Created {}, id: {}", filepath.display(), id);
-    }
     fs::remove_file(&tmp_file).await.ok();
     let mut file = io::BufWriter::new(fs::File::create(&tmp_file).await?);
     file.write(format!("CREATE MIGRATION {}\n", id).as_bytes()).await?;
@@ -459,6 +456,9 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
     file.flush().await?;
     drop(file);
     fs::rename(&tmp_file, &filepath).await?;
+    if verbose {
+        eprintln!("Created {}, id: {}", filepath.display(), id);
+    }
     Ok(())
 }
 
