@@ -113,7 +113,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     } else {
         linux::get_server_path(Some(&pkg.slot))
     });
-    cmd.arg("--bootstrap");
+    cmd.arg("--bootstrap-only");
     cmd.arg("--log-level=warn");
     cmd.arg("--data-dir").arg(&dir);
 
