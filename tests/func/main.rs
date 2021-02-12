@@ -72,8 +72,6 @@ impl ServerGuard {
         cmd.arg("--testmode");
         cmd.arg("--echo-runtime-info");
         cmd.arg("--port=auto");
-        cmd.arg("--default-database=edgedb");
-        cmd.arg("--default-database-user=edgedb");
         #[cfg(unix)]
         if unsafe { libc::geteuid() } == 0 {
             use std::os::unix::process::CommandExt;

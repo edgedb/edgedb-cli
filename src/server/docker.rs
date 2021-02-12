@@ -767,8 +767,6 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", inst.name()));
-        cmd.arg("--default-database=edgedb");
-        cmd.arg("--default-database-user=edgedb");
         cmd.arg("--port").arg(port.to_string());
         cmd.arg("--bind-address=0.0.0.0");
         log::debug!("Running server: {:?}", cmd);
@@ -979,8 +977,6 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--log-level=warn");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
-        cmd.arg("--default-database=edgedb");
-        cmd.arg("--default-database-user=edgedb");
 
         log::debug!("Running bootstrap {:?}", cmd);
         match cmd.status() {

@@ -472,9 +472,6 @@ impl<'a> Instance for LocalInstance<'a> {
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
         cmd.arg("--runstate-dir").arg(&socket_dir);
-        // temporarily patch the edgedb issue of 1-alpha.4
-        cmd.arg("--default-database=edgedb");
-        cmd.arg("--default-database-user=edgedb");
         Ok(cmd)
     }
     fn upgrade(&self, meta: &Metadata)
