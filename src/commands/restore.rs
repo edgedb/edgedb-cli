@@ -30,6 +30,7 @@ type Input = Box<dyn Read + Unpin + Send>;
 
 const MAX_SUPPORTED_DUMP_VER: i64 = 1;
 const SCHEMA_ERROR: u32 = 0x_04_04_00_00;
+const DUPLICATE_DATABASE_DEFINITION_ERROR: u32 = 0x_04_05_02_05;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PacketType {
@@ -308,14 +309,15 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
             Ok(_) => None,
             Err(e) => {
                 let silent = if let Some(e) = e.downcast_ref::<ErrorResponse>() {
-                    e.code == SCHEMA_ERROR
+                    e.code == DUPLICATE_DATABASE_DEFINITION_ERROR ||
+                    e.code == SCHEMA_ERROR  // <= 1.0alpha7
                 } else {
                     false
                 };
                 if silent {
                     Some(e)
                 } else {
-                    anyhow::bail!(e);
+                    anyhow::bail!("Error creating database: {}", e);
                 }
             }
         };
