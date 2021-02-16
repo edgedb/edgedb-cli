@@ -90,6 +90,11 @@ pub struct Uninstall {
 pub struct ListVersions {
     #[clap(long)]
     pub installed_only: bool,
+    /// Single column output
+    #[clap(long, possible_values=&[
+        "major-version", "installed", "available",
+    ])]
+    pub column: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

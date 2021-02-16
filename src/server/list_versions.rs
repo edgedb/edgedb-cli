@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, BTreeMap};
+use std::fmt;
 
 use prettytable::{Table, Cell, Row};
 
@@ -28,17 +29,17 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
                 log::warn!("Error fetching remote versions: {:#}", e);
             }).ok();
         installed(&methods, &mut versions)?;
-        let versions = versions.into_iter()
+        let versions: BTreeMap<_, _> = versions.into_iter()
             .filter(|(_m, v)| !v.installed.is_empty())
             .collect();
-        print_versions(versions);
+        print_versions(versions, &options.column);
     } else {
         remote(&methods, &mut versions)?;
         installed(&methods, &mut versions)
             .map_err(|e| {
                 log::warn!("Error fetching installed versions: {:#}", e);
             }).ok();
-        print_versions(versions);
+        print_versions(versions, &options.column);
     }
     Ok(())
 }
@@ -84,7 +85,37 @@ fn remote(methods: &Methods,
     Ok(())
 }
 
-fn print_versions(versions: BTreeMap<MajorVersion, VersionInfo>) {
+fn print_set<V: fmt::Display>(vals: impl IntoIterator<Item=V>) {
+    for item in vals {
+        println!("{}", item);
+    }
+}
+
+fn print_versions(
+    versions: BTreeMap<MajorVersion, VersionInfo>,
+    column: &Option<String>,
+) {
+    match column.as_ref().map(|s| &s[..]) {
+        None => print_table(versions),
+        Some("major-version") => {
+            print_set(versions.keys().map(|v| v.title()));
+        }
+        Some("available") => {
+            print_set(versions.values().map(|info| &info.latest));
+        }
+        Some("installed") => {
+            print_set(versions.values()
+                .flat_map(|info| info.installed.values())
+                .map(|v| v.version())
+                .collect::<BTreeSet<_>>());
+        }
+        Some(col) => {
+            eprintln!("edgedb error: Unexpected --column={:?}", col);
+        }
+    }
+}
+
+fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>) {
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
     table.add_row(Row::new(vec![
