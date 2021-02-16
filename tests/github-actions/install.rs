@@ -4,6 +4,7 @@ use std::io::Write;
 use assert_cmd::Command;
 use async_std::prelude::FutureExt;
 use dirs::home_dir;
+use predicates::boolean::PredicateBooleanExt;
 use tokio::sync::oneshot;
 use warp::Filter;
 use warp::filters::path::path;
@@ -15,7 +16,7 @@ const UNIX_INST: &str =
 
 #[test]
 fn github_action_install() -> anyhow::Result<()> {
-    let mut tokio = tokio::runtime::Builder::new_multi_thread()
+    let tokio = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .enable_all()
         .build()?;
@@ -110,6 +111,13 @@ fn github_action_install() -> anyhow::Result<()> {
             .arg("server").arg("install").arg("--version=1-alpha6")
             .assert()
             .success();
+
+        Command::new(&edgedb)
+            .arg("server").arg("list-versions")
+            .arg("--installed-only").arg("--column=major-version")
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("1-alpha6"));
 
         if cfg!(target_os="macos") {
             println!("Init first");
@@ -219,12 +227,21 @@ fn github_action_install() -> anyhow::Result<()> {
                 .assert()
                 .success();
 
-            println!("Uninstall the old version");
-            Command::new(&edgedb)
-                .arg("server").arg("uninstall").arg("--version=1-alpha6")
-                .assert()
-                .success();
+        }
 
+        println!("Uninstall the old version");
+        Command::new(&edgedb)
+            .arg("server").arg("uninstall").arg("--version=1-alpha6")
+            .assert()
+            .success();
+        Command::new(&edgedb)
+            .arg("server").arg("list-versions")
+            .arg("--installed-only").arg("--column=major-version")
+            .assert()
+            .success()
+            .stdout(predicates::str::contains("1-alpha6").not());
+
+        if cfg!(target_os="macos") {
             println!("Execute query after deleting second");
             Command::new(&edgedb)
                 .arg("--admin").arg("--instance").arg("inst1")
