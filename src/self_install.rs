@@ -32,6 +32,13 @@ pub struct SelfInstall {
     /// Do not configure the PATH environment variable
     #[clap(long)]
     pub no_modify_path: bool,
+    /// Indicate that the edgedb-init should not issue
+    /// a "Press Enter to continue" prompt before exiting
+    /// on Windows.  This is for the cases where edgedb-init
+    /// is invoked from an existing terminal session and not
+    /// in a new window.
+    #[clap(long)]
+    pub no_wait_for_exit_prompt: bool,
 }
 
 pub struct Settings {
@@ -179,7 +186,10 @@ pub fn read_choice() -> anyhow::Result<String> {
 pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
     match _main(options) {
         Ok(()) => {
-            if cfg!(windows) && !options.no_confirm {
+            if cfg!(windows)
+               && !options.no_confirm
+               && !options.no_wait_for_exit_prompt
+            {
                 // This is needed so user can read the message if console
                 // was open just for this process
                 eprintln!("Press the Enter key to continue");
@@ -188,7 +198,10 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
             Ok(())
         }
         Err(e) => {
-            if cfg!(windows) && !options.no_confirm {
+            if cfg!(windows)
+               && !options.no_confirm
+               && !options.no_wait_for_exit_prompt
+            {
                 // This is needed so user can read the message if console
                 // was open just for this process
                 eprintln!("edgedb error: {:#}", e);
