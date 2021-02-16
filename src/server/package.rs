@@ -87,12 +87,13 @@ impl PackageCandidate {
 
         if self.distro_supported {
             write!(buf,
-                " * Note: native packages are not supported for {} {}",
+                " * --method=native: native packages are \
+                not available for {} {}",
                 self.distro_name,
                 self.distro_version).unwrap();
         } else {
-            buf.push_str(" * Note: native packages are \
-                             not supported for this platform");
+            buf.push_str(" * --method=native: native packages are \
+                         not available for this OS");
         }
         buf.push('\n');
     }

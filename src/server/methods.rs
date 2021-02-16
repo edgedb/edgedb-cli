@@ -76,7 +76,7 @@ impl InstallationMethods {
             buf.push_str("or run `edgedb server install --interactive` \
                           and follow instructions");
         } else if self.docker.platform_supported {
-            buf.push_str("No installation method found:\n");
+            buf.push_str("no installation method available:\n");
             self.package.format_error(&mut buf);
             self.docker.format_error(&mut buf);
             buf.push_str("Consider installing docker: \

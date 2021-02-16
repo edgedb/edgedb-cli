@@ -1,7 +1,6 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::fmt;
-use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Child};
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
@@ -44,8 +43,6 @@ pub struct DockerCandidate {
     pub supported: bool,
     pub platform_supported: bool,
     cli: Option<PathBuf>,
-    socket: Option<PathBuf>,
-    socket_permissions_ok: bool,
 }
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
@@ -271,31 +268,22 @@ impl Distribution for Image {
 
 impl DockerCandidate {
     pub fn detect() -> anyhow::Result<DockerCandidate> {
-        let cli = which::which("docker").ok();
-        let socket = if let Ok(url) = env::var("DOCKER_HOST") {
-            if let Some(path) = url.strip_prefix("unix://") {
-                if Path::new(path).exists() {
-                    Some(PathBuf::from(path))
-                } else {
-                    None
+        let cli = match which::which("docker") {
+            Ok(cli) => {
+                let mut cmd = Command::new(&cli);
+                cmd.arg("version");
+                match process::get_text(&mut cmd) {
+                    Ok(_) => Some(cli),
+                    Err(_) => None
                 }
-            } else {
-                None
             }
-        } else {
-            if Path::new("/var/run/docker.sock").exists() {
-                Some(PathBuf::from("/var/run/docker.sock"))
-            } else {
-                None
-            }
+            Err(_) => None
         };
-        let supported = cli.is_some() && socket.is_some();
+
         Ok(DockerCandidate {
-            supported,
+            supported: cli.is_some(),
             platform_supported: cfg!(unix) || cfg!(windows),
             cli,
-            socket,
-            socket_permissions_ok: true,
         })
     }
     pub fn format_option(&self, buf: &mut String, recommended: bool) {
@@ -310,19 +298,10 @@ impl DockerCandidate {
     pub fn format_error(&self, buf: &mut String) {
         use std::fmt::Write;
         if self.platform_supported {
-            write!(buf,
-                " * Note: Error initializing Docker method. \
-                Command-line tool: {cli}, docker socket: {sock}",
-                cli=if self.cli.is_some() { "found" } else { "not found" },
-                sock=if self.socket.is_some() {
-                    if self.socket_permissions_ok {
-                        "found"
-                    } else {
-                        "access forbidden"
-                    }
-                } else {
-                    "not found"
-                },
+            write!(
+                buf,
+                " * Note: `docker` command-line tool could not be \
+                found or Docker service is not running",
             ).unwrap();
         } else {
             buf.push_str(" * Note: Docker is not supported for this platform");
@@ -1348,4 +1327,3 @@ impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {
             .finish()
     }
 }
-
