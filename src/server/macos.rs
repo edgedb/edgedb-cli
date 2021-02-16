@@ -45,6 +45,10 @@ pub struct Macos {
     nightly_repo: Lazy<Option<RepositoryInfo>>,
 }
 
+fn package_name(pkg: &Package) -> String {
+    format!("com.edgedb.edgedb-server-{}", pkg.slot)
+}
+
 pub struct StatusCache {
     launchctl_list: OnceCell<anyhow::Result<String>>,
 }
@@ -188,6 +192,9 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             Operation::PrivilegedCmd(Command::new("rm")
                 .arg("-rf")
                 .args(entries)),
+            Operation::PrivilegedCmd(Command::new("pkgutil")
+                .arg("--forget")
+                .arg(package_name(&pkg))),
         ];
         self.os.unix.perform(operations,
             "uninstallation",
@@ -676,7 +683,7 @@ fn get_package_paths(pkg: &Package) -> anyhow::Result<Vec<PathBuf>> {
     let paths: BTreeSet<_> = process::get_text(
         &mut StdCommand::new("pkgutil")
             .arg("--files")
-            .arg(format!("com.edgedb.edgedb-server-{}", pkg.slot))
+            .arg(package_name(pkg))
         )?
         .lines()
         .map(|p| root.join(p))
