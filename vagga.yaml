@@ -16,6 +16,12 @@ commands:
     container: ubuntu
     run: [cargo]
 
+  check: !Command
+    description: Run cargo check with all tests
+    symlink-name: cargo
+    container: ubuntu
+    run: [cargo, check, --tests, --features=github_action_install]
+
   cargo-expand: !Command
     description: Print macro-expanded form for the crate
     container: nightly
