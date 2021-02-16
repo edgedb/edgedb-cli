@@ -46,9 +46,9 @@ fn print_long_description(settings: &Settings) {
     println!(r###"
 Welcome to EdgeDB!
 
-This will install the EdgeDB command-line tools.
+This will install the official EdgeDB command-line tools.
 
-It will add `edgedb` binary to the {dir_kind} bin directory located at:
+The `edgedb` binary will be placed in the {dir_kind} bin directory located at:
 
   {installation_path}
 {profile_update}
@@ -143,15 +143,15 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
 
 fn print_post_install_message(settings: &Settings) {
     if cfg!(windows) {
-        print!(r###"# EdgeDB command-line tool is installed now!
+        print!(r###"# The EdgeDB command-line tool is now installed!
 
-We've updated your environment configuration to have {dir} in your `PATH`
-environment variable. Next time you open the terminal it will be configured
-automatically.
+We've updated your environment configuration to have {dir}
+in your `PATH` environment variable. You may need to reopen the terminal for
+this change to take effect, and for the `edgedb` command to become available.
 "###,
             dir=settings.installation_path.display());
     } else if settings.modify_path {
-        print!(r###"# EdgeDB command-line tool is installed now!
+        print!(r###"# The EdgeDB command-line tool is now installed!
 
 We've updated your shell profile to have {dir} in your `PATH`
 environment variable. Next time you open the terminal it will be configured
@@ -163,9 +163,9 @@ For this session please run:
             dir=settings.installation_path.display(),
             env_path=settings.env_file.display());
     } else {
-        println!(r###"EdgeDB command-line tool is installed now!"###);
+        println!(r###"The EdgeDB command-line tool is now installed!"###);
     }
-    println!("\nTo install the server locally run:\n  \
+    println!("\nTo install the EdgeDB server component locally run:\n  \
                 edgedb server install");
 }
 

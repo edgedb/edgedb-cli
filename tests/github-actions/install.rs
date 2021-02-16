@@ -68,7 +68,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .assert()
             .success()
             .stdout(predicates::str::contains(
-                "EdgeDB command-line tool is installed now"));
+                "The EdgeDB command-line tool is now installed"));
     }
 
     shut_tx.send(()).ok();
