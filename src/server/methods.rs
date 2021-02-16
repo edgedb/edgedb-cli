@@ -79,11 +79,23 @@ impl InstallationMethods {
             buf.push_str("No installation method found:\n");
             self.package.format_error(&mut buf);
             self.docker.format_error(&mut buf);
-            buf.push_str("Consider installing docker: \
-                https://docs.docker.com/get-docker/");
-            buf.push_str("Or ask for native support at \
-                https://github.com/edgedb/edgedb-cli/issues/new\
-                ?template=install-unsupported.md");
+            if cfg!(windows) {
+                buf.push_str("EdgeDB server installation on Windows \
+                    requires Docker Desktop to be installed and running. \
+                    You can download Docker Desktop for Windows here: \
+                    https://hub.docker.com/editions/community/docker-ce-desktop-windows/ \
+                    Once Docker Desktop is installed and running, restart the \
+                    EdgeDB server installation by running \
+                    `edgedb server install --method=docker`");
+            } else {
+                buf.push_str("It looks like there are no native EdgeDB server \
+                    packages for your OS yet.  However, it is possible to \
+                    install and run EdgeDB server in a Docker container. \
+                    Please install Docker by following the instructions at \
+                    https://docs.docker.com/get-docker/.  Once Docker is \
+                    installed, restart the EdgeDB server installation by \
+                    running `edgedb server install --method=docker`");
+            }
         } else {
             buf.push_str("No installation method supported for the platform:");
             self.package.format_error(&mut buf);
