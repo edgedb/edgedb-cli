@@ -111,6 +111,59 @@ jobs:
         name: builds-<< tgt.name >>
         path: artifacts/<< tgt.name >>
 <% endfor %>
+<% for tgt in targets.win %>
+  build-<< tgt.name >>:
+    runs-on: windows-latest
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+
+    - name: Build
+      env:
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+<% if tgt.family == "generic" %>
+        BUILD_GENERIC: true
+<% endif %>
+      shell: bash
+      run: |
+        edgedb-pkg/integration/win/build.sh
+
+    - name: Set up VC tools environment
+      uses: elprans/gha-setup-vcpp-build-tools@v1
+
+    - name: Sign
+      uses: elprans/gha-win-code-sign@v1
+      with:
+        certificate: "${{ secrets.WIN_CODE_SIGNING_CERT }}"
+        certificate-password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
+        folder: artifacts/<< tgt.name >>
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< tgt.name >>
+<% endfor %>
 <% for tgt in targets.linux %>
   publish-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
@@ -190,4 +243,37 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
       run: |
         edgedb-pkg/integration/macos/publish.sh
+<% endfor %>
+<% for tgt in targets.win %>
+  publish-<< tgt.name >>:
+    needs: [build-<< tgt.name >>]
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< tgt.name >>
+
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: << tgt.name >>
+
+    - name: Publish
+      env:
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+      shell: bash
+      run: |
+        edgedb-pkg/integration/win/publish.sh
 <% endfor %>
