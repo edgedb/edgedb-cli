@@ -140,6 +140,7 @@ pub fn run_docker(tagname: &str, script: &str)
     -> assert_cmd::assert::Assert
 {
     let script = format!(r###"
+        export EDGEDB_SKIP_DOCKER_CHECK=yes
         docker ps -q -f 'name=edgedb_test' | xargs -r docker container kill
         docker system prune --all --force
         docker volume list -q -f 'name=edgedb_test' | xargs -r docker volume rm
@@ -168,6 +169,7 @@ pub fn run_systemd(tagname: &str, script: &str)
     let script = format!(r###"
         export XDG_RUNTIME_DIR=/run/user/1000
         export RUST_LOG=info
+        export EDGEDB_SKIP_DOCKER_CHECK=yes
         /lib/systemd/systemd --user --log-level=debug &
 
         {script}
@@ -212,7 +214,9 @@ pub fn sudo_test(dockerfile: &str, tagname: &str, nightly: bool)
     build_image(context, tagname)?;
     run(tagname, &format!(
             r###"
-                RUST_LOG=info edgedb server install {arg}
+                export RUST_LOG=info
+                export EDGEDB_SKIP_DOCKER_CHECK=yes
+                edgedb server install {arg}
                 echo --- DONE ---
                 /usr/bin/edgedb-server-* --version
             "###, arg=if nightly { "--nightly" } else {""})
@@ -236,6 +240,7 @@ pub fn install_twice_test(dockerfile: &str, tagname: &str, nightly: bool)
     build_image(context, tagname)?;
     run(tagname, &format!(
             r###"
+                export EDGEDB_SKIP_DOCKER_CHECK=yes
                 RUST_LOG=info edgedb server install {arg}
                 echo --- DONE --- 1>&2
                 RUST_LOG=info edgedb server install {arg}

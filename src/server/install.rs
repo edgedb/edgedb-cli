@@ -1,4 +1,8 @@
+use std::env;
+use std::fs;
 use std::process::exit;
+
+use anyhow::Context;
 
 use crate::server::options::Install;
 use crate::server::detect::{self, VersionQuery};
@@ -15,8 +19,34 @@ pub(in crate::server) use settings::{Settings, SettingsBuilder};
 pub const KEY_FILE_URL: &str = "https://packages.edgedb.com/keys/edgedb.asc";
 
 
+pub fn docker_check() -> anyhow::Result<()> {
+    let cgroups = fs::read_to_string("/proc/self/cgroup")
+        .context("cannot read /proc/self/cgroup")?;
+    for line in cgroups.lines() {
+        let mut fields = line.split(':');
+        if fields.nth(2).map(|f| f.starts_with("/docker/")).unwrap_or(false) {
+            eprintln!("edgedb error: \
+                installing in docker container is not supported. \
+                Run the following from the host system instead:\n  \
+                edgedb install --method=docker");
+            exit(exit_codes::DOCKER_CONTAINER);
+        }
+    }
+    return Ok(())
+}
 
 pub fn install(options: &Install) -> Result<(), anyhow::Error> {
+    if cfg!(target_os="linux") {
+        let do_docker_check = env::var_os("EDGEDB_SKIP_DOCKER_CHECK")
+            .map(|x| x.is_empty()).unwrap_or(true);
+        if do_docker_check {
+            docker_check()
+            .map_err(|e| {
+                log::warn!(
+                    "Failed to check if running within a container: {:#}", e)
+            }).ok();
+        }
+    }
     let current_os = detect::current_os()?;
     let avail_methods = current_os.get_available_methods()?;
     let methods = avail_methods.instantiate_all(&*current_os, false)?;
