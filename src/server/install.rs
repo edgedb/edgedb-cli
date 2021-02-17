@@ -26,9 +26,10 @@ pub fn docker_check() -> anyhow::Result<()> {
         let mut fields = line.split(':');
         if fields.nth(2).map(|f| f.starts_with("/docker/")).unwrap_or(false) {
             eprintln!("edgedb error: \
-                installing in docker container is not supported. \
-                Run the following from the host system instead:\n  \
-                edgedb install --method=docker");
+                `edgedb server install` in a Docker container is not supported.\n\
+                To obtain a Docker image with EdgeDB server installed, \
+                run the following on the host system instead:\n  \
+                edgedb server install --method=docker");
             exit(exit_codes::DOCKER_CONTAINER);
         }
     }
