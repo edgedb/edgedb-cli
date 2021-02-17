@@ -4,7 +4,7 @@
 # Portions Copyright (c) 2016 The Rust Project Developers.
 #
 # This is a simple script that can be downloaded from https://edgedb.com to
-# install `edgedb` CLI tools. Its job is to detect the host platform and to 
+# install `edgedb` CLI tools. Its job is to detect the host platform and to
 # download and run the relevant installer.
 
 set -u
@@ -253,7 +253,10 @@ check_help_for() {
     # If we're running on OS-X, older than 10.13, then we always
     # fail to find these options to force fallback
     if check_cmd sw_vers; then
-        if [ "$(sw_vers -productVersion | cut -d. -f2)" -lt 13 ]; then
+        if [ \
+            "$(sw_vers -productVersion | cut -d. -f1)" -lt 11 \
+            -a "$(sw_vers -productVersion | cut -d. -f2)" -lt 13 \
+        ]; then
             # Older than 10.13
             echo "Warning: Detected OS X platform older than 10.13"
             _ok="n"
