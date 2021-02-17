@@ -3,7 +3,6 @@ use std::collections::BTreeSet;
 
 use crate::SERVER;
 
-
 #[test]
 fn configure_all_parameters() {
     let cmd = SERVER.admin_cmd()
@@ -40,7 +39,9 @@ fn configure_all_parameters() {
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
 
-    assert_eq!(db_simple_options, cmd_simple_options);
+    if !db_simple_options.is_subset(&cmd_simple_options) {
+        assert_eq!(db_simple_options, cmd_simple_options); // nice diff
+    }
 
     let cmd = SERVER.admin_cmd()
         .arg("--tab-separated")
@@ -74,7 +75,9 @@ fn configure_all_parameters() {
         .map(|line| line[..min(12, line.len())].trim())
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
-    assert_eq!(db_object_options, cmd_object_options);
+    if !db_object_options.is_subset(&cmd_object_options) {
+        assert_eq!(db_object_options, cmd_object_options); // nice diff
+    }
 
     let cmd = SERVER.admin_cmd()
         .arg("configure").arg("reset")
@@ -88,8 +91,9 @@ fn configure_all_parameters() {
         .map(|line| line[..min(33, line.len())].trim())
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
-    assert_eq!(
-        db_object_options.union(&db_simple_options)
-        .map(|x| *x).collect::<BTreeSet<_>>(),
-        cmd_reset_options);
+    let db_reset_options = db_object_options.union(&db_simple_options)
+        .map(|x| *x).collect::<BTreeSet<_>>();
+    if !db_reset_options.is_subset(&cmd_reset_options) {
+        assert_eq!(db_reset_options, cmd_reset_options); // nice diff
+    }
 }

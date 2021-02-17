@@ -353,6 +353,17 @@ pub enum ValueParameter {
     ///
     /// Corresponds to the PostgreSQL configuration parameter of the same name
     EffectiveIoConcurrency(ConfigStr),
+
+    /// If set to `true` activates legacy behavior of allowing DML in functions
+    ///
+    /// Using DML in functions is deprecated for now so this setting should
+    /// be used only to support legacy codebases.
+    ///
+    /// Command-line enables this setting on system level (for all databases).
+    /// Consider setting it for a specific database using query:
+    ///
+    ///     CONFIGURE CURRENT DATABASE SET allow_dml_in_functions := true;
+    AllowDmlInFunctions(ConfigBool),
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -379,6 +390,8 @@ pub enum ConfigParameter {
     DefaultStatisticsTarget,
     /// Reset postgres configuration parameter of the same name
     EffectiveIoConcurrency,
+    /// Reset allow_dml_in_functions configuration parameter
+    AllowDmlInFunctions,
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -396,6 +409,13 @@ pub struct ListenPort {
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersion)]
 pub struct ConfigStr {
+    pub value: String,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct ConfigBool {
+    #[clap(possible_values=&["true", "false"])]
     pub value: String,
 }
 
