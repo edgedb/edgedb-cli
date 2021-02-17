@@ -1,6 +1,17 @@
-on: [push, pull_request]
-
 name: Tests
+
+on:
+  push:
+    branches:
+      - master
+      - ci
+      - "releases/*"
+  pull_request:
+    branches:
+      - '*'
+  schedule:
+    - cron: "0 */6 * * *"
+
 env:
   RUST_TEST_THREADS: 2
 
