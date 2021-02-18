@@ -1,7 +1,6 @@
 use std::ffi::OsStr;
 use std::fs;
 use std::fmt;
-use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Child};
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
@@ -44,8 +43,7 @@ pub struct DockerCandidate {
     pub supported: bool,
     pub platform_supported: bool,
     cli: Option<PathBuf>,
-    socket: Option<PathBuf>,
-    socket_permissions_ok: bool,
+    docker_info_worked: bool,
 }
 
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
@@ -272,30 +270,27 @@ impl Distribution for Image {
 impl DockerCandidate {
     pub fn detect() -> anyhow::Result<DockerCandidate> {
         let cli = which::which("docker").ok();
-        let socket = if let Ok(url) = env::var("DOCKER_HOST") {
-            if let Some(path) = url.strip_prefix("unix://") {
-                if Path::new(path).exists() {
-                    Some(PathBuf::from(path))
-                } else {
-                    None
+        let docker_info_worked = cli.as_ref().map(|cli| {
+            Command::new(cli)
+            .arg("info")
+            .status()
+            .map_err(|e| {
+                log::info!("Error running docker CLI: {}", e);
+            })
+            .map(|s| {
+                if s.success() {
+                    log::info!("Error running docker CLI: {}", s);
                 }
-            } else {
-                None
-            }
-        } else {
-            if Path::new("/var/run/docker.sock").exists() {
-                Some(PathBuf::from("/var/run/docker.sock"))
-            } else {
-                None
-            }
-        };
-        let supported = cli.is_some() && socket.is_some();
+                s.success()
+            })
+            .unwrap_or(false)
+        }).unwrap_or(false);
+        let supported = cli.is_some() && docker_info_worked;
         Ok(DockerCandidate {
             supported,
             platform_supported: cfg!(unix) || cfg!(windows),
             cli,
-            socket,
-            socket_permissions_ok: true,
+            docker_info_worked,
         })
     }
     pub fn format_option(&self, buf: &mut String, recommended: bool) {
@@ -312,16 +307,14 @@ impl DockerCandidate {
         if self.platform_supported {
             write!(buf,
                 " * Note: Error initializing Docker method. \
-                Command-line tool: {cli}, docker socket: {sock}",
+                Command-line tool: {cli}, docker info: {info}",
                 cli=if self.cli.is_some() { "found" } else { "not found" },
-                sock=if self.socket.is_some() {
-                    if self.socket_permissions_ok {
-                        "found"
-                    } else {
-                        "access forbidden"
-                    }
+                info=if self.docker_info_worked {
+                    "okay"
+                } else if self.cli.is_some() {
+                    "failed"
                 } else {
-                    "not found"
+                    "skipped"
                 },
             ).unwrap();
         } else {
