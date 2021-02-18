@@ -833,10 +833,15 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn uninstall(&self, distr: &DistributionRef) -> anyhow::Result<()> {
         let image = distr.downcast_ref::<Image>()
             .context("invalid distribution for Docker")?;
-        process::run(Command::new(&self.cli)
+        match process::run_or_stderr(Command::new(&self.cli)
             .arg("image")
             .arg("rm")
-            .arg(image.tag.as_image_name()))?;
+            .arg(image.tag.as_image_name()))?
+        {
+            Ok(_) => {}
+            Err(text) if text.contains("No such image") => {},
+            Err(text) => anyhow::bail!("docker error: {}", text),
+        }
         Ok(())
     }
     fn all_versions(&self, nightly: bool)
