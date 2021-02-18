@@ -264,16 +264,11 @@ impl<'os> Method for PackageMethod<'os, Centos> {
                     Ok(line) => line.split_whitespace(),
                     Err(_) => continue,
                 };
-                let (pkg, ver, nightly) =
-                    match (it.next(), it.next(), it.next()) {
-                        (Some(name), Some(ver),
-                            Some("@edgedb-server-install"))
-                        => (name, ver, false),
-                        (Some(name), Some(ver),
-                            Some("@edgedb-server-install-nightly"))
-                        => (name, ver, true),
-                        _ => continue,
-                    };
+                let (pkg, ver) = match (it.next(), it.next()) {
+                    (Some(name), Some(ver)) => (name, ver),
+                    _ => continue,
+                };
+                let nightly = pkg.contains("-dev");
                 let (pkg_name, arch) = split_on(pkg, '.');
                 if arch != ARCH {
                     continue;
