@@ -3,7 +3,6 @@ name: Test installation
 on:
   schedule:
     - cron: "30 23 * * *"  # before nightly builds
-  push: {}
 
 jobs:
   test_linux:
