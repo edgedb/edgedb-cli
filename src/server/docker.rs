@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Child};
+use std::process::{Command, Child, Stdio};
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
 
 use anyhow::Context;
@@ -273,6 +273,8 @@ impl DockerCandidate {
         let docker_info_worked = cli.as_ref().map(|cli| {
             Command::new(cli)
             .arg("info")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
             .map_err(|e| {
                 log::info!("Error running docker CLI: {}", e);
@@ -1346,4 +1348,3 @@ impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {
             .finish()
     }
 }
-
