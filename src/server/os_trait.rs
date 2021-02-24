@@ -45,6 +45,8 @@ pub trait Instance: fmt::Debug {
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder>;
     fn get_command(&self) -> anyhow::Result<Command>;
     fn upgrade(&self, meta: &Metadata) -> anyhow::Result<InstanceRef<'_>>;
+    fn revert(&self, metadata: &Metadata)
+        -> anyhow::Result<()>;
     fn into_ref<'x>(self) -> InstanceRef<'x>
         where Self: Sized + 'x
     {
@@ -177,6 +179,11 @@ impl InstanceRef<'_> {
         -> anyhow::Result<InstanceRef<'_>>
     {
         self.0.upgrade(meta)
+    }
+    pub fn revert(&self, metadata: &Metadata)
+        -> anyhow::Result<()>
+    {
+        self.0.revert(metadata)
     }
 }
 

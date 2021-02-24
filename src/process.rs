@@ -20,6 +20,10 @@ pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
     }
 }
 
+pub fn exists(pid: u32) -> bool {
+    unsafe { libc::kill(pid as i32, 0) == 0 }
+}
+
 #[cfg(unix)]
 pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
     use signal::Signal::*;

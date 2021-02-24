@@ -495,6 +495,11 @@ impl<'a> Instance for LocalInstance<'a> {
             metadata: Lazy::eager(meta.clone()),
         }.into_ref())
     }
+    fn revert(&self, metadata: &Metadata)
+        -> anyhow::Result<()>
+    {
+        unix::revert(self, metadata)
+    }
     fn logs(&self, options: &Logs) -> anyhow::Result<()> {
         let mut cmd = StdCommand::new("tail");
         if let Some(n) = options.tail {

@@ -16,6 +16,7 @@ use crate::server::init::Storage;
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
 use crate::server::metadata::Metadata;
 use crate::table;
+use crate::format;
 
 
 #[derive(Debug)]
@@ -43,7 +44,11 @@ pub enum DataDirectory {
 #[derive(Debug)]
 pub enum BackupStatus {
     Absent,
-    Exists(anyhow::Result<BackupMeta>),
+    Exists {
+        backup_meta: anyhow::Result<BackupMeta>,
+        data_meta: anyhow::Result<Metadata>,
+    },
+    Error(anyhow::Error),
 }
 
 #[derive(Debug)]
@@ -145,14 +150,14 @@ impl Status {
         });
         println!("  Backup: {}", match &self.backup {
             BackupStatus::Absent => "absent".into(),
-            BackupStatus::Exists(Err(e)) => {
+            BackupStatus::Exists { backup_meta: Err(e), ..} => {
                 format!("present (error: {:#})", e)
             }
-            BackupStatus::Exists(Ok(b)) => {
-                format!("present, {}",
-                    b.timestamp.elapsed()
-                        .map(|d| format!("done {} ago", format_duration(d)))
-                        .unwrap_or(format!("done just now")))
+            BackupStatus::Exists { backup_meta: Ok(b), .. } => {
+                format!("present, {}", format::done_before(b.timestamp))
+            }
+            BackupStatus::Error(_) => {
+                format!("error")
             }
         });
     }
@@ -226,12 +231,17 @@ pub fn backup_status(dir: &Path) -> BackupStatus {
     if !dir.exists() {
         return Absent;
     }
-    let meta_json = dir.join("backup.json");
-    let meta = fs::read(&meta_json)
-        .with_context(|| format!("error reading {}", meta_json.display()))
+    let bmeta_json = dir.join("backup.json");
+    let backup_meta = fs::read(&bmeta_json)
+        .with_context(|| format!("error reading {}", bmeta_json.display()))
         .and_then(|data| serde_json::from_slice(&data)
-        .with_context(|| format!("erorr decoding {}", meta_json.display())));
-    Exists(meta)
+        .with_context(|| format!("error decoding {}", bmeta_json.display())));
+    let dmeta_json = dir.join("metadata.json");
+    let data_meta = fs::read(&dmeta_json)
+        .with_context(|| format!("error reading {}", dmeta_json.display()))
+        .and_then(|data| serde_json::from_slice(&data)
+        .with_context(|| format!("error decoding {}", dmeta_json.display())));
+    Exists { backup_meta, data_meta }
 }
 
 pub fn print_status_all(extended: bool, debug: bool) -> anyhow::Result<()> {

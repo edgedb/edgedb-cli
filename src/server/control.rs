@@ -7,6 +7,7 @@ use crate::server::detect;
 use crate::server::options::InstanceCommand;
 use crate::server::metadata::Metadata;
 use crate::server::methods::Methods;
+use crate::server::revert;
 use crate::server::status;
 use crate::server::os_trait::{InstanceRef};
 
@@ -41,6 +42,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         Stop(c) => &c.name,
         Restart(c) => &c.name,
         Logs(c) => &c.name,
+        Revert(c) => &c.name,
         Status(c) => {
             if let Some(name) = &c.name {
                 name
@@ -57,6 +59,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         Stop(c) => inst.stop(c),
         Restart(c) => inst.restart(c),
         Logs(c) => inst.logs(c),
+        Revert(c) => revert::revert(inst, c),
         Status(options) => {
             if options.service {
                 inst.service_status()
