@@ -20,8 +20,25 @@ pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
     }
 }
 
+#[cfg(unix)]
 pub fn exists(pid: u32) -> bool {
     unsafe { libc::kill(pid as i32, 0) == 0 }
+}
+
+#[cfg(windows)]
+pub fn exists(pid: u32) -> bool {
+    use std::ptr::null_mut;
+    use winapi::um::processthreadsapi::{OpenProcess};
+    use winapi::um::winnt::{PROCESS_QUERY_INFORMATION};
+    use winapi::um::handleapi::CloseHandle;
+
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, pid) };
+    if handle == null_mut() {
+        // MSDN doesn't describe what is proper error here :(
+        return false;
+    }
+    unsafe { CloseHandle(handle) };
+    return true;
 }
 
 #[cfg(unix)]
