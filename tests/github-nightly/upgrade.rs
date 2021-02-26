@@ -12,20 +12,20 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         .add_bin()?;
     build_image(context, tagname)?;
     run_systemd(tagname, r###"
-        edgedb server install --version=1-alpha5
+        edgedb server install --version=1-alpha7
         edgedb server init test1 --start-conf=manual || test "$?" -eq 2
         edgedb server start --foreground test1 &
-        edgedb --wait-until-available=30s -Itest1 query '
+        edgedb --wait-until-available=60s -Itest1 query '
             CREATE TYPE Type1 {
                 CREATE PROPERTY prop1 -> str;
             }
         ' 'INSERT Type1 { prop1 := "value1" }'
         kill %1 && wait
 
-        RUST_LOG=debug edgedb server upgrade test1 --to-version=1-alpha6
+        RUST_LOG=debug edgedb server upgrade test1 --to-version=1-beta1
 
         edgedb server start --foreground test1 &
-        val=$(edgedb -Itest1 --wait-until-available=30s --tab-separated \
+        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
     "###).success();
@@ -45,34 +45,34 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         .add_bin()?;
     build_image(context, tagname)?;
     run_systemd(tagname, r###"
-        edgedb server install --version=1-alpha5
+        edgedb server install --version=1-alpha7
         edgedb server init test1
 
-        ver1=$(edgedb -Itest1 --wait-until-available=30s --tab-separated query '
+        ver1=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver1 =~ ^1\.0-alpha\.5\+ ]]
+        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
         path=$(edgedb server info --bin-path)
-        test "$path" = "/usr/bin/edgedb-server-1-alpha5"
+        test "$path" = "/usr/bin/edgedb-server-1-alpha7"
 
-        edgedb --wait-until-available=30s -Itest1 query '
+        edgedb --wait-until-available=60s -Itest1 query '
             CREATE TYPE Type1 {
                 CREATE PROPERTY prop1 -> str;
             }
         ' 'INSERT Type1 { prop1 := "value1" }'
-        if ! edgedb server upgrade test1 --to-version=1-alpha6; then
+        if ! edgedb server upgrade test1 --to-version=1-beta1; then
             res=$?
             journalctl -xe
             exit $res
         fi
-        ver2=$(edgedb -Itest1 --wait-until-available=30s --tab-separated query '
+        ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver2 =~ ^1\.0-alpha\.6\+ ]]
+        [[ $ver2 =~ ^1\.0-beta\.1\+ ]]
         path=$(edgedb server info --bin-path)
-        test "$path" = "/usr/bin/edgedb-server-1-alpha6"
+        test "$path" = "/usr/bin/edgedb-server-1-beta1"
 
-        val=$(edgedb -Itest1 --wait-until-available=30s --tab-separated \
+        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
 
@@ -81,12 +81,12 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
             journalctl -xe
             exit $res
         fi
-        ver2=$(edgedb -Itest1 --wait-until-available=30s --tab-separated query '
+        ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver1 =~ ^1\.0-alpha\.5\+ ]]
+        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
 
-        val=$(edgedb -Itest1 --wait-until-available=30s --tab-separated \
+        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
     "###).success();
@@ -110,38 +110,38 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         mkdir /tmp/workdir
         cd /tmp/workdir
 
-        edgedb server install --version=1-alpha6 --method=docker
+        edgedb server install --version=1-alpha7 --method=docker
         edgedb server init test1
 
-        ver1=$(edgedb -Itest1 --wait-until-available=30s --tab-separated query '
+        ver1=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver1 =~ ^1\.0-alpha\.6\+ ]]
+        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
 
-        edgedb --wait-until-available=30s -Itest1 query '
+        edgedb --wait-until-available=60s -Itest1 query '
             CREATE TYPE Type1 {
                 CREATE PROPERTY prop1 -> str;
             }
         ' 'INSERT Type1 { prop1 := "value1" }'
-        edgedb server upgrade test1 --to-nightly
+        edgedb server upgrade test1
 
-        ver2=$(edgedb -Itest1 --wait-until-available=30s --tab-separated query '
+        ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver2 =~ ^1.0.*\+dev ]]
+        [[ $ver2 =~ ^1\.0-beta\.1\+ ]]
 
-        val=$(edgedb -Itest1 --wait-until-available=30s --tab-separated \
+        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
 
-        edgedb server revert test1
+        edgedb server revert test1 --no-confirm
 
-        ver2=$(edgedb -Itest1 --wait-until-available=30s --tab-separated query '
+        ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver1 =~ ^1\.0-alpha\.6\+ ]]
+        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
 
-        val=$(edgedb -Itest1 --wait-until-available=30s --tab-separated \
+        val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
     "###).success();

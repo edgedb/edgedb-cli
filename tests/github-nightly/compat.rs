@@ -11,13 +11,13 @@ use crate::common::{dock_ubuntu, dock_centos, dock_debian};
 #[test_case("edbtest_buster", &dock_debian("buster"), "")]
 #[test_case("edbtest_stretch", &dock_debian("stretch"), "")]
 #[test_case("edbtest_focal", &dock_ubuntu("focal"), "")]
-// alpha5
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--version=1-alpha5")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--version=1-alpha5")]
-#[test_case("edbtest_centos8", &dock_centos(8), "--version=1-alpha5")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "--version=1-alpha5")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "--version=1-alpha5")]
-#[test_case("edbtest_focal", &dock_ubuntu("focal"), "--version=1-alpha5")]
+// alpha7
+#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--version=1-alpha7")]
+#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--version=1-alpha7")]
+#[test_case("edbtest_centos8", &dock_centos(8), "--version=1-alpha7")]
+#[test_case("edbtest_buster", &dock_debian("buster"), "--version=1-alpha7")]
+#[test_case("edbtest_stretch", &dock_debian("stretch"), "--version=1-alpha7")]
+#[test_case("edbtest_focal", &dock_ubuntu("focal"), "--version=1-alpha7")]
 // nightly
 #[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--nightly")]
 #[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--nightly")]
@@ -36,7 +36,7 @@ fn cli(tagname: &str, dockerfile: &str, version: &str)
     run_systemd(tagname, &format!(r###"
             edgedb server install {version}
             edgedb server init test1 {version}
-            val=$(edgedb -Itest1 --wait-until-available=30s \
+            val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
             test "$val" = "2"
 

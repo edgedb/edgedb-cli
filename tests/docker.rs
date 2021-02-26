@@ -126,13 +126,18 @@ pub fn stop(container_name: &str) {
 }
 
 pub fn run(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
+    let script = format!(r###"
+        export EDGEDB_SKIP_DOCKER_CHECK=yes
+
+        {script}
+    "###, script=script);
     Command::new("docker")
         .arg("run")
         .arg("--rm")
         .arg("--mount=type=tmpfs,destination=/run/user/1000,tmpfs-mode=777")
         .arg("-u").arg("1000")
         .arg(tagname)
-        .args(&["sh", "-exc", script])
+        .args(&["sh", "-exc", &script])
         .assert()
 }
 

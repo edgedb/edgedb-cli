@@ -45,11 +45,11 @@ fn package(tagname: &str, dockerfile: &str, version: &str)
     run_systemd(tagname, &format!(r###"
             edgedb server install {version}
             edgedb server init test1 {version}
-            val=$(edgedb -Itest1 --wait-until-available=30s \
+            val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
             test "$val" = "2"
             edgedb server logs test1
-            edgedb server destroy test1
+            timeout 180 edgedb server destroy test1
             edgedb server uninstall --all --verbose
         "###,
         version=version,
@@ -71,13 +71,13 @@ fn package_jspy(tagname: &str, dockerfile: &str, version: &str)
     run_systemd(tagname, &format!(r###"
             edgedb server install {version}
             edgedb server init test1 {version}
-            val=$(edgedb -Itest1 --wait-until-available=30s \
+            val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
             test "$val" = "2"
             python3 /usr/bin/edbconnect.py test1
             node /usr/bin/edbconnect.js test1
             edgedb server logs test1
-            edgedb server destroy test1
+            timeout 180 edgedb server destroy test1
             edgedb server uninstall --all --verbose
         "###,
         version=version,
@@ -108,11 +108,11 @@ fn docker(tagname: &str, dockerfile: &str, version: &str)
     run_docker(tagname, &format!(r###"
             edgedb server install --method=docker {version}
             edgedb server init test1 {version}
-            val=$(edgedb -Itest1 --wait-until-available=30s \
+            val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
             test "$val" = "2"
             edgedb server logs test1
-            edgedb server destroy test1
+            timeout 180 edgedb server destroy test1
             edgedb server uninstall --all --verbose
         "###,
         version=version,
@@ -134,13 +134,13 @@ fn docker_jspy(tagname: &str, dockerfile: &str, version: &str)
     run_docker(tagname, &format!(r###"
             edgedb server install --method=docker {version}
             edgedb server init test1 {version}
-            val=$(edgedb -Itest1 --wait-until-available=30s \
+            val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
             test "$val" = "2"
             python3 /usr/bin/edbconnect.py test1
             node /usr/bin/edbconnect.js test1
             edgedb server logs test1
-            edgedb server destroy test1
+            timeout 180 edgedb server destroy test1
             edgedb server uninstall --all --verbose
         "###,
         version=version,
