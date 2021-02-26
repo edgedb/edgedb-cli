@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
-use std::fs;
 use std::fmt;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Child, Stdio};
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
@@ -231,6 +231,12 @@ impl Tag {
             (Tag::Stable(t, _), VersionQuery::Stable(Some(q))) => t == q.num(),
             (Tag::Nightly(_), VersionQuery::Nightly) => true,
             _ => false,
+        }
+    }
+    fn full_version(&self) -> Version<String> {
+        match self {
+            Tag::Stable(v, rev) => Version(format!("{}-{}", v, rev)),
+            Tag::Nightly(v) => Version(v.clone()),
         }
     }
     fn into_image(self) -> Image {
@@ -736,9 +742,10 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                     echo {backup_meta} > /mnt/{name}.backup/backup.json
                 "###,
                 name=inst.name(),
-                backup_meta=serde_json::to_string(&upgrade::BackupMeta {
-                    timestamp: SystemTime::now(),
-                })?,
+                backup_meta=shell_words::quote(&
+                    serde_json::to_string(&upgrade::BackupMeta {
+                        timestamp: SystemTime::now(),
+                    })?),
             ))
         )?;
 
@@ -955,12 +962,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg(image.tag.as_image_name())
             .arg("sh")
             .arg("-c")
-            .arg(format!(r###"
-                    echo {} > /mnt/metadata.json
-                    chown -R 999:999 /mnt
-                "###,
-                shell_words::quote(&md))
-            ))?;
+            .arg(format!("chown -R 999:999 /mnt")))?;
 
         let password = generate_password();
         let mut cmd = Command::new(&self.cli);
@@ -984,6 +986,20 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
             Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
         }
+
+        process::run(Command::new(&self.cli)
+            .arg("run")
+            .arg("--rm")
+            .arg("--mount").arg(format!("source={},target=/mnt", volume))
+            .arg(image.tag.as_image_name())
+            .arg("sh")
+            .arg("-c")
+            .arg(format!(r###"
+                    echo {metadata} > /mnt/{name}/metadata.json
+                "###,
+                name=settings.name,
+                metadata=shell_words::quote(&md),
+            )))?;
 
         save_credentials(&settings, &password)?;
         drop(password);
@@ -1050,6 +1066,12 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 "Removed container {:?}", container_name);
             found = true;
         }
+        let up_container = format!("edgedb_upgrade_{}", options.name);
+        if self.delete_container(&up_container)? {
+            log::info!(target: "edgedb::server::destroy",
+                "Removed container {:?}", up_container);
+            found = true;
+        }
         match process::run_or_stderr(Command::new(&self.cli)
             .arg("volume")
             .arg("remove")
@@ -1090,7 +1112,7 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
             start_conf: self.get_start_conf()?,
         })
     }
-    fn get_backup(&self) -> BackupStatus {
+    fn get_backup(&self) -> anyhow::Result<BackupStatus> {
         let volume_name = self.volume_name();
         let mut cmd = Command::new(&self.method.cli);
         cmd.arg("run");
@@ -1098,18 +1120,30 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
         cmd.arg("--mount").arg(format!("source={},target=/mnt", volume_name));
         cmd.arg("busybox");
         cmd.arg("cat");
-        cmd.arg(format!("/mnt/{}/metadata.json", self.name));
-        match process::get_json_or_stderr(&mut cmd) {
-            Ok(Ok(meta)) => BackupStatus::Exists(Ok(meta)),
-            Ok(Err(text)) if text.contains("No such file") => {
-                BackupStatus::Absent
+        cmd.arg(format!("/mnt/{}.backup/backup.json", self.name));
+        cmd.arg(format!("/mnt/{}.backup/metadata.json", self.name));
+        let out = cmd.output()
+            .with_context(|| format!("error running {:?}", cmd))?;
+        if out.status.success() {
+            let mut items = serde_json::Deserializer::from_slice(&out.stdout)
+                .into_iter::<serde_json::Value>();
+            let backup_meta = decode_next(&mut items)
+                .context("error reading backup.json").into();
+            let data_meta = decode_next(&mut items)
+                .context("error reading metadata.json").into();
+            Ok(BackupStatus::Exists {
+                backup_meta,
+                data_meta,
+            })
+        } else {
+            let stderr = String::from_utf8(out.stderr)
+                .with_context(|| {
+                    format!("can decode error output of {:?}", cmd)
+                })?;
+            if stderr.contains("No such file or directory") {
+                return Ok(BackupStatus::Absent);
             }
-            Ok(Err(text)) => {
-                BackupStatus::Exists(Err(anyhow::anyhow!("error: {}", text)))
-            }
-            Err(e) => {
-                BackupStatus::Exists(Err(e.into()))
-            }
+            anyhow::bail!(stderr);
         }
     }
     fn get_meta(&self) -> anyhow::Result<&Metadata> {
@@ -1242,7 +1276,10 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             .ok()
             .and_then(|ports| ports.get(&self.name).cloned());
         let port_status = probe_port(&metadata, &reserved_port);
-        let backup = self.get_backup();
+        let backup = match self.get_backup() {
+            Ok(v) => v,
+            Err(e) => BackupStatus::Error(e.into()),
+        };
         let credentials_file_exists = home_dir().map(|home| {
             home.join(".edgedb")
                 .join("credentials")
@@ -1333,6 +1370,55 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             metadata: Lazy::eager(meta.clone()),
         }.into_ref())
     }
+    fn revert(&self, metadata: &Metadata) -> anyhow::Result<()> {
+        let name = self.name();
+        let volume = self.volume_name();
+
+        let current_version = metadata.current_version.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("broken metadata, \
+                no `com.edgedb.metadata.current-version` label"))?;
+        let tag = self.method.get_tags()?
+            .iter()
+            .filter(|tag| &tag.full_version() == current_version)
+            .max()
+            .with_context(|| format!("version {} not found", current_version))?;
+        let image = tag.clone().into_image();
+        let create = Create {
+            name: name,
+            image: &image,
+            port: self.get_port()?,
+            start_conf: self.get_start_conf()?,
+        };
+
+        self.stop(&Stop { name: name.into() })?;
+        process::run(
+            Command::new(&self.method.cli)
+            .arg("container")
+            .arg("run")
+            .arg("--rm")
+            .arg("--user=999:999")
+            .arg("--mount")
+                .arg(format!("source={},target=/mnt", volume))
+            .arg("busybox")
+            .arg("sh")
+            .arg("-ec")
+            .arg(format!(r###"
+                    rm -rf /mnt/{name}
+                    mv /mnt/{name}.backup /mnt/{name}
+                    rm /mnt/{name}/backup.json
+                "###,
+                name=name,
+            ))
+        )?;
+
+        self.delete()?;
+        self.method.create(&create)?;
+
+        let upgrade_container = format!("edgedb_upgrade_{}", name);
+        self.method.delete_container(&upgrade_container)?;
+
+        Ok(())
+    }
 }
 
 impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {
@@ -1348,3 +1434,15 @@ impl<O: CurrentOs + ?Sized> fmt::Debug for DockerInstance<'_, O> {
             .finish()
     }
 }
+
+fn decode_next<'x, R, T>(
+    iter: &mut serde_json::StreamDeserializer::<'x, R, serde_json::Value>)
+    -> anyhow::Result<T>
+    where R: serde_json::de::Read<'x>,
+          T: serde::de::DeserializeOwned,
+{
+    let item = iter.next().ok_or_else(|| anyhow::anyhow!("no data"))??;
+    Ok(serde_json::from_value(item)?)
+}
+
+

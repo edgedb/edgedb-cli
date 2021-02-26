@@ -22,7 +22,7 @@ use crate::server::is_valid_name;
 use crate::server::linux;
 use crate::server::macos;
 use crate::server::metadata::Metadata;
-use crate::server::options::{self, Start, Upgrade, StartConf};
+use crate::server::options::{self, Start, Upgrade, StartConf, Stop};
 use crate::server::os_trait::{Method, Instance, InstanceRef};
 use crate::server::package::Package;
 use crate::server::status::{Service, Status, DataDirectory};
@@ -242,16 +242,16 @@ pub fn status(name: &String, data_dir: &Path,
 
     let (data_status, metadata) = if data_dir.exists() {
         let metadata = read_metadata(&data_dir);
-        if metadata.is_ok() {
-            let upgrade_file = base
-                .join(format!("{}.UPGRADE_IN_PROGRESS", name));
-            if upgrade_file.exists() {
-                (Upgrading(read_upgrade(&upgrade_file)), metadata)
-            } else {
-                (Normal, metadata)
-            }
+        let upgrade_file = base
+            .join(format!("{}.UPGRADE_IN_PROGRESS", name));
+        if upgrade_file.exists() {
+            (Upgrading(read_upgrade(&upgrade_file)), metadata)
         } else {
-            (NoMetadata, metadata)
+            if metadata.is_ok() {
+                (Normal, metadata)
+            } else {
+                (NoMetadata, metadata)
+            }
         }
     } else {
         (Absent, Err(anyhow::anyhow!("No data directory")))
@@ -632,5 +632,44 @@ fn do_instance_upgrade(method: &dyn Method,
         Err(e) => return Err(e)?,
     }
 
+    Ok(())
+}
+
+pub fn revert(instance: &dyn Instance, metadata: &Metadata)
+    -> anyhow::Result<()>
+{
+    let name = instance.name();
+    instance.stop(&Stop { name: name.into() })?;
+    let dest = storage_dir(&name)?;
+    let base = dest.parent().expect("instance dir is not root");
+    let backup = base.join(format!("{}.backup", name));
+    let upgrading = base.join(format!("{}.UPGRADE_IN_PROGRESS", name));
+    fs::remove_file(&upgrading).map_err(|e| {
+        log::info!("Error deleting {:?}: {:#}", upgrading, e)
+    }).ok();
+    fs::remove_dir_all(&dest)
+        .with_context(|| format!("deleting {:?}", dest))?;
+    fs::rename(&backup, &dest)
+        .with_context(|| format!("renaming {:?} -> {:?}", backup, dest))?;
+
+    let res = create_user_service(name, &metadata)
+        .map_err(CannotStartService);
+
+    let backup_json = base.join("backup.json");
+    fs::remove_file(&backup_json).map_err(|e| {
+        log::info!("Error deleting {:?}: {:#}", backup_json, e)
+    }).ok();
+
+    if instance.get_start_conf()? == StartConf::Auto {
+        res?;
+        instance.start(&Start { name: name.into(), foreground: false })
+            .map_err(CannotStartService)?;
+    } else {
+        res.map_err(|e| {
+            log::warn!("Could not update service file. \
+                Only `start --foreground` is supported. Error: {:#}",
+                    anyhow::anyhow!(e));
+        }).ok();
+    }
     Ok(())
 }

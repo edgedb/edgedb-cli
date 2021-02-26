@@ -18,6 +18,7 @@ mod completion;
 mod connect;
 mod credentials;
 mod error_display;
+mod format;
 mod highlight;
 mod interactive;
 mod log_levels;

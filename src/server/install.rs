@@ -69,7 +69,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
                         old_ver.version());
                 } else {
                     eprintln!("EdgeDB {} is already installed via {}. \
-                        Please deinstall before installing via {}.",
+                        Please uninstall before installing via {}.",
                         old_ver.major_version().title(), meth_kind.option(),
                         effective_method.option());
                 }

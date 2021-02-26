@@ -75,6 +75,20 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         val=$(edgedb -Itest1 --wait-until-available=30s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
+
+        if ! edgedb server revert test1 --no-confirm; then
+            res=$?
+            journalctl -xe
+            exit $res
+        fi
+        ver2=$(edgedb -Itest1 --wait-until-available=30s --tab-separated query '
+            SELECT sys::get_version_as_str()
+        ')
+        [[ $ver1 =~ ^1\.0-alpha\.5\+ ]]
+
+        val=$(edgedb -Itest1 --wait-until-available=30s --tab-separated \
+              query 'SELECT Type1 { prop1 }')
+        test "$val" = "value1"
     "###).success();
     Ok(())
 }
@@ -115,6 +129,17 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
             SELECT sys::get_version_as_str()
         ')
         [[ $ver2 =~ ^1.0.*\+dev ]]
+
+        val=$(edgedb -Itest1 --wait-until-available=30s --tab-separated \
+              query 'SELECT Type1 { prop1 }')
+        test "$val" = "value1"
+
+        edgedb server revert test1
+
+        ver2=$(edgedb -Itest1 --wait-until-available=30s --tab-separated query '
+            SELECT sys::get_version_as_str()
+        ')
+        [[ $ver1 =~ ^1\.0-alpha\.6\+ ]]
 
         val=$(edgedb -Itest1 --wait-until-available=30s --tab-separated \
               query 'SELECT Type1 { prop1 }')

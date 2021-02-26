@@ -28,6 +28,8 @@ pub enum InstanceCommand {
     Status(Status),
     #[clap(about="Show logs of an instance")]
     Logs(Logs),
+    #[clap(about="Revert a major instance upgrade")]
+    Revert(Revert),
 }
 
 #[derive(Clap, Clone, Debug)]
@@ -268,6 +270,21 @@ pub struct Upgrade {
     /// Force upgrade process even if there is no new version
     #[clap(long)]
     pub force: bool,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersion)]
+pub struct Revert {
+    /// Name of the instance to revert
+    pub name: String,
+
+    /// Do not check if upgrade is in progress
+    #[clap(long)]
+    pub ignore_pid_check: bool,
+
+    /// Do not ask for a confirmation
+    #[clap(short='y', long)]
+    pub no_confirm: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

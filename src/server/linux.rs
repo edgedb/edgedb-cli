@@ -170,6 +170,11 @@ impl Instance for LocalInstance<'_> {
             metadata: Lazy::eager(meta.clone()),
         }.into_ref())
     }
+    fn revert(&self, metadata: &Metadata)
+        -> anyhow::Result<()>
+    {
+        unix::revert(self, metadata)
+    }
     fn logs(&self, logs: &Logs) -> anyhow::Result<()> {
         let mut cmd = Command::new("journalctl");
         cmd.arg("--user-unit").arg(unit_name(&self.name));
