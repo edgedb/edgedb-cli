@@ -14,7 +14,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $BaseUrl = "https://packages.edgedb.com/dist"
 $DistArch = "x86_64"
-$SubDist = ".nightly"
+$SubDist = ""
 $Suffix = "$SubDist" -replace "\.","_"
 $DownloadUrl = "$BaseUrl/win-${DistArch}${SubDist}/edgedb-cli_latest$Suffix.exe"
 
