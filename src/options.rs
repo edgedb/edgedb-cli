@@ -124,13 +124,13 @@ pub enum Command {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Query {
     pub queries: Vec<String>,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct RoleParams {
     /// Role name
     pub role: String,
@@ -143,7 +143,7 @@ pub struct RoleParams {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct RoleName {
     pub role: String,
 }

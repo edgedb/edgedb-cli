@@ -18,7 +18,8 @@ async-std = {version="1.9", features=[
 ]}
 bytes = "1.0.1"
 rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb_20201001"}
-clap = "3.0.0-beta.2"
+#clap = "3.0.0-beta.2"
+clap = { git="https://github.com/clap-rs/clap" }
 strsim = "0.10.0"
 whoami = "1.1"
 atty = "0.2.13"
@@ -45,7 +46,7 @@ codespan-reporting = "0.11"
 termcolor = "1.1.0"
 async-listen = "0.2.0"
 sha1 = "0.6.0"
-textwrap = "0.13"
+textwrap = "0.13.4"
 log = "0.4.8"
 env_logger = "0.8.2"
 os-release = "0.1.0"
