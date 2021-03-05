@@ -10,7 +10,7 @@ use crate::server::is_valid_name;
 
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ServerCommand {
     #[clap(subcommand)]
     pub subcommand: Command,
@@ -88,7 +88,7 @@ pub struct Uninstall {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListVersions {
     #[clap(long)]
     pub installed_only: bool,
@@ -162,7 +162,7 @@ pub struct Destroy {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Start {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -180,7 +180,7 @@ pub struct Start {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Stop {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -188,7 +188,7 @@ pub struct Stop {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Restart {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -196,7 +196,7 @@ pub struct Restart {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Status {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -216,7 +216,7 @@ pub struct Status {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Logs {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -232,7 +232,7 @@ pub struct Logs {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion, after_help="\
+#[clap(setting=AppSettings::DisableVersionFlag, after_help="\
 There are few modes of operation of this command:
 
 edgedb server upgrade
@@ -273,7 +273,7 @@ pub struct Upgrade {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Revert {
     /// Name of the instance to revert
     pub name: String,
@@ -288,7 +288,7 @@ pub struct Revert {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ResetPassword {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -315,7 +315,7 @@ pub struct ResetPassword {
 }
 
 #[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Info {
     /// Display only the server binary path
     #[clap(long)]
@@ -332,7 +332,7 @@ pub struct Info {
 
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::Hidden)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Detect {
 }
 

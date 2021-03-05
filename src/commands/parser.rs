@@ -39,7 +39,7 @@ pub enum Common {
 
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::NoBinaryName)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Backslash {
     #[clap(subcommand)]
     pub command: BackslashCmd,
@@ -59,7 +59,7 @@ pub enum BackslashCmd {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct SetCommand {
     #[clap(subcommand)]
     pub setting: Option<Setting>,
@@ -86,33 +86,33 @@ pub enum Setting {
 }
 
 #[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct InputMode {
     #[clap(possible_values=&["vi", "emacs"][..])]
     pub mode: Option<repl::InputMode>,
 }
 
 #[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct SettingBool {
     #[clap(possible_values=&["on", "off"][..])]
     pub value: Option<String>,
 }
 
 #[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Limit {
     pub limit: Option<usize>,
 }
 
 #[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct SettingUsize {
     pub value: Option<usize>,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 #[clap(setting=AppSettings::TrailingVarArg)]
 #[clap(setting=AppSettings::AllowLeadingHyphen)]
 pub struct Edit {
@@ -120,7 +120,7 @@ pub struct Edit {
 }
 
 #[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct OutputMode {
     #[clap(possible_values=
         &["json", "json-elements", "default", "tab-separated"][..]
@@ -129,7 +129,7 @@ pub struct OutputMode {
 }
 
 #[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct PrintStats {
     #[clap(possible_values=
         &["off", "query", "detailed"][..]
@@ -138,19 +138,19 @@ pub struct PrintStats {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Connect {
     pub database_name: String,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct CreateDatabase {
     pub database_name: String,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListAliases {
     pub pattern: Option<String>,
     #[clap(long, short='I')]
@@ -162,7 +162,7 @@ pub struct ListAliases {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListCasts {
     pub pattern: Option<String>,
     #[clap(long, short='I')]
@@ -170,7 +170,7 @@ pub struct ListCasts {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListIndexes {
     pub pattern: Option<String>,
     #[clap(long, short='I')]
@@ -182,7 +182,7 @@ pub struct ListIndexes {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListTypes {
     pub pattern: Option<String>,
     #[clap(long, short='I')]
@@ -192,7 +192,7 @@ pub struct ListTypes {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListRoles {
     pub pattern: Option<String>,
     #[clap(long, short='I')]
@@ -200,7 +200,7 @@ pub struct ListRoles {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListModules {
     pub pattern: Option<String>,
     #[clap(long, short='I')]
@@ -208,7 +208,7 @@ pub struct ListModules {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Describe {
     pub name: String,
     #[clap(long, short='v')]
@@ -221,7 +221,7 @@ pub enum DumpFormat {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Dump {
     /// Path to file write dump to (or directory if `--all` is specified).
     /// Use dash `-` to write into stdout (latter doesn't work in `--all` mode)
@@ -238,7 +238,7 @@ pub struct Dump {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Restore {
     /// Path to file (or directory in case of `--all) to read dump from.
     /// Use dash `-` to read from stdin
@@ -259,14 +259,14 @@ pub struct Restore {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Configure {
     #[clap(subcommand)]
     pub command: ConfigureCommand,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub enum ConfigureCommand {
     /// Insert another configuration entry to the list setting
     Insert(ConfigureInsert),
@@ -277,28 +277,28 @@ pub enum ConfigureCommand {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ConfigureInsert {
     #[clap(subcommand)]
     pub parameter: ListParameter,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ConfigureReset {
     #[clap(subcommand)]
     pub parameter: ConfigParameter,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ConfigureSet {
     #[clap(subcommand)]
     pub parameter: ValueParameter,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub enum ListParameter {
 
     /// Insert a client authentication rule
@@ -311,7 +311,7 @@ pub enum ListParameter {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 #[clap(rename_all="snake_case")]
 pub enum ValueParameter {
     /// Specifies the TCP/IP address(es) on which the server is to listen for
@@ -356,7 +356,7 @@ pub enum ValueParameter {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 #[clap(rename_all="snake_case")]
 pub enum ConfigParameter {
     /// Reset listen addresses to 127.0.0.1
@@ -382,25 +382,25 @@ pub enum ConfigParameter {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListenAddresses {
     pub address: Vec<String>,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListenPort {
     pub port: u16,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ConfigStr {
     pub value: String,
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct AuthParameter {
     /// The priority of the authentication rule. The lower this number, the
     /// higher the priority.
@@ -424,7 +424,7 @@ pub struct AuthParameter {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct PortParameter {
 
     /// The TCP/IP address(es) for the application port.
@@ -462,7 +462,7 @@ pub struct MigrationConfig {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct CreateMigration {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
@@ -484,7 +484,7 @@ pub struct CreateMigration {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Migrate {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
@@ -494,7 +494,7 @@ pub struct Migrate {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ShowStatus {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
@@ -505,7 +505,7 @@ pub struct ShowStatus {
 }
 
 #[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersion)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct MigrationLog {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
