@@ -76,6 +76,9 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         Command::_SelfInstall(s) => {
             self_install::main(s)
         }
+        Command::_GenCompletions(s) => {
+            self_install::gen_completions(s)
+        }
         Command::SelfUpgrade(s) => {
             self_upgrade::main(s)
         }

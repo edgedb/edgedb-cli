@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use atty;
-use clap::{Clap, AppSettings};
+use clap::{Clap, AppSettings, ValueHint};
 use edgedb_client::Builder;
 
 use crate::commands::parser::Common;
@@ -17,7 +17,7 @@ use crate::server;
 
 #[derive(Clap, Debug)]
 #[clap(version=clap::crate_version!())]
-struct TmpOptions {
+pub struct RawOptions {
     /// DSN for EdgeDB to connect to (overrides all other options
     /// except password)
     #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
@@ -25,6 +25,7 @@ struct TmpOptions {
 
     /// Host of the EdgeDB instance
     #[clap(short='H', long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(value_hint=ValueHint::Hostname)]
     pub host: Option<String>,
 
     /// Port to connect to EdgeDB
@@ -37,6 +38,7 @@ struct TmpOptions {
 
     /// Database name to connect to
     #[clap(short='d', long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete database
     pub database: Option<String>,
 
     /// Connect to a passwordless unix socket with superuser
@@ -71,6 +73,7 @@ struct TmpOptions {
     /// Local instance name created with `edgedb server init` to connect to
     /// (overrides host and port)
     #[clap(short='I', long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub instance: Option<String>,
 
     #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
@@ -110,13 +113,22 @@ struct TmpOptions {
 
 #[derive(Clap, Clone, Debug)]
 pub enum Command {
+    /// Change role parameters
     AlterRole(RoleParams),
+    /// Create a new role
     CreateSuperuserRole(RoleParams),
+    /// Delete a role
     DropRole(RoleName),
+    /// Execute EdgeQL query
     Query(Query),
+    /// Manage local server installations
     Server(server::options::ServerCommand),
+    /// Install server
     #[clap(setting=AppSettings::Hidden, name="_self_install")]
     _SelfInstall(self_install::SelfInstall),
+    /// Generate shell completions
+    #[clap(setting=AppSettings::Hidden, name="_gen_completions")]
+    _GenCompletions(self_install::GenCompletions),
     /// Upgrade this edgedb binary
     SelfUpgrade(self_upgrade::SelfUpgrade),
     #[clap(flatten)]
@@ -162,7 +174,7 @@ pub struct Options {
 
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
-        let tmp = TmpOptions::parse();
+        let tmp = RawOptions::parse();
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
@@ -227,7 +239,7 @@ impl Options {
         })
     }
 }
-fn conn_params(tmp: &TmpOptions) -> anyhow::Result<Builder> {
+fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
     let admin = tmp.admin;
     let user = tmp.user.clone().or_else(|| env::var("EDGEDB_USER").ok());
     let host = tmp.host.clone().or_else(|| env::var("EDGEDB_HOST").ok());

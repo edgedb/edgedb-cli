@@ -1,7 +1,8 @@
+use std::process::Command;
 use std::env;
 use std::fs;
-use std::time::{Duration};
 use std::path::{Path, PathBuf};
+use std::time::{Duration};
 
 use anyhow::Context;
 use async_std::task;
@@ -12,9 +13,10 @@ use url::Url;
 
 use crate::async_util::timeout;
 use crate::platform::home_dir;
+use crate::process;
+use crate::server::package::RepositoryInfo;
 use crate::server::remote;
 use crate::server::version::Version;
-use crate::server::package::RepositoryInfo;
 
 
 #[derive(Clap, Clone, Debug)]
@@ -161,6 +163,7 @@ pub fn main(options: &SelfUpgrade) -> anyhow::Result<()> {
     } else {
         anyhow::bail!("unknown OS");
     }
+    process::run(Command::new(&path).arg("_gen_completions").arg("--home"))?;
     if !options.quiet {
         println!("Upgraded to version {} (revision {})",
             pkg.version, pkg.revision);
