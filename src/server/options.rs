@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use clap::{Clap, AppSettings, ArgSettings};
+use clap::{Clap, AppSettings, ArgSettings, ValueHint};
 use serde::{Serialize, Deserialize};
 
 use crate::server::version::Version;
@@ -18,40 +18,41 @@ pub struct ServerCommand {
 
 #[derive(Clap, Clone, Debug)]
 pub enum InstanceCommand {
-    #[clap(about="Start an instance")]
+    /// Start an instance
     Start(Start),
-    #[clap(about="Stop an instance")]
+    /// Stop an instance
     Stop(Stop),
-    #[clap(about="Restart an instance")]
+    /// Restart an instance
     Restart(Restart),
-    #[clap(about="Status of an instance")]
+    /// Status of an instance
     Status(Status),
-    #[clap(about="Show logs of an instance")]
+    /// Show logs of an instance
     Logs(Logs),
-    #[clap(about="Revert a major instance upgrade")]
+    /// Revert a major instance upgrade
     Revert(Revert),
 }
 
 #[derive(Clap, Clone, Debug)]
 pub enum Command {
-    #[clap(about="Install edgedb-server")]
+    /// Install edgedb-server
     Install(Install),
-    #[clap(about="Uninstall edgedb-server")]
+    /// Uninstall edgedb-server
     Uninstall(Uninstall),
-    #[clap(about="List available and installed versions of the server")]
+    /// List available and installed versions of the server
     ListVersions(ListVersions),
-    #[clap(about="Initialize a new server instance")]
+    /// Initialize a new server instance
     Init(Init),
-    #[clap(about="Destroy a server instance and remove the data stored")]
+    /// Destroy a server instance and remove the data stored
     Destroy(Destroy),
     #[clap(flatten)]
     Instance(InstanceCommand),
-    #[clap(about="Upgrade installations and instances")]
+    /// Upgrade installations and instances
     Upgrade(Upgrade),
-    #[clap(about="Reset password for a user in the instance")]
+    /// Reset password for a user in the instance
     ResetPassword(ResetPassword),
-    #[clap(about="Show server information")]
+    /// Show server information
     Info(Info),
+    /// Show system introspection debug info
     #[clap(name="_detect")]
     _Detect(Detect),
 }
@@ -109,6 +110,7 @@ pub enum StartConf {
 pub struct Init {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
     #[clap(long)]
     pub system: bool,
@@ -155,6 +157,7 @@ pub struct Init {
 pub struct Destroy {
     /// Database server instance name to destroy
     #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
     /// Verbose output
     #[clap(short='v', long)]
@@ -166,6 +169,7 @@ pub struct Destroy {
 pub struct Start {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
     #[clap(long)]
     #[cfg_attr(target_os="linux",
@@ -184,6 +188,7 @@ pub struct Start {
 pub struct Stop {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
 }
 
@@ -192,6 +197,7 @@ pub struct Stop {
 pub struct Restart {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
 }
 
@@ -200,6 +206,7 @@ pub struct Restart {
 pub struct Status {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: Option<String>,
 
     /// Show current systems service info
@@ -220,6 +227,7 @@ pub struct Status {
 pub struct Logs {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
 
     /// Number of lines to show
@@ -261,6 +269,7 @@ pub struct Upgrade {
     pub to_nightly: bool,
 
     /// Only upgrade specicified database instance
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: Option<String>,
 
     /// Verbose output
@@ -276,6 +285,7 @@ pub struct Upgrade {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Revert {
     /// Name of the instance to revert
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
 
     /// Do not check if upgrade is in progress
@@ -292,6 +302,7 @@ pub struct Revert {
 pub struct ResetPassword {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
     /// User to change password for. Default is got from credentials file.
     #[clap(long)]

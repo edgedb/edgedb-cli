@@ -559,7 +559,7 @@ dependencies = [
 [[package]]
 name = "clap"
 version = "3.0.0-beta.2"
-source = "git+https://github.com/clap-rs/clap#e242cc1c7b320871e451d8b5366ebc22f642d004"
+source = "git+https://github.com/clap-rs/clap#09009761ec5f6be4d406f70042d85fca543eeca8"
 dependencies = [
  "atty",
  "bitflags",
@@ -576,13 +576,21 @@ dependencies = [
 [[package]]
 name = "clap_derive"
 version = "3.0.0-beta.2"
-source = "git+https://github.com/clap-rs/clap#e242cc1c7b320871e451d8b5366ebc22f642d004"
+source = "git+https://github.com/clap-rs/clap#09009761ec5f6be4d406f70042d85fca543eeca8"
 dependencies = [
  "heck",
  "proc-macro-error",
  "proc-macro2",
  "quote 1.0.8",
  "syn 1.0.60",
+]
+
+[[package]]
+name = "clap_generate"
+version = "3.0.0-beta.2"
+source = "git+https://github.com/clap-rs/clap#09009761ec5f6be4d406f70042d85fca543eeca8"
+dependencies = [
+ "clap",
 ]
 
 [[package]]
@@ -890,6 +898,7 @@ dependencies = [
  "bytes",
  "chrono",
  "clap",
+ "clap_generate",
  "codespan-reporting",
  "colorful",
  "combine",

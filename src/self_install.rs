@@ -3,16 +3,21 @@
 
 use std::env;
 use std::fs;
-use std::io::{Write, BufRead, stdin, stdout};
+use std::io::{Write, BufRead, stdin, stdout, BufWriter};
 use std::path::{PathBuf, Path};
-use std::process::exit;
+use std::process::{Command, exit};
+use std::str::FromStr;
 
 use anyhow::Context;
-use clap::Clap;
+use clap::{Clap, IntoApp};
+use clap_generate::{generate, generators};
+use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
-use crate::table;
+use crate::options::RawOptions;
 use crate::platform::{home_dir, get_current_uid};
+use crate::process;
+use crate::table;
 
 
 #[derive(Clap, Clone, Debug)]
@@ -39,6 +44,32 @@ pub struct SelfInstall {
     /// in a new window.
     #[clap(long)]
     pub no_wait_for_exit_prompt: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Shell {
+    Bash,
+    Elvish,
+    Fish,
+    PowerShell,
+    Zsh,
+}
+
+#[derive(Clap, Clone, Debug)]
+pub struct GenCompletions {
+    /// Shell to print out completions for
+    #[clap(long, possible_values=&[
+        "bash", "elvish", "fish", "powershell", "zsh",
+    ])]
+    pub shell: Option<Shell>,
+
+    /// Install all completions into the prefix
+    #[clap(long, conflicts_with="shell")]
+    pub prefix: Option<PathBuf>,
+
+    /// Install all completions into the prefix
+    #[clap(long, conflicts_with="shell", conflicts_with="prefix")]
+    pub home: bool,
 }
 
 pub struct Settings {
@@ -107,20 +138,25 @@ fn should_modify_path(dir: &Path) -> bool {
     return true;
 }
 
+fn is_zsh() -> bool {
+    if let Ok(shell) = env::var("SHELL") {
+        return shell.contains("zsh");
+    }
+    return false;
+}
+
 fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
     let mut rc_files = Vec::new();
 
     let home_dir = home_dir()?;
     rc_files.push(home_dir.join(".profile"));
 
-    if let Ok(shell) = env::var("SHELL") {
-        if shell.contains("zsh") {
-            let var = env::var_os("ZDOTDIR");
-            let zdotdir = var.as_deref()
-                .map_or_else(|| home_dir.as_path(), Path::new);
-            let zprofile = zdotdir.join(".zprofile");
-            rc_files.push(zprofile);
-        }
+    if is_zsh() {
+        let var = env::var_os("ZDOTDIR");
+        let zdotdir = var.as_deref()
+            .map_or_else(|| home_dir.as_path(), Path::new);
+        let zprofile = zdotdir.join(".zprofile");
+        rc_files.push(zprofile);
     }
 
     let bash_profile = home_dir.join(".bash_profile");
@@ -171,6 +207,24 @@ For this session please run:
             env_path=settings.env_file.display());
     } else {
         println!(r###"The EdgeDB command-line tool is now installed!"###);
+    }
+    if is_zsh() {
+        let fpath = process::get_text(
+            Command::new(env::var("SHELL").unwrap_or_else(|_| "zsh".into()))
+            .arg("-ic")
+            .arg("echo $fpath")
+        ).ok();
+        let func_dir = home_dir().ok().map(|p| p.join(".zfunc"));
+        let func_dir = func_dir.as_ref().and_then(|p| p.to_str());
+        if let Some((fpath, func_dir)) = fpath.zip(func_dir) {
+            if !fpath.split(" ").any(|s| s == func_dir) {
+                print!(r###"
+To enable zsh completion, add:
+  fpath+=~/.zfunc
+to your ~/.zshrc before `compinit` command.
+"###);
+            }
+        }
     }
     println!("\nTo install the EdgeDB server component locally run:\n  \
                 edgedb server install");
@@ -297,6 +351,7 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
         .with_context(|| format!("failed to write {:?}", tmp_path))?;
     fs::rename(&tmp_path, &path)
         .with_context(|| format!("failed to rename {:?}", tmp_path))?;
+    write_completions_home()?;
 
     if settings.modify_path {
         #[cfg(windows)] {
@@ -308,8 +363,8 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
                                settings.installation_path.display());
             for path in &settings.rc_files {
                 ensure_line(&path, &line)
-                    .with_context(|| format!("failed to update profile file {:?}",
-                                             path))?;
+                    .with_context(|| format!(
+                        "failed to update profile file {:?}", path))?;
             }
             fs::write(&settings.env_file, &(line + "\n"))
                 .context("failed to write env file")?;
@@ -447,6 +502,50 @@ fn windows_add_to_path(installation_path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[context("writing completion file {:?}", path)]
+fn write_completion(path: &Path, shell: Shell) -> anyhow::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(&dir)?;
+    }
+    shell.generate(&mut BufWriter::new(fs::File::create(&path)?));
+    Ok(())
+}
+
+pub fn write_completions_home() -> anyhow::Result<()> {
+    let home = home_dir()?;
+    write_completion(
+        &home.join(".local/share/bash-completion/completions/edgedb"),
+        Shell::Bash)?;
+    write_completion(
+        &home.join(".config/fish/completions/edgedb.fish"),
+        Shell::Fish)?;
+    write_completion(
+        &home.join(".zfunc/_edgedb"),
+        Shell::Zsh)?;
+    Ok(())
+}
+
+pub fn gen_completions(options: &GenCompletions) -> anyhow::Result<()> {
+    if let Some(shell) = options.shell {
+        shell.generate(&mut stdout());
+    } else if let Some(prefix) = &options.prefix {
+        write_completion(
+            &prefix.join("share/bash-completion/completions/edgedb"),
+            Shell::Bash)?;
+        write_completion(
+            &prefix.join("share/fish/completions/edgedb.fish"),
+            Shell::Fish)?;
+        write_completion(
+            &prefix.join("share/zsh/site-functions/_edgedb"),
+            Shell::Zsh)?;
+    } else if options.home {
+        write_completions_home()?;
+    } else {
+        anyhow::bail!("either `--prefix` or `--shell=` is expected");
+    }
+    Ok(())
+}
+
 impl Settings {
     pub fn print(&self) {
         let mut table = Table::new();
@@ -469,5 +568,38 @@ impl Settings {
         }
         table.set_format(*table::FORMAT);
         table.printstd();
+    }
+}
+
+impl FromStr for Shell {
+    type Err = anyhow::Error;
+    fn from_str(v: &str) -> anyhow::Result<Shell> {
+        use Shell::*;
+        match v {
+            "bash" => Ok(Bash),
+            "elvish" => Ok(Elvish),
+            "fish" => Ok(Fish),
+            "powershell" => Ok(PowerShell),
+            "zsh" => Ok(Zsh),
+            _ => anyhow::bail!("unknown shell {:?}", v),
+        }
+    }
+}
+
+impl Shell {
+    fn generate(&self, buf: &mut dyn Write) {
+        use Shell::*;
+
+        let mut app = RawOptions::into_app();
+        let n = "edgedb";
+        match self {
+            Bash => generate::<generators::Bash, _>(&mut app, n, buf),
+            Elvish => generate::<generators::Elvish, _>(&mut app, n, buf),
+            Fish => generate::<generators::Fish, _>(&mut app, n, buf),
+            PowerShell => {
+                generate::<generators::PowerShell, _>(&mut app, n, buf)
+            }
+            Zsh => generate::<generators::Zsh, _>(&mut app, n, buf),
+        }
     }
 }

@@ -1,4 +1,4 @@
-use clap::{Clap, AppSettings, ArgSettings};
+use clap::{Clap, AppSettings, ArgSettings, ValueHint};
 use std::path::PathBuf;
 
 use crate::repl;
@@ -6,22 +6,36 @@ use crate::repl;
 
 #[derive(Clap, Clone, Debug)]
 pub enum Common {
+    /// Create a new database
     CreateDatabase(CreateDatabase),
+    /// Display list of databases in the server instance
     ListDatabases,
+    /// List ports exposed by EdgeDB. Works on EdgeDB <= 1-alpha7
+    #[clap(setting=AppSettings::Hidden)]
     ListPorts,
+    /// Show postgres address. Works on dev-mode database only.
     #[clap(setting=AppSettings::Hidden)]
     Pgaddr,
+    /// Run psql shell. Works on dev-mode database only.
     #[clap(setting=AppSettings::Hidden)]
     Psql,
+    /// Display list of aliases defined in the schema
     ListAliases(ListAliases),
+    /// Display list of casts defined in the schema
     ListCasts(ListCasts),
+    /// Display list of indexes defined in the schema
     ListIndexes(ListIndexes),
+    /// Display list of scalar types defined in the schema
     ListScalarTypes(ListTypes),
+    /// Display list of object types defined in the schema
     ListObjectTypes(ListTypes),
+    /// Display list of roles in the server instance
     ListRoles(ListRoles),
+    /// Display list of modules defined in the schema
     ListModules(ListModules),
     /// Modify database configuration
     Configure(Configure),
+    /// Describe a named database object
     Describe(Describe),
     /// Create a database backup
     Dump(Dump),
@@ -224,7 +238,8 @@ pub enum DumpFormat {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Dump {
     /// Path to file write dump to (or directory if `--all` is specified).
-    /// Use dash `-` to write into stdout (latter doesn't work in `--all` mode)
+    /// Use dash `-` to write into stdout (latter does not work in `--all` mode)
+    #[clap(value_hint=ValueHint::AnyPath)]
     pub path: PathBuf,
     /// Dump all databases and the server configuration. `path` is a directory
     /// in this case
@@ -242,6 +257,7 @@ pub struct Dump {
 pub struct Restore {
     /// Path to file (or directory in case of `--all) to read dump from.
     /// Use dash `-` to read from stdin
+    #[clap(value_hint=ValueHint::AnyPath)]
     pub path: PathBuf,
 
     /// Restore all databases and the server configuratoin. `path` is a
@@ -457,7 +473,7 @@ pub struct PortParameter {
 #[derive(Clap, Clone, Debug)]
 pub struct MigrationConfig {
     /// Directory where *.edgeql files are located
-    #[clap(long, default_value="./dbschema")]
+    #[clap(long, default_value="./dbschema", value_hint=ValueHint::DirPath)]
     pub schema_dir: PathBuf,
 }
 
