@@ -213,7 +213,7 @@ impl std::str::FromStr for InputMode {
     fn from_str(s: &str) -> Result<InputMode, anyhow::Error> {
         match s {
             "vi" => Ok(InputMode::Vi),
-            "input-mode" => Ok(InputMode::Emacs),
+            "emacs" => Ok(InputMode::Emacs),
             _ => Err(anyhow::anyhow!("unsupported input mode {:?}", s)),
         }
     }
