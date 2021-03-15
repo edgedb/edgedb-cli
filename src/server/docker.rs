@@ -17,6 +17,7 @@ use crate::credentials::{self, get_connector};
 use crate::process;
 use crate::platform::home_dir;
 
+use crate::commands::ExitCode;
 use crate::server::detect::Lazy;
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
@@ -748,7 +749,22 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                     })?),
             ))
         )?;
+        self._reinit_and_restore(
+            &inst, port, &volume, new_image, dump_path, &upgrade_container,
+        ).map_err(|e| {
+            eprintln!("edgedb error: failed to restore {:?}: {}",
+                      inst.name(), e);
+            eprintln!("To undo run:\n  edgedb server revert {:?}",
+                      inst.name());
+            ExitCode::new(1).into()
+        })
+    }
 
+    fn _reinit_and_restore(&self,  inst: &DockerInstance<O>, port: u16,
+        volume: &str, new_image: &Image, dump_path: &Path,
+        upgrade_container: &str)
+        -> anyhow::Result<()>
+    {
         let tmp_role = format!("tmp_upgrade_{}", timestamp());
         let tmp_password = generate_password();
 
@@ -780,7 +796,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         params.password(&tmp_password);
         params.database("edgedb");
         task::block_on(
-            upgrade::restore_instance(&inst, &dump_path, params.clone())
+            upgrade::restore_instance(inst, &dump_path, params.clone())
         )?;
         let mut conn_params = inst.get_connector(false)?;
         conn_params.wait_until_available(Duration::from_secs(30));

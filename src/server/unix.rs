@@ -510,6 +510,19 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
         &upgrade::BackupMeta {
             timestamp: SystemTime::now(),
         })?;
+    _reinit_and_restore(
+        &instance_dir, inst, new_meta, &upgrade_marker
+    ).map_err(|e| {
+        eprintln!("edgedb error: failed to restore {:?}: {}", inst.name(), e);
+        eprintln!("To undo run:\n  edgedb server revert {:?}", inst.name());
+        ExitCode::new(1).into()
+    })
+}
+
+fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
+    new_meta: &Metadata, upgrade_marker: &Path)
+    -> anyhow::Result<()>
+{
 
     fs::create_dir_all(&instance_dir)
         .with_context(|| {
