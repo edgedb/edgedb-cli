@@ -51,6 +51,7 @@ struct ToDo<'a> {
     tail: &'a str,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum ToDoItem<'a> {
     Query(&'a str),
     Backslash(&'a str),
@@ -65,18 +66,24 @@ impl ToDo<'_> {
 impl<'a> Iterator for ToDo<'a> {
     type Item = ToDoItem<'a>;
     fn next(&mut self) -> Option<ToDoItem<'a>> {
-        let tail = self.tail.trim_start();
-        if tail.starts_with("\\") {
-            let len = backslash::full_statement(&tail);
-            self.tail = &tail[len..];
-            return Some(ToDoItem::Backslash(&tail[..len]));
-        } else if preparser::is_empty(tail) {
-            return None;
-        } else {
-            let len = full_statement(&tail.as_bytes(), None)
-                .unwrap_or(tail.len());
-            self.tail = &tail[len..];
-            return Some(ToDoItem::Query(&tail[..len]));
+        loop {
+            let tail = self.tail.trim_start();
+            if tail.starts_with("\\") {
+                let len = backslash::full_statement(&tail);
+                self.tail = &tail[len..];
+                return Some(ToDoItem::Backslash(&tail[..len]));
+            } else if preparser::is_empty(tail) {
+                return None;
+            } else {
+                let len = full_statement(&tail.as_bytes(), None)
+                    .unwrap_or(tail.len());
+                self.tail = &tail[len..];
+                if preparser::is_empty(&tail[..len]) {
+                    continue;
+                } else {
+                    return Some(ToDoItem::Query(&tail[..len]));
+                }
+            }
         }
     }
 }
@@ -559,5 +566,20 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{ToDo, ToDoItem};
+
+    #[test]
+    fn double_semicolon() {
+        assert_eq!(
+            ToDo::new("SELECT 1;;SELECT 2").collect::<Vec<_>>(),
+            &[
+                ToDoItem::Query("SELECT 1;"),
+                ToDoItem::Query("SELECT 2"),
+            ]);
     }
 }
