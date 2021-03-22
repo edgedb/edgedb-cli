@@ -138,7 +138,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
                 foreground: false,
             })?;
             init_credentials(&settings, &inst)?;
-            println!("Bootstrap complete. Server is up and runnning now.");
+            println!("Bootstrap complete. Server is up and running now.");
             println!("To connect run:\n  edgedb -I{}",
                      settings.name.escape_default());
         }
