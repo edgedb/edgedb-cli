@@ -249,7 +249,7 @@ r###"error: Unexpected 'create'
   ┌─ tests/migrations/db1/error/bad.esdl:3:9
   │
 3 │         create property text -> str;
-  │         ^^^^^^^ error
+  │         ^^^^^^ error
 
 edgedb error: cannot proceed until .esdl files are fixed
 "###));
@@ -419,5 +419,27 @@ fn input_required() -> anyhow::Result<()> {
     cmd.exp_string("cast_expr>").unwrap();
     cmd.send_line(".foo[IS Child2] # comment").unwrap();
     cmd.exp_string("Created").unwrap();
+    Ok(())
+}
+
+#[test]
+fn eof_err() -> anyhow::Result<()> {
+    SERVER.admin_cmd()
+        .arg("create-database").arg("db_eof_err")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db_eof_err")
+        .arg("create-migration")
+        .arg("--schema-dir=tests/migrations/db_eof_err")
+        .env("NO_COLOR", "1")
+        .assert().code(1)
+        .stderr(ends_with(r###"error: Unexpected end of file
+  ┌─ tests/migrations/db_eof_err/default.esdl:9:19
+  │
+9 │ alias default::Foo
+  │                   ^ error
+
+edgedb error: cannot proceed until .esdl files are fixed
+"###));
     Ok(())
 }
