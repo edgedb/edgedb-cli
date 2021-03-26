@@ -12,6 +12,7 @@ use crate::table;
 
 
 #[derive(serde::Serialize)]
+#[serde(rename_all="kebab-case")]
 struct JsonInfo<'a> {
     installation_method: &'a str,
     major_version: &'a MajorVersion,

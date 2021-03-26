@@ -55,7 +55,7 @@ surf = {version="2.0.0", features=["h1-client"], default-features=false}
 native-tls = {version="0.2.4"}
 thiserror = "1.0.16"
 which = {version="4", default-features=false}
-linked-hash-map = "0.5.3"
+linked-hash-map = {version="0.5.3", features=["serde_impl"]}
 term = "0.7"
 libc = "0.2.68"
 async-ctrlc = {version="1.2.0", features=["stream"]}
