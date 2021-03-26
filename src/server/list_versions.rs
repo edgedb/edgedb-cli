@@ -2,6 +2,7 @@ use std::collections::{BTreeSet, BTreeMap};
 use std::fmt;
 
 use prettytable::{Table, Cell, Row};
+use linked_hash_map::LinkedHashMap;
 
 use crate::server::detect;
 use crate::server::methods::{InstallMethod, Methods};
@@ -18,6 +19,16 @@ pub struct VersionInfo {
     latest: Version<String>,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all="kebab-case")]
+pub struct JsonVersionInfo<'a> {
+    major_version: &'a MajorVersion,
+    latest_version: &'a Version<String>,
+    available_for_methods: Vec<&'a str>,
+    installed: LinkedHashMap<&'a str, &'a Version<String>>,
+    option_to_install: String,
+}
+
 
 pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
     let mut versions = BTreeMap::new();
@@ -32,14 +43,14 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
         let versions: BTreeMap<_, _> = versions.into_iter()
             .filter(|(_m, v)| !v.installed.is_empty())
             .collect();
-        print_versions(versions, &options.column);
+        print_versions(versions, options)?;
     } else {
         remote(&methods, &mut versions)?;
         installed(&methods, &mut versions)
             .map_err(|e| {
                 log::warn!("Error fetching installed versions: {:#}", e);
             }).ok();
-        print_versions(versions, &options.column);
+        print_versions(versions, options)?;
     }
     Ok(())
 }
@@ -85,37 +96,78 @@ fn remote(methods: &Methods,
     Ok(())
 }
 
-fn print_set<V: fmt::Display>(vals: impl IntoIterator<Item=V>) {
-    for item in vals {
-        println!("{}", item);
+fn print_set<V: fmt::Display>(vals: impl IntoIterator<Item=V>, json: bool)
+    -> anyhow::Result<()>
+{
+    if json {
+        println!("{}", serde_json::to_string_pretty(
+            &vals.into_iter().map(|v| v.to_string()).collect::<Vec<_>>()
+        )?);
+    } else {
+        for item in vals {
+            println!("{}", item);
+        }
     }
+    Ok(())
 }
 
 fn print_versions(
     versions: BTreeMap<MajorVersion, VersionInfo>,
-    column: &Option<String>,
-) {
-    match column.as_ref().map(|s| &s[..]) {
+    options: &ListVersions,
+) -> anyhow::Result<()> {
+    match options.column.as_ref().map(|s| &s[..]) {
+        None if options.json => print_json(versions),
         None => print_table(versions),
         Some("major-version") => {
-            print_set(versions.keys().map(|v| v.title()));
+            print_set(versions.keys().map(|v| v.title()), options.json)
         }
         Some("available") => {
-            print_set(versions.values().map(|info| &info.latest));
+            print_set(
+                versions.values().map(|info| &info.latest),
+                options.json,
+            )
         }
         Some("installed") => {
-            print_set(versions.values()
-                .flat_map(|info| info.installed.values())
-                .map(|v| v.version())
-                .collect::<BTreeSet<_>>());
+            print_set(
+                versions.values()
+                    .flat_map(|info| info.installed.values())
+                    .map(|v| v.version())
+                    .collect::<BTreeSet<_>>(),
+                options.json,
+            )
         }
         Some(col) => {
-            eprintln!("edgedb error: Unexpected --column={:?}", col);
+            anyhow::bail!("unexpected --column={:?}", col);
         }
     }
 }
 
-fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>) {
+fn print_json(versions: BTreeMap<MajorVersion, VersionInfo>)
+    -> anyhow::Result<()>
+{
+    print!("{}", serde_json::to_string_pretty(&versions
+        .iter()
+        .map(|(ver, info)| JsonVersionInfo {
+            major_version: ver,
+            latest_version: &info.latest,
+            available_for_methods: info.available
+                .iter()
+                .map(|x| x.short_name())
+                .collect::<Vec<_>>(),
+            installed: info.installed
+                .iter()
+                .map(|(meth, distr)| (meth.short_name(), distr.version()))
+                .collect::<LinkedHashMap<_, _>>(),
+            option_to_install: ver.option(),
+        })
+        .collect::<Vec<_>>()
+    )?);
+    Ok(())
+}
+
+fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>)
+    -> anyhow::Result<()>
+{
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
     table.add_row(Row::new(vec![
@@ -156,4 +208,5 @@ fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>) {
         ]));
     }
     table.printstd();
+    Ok(())
 }
