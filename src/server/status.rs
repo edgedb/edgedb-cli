@@ -11,12 +11,14 @@ use async_std::io::timeout;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
-use crate::server::detect;
-use crate::server::init::Storage;
-use crate::server::upgrade::{UpgradeMeta, BackupMeta};
-use crate::server::metadata::Metadata;
-use crate::table;
 use crate::format;
+use crate::server::detect;
+use crate::server::distribution::MajorVersion;
+use crate::server::init::Storage;
+use crate::server::metadata::Metadata;
+use crate::server::methods::InstallMethod;
+use crate::server::upgrade::{UpgradeMeta, BackupMeta};
+use crate::table;
 
 
 #[derive(Debug)]
@@ -53,6 +55,7 @@ pub enum BackupStatus {
 
 #[derive(Debug)]
 pub struct Status {
+    pub method: InstallMethod,
     pub name: String,
     pub service: Service,
     pub metadata: anyhow::Result<Metadata>,
@@ -63,6 +66,16 @@ pub struct Status {
     pub backup: BackupStatus,
     pub credentials_file_exists: bool,
     pub service_exists: bool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all="kebab-case")]
+pub struct JsonStatus<'a> {
+    name: &'a str,
+    port: Option<u16>,
+    major_version: Option<&'a MajorVersion>,
+    status: &'a str,
+    method: &'a str,
 }
 
 fn format_duration(mut dur: Duration) -> String {
@@ -110,7 +123,7 @@ impl Status {
         match &self.metadata {
             Ok(meta) => {
                 println!("  Version: {}",meta.version.title());
-                println!("  Installation method: {}", meta.method.title());
+                println!("  Installation method: {}", self.method.title());
                 println!("  Startup: {}", meta.start_conf);
                 if let Some(port) = self.reserved_port {
                     if meta.port == port {
@@ -160,6 +173,22 @@ impl Status {
                 format!("error")
             }
         });
+    }
+    pub fn json<'x>(&'x self) -> JsonStatus<'x> {
+        let meta = self.metadata.as_ref().ok();
+        JsonStatus {
+            name: &self.name,
+            port: meta.map(|m| m.port),
+            major_version: meta.map(|m| &m.version),
+            status: status_str(&self.service),
+            method: self.method.short_name(),
+        }
+    }
+    pub fn print_json_and_exit<'x>(&'x self) -> ! {
+        println!("{}",
+            serde_json::to_string_pretty(&self.json())
+            .expect("status is json-serializable"));
+        self.exit()
     }
     pub fn print_and_exit(&self) -> ! {
         use Service::*;
@@ -244,7 +273,9 @@ pub fn backup_status(dir: &Path) -> BackupStatus {
     Exists { backup_meta, data_meta }
 }
 
-pub fn print_status_all(extended: bool, debug: bool) -> anyhow::Result<()> {
+pub fn print_status_all(extended: bool, debug: bool, json: bool)
+    -> anyhow::Result<()>
+{
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
     let mut statuses = Vec::new();
@@ -256,7 +287,11 @@ pub fn print_status_all(extended: bool, debug: bool) -> anyhow::Result<()> {
         );
     }
     if statuses.is_empty() {
-        eprintln!("No instances found");
+        if json {
+            println!("[]");
+        } else {
+            eprintln!("No instances found");
+        }
         return Ok(());
     }
     if debug {
@@ -267,6 +302,12 @@ pub fn print_status_all(extended: bool, debug: bool) -> anyhow::Result<()> {
         for status in statuses {
             status.print_extended();
         }
+    } else if json {
+        println!("{}", serde_json::to_string_pretty(&statuses
+            .iter()
+            .map(|status| status.json())
+            .collect::<Vec<_>>()
+        )?);
     } else {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
@@ -280,14 +321,18 @@ pub fn print_status_all(extended: bool, debug: bool) -> anyhow::Result<()> {
                     .map(|m| m.port.to_string()).unwrap_or("?".into())),
                 Cell::new(&status.metadata.as_ref()
                     .map(|m| m.version.title()).unwrap_or("?".into())),
-                Cell::new(match status.service {
-                    Service::Running {..} => "running",
-                    Service::Failed {..} => "not running",
-                    Service::Inactive {..} => "inactive",
-                }),
+                Cell::new(status_str(&status.service)),
             ]));
         }
         table.printstd();
     }
     Ok(())
+}
+
+fn status_str(status: &Service) -> &'static str {
+    match status {
+        Service::Running {..} => "running",
+        Service::Failed {..} => "not running",
+        Service::Inactive {..} => "inactive",
+    }
 }

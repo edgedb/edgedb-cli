@@ -22,6 +22,7 @@ use crate::server::is_valid_name;
 use crate::server::linux;
 use crate::server::macos;
 use crate::server::metadata::Metadata;
+use crate::server::methods::InstallMethod;
 use crate::server::options::{self, Start, Upgrade, StartConf, Stop};
 use crate::server::os_trait::{Method, Instance, InstanceRef};
 use crate::server::package::Package;
@@ -274,6 +275,7 @@ pub fn status(name: &String, data_dir: &Path,
     }).unwrap_or(false);
 
     Status {
+        method: InstallMethod::Package,
         name: name.into(),
         service,
         metadata,
