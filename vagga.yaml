@@ -42,8 +42,6 @@ commands:
     environ:
       DOCKER_HOST: unix:///var/docker.sock
     volumes:
-      /tmp: !Tmpfs
-        size: 1Gi
       /var/docker.sock: !BindRW /volumes/docker.sock
 
   test-nightly: !Command
@@ -186,7 +184,7 @@ containers:
 
     volumes:
       /tmp: !Tmpfs
-        size: 1G
+        size: 2G
     environ: &environ
       HOME: /work/target
       CARGO_HOME: /work/target

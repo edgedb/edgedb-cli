@@ -13,8 +13,8 @@ use edgedb_protocol::server_message::ErrorResponse;
 use edgedb_protocol::value::Value;
 use edgeql_parser::hash::Hasher;
 use edgeql_parser::expr;
-use edgeql_parser::preparser::{full_statement, is_empty};
 use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
+use edgeql_parser::schema_file::validate;
 use fn_error_context::context;
 use immutable_chunkmap::set::Set;
 use rustyline::error::ReadlineError;
@@ -35,6 +35,7 @@ const SAFE_CONFIDENCE: f64 = 0.99999;
 
 pub enum SourceName {
     Prefix,
+    Semicolon(PathBuf),
     Suffix,
     File(PathBuf),
 }
@@ -105,19 +106,8 @@ async fn query_row<R>(cli: &mut Connection, text: &str)
 #[context("could not read schema file {}", path.display())]
 async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
     let data = fs::read_to_string(path).await?;
-    let mut offset = 0;
-    loop {
-        match full_statement(data[offset..].as_bytes(), None) {
-            Ok(shift) => offset += shift,
-            Err(_) => {
-                if !is_empty(&data[offset..]) {
-                    anyhow::bail!("final statement does not \
-                                   end with a semicolon");
-                }
-                return Ok(data);
-            }
-        }
-    }
+    validate(&data)?;
+    Ok(data)
 }
 
 async fn choice(prompt: &str) -> anyhow::Result<Choice> {
@@ -179,7 +169,8 @@ async fn gen_start_migration(ctx: &Context)
         }
         let path = item.path();
         let chunk = read_schema_file(&path).await?;
-        bld.add_lines(SourceName::File(path), &chunk);
+        bld.add_lines(SourceName::File(path.clone()), &chunk);
+        bld.add_lines(SourceName::Semicolon(path), ";");
     }
     bld.add_lines(SourceName::Suffix, "};");
     Ok(bld.done())
