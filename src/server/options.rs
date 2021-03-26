@@ -331,6 +331,9 @@ pub struct Info {
     /// Display only the server binary path
     #[clap(long)]
     pub bin_path: bool,
+    /// Output in JSON format
+    #[clap(long)]
+    pub json: bool,
 
     #[clap(long)]
     pub nightly: bool,
