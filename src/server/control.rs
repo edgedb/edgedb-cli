@@ -47,7 +47,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
             if let Some(name) = &c.name {
                 name
             } else {
-                return status::print_status_all(c.extended, c.debug);
+                return status::print_status_all(c.extended, c.debug, c.json);
             }
         }
     };
@@ -70,6 +70,8 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
                     Ok(())
                 } else if options.extended {
                     status.print_extended_and_exit();
+                } else if options.json {
+                    status.print_json_and_exit();
                 } else {
                     status.print_and_exit();
                 }

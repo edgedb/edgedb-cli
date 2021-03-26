@@ -225,6 +225,10 @@ pub struct Status {
     /// Output all available debug info about each instance
     #[clap(long, setting=ArgSettings::Hidden)]
     pub debug: bool,
+
+    /// Output in JSON format
+    #[clap(long)]
+    pub json: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

@@ -1304,6 +1304,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         }).unwrap_or(false);
 
         Status {
+            method: InstallMethod::Docker,
             name: self.name.clone(),
             service,
             metadata,
