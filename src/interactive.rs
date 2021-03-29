@@ -526,11 +526,15 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
 {
     let mut ctrlc = CtrlC::new()?;
     loop {
-        state.ensure_connection().await?;
+        state.ensure_connection()
+            .race(async { ctrlc.next().await; Err(Interrupted)? })
+            .await?;
         let cur_initial = replace(&mut state.initial_text, String::new());
         let inp = match state.edgeql_input(&cur_initial).await? {
             prompt::Input::Eof => {
-                state.terminate().await;
+                state.terminate()
+                    .race(async { ctrlc.next().await; })
+                    .await;
                 return Err(CleanShutdown)?;
             }
             prompt::Input::Interrupt => {
@@ -539,7 +543,9 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             prompt::Input::Text(inp) => inp,
         };
         if !state.in_transaction() {
-            state.ensure_connection().await?;
+            state.ensure_connection()
+                .race(async { ctrlc.next().await; Err(Interrupted)?})
+                .await?;
         }
         for item in ToDo::new(&inp) {
             let result = match item {
@@ -557,7 +563,9 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             if let Err(err) = result {
                 if err.is::<Interrupted>() {
                     eprintln!("Interrupted.");
-                    state.reconnect().await?;
+                    state.reconnect()
+                        .race(async { ctrlc.next().await; Err(Interrupted)? })
+                        .await?;
                 } else if err.is::<CleanShutdown>() {
                     return Err(err)?;
                 } else if !err.is::<QueryError>() {
