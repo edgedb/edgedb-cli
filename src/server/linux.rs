@@ -444,7 +444,9 @@ pub fn get_instance<'x>(method: &'x dyn Method, name: &str)
 fn systemd_is_not_found_error(e: &str) -> bool {
     e.contains("Failed to get D-Bus connection") ||
     e.contains("Failed to connect to bus") ||
-    e.contains("No such file or directory")
+    e.contains("No such file or directory") ||
+    e.contains(".service not loaded") ||
+    e.contains(".service does not exist")
 }
 
 pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
