@@ -268,7 +268,7 @@ pub struct Upgrade {
     #[clap(long)]
     pub to_nightly: bool,
 
-    /// Only upgrade specicified database instance
+    /// Only upgrade specified database instance
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: Option<String>,
 
