@@ -199,8 +199,12 @@ async fn execute_backslash(mut state: &mut repl::State, text: &str)
     let cmd = match backslash::parse(text) {
         Ok(cmd) => cmd,
         Err(e) => {
-            eprintln!("Error parsing backslash command: {}",
-                      e.message);
+            if e.help {
+                println!("{}", e.message);
+            } else {
+                eprintln!("Error parsing backslash command: {}",
+                          e.message);
+            }
             // Quick-edit command on error
             state.initial_text = text.into();
             return Ok(());

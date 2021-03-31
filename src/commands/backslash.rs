@@ -6,6 +6,7 @@ use clap::{self, Clap, IntoApp};
 use edgedb_protocol::server_message::ErrorResponse;
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
+use regex::Regex;
 
 use crate::commands::Options;
 use crate::repl;
@@ -70,6 +71,7 @@ Help
 
 #[derive(Debug)]
 pub struct ParseError {
+    pub help: bool,
     pub span: Option<(usize, usize)>,
     pub message: String,
 }
@@ -257,7 +259,7 @@ impl CommandCache {
     fn new() -> CommandCache {
         use Setting::*;
 
-        let clap = Backslash::into_app();
+        let mut clap = Backslash::into_app();
         let mut aliases = BTreeMap::new();
         aliases.insert("d", "describe");
         aliases.insert("l", "list-databases");
@@ -277,11 +279,11 @@ impl CommandCache {
         aliases.insert("?", "help");
         aliases.insert("h", "help");
         let mut setting_cmd = None;
-        let commands: BTreeMap<_,_> = clap.get_subcommands()
+        let commands: BTreeMap<_,_> = clap.get_subcommands_mut()
             .map(|cmd| {
                 let name = cmd.get_name().to_owned();
                 if name == "set" {
-                    setting_cmd = Some(cmd);
+                    setting_cmd = Some(&*cmd);
                 }
                 (name, CommandInfo {
                     options: cmd.get_arguments()
@@ -353,6 +355,13 @@ pub fn full_statement(s: &str) -> usize {
     return s.len();
 }
 
+pub fn backslashify_help<'x>(text: &'x str) -> Cow<'x, str> {
+    pub static USAGE: Lazy<Regex> = Lazy::new(|| {
+        Regex::new(r"(USAGE:\s*)(\w)").unwrap()
+    });
+    USAGE.replace(text, "$1\\$2")
+}
+
 pub fn parse(s: &str) -> Result<Backslash, ParseError> {
     use Item::*;
 
@@ -375,12 +384,14 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
             Newline | Semicolon => break,
             Incomplete { message } => {
                 return Err(ParseError {
+                    help: false,
                     message: message.to_string(),
                     span: Some(token.span),
                 })
             }
             Error { message } => {
                 return Err(ParseError {
+                    help: false,
                     message: message.to_string(),
                     span: Some(token.span),
                 })
@@ -389,7 +400,8 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
     }
     Backslash::try_parse_from(arguments)
     .map_err(|e| ParseError {
-        message: e.to_string(),
+        help: e.kind == clap::ErrorKind::DisplayHelp,
+        message: backslashify_help(&e.to_string()).into(),
         span: None,
     })
 }
