@@ -507,6 +507,17 @@ pub struct Migrate {
     /// Do not print any messages, only indicate success by exit status
     #[clap(long)]
     pub quiet: bool,
+
+    /// Upgrade to a specified revision.
+    ///
+    /// Unique prefix of the revision can be specified instead of full
+    /// revision name.
+    ///
+    /// If this revision is applied, the command is no-op. The command
+    /// ensures that this revision present, but it's not an error if more
+    /// revisions are applied on top.
+    #[clap(long)]
+    pub to_revision: Option<String>,
 }
 
 #[derive(Clap, Clone, Debug)]
