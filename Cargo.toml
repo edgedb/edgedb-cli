@@ -73,6 +73,7 @@ wait-timeout = "0.2.0"
 indicatif = "0.15.0"
 url = "2.1.1"
 immutable-chunkmap = "0.5.9"
+regex = "1.4.5"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
