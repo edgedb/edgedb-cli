@@ -6,7 +6,7 @@ pub fn dockerfile(codename: &str) -> String {
     format!(r###"
         FROM ubuntu:{codename}
         RUN apt-get update
-        RUN apt-get install -y ca-certificates sudo gnupg2 apt-transport-https
+        RUN apt-get install -y sudo ca-certificates
         RUN adduser --uid 1000 --home /home/user1 \
             --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
             user1

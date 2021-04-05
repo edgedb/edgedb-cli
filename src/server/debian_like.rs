@@ -111,6 +111,16 @@ impl Debian {
         let key = task::block_on(remote::get_string(install::KEY_FILE_URL))
             .context("downloading key file")?;
         let mut operations = Vec::new();
+        operations.push(Operation::PrivilegedCmd(
+            Command::new("apt-get")
+                .arg("update")
+        ));
+        operations.push(Operation::PrivilegedCmd(
+            Command::new("apt-get")
+                .arg("install")
+                .arg("-y")
+                .args(&["gnupg", "apt-transport-https"])
+        ));
         operations.push(Operation::FeedPrivilegedCmd {
             input: key.into(),
             cmd: Command::new("apt-key")
