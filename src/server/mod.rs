@@ -1,8 +1,8 @@
 pub mod options;
 mod main;
 mod metadata;
-mod methods;
-mod detect;
+pub mod methods;
+pub mod detect;
 mod distribution;
 pub mod remote;
 pub mod version;

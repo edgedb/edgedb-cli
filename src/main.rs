@@ -22,13 +22,16 @@ mod format;
 mod highlight;
 mod interactive;
 mod log_levels;
+mod migrations;
 mod non_interactive;
 mod options;
 mod outputs;
+mod platform;
 mod print;
 mod process;
+mod project;
 mod prompt;
-mod platform;
+mod question;
 mod repl;
 mod self_install;
 mod self_upgrade;
@@ -37,7 +40,6 @@ mod statement;
 mod table;
 mod variables;
 mod version_check;
-mod migrations;
 
 fn main() {
     match _main() {

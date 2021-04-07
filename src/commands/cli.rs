@@ -8,6 +8,7 @@ use crate::migrations;
 use crate::self_install;
 use crate::self_upgrade;
 use crate::server;
+use crate::project;
 use crate::print::style::Styler;
 
 
@@ -41,6 +42,9 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         },
         Command::Server(cmd) => {
             server::main(cmd)
+        }
+        Command::Project(cmd) => {
+            project::main(cmd)
         }
         Command::CreateSuperuserRole(opt) => {
             task::block_on(async {

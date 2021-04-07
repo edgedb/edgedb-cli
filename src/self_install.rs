@@ -3,7 +3,7 @@
 
 use std::env;
 use std::fs;
-use std::io::{Write, BufRead, stdin, stdout, BufWriter};
+use std::io::{Write, stdout, BufWriter};
 use std::path::{PathBuf, Path};
 use std::process::{Command, exit};
 use std::str::FromStr;
@@ -18,6 +18,7 @@ use crate::options::RawOptions;
 use crate::platform::{home_dir, get_current_uid};
 use crate::process;
 use crate::table;
+use crate::question::read_choice;
 
 
 #[derive(Clap, Clone, Debug)]
@@ -230,13 +231,6 @@ to your ~/.zshrc before `compinit` command.
                 edgedb server install");
 }
 
-pub fn read_choice() -> anyhow::Result<String> {
-    for line in stdin().lock().lines() {
-        let line = line.context("reading user input")?;
-        return Ok(line.trim().to_lowercase())
-    }
-    anyhow::bail!("Unexpected end of input");
-}
 pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
     match _main(options) {
         Ok(()) => {

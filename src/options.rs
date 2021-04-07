@@ -13,6 +13,7 @@ use crate::repl::OutputMode;
 use crate::self_install;
 use crate::self_upgrade;
 use crate::server;
+use crate::project;
 
 
 #[derive(Clap, Debug)]
@@ -123,6 +124,8 @@ pub enum Command {
     Query(Query),
     /// Manage local server installations
     Server(server::options::ServerCommand),
+    /// Manage project installation
+    Project(project::options::ProjectCommand),
     /// Install server
     #[clap(setting=AppSettings::Hidden, name="_self_install")]
     _SelfInstall(self_install::SelfInstall),
