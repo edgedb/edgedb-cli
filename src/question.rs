@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::io::{stdin, BufRead};
 
+use rustyline::{Editor, Config};
+
 use anyhow::Context;
 
 
@@ -10,7 +12,13 @@ pub struct Numeric<'a, T: Clone + 'a> {
     suffix: &'a str,
 }
 
-pub fn read_choice() -> anyhow::Result<String> {
+pub struct String<'a> {
+    question: &'a str,
+    default: &'a str,
+    initial: std::string::String,
+}
+
+pub fn read_choice() -> anyhow::Result<std::string::String> {
     for line in stdin().lock().lines() {
         let line = line.context("reading user input")?;
         return Ok(line.trim().to_lowercase())
@@ -53,5 +61,30 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
             }
             return Ok(self.options[(choice-1) as usize].1.clone());
         }
+    }
+}
+
+impl<'a> String<'a> {
+    pub fn new(question: &'a str) -> String {
+        String {
+            question,
+            default: "",
+            initial: std::string::String::new(),
+        }
+    }
+    pub fn default(&mut self, default: &'a str) -> &mut Self {
+        self.default = default;
+        self
+    }
+    pub fn ask(&mut self) -> anyhow::Result<std::string::String> {
+        let prompt = if self.default.is_empty() {
+            format!("{}: ", self.question)
+        } else {
+            format!("{} [{}]: ", self.question, self.default)
+        };
+        let mut editor = Editor::<()>::with_config(Config::builder().build());
+        let val = editor.readline_with_initial(&prompt, (&self.initial, ""))?;
+        self.initial = val.clone();
+        return Ok(val);
     }
 }

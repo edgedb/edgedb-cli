@@ -3,10 +3,10 @@ mod main;
 mod metadata;
 pub mod methods;
 pub mod detect;
-mod distribution;
+pub mod distribution;
 pub mod remote;
 pub mod version;
-mod os_trait;
+pub mod os_trait;
 mod debian_like;
 
 // OSs
@@ -29,7 +29,7 @@ mod destroy;
 mod errors;
 mod info;
 mod init;
-mod install;
+pub mod install;
 mod list_versions;
 mod reset_password;
 mod revert;
