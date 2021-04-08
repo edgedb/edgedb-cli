@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 
 use anyhow::Context;
 use linked_hash_map::LinkedHashMap;
+use rand::{thread_rng, seq::SliceRandom};
 
 use crate::commands::ExitCode;
 use crate::project::options::Init;
@@ -12,9 +13,11 @@ use crate::question;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::DistributionRef;
 use crate::server::install::{self, optional_docker_check, exit_codes};
-use crate::server::methods::{InstallMethod, InstallationMethods};
+use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
+
+const CHARS: &str = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 
 fn config_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
@@ -45,7 +48,60 @@ fn ask_method(available: &InstallationMethods) -> anyhow::Result<InstallMethod>
     q.ask()
 }
 
-fn ask_version(meth: &Method) -> anyhow::Result<DistributionRef> {
+fn ask_name(methods: &Methods, dir: &Path) -> anyhow::Result<String> {
+    let instances = methods.values()
+        .map(|m| m.all_instances())
+        .collect::<Result<Vec<_>, _>>()
+        .context("failed to enumerate existing instances")?
+        .into_iter().flatten()
+        .map(|inst| inst.name().to_string())
+        .collect::<BTreeSet<_>>();
+    let stem = dir.file_stem().and_then(|s| s.to_str()).unwrap_or("edgedb");
+    let mut name = stem.to_string();
+
+    while instances.contains(&name) {
+        name = format!("{}_{}", stem,
+            (0..7)
+            .flat_map(|_| CHARS.as_bytes().choose(&mut thread_rng()))
+            .map(|b| *b as char)
+            .collect::<String>());
+    }
+    let mut q = question::String::new(
+        "Specify the version of EdgeDB to use with this project"
+    );
+    q.default(&name);
+    loop {
+        let target_name = q.ask()?;
+        if instances.contains(&target_name) {
+            let confirm = question::Confirm::new(
+                format!("Do you want to use existing instance {:?} \
+                         for the project?",
+                         target_name)
+            );
+            if confirm.ask()? {
+                return Ok(target_name);
+            }
+        } else {
+            return Ok(target_name)
+        }
+    }
+}
+
+fn print_versions(meth: &dyn Method, title: &str) -> anyhow::Result<()> {
+    let mut avail = meth.all_versions(false)?;
+    avail.sort_by(|a, b| b.major_version().cmp(a.major_version()));
+    println!("{}: {}{}",
+        title,
+        avail.iter().take(5)
+            .map(|d| d.major_version().as_str().to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+        if avail.len() > 5 { " ..." } else { "" },
+    );
+    Ok(())
+}
+
+fn ask_version(meth: &dyn Method) -> anyhow::Result<DistributionRef> {
     let distribution = meth.get_version(&VersionQuery::Stable(None))
         .context("cannot find stable EdgeDB version")?;
     let mut q = question::String::new(
@@ -72,16 +128,7 @@ fn ask_version(meth: &Method) -> anyhow::Result<DistributionRef> {
                 Ok(distr) => return Ok(distr),
                 Err(e) => {
                     eprintln!("Error: {}", e);
-                    let mut avail = meth.all_versions(false)?;
-                    avail.sort_by(|a, b| {
-                        b.major_version().cmp(a.major_version())
-                    });
-                    println!("Available versions: {}{}",
-                        avail.iter().take(5)
-                        .map(|d| d.major_version().as_str().to_string())
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                        if avail.len() > 5 { " ..." } else { "" });
+                    print_versions(meth, "Available versions")?;
                     continue;
                 }
             }
@@ -121,20 +168,20 @@ fn init_existing(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
 fn init_new(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     println!("`edgedb.toml` is not found in `{}` or above",
              project_dir.display());
+
+    let q = question::Confirm::new("Do you want to initialize a new project?");
+    if !q.ask()? {
+        return Ok(());
+    }
+
     let os = detect::current_os()?;
     let avail_methods = os.get_available_methods()?;
     let method = ask_method(&avail_methods)?;
     let methods = avail_methods.instantiate_all(&*os, true)?;
-    let instances = methods.values()
-        .map(|m| m.all_instances())
-        .collect::<Result<Vec<_>, _>>()
-        .context("failed to enumerate existing instances")?
-        .into_iter().flatten()
-        .map(|inst| inst.name().to_string())
-        .collect::<BTreeSet<_>>();
     let meth = methods.get(&method).expect("chosen method works");
     let installed = meth.installed_versions()?;
     let distr = ask_version(meth.as_ref())?;
+    let name = ask_name(&methods, project_dir)?;
 
     // TODO(tailhook) this condition doesn't work for nightly
     if !installed.iter().any(|x| x.major_version() == distr.major_version()) {
@@ -144,5 +191,6 @@ fn init_new(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
             extra: LinkedHashMap::new(),
         })?;
     }
+
     todo!();
 }

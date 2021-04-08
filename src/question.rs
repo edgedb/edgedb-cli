@@ -18,6 +18,10 @@ pub struct String<'a> {
     initial: std::string::String,
 }
 
+pub struct Confirm<'a> {
+    question: Cow<'a, str>,
+}
+
 pub fn read_choice() -> anyhow::Result<std::string::String> {
     for line in stdin().lock().lines() {
         let line = line.context("reading user input")?;
@@ -83,8 +87,37 @@ impl<'a> String<'a> {
             format!("{} [{}]: ", self.question, self.default)
         };
         let mut editor = Editor::<()>::with_config(Config::builder().build());
-        let val = editor.readline_with_initial(&prompt, (&self.initial, ""))?;
+        let mut val = editor.readline_with_initial(
+            &prompt,
+            (&self.initial, ""),
+        )?;
+        if val == "" {
+            val = self.default.to_string();
+        }
         self.initial = val.clone();
         return Ok(val);
+    }
+}
+
+impl<'a> Confirm<'a> {
+    pub fn new<Q: Into<Cow<'a, str>>>(question: Q) -> Confirm<'a> {
+        Confirm {
+            question: question.into(),
+        }
+    }
+    pub fn ask(&self) -> anyhow::Result<bool> {
+        let mut editor = Editor::<()>::with_config(Config::builder().build());
+        loop {
+            let prompt = format!("{} [Y/n]", self.question);
+            let val = editor.readline(&prompt)?;
+            match val.as_ref() {
+                "y" | "Y" | "yes" | "Yes" | "YES" => return Ok(true),
+                "n" | "N" | "no" | "No" | "NO" => return Ok(false),
+                _ => {
+                    eprintln!("Please answer Y or N");
+                    continue;
+                }
+            }
+        }
     }
 }
