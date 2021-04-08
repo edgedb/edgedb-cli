@@ -9,6 +9,7 @@ use rand::{thread_rng, seq::SliceRandom};
 
 use crate::commands::ExitCode;
 use crate::project::options::Init;
+use crate::platform::tmp_file_path;
 use crate::question;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::DistributionRef;
@@ -16,6 +17,7 @@ use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
 use crate::server::os_trait::Method;
 use crate::server::version::Version;
+use crate::table;
 
 const CHARS: &str = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -161,6 +163,19 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[context("cannot write config `{}`", path.display())]
+fn write_config(path: &Path, distr: &DistributionRef) -> anyhow::Result<()> {
+    let text = format!(r#"
+[edgedb]
+server-version = "{}"
+"#);
+    let tmp = tmp_file_name(path);
+    fs::unlink(&tmp).ok();
+    fs::write(&tmp, text)?;
+    fs::rename(&tmp, path)?;
+    Ok(())
+}
+
 fn init_existing(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     todo!();
 }
@@ -174,14 +189,25 @@ fn init_new(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    let config_path = project_dir.join("edgedb.toml");
+
     let os = detect::current_os()?;
     let avail_methods = os.get_available_methods()?;
-    let method = ask_method(&avail_methods)?;
     let methods = avail_methods.instantiate_all(&*os, true)?;
+
+    let method = ask_method(&avail_methods)?;
     let meth = methods.get(&method).expect("chosen method works");
     let installed = meth.installed_versions()?;
     let distr = ask_version(meth.as_ref())?;
     let name = ask_name(&methods, project_dir)?;
+
+    table::settings(&[
+        ("Project directory", &project_dir.display().to_string()),
+        ("Project config", &config_path.display().to_string()),
+        ("Installation method", method.title()),
+        ("Version", distr.version().as_ref()),
+        ("Instance name", &name),
+    ]);
 
     // TODO(tailhook) this condition doesn't work for nightly
     if !installed.iter().any(|x| x.major_version() == distr.major_version()) {
@@ -191,6 +217,8 @@ fn init_new(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
             extra: LinkedHashMap::new(),
         })?;
     }
+
+    write_config(&config_path, &distr)?;
 
     todo!();
 }

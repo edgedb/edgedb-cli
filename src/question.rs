@@ -45,13 +45,15 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
         self
     }
     pub fn ask(&self) -> anyhow::Result<T> {
+        let mut editor = Editor::<()>::with_config(Config::builder().build());
+        let prompt = format!("{} ", self.suffix);
         loop {
             println!("{}", self.question);
             for (idx, (title, _)) in self.options.iter().enumerate() {
                 println!("{}. {}", idx+1, title);
             }
-            println!("{}", self.suffix);
-            let choice = match read_choice()?.parse::<u32>() {
+            let value = editor.readline(&prompt)?;
+            let choice = match value.parse::<u32>() {
                 Ok(choice) => choice,
                 Err(e) => {
                     eprintln!("Error reading choice: {}", e);
@@ -108,7 +110,7 @@ impl<'a> Confirm<'a> {
     pub fn ask(&self) -> anyhow::Result<bool> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         loop {
-            let prompt = format!("{} [Y/n]", self.question);
+            let prompt = format!("{} [Y/n] ", self.question);
             let val = editor.readline(&prompt)?;
             match val.as_ref() {
                 "y" | "Y" | "yes" | "Yes" | "YES" => return Ok(true),

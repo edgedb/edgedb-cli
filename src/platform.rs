@@ -38,3 +38,7 @@ pub fn tmp_file_name(path: &Path) -> OsString {
         OsString::from(".~.tmp")  // should never be relied on in practice
     }
 }
+
+pub fn tmp_file_path(path: &Path) -> PathBuf {
+    path.parent().unwrap_or(".").join(tmp_file_name(path))
+}
