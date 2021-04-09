@@ -255,25 +255,27 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                     settings.storage.display());
             }
         }
-        try_bootstrap(method.as_ref(), &settings)?;
+        if !try_bootstrap(method.as_ref(), &settings)? {
+            eprintln!("Bootstrapping complete, \
+                but there was an error creating the service. \
+                You can run server manually via: \n  \
+                edgedb server start --foreground {}",
+                settings.name.escape_default());
+            return Err(ExitCode::new(2))?;
+        }
         Ok(())
     }
 }
 
 pub fn try_bootstrap(method: &dyn Method, settings: &Settings)
-    -> anyhow::Result<()>
+    -> anyhow::Result<bool>
 {
     match method.bootstrap(settings) {
-        Ok(()) => {}
+        Ok(()) => Ok(true),
         Err(e) => {
             if e.is::<CannotCreateService>() {
                 eprintln!("edgedb error: {:#}", e);
-                eprintln!("Bootstrapping complete, \
-                    but there was an error creating the service. \
-                    You can run server manually via: \n  \
-                    edgedb server start --foreground {}",
-                    settings.name.escape_default());
-                return Err(ExitCode::new(2))?;
+                Ok(false)
             } else {
                 log::error!("Bootstrap error, cleaning up...");
                 method.clean_storage(&settings.storage)
@@ -286,7 +288,6 @@ pub fn try_bootstrap(method: &dyn Method, settings: &Settings)
             }
         }
     }
-    Ok(())
 }
 
 pub fn bootstrap_script(settings: &Settings, password: &str) -> String {

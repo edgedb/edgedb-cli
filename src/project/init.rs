@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::env;
+use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -10,7 +11,7 @@ use linked_hash_map::LinkedHashMap;
 use rand::{thread_rng, seq::SliceRandom};
 
 use crate::commands::ExitCode;
-use crate::platform::{tmp_file_path, home_dir};
+use crate::platform::{tmp_file_path, home_dir, path_bytes, symlink_dir};
 use crate::project::options::Init;
 use crate::question;
 use crate::server::detect::{self, VersionQuery};
@@ -78,7 +79,7 @@ fn ask_name(methods: &Methods, dir: &Path) -> anyhow::Result<String> {
             .collect::<String>());
     }
     let mut q = question::String::new(
-        "Specify the version of EdgeDB to use with this project"
+        "Specify the name of EdgeDB instance to use with this project"
     );
     q.default(&name);
     loop {
@@ -185,7 +186,7 @@ server-version = {:?}
     Ok(())
 }
 
-fn init_existing(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
+fn init_existing(_init: &Init, _project_dir: &Path) -> anyhow::Result<()> {
     todo!();
 }
 
@@ -222,9 +223,47 @@ fn write_default(dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn init_new(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
+fn hash(path: &Path) -> anyhow::Result<String> {
+    Ok(hex::encode(sha1::Sha1::from(path_bytes(path)?).digest().bytes()))
+}
+
+fn stash_name(path: &Path) -> anyhow::Result<OsString> {
+    let hash = hash(path)?;
+    let base = path.file_name().ok_or_else(|| anyhow::anyhow!("bad path"))?;
+    let mut base = base.to_os_string();
+    base.push("-");
+    base.push(&hash);
+    return Ok(base);
+}
+
+#[context("error writing project dir {:?}", dir)]
+fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
+    -> anyhow::Result<()>
+{
+    let tmp = tmp_file_path(&dir);
+    fs::create_dir_all(&tmp)?;
+    fs::write(&tmp.join("project-path"), path_bytes(project_dir)?)?;
+    fs::write(&tmp.join("instance-name"), instance_name.as_bytes())?;
+
+    let lnk = tmp.join("project-link");
+    symlink_dir(project_dir, &lnk)
+        .map_err(|e| {
+            log::warn!("Error symlinking project at {:?}: {}", lnk, e);
+        }).ok();
+    fs::rename(&tmp, dir)?;
+    Ok(())
+}
+
+fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     println!("`edgedb.toml` is not found in `{}` or above",
              project_dir.display());
+
+    let hname = stash_name(project_dir)?;
+    let stash_dir = home_dir()?.join(".edgedb").join("projects").join(hname);
+    if stash_dir.exists() {
+        // TODO(tailhook) do more checks and probably cleanup the dir
+        anyhow::bail!("project dir already exists");
+    }
 
     let q = question::Confirm::new("Do you want to initialize a new project?");
     if !q.ask()? {
@@ -285,7 +324,20 @@ fn init_new(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         port: allocate_port(&name)?,
         start_conf: StartConf::Manual,
     };
-    try_bootstrap(meth.as_ref(), &settings)?;
 
-    todo!();
+    let err_manual = !try_bootstrap(meth.as_ref(), &settings)?;
+    // TODO(tailhook) execute migrations
+
+    write_stash_dir(&stash_dir, project_dir, &name)?;
+
+    if err_manual {
+        eprintln!("Bootstrapping complete, \
+            but there was an error creating the service. \
+            You can run server manually via: \n  \
+            edgedb server start --foreground {}",
+            settings.name.escape_default());
+        return Err(ExitCode::new(2))?;
+    }
+
+    Ok(())
 }
