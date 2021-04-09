@@ -28,7 +28,7 @@ mod control;
 mod destroy;
 mod errors;
 mod info;
-mod init;
+pub mod init;
 pub mod install;
 mod list_versions;
 mod reset_password;

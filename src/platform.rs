@@ -40,5 +40,5 @@ pub fn tmp_file_name(path: &Path) -> OsString {
 }
 
 pub fn tmp_file_path(path: &Path) -> PathBuf {
-    path.parent().unwrap_or(".").join(tmp_file_name(path))
+    path.parent().unwrap_or(&Path::new(".")).join(tmp_file_name(path))
 }

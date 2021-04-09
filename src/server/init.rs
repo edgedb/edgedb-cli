@@ -106,7 +106,7 @@ fn _write_ports(port_map: &BTreeMap<String, u16>, port_file: &Path)
     Ok(())
 }
 
-fn allocate_port(name: &str) -> anyhow::Result<u16> {
+pub fn allocate_port(name: &str) -> anyhow::Result<u16> {
     let port_file = port_file()?;
     let mut port_map = _read_ports(&port_file)?;
     if let Some(port) = port_map.get(name) {
@@ -255,31 +255,38 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                     settings.storage.display());
             }
         }
-        match method.bootstrap(&settings) {
-            Ok(()) => {}
-            Err(e) => {
-                if e.is::<CannotCreateService>() {
-                    eprintln!("edgedb error: {:#}", e);
-                    eprintln!("Bootstrapping complete, \
-                        but there was an error creating the service. \
-                        You can run server manually via: \n  \
-                        edgedb server start --foreground {}",
-                        settings.name.escape_default());
-                    return Err(ExitCode::new(2))?;
-                } else {
-                    log::error!("Bootstrap error, cleaning up...");
-                    method.clean_storage(&settings.storage)
-                        .map_err(|e| {
-                            log::error!("Cannot clean up storage {}: {}",
-                                settings.storage.display(), e);
-                        }).ok();
-                    Err(e).context(format!("cannot bootstrap {}",
-                                           settings.storage.display()))?
-                }
-            }
-        }
+        try_bootstrap(method.as_ref(), &settings)?;
         Ok(())
     }
+}
+
+pub fn try_bootstrap(method: &dyn Method, settings: &Settings)
+    -> anyhow::Result<()>
+{
+    match method.bootstrap(settings) {
+        Ok(()) => {}
+        Err(e) => {
+            if e.is::<CannotCreateService>() {
+                eprintln!("edgedb error: {:#}", e);
+                eprintln!("Bootstrapping complete, \
+                    but there was an error creating the service. \
+                    You can run server manually via: \n  \
+                    edgedb server start --foreground {}",
+                    settings.name.escape_default());
+                return Err(ExitCode::new(2))?;
+            } else {
+                log::error!("Bootstrap error, cleaning up...");
+                method.clean_storage(&settings.storage)
+                    .map_err(|e| {
+                        log::error!("Cannot clean up storage {}: {}",
+                            settings.storage.display(), e);
+                    }).ok();
+                Err(e).context(format!("cannot bootstrap {}",
+                                       settings.storage.display()))?
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn bootstrap_script(settings: &Settings, password: &str) -> String {

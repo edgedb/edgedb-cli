@@ -1,18 +1,22 @@
+use std::collections::BTreeSet;
 use std::env;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::collections::BTreeSet;
 
 use anyhow::Context;
+use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
 use rand::{thread_rng, seq::SliceRandom};
 
 use crate::commands::ExitCode;
+use crate::platform::{tmp_file_path, home_dir};
 use crate::project::options::Init;
-use crate::platform::tmp_file_path;
 use crate::question;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::DistributionRef;
+use crate::server::init::{self, try_bootstrap, allocate_port};
+use crate::server::options::{StartConf};
 use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
 use crate::server::os_trait::Method;
@@ -20,6 +24,11 @@ use crate::server::version::Version;
 use crate::table;
 
 const CHARS: &str = "abcdefghijklmnopqrstuvwxyz0123456789";
+const DEFAULT_ESDL: &str = r#"
+module default {
+
+}
+"#;
 
 
 fn config_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
@@ -167,10 +176,10 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
 fn write_config(path: &Path, distr: &DistributionRef) -> anyhow::Result<()> {
     let text = format!(r#"
 [edgedb]
-server-version = "{}"
-"#);
-    let tmp = tmp_file_name(path);
-    fs::unlink(&tmp).ok();
+server-version = {:?}
+"#, distr.major_version().as_str());
+    let tmp = tmp_file_path(path);
+    fs::remove_file(&tmp).ok();
     fs::write(&tmp, text)?;
     fs::rename(&tmp, path)?;
     Ok(())
@@ -178,6 +187,39 @@ server-version = "{}"
 
 fn init_existing(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     todo!();
+}
+
+#[context("cannot read schema directory `{}`", path.display())]
+fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
+    let dir = match fs::read_dir(&path) {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Ok(false);
+        }
+        Err(e) => return Err(e)?,
+    };
+    for item in dir {
+        let entry = item?;
+        let is_esdl = entry.file_name().to_str()
+            .map(|x| x.ends_with(".esdl"))
+            .unwrap_or(false);
+        if is_esdl {
+            return Ok(true);
+        }
+    }
+    return Ok(false);
+}
+
+#[context("cannot create default schema in `{}`", dir.display())]
+fn write_default(dir: &Path) -> anyhow::Result<()> {
+    fs::create_dir_all(&dir)?;
+    fs::create_dir_all(&dir.join("migrations"))?;
+    let default = dir.join("default.esdl");
+    let tmp = tmp_file_path(&default);
+    fs::remove_file(&tmp).ok();
+    fs::write(&tmp, DEFAULT_ESDL)?;
+    fs::rename(&tmp, &default)?;
+    Ok(())
 }
 
 fn init_new(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
@@ -200,10 +242,15 @@ fn init_new(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let installed = meth.installed_versions()?;
     let distr = ask_version(meth.as_ref())?;
     let name = ask_name(&methods, project_dir)?;
+    let schema_dir = project_dir.join("dbschema");
+    let schema_files = find_schema_files(&schema_dir)?;
 
     table::settings(&[
         ("Project directory", &project_dir.display().to_string()),
         ("Project config", &config_path.display().to_string()),
+        (&format!("Schema dir {}",
+            if schema_files { "(non-empty)" } else { "(empty)" }),
+            &config_path.display().to_string()),
         ("Installation method", method.title()),
         ("Version", distr.version().as_ref()),
         ("Instance name", &name),
@@ -212,13 +259,33 @@ fn init_new(init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     // TODO(tailhook) this condition doesn't work for nightly
     if !installed.iter().any(|x| x.major_version() == distr.major_version()) {
         meth.install(&install::Settings {
-            method,
-            distribution: distr,
+            method: method.clone(),
+            distribution: distr.clone(),
             extra: LinkedHashMap::new(),
         })?;
     }
 
     write_config(&config_path, &distr)?;
+    if !schema_files {
+        write_default(&schema_dir)?;
+    }
+
+    let settings = init::Settings {
+        name: name.clone(),
+        system: false,
+        version: distr.version().clone(),
+        nightly: distr.major_version().is_nightly(),
+        distribution: distr,
+        method: method,
+        storage: meth.get_storage(false, &name)?,
+        credentials: home_dir()?.join(".edgedb").join("credentials")
+            .join(format!("{}.json", &name)),
+        user: "edgedb".into(),
+        database: "edgedb".into(),
+        port: allocate_port(&name)?,
+        start_conf: StartConf::Manual,
+    };
+    try_bootstrap(meth.as_ref(), &settings)?;
 
     todo!();
 }
