@@ -953,6 +953,7 @@ dependencies = [
  "textwrap",
  "thiserror",
  "tokio",
+ "toml",
  "typemap",
  "unicode-segmentation",
  "url",
