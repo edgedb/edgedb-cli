@@ -17,7 +17,7 @@ use crate::question;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::DistributionRef;
 use crate::server::init::{self, try_bootstrap, allocate_port};
-use crate::server::options::{StartConf};
+use crate::server::options::{StartConf, Start};
 use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
 use crate::server::os_trait::Method;
@@ -278,6 +278,11 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
             edgedb server start --foreground {}",
             settings.name.escape_default());
         return Err(ExitCode::new(2))?;
+    } else {
+        meth.get_instance(&name)?.start(&Start {
+            name: name.clone(),
+            foreground: false,
+        })?;
     }
 
     Ok(())
