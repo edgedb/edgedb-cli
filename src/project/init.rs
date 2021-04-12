@@ -33,7 +33,7 @@ module default {
 "#;
 
 
-fn config_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
+pub fn config_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
     let mut path = base;
     if path.join("edgedb.toml").exists() {
         return Ok(Some(path.into()));
@@ -190,8 +190,7 @@ server-version = {:?}
 fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     println!("Found `edgedb.toml` in `{}`", project_dir.display());
 
-    let hname = stash_name(project_dir)?;
-    let stash_dir = home_dir()?.join(".edgedb").join("projects").join(hname);
+    let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
         anyhow::bail!("project dir already exists");
@@ -231,7 +230,7 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         ("Project config", &config_path.display().to_string()),
         (&format!("Schema dir {}",
             if schema_files { "(non-empty)" } else { "(empty)" }),
-            &config_path.display().to_string()),
+            &schema_dir.display().to_string()),
         ("Installation method", method.title()),
         ("Version", distr.version().as_ref()),
         ("Instance name", &name),
@@ -348,12 +347,16 @@ fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
     Ok(())
 }
 
+pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
+    let hname = stash_name(project_dir)?;
+    Ok(home_dir()?.join(".edgedb").join("projects").join(hname))
+}
+
 fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     println!("`edgedb.toml` is not found in `{}` or above",
              project_dir.display());
 
-    let hname = stash_name(project_dir)?;
-    let stash_dir = home_dir()?.join(".edgedb").join("projects").join(hname);
+    let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
         anyhow::bail!("project dir already exists");

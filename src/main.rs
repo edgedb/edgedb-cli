@@ -20,6 +20,7 @@ mod credentials;
 mod error_display;
 mod format;
 mod highlight;
+mod hint;
 mod interactive;
 mod log_levels;
 mod migrations;
@@ -58,6 +59,14 @@ fn main() {
                 exit(13);
             }
             eprintln!("edgedb error: {:#}", e);
+            for item in e.chain() {
+                if let Some(e) = item.downcast_ref::<hint::HintedError>() {
+                    eprintln!("  Hint: {}", e.hint
+                        .lines()
+                        .collect::<Vec<_>>()
+                        .join("\n        "));
+                }
+            }
             exit(1);
         }
     }

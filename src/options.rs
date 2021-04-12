@@ -1,5 +1,6 @@
 use std::env;
 use std::time::Duration;
+use std::fs;
 
 use anyhow::Context;
 use atty;
@@ -9,11 +10,17 @@ use edgedb_client::Builder;
 use crate::commands::parser::Common;
 use crate::connect::Connector;
 use crate::credentials::get_connector;
+use crate::hint::HintExt;
+use crate::project;
 use crate::repl::OutputMode;
 use crate::self_install;
 use crate::self_upgrade;
 use crate::server;
-use crate::project;
+
+
+static CONNECTION_ARG_HINT: &str = "\
+    use `-H`, `-P` or `-I` parameters to specify connection parameters. \
+    See `--help` for details";
 
 
 #[derive(Clap, Debug)]
@@ -182,11 +189,7 @@ impl Options {
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
             && atty::is(atty::Stream::Stdin);
-        let mut conn_params = if let Some(dsn) = &tmp.dsn {
-            Builder::from_dsn(dsn)?
-        } else {
-            conn_params(&tmp)?
-        };
+        let mut conn_params = Connector::new(conn_params(&tmp));
         let password = if tmp.password_from_stdin {
             let password = rpassword::read_password()
                 .expect("password can be read");
@@ -194,7 +197,7 @@ impl Options {
         } else if tmp.no_password {
             None
         } else if tmp.password {
-            let user = conn_params.get_user();
+            let user = conn_params.get()?.get_user();
             Some(rpassword::read_password_from_tty(
                     Some(&format!("Password for '{}': ",
                                   user.escape_default())))
@@ -205,9 +208,11 @@ impl Options {
                 Err(_) => None,
             }
         };
-        password.map(|password| conn_params.password(password));
-        tmp.wait_until_available.map(|w| conn_params.wait_until_available(w));
-        tmp.connect_timeout.map(|t| conn_params.connect_timeout(t));
+        conn_params.modify(|params| {
+            password.map(|password| params.password(password));
+            tmp.wait_until_available.map(|w| params.wait_until_available(w));
+            tmp.connect_timeout.map(|t| params.connect_timeout(t));
+        });
 
         let subcommand = if let Some(query) = tmp.query {
             if tmp.subcommand.is_some() {
@@ -223,7 +228,7 @@ impl Options {
         };
 
         Ok(Options {
-            conn_params: Connector::new(conn_params),
+            conn_params,
             interactive,
             subcommand,
             debug_print_frames: tmp.debug_print_frames,
@@ -242,7 +247,34 @@ impl Options {
         })
     }
 }
+
 fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
+    let instance = if let Some(dsn) = &tmp.dsn {
+        return Ok(Builder::from_dsn(dsn)?);
+    } else if tmp.host.is_some() || tmp.port.is_some() ||
+            env::var("EDGEDB_HOST").is_ok() ||
+            env::var("EDGEDB_PORT").is_ok()
+    {
+        tmp.instance.clone()
+    } else {
+        let dir = env::current_dir()
+            .context("cannot determine current dir")
+            .hint(CONNECTION_ARG_HINT)?;
+        let config_dir = project::config_dir(&dir)
+            .context("error searching for `edgedb.toml`")
+            .hint(CONNECTION_ARG_HINT)?
+            .ok_or_else(|| {
+                anyhow::anyhow!("no `edgedb.toml` found \
+                    and no connection options are specified")
+            })
+            .hint(CONNECTION_ARG_HINT)?;
+        let dir = project::stash_path(&config_dir)?;
+        Some(
+            fs::read_to_string(dir.join("instance-name"))
+            .context("error reading project settings")?
+        )
+    };
+
     let admin = tmp.admin;
     let user = tmp.user.clone().or_else(|| env::var("EDGEDB_USER").ok());
     let host = tmp.host.clone().or_else(|| env::var("EDGEDB_HOST").ok());
@@ -253,7 +285,7 @@ fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
         .or_else(|| env::var("EDGEDB_DATABASE").ok());
 
     let mut conn_params = Builder::new();
-    if let Some(name) = &tmp.instance {
+    if let Some(name) = &instance {
         conn_params = get_connector(name)?;
         user.map(|user| conn_params.user(user));
         database.map(|database| conn_params.database(database));

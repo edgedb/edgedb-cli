@@ -92,13 +92,13 @@ impl State {
                 env!("CARGO_PKG_VERSION"));
             self.last_version = Some(fetched_version);
         }
-        self.database = self.conn_params.get_database().into();
+        self.database = self.conn_params.get()?.get_database().into();
         self.connection = Some(conn);
         Ok(())
     }
     pub async fn try_connect(&mut self, database: &str) -> anyhow::Result<()> {
         let mut params = self.conn_params.clone();
-        params.database(database);
+        params.modify(|p| { p.database(database); });
         let mut conn = params.connect().await?;
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_ref() != Some(&fetched_version) {
