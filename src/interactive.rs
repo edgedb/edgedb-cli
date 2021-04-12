@@ -4,33 +4,32 @@ use std::str;
 use std::time::Instant;
 
 use anyhow::{self, Context};
-use async_std::task;
-use async_std::prelude::{StreamExt, FutureExt};
-use async_std::io::stdout;
-use async_std::io::prelude::WriteExt;
-use async_std::channel::{bounded as channel};
 use async_ctrlc::CtrlC;
+use async_std::channel::bounded as channel;
+use async_std::io::prelude::WriteExt;
+use async_std::io::stdout;
+use async_std::prelude::{FutureExt, StreamExt};
+use async_std::task;
 use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
 
 use edgedb_protocol::client_message::ClientMessage;
-use edgedb_protocol::client_message::{Prepare, IoFormat, Cardinality};
-use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
-use edgedb_protocol::client_message::{Execute};
+use edgedb_protocol::client_message::Execute;
+use edgedb_protocol::client_message::{Cardinality, IoFormat, Prepare};
+use edgedb_protocol::client_message::{DescribeAspect, DescribeStatement};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser::{self, full_statement};
 
 use crate::commands::{backslash, ExitCode};
+use crate::error_display::print_query_error;
 use crate::options::Options;
+use crate::outputs::tab_separated;
 use crate::print::{self, PrintError};
 use crate::prompt;
-use edgedb_client::reader::ReadError;
 use crate::repl;
 use crate::variables::input_variables;
-use crate::error_display::print_query_error;
-use crate::outputs::tab_separated;
-
+use edgedb_client::reader::ReadError;
 
 const QUERY_OPT_IMPLICIT_LIMIT: u16 = 0xFF01;
 const QUERY_OPT_INLINE_TYPENAMES: u16 = 0xFF02;
@@ -59,7 +58,9 @@ pub enum ToDoItem<'a> {
 
 impl ToDo<'_> {
     fn new(source: &str) -> ToDo {
-        ToDo { tail: source.trim() }
+        ToDo {
+            tail: source.trim(),
+        }
     }
 }
 
@@ -75,8 +76,7 @@ impl<'a> Iterator for ToDo<'a> {
             } else if preparser::is_empty(tail) {
                 return None;
             } else {
-                let len = full_statement(&tail.as_bytes(), None)
-                    .unwrap_or(tail.len());
+                let len = full_statement(&tail.as_bytes(), None).unwrap_or(tail.len());
                 self.tail = &tail[len..];
                 if preparser::is_empty(&tail[..len]) {
                     continue;
@@ -87,7 +87,6 @@ impl<'a> Iterator for ToDo<'a> {
         }
     }
 }
-
 
 pub fn main(options: Options) -> Result<(), anyhow::Error> {
     let (control_wr, control_rd) = channel(1);
@@ -120,17 +119,17 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub async fn _main(options: Options, mut state: repl::State)
-    -> anyhow::Result<()>
-{
+pub async fn _main(options: Options, mut state: repl::State) -> anyhow::Result<()> {
     let mut conn = state.conn_params.connect().await?;
     let fetched_version = conn.get_version().await?;
-    println!("{} {} (repl {})",
+    println!(
+        "{} {} (repl {})",
         "EdgeDB".light_gray(),
         fetched_version[..].light_gray(),
-        env!("CARGO_PKG_VERSION"));
+        env!("CARGO_PKG_VERSION")
+    );
     state.last_version = Some(fetched_version);
-    println!("{}", r#"Type "\?" for help."#.light_gray());
+    println!("{}", r#"Type \help for help, \quit to quit."#.light_gray());
     state.set_history_limit(state.history_limit).await?;
     state.connection = Some(conn);
     match _interactive_main(&options, &mut state).await {
@@ -144,9 +143,7 @@ pub async fn _main(options: Options, mut state: repl::State)
     }
 }
 
-fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
-    -> bool
-{
+fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize) -> bool {
     use serde_json::Value::*;
     use std::fmt::Write;
 
@@ -175,14 +172,15 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
 }
 
 fn print_json_limit_error(path: &str) {
-    eprintln!("Error: Cannot render JSON result: {} is too long. \
+    eprintln!(
+        "Error: Cannot render JSON result: {} is too long. \
         Consider putting an explicit LIMIT clause, \
         or increase the implicit limit using `\\set limit`.",
-        if path.is_empty() { "." } else { path });
+        if path.is_empty() { "." } else { path }
+    );
 }
 
-fn check_json_limit(json: &serde_json::Value, path: &str, limit: usize) -> bool
-{
+fn check_json_limit(json: &serde_json::Value, path: &str, limit: usize) -> bool {
     let mut path_buf = path.to_owned();
     if !_check_json_limit(json, &mut path_buf, limit) {
         print_json_limit_error(&path_buf);
@@ -191,9 +189,7 @@ fn check_json_limit(json: &serde_json::Value, path: &str, limit: usize) -> bool
     return true;
 }
 
-async fn execute_backslash(mut state: &mut repl::State, text: &str)
-    -> anyhow::Result<()>
-{
+async fn execute_backslash(mut state: &mut repl::State, text: &str) -> anyhow::Result<()> {
     use backslash::ExecuteResult::*;
 
     let cmd = match backslash::parse(text) {
@@ -202,8 +198,7 @@ async fn execute_backslash(mut state: &mut repl::State, text: &str)
             if e.help {
                 println!("{}", e.message);
             } else {
-                eprintln!("Error parsing backslash command: {}",
-                          e.message);
+                eprintln!("Error parsing backslash command: {}", e.message);
             }
             // Quick-edit command on error
             state.initial_text = text.into();
@@ -212,7 +207,7 @@ async fn execute_backslash(mut state: &mut repl::State, text: &str)
     };
     let res = backslash::execute(&cmd.command, &mut state).await;
     match res {
-        Ok(Skip) => {},
+        Ok(Skip) => {}
         Ok(Quit) => {
             state.terminate().await;
             return Err(CleanShutdown)?;
@@ -233,10 +228,11 @@ async fn execute_backslash(mut state: &mut repl::State, text: &str)
     Ok(())
 }
 
-async fn execute_query(options: &Options, mut state: &mut repl::State,
-    statement: &str)
-    -> anyhow::Result<()>
-{
+async fn execute_query(
+    options: &Options,
+    mut state: &mut repl::State,
+    statement: &str,
+) -> anyhow::Result<()> {
     use crate::repl::OutputMode::*;
     use crate::repl::PrintStats::*;
     let start = Instant::now();
@@ -247,13 +243,13 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
     if let Some(implicit_limit) = state.implicit_limit {
         headers.insert(
             QUERY_OPT_IMPLICIT_LIMIT,
-            Bytes::from(format!("{}", implicit_limit+1)));
+            Bytes::from(format!("{}", implicit_limit + 1)),
+        );
     }
     let cli = state.connection.as_mut().expect("connection established");
 
     if cli.protocol().supports_inline_typenames() {
-        headers.insert(QUERY_OPT_INLINE_TYPENAMES,
-                       Bytes::from_static(b"true"));
+        headers.insert(QUERY_OPT_INLINE_TYPENAMES, Bytes::from_static(b"true"));
     }
 
     let start_prepare = Instant::now();
@@ -271,7 +267,8 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             command_text: String::from(statement),
         }),
         ClientMessage::Flush,
-    ]).await?;
+    ])
+    .await?;
 
     loop {
         let msg = seq.message().await?;
@@ -291,8 +288,10 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
         }
     }
     if state.print_stats == Detailed {
-        eprintln!("{}",
-            format!("Prepare: {:?}", start_prepare.elapsed()).dark_gray());
+        eprintln!(
+            "{}",
+            format!("Prepare: {:?}", start_prepare.elapsed()).dark_gray()
+        );
     }
 
     let start_describe = Instant::now();
@@ -303,7 +302,8 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             statement_name: statement_name.clone(),
         }),
         ClientMessage::Flush,
-    ]).await?;
+    ])
+    .await?;
 
     let data_description = loop {
         let msg = seq.message().await?;
@@ -323,8 +323,10 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
         }
     };
     if state.print_stats == Detailed {
-        eprintln!("{}",
-            format!("Describe: {:?}", start_describe.elapsed()).dark_gray());
+        eprintln!(
+            "{}",
+            format!("Describe: {:?}", start_describe.elapsed()).dark_gray()
+        );
     }
     if options.debug_print_descriptors {
         println!("Descriptor: {:?}", data_description);
@@ -366,7 +368,8 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             arguments: arguments.freeze(),
         }),
         ClientMessage::Sync,
-    ]).await?;
+    ])
+    .await?;
 
     let mut items = seq.response(codec);
     if desc.root_pos().is_none() {
@@ -391,17 +394,19 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
-                    eprintln!("{}",
-                        format!("First row: {:?}", start_execute.elapsed())
-                        .dark_gray()
+                    eprintln!(
+                        "{}",
+                        format!("First row: {:?}", start_execute.elapsed()).dark_gray()
                     );
                 }
                 if let Some(limit) = state.implicit_limit {
                     if index >= limit {
-                        eprintln!("Error: Too many rows. Consider \
+                        eprintln!(
+                            "Error: Too many rows. Consider \
                             putting an explicit LIMIT clause, \
                             or increase the implicit limit \
-                            using `\\set limit`.");
+                            using `\\set limit`."
+                        );
                         items.skip_remaining().await?;
                         return Err(QueryError)?;
                     }
@@ -428,8 +433,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 Err(e) => {
                     match e {
                         PrintError::StreamErr {
-                            source: ReadError::RequestError {
-                                ref error, ..},
+                            source: ReadError::RequestError { ref error, .. },
                             ..
                         } => {
                             eprintln!("{}", error);
@@ -446,30 +450,30 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
-                    eprintln!("{}",
-                        format!("First row: {:?}", start_execute.elapsed())
-                        .dark_gray()
+                    eprintln!(
+                        "{}",
+                        format!("First row: {:?}", start_execute.elapsed()).dark_gray()
                     );
                 }
                 index += 1;
                 let text = match row {
                     Value::Str(s) => s,
-                    _ => return Err(anyhow::anyhow!(
-                        "postres returned non-string in JSON mode")),
+                    _ => return Err(anyhow::anyhow!("postres returned non-string in JSON mode")),
                 };
                 let jitems: serde_json::Value;
-                jitems = serde_json::from_str(&text)
-                    .context("cannot decode json result")?;
+                jitems = serde_json::from_str(&text).context("cannot decode json result")?;
                 if let Some(limit) = state.implicit_limit {
                     if !check_json_limit(&jitems, "", limit) {
                         items.skip_remaining().await?;
                         return Err(QueryError)?;
                     }
                 }
-                let jitems = jitems.as_array()
-                    .ok_or_else(|| anyhow::anyhow!(
+                let jitems = jitems.as_array().ok_or_else(|| {
+                    anyhow::anyhow!(
                         "non-array returned from \
-                         postgres in JSON mode"))?;
+                         postgres in JSON mode"
+                    )
+                })?;
                 // trying to make writes atomic if possible
                 let mut data = print::json_to_string(jitems, &cfg)?;
                 data += "\n";
@@ -480,19 +484,17 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
-                    eprintln!("{}",
-                        format!("First row: {:?}", start_execute.elapsed())
-                        .dark_gray()
+                    eprintln!(
+                        "{}",
+                        format!("First row: {:?}", start_execute.elapsed()).dark_gray()
                     );
                 }
                 let text = match row {
                     Value::Str(s) => s,
-                    _ => return Err(anyhow::anyhow!(
-                        "postgres returned non-string in JSON mode")),
+                    _ => return Err(anyhow::anyhow!("postgres returned non-string in JSON mode")),
                 };
                 let value: serde_json::Value;
-                value = serde_json::from_str(&text)
-                    .context("cannot decode json result")?;
+                value = serde_json::from_str(&text).context("cannot decode json result")?;
                 let path = format!(".[{}]", index);
                 if let Some(limit) = state.implicit_limit {
                     if index >= limit {
@@ -515,9 +517,12 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
         }
     }
     if state.print_stats != Off {
-        eprintln!("{}",
-            format!("Query time (including output formatting): {:?}",
-            first_part + start_execute.elapsed())
+        eprintln!(
+            "{}",
+            format!(
+                "Query time (including output formatting): {:?}",
+                first_part + start_execute.elapsed()
+            )
             .dark_gray()
         );
     }
@@ -525,19 +530,27 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
     return Ok(());
 }
 
-async fn _interactive_main(options: &Options, state: &mut repl::State)
-    -> Result<(), anyhow::Error>
-{
+async fn _interactive_main(
+    options: &Options,
+    state: &mut repl::State,
+) -> Result<(), anyhow::Error> {
     let mut ctrlc = CtrlC::new()?;
     loop {
-        state.ensure_connection()
-            .race(async { ctrlc.next().await; Err(Interrupted)? })
+        state
+            .ensure_connection()
+            .race(async {
+                ctrlc.next().await;
+                Err(Interrupted)?
+            })
             .await?;
         let cur_initial = replace(&mut state.initial_text, String::new());
         let inp = match state.edgeql_input(&cur_initial).await? {
             prompt::Input::Eof => {
-                state.terminate()
-                    .race(async { ctrlc.next().await; })
+                state
+                    .terminate()
+                    .race(async {
+                        ctrlc.next().await;
+                    })
                     .await;
                 return Err(CleanShutdown)?;
             }
@@ -547,28 +560,42 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             prompt::Input::Text(inp) => inp,
         };
         if !state.in_transaction() {
-            state.ensure_connection()
-                .race(async { ctrlc.next().await; Err(Interrupted)?})
+            state
+                .ensure_connection()
+                .race(async {
+                    ctrlc.next().await;
+                    Err(Interrupted)?
+                })
                 .await?;
         }
         for item in ToDo::new(&inp) {
             let result = match item {
                 ToDoItem::Backslash(text) => {
                     execute_backslash(state, text)
-                        .race(async { ctrlc.next().await; Err(Interrupted)?})
+                        .race(async {
+                            ctrlc.next().await;
+                            Err(Interrupted)?
+                        })
                         .await
                 }
                 ToDoItem::Query(statement) => {
                     execute_query(options, state, statement)
-                        .race(async { ctrlc.next().await; Err(Interrupted)?})
+                        .race(async {
+                            ctrlc.next().await;
+                            Err(Interrupted)?
+                        })
                         .await
                 }
             };
             if let Err(err) = result {
                 if err.is::<Interrupted>() {
                     eprintln!("Interrupted.");
-                    state.reconnect()
-                        .race(async { ctrlc.next().await; Err(Interrupted)? })
+                    state
+                        .reconnect()
+                        .race(async {
+                            ctrlc.next().await;
+                            Err(Interrupted)?
+                        })
                         .await?;
                 } else if err.is::<CleanShutdown>() {
                     return Err(err)?;
@@ -590,9 +617,7 @@ mod test {
     fn double_semicolon() {
         assert_eq!(
             ToDo::new("SELECT 1;;SELECT 2").collect::<Vec<_>>(),
-            &[
-                ToDoItem::Query("SELECT 1;"),
-                ToDoItem::Query("SELECT 2"),
-            ]);
+            &[ToDoItem::Query("SELECT 1;"), ToDoItem::Query("SELECT 2"),]
+        );
     }
 }
