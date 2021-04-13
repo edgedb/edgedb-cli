@@ -268,7 +268,7 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         database: "edgedb".into(),
         port: allocate_port(&name)?,
         start_conf: StartConf::Auto,
-        project: true,
+        suppress_messages: true,
     };
 
     let err_manual = !try_bootstrap(meth.as_ref(), &settings)?;
@@ -287,6 +287,9 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         return Err(ExitCode::new(2))?;
     } else {
         task::block_on(migrate(&inst))?;
+        println!("Project initialialized.");
+        println!("To connect run either of:\n  edgedb\n  edgedb -I {}",
+                 name.escape_default());
     }
 
     Ok(())
@@ -429,7 +432,7 @@ fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         database: "edgedb".into(),
         port: allocate_port(&name)?,
         start_conf: StartConf::Manual,
-        project: true,
+        suppress_messages: true,
     };
 
     let err_manual = !try_bootstrap(meth.as_ref(), &settings)?;
@@ -448,6 +451,9 @@ fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         return Err(ExitCode::new(2))?;
     } else {
         task::block_on(migrate(&inst))?;
+        println!("Project initialialized.");
+        println!("To connect run either of:\n  edgedb\n  edgedb -I {}",
+                 name.escape_default());
     }
 
     Ok(())
