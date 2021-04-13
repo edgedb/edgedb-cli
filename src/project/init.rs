@@ -6,24 +6,28 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
+use async_std::task;
 use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
 use rand::{thread_rng, seq::SliceRandom};
 
 use crate::commands::ExitCode;
+use crate::connect::Connector;
+use crate::migrations;
 use crate::platform::{tmp_file_path, home_dir, path_bytes, symlink_dir};
+use crate::process::ProcessGuard;
+use crate::project::config;
 use crate::project::options::Init;
 use crate::question;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::DistributionRef;
 use crate::server::init::{self, try_bootstrap, allocate_port};
-use crate::server::options::StartConf;
 use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
-use crate::server::os_trait::Method;
+use crate::server::options::StartConf;
+use crate::server::os_trait::{Method, InstanceRef};
 use crate::server::version::Version;
 use crate::table;
-use crate::project::config;
 
 const CHARS: &str = "abcdefghijklmnopqrstuvwxyz0123456789";
 const DEFAULT_ESDL: &str = r#"
@@ -272,13 +276,17 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
     write_stash_dir(&stash_dir, project_dir, &name)?;
 
+    let inst = meth.get_instance(&name)?;
     if err_manual {
+        run_and_migrate(&inst)?;
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
             You can run server manually via: \n  \
             edgedb server start --foreground {}",
             settings.name.escape_default());
         return Err(ExitCode::new(2))?;
+    } else {
+        task::block_on(migrate(&inst))?;
     }
 
     Ok(())
@@ -429,14 +437,51 @@ fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
     write_stash_dir(&stash_dir, project_dir, &name)?;
 
+    let inst = meth.get_instance(&name)?;
     if err_manual {
+        run_and_migrate(&inst)?;
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
             You can run server manually via: \n  \
             edgedb server start --foreground {}",
             settings.name.escape_default());
         return Err(ExitCode::new(2))?;
+    } else {
+        task::block_on(migrate(&inst))?;
     }
 
+    Ok(())
+}
+
+fn run_and_migrate(inst: &InstanceRef) -> anyhow::Result<()> {
+    let mut cmd = inst.get_command()?;
+    log::info!("Running server manually: {:?}", cmd);
+    let child = ProcessGuard::run(&mut cmd)
+        .with_context(|| format!("error running server {:?}", cmd))?;
+    task::block_on(migrate(&inst))?;
+    drop(child);
+    Ok(())
+}
+
+async fn migrate(inst: &InstanceRef<'_>) -> anyhow::Result<()> {
+    use crate::commands::Options;
+    use crate::commands::parser::{Migrate, MigrationConfig};
+
+    println!("Applying migrations...");
+    let conn_params = inst.get_connector(false)?;
+    let mut conn = conn_params.connect().await?;
+    migrations::migrate(
+        &mut conn,
+        &Options {
+            command_line: true,
+            styler: None,
+            conn_params: Connector::new(Ok(conn_params)),
+        },
+        &Migrate {
+            cfg: MigrationConfig {
+                schema_dir: "./dbschema".into(),
+            },
+            quiet: false,
+        }).await?;
     Ok(())
 }
