@@ -130,7 +130,7 @@ pub async fn _main(options: Options, mut state: repl::State)
         fetched_version[..].light_gray(),
         env!("CARGO_PKG_VERSION"));
     state.last_version = Some(fetched_version);
-    println!("{}", r#"Type "\?" for help."#.light_gray());
+    println!("{}", r#"Type \help for help, \quit to quit."#.light_gray());
     state.set_history_limit(state.history_limit).await?;
     state.connection = Some(conn);
     match _interactive_main(&options, &mut state).await {
