@@ -54,6 +54,7 @@ pub struct Settings {
     pub database: String,
     pub port: u16,
     pub start_conf: StartConf,
+    pub project: bool,
 }
 
 fn port_file() -> anyhow::Result<PathBuf> {
@@ -229,6 +230,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         database: options.default_database.clone(),
         port,
         start_conf: options.start_conf,
+        project: false,
     };
     settings.print();
     if settings.system {

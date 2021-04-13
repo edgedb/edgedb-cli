@@ -139,8 +139,13 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             })?;
             init_credentials(&settings, &inst)?;
             println!("Bootstrap complete. Server is up and running now.");
-            println!("To connect run:\n  edgedb -I{}",
-                     settings.name.escape_default());
+            if settings.project {
+                println!("To connect run either of:\n  edgedb\n  edgedb -I {}",
+                         settings.name.escape_default());
+            } else {
+                println!("To connect run:\n  edgedb -I {}",
+                         settings.name.escape_default());
+            }
         }
         _ => {
             let inst = method.get_instance(&settings.name)?;
