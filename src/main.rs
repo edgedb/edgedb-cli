@@ -20,15 +20,19 @@ mod credentials;
 mod error_display;
 mod format;
 mod highlight;
+mod hint;
 mod interactive;
 mod log_levels;
+mod migrations;
 mod non_interactive;
 mod options;
 mod outputs;
+mod platform;
 mod print;
 mod process;
+mod project;
 mod prompt;
-mod platform;
+mod question;
 mod repl;
 mod self_install;
 mod self_upgrade;
@@ -37,26 +41,40 @@ mod statement;
 mod table;
 mod variables;
 mod version_check;
-mod migrations;
 
 fn main() {
     match _main() {
         Ok(()) => {}
-        Err(e) => {
-            if let Some(e) = e.downcast_ref::<commands::ExitCode>() {
+        Err(ref e) => {
+            let mut err = e;
+            let mut code = 1;
+            if let Some(e) = err.downcast_ref::<commands::ExitCode>() {
                 e.exit();
             }
-            if let Some(e) = e.downcast_ref::<bug::Bug>() {
-                eprintln!("edgedb error: {:#}", e);
-                eprintln!("  Hint: This is most likely a bug in EdgeDB \
-                    or command-line tools. Please consider opening an \
-                    issue ticket at \
-                    https://github.com/edgedb/edgedb-cli/issues/new\
-                    ?template=bug_report.md");
-                exit(13);
+            if let Some(arc) = err.downcast_ref::<hint::ArcError>() {
+                // prevent duplicate error message
+                err = arc.inner();
             }
-            eprintln!("edgedb error: {:#}", e);
-            exit(1);
+            eprintln!("edgedb error: {:#}", err);
+            for item in err.chain() {
+                if let Some(e) = item.downcast_ref::<hint::HintedError>() {
+                    eprintln!("  Hint: {}", e.hint
+                        .lines()
+                        .collect::<Vec<_>>()
+                        .join("\n        "));
+                } else if item.is::<bug::Bug>() {
+                    eprintln!("  Hint: This is most likely a bug in EdgeDB \
+                        or command-line tools. Please consider opening an \
+                        issue ticket at \
+                        https://github.com/edgedb/edgedb-cli/issues/new\
+                        ?template=bug_report.md");
+                    code = 13;
+                } else if let Some(e) = e.downcast_ref::<commands::ExitCode>()
+                {
+                    code = e.code();
+                }
+            }
+            exit(code);
         }
     }
 }

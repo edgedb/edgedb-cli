@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use prettytable::format::{FormatBuilder, LinePosition, LineSeparator};
 use prettytable::format::{Alignment, TableFormat};
-use prettytable::{Cell, Attr};
+use prettytable::{Table, Row, Cell, Attr};
 
 
 pub static FORMAT: Lazy<TableFormat> = Lazy::new(|| {
@@ -30,4 +30,16 @@ pub static FORMAT: Lazy<TableFormat> = Lazy::new(|| {
 pub fn header_cell(title: &str) -> Cell {
     Cell::new_align(title, Alignment::CENTER)
         .with_style(Attr::Dim)
+}
+
+pub fn settings(rows: &[(&str, &str)]) {
+    let mut table = Table::new();
+    for (title, value) in rows {
+        table.add_row(Row::new(vec![
+            Cell::new(title),
+            Cell::new(value),
+        ]));
+    }
+    table.set_format(*FORMAT);
+    table.printstd();
 }

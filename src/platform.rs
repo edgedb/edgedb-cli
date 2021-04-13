@@ -38,3 +38,37 @@ pub fn tmp_file_name(path: &Path) -> OsString {
         OsString::from(".~.tmp")  // should never be relied on in practice
     }
 }
+
+pub fn tmp_file_path(path: &Path) -> PathBuf {
+    path.parent().unwrap_or(&Path::new(".")).join(tmp_file_name(path))
+}
+
+#[cfg(unix)]
+pub fn path_bytes<'x>(path: &'x Path) -> anyhow::Result<&'x [u8]> {
+    use std::os::unix::ffi::OsStrExt;
+    return Ok(path.as_os_str().as_bytes())
+}
+
+#[cfg(windows)]
+pub fn path_bytes<'x>(path: &'x Path) -> anyhow::Result<&'x [u8]> {
+    let s = path.to_str()
+        // should never happen because paths on windows are valid UTF-16
+        .ok_or_else(|| anyhow::anyhow!("bad chars in path"))?;
+    return Ok(s.as_bytes());
+}
+
+#[cfg(unix)]
+pub fn symlink_dir(original: impl AsRef<Path>, path: impl AsRef<Path>)
+    -> anyhow::Result<()>
+{
+    std::os::unix::fs::symlink(original, path)?;
+    Ok(())
+}
+
+#[cfg(windows)]
+pub fn symlink_dir(original: impl AsRef<Path>, path: impl AsRef<Path>)
+    -> anyhow::Result<()>
+{
+    std::os::windows::fs::symlink_dir(original, path)?;
+    Ok(())
+}

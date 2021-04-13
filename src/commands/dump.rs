@@ -197,7 +197,9 @@ pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
 
     let mut conn_params = options.conn_params.clone();
     for database in &databases {
-        let mut db_conn = conn_params.database(database).connect().await?;
+        let mut db_conn = conn_params
+            .modify(|p| { p.database(database); })
+            .connect().await?;
         let filename = dir.join(urlencoding::encode(database) + ".dump");
         dump_db(&mut db_conn, options, &filename).await?;
     }

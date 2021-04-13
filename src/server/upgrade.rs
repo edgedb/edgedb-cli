@@ -104,7 +104,7 @@ pub async fn dump_instance(inst: &dyn Instance, destination: &Path,
     let options = commands::Options {
         command_line: true,
         styler: None,
-        conn_params: Connector::new(conn_params),
+        conn_params: Connector::new(Ok(conn_params)),
     };
     commands::dump_all(&mut cli, &options, destination.as_ref()).await?;
     Ok(())
@@ -124,7 +124,7 @@ pub async fn restore_instance(inst: &dyn Instance,
     let options = commands::Options {
         command_line: true,
         styler: None,
-        conn_params: Connector::new(conn_params),
+        conn_params: Connector::new(Ok(conn_params)),
     };
     commands::restore_all(&mut cli, &options, &Restore {
         path: path.into(),
