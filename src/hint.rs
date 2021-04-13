@@ -50,9 +50,15 @@ impl fmt::Display for HintedError {
     }
 }
 
+impl ArcError {
+    pub fn inner(&self) -> &anyhow::Error {
+        &*self.0
+    }
+}
+
 impl Error for ArcError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.0.source()
+        Some(&**self.0)
     }
 }
 

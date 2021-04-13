@@ -19,8 +19,8 @@ use crate::server;
 
 
 static CONNECTION_ARG_HINT: &str = "\
-    use `-H`, `-P` or `-I` parameters to specify connection parameters. \
-    See `--help` for details";
+    Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
+    to specify connection parameters. See `--help` for details";
 
 
 #[derive(Clap, Debug)]
