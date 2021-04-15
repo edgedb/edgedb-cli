@@ -90,6 +90,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     settings_builder.auto_version()?;
     let (settings, method) = settings_builder.build()?;
     settings.print();
+    println!("Installing EdgeDB {}...", version);
     method.install(&settings)?;
     println!("\nEdgedb server is installed now. Great!\n\
         Initialize and start a new database instance with:\n  \

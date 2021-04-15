@@ -233,6 +233,8 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         suppress_messages: false,
     };
     settings.print();
+    println!("Initializing EdgeDB instance...");
+    
     if settings.system {
         anyhow::bail!("System instances are not implemented yet"); // TODO
     } else {
