@@ -216,6 +216,7 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let method = ask_method(&avail_methods)?;
     let meth = methods.get(&method).expect("chosen method works");
 
+    println!("Checking EdgeDB versions...");
     let ver_query = match config.edgedb.server_version {
         None => VersionQuery::Stable(None),
         Some(ver) => ver.to_query(),
@@ -248,6 +249,8 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
     // TODO(tailhook) this condition doesn't work for nightly
     if !installed.iter().any(|x| x.major_version() == distr.major_version()) {
+        println!("Installing EdgeDB server {}...",
+                 distr.major_version().title());
         meth.install(&install::Settings {
             method: method.clone(),
             distribution: distr.clone(),
@@ -277,8 +280,8 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         suppress_messages: true,
     };
 
+    println!("Initializing EdgeDB instance...");
     let err_manual = !try_bootstrap(meth.as_ref(), &settings)?;
-    // TODO(tailhook) execute migrations
 
     write_stash_dir(&stash_dir, project_dir, &name)?;
 
@@ -392,8 +395,11 @@ fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let methods = avail_methods.instantiate_all(&*os, true)?;
 
     let method = ask_method(&avail_methods)?;
+
+    println!("Checking EdgeDB versions...");
     let meth = methods.get(&method).expect("chosen method works");
     let installed = meth.installed_versions()?;
+
     let distr = ask_version(meth.as_ref())?;
     let name = ask_name(&methods, project_dir)?;
     let schema_dir = project_dir.join("dbschema");
@@ -412,6 +418,8 @@ fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
     // TODO(tailhook) this condition doesn't work for nightly
     if !installed.iter().any(|x| x.major_version() == distr.major_version()) {
+        println!("Installing EdgeDB server {}...",
+                 distr.major_version().title());
         meth.install(&install::Settings {
             method: method.clone(),
             distribution: distr.clone(),
@@ -441,6 +449,7 @@ fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         suppress_messages: true,
     };
 
+    println!("Initializing EdgeDB instance...");
     let err_manual = !try_bootstrap(meth.as_ref(), &settings)?;
     // TODO(tailhook) execute migrations
 
