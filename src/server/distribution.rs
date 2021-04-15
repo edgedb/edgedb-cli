@@ -49,6 +49,12 @@ impl MajorVersion {
             MajorVersion::Nightly => "nightly",
         }
     }
+    pub fn as_str(&self) -> &str {
+        match self {
+            MajorVersion::Stable(v) => v.num(),
+            MajorVersion::Nightly => "nightly",
+        }
+    }
     pub fn to_query(&self) -> VersionQuery {
         match self {
             MajorVersion::Stable(v) => VersionQuery::Stable(Some(v.clone())),

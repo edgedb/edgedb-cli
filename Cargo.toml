@@ -47,6 +47,7 @@ codespan-reporting = "0.11"
 termcolor = "1.1.0"
 async-listen = "0.2.0"
 sha1 = "0.6.0"
+hex = "0.4.3"
 textwrap = "0.13.4"
 log = "0.4.8"
 env_logger = "0.8.2"
@@ -74,6 +75,7 @@ indicatif = "0.15.0"
 url = "2.1.1"
 immutable-chunkmap = "0.5.9"
 regex = "1.4.5"
+toml = "0.5.8"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}

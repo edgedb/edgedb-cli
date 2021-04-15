@@ -108,7 +108,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         input_mode: repl::InputMode::Emacs,
         print_stats: repl::PrintStats::Off,
         history_limit: 10000,
-        database: options.conn_params.get_database().into(),
+        database: options.conn_params.get()?.get_database().into(),
         conn_params: options.conn_params.clone(),
         last_version: None,
         connection: None,

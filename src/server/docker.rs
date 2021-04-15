@@ -1026,6 +1026,10 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             port: settings.port,
             start_conf: settings.start_conf,
         })?;
+        if !settings.suppress_messages {
+            println!("To connect run:\n  edgedb -I {}",
+                     settings.name.escape_default());
+        }
 
         Ok(())
     }

@@ -321,7 +321,7 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
                 }
             }
         };
-        conn_params.database(&database);
+        conn_params.modify(|p| { p.database(&database); });
         let mut db_conn = match conn_params.connect().await  {
             Ok(conn) => conn,
             Err(e) => {

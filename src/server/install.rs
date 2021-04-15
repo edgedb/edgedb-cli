@@ -1,9 +1,9 @@
 use std::env;
 use std::fs;
-use std::process::exit;
 
 use anyhow::Context;
 
+use crate::commands::ExitCode;
 use crate::server::options::Install;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::methods::InstallMethod;
@@ -14,39 +14,47 @@ pub mod settings;
 
 
 pub(in crate::server) use operation::{Operation, Command};
-pub(in crate::server) use settings::{Settings, SettingsBuilder};
+pub use settings::{Settings, SettingsBuilder};
 
 pub const KEY_FILE_URL: &str = "https://packages.edgedb.com/keys/edgedb.asc";
 
 
-pub fn docker_check() -> anyhow::Result<()> {
+fn docker_check() -> anyhow::Result<bool> {
     let cgroups = fs::read_to_string("/proc/self/cgroup")
         .context("cannot read /proc/self/cgroup")?;
     for line in cgroups.lines() {
         let mut fields = line.split(':');
         if fields.nth(2).map(|f| f.starts_with("/docker/")).unwrap_or(false) {
-            eprintln!("edgedb error: \
-                `edgedb server install` in a Docker container is not supported.\n\
-                To obtain a Docker image with EdgeDB server installed, \
-                run the following on the host system instead:\n  \
-                edgedb server install --method=docker");
-            exit(exit_codes::DOCKER_CONTAINER);
+            return Ok(true);
         }
     }
-    return Ok(())
+    return Ok(false)
 }
-
-pub fn install(options: &Install) -> Result<(), anyhow::Error> {
+pub fn optional_docker_check() -> bool {
     if cfg!(target_os="linux") {
         let do_docker_check = env::var_os("EDGEDB_SKIP_DOCKER_CHECK")
             .map(|x| x.is_empty()).unwrap_or(true);
         if do_docker_check {
-            docker_check()
-            .map_err(|e| {
-                log::warn!(
-                    "Failed to check if running within a container: {:#}", e)
-            }).ok();
+            return docker_check()
+                .map_err(|e| {
+                    log::warn!(
+                        "Failed to check if running within a container: {:#}",
+                        e,
+                    )
+                }).unwrap_or(false);
         }
+    }
+    return false;
+}
+
+pub fn install(options: &Install) -> Result<(), anyhow::Error> {
+    if optional_docker_check() {
+        eprintln!("edgedb error: \
+            `edgedb server install` in a Docker container is not supported.\n\
+            To obtain a Docker image with EdgeDB server installed, \
+            run the following on the host system instead:\n  \
+            edgedb server install --method=docker");
+        return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     let current_os = detect::current_os()?;
     let avail_methods = current_os.get_available_methods()?;
@@ -73,7 +81,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
                         old_ver.major_version().title(), meth_kind.option(),
                         effective_method.option());
                 }
-                exit(exit_codes::ALREADY_INSTALLED);
+                return Err(ExitCode::new(exit_codes::ALREADY_INSTALLED))?;
             }
         }
     }

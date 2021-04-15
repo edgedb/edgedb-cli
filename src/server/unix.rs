@@ -139,8 +139,10 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             })?;
             init_credentials(&settings, &inst)?;
             println!("Bootstrap complete. Server is up and running now.");
-            println!("To connect run:\n  edgedb -I {}",
-                     settings.name.escape_default());
+            if !settings.suppress_messages {
+                println!("To connect run:\n  edgedb -I {}",
+                         settings.name.escape_default());
+            }
         }
         _ => {
             let inst = method.get_instance(&settings.name)?;
@@ -151,7 +153,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
                     format!("error running server {:?}", cmd))?;
             init_credentials(&settings, &inst)?;
             drop(child);
-            if settings.start_conf == StartConf::Manual {
+            if settings.start_conf == StartConf::Manual && res.is_ok() {
                 println!("Bootstrap complete. To start the server:\n  \
                           edgedb server start {}",
                           settings.name.escape_default());
