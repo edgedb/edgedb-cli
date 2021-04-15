@@ -31,11 +31,11 @@ use crate::server::version::Version;
 use crate::table;
 
 const CHARS: &str = "abcdefghijklmnopqrstuvwxyz0123456789";
-const DEFAULT_ESDL: &str = r#"
-module default {
-
-}
-"#;
+const DEFAULT_ESDL: &str = "\
+    module default {\n\
+    \n\
+    }\n\
+";
 
 
 pub fn config_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
@@ -186,10 +186,10 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
 
 #[context("cannot write config `{}`", path.display())]
 fn write_config(path: &Path, distr: &DistributionRef) -> anyhow::Result<()> {
-    let text = format!(r#"
-[edgedb]
-server-version = {:?}
-"#, distr.major_version().as_str());
+    let text = format!("\
+        [edgedb]\n\
+        server-version = {:?}\n\
+    ", distr.major_version().as_str());
     let tmp = tmp_file_path(path);
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, text)?;
