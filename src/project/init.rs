@@ -410,7 +410,7 @@ fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         ("Project config", &config_path.display().to_string()),
         (&format!("Schema dir {}",
             if schema_files { "(non-empty)" } else { "(empty)" }),
-            &config_path.display().to_string()),
+            &schema_dir.display().to_string()),
         ("Installation method", method.title()),
         ("Version", distr.version().as_ref()),
         ("Instance name", &name),
