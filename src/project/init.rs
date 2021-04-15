@@ -23,6 +23,7 @@ use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::DistributionRef;
 use crate::server::init::{self, try_bootstrap, allocate_port};
 use crate::server::install::{self, optional_docker_check, exit_codes};
+use crate::server::is_valid_name;
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
 use crate::server::options::StartConf;
 use crate::server::os_trait::{Method, InstanceRef};
@@ -89,6 +90,11 @@ fn ask_name(methods: &Methods, dir: &Path) -> anyhow::Result<String> {
     q.default(&name);
     loop {
         let target_name = q.ask()?;
+        if !is_valid_name(&target_name) {
+            eprintln!("instance name must be a valid identifier, \
+                       (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
+            continue;
+        }
         if instances.contains(&target_name) {
             let confirm = question::Confirm::new(
                 format!("Do you want to use existing instance {:?} \
