@@ -40,7 +40,7 @@ mod upgrade;
 pub use main::main;
 
 
-fn is_valid_name(name: &str) -> bool {
+pub fn is_valid_name(name: &str) -> bool {
     let mut chars = name.chars();
     match chars.next() {
         Some(c) if c.is_alphabetic() || c == '_' => {}
