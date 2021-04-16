@@ -44,6 +44,9 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
         self.options.push((name.into(), value));
         self
     }
+    pub fn is_empty(&self) -> bool {
+        self.options.is_empty()
+    }
     pub fn ask(&self) -> anyhow::Result<T> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         let prompt = format!("{} ", self.suffix);
