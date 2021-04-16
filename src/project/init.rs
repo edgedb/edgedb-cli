@@ -63,6 +63,37 @@ fn ask_method(available: &InstallationMethods) -> anyhow::Result<InstallMethod>
     if available.package.supported {
         q.option("Local (docker)", InstallMethod::Docker);
     }
+    if q.is_empty() {
+        let mut buf = String::with_capacity(1024);
+        if available.docker.platform_supported {
+            buf.push_str("No installation method found:\n");
+            available.package.format_error(&mut buf);
+            available.docker.format_error(&mut buf);
+            if cfg!(windows) {
+                buf.push_str("EdgeDB server installation on Windows \
+                    requires Docker Desktop to be installed and running. \
+                    You can download Docker Desktop for Windows here: \
+                    https://hub.docker.com/editions/community/docker-ce-desktop-windows/ \
+                    Once Docker Desktop is installed and running, restart \
+                    the command.");
+            } else {
+                buf.push_str("It looks like there are no native EdgeDB server \
+                    packages for your OS yet.  However, it is possible to \
+                    install and run EdgeDB server in a Docker container. \
+                    Please install Docker by following the instructions at \
+                    https://docs.docker.com/get-docker/.  Once Docker is \
+                    installed, restart the command");
+            }
+        } else {
+            buf.push_str("No installation method supported for the platform:");
+            available.package.format_error(&mut buf);
+            available.docker.format_error(&mut buf);
+            buf.push_str("Please consider opening an issue at \
+                https://github.com/edgedb/edgedb-cli/issues/new\
+                ?template=install-unsupported.md");
+        }
+        anyhow::bail!(buf);
+    }
     q.ask()
 }
 
