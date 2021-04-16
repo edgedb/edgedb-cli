@@ -445,7 +445,7 @@ fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         user: "edgedb".into(),
         database: "edgedb".into(),
         port: allocate_port(&name)?,
-        start_conf: StartConf::Manual,
+        start_conf: StartConf::Auto,
         suppress_messages: true,
     };
 
