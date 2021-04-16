@@ -25,7 +25,7 @@ pub mod package;
 
 // commands
 mod control;
-mod destroy;
+pub mod destroy;
 pub mod errors;
 mod info;
 pub mod init;

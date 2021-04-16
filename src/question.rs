@@ -20,6 +20,7 @@ pub struct String<'a> {
 
 pub struct Confirm<'a> {
     question: Cow<'a, str>,
+    is_dangerous: bool,
 }
 
 pub fn read_choice() -> anyhow::Result<std::string::String> {
@@ -108,19 +109,37 @@ impl<'a> Confirm<'a> {
     pub fn new<Q: Into<Cow<'a, str>>>(question: Q) -> Confirm<'a> {
         Confirm {
             question: question.into(),
+            is_dangerous: false,
+        }
+    }
+    pub fn new_dangerous<Q: Into<Cow<'a, str>>>(question: Q) -> Confirm<'a> {
+        Confirm {
+            question: question.into(),
+            is_dangerous: true,
         }
     }
     pub fn ask(&self) -> anyhow::Result<bool> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
+        let prompt = if self.is_dangerous {
+            format!("{} (type `Yes`) ", self.question)
+        } else {
+            format!("{} [Y/n] ", self.question)
+        };
         loop {
-            let prompt = format!("{} [Y/n] ", self.question);
             let val = editor.readline(&prompt)?;
-            match val.as_ref() {
-                "y" | "Y" | "yes" | "Yes" | "YES" => return Ok(true),
-                "n" | "N" | "no" | "No" | "NO" => return Ok(false),
-                _ => {
-                    eprintln!("Please answer Y or N");
-                    continue;
+            if self.is_dangerous {
+                match val.as_ref() {
+                    "Yes" => return Ok(true),
+                    _ => return Ok(false),
+                }
+            } else {
+                match val.as_ref() {
+                    "y" | "Y" | "yes" | "Yes" | "YES" => return Ok(true),
+                    "n" | "N" | "no" | "No" | "NO" => return Ok(false),
+                    _ => {
+                        eprintln!("Please answer Y or N");
+                        continue;
+                    }
                 }
             }
         }
