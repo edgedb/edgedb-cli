@@ -260,7 +260,7 @@ fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
         let dir = env::current_dir()
             .context("cannot determine current dir")
             .hint(CONNECTION_ARG_HINT)?;
-        let config_dir = project::config_dir(&dir)
+        let config_dir = project::project_dir_opt(Some(&dir))
             .context("error searching for `edgedb.toml`")
             .hint(CONNECTION_ARG_HINT)?
             .ok_or_else(|| {

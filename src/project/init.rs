@@ -38,7 +38,7 @@ const DEFAULT_ESDL: &str = "\
 ";
 
 
-pub fn config_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
+pub fn search_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
     let mut path = base;
     if path.join("edgedb.toml").exists() {
         return Ok(Some(path.into()));
@@ -198,17 +198,20 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
             choose `Local (docker)` installation method.");
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
-    let dir = match &init.project_dir {
-        Some(dir) => dir.clone(),
-        None => env::current_dir()
-            .context("failed to get current directory")?,
+    let (dir, base_dir) = match &init.project_dir {
+        Some(dir) => (Some(dir.clone()), dir.clone()),
+        None => {
+            let base_dir = env::current_dir()
+                .context("failed to get current directory")?;
+            (search_dir(&base_dir)?, base_dir)
+        }
     };
-    if let Some(dir) = config_dir(&dir)? {
+    if let Some(dir) = dir {
         let dir = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
         init_existing(init, &dir)?;
     } else {
-        let dir = fs::canonicalize(&dir)
+        let dir = fs::canonicalize(&base_dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
         init_new(init, &dir)?;
     }
