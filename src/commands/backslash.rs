@@ -506,13 +506,15 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         styler: Some(Styler::dark_256()),
         conn_params: prompt.conn_params.clone(),
     };
-    let cli = prompt.connection.as_mut().expect("connection established");
     match cmd {
         Help => {
             print!("{}", HELP);
             Ok(Skip)
         }
         Common(ref cmd) => {
+            prompt.soft_reconnect().await?;
+            let cli = prompt.connection.as_mut()
+                .expect("connection established");
             execute::common(cli, cmd, &options).await?;
             Ok(Skip)
         }

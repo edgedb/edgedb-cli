@@ -113,6 +113,12 @@ impl State {
         self.connection = Some(conn);
         Ok(())
     }
+    pub async fn soft_reconnect(&mut self) -> anyhow::Result<()> {
+        if !self.in_transaction() {
+            self.ensure_connection().await?;
+        }
+        Ok(())
+    }
     pub async fn ensure_connection(&mut self) -> anyhow::Result<()> {
         match &self.connection {
             Some(c) if c.is_consistent() => {}

@@ -546,11 +546,6 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             }
             prompt::Input::Text(inp) => inp,
         };
-        if !state.in_transaction() {
-            state.ensure_connection()
-                .race(async { ctrlc.next().await; Err(Interrupted)?})
-                .await?;
-        }
         for item in ToDo::new(&inp) {
             let result = match item {
                 ToDoItem::Backslash(text) => {
@@ -559,6 +554,9 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                         .await
                 }
                 ToDoItem::Query(statement) => {
+                    state.soft_reconnect()
+                        .race(async { ctrlc.next().await; Err(Interrupted)?})
+                        .await?;
                     execute_query(options, state, statement)
                         .race(async { ctrlc.next().await; Err(Interrupted)?})
                         .await
