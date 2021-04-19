@@ -58,6 +58,23 @@ pub fn path_bytes<'x>(path: &'x Path) -> anyhow::Result<&'x [u8]> {
 }
 
 #[cfg(unix)]
+pub fn bytes_to_path<'x>(path: &'x [u8]) -> anyhow::Result<&'x Path> {
+    use std::os::unix::ffi::OsStrExt;
+    use std::ffi::OsStr;
+
+    return Ok(Path::new(OsStr::from_bytes(path)))
+}
+
+#[cfg(windows)]
+pub fn bytes_to_path<'x>(path: &'x [u8]) -> anyhow::Result<&'x Path> {
+    use anyhow::Context;
+
+    let s = std::str::from_utf8(path)
+        .context("bad chars in path")?;
+    return Ok(Path::new(s));
+}
+
+#[cfg(unix)]
 pub fn symlink_dir(original: impl AsRef<Path>, path: impl AsRef<Path>)
     -> anyhow::Result<()>
 {

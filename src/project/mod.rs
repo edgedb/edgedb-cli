@@ -6,7 +6,7 @@ use anyhow::Context;
 pub mod options;
 
 mod main;
-mod init;
+pub mod init;
 mod unlink;
 mod config;
 
