@@ -60,7 +60,7 @@ fn ask_method(available: &InstallationMethods) -> anyhow::Result<InstallMethod>
     if available.package.supported {
         q.option("Local (native package)", InstallMethod::Package);
     }
-    if available.package.supported {
+    if available.docker.supported {
         q.option("Local (docker)", InstallMethod::Docker);
     }
     if q.is_empty() {
