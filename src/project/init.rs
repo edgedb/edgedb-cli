@@ -402,9 +402,13 @@ fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
     Ok(())
 }
 
+pub fn stash_base() -> anyhow::Result<PathBuf> {
+    Ok(home_dir()?.join(".edgedb").join("projects"))
+}
+
 pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     let hname = stash_name(project_dir)?;
-    Ok(home_dir()?.join(".edgedb").join("projects").join(hname))
+    Ok(stash_base()?.join(hname))
 }
 
 fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {

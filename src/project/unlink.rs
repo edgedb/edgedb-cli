@@ -30,6 +30,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                 destroy::destroy(&Destroy {
                     name: inst.trim().to_string(),
                     verbose: false,
+                    force: false,
                 })?;
             }
             fs::remove_dir_all(&stash_path)?;

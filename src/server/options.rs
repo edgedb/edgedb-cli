@@ -167,6 +167,10 @@ pub struct Destroy {
     /// Verbose output
     #[clap(short='v', long)]
     pub verbose: bool,
+
+    /// Force destroy even if instance is referred to by a project
+    #[clap(long)]
+    pub force: bool,
 }
 
 #[derive(Clap, Debug, Clone)]
