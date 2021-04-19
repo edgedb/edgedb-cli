@@ -534,6 +534,7 @@ async fn migrate(inst: &InstanceRef<'_>) -> anyhow::Result<()> {
                 schema_dir: "./dbschema".into(),
             },
             quiet: false,
+            to_revision: None,
         }).await?;
     Ok(())
 }
