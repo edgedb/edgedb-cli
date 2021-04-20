@@ -1,5 +1,6 @@
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
 
 use fn_error_context::context;
 
@@ -14,7 +15,14 @@ use crate::platform::{bytes_to_path};
 #[context("could not read project dir {:?}", stash_base())]
 pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
     let mut res = Vec::new();
-    for item in fs::read_dir(stash_base()?)? {
+    let dir = match fs::read_dir(stash_base()?) {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Ok(Vec::new());
+        }
+        Err(e) => return Err(e)?,
+    };
+    for item in dir {
         let entry = item?;
         let path = entry.path().join("instance-name");
         let inst = match fs::read_to_string(&path) {
