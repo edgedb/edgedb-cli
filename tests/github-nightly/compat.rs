@@ -1,5 +1,6 @@
 use test_case::test_case;
 
+use crate::measure::Time;
 use crate::docker::{Context, build_image};
 use crate::docker::{run_systemd};
 use crate::common::{dock_ubuntu, dock_centos, dock_debian};
@@ -28,6 +29,7 @@ use crate::common::{dock_ubuntu, dock_centos, dock_debian};
 fn cli(tagname: &str, dockerfile: &str, version: &str)
     -> anyhow::Result<()>
 {
+    let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?

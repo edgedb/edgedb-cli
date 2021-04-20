@@ -2,6 +2,10 @@
 #[path="../docker.rs"]
 mod docker;
 
+#[cfg(all(feature="github_nightly"))]
+#[path="../measure.rs"]
+mod measure;
+
 #[cfg(all(feature="github_nightly"))] mod common;
 
 #[cfg(all(feature="github_nightly"))] mod compat;

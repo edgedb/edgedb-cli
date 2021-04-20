@@ -1,6 +1,7 @@
 use test_case::test_case;
 use predicates::str::contains;
 
+use crate::measure::Time;
 use crate::docker::{Context, build_image};
 use crate::docker::{run, run_docker, run_systemd};
 use crate::common::{dock_ubuntu, dock_ubuntu_jspy, dock_centos, dock_debian};
@@ -10,6 +11,7 @@ use crate::common::{dock_ubuntu, dock_ubuntu_jspy, dock_centos, dock_debian};
 fn package_no_systemd(tagname: &str, dockerfile: &str)
     -> anyhow::Result<()>
 {
+    let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
@@ -37,6 +39,7 @@ fn package_no_systemd(tagname: &str, dockerfile: &str)
 fn package(tagname: &str, dockerfile: &str, version: &str)
     -> anyhow::Result<()>
 {
+    let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
@@ -62,6 +65,7 @@ fn package(tagname: &str, dockerfile: &str, version: &str)
 fn package_jspy(tagname: &str, dockerfile: &str, version: &str)
     -> anyhow::Result<()>
 {
+    let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
@@ -100,6 +104,7 @@ fn package_jspy(tagname: &str, dockerfile: &str, version: &str)
 fn docker(tagname: &str, dockerfile: &str, version: &str)
     -> anyhow::Result<()>
 {
+    let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
@@ -125,6 +130,7 @@ fn docker(tagname: &str, dockerfile: &str, version: &str)
 fn docker_jspy(tagname: &str, dockerfile: &str, version: &str)
     -> anyhow::Result<()>
 {
+    let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
