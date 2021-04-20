@@ -251,7 +251,8 @@ impl Options {
 fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
     let instance = if let Some(dsn) = &tmp.dsn {
         return Ok(Builder::from_dsn(dsn)?);
-    } else if tmp.host.is_some() || tmp.port.is_some() ||
+    } else if tmp.instance.is_some() ||
+            tmp.host.is_some() || tmp.port.is_some() ||
             env::var("EDGEDB_HOST").is_ok() ||
             env::var("EDGEDB_PORT").is_ok()
     {
