@@ -1,11 +1,13 @@
 use test_case::test_case;
 
+use crate::measure::Time;
 use crate::docker::{Context, build_image};
 use crate::docker::{run_docker, run_systemd};
 use crate::common::{dock_ubuntu, dock_centos, dock_debian};
 
 #[test_case("edbtest_centos7", &dock_centos(7))]
 fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
+    let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
@@ -39,6 +41,7 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
 #[test_case("edbtest_buster", &dock_debian("buster"))]
 #[test_case("edbtest_stretch", &dock_debian("stretch"))]
 fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
+    let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
@@ -101,6 +104,7 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
 #[test_case("edbtest_buster", &dock_debian("buster"))]
 #[test_case("edbtest_stretch", &dock_debian("stretch"))]
 fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
+    let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
