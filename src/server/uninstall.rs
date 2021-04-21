@@ -14,6 +14,9 @@ pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
         } else {
             meth.installed_versions()?
         };
+        if options.nightly {
+            candidates.retain(|cand| cand.major_version().is_nightly());
+        }
         let instances = meth.all_instances()?;
         for inst in instances {
             let major = inst.get_version()?;
