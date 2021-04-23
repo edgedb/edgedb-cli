@@ -297,7 +297,6 @@ RuntimeDirectory=edgedb-{instance_name}
 ExecStart={server_path} --data-dir=${{EDGEDATA}} --runstate-dir=%t/edgedb-{instance_name} --port={port}
 ExecReload=/bin/kill -HUP ${{MAINPID}}
 KillMode=mixed
-KillSignal=SIGINT
 TimeoutSec=0
 
 [Install]
