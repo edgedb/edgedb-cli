@@ -13,6 +13,7 @@ pub struct ProcessGuard {
 
 #[cfg(not(unix))]
 pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
+    log::info!("Running {:?}", cmd);
     match cmd.status() {
         Ok(s) if s.success() => Ok(()),
         Ok(s) => anyhow::bail!("process {:?} failed: {}", cmd, s),
@@ -46,6 +47,7 @@ pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
     use signal::Signal::*;
 
     let trap = signal::trap::Trap::trap(&[SIGINT, SIGTERM, SIGCHLD]);
+    log::info!("Running {:?}", cmd);
     let mut child = cmd.spawn()
         .with_context(|| format!("process {:?} failed", cmd))?;
     let pid = child.id() as i32;
