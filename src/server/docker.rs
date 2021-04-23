@@ -993,6 +993,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--bootstrap-command")
             .arg(bootstrap_script(settings, &password));
         cmd.arg("--log-level=warn");
+        cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
 
