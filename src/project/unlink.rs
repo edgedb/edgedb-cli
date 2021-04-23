@@ -2,6 +2,7 @@ use std::fs;
 
 use anyhow::Context;
 
+use crate::commands::ExitCode;
 use crate::project::options::Unlink;
 use crate::project::{project_dir, stash_path};
 use crate::server::destroy;
@@ -16,6 +17,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
         if options.destroy_server_instance {
             let inst = fs::read_to_string(&stash_path.join("instance-name"))
                 .context("failed to read instance name")?;
+            let inst = inst.trim();
             if !options.non_interactive {
                 let q = question::Confirm::new_dangerous(
                     format!("Do you really want to unlink \
@@ -26,11 +28,18 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                     return Ok(())
                 }
             }
+            let mut project_dirs = destroy::find_project_dirs(inst)?;
+            if project_dirs.len() > 1 {
+                project_dirs.iter().position(|d| d == &stash_path)
+                    .map(|pos| project_dirs.remove(pos));
+                destroy::print_warning(inst, &project_dirs);
+                return Err(ExitCode::new(2))?;
+            }
             if options.destroy_server_instance {
-                destroy::destroy(&Destroy {
-                    name: inst.trim().to_string(),
+                destroy::do_destroy(&Destroy {
+                    name: inst.to_string(),
                     verbose: false,
-                    force: false,
+                    force: true,
                 })?;
             }
             fs::remove_dir_all(&stash_path)?;

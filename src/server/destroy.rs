@@ -45,26 +45,43 @@ fn read_path(path: &Path) -> anyhow::Result<PathBuf> {
     Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
 
+pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
+    eprintln!("Instance {:?} is used by the following projects:",
+              name);
+    for dir in project_dirs {
+        let path_path = dir.join("project-path");
+        let dest = match read_path(&path_path) {
+            Ok(path) => path,
+            Err(e) => {
+                eprintln!("edgedb error: {}", e);
+                continue;
+            }
+        };
+        eprintln!("  {}", dest.display());
+    }
+    eprintln!("If you really want to destroy the instance, run:");
+    eprintln!("  edgedb server destroy {:?} --force", name);
+}
+
 pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     let project_dirs = find_project_dirs(&options.name)?;
     if !options.force && !project_dirs.is_empty() {
-        eprintln!("Instance {:?} is used by the following projects:",
-                  options.name);
-        for dir in project_dirs {
-            let path_path = dir.join("project-path");
-            let dest = match read_path(&path_path) {
-                Ok(path) => path,
-                Err(e) => {
-                    eprintln!("edgedb error: {}", e);
-                    continue;
-                }
-            };
-            eprintln!("  {}", dest.display());
-        }
-        eprintln!("If you really want to destroy the instance, run:");
-        eprintln!("  edgedb server destroy {:?} --force", options.name);
+        print_warning(&options.name, &project_dirs);
         return Err(ExitCode::new(2))?;
     }
+    do_destroy(options)?;
+    for dir in project_dirs {
+        let path_path = dir.join("project-path");
+        match read_path(&path_path) {
+            Ok(path) => eprintln!("Unlinking {}", path.display()),
+            Err(_) => eprintln!("Cleaning {}", dir.display()),
+        };
+        fs::remove_dir_all(&dir)?;
+    }
+    Ok(())
+}
+
+pub fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
     let mut errors = Vec::new();
@@ -76,14 +93,6 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
             }
             Err(e) => Err(e)?,
         }
-    }
-    for dir in project_dirs {
-        let path_path = dir.join("project-path");
-        match read_path(&path_path) {
-            Ok(path) => eprintln!("Unlinking {}", path.display()),
-            Err(_) => eprintln!("Cleaning {}", dir.display()),
-        };
-        fs::remove_dir_all(&dir)?;
     }
     if errors.len() == methods.len() {
         eprintln!("No instances found:");
