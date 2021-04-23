@@ -1,4 +1,4 @@
-name: Run Slow Nightly Tests
+name: Nightly Tests
 
 on:
   schedule:
@@ -16,11 +16,16 @@ jobs:
 
   nightly-test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 180
+    timeout-minutes: 60
     strategy:
       max-parallel: 4
       matrix:
         os: [ubuntu-latest]
+        test_suite:
+        - compat
+        - install
+        - upgrade
+        - project
     steps:
       - uses: actions/checkout@master
       - name: Install musl-tools
@@ -41,3 +46,5 @@ jobs:
             --target=x86_64-unknown-linux-musl
             --test=github-nightly
             --features=github_nightly
+            --
+            ${{ matrix.test_suite }}::
