@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
 use clap::{Clap, AppSettings, ValueHint};
+use crate::server::methods::InstallMethod;
+use crate::server::version::Version;
 
 
 #[derive(Clap, Debug, Clone)]
@@ -25,6 +27,22 @@ pub struct Init {
     /// Specifies a project root directory explicitly.
     #[clap(value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
+
+    /// Specifies the desired EdgeDB server version
+    #[clap(long)]
+    pub server_version: Option<Version<String>>,
+
+    /// Specifies the EdgeDB server instance to be associated with the project
+    #[clap(long)]
+    pub server_instance: Option<String>,
+
+    /// Specifies a project root directory explicitly.
+    #[clap(long, possible_values=&["package", "docker"][..])]
+    pub server_install_method: Option<InstallMethod>,
+
+    /// Run in non-interactive mode (accepting all defaults)
+    #[clap(long)]
+    pub non_interactive: bool,
 }
 
 #[derive(Clap, Debug, Clone)]

@@ -52,8 +52,29 @@ pub fn search_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
     Ok(None)
 }
 
-fn ask_method(available: &InstallationMethods) -> anyhow::Result<InstallMethod>
+fn ask_method(available: &InstallationMethods, options: &Init)
+    -> anyhow::Result<InstallMethod>
 {
+    if options.non_interactive {
+        if let Some(meth) = &options.server_install_method {
+            return Ok(meth.clone());
+        } else {
+            if available.package.supported {
+                return Ok(InstallMethod::Package);
+            } else if available.docker.supported {
+                return Ok(InstallMethod::Docker);
+            } else {
+                let mut buf = String::with_capacity(1024);
+                buf.push_str(
+                    "No installation method supported for the platform:");
+                available.package.format_error(&mut buf);
+                available.docker.format_error(&mut buf);
+                buf.push_str("Please consider opening an issue at \
+                    https://github.com/edgedb/edgedb-cli/issues/new\
+                    ?template=install-unsupported.md");
+            }
+        }
+    }
     let mut q = question::Numeric::new(
         "What type of EdgeDB instance would you like to use with this project?"
     );
@@ -97,7 +118,9 @@ fn ask_method(available: &InstallationMethods) -> anyhow::Result<InstallMethod>
     q.ask()
 }
 
-fn ask_name(methods: &Methods, dir: &Path) -> anyhow::Result<String> {
+fn ask_name(methods: &Methods, dir: &Path, options: &Init)
+    -> anyhow::Result<String>
+{
     let instances = methods.values()
         .map(|m| m.all_instances())
         .collect::<Result<Vec<_>, _>>()
@@ -105,20 +128,33 @@ fn ask_name(methods: &Methods, dir: &Path) -> anyhow::Result<String> {
         .into_iter().flatten()
         .map(|inst| inst.name().to_string())
         .collect::<BTreeSet<_>>();
-    let stem = dir.file_stem().and_then(|s| s.to_str()).unwrap_or("edgedb");
-    let mut name = stem.to_string();
+    let default_name = if let Some(name) = &options.server_instance {
+        name.clone()
+    } else {
+        let stem = dir.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("edgedb");
+        let mut name = stem.to_string();
 
-    while instances.contains(&name) {
-        name = format!("{}_{}", stem,
-            (0..7)
-            .flat_map(|_| CHARS.as_bytes().choose(&mut thread_rng()))
-            .map(|b| *b as char)
-            .collect::<String>());
+        while instances.contains(&name) {
+            name = format!("{}_{}", stem,
+                (0..7)
+                .flat_map(|_| CHARS.as_bytes().choose(&mut thread_rng()))
+                .map(|b| *b as char)
+                .collect::<String>());
+        }
+        name
+    };
+    if options.non_interactive {
+        if instances.contains(&default_name) {
+            log::warn!("Instance {:?} already exists", default_name);
+        }
+        return Ok(default_name)
     }
     let mut q = question::String::new(
         "Specify the name of EdgeDB instance to use with this project"
     );
-    q.default(&name);
+    q.default(&default_name);
     loop {
         let target_name = q.ask()?;
         if !is_valid_name(&target_name) {
@@ -155,9 +191,25 @@ fn print_versions(meth: &dyn Method, title: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn ask_version(meth: &dyn Method) -> anyhow::Result<DistributionRef> {
-    let distribution = meth.get_version(&VersionQuery::Stable(None))
-        .context("cannot find stable EdgeDB version")?;
+fn ask_version(meth: &dyn Method, options: &Init)
+    -> anyhow::Result<DistributionRef>
+{
+    let ver_query = match &options.server_version {
+        Some(ver) if ver.num() == "nightly" => VersionQuery::Nightly,
+        Some(ver) => VersionQuery::Stable(Some(ver.clone())),
+        None => VersionQuery::Stable(None),
+    };
+    if options.non_interactive {
+        return meth.get_version(&ver_query);
+    }
+    let distribution = meth.get_version(&ver_query)
+        .map_err(|e| {
+            log::warn!("Cannot find EdgeDB {}: {}", ver_query, e);
+        })
+        .or_else(|()| {
+            meth.get_version(&VersionQuery::Stable(None))
+            .context("cannot find stable EdgeDB version")
+        })?;
     let mut q = question::String::new(
         "Specify the version of EdgeDB to use with this project"
     );
@@ -231,7 +283,7 @@ fn write_config(path: &Path, distr: &DistributionRef) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
+fn init_existing(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     println!("Found `edgedb.toml` in `{}`", project_dir.display());
 
     let stash_dir = stash_path(project_dir)?;
@@ -247,13 +299,20 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let avail_methods = os.get_available_methods()?;
     let methods = avail_methods.instantiate_all(&*os, true)?;
 
-    let method = ask_method(&avail_methods)?;
+    let method = ask_method(&avail_methods, options)?;
     let meth = methods.get(&method).expect("chosen method works");
 
     println!("Checking EdgeDB versions...");
-    let ver_query = match config.edgedb.server_version {
-        None => VersionQuery::Stable(None),
-        Some(ver) => ver.to_query(),
+    let ver_query = if let Some(ver) = &options.server_version {
+        match ver.num() {
+            "nightly" => VersionQuery::Nightly,
+            _ => VersionQuery::Stable(Some(ver.clone())),
+        }
+    } else {
+        match config.edgedb.server_version {
+            None => VersionQuery::Stable(None),
+            Some(ver) => ver.to_query(),
+        }
     };
     let distr = meth.get_version(&ver_query)
         .map_err(|e| {
@@ -266,7 +325,7 @@ fn init_existing(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
         })?;
 
     let installed = meth.installed_versions()?;
-    let name = ask_name(&methods, project_dir)?;
+    let name = ask_name(&methods, project_dir, options)?;
     let schema_dir = project_dir.join("dbschema");
     let schema_files = find_schema_files(&schema_dir)?;
 
@@ -411,7 +470,7 @@ pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(stash_base()?.join(hname))
 }
 
-fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
+fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     println!("`edgedb.toml` is not found in `{}` or above",
              project_dir.display());
 
@@ -432,14 +491,14 @@ fn init_new(_init: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let avail_methods = os.get_available_methods()?;
     let methods = avail_methods.instantiate_all(&*os, true)?;
 
-    let method = ask_method(&avail_methods)?;
+    let method = ask_method(&avail_methods, options)?;
 
     println!("Checking EdgeDB versions...");
     let meth = methods.get(&method).expect("chosen method works");
     let installed = meth.installed_versions()?;
 
-    let distr = ask_version(meth.as_ref())?;
-    let name = ask_name(&methods, project_dir)?;
+    let distr = ask_version(meth.as_ref(), options)?;
+    let name = ask_name(&methods, project_dir, options)?;
     let schema_dir = project_dir.join("dbschema");
     let schema_files = find_schema_files(&schema_dir)?;
 
