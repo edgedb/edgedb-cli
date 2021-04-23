@@ -11,3 +11,4 @@ mod measure;
 #[cfg(all(feature="github_nightly"))] mod compat;
 #[cfg(all(feature="github_nightly"))] mod install;
 #[cfg(all(feature="github_nightly"))] mod upgrade;
+#[cfg(all(feature="github_nightly"))] mod project;

@@ -72,6 +72,7 @@ fn ask_method(available: &InstallationMethods, options: &Init)
                 buf.push_str("Please consider opening an issue at \
                     https://github.com/edgedb/edgedb-cli/issues/new\
                     ?template=install-unsupported.md");
+                anyhow::bail!(buf);
             }
         }
     }
@@ -471,8 +472,8 @@ pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
 }
 
 fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
-    println!("`edgedb.toml` is not found in `{}` or above",
-             project_dir.display());
+    eprintln!("`edgedb.toml` is not found in `{}` or above",
+              project_dir.display());
 
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
@@ -480,9 +481,15 @@ fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         anyhow::bail!("project dir already exists");
     }
 
-    let q = question::Confirm::new("Do you want to initialize a new project?");
-    if !q.ask()? {
-        return Ok(());
+    if options.non_interactive {
+        eprintln!("Initializing new project...");
+    } else {
+        let q = question::Confirm::new(
+            "Do you want to initialize a new project?"
+        );
+        if !q.ask()? {
+            return Ok(());
+        }
     }
 
     let config_path = project_dir.join("edgedb.toml");
