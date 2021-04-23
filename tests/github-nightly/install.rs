@@ -107,7 +107,7 @@ fn docker(tagname: &str, dockerfile: &str, version: &str)
     build_image(context, tagname)?;
     run_docker(tagname, &format!(r###"
             edgedb server install --method=docker {version}
-            edgedb server init test1 {version}
+            RUST_LOG=info edgedb server init test1 {version}
             val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
             test "$val" = "2"
