@@ -1,4 +1,4 @@
 contact_links:
   - name: Question
-    url:  https://spectrum.chat/edgedb?tab=posts
+    url: https://github.com/edgedb/edgedb/discussions
     about: Please ask and answer questions here.
