@@ -1,4 +1,4 @@
-use crate::project::options::{ProjectCommand, Command};
+use crate::project::options::{Command, ProjectCommand};
 
 use crate::project::init;
 use crate::project::unlink;

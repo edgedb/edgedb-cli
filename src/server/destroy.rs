@@ -5,12 +5,11 @@ use std::path::{Path, PathBuf};
 use fn_error_context::context;
 
 use crate::commands::{self, ExitCode};
+use crate::platform::bytes_to_path;
 use crate::project::init::stash_base;
 use crate::server::detect;
 use crate::server::errors::InstanceNotFound;
 use crate::server::options::Destroy;
-use crate::platform::{bytes_to_path};
-
 
 #[context("could not read project dir {:?}", stash_base())]
 pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
@@ -46,8 +45,7 @@ fn read_path(path: &Path) -> anyhow::Result<PathBuf> {
 }
 
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
-    eprintln!("Instance {:?} is used by the following projects:",
-              name);
+    eprintln!("Instance {:?} is used by the following projects:", name);
     for dir in project_dirs {
         let path_path = dir.join("project-path");
         let dest = match read_path(&path_path) {

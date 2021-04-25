@@ -16,20 +16,21 @@ pub trait HintExt {
     type Result: Sized;
     fn hint(self, text: &'static str) -> Self::Result;
     fn with_hint<F>(self, f: F) -> Self::Result
-        where F: FnOnce() -> String;
+    where
+        F: FnOnce() -> String;
 }
 
 impl<T> HintExt for Result<T, anyhow::Error> {
     type Result = Result<T, HintedError>;
-    fn hint(self, text: &'static str) -> Self::Result
-    {
+    fn hint(self, text: &'static str) -> Self::Result {
         self.map_err(|error| HintedError {
             error,
             hint: text.into(),
         })
     }
     fn with_hint<F>(self, f: F) -> Self::Result
-        where F: FnOnce() -> String
+    where
+        F: FnOnce() -> String,
     {
         self.map_err(|error| HintedError {
             hint: f().into(),

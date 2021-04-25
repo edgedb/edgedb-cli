@@ -1,9 +1,8 @@
-use std::str::CharIndices;
-use std::iter::{Peekable};
 use std::cmp::Ordering;
+use std::iter::Peekable;
+use std::str::CharIndices;
 
 use serde::{Deserialize, Serialize};
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Version<T: AsRef<str>>(pub T);
@@ -67,7 +66,6 @@ impl std::str::FromStr for Version<String> {
     }
 }
 
-
 impl<'a> Iterator for Components<'a> {
     type Item = Component<'a>;
     fn next(&mut self) -> Option<Component<'a>> {
@@ -78,26 +76,30 @@ impl<'a> Iterator for Components<'a> {
                 for _ in self.1.by_ref() {}
                 return None;
             }
-            if x.is_alphanumeric() { break; }
+            if x.is_alphanumeric() {
+                break;
+            }
             self.1.next();
         }
         if let Some(&(start, x)) = self.1.peek() {
             if x.is_numeric() {
                 while let Some(&(_, x)) = self.1.peek() {
-                    if !x.is_numeric() { break; }
+                    if !x.is_numeric() {
+                        break;
+                    }
                     self.1.next();
                 }
-                let end = self.1.peek().map(|&(x, _)| x)
-                    .unwrap_or(self.0.len());
+                let end = self.1.peek().map(|&(x, _)| x).unwrap_or(self.0.len());
                 let val = &self.0[start..end];
                 return Some(val.parse().map(Numeric).unwrap_or(String(val)));
             } else {
                 while let Some(&(_, x)) = self.1.peek() {
-                    if !x.is_alphanumeric() { break; }
+                    if !x.is_alphanumeric() {
+                        break;
+                    }
                     self.1.next();
                 }
-                let end = self.1.peek().map(|&(x, _)| x)
-                    .unwrap_or(self.0.len());
+                let end = self.1.peek().map(|&(x, _)| x).unwrap_or(self.0.len());
                 let val = &self.0[start..end];
                 return Some(String(val));
             }
@@ -153,7 +155,6 @@ impl<T: AsRef<str>> Ord for Version<T> {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use super::Version;
@@ -161,13 +162,22 @@ mod test {
     #[test]
     fn test_version_parse() {
         use super::Component::*;
-        assert_eq!(Version("v0.4.1-28-gfba00d7")
-            .components().collect::<Vec<_>>(),
-            [Numeric(0), Numeric(4), Numeric(1),
-             Numeric(28), String("gfba00d7")]);
-        assert_eq!(Version("v0.4.1+trusty1")
-            .components().collect::<Vec<_>>(),
-            [Numeric(0), Numeric(4), Numeric(1)]);
+        assert_eq!(
+            Version("v0.4.1-28-gfba00d7")
+                .components()
+                .collect::<Vec<_>>(),
+            [
+                Numeric(0),
+                Numeric(4),
+                Numeric(1),
+                Numeric(28),
+                String("gfba00d7")
+            ]
+        );
+        assert_eq!(
+            Version("v0.4.1+trusty1").components().collect::<Vec<_>>(),
+            [Numeric(0), Numeric(4), Numeric(1)]
+        );
     }
 
     #[test]
@@ -181,8 +191,7 @@ mod test {
 
     #[test]
     fn test_version_cmp2() {
-        assert!(!(Version("v0.4.1-172-ge011471")
-                < Version("v0.4.1-172-ge011471")));
+        assert!(!(Version("v0.4.1-172-ge011471") < Version("v0.4.1-172-ge011471")));
     }
 
     #[test]

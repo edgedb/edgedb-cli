@@ -5,13 +5,13 @@ mod log;
 mod migrate;
 mod migration;
 mod print_error;
+mod prompt;
 mod source_map;
 mod status;
-mod prompt;
 
 const NULL_MIGRATION: &str = "initial";
 
+pub use self::log::{log, log_fs};
 pub use create::create;
 pub use migrate::migrate;
 pub use status::status;
-pub use self::log::{log, log_fs};

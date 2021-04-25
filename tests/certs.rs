@@ -4,9 +4,9 @@ use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, PKeyRef, Private};
 use openssl::rsa::Rsa;
+use openssl::x509::extension::SubjectKeyIdentifier;
 use openssl::x509::extension::{AuthorityKeyIdentifier, BasicConstraints};
 use openssl::x509::extension::{KeyUsage, SubjectAlternativeName};
-use openssl::x509::extension::{SubjectKeyIdentifier};
 use openssl::x509::{X509NameBuilder, X509Ref, X509Req, X509ReqBuilder, X509};
 
 pub struct Certs {

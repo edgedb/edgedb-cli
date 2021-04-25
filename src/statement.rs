@@ -3,14 +3,13 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::slice;
-use std::task::{Poll, Context};
+use std::task::{Context, Poll};
 
 use anyhow;
-use async_std::io::{Read as AsyncRead};
-use bytes::{Bytes, BytesMut, BufMut};
+use async_std::io::Read as AsyncRead;
+use bytes::{BufMut, Bytes, BytesMut};
 
 use edgeql_parser::preparser::{full_statement, Continuation};
-
 
 #[derive(Debug)]
 pub struct EndOfFile;
@@ -22,22 +21,28 @@ pub struct ReadStatement<'a, T> {
     continuation: Option<Continuation>,
 }
 
-
 impl<'a, T> ReadStatement<'a, T> {
-    pub fn new(buf: &'a mut BytesMut, stream: &'a mut T)
-        -> ReadStatement<'a, T>
-    {
-        ReadStatement { buf, stream, continuation: None, eof: false }
+    pub fn new(buf: &'a mut BytesMut, stream: &'a mut T) -> ReadStatement<'a, T> {
+        ReadStatement {
+            buf,
+            stream,
+            continuation: None,
+            eof: false,
+        }
     }
 }
 
 impl<'a, T> Future for ReadStatement<'a, T>
-    where T: AsyncRead + Unpin,
+where
+    T: AsyncRead + Unpin,
 {
     type Output = Result<Bytes, anyhow::Error>;
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
         let ReadStatement {
-            buf, stream, ref mut continuation, ref mut eof
+            buf,
+            stream,
+            ref mut continuation,
+            ref mut eof,
         } = &mut *self;
         if *eof {
             return Poll::Ready(Err(EndOfFile.into()));
@@ -52,14 +57,12 @@ impl<'a, T> Future for ReadStatement<'a, T>
                 // this is safe because the underlying ByteStream always
                 // initializes read bytes
                 let chunk = buf.chunk_mut();
-                let dest: &mut [u8] = slice::from_raw_parts_mut(
-                    chunk.as_mut_ptr(), chunk.len());
+                let dest: &mut [u8] = slice::from_raw_parts_mut(chunk.as_mut_ptr(), chunk.len());
                 match Pin::new(&mut *stream).poll_read(cx, dest) {
                     Poll::Ready(Ok(0)) => {
                         *eof = true;
                         if buf.iter().any(|x| !x.is_ascii_whitespace()) {
-                            return Poll::Ready(Ok(
-                                buf.split_to(buf.len()).freeze()));
+                            return Poll::Ready(Ok(buf.split_to(buf.len()).freeze()));
                         }
                         return Poll::Ready(Err(EndOfFile.into()));
                     }
@@ -67,7 +70,9 @@ impl<'a, T> Future for ReadStatement<'a, T>
                         buf.advance_mut(bytes);
                         continue;
                     }
-                    Poll::Ready(err @ Err(_)) => { err?; }
+                    Poll::Ready(err @ Err(_)) => {
+                        err?;
+                    }
                     Poll::Pending => return Poll::Pending,
                 }
             }
@@ -83,5 +88,4 @@ impl fmt::Display for EndOfFile {
     }
 }
 
-impl error::Error for EndOfFile {
-}
+impl error::Error for EndOfFile {}

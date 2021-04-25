@@ -1,10 +1,9 @@
 use std::borrow::Cow;
 use std::io::{stdin, BufRead};
 
-use rustyline::{Editor, Config};
+use rustyline::{Config, Editor};
 
 use anyhow::Context;
-
 
 pub struct Numeric<'a, T: Clone + 'a> {
     question: &'a str,
@@ -26,7 +25,7 @@ pub struct Confirm<'a> {
 pub fn read_choice() -> anyhow::Result<std::string::String> {
     for line in stdin().lock().lines() {
         let line = line.context("reading user input")?;
-        return Ok(line.trim().to_lowercase())
+        return Ok(line.trim().to_lowercase());
     }
     anyhow::bail!("Unexpected end of input");
 }
@@ -39,9 +38,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
             suffix: "Your choice?",
         }
     }
-    pub fn option<S: Into<Cow<'a, str>>>(&mut self, name: S, value: T)
-        -> &mut Self
-    {
+    pub fn option<S: Into<Cow<'a, str>>>(&mut self, name: S, value: T) -> &mut Self {
         self.options.push((name.into(), value));
         self
     }
@@ -55,7 +52,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
         loop {
             println!("{}", self.question);
             for (idx, (title, _)) in self.options.iter().enumerate() {
-                println!("{}. {}", idx+1, title);
+                println!("{}. {}", idx + 1, title);
             }
             let value = editor.readline(&prompt)?;
             let choice = match value.parse::<u32>() {
@@ -70,7 +67,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
                 println!("Please specify a choice from the list above");
                 continue;
             }
-            return Ok(self.options[(choice-1) as usize].1.clone());
+            return Ok(self.options[(choice - 1) as usize].1.clone());
         }
     }
 }
@@ -94,10 +91,7 @@ impl<'a> String<'a> {
             format!("{} [{}]: ", self.question, self.default)
         };
         let mut editor = Editor::<()>::with_config(Config::builder().build());
-        let mut val = editor.readline_with_initial(
-            &prompt,
-            (&self.initial, ""),
-        )?;
+        let mut val = editor.readline_with_initial(&prompt, (&self.initial, ""))?;
         if val == "" {
             val = self.default.to_string();
         }

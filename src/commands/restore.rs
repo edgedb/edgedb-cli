@@ -3,28 +3,28 @@ use std::convert::TryInto;
 use std::ffi::OsString;
 use std::slice;
 use std::str;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use async_std::path::Path;
 use async_std::fs;
-use async_std::io::{self, Read, prelude::ReadExt};
-use async_std::future::{timeout, pending};
+use async_std::future::{pending, timeout};
+use async_std::io::{self, prelude::ReadExt, Read};
+use async_std::path::Path;
 use async_std::prelude::{FutureExt, StreamExt};
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{BufMut, Bytes, BytesMut};
 
-use edgeql_parser::helpers::quote_name;
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
+use edgedb_protocol::server_message::ErrorResponse;
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
-use edgedb_protocol ::server_message::{ErrorResponse};
-use edgeql_parser::preparser::{is_empty};
+use edgeql_parser::helpers::quote_name;
+use edgeql_parser::preparser::is_empty;
 
+use crate::commands::parser::Restore as RestoreCmd;
 use crate::commands::Options;
-use crate::commands::parser::{Restore as RestoreCmd};
+use crate::statement::{EndOfFile, ReadStatement};
 use edgedb_client::client::{Connection, Writer};
 use edgedb_client::reader::Reader;
-use crate::statement::{ReadStatement, EndOfFile};
 
 type Input = Box<dyn Read + Unpin + Send>;
 
@@ -38,21 +38,24 @@ pub enum PacketType {
     Block,
 }
 
-
-async fn read_packet(input: &mut Input, expected: PacketType)
-    -> Result<Option<Bytes>, anyhow::Error>
-{
-    let mut buf = [0u8; 1+20+4];
+async fn read_packet(
+    input: &mut Input,
+    expected: PacketType,
+) -> Result<Option<Bytes>, anyhow::Error> {
+    let mut buf = [0u8; 1 + 20 + 4];
     let mut read = 0;
     while read < buf.len() {
-        let n = input.read(&mut buf[read..]).await
+        let n = input
+            .read(&mut buf[read..])
+            .await
             .context("Cannot read packet header")?;
-        if n == 0 {  // EOF
+        if n == 0 {
+            // EOF
             if read == 0 {
                 return Ok(None);
             }
             Err(io::Error::from(io::ErrorKind::UnexpectedEof))
-            .context("Cannot read packet header")?
+                .context("Cannot read packet header")?
         }
         read += n;
     }
@@ -62,10 +65,13 @@ async fn read_packet(input: &mut Input, expected: PacketType)
         _ => return Err(anyhow::anyhow!("Invalid block type {:x}", buf[0])),
     };
     if typ != expected {
-        return Err(anyhow::anyhow!("Expected block {:?} got {:?}",
-                    expected, typ));
+        return Err(anyhow::anyhow!(
+            "Expected block {:?} got {:?}",
+            expected,
+            typ
+        ));
     }
-    let len = u32::from_be_bytes(buf[1+20..].try_into().unwrap()) as usize;
+    let len = u32::from_be_bytes(buf[1 + 20..].try_into().unwrap()) as usize;
     let mut buf = BytesMut::with_capacity(len);
     unsafe {
         // this is safe because we use read_exact which initializes whole slice
@@ -73,18 +79,20 @@ async fn read_packet(input: &mut Input, expected: PacketType)
         let chunk = buf.chunk_mut();
         // BytesMut is contiguous, so this assertion should hold
         assert_eq!(chunk.len(), len);
-        let dest: &mut [u8] = slice::from_raw_parts_mut(
-            chunk.as_mut_ptr(), chunk.len());
-        input.read_exact(dest).await
+        let dest: &mut [u8] = slice::from_raw_parts_mut(chunk.as_mut_ptr(), chunk.len());
+        input
+            .read_exact(dest)
+            .await
             .with_context(|| format!("Error reading block of {} bytes", len))?;
         buf.advance_mut(dest.len());
     }
     return Ok(Some(buf.freeze()));
 }
 
-
 async fn is_empty_db(cli: &mut Connection) -> Result<bool, anyhow::Error> {
-    let mut query = cli.query::<i64>(r###"SELECT
+    let mut query = cli
+        .query::<i64>(
+            r###"SELECT
             count(
                 schema::Module
                 FILTER NOT .builtin AND NOT .name = "default"
@@ -92,7 +100,10 @@ async fn is_empty_db(cli: &mut Connection) -> Result<bool, anyhow::Error> {
                 schema::Object
                 FILTER .name LIKE "default::%"
             )
-        "###, &Value::empty_tuple()).await?;
+        "###,
+            &Value::empty_tuple(),
+        )
+        .await?;
     let mut non_empty = false;
     while let Some(num) = query.next().await.transpose()? {
         if num > 0 {
@@ -102,10 +113,11 @@ async fn is_empty_db(cli: &mut Connection) -> Result<bool, anyhow::Error> {
     return Ok(non_empty);
 }
 
-pub async fn restore<'x>(cli: &mut Connection, options: &Options,
-    params: &RestoreCmd)
-    -> Result<(), anyhow::Error>
-{
+pub async fn restore<'x>(
+    cli: &mut Connection,
+    options: &Options,
+    params: &RestoreCmd,
+) -> Result<(), anyhow::Error> {
     if params.all {
         restore_all(cli, options, params).await
     } else {
@@ -113,24 +125,31 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
     }
 }
 
-async fn restore_db<'x>(cli: &mut Connection, options: &Options,
-    params: &RestoreCmd)
-    -> Result<(), anyhow::Error>
-{
+async fn restore_db<'x>(
+    cli: &mut Connection,
+    options: &Options,
+    params: &RestoreCmd,
+) -> Result<(), anyhow::Error> {
     use PacketType::*;
     let RestoreCmd {
-        allow_non_empty, path: ref filename,
-        all: _, verbose: _,
+        allow_non_empty,
+        path: ref filename,
+        all: _,
+        verbose: _,
     } = *params;
     if !allow_non_empty {
-        if is_empty_db(cli).await.context("Error checking DB emptyness")? {
+        if is_empty_db(cli)
+            .await
+            .context("Error checking DB emptyness")?
+        {
             if options.command_line {
-                return Err(anyhow::anyhow!("\
-                    cannot restore: the database is not empty; \
-                    consider using the --allow-non-empty option"));
-            } else {
                 return Err(anyhow::anyhow!(
-                    "cannot restore: the database is not empty"));
+                    "\
+                    cannot restore: the database is not empty; \
+                    consider using the --allow-non-empty option"
+                ));
+            } else {
+                return Err(anyhow::anyhow!("cannot restore: the database is not empty"));
             }
         }
     }
@@ -140,36 +159,37 @@ async fn restore_db<'x>(cli: &mut Connection, options: &Options,
     let mut input = if filename.to_str() == Some("-") {
         Box::new(io::stdin()) as Input
     } else {
-        fs::File::open(filename).await
-        .map(Box::new)
-        .with_context(file_ctx)?
-        as Input
+        fs::File::open(filename)
+            .await
+            .map(Box::new)
+            .with_context(file_ctx)? as Input
     };
-    let mut buf = [0u8; 17+8];
-    input.read_exact(&mut buf).await
+    let mut buf = [0u8; 17 + 8];
+    input
+        .read_exact(&mut buf)
+        .await
         .context("Cannot read header")
         .with_context(file_ctx)?;
     if &buf[..17] != b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00" {
-        Err(anyhow::anyhow!("File is not an edgedb dump"))
-        .with_context(file_ctx)?
+        Err(anyhow::anyhow!("File is not an edgedb dump")).with_context(file_ctx)?
     }
     let version = i64::from_be_bytes(buf[17..].try_into().unwrap());
     if version == 0 || version > MAX_SUPPORTED_DUMP_VER {
-        Err(anyhow::anyhow!("Unsupported dump version {}", version))
-        .with_context(file_ctx)?
+        Err(anyhow::anyhow!("Unsupported dump version {}", version)).with_context(file_ctx)?
     }
-    let header = read_packet(&mut input, Header).await.with_context(file_ctx)?
+    let header = read_packet(&mut input, Header)
+        .await
+        .with_context(file_ctx)?
         .ok_or_else(|| anyhow::anyhow!("Dump is empty"))
-                       .with_context(file_ctx)?;
+        .with_context(file_ctx)?;
     let start_headers = Instant::now();
     let mut seq = cli.start_sequence().await?;
-    seq.send_messages(&[
-        ClientMessage::Restore(Restore {
-            headers: HashMap::new(),
-            jobs: 1,
-            data: header,
-        })
-    ]).await?;
+    seq.send_messages(&[ClientMessage::Restore(Restore {
+        headers: HashMap::new(),
+        jobs: 1,
+        data: header,
+    })])
+    .await?;
     loop {
         let msg = seq.message().await?;
         match msg {
@@ -180,17 +200,14 @@ async fn restore_db<'x>(cli: &mut Connection, options: &Options,
             }
             ServerMessage::ErrorResponse(err) => {
                 seq.err_sync().await.ok();
-                return Err(anyhow::anyhow!(err)
-                    .context("Error initiating restore protocol"));
+                return Err(anyhow::anyhow!(err).context("Error initiating restore protocol"));
             }
             _ => {
-                return Err(anyhow::anyhow!(
-                    "WARNING: unsolicited message {:?}", msg));
+                return Err(anyhow::anyhow!("WARNING: unsolicited message {:?}", msg));
             }
         }
     }
-    let result = send_blocks(&mut seq.writer, &mut input,
-                             filename.as_ref())
+    let result = send_blocks(&mut seq.writer, &mut input, filename.as_ref())
         .race(wait_response(&mut seq.reader, start_headers))
         .await;
     if let Err(..) = result {
@@ -201,21 +218,21 @@ async fn restore_db<'x>(cli: &mut Connection, options: &Options,
     result
 }
 
-async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
-    filename: &Path)
-    -> Result<(), anyhow::Error>
-{
+async fn send_blocks(
+    writer: &mut Writer<'_>,
+    input: &mut Input,
+    filename: &Path,
+) -> Result<(), anyhow::Error> {
     use PacketType::*;
 
     let start_blocks = Instant::now();
-    while
-        let Some(data) = read_packet(input, Block).await
-            .with_context(|| format!("Failed to read dump {}",
-                                     filename.display()))?
+    while let Some(data) = read_packet(input, Block)
+        .await
+        .with_context(|| format!("Failed to read dump {}", filename.display()))?
     {
-        writer.send_messages(&[
-            ClientMessage::RestoreBlock(RestoreBlock { data })
-        ]).await?;
+        writer
+            .send_messages(&[ClientMessage::RestoreBlock(RestoreBlock { data })])
+            .await?;
     }
     writer.send_messages(&[ClientMessage::RestoreEof]).await?;
     log::info!(target: "edgedb::restore",
@@ -231,9 +248,7 @@ async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
     }
 }
 
-async fn wait_response(reader: &mut Reader<'_>, start: Instant)
-    -> Result<(), anyhow::Error>
-{
+async fn wait_response(reader: &mut Reader<'_>, start: Instant) -> Result<(), anyhow::Error> {
     loop {
         let msg = reader.message().await?;
         match msg {
@@ -246,8 +261,7 @@ async fn wait_response(reader: &mut Reader<'_>, start: Instant)
                 return Err(anyhow::anyhow!(err));
             }
             _ => {
-                return Err(anyhow::anyhow!(
-                    "WARNING: unsolicited message {:?}", msg));
+                return Err(anyhow::anyhow!("WARNING: unsolicited message {:?}", msg));
             }
         }
     }
@@ -255,7 +269,9 @@ async fn wait_response(reader: &mut Reader<'_>, start: Instant)
 }
 
 fn path_to_database_name(path: &Path) -> anyhow::Result<String> {
-    let encoded = path.file_stem().and_then(|x| x.to_str())
+    let encoded = path
+        .file_stem()
+        .and_then(|x| x.to_str())
         .ok_or_else(|| anyhow::anyhow!("invalid dump filename {:?}", path))?;
     let decoded = urlencoding::decode(encoded)
         .with_context(|| format!("failed to decode filename {:?}", path))?;
@@ -272,24 +288,26 @@ async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
             Err(e) if e.is::<EndOfFile>() => break,
             Err(e) => return Err(e),
         };
-        let stmt = str::from_utf8(&stmt[..])
-            .context("can't decode statement")?;
+        let stmt = str::from_utf8(&stmt[..]).context("can't decode statement")?;
         if !is_empty(stmt) {
             log::trace!("Executing {:?}", stmt);
-            cli.execute(&stmt).await
+            cli.execute(&stmt)
+                .await
                 .with_context(|| format!("failed statement {:?}", stmt))?;
         }
     }
     Ok(())
 }
 
-pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
-    params: &RestoreCmd)
-    -> anyhow::Result<()>
-{
+pub async fn restore_all<'x>(
+    cli: &mut Connection,
+    options: &Options,
+    params: &RestoreCmd,
+) -> anyhow::Result<()> {
     let dir = &params.path;
     let filename = dir.join("init.edgeql");
-    apply_init(cli, filename.as_ref()).await
+    apply_init(cli, filename.as_ref())
+        .await
         .with_context(|| format!("error applying init file {:?}", filename))?;
 
     let mut conn_params = options.conn_params.clone();
@@ -309,8 +327,8 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
             Ok(_) => None,
             Err(e) => {
                 let silent = if let Some(e) = e.downcast_ref::<ErrorResponse>() {
-                    e.code == DUPLICATE_DATABASE_DEFINITION_ERROR ||
-                    e.code == SCHEMA_ERROR  // <= 1.0alpha7
+                    e.code == DUPLICATE_DATABASE_DEFINITION_ERROR || e.code == SCHEMA_ERROR
+                // <= 1.0alpha7
                 } else {
                     false
                 };
@@ -321,25 +339,26 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
                 }
             }
         };
-        conn_params.modify(|p| { p.database(&database); });
-        let mut db_conn = match conn_params.connect().await  {
+        conn_params.modify(|p| {
+            p.database(&database);
+        });
+        let mut db_conn = match conn_params.connect().await {
             Ok(conn) => conn,
             Err(e) => {
-                let err = Err(e)
-                    .with_context(|| format!(
-                        "cannot connect to database {:?}",
-                        database));
+                let err =
+                    Err(e).with_context(|| format!("cannot connect to database {:?}", database));
                 if let Some(db_error) = db_error {
-                    err.with_context(|| format!(
-                            "cannot create database {:?}: {}",
-                            database, db_error))?
+                    err.with_context(|| {
+                        format!("cannot create database {:?}: {}", database, db_error)
+                    })?
                 } else {
                     err?
                 }
             }
         };
         params.path = path.into();
-        restore_db(&mut db_conn, options, &params).await
+        restore_db(&mut db_conn, options, &params)
+            .await
             .with_context(|| format!("restoring database {:?}", database))?;
     }
     Ok(())

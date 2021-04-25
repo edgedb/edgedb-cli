@@ -1,15 +1,14 @@
 use std::fs;
-use std::process::{Child};
+use std::process::Child;
 use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
 
 use test_case::test_case;
 
-use crate::docker;
 use crate::certs::Certs;
+use crate::docker;
 use once_cell::sync::Lazy;
-
 
 static HTTP: Lazy<HttpGuard> = Lazy::new(|| HttpGuard::start());
 
@@ -23,7 +22,6 @@ struct HttpGuard {
 pub struct ShutdownInfo {
     process: Child,
 }
-
 
 impl HttpGuard {
     fn start() -> HttpGuard {
@@ -40,16 +38,14 @@ impl HttpGuard {
                 .add_file("edgedb-init.sh", fs::read("./edgedb-init.sh")?)?
                 .add_sudoers()?
                 .add_bin()?,
-            "edgedb_test:http_server")?;
-        let process = docker::run_bg(
-            HTTP_CONTAINER, "edgedb_test:http_server");
+            "edgedb_test:http_server",
+        )?;
+        let process = docker::run_bg(HTTP_CONTAINER, "edgedb_test:http_server");
         shutdown_hooks::add_shutdown_hook(stop_process);
         sleep(Duration::from_secs(1));
         Ok(HttpGuard {
             certs,
-            shutdown_info: Mutex::new(ShutdownInfo {
-                process,
-            }),
+            shutdown_info: Mutex::new(ShutdownInfo { process }),
         })
     }
     fn url(&self) -> &'static str {
@@ -65,7 +61,8 @@ impl HttpGuard {
 }
 
 pub fn dockerfile_centos(release: &str) -> String {
-    format!(r###"
+    format!(
+        r###"
         FROM centos:{release}
         RUN yum -y install sudo curl
         ADD ./selfsigned.crt /etc/pki/ca-trust/source/anchors/selfsigned.crt
@@ -76,12 +73,14 @@ pub fn dockerfile_centos(release: &str) -> String {
             user1
         ENV EDGEDB_PKG_ROOT {url}
     "###,
-        url=HTTP.url(),
-        release=release)
+        url = HTTP.url(),
+        release = release
+    )
 }
 
 pub fn dockerfile_deb(distro: &str, codename: &str) -> String {
-    format!(r###"
+    format!(
+        r###"
         FROM {distro}:{codename}
         RUN apt-get update
         RUN apt-get install -y ca-certificates curl \
@@ -94,9 +93,10 @@ pub fn dockerfile_deb(distro: &str, codename: &str) -> String {
             user1
         ENV EDGEDB_PKG_ROOT {url}
     "###,
-        url=HTTP.url(),
-        distro=distro,
-        codename=codename)
+        url = HTTP.url(),
+        distro = distro,
+        codename = codename
+    )
 }
 
 pub fn default_conf() -> &'static str {
@@ -132,17 +132,18 @@ pub fn dockerfile_http() -> &'static str {
 #[test_case("cli_bionic", dockerfile_deb("ubuntu", "bionic"))]
 #[test_case("cli_centos7", dockerfile_centos("7"))]
 #[test_case("cli_buster", dockerfile_deb("debian", "buster"))]
-fn cli_install(tagname: &str, dockerfile: String)
-    -> anyhow::Result<()>
-{
+fn cli_install(tagname: &str, dockerfile: String) -> anyhow::Result<()> {
     docker::build_image(
         docker::Context::new()
             .add_file("Dockerfile", dockerfile)?
             .add_file("selfsigned.crt", HTTP.cert())?
             .add_sudoers()?,
-        tagname)?;
-    docker::run_with(tagname,
-        &format!(r###"
+        tagname,
+    )?;
+    docker::run_with(
+        tagname,
+        &format!(
+            r###"
             echo "HOME $HOME"
             whoami
             cat /etc/passwd
@@ -150,20 +151,22 @@ fn cli_install(tagname: &str, dockerfile: String)
             . ~/.profile
             echo --- DONE ---
             edgedb --version
-        "###, url=HTTP.url()),
-        HTTP.container())
-        .success()
-        .stdout(predicates::str::contains("--- DONE ---"))
-        .stdout(predicates::function::function(|data: &str| {
-            let tail = &data[data.find("--- DONE ---").unwrap()..];
-            assert!(tail.contains(
-                concat!("edgedb-cli ", env!("CARGO_PKG_VERSION"))));
-            true
-        }));
-   Ok(())
+        "###,
+            url = HTTP.url()
+        ),
+        HTTP.container(),
+    )
+    .success()
+    .stdout(predicates::str::contains("--- DONE ---"))
+    .stdout(predicates::function::function(|data: &str| {
+        let tail = &data[data.find("--- DONE ---").unwrap()..];
+        assert!(tail.contains(concat!("edgedb-cli ", env!("CARGO_PKG_VERSION"))));
+        true
+    }));
+    Ok(())
 }
 
-extern fn stop_process() {
+extern "C" fn stop_process() {
     let mut sinfo = HTTP.shutdown_info.lock().expect("shutdown mutex works");
     docker::stop(HTTP.container());
     sinfo.process.wait().ok();

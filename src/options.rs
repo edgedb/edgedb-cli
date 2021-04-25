@@ -1,10 +1,10 @@
 use std::env;
-use std::time::Duration;
 use std::fs;
+use std::time::Duration;
 
 use anyhow::Context;
 use atty;
-use clap::{Clap, AppSettings, ValueHint};
+use clap::{AppSettings, Clap, ValueHint};
 use edgedb_client::Builder;
 
 use crate::commands::parser::Common;
@@ -17,11 +17,9 @@ use crate::self_install;
 use crate::self_upgrade;
 use crate::server;
 
-
 static CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
     to specify connection parameters. See `--help` for details";
-
 
 #[derive(Clap, Debug)]
 #[clap(version=clap::crate_version!())]
@@ -46,7 +44,7 @@ pub struct RawOptions {
 
     /// Database name to connect to
     #[clap(short='d', long, help_heading=Some("CONNECTION OPTIONS"))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete database
+    #[clap(value_hint=ValueHint::Other)] // TODO complete database
     pub database: Option<String>,
 
     /// Connect to a passwordless unix socket with superuser
@@ -81,7 +79,7 @@ pub struct RawOptions {
     /// Local instance name created with `edgedb server init` to connect to
     /// (overrides host and port)
     #[clap(short='I', long, help_heading=Some("CONNECTION OPTIONS"))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<String>,
 
     #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
@@ -100,15 +98,15 @@ pub struct RawOptions {
     pub debug_print_codecs: bool,
 
     /// Tab-separated output of the queries
-    #[clap(short='t', long, overrides_with="json")]
+    #[clap(short = 't', long, overrides_with = "json")]
     pub tab_separated: bool,
 
     /// JSON output for the queries (single JSON list per query)
-    #[clap(short='j', long, overrides_with="tab_separated")]
+    #[clap(short = 'j', long, overrides_with = "tab_separated")]
     pub json: bool,
 
     /// Execute a query instead of starting REPL (alias to `edgedb query`)
-    #[clap(short='c')]
+    #[clap(short = 'c')]
     pub query: Option<String>,
 
     /// Disable version check
@@ -157,7 +155,7 @@ pub struct RoleParams {
     /// Role name
     pub role: String,
     /// Set the password for role (read separately from the terminal)
-    #[clap(long="password")]
+    #[clap(long = "password")]
     pub password: bool,
     /// Set the password for role, read from the stdin
     #[clap(long)]
@@ -186,22 +184,23 @@ impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
         let tmp = RawOptions::parse();
         // TODO(pc) add option to force interactive mode not on a tty (tests)
-        let interactive = tmp.query.is_none()
-            && tmp.subcommand.is_none()
-            && atty::is(atty::Stream::Stdin);
+        let interactive =
+            tmp.query.is_none() && tmp.subcommand.is_none() && atty::is(atty::Stream::Stdin);
         let mut conn_params = Connector::new(conn_params(&tmp));
         let password = if tmp.password_from_stdin {
-            let password = rpassword::read_password()
-                .expect("password can be read");
+            let password = rpassword::read_password().expect("password can be read");
             Some(password)
         } else if tmp.no_password {
             None
         } else if tmp.password {
             let user = conn_params.get()?.get_user();
-            Some(rpassword::read_password_from_tty(
-                    Some(&format!("Password for '{}': ",
-                                  user.escape_default())))
-                 .context("error reading password")?)
+            Some(
+                rpassword::read_password_from_tty(Some(&format!(
+                    "Password for '{}': ",
+                    user.escape_default()
+                )))
+                .context("error reading password")?,
+            )
         } else {
             match env::var("EDGEDB_PASSWORD") {
                 Ok(p) => Some(p),
@@ -210,14 +209,14 @@ impl Options {
         };
         conn_params.modify(|params| {
             password.map(|password| params.password(password));
-            tmp.wait_until_available.map(|w| params.wait_until_available(w));
+            tmp.wait_until_available
+                .map(|w| params.wait_until_available(w));
             tmp.connect_timeout.map(|t| params.connect_timeout(t));
         });
 
         let subcommand = if let Some(query) = tmp.query {
             if tmp.subcommand.is_some() {
-                anyhow::bail!(
-                    "Option `-c` conflicts with specifying subcommand");
+                anyhow::bail!("Option `-c` conflicts with specifying subcommand");
             } else {
                 Some(Command::Query(Query {
                     queries: vec![query],
@@ -251,10 +250,11 @@ impl Options {
 fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
     let instance = if let Some(dsn) = &tmp.dsn {
         return Ok(Builder::from_dsn(dsn)?);
-    } else if tmp.instance.is_some() ||
-            tmp.host.is_some() || tmp.port.is_some() ||
-            env::var("EDGEDB_HOST").is_ok() ||
-            env::var("EDGEDB_PORT").is_ok()
+    } else if tmp.instance.is_some()
+        || tmp.host.is_some()
+        || tmp.port.is_some()
+        || env::var("EDGEDB_HOST").is_ok()
+        || env::var("EDGEDB_PORT").is_ok()
     {
         tmp.instance.clone()
     } else {
@@ -265,24 +265,28 @@ fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
             .context("error searching for `edgedb.toml`")
             .hint(CONNECTION_ARG_HINT)?
             .ok_or_else(|| {
-                anyhow::anyhow!("no `edgedb.toml` found \
-                    and no connection options are specified")
+                anyhow::anyhow!(
+                    "no `edgedb.toml` found \
+                    and no connection options are specified"
+                )
             })
             .hint(CONNECTION_ARG_HINT)?;
         let dir = project::stash_path(&config_dir)?;
         Some(
             fs::read_to_string(dir.join("instance-name"))
-            .context("error reading project settings")?
+                .context("error reading project settings")?,
         )
     };
 
     let admin = tmp.admin;
     let user = tmp.user.clone().or_else(|| env::var("EDGEDB_USER").ok());
     let host = tmp.host.clone().or_else(|| env::var("EDGEDB_HOST").ok());
-    let port = tmp.port.or_else(|| {
-        env::var("EDGEDB_PORT").ok().and_then(|x| x.parse().ok())
-    });
-    let database = tmp.database.clone()
+    let port = tmp
+        .port
+        .or_else(|| env::var("EDGEDB_PORT").ok().and_then(|x| x.parse().ok()));
+    let database = tmp
+        .database
+        .clone()
         .or_else(|| env::var("EDGEDB_DATABASE").ok());
 
     let mut conn_params = Builder::new();
@@ -297,11 +301,7 @@ fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
         let port = port.unwrap_or(5656);
         let unix_host = host.contains("/");
         if admin || unix_host {
-            let prefix = if unix_host {
-                &host
-            } else {
-                "/var/run/edgedb"
-            };
+            let prefix = if unix_host { &host } else { "/var/run/edgedb" };
             let path = if prefix.contains(".s.EDGEDB") {
                 // it's the full path
                 prefix.into()

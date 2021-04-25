@@ -1,6 +1,5 @@
 use std::mem;
 
-
 struct Slice<N> {
     name: N,
     byte_offset: usize,
@@ -20,9 +19,7 @@ impl<N> Builder<N> {
     pub fn new() -> Builder<N> {
         Builder {
             buffer: String::new(),
-            source_map: SourceMap {
-                slices: Vec::new(),
-            }
+            source_map: SourceMap { slices: Vec::new() },
         }
     }
     pub fn done(&mut self) -> (String, SourceMap<N>) {
@@ -44,23 +41,20 @@ impl<N> Builder<N> {
 }
 
 impl<N> SourceMap<N> {
-    pub fn translate_range(&self, start: usize, end: usize)
-        -> Result<(&N, usize), ()>
-    {
+    pub fn translate_range(&self, start: usize, end: usize) -> Result<(&N, usize), ()> {
         // TODO(tailhook) use binary search instead
         for slice in self.slices.iter().rev() {
             if start >= slice.byte_offset {
                 let local_end = end - slice.byte_offset;
                 if local_end > slice.size {
-                    return Err(())
+                    return Err(());
                 }
                 return Ok((&slice.name, slice.byte_offset));
             }
         }
-        return Err(())
+        return Err(());
     }
 }
-
 
 #[cfg(test)]
 mod test {

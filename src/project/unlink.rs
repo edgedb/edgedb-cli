@@ -5,10 +5,9 @@ use anyhow::Context;
 use crate::commands::ExitCode;
 use crate::project::options::Unlink;
 use crate::project::{project_dir, stash_path};
+use crate::question;
 use crate::server::destroy;
 use crate::server::options::Destroy;
-use crate::question;
-
 
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
     let dir = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
@@ -19,18 +18,21 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                 .context("failed to read instance name")?;
             let inst = inst.trim();
             if !options.non_interactive {
-                let q = question::Confirm::new_dangerous(
-                    format!("Do you really want to unlink \
-                             and delete instance {:?}?", inst.trim())
-                );
+                let q = question::Confirm::new_dangerous(format!(
+                    "Do you really want to unlink \
+                             and delete instance {:?}?",
+                    inst.trim()
+                ));
                 if !q.ask()? {
                     eprintln!("Canceled");
-                    return Ok(())
+                    return Ok(());
                 }
             }
             let mut project_dirs = destroy::find_project_dirs(inst)?;
             if project_dirs.len() > 1 {
-                project_dirs.iter().position(|d| d == &stash_path)
+                project_dirs
+                    .iter()
+                    .position(|d| d == &stash_path)
                     .map(|pos| project_dirs.remove(pos));
                 destroy::print_warning(inst, &project_dirs);
                 return Err(ExitCode::new(2))?;
@@ -49,8 +51,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                     eprintln!("Unlinking instance {:?}", name);
                 }
                 Err(e) => {
-                    eprintln!("edgedb error: cannot read instance name: {}",
-                              e);
+                    eprintln!("edgedb error: cannot read instance name: {}", e);
                     eprintln!("Removing project configuration directory...");
                 }
             };

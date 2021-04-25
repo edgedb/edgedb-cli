@@ -1,8 +1,8 @@
-use std::process::Command;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration};
+use std::process::Command;
+use std::time::Duration;
 
 use anyhow::Context;
 use async_std::task;
@@ -18,32 +18,29 @@ use crate::server::package::RepositoryInfo;
 use crate::server::remote;
 use crate::server::version::Version;
 
-
 #[derive(Clap, Clone, Debug)]
 pub struct SelfUpgrade {
     /// Enable verbose output
-    #[clap(short='v', long)]
+    #[clap(short = 'v', long)]
     pub verbose: bool,
     /// Disable progress output
-    #[clap(short='q', long)]
+    #[clap(short = 'q', long)]
     pub quiet: bool,
     /// Reinstall even if there is no newer version
     #[clap(long)]
     pub force: bool,
 }
 
-
 pub fn get_repo(max_wait: Duration) -> anyhow::Result<RepositoryInfo> {
-    let platform =
-        if cfg!(windows) {
-            "win"
-        } else if cfg!(target_os="linux") {
-            "linux"
-        } else if cfg!(target_os="macos") {
-            "macos"
-        } else {
-            anyhow::bail!("unknown OS");
-        };
+    let platform = if cfg!(windows) {
+        "win"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        anyhow::bail!("unknown OS");
+    };
     let suffix = if env!("CARGO_PKG_VERSION").contains(".g") {
         ".nightly"
     } else {
@@ -61,10 +58,12 @@ pub fn get_repo(max_wait: Duration) -> anyhow::Result<RepositoryInfo> {
 }
 
 pub fn can_upgrade() -> bool {
-    binary_path().and_then(|p| _can_upgrade(&p)).unwrap_or_else(|e| {
-        log::info!("Cannot compare current binary to default: {}", e);
-        false
-    })
+    binary_path()
+        .and_then(|p| _can_upgrade(&p))
+        .unwrap_or_else(|e| {
+            log::info!("Cannot compare current binary to default: {}", e);
+            false
+        })
 }
 
 fn binary_path() -> anyhow::Result<PathBuf> {
@@ -78,8 +77,8 @@ fn binary_path() -> anyhow::Result<PathBuf> {
 }
 
 fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {
-    let exe_path = env::current_exe()
-        .with_context(|| format!("cannot determine running executable path"))?;
+    let exe_path =
+        env::current_exe().with_context(|| format!("cannot determine running executable path"))?;
     Ok(exe_path == path)
 }
 
@@ -91,7 +90,8 @@ async fn download(url: &str, path: &Path, quiet: bool) -> anyhow::Result<()> {
     fs::remove_file(&path).await.ok();
     let mut opt = fs::OpenOptions::new();
     opt.write(true).create_new(true);
-    #[cfg(unix)] {
+    #[cfg(unix)]
+    {
         use std::os::unix::fs::OpenOptionsExt;
         opt.mode(0o777);
     }
@@ -108,11 +108,10 @@ async fn download(url: &str, path: &Path, quiet: bool) -> anyhow::Result<()> {
     } else {
         ProgressBar::new_spinner()
     };
-    bar.set_style(
-        ProgressStyle::default_bar()
-        .template(
-            "[{elapsed_precise}] {wide_bar} \
-            {bytes:>7}/{total_bytes:7} | ETA: {eta}"));
+    bar.set_style(ProgressStyle::default_bar().template(
+        "[{elapsed_precise}] {wide_bar} \
+            {bytes:>7}/{total_bytes:7} | ETA: {eta}",
+    ));
     let mut buf = [0u8; 16384];
     loop {
         let bytes = body.read(&mut buf).await?;
@@ -132,13 +131,13 @@ pub fn main(options: &SelfUpgrade) -> anyhow::Result<()> {
     }
     let repo = get_repo(Duration::from_secs(120))?;
 
-    let max = repo.packages.iter()
+    let max = repo
+        .packages
+        .iter()
         .filter(|pkg| pkg.basename == "edgedb-cli")
         .max_by_key(|pkg| (&pkg.version, &pkg.revision));
     let pkg = max.ok_or_else(|| anyhow::anyhow!("cannot find new version"))?;
-    if !options.force &&
-        pkg.version <= Version(env!("CARGO_PKG_VERSION").into())
-    {
+    if !options.force && pkg.version <= Version(env!("CARGO_PKG_VERSION").into()) {
         log::info!("Version is the same. No update needed.");
         return Ok(());
     }
@@ -165,8 +164,10 @@ pub fn main(options: &SelfUpgrade) -> anyhow::Result<()> {
     }
     process::run(Command::new(&path).arg("_gen_completions").arg("--home"))?;
     if !options.quiet {
-        println!("Upgraded to version {} (revision {})",
-            pkg.version, pkg.revision);
+        println!(
+            "Upgraded to version {} (revision {})",
+            pkg.version, pkg.revision
+        );
     }
     Ok(())
 }

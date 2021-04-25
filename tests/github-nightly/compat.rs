@@ -1,9 +1,9 @@
 use test_case::test_case;
 
+use crate::common::{dock_centos, dock_debian, dock_ubuntu};
+use crate::docker::run_systemd;
+use crate::docker::{build_image, Context};
 use crate::measure::Time;
-use crate::docker::{Context, build_image};
-use crate::docker::{run_systemd};
-use crate::common::{dock_ubuntu, dock_centos, dock_debian};
 
 // stable
 #[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "")]
@@ -26,16 +26,17 @@ use crate::common::{dock_ubuntu, dock_centos, dock_debian};
 #[test_case("edbtest_buster", &dock_debian("buster"), "--nightly")]
 #[test_case("edbtest_stretch", &dock_debian("stretch"), "--nightly")]
 #[test_case("edbtest_focal", &dock_ubuntu("focal"), "--nightly")]
-fn cli(tagname: &str, dockerfile: &str, version: &str)
-    -> anyhow::Result<()>
-{
+fn cli(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_systemd(tagname, &format!(r###"
+    run_systemd(
+        tagname,
+        &format!(
+            r###"
             edgedb server install {version}
             edgedb server init test1 {version}
             val=$(edgedb -Itest1 --wait-until-available=60s \
@@ -45,7 +46,9 @@ fn cli(tagname: &str, dockerfile: &str, version: &str)
             # changed in 1-alpha.7 due to dropping implicit __tid__
             edgedb -Itest1 list-scalar-types --system
         "###,
-        version=version,
-    )).success();
+            version = version,
+        ),
+    )
+    .success();
     Ok(())
 }

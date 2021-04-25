@@ -1,13 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use clap::{Clap, AppSettings, ArgSettings, ValueHint};
-use serde::{Serialize, Deserialize};
+use clap::{AppSettings, ArgSettings, Clap, ValueHint};
+use serde::{Deserialize, Serialize};
 
-use crate::server::version::Version;
-use crate::server::methods::InstallMethod;
 use crate::server::is_valid_name;
-
+use crate::server::methods::InstallMethod;
+use crate::server::version::Version;
 
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::DisableVersionFlag)]
@@ -53,17 +52,17 @@ pub enum Command {
     /// Show server information
     Info(Info),
     /// Show system introspection debug info
-    #[clap(name="_detect")]
+    #[clap(name = "_detect")]
     _Detect(Detect),
 }
 
 #[derive(Clap, Debug, Clone)]
 pub struct Install {
-    #[clap(short='i', long)]
+    #[clap(short = 'i', long)]
     pub interactive: bool,
     #[clap(long)]
     pub nightly: bool,
-    #[clap(long, conflicts_with="nightly")]
+    #[clap(long, conflicts_with = "nightly")]
     pub version: Option<Version<String>>,
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub method: Option<InstallMethod>,
@@ -81,10 +80,10 @@ pub struct Uninstall {
     #[clap(long)]
     pub nightly: bool,
     /// Uninstall specific version
-    #[clap(long, conflicts_with="nightly")]
+    #[clap(long, conflicts_with = "nightly")]
     pub version: Option<Version<String>>,
     /// Increase verbosity
-    #[clap(short='v', long)]
+    #[clap(short = 'v', long)]
     pub verbose: bool,
 }
 
@@ -115,15 +114,15 @@ pub enum StartConf {
 pub struct Init {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: String,
     #[clap(long)]
     pub system: bool,
-    #[clap(short='i', long)]
+    #[clap(short = 'i', long)]
     pub interactive: bool,
     #[clap(long)]
     pub nightly: bool,
-    #[clap(long, conflicts_with="nightly")]
+    #[clap(long, conflicts_with = "nightly")]
     pub version: Option<Version<String>>,
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub method: Option<InstallMethod>,
@@ -135,11 +134,11 @@ pub struct Init {
 
     /// Default database name (created during initialization, and saved in
     /// credentials file)
-    #[clap(long, default_value="edgedb")]
+    #[clap(long, default_value = "edgedb")]
     pub default_database: String,
     /// Default user name (created during initialization, and saved in
     /// credentials file)
-    #[clap(long, default_value="edgedb")]
+    #[clap(long, default_value = "edgedb")]
     pub default_user: String,
 
     /// Overwrite data directory and credential file if any of these exists.
@@ -162,10 +161,10 @@ pub struct Init {
 pub struct Destroy {
     /// Database server instance name to destroy
     #[clap(validator(instance_name_opt))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: String,
     /// Verbose output
-    #[clap(short='v', long)]
+    #[clap(short = 'v', long)]
     pub verbose: bool,
 
     /// Force destroy even if instance is referred to by a project
@@ -178,17 +177,21 @@ pub struct Destroy {
 pub struct Start {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: String,
     #[clap(long)]
-    #[cfg_attr(target_os="linux",
-        clap(about="Start the server in the foreground rather than using \
+    #[cfg_attr(
+        target_os = "linux",
+        clap(about = "Start the server in the foreground rather than using \
                     systemd to manage the process (note you might need to \
-                    stop non-foreground instance first)"))]
-    #[cfg_attr(target_os="macos",
-        clap(about="Start the server in the foreground rather than using \
+                    stop non-foreground instance first)")
+    )]
+    #[cfg_attr(
+        target_os = "macos",
+        clap(about = "Start the server in the foreground rather than using \
                     launchctl to manage the process (note you might need to \
-                    stop non-foreground instance first)"))]
+                    stop non-foreground instance first)")
+    )]
     pub foreground: bool,
 }
 
@@ -197,7 +200,7 @@ pub struct Start {
 pub struct Stop {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: String,
 }
 
@@ -206,7 +209,7 @@ pub struct Stop {
 pub struct Restart {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: String,
 }
 
@@ -215,7 +218,7 @@ pub struct Restart {
 pub struct Status {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<String>,
 
     /// Show current systems service info
@@ -240,15 +243,15 @@ pub struct Status {
 pub struct Logs {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: String,
 
     /// Number of lines to show
-    #[clap(short='n', long)]
+    #[clap(short = 'n', long)]
     pub tail: Option<usize>,
 
     /// Show log's tail and the continue watching for the new entries
-    #[clap(short='f', long)]
+    #[clap(short = 'f', long)]
     pub follow: bool,
 }
 
@@ -282,11 +285,11 @@ pub struct Upgrade {
     pub to_nightly: bool,
 
     /// Only upgrade specified database instance
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<String>,
 
     /// Verbose output
-    #[clap(short='v', long)]
+    #[clap(short = 'v', long)]
     pub verbose: bool,
 
     /// Force upgrade process even if there is no new version
@@ -298,7 +301,7 @@ pub struct Upgrade {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Revert {
     /// Name of the instance to revert
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: String,
 
     /// Do not check if upgrade is in progress
@@ -306,7 +309,7 @@ pub struct Revert {
     pub ignore_pid_check: bool,
 
     /// Do not ask for a confirmation
-    #[clap(short='y', long)]
+    #[clap(short = 'y', long)]
     pub no_confirm: bool,
 }
 
@@ -315,7 +318,7 @@ pub struct Revert {
 pub struct ResetPassword {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[clap(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: String,
     /// User to change password for. Default is got from credentials file.
     #[clap(long)]
@@ -350,18 +353,16 @@ pub struct Info {
 
     #[clap(long)]
     pub nightly: bool,
-    #[clap(long, conflicts_with="nightly")]
+    #[clap(long, conflicts_with = "nightly")]
     pub version: Option<Version<String>>,
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub method: Option<InstallMethod>,
 }
 
-
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::Hidden)]
 #[clap(setting=AppSettings::DisableVersionFlag)]
-pub struct Detect {
-}
+pub struct Detect {}
 
 impl FromStr for StartConf {
     type Err = anyhow::Error;
@@ -369,8 +370,10 @@ impl FromStr for StartConf {
         match s {
             "auto" => Ok(StartConf::Auto),
             "manual" => Ok(StartConf::Manual),
-            _ => anyhow::bail!("Unsupported start configuration, \
-                options: `auto`, `manual`"),
+            _ => anyhow::bail!(
+                "Unsupported start configuration, \
+                options: `auto`, `manual`"
+            ),
         }
     }
 }
@@ -392,9 +395,9 @@ impl fmt::Display for StartConf {
 
 fn instance_name_opt(name: &str) -> Result<(), String> {
     if is_valid_name(&name) {
-        return Ok(())
+        return Ok(());
     }
     return Err("instance name must be a valid identifier, \
-                (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)".into())
+                (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)"
+        .into());
 }
-

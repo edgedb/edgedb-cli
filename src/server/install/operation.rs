@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
-use std::process::{Command as StdCommand, Stdio, ExitStatus};
 use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::process::{Command as StdCommand, ExitStatus, Stdio};
 
 use anyhow::Context as ContextExt;
-
 
 #[derive(Debug)]
 pub struct Command {
@@ -17,14 +16,8 @@ pub struct Command {
 
 #[derive(Debug)]
 pub enum Operation {
-    FeedPrivilegedCmd {
-        input: Vec<u8>,
-        cmd: Command,
-    },
-    WritePrivilegedFile {
-        path: PathBuf,
-        data: Vec<u8>,
-    },
+    FeedPrivilegedCmd { input: Vec<u8>, cmd: Command },
+    WritePrivilegedFile { path: PathBuf, data: Vec<u8> },
     PrivilegedCmd(Command),
 }
 
@@ -60,9 +53,7 @@ impl Command {
 
 impl Context {
     pub fn new() -> Context {
-        Context {
-            sudo_cmd: None,
-        }
+        Context { sudo_cmd: None }
     }
     pub fn set_elevation_cmd(&mut self, path: &Path) {
         self.sudo_cmd = Some(path.into());
@@ -81,25 +72,19 @@ impl Command {
         self.arguments.push(arg.into());
         self
     }
-    pub fn args(mut self, args: impl IntoIterator<Item=impl Into<OsString>>)
-        -> Self
-    {
+    pub fn args(mut self, args: impl IntoIterator<Item = impl Into<OsString>>) -> Self {
         for arg in args {
             self.arguments.push(arg.into());
         }
         self
     }
-    pub fn env(mut self, key: impl Into<OsString>, arg: impl Into<OsString>)
-        -> Self
-    {
+    pub fn env(mut self, key: impl Into<OsString>, arg: impl Into<OsString>) -> Self {
         self.environ.insert(key.into(), arg.into());
         self
     }
 }
 
-fn cmd_result(status: Result<ExitStatus, io::Error>, cmd: StdCommand)
-    -> Result<(), anyhow::Error>
-{
+fn cmd_result(status: Result<ExitStatus, io::Error>, cmd: StdCommand) -> Result<(), anyhow::Error> {
     match status {
         Ok(s) if s.success() => Ok(()),
         Ok(s) => Err(anyhow::anyhow!("Command {:?} {}", cmd, s)),
@@ -123,19 +108,18 @@ fn tmp_filename(path: &Path) -> PathBuf {
 impl Operation {
     pub fn is_privileged(&self) -> bool {
         use Operation::*;
-        matches!(self,
-            FeedPrivilegedCmd {..}
-            | WritePrivilegedFile {..}
-            | PrivilegedCmd(..)
+        matches!(
+            self,
+            FeedPrivilegedCmd { .. } | WritePrivilegedFile { .. } | PrivilegedCmd(..)
         )
     }
     pub fn format(&self, elevate: bool) -> String {
-        use Operation::*;
         use std::fmt::Write;
+        use Operation::*;
 
         let mut buf = String::new();
         match self {
-            FeedPrivilegedCmd {cmd, ..} | PrivilegedCmd(cmd) => {
+            FeedPrivilegedCmd { cmd, .. } | PrivilegedCmd(cmd) => {
                 if elevate {
                     buf.push_str("sudo ");
                     for (key, value) in &cmd.environ {
@@ -159,18 +143,21 @@ impl Operation {
         }
         buf
     }
-    pub fn perform(&self, ctx: &Context)
-        -> Result<(), anyhow::Error>
-    {
+    pub fn perform(&self, ctx: &Context) -> Result<(), anyhow::Error> {
         use Operation::*;
 
         match self {
-            FeedPrivilegedCmd {cmd, input} => {
+            FeedPrivilegedCmd { cmd, input } => {
                 let mut os_cmd = cmd.to_std(&ctx.sudo_cmd);
                 os_cmd.stdin(Stdio::piped());
-                let mut child = os_cmd.spawn()
+                let mut child = os_cmd
+                    .spawn()
                     .with_context(|| format!("Command {:?} error", os_cmd))?;
-                child.stdin.as_mut().unwrap().write_all(input)
+                child
+                    .stdin
+                    .as_mut()
+                    .unwrap()
+                    .write_all(input)
                     .with_context(|| format!("Command {:?} error", os_cmd))?;
                 log::info!("Executing {:?}", os_cmd);
                 cmd_result(child.wait(), os_cmd)
@@ -185,7 +172,8 @@ impl Operation {
                     FeedPrivilegedCmd {
                         cmd: Command::new("tee").arg(path),
                         input: data.clone(),
-                    }.perform(ctx)
+                    }
+                    .perform(ctx)
                 } else {
                     log::info!("Writing {:?}", path);
                     let tmpname = tmp_filename(path);

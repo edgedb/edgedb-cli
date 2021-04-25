@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use crate::commands::parser::MigrationConfig;
 
-
 pub struct Context {
     pub schema_dir: PathBuf,
 }

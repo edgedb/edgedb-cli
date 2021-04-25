@@ -1,21 +1,19 @@
 use std::time::Duration;
 
 use anyhow::Context;
+use async_std::channel::{Receiver, RecvError, Sender};
 use async_std::prelude::FutureExt;
-use async_std::channel::{Sender, Receiver, RecvError};
 use colorful::Colorful;
 use edgedb_client::client::Connection;
 use edgedb_protocol::server_message::TransactionState;
 
 use crate::async_util::timeout;
 use crate::connect::Connector;
-use crate::prompt;
 use crate::print;
-
+use crate::prompt;
 
 pub const TX_MARKER: &str = "[tx]";
 pub const FAILURE_MARKER: &str = "[tx:failed]";
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputMode {
@@ -37,7 +35,6 @@ pub enum PrintStats {
     Query,
     Detailed,
 }
-
 
 pub struct PromptRpc {
     pub control: Sender<prompt::Control>,
@@ -62,17 +59,19 @@ pub struct State {
 }
 
 impl PromptRpc {
-    pub async fn variable_input(&mut self,
-        name: &str, type_name: &str, initial: &str)
-        -> anyhow::Result<prompt::Input>
-    {
-        self.control.send(
-                prompt::Control::ParameterInput {
-                    name: name.to_owned(),
-                    type_name: type_name.to_owned(),
-                    initial: initial.to_owned(),
-                }
-            ).await
+    pub async fn variable_input(
+        &mut self,
+        name: &str,
+        type_name: &str,
+        initial: &str,
+    ) -> anyhow::Result<prompt::Input> {
+        self.control
+            .send(prompt::Control::ParameterInput {
+                name: name.to_owned(),
+                type_name: type_name.to_owned(),
+                initial: initial.to_owned(),
+            })
+            .await
             .context("cannot send to input thread")?;
         match self.data.recv().await {
             Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
@@ -86,10 +85,12 @@ impl State {
         let mut conn = self.conn_params.connect().await?;
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_ref() != Some(&fetched_version) {
-            println!("{} {} (repl v{})",
+            println!(
+                "{} {} (repl v{})",
                 "EdgeDB".light_gray(),
                 fetched_version[..].light_gray(),
-                env!("CARGO_PKG_VERSION"));
+                env!("CARGO_PKG_VERSION")
+            );
             self.last_version = Some(fetched_version);
         }
         self.database = self.conn_params.get()?.get_database().into();
@@ -98,14 +99,18 @@ impl State {
     }
     pub async fn try_connect(&mut self, database: &str) -> anyhow::Result<()> {
         let mut params = self.conn_params.clone();
-        params.modify(|p| { p.database(database); });
+        params.modify(|p| {
+            p.database(database);
+        });
         let mut conn = params.connect().await?;
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_ref() != Some(&fetched_version) {
-            println!("{} {} (repl v{})",
+            println!(
+                "{} {} (repl v{})",
                 "EdgeDB".light_gray(),
                 fetched_version[..].light_gray(),
-                env!("CARGO_PKG_VERSION"));
+                env!("CARGO_PKG_VERSION")
+            );
             self.last_version = Some(fetched_version);
         }
         self.conn_params = params;
@@ -135,18 +140,18 @@ impl State {
     pub async fn terminate(&mut self) {
         if let Some(conn) = self.connection.take() {
             if conn.is_consistent() {
-                timeout(Duration::from_secs(1), conn.terminate()).await
+                timeout(Duration::from_secs(1), conn.terminate())
+                    .await
                     .map_err(|e| log::warn!("Termination error: {:#}", e))
                     .ok();
             }
         }
     }
-    pub async fn edgeql_input(&mut self, initial: &str)
-        -> anyhow::Result<prompt::Input>
-    {
+    pub async fn edgeql_input(&mut self, initial: &str) -> anyhow::Result<prompt::Input> {
         use TransactionState::*;
 
-        let prompt = format!("{}{}> ",
+        let prompt = format!(
+            "{}{}> ",
             self.database,
             match self.connection.as_ref().map(|c| c.transaction_state()) {
                 Some(NotInTransaction) => "",
@@ -155,12 +160,13 @@ impl State {
                 None => "",
             }
         );
-        self.prompt.control.send(
-                prompt::Control::EdgeqlInput {
-                    prompt,
-                    initial: initial.to_owned(),
-                }
-            ).await
+        self.prompt
+            .control
+            .send(prompt::Control::EdgeqlInput {
+                prompt,
+                initial: initial.to_owned(),
+            })
+            .await
             .context("cannot send to input thread")?;
         let result = if let Some(conn) = &mut self.connection {
             self.prompt.data.recv().race(conn.passive_wait()).await
@@ -172,42 +178,48 @@ impl State {
             Ok(x) => Ok(x),
         }
     }
-    pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()>
-    {
+    pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()> {
         self.input_mode = value;
         let msg = match value {
             InputMode::Vi => prompt::Control::ViMode,
             InputMode::Emacs => prompt::Control::EmacsMode,
         };
-        self.prompt.control.send(msg).await
+        self.prompt
+            .control
+            .send(msg)
+            .await
             .context("cannot send to input thread")
     }
     pub async fn show_history(&self) -> anyhow::Result<()> {
-        self.prompt.control.send(prompt::Control::ShowHistory).await
+        self.prompt
+            .control
+            .send(prompt::Control::ShowHistory)
+            .await
             .context("cannot send to input thread")
     }
-    pub async fn spawn_editor(&self, entry: Option<isize>)
-        -> anyhow::Result<prompt::Input>
-    {
-        self.prompt.control.send(prompt::Control::SpawnEditor { entry }).await
+    pub async fn spawn_editor(&self, entry: Option<isize>) -> anyhow::Result<prompt::Input> {
+        self.prompt
+            .control
+            .send(prompt::Control::SpawnEditor { entry })
+            .await
             .context("cannot send to input thread")?;
         match self.prompt.data.recv().await {
             Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
             Ok(x) => Ok(x),
         }
     }
-    pub async fn set_history_limit(&mut self, val: usize)
-        -> anyhow::Result<()>
-    {
+    pub async fn set_history_limit(&mut self, val: usize) -> anyhow::Result<()> {
         self.history_limit = val;
-        self.prompt.control.send(prompt::Control::SetHistoryLimit(val)).await
+        self.prompt
+            .control
+            .send(prompt::Control::SetHistoryLimit(val))
+            .await
             .context("cannot send to input thread")
     }
     pub fn in_transaction(&self) -> bool {
         match &self.connection {
             Some(conn) => {
-                matches!(conn.transaction_state(),
-                         TransactionState::InTransaction)
+                matches!(conn.transaction_state(), TransactionState::InTransaction)
             }
             None => false,
         }
@@ -249,7 +261,6 @@ impl std::str::FromStr for PrintStats {
         }
     }
 }
-
 
 impl InputMode {
     pub fn as_str(&self) -> &'static str {

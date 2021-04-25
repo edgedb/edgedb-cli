@@ -1,15 +1,14 @@
-use std::collections::{BTreeSet, BTreeMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use async_std::prelude::StreamExt;
 use edgedb_client::client::Connection;
 use edgedb_derive::Queryable;
 use edgedb_protocol::value::Value;
 
-use crate::commands::Options;
 use crate::commands::parser::MigrationLog;
+use crate::commands::Options;
 use crate::migrations::context::Context;
 use crate::migrations::migration;
-
 
 #[derive(Queryable, Clone)]
 struct Migration {
@@ -17,10 +16,11 @@ struct Migration {
     parent_names: Vec<String>,
 }
 
-
-pub async fn log(cli: &mut Connection, common: &Options, options: &MigrationLog)
-    -> Result<(), anyhow::Error>
-{
+pub async fn log(
+    cli: &mut Connection,
+    common: &Options,
+    options: &MigrationLog,
+) -> Result<(), anyhow::Error> {
     if options.from_fs {
         return log_fs(common, options).await;
     } else if options.from_db {
@@ -34,14 +34,16 @@ fn topology_sort(migrations: Vec<Migration>) -> Vec<Migration> {
     let mut by_parent = BTreeMap::new();
     for item in &migrations {
         for parent in &item.parent_names {
-            by_parent.entry(parent.clone())
+            by_parent
+                .entry(parent.clone())
                 .or_insert_with(Vec::new)
                 .push(item.clone());
         }
     }
     let mut output = Vec::new();
     let mut visited = BTreeSet::new();
-    let mut queue = migrations.iter()
+    let mut queue = migrations
+        .iter()
         .filter(|item| item.parent_names.is_empty())
         .map(|item| item.clone())
         .collect::<Vec<_>>();
@@ -56,16 +58,22 @@ fn topology_sort(migrations: Vec<Migration>) -> Vec<Migration> {
             }
         }
     }
-    return output
+    return output;
 }
 
-pub async fn log_db(cli: &mut Connection, _common: &Options,
-    options: &MigrationLog)
-    -> Result<(), anyhow::Error>
-{
-    let mut items = cli.query::<Migration>(r###"
+pub async fn log_db(
+    cli: &mut Connection,
+    _common: &Options,
+    options: &MigrationLog,
+) -> Result<(), anyhow::Error> {
+    let mut items = cli
+        .query::<Migration>(
+            r###"
             SELECT schema::Migration {name, parent_names := .parents.name }
-        "###, &Value::empty_tuple()).await?;
+        "###,
+            &Value::empty_tuple(),
+        )
+        .await?;
     let mut migrations = Vec::new();
     while let Some(item) = items.next().await.transpose()? {
         migrations.push(item);
@@ -84,9 +92,7 @@ pub async fn log_db(cli: &mut Connection, _common: &Options,
     Ok(())
 }
 
-pub async fn log_fs(_common: &Options, options: &MigrationLog)
-    -> Result<(), anyhow::Error>
-{
+pub async fn log_fs(_common: &Options, options: &MigrationLog) -> Result<(), anyhow::Error> {
     assert!(options.from_fs);
 
     let ctx = Context::from_config(&options.cfg);
@@ -103,4 +109,3 @@ pub async fn log_fs(_common: &Options, options: &MigrationLog)
     }
     Ok(())
 }
-

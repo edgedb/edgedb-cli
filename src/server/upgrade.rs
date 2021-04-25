@@ -1,36 +1,35 @@
 use std::fs;
 use std::path::Path;
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 use anyhow::Context;
 use async_std::task;
 use fn_error_context::context;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use edgedb_client as client;
 use crate::commands;
 use crate::connect::Connector;
 use crate::process::ProcessGuard;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::errors::InstanceNotFound;
-use crate::server::options::{Upgrade, Start, Stop};
-use crate::server::os_trait::{Method, Instance};
+use crate::server::options::{Start, Stop, Upgrade};
+use crate::server::os_trait::{Instance, Method};
 use crate::server::upgrade;
 use crate::server::version::Version;
-
+use edgedb_client as client;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpgradeMeta {
     pub source: Version<String>,
     pub target: Version<String>,
-    #[serde(with="humantime_serde")]
+    #[serde(with = "humantime_serde")]
     pub started: SystemTime,
     pub pid: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BackupMeta {
-    #[serde(with="humantime_serde")]
+    #[serde(with = "humantime_serde")]
     pub timestamp: SystemTime,
 }
 
@@ -43,10 +42,12 @@ pub enum ToDo {
 fn interpret_options(options: &Upgrade) -> ToDo {
     if let Some(name) = &options.name {
         if options.nightly {
-            eprintln!("Cannot upgrade specific nightly instance, \
+            eprintln!(
+                "Cannot upgrade specific nightly instance, \
                 use `--to-nightly` to upgrade to nightly. \
                 Use `--nightly` without instance name to upgrade all nightly \
-                instances");
+                instances"
+            );
         }
         let nver = if options.to_nightly {
             Some(VersionQuery::Nightly)
@@ -88,10 +89,11 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     }
 }
 
-pub async fn dump_instance(inst: &dyn Instance, destination: &Path,
-    mut conn_params: client::Builder)
-    -> anyhow::Result<()>
-{
+pub async fn dump_instance(
+    inst: &dyn Instance,
+    destination: &Path,
+    mut conn_params: client::Builder,
+) -> anyhow::Result<()> {
     log::info!(target: "edgedb::server::upgrade",
         "Dumping instance {:?}", inst.name());
     if destination.exists() {
@@ -110,10 +112,11 @@ pub async fn dump_instance(inst: &dyn Instance, destination: &Path,
     Ok(())
 }
 
-pub async fn restore_instance(inst: &dyn Instance,
-    path: &Path, mut conn_params: client::Builder)
-    -> anyhow::Result<()>
-{
+pub async fn restore_instance(
+    inst: &dyn Instance,
+    path: &Path,
+    mut conn_params: client::Builder,
+) -> anyhow::Result<()> {
     use crate::commands::parser::Restore;
 
     log::info!(target: "edgedb::server::upgrade",
@@ -126,22 +129,27 @@ pub async fn restore_instance(inst: &dyn Instance,
         styler: None,
         conn_params: Connector::new(Ok(conn_params)),
     };
-    commands::restore_all(&mut cli, &options, &Restore {
-        path: path.into(),
-        all: true,
-        allow_non_empty: false,
-        verbose: false,
-    }).await?;
+    commands::restore_all(
+        &mut cli,
+        &options,
+        &Restore {
+            path: path.into(),
+            all: true,
+            allow_non_empty: false,
+            verbose: false,
+        },
+    )
+    .await?;
     Ok(())
 }
 
-
-pub fn get_installed(version: &VersionQuery, method: &dyn Method)
-    -> anyhow::Result<Option<Version<String>>>
-{
+pub fn get_installed(
+    version: &VersionQuery,
+    method: &dyn Method,
+) -> anyhow::Result<Option<Version<String>>> {
     for ver in method.installed_versions()? {
         if !version.distribution_matches(&ver) {
-            continue
+            continue;
         }
         return Ok(Some(ver.version().clone()));
     }
@@ -149,9 +157,7 @@ pub fn get_installed(version: &VersionQuery, method: &dyn Method)
 }
 
 #[context("failed to write backup metadata file {}", path.display())]
-pub fn write_backup_meta(path: &Path, metadata: &BackupMeta)
-    -> anyhow::Result<()>
-{
+pub fn write_backup_meta(path: &Path, metadata: &BackupMeta) -> anyhow::Result<()> {
     fs::write(path, serde_json::to_vec(&metadata)?)?;
     Ok(())
 }
@@ -166,23 +172,33 @@ pub fn dump_and_stop(inst: &dyn Instance, path: &Path) -> anyhow::Result<()> {
         foreground: false,
     });
     if let Err(err) = res {
-        log::warn!("Error starting service: {:#}. Trying to start manually.",
-            err);
+        log::warn!(
+            "Error starting service: {:#}. Trying to start manually.",
+            err
+        );
         let mut cmd = inst.get_command()?;
         log::info!("Running server manually: {:?}", cmd);
         let child = ProcessGuard::run(&mut cmd)
             .with_context(|| format!("error running server {:?}", cmd))?;
-        task::block_on(
-            upgrade::dump_instance(inst, &path, inst.get_connector(false)?))?;
+        task::block_on(upgrade::dump_instance(
+            inst,
+            &path,
+            inst.get_connector(false)?,
+        ))?;
         log::info!(target: "edgedb::server::upgrade",
             "Stopping the instance before executable upgrade");
         drop(child);
     } else {
-        task::block_on(
-            upgrade::dump_instance(inst, &path, inst.get_connector(false)?))?;
+        task::block_on(upgrade::dump_instance(
+            inst,
+            &path,
+            inst.get_connector(false)?,
+        ))?;
         log::info!(target: "edgedb::server::upgrade",
             "Stopping the instance before executable upgrade");
-        inst.stop(&Stop { name: inst.name().into() })?;
+        inst.stop(&Stop {
+            name: inst.name().into(),
+        })?;
     }
     Ok(())
 }

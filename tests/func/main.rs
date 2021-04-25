@@ -1,13 +1,14 @@
 #[cfg(not(windows))]
-#[macro_use] extern crate pretty_assertions;
+#[macro_use]
+extern crate pretty_assertions;
 
-use std::sync::Mutex;
 use std::convert::TryInto;
-use std::io::{BufReader, BufRead};
-use std::sync::mpsc::sync_channel;
-use std::thread::{self, JoinHandle};
-use std::process;
 use std::env;
+use std::io::{BufRead, BufReader};
+use std::process;
+use std::sync::mpsc::sync_channel;
+use std::sync::Mutex;
+use std::thread::{self, JoinHandle};
 
 use assert_cmd::Command;
 use once_cell::sync::Lazy;
@@ -15,22 +16,20 @@ use serde_json::from_str;
 
 // Can't run server on windows
 #[cfg(not(windows))]
-mod dump_restore;
-#[cfg(not(windows))]
 mod configure;
 #[cfg(not(windows))]
-mod non_interactive;
+mod dump_restore;
 #[cfg(not(windows))]
 mod migrations;
+#[cfg(not(windows))]
+mod non_interactive;
 
 // for some reason rexpect doesn't work on macos
 // and also something wrong on musl libc
-#[cfg(all(target_os="linux", not(target_env="musl")))]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 mod interactive;
 
-
-pub static SHUTDOWN_INFO: Lazy<Mutex<Vec<ShutdownInfo>>> =
-    Lazy::new(|| Mutex::new(Vec::new()));
+pub static SHUTDOWN_INFO: Lazy<Mutex<Vec<ShutdownInfo>>> = Lazy::new(|| Mutex::new(Vec::new()));
 pub static SERVER: Lazy<ServerGuard> = Lazy::new(|| ServerGuard::start());
 
 #[cfg(not(windows))]
@@ -81,8 +80,7 @@ impl ServerGuard {
         }
         cmd.stdout(Stdio::piped());
 
-        let mut process = cmd.spawn()
-            .expect(&format!("Can run {}", bin_name));
+        let mut process = cmd.spawn().expect(&format!("Can run {}", bin_name));
         let process_in = process.stdout.take().expect("stdout is pipe");
         let (tx, rx) = sync_channel(1);
         let thread = thread::spawn(move || {
@@ -91,20 +89,21 @@ impl ServerGuard {
                 match line {
                     Ok(line) => {
                         if line.starts_with("EDGEDB_SERVER_DATA:") {
-                            let data: serde_json::Value = from_str(
-                                &line["EDGEDB_SERVER_DATA:".len()..])
-                                .expect("valid server data");
+                            let data: serde_json::Value =
+                                from_str(&line["EDGEDB_SERVER_DATA:".len()..])
+                                    .expect("valid server data");
                             println!("Server data {:?}", data);
-                            let port = data.get("port")
+                            let port = data
+                                .get("port")
                                 .and_then(|x| x.as_u64())
                                 .and_then(|x| x.try_into().ok())
                                 .expect("valid server data");
-                            let runstate_dir = data.get("runstate_dir")
+                            let runstate_dir = data
+                                .get("runstate_dir")
                                 .and_then(|x| x.as_str())
                                 .map(|x| x.to_owned())
                                 .expect("valid server data");
-                            tx.send((port, runstate_dir))
-                                .expect("valid channel");
+                            tx.send((port, runstate_dir)).expect("valid channel");
                         }
                     }
                     Err(e) => {
@@ -125,10 +124,7 @@ impl ServerGuard {
             thread: Some(thread),
         });
 
-        ServerGuard {
-            port,
-            runstate_dir,
-        }
+        ServerGuard { port, runstate_dir }
     }
 
     pub fn admin_cmd(&self) -> Command {
@@ -137,7 +133,7 @@ impl ServerGuard {
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
-        return cmd
+        return cmd;
     }
 
     #[cfg(not(windows))]
@@ -145,8 +141,7 @@ impl ServerGuard {
         use assert_cmd::cargo::CommandCargoExt;
         use rexpect::session::spawn_command;
 
-        let mut cmd = process::Command::cargo_bin("edgedb")
-            .expect("binary found");
+        let mut cmd = process::Command::cargo_bin("edgedb").expect("binary found");
         cmd.arg("--no-version-check");
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
@@ -154,14 +149,14 @@ impl ServerGuard {
         return spawn_command(cmd, Some(10000)).expect("start interactive");
     }
     #[cfg(not(windows))]
-    pub fn custom_interactive(&self, f: impl FnOnce(&mut process::Command))
-        -> rexpect::session::PtySession
-    {
+    pub fn custom_interactive(
+        &self,
+        f: impl FnOnce(&mut process::Command),
+    ) -> rexpect::session::PtySession {
         use assert_cmd::cargo::CommandCargoExt;
         use rexpect::session::spawn_command;
 
-        let mut cmd = process::Command::cargo_bin("edgedb")
-            .expect("binary found");
+        let mut cmd = process::Command::cargo_bin("edgedb").expect("binary found");
         cmd.arg("--no-version-check");
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
@@ -177,12 +172,11 @@ impl ServerGuard {
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--database").arg(database_name);
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
-        return cmd
+        return cmd;
     }
 }
 
-
-extern fn stop_processes() {
+extern "C" fn stop_processes() {
     let mut items = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
     for item in items.iter_mut() {
         item.process.kill().ok();

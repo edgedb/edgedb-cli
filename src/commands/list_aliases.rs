@@ -1,14 +1,12 @@
 use async_std::prelude::StreamExt;
 
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
-use edgedb_derive::Queryable;
-use crate::commands::Options;
 use crate::commands::filter;
+use crate::commands::Options;
 use crate::table;
 use edgedb_client::client::Connection;
-
-
+use edgedb_derive::Queryable;
 
 #[derive(Queryable)]
 struct Alias {
@@ -17,11 +15,14 @@ struct Alias {
     klass: String,
 }
 
-pub async fn list_aliases(cli: &mut Connection, options: &Options,
-    pattern: &Option<String>, system: bool, case_sensitive: bool,
-    verbose: bool)
-    -> Result<(), anyhow::Error>
-{
+pub async fn list_aliases(
+    cli: &mut Connection,
+    options: &Options,
+    pattern: &Option<String>,
+    system: bool,
+    case_sensitive: bool,
+    verbose: bool,
+) -> Result<(), anyhow::Error> {
     let pat = filter::pattern_to_value(pattern, case_sensitive);
     let filter = match (pattern, system) {
         (None, true) => "FILTER .is_from_alias",
@@ -30,9 +31,7 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
                 NOT re_test("^(?:std|schema|math|sys|cfg|cal|stdgraphql)::",
                     .name)"#
         }
-        (Some(_), true) => {
-            "FILTER .is_from_alias AND re_test(<str>$0, .name)"
-        }
+        (Some(_), true) => "FILTER .is_from_alias AND re_test(<str>$0, .name)",
         (Some(_), false) => {
             r#"FILTER .is_from_alias
                 AND re_test(<str>$0, .name) AND
@@ -40,7 +39,8 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
                 .name)"#
         }
     };
-    let query = &format!(r###"
+    let query = &format!(
+        r###"
         WITH MODULE schema
         SELECT Type {{
             name,
@@ -55,7 +55,9 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         }}
         {filter}
         ORDER BY .name;
-    "###, filter=filter);
+    "###,
+        filter = filter
+    );
     let mut items = cli.query::<Alias>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
@@ -63,7 +65,10 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         if verbose {
             table.set_titles(Row::new(
                 ["Name", "Klass", "Expression"]
-                .iter().map(|x| table::header_cell(x)).collect()));
+                    .iter()
+                    .map(|x| table::header_cell(x))
+                    .collect(),
+            ));
             while let Some(item) = items.next().await.transpose()? {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.name),
@@ -74,7 +79,10 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         } else {
             table.set_titles(Row::new(
                 ["Name", "Klass"]
-                .iter().map(|x| table::header_cell(x)).collect()));
+                    .iter()
+                    .map(|x| table::header_cell(x))
+                    .collect(),
+            ));
             while let Some(item) = items.next().await.transpose()? {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.name),

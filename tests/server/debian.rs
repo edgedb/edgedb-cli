@@ -1,9 +1,9 @@
 use crate::docker;
 use test_case::test_case;
 
-
 pub fn dockerfile(codename: &str) -> String {
-    format!(r###"
+    format!(
+        r###"
         FROM debian:{codename}
         RUN apt-get update
         RUN apt-get install -y sudo ca-certificates
@@ -12,7 +12,9 @@ pub fn dockerfile(codename: &str) -> String {
             user1
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
-    "###, codename=codename)
+    "###,
+        codename = codename
+    )
 }
 
 #[test_case("buster", false)]
@@ -23,5 +25,6 @@ fn sudo_install(codename: &str, nightly: bool) -> Result<(), anyhow::Error> {
     docker::sudo_test(
         &dockerfile(codename),
         &format!("edgedb_test:{}_sudo", codename),
-        nightly)
+        nightly,
+    )
 }

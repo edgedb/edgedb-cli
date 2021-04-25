@@ -1,16 +1,15 @@
 use std::fs;
-use std::path::{Path};
+use std::path::Path;
 
 use fn_error_context::context;
 
 use crate::server::detect;
-use crate::server::options::InstanceCommand;
 use crate::server::metadata::Metadata;
 use crate::server::methods::Methods;
+use crate::server::options::InstanceCommand;
+use crate::server::os_trait::InstanceRef;
 use crate::server::revert;
 use crate::server::status;
-use crate::server::os_trait::{InstanceRef};
-
 
 #[context("failed to read metadata {}/metadata.json", dir.display())]
 pub fn read_metadata(dir: &Path) -> anyhow::Result<Metadata> {
@@ -18,9 +17,7 @@ pub fn read_metadata(dir: &Path) -> anyhow::Result<Metadata> {
     Ok(serde_json::from_slice(&fs::read(&metadata_path)?)?)
 }
 
-pub fn get_instance<'x>(methods: &'x Methods, name: &str)
-    -> anyhow::Result<InstanceRef<'x>>
-{
+pub fn get_instance<'x>(methods: &'x Methods, name: &str) -> anyhow::Result<InstanceRef<'x>> {
     let mut errors = Vec::new();
     for (meth_name, meth) in methods {
         match meth.get_instance(name) {
@@ -30,8 +27,7 @@ pub fn get_instance<'x>(methods: &'x Methods, name: &str)
             }
         }
     }
-    anyhow::bail!("Cannot find instance {:?}:\n{}", name,
-        errors.join("\n"))
+    anyhow::bail!("Cannot find instance {:?}:\n{}", name, errors.join("\n"))
 }
 
 pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {

@@ -1,10 +1,9 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::server::version::Version;
 use crate::server::detect::{Lazy, VersionQuery};
-use crate::server::os_trait::{CurrentOs, PreciseVersion};
 use crate::server::distribution::{Distribution, DistributionRef, MajorVersion};
-
+use crate::server::os_trait::{CurrentOs, PreciseVersion};
+use crate::server::version::Version;
 
 #[derive(Debug, Serialize)]
 pub struct PackageCandidate {
@@ -31,7 +30,7 @@ pub struct RepositoryInfo {
 #[derive(Deserialize, Debug, Clone)]
 pub struct PackageInfo {
     pub basename: String,
-    pub slot: Option<Version<String>>,  // TODO(tailhook) it's a string
+    pub slot: Option<Version<String>>, // TODO(tailhook) it's a string
     pub version: Version<String>,
     pub revision: String,
     pub architecture: String,
@@ -57,7 +56,8 @@ impl<'a> Into<DistributionRef> for &'a PackageInfo {
             major_version,
             version: Version(format!("{}-{}", self.version, self.revision)),
             slot: slot.as_ref().to_owned(),
-        }.into_ref()
+        }
+        .into_ref()
     }
 }
 
@@ -74,8 +74,12 @@ impl PackageCandidate {
     pub fn format_option(&self, buf: &mut String, recommended: bool) {
         use std::fmt::Write;
 
-        write!(buf, " * --method=package -- to install {} native package",
-            self.distro_name).unwrap();
+        write!(
+            buf,
+            " * --method=package -- to install {} native package",
+            self.distro_name
+        )
+        .unwrap();
         if recommended {
             buf.push_str(" (recommended)");
         }
@@ -86,19 +90,23 @@ impl PackageCandidate {
         use std::fmt::Write;
 
         if self.distro_supported {
-            write!(buf,
+            write!(
+                buf,
                 " * Note: native packages are not supported for {} {}",
-                self.distro_name,
-                self.distro_version).unwrap();
+                self.distro_name, self.distro_version
+            )
+            .unwrap();
         } else {
-            buf.push_str(" * Note: native packages are \
-                             not supported for this platform");
+            buf.push_str(
+                " * Note: native packages are \
+                             not supported for this platform",
+            );
         }
         buf.push('\n');
     }
-    pub fn make_method<'os, O>(&self, os: &'os O)
-        -> anyhow::Result<PackageMethod<'os, O>>
-        where O: CurrentOs + ?Sized,
+    pub fn make_method<'os, O>(&self, os: &'os O) -> anyhow::Result<PackageMethod<'os, O>>
+    where
+        O: CurrentOs + ?Sized,
     {
         if !self.supported {
             anyhow::bail!("Method `package` is not supported");
@@ -113,8 +121,8 @@ impl PackageCandidate {
 fn version_matches(package: &PackageInfo, version: &VersionQuery) -> bool {
     use VersionQuery::*;
 
-    if package.slot.is_none() ||
-        (package.basename != "edgedb" && package.basename != "edgedb-server")
+    if package.slot.is_none()
+        || (package.basename != "edgedb" && package.basename != "edgedb-server")
     {
         return false;
     }
@@ -125,10 +133,10 @@ fn version_matches(package: &PackageInfo, version: &VersionQuery) -> bool {
     }
 }
 
-
-pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
-    -> Result<DistributionRef, anyhow::Error>
-{
+pub fn find_version(
+    haystack: &RepositoryInfo,
+    ver: &VersionQuery,
+) -> Result<DistributionRef, anyhow::Error> {
     let mut max_version = None::<(&PackageInfo, Version<String>)>;
     for package in &haystack.packages {
         if version_matches(package, ver) {
@@ -152,7 +160,8 @@ pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
             },
             version: Version(format!("{}-{}", target.version, target.revision)),
             slot: slot.as_ref().to_owned(),
-        }.into_ref())
+        }
+        .into_ref())
     } else {
         anyhow::bail!("Version {} not found", ver)
     }
@@ -160,7 +169,7 @@ pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
 
 impl PackageInfo {
     pub fn is_nightly(&self) -> bool {
-        return self.version.as_ref().contains(".dev")
+        return self.version.as_ref().contains(".dev");
     }
     pub fn precise_version(&self) -> PreciseVersion {
         let slot = self.slot.as_ref().expect("only server packages supported");

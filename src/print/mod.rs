@@ -1,27 +1,27 @@
+use std::convert::Infallible;
 use std::error::Error;
 use std::fmt;
 use std::io;
-use std::convert::Infallible;
 
 use async_std::stream::{Stream, StreamExt};
 use bytes::Bytes;
 use colorful::Colorful;
-use snafu::{Snafu, ResultExt, AsErrorSource};
+use snafu::{AsErrorSource, ResultExt, Snafu};
 
-mod native;
-mod json;
 mod buffer;
-mod stream;
 mod formatter;
+mod json;
+mod native;
+mod stream;
 pub mod style;
-#[cfg(test)] mod tests;
+#[cfg(test)]
+mod tests;
 
-pub(in crate::print) use native::FormatExt;
-pub(in crate::print) use formatter::Formatter;
+use buffer::{Delim, Exception, UnwrapExc, WrapErr};
 use formatter::ColorfulExt;
-use buffer::{Exception, WrapErr, UnwrapExc, Delim};
+pub(in crate::print) use formatter::Formatter;
+pub(in crate::print) use native::FormatExt;
 use stream::Output;
-
 
 #[derive(Snafu, Debug)]
 pub enum PrintError<S: AsErrorSource + Error, P: AsErrorSource + Error> {
@@ -40,7 +40,6 @@ pub struct Config {
     pub implicit_properties: bool,
     pub max_items: Option<usize>,
 }
-
 
 pub(in crate::print) struct Printer<T> {
     // config
@@ -99,22 +98,29 @@ impl Config {
 
 pub fn completion(res: &Bytes) {
     if atty::is(atty::Stream::Stderr) {
-        eprintln!("{}",
+        eprintln!(
+            "{}",
             format!("OK: {}", String::from_utf8_lossy(&res[..]))
-                .dark_gray().bold());
+                .dark_gray()
+                .bold()
+        );
     } else {
         eprintln!("OK: {}", String::from_utf8_lossy(&res[..]));
     }
 }
 
-async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<O>, rows: &mut S,
-    row_buf: &mut Vec<I>, end_of_stream: &mut bool)
-    -> Result<(), Exception<PrintError<E, O::Error>>>
-    where S: Stream<Item=Result<I, E>> + Send + Unpin,
-          I: FormatExt,
-          E: fmt::Debug + Error + 'static,
-          O: Output,
-          O::Error: fmt::Debug + Error + 'static,
+async fn format_rows_buf<S, I, E, O>(
+    prn: &mut Printer<O>,
+    rows: &mut S,
+    row_buf: &mut Vec<I>,
+    end_of_stream: &mut bool,
+) -> Result<(), Exception<PrintError<E, O::Error>>>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt,
+    E: fmt::Debug + Error + 'static,
+    O: Output,
+    O::Error: fmt::Debug + Error + 'static,
 {
     let branch = prn.open_block("{".clear()).wrap_err(PrintErr)?;
     debug_assert!(branch);
@@ -124,8 +130,7 @@ async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<O>, rows: &mut S,
             if row_buf.len() > limit {
                 prn.ellipsis().wrap_err(PrintErr)?;
                 // consume extra items if any
-                while let Some(_) = rows.next().await
-                    .transpose().wrap_err(StreamErr)? {}
+                while let Some(_) = rows.next().await.transpose().wrap_err(StreamErr)? {}
                 break;
             }
         }
@@ -140,14 +145,17 @@ async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<O>, rows: &mut S,
     Ok(())
 }
 
-async fn format_rows<S, I, E, O>(prn: &mut Printer<O>,
-    buffered_rows: Vec<I>, rows: &mut S)
-    -> Result<(), Exception<PrintError<E, O::Error>>>
-    where S: Stream<Item=Result<I, E>> + Send + Unpin,
-          I: FormatExt,
-          E: fmt::Debug + Error + 'static,
-          O: Output,
-          O::Error: fmt::Debug + Error + 'static,
+async fn format_rows<S, I, E, O>(
+    prn: &mut Printer<O>,
+    buffered_rows: Vec<I>,
+    rows: &mut S,
+) -> Result<(), Exception<PrintError<E, O::Error>>>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt,
+    E: fmt::Debug + Error + 'static,
+    O: Output,
+    O::Error: fmt::Debug + Error + 'static,
 {
     prn.reopen_block().wrap_err(PrintErr)?;
     let mut counter: usize = 0;
@@ -168,8 +176,7 @@ async fn format_rows<S, I, E, O>(prn: &mut Printer<O>,
             if counter > limit {
                 prn.ellipsis().wrap_err(PrintErr)?;
                 // consume extra items if any
-                while let Some(_) = rows.next().await
-                    .transpose().wrap_err(StreamErr)? {}
+                while let Some(_) = rows.next().await.transpose().wrap_err(StreamErr)? {}
                 break;
             }
         }
@@ -180,28 +187,39 @@ async fn format_rows<S, I, E, O>(prn: &mut Printer<O>,
     Ok(())
 }
 
-pub async fn native_to_stdout<S, I, E>(rows: S, config: &Config)
-    -> Result<(), PrintError<E, io::Error>>
-    where S: Stream<Item=Result<I, E>> + Send + Unpin,
-          I: FormatExt,
-          E: fmt::Debug + Error + 'static,
+pub async fn native_to_stdout<S, I, E>(
+    rows: S,
+    config: &Config,
+) -> Result<(), PrintError<E, io::Error>>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt,
+    E: fmt::Debug + Error + 'static,
 {
     let w = config.max_width.unwrap_or_else(|| {
-        term_size::dimensions_stdout().map(|(w, _h)| w).unwrap_or(80)
+        term_size::dimensions_stdout()
+            .map(|(w, _h)| w)
+            .unwrap_or(80)
     });
-    let colors = config.colors
-            .unwrap_or_else(|| atty::is(atty::Stream::Stdout));
+    let colors = config
+        .colors
+        .unwrap_or_else(|| atty::is(atty::Stream::Stdout));
     _native_format(rows, config, w, colors, Stdout {}).await
 }
 
-async fn _native_format<S, I, E, O>(mut rows: S, config: &Config,
-    max_width: usize, colors: bool, output: O)
-    -> Result<(), PrintError<E, O::Error>>
-    where S: Stream<Item=Result<I, E>> + Send + Unpin,
-          I: FormatExt,
-          E: fmt::Debug + Error + 'static,
-          O: Output,
-          O::Error: Error + 'static,
+async fn _native_format<S, I, E, O>(
+    mut rows: S,
+    config: &Config,
+    max_width: usize,
+    colors: bool,
+    output: O,
+) -> Result<(), PrintError<E, O::Error>>
+where
+    S: Stream<Item = Result<I, E>> + Send + Unpin,
+    I: FormatExt,
+    E: fmt::Debug + Error + 'static,
+    O: Output,
+    O::Error: Error + 'static,
 {
     let mut prn = Printer {
         colors,
@@ -225,10 +243,12 @@ async fn _native_format<S, I, E, O>(mut rows: S, config: &Config,
     let mut row_buf = Vec::new();
     let mut eos = false;
     match format_rows_buf(&mut prn, &mut rows, &mut row_buf, &mut eos).await {
-        Ok(()) => {},
+        Ok(()) => {}
         Err(Exception::DisableFlow) => {
             if !eos {
-                format_rows(&mut prn, row_buf, &mut rows).await.unwrap_exc()?;
+                format_rows(&mut prn, row_buf, &mut rows)
+                    .await
+                    .unwrap_exc()?;
             }
         }
         Err(Exception::Error(e)) => return Err(e),
@@ -237,10 +257,13 @@ async fn _native_format<S, I, E, O>(mut rows: S, config: &Config,
     Ok(())
 }
 
-fn format_rows_str<I: FormatExt>(prn: &mut Printer<&mut String>, items: &[I],
-    open: &str, close: &str, reopen: bool)
-    -> buffer::Result<Infallible>
-{
+fn format_rows_str<I: FormatExt>(
+    prn: &mut Printer<&mut String>,
+    items: &[I],
+    open: &str,
+    close: &str,
+    reopen: bool,
+) -> buffer::Result<Infallible> {
     if reopen {
         prn.reopen_block()?;
     } else {
@@ -255,9 +278,7 @@ fn format_rows_str<I: FormatExt>(prn: &mut Printer<&mut String>, items: &[I],
     Ok(())
 }
 
-pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
-    -> Result<String, Infallible>
-{
+pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config) -> Result<String, Infallible> {
     let mut out = String::new();
     let mut prn = Printer {
         colors: config.colors.unwrap_or(false),
@@ -279,7 +300,7 @@ pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
         cur_indent: 0,
     };
     match format_rows_str(&mut prn, &items, "[", "]", false) {
-        Ok(()) => {},
+        Ok(()) => {}
         Err(Exception::DisableFlow) => {
             format_rows_str(&mut prn, &items, "[", "]", true).unwrap_exc()?;
         }
@@ -289,9 +310,7 @@ pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
     Ok(out)
 }
 
-pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
-    -> Result<String, Infallible>
-{
+pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config) -> Result<String, Infallible> {
     let mut out = String::new();
     let mut prn = Printer {
         colors: config.colors.unwrap_or(false),
@@ -314,7 +333,7 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
     };
     prn.end().unwrap_exc()?;
     match item.format(&mut prn) {
-        Ok(()) => {},
+        Ok(()) => {}
         Err(Exception::DisableFlow) => unreachable!(),
         Err(Exception::Error(e)) => return Err(e),
     }

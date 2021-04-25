@@ -1,14 +1,12 @@
 use async_std::prelude::StreamExt;
 
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
-use edgedb_derive::Queryable;
-use crate::commands::Options;
 use crate::commands::filter;
-use edgedb_client::client::Connection;
+use crate::commands::Options;
 use crate::table;
-
-
+use edgedb_client::client::Connection;
+use edgedb_derive::Queryable;
 
 #[derive(Queryable)]
 struct TypeRow {
@@ -16,25 +14,31 @@ struct TypeRow {
     extending: String,
 }
 
-pub async fn list_object_types(cli: &mut Connection, options: &Options,
-    pattern: &Option<String>, system: bool, case_sensitive: bool)
-    -> Result<(), anyhow::Error>
-{
+pub async fn list_object_types(
+    cli: &mut Connection,
+    options: &Options,
+    pattern: &Option<String>,
+    system: bool,
+    case_sensitive: bool,
+) -> Result<(), anyhow::Error> {
     let pat = filter::pattern_to_value(pattern, case_sensitive);
     let mut filter = Vec::with_capacity(3);
     filter.push("NOT .is_compound_type AND NOT .is_from_alias");
     if !system {
-        filter.push(r###"
+        filter.push(
+            r###"
             NOT re_test(
                 "^(?:std|schema|math|sys|cfg|cal|stdgraphql)::",
                 .name)
-        "###);
+        "###,
+        );
     }
     if pattern.is_some() {
         filter.push("re_test(<str>$0, .name)");
     }
 
-    let query = &format!(r###"
+    let query = &format!(
+        r###"
         WITH MODULE schema
         SELECT ObjectType {{
             name,
@@ -42,18 +46,24 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
         }}
         FILTER ({filter})
         ORDER BY .name;
-    "###, filter=filter.join(") AND ("));
+    "###,
+        filter = filter.join(") AND (")
+    );
 
     let mut items = cli.query::<TypeRow>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let term_width = term_size::dimensions_stdout()
-            .map(|(w, _h)| w).unwrap_or(80);
-        let extending_width = (term_width-7) * 3 / 4;
+            .map(|(w, _h)| w)
+            .unwrap_or(80);
+        let extending_width = (term_width - 7) * 3 / 4;
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
         table.set_titles(Row::new(
             ["Name", "Extending"]
-            .iter().map(|x| table::header_cell(x)).collect()));
+                .iter()
+                .map(|x| table::header_cell(x))
+                .collect(),
+        ));
         while let Some(item) = items.next().await.transpose()? {
             table.add_row(Row::new(vec![
                 Cell::new(&item.name),
@@ -64,9 +74,14 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
             if let Some(pattern) = pattern {
                 eprintln!("No object types found matching {:?}", pattern);
             } else if !system {
-                eprintln!("No user-defined object types found. {}",
-                    if options.command_line { "Try --system" }
-                    else { r"Try \lt -s" });
+                eprintln!(
+                    "No user-defined object types found. {}",
+                    if options.command_line {
+                        "Try --system"
+                    } else {
+                        r"Try \lt -s"
+                    }
+                );
             }
         } else {
             table.printstd();

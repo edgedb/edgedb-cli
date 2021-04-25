@@ -1,10 +1,9 @@
 use crate::print::stream::Output;
 use crate::print::Printer;
 
-use colorful::{Colorful, core::color_string::CString};
+use colorful::{core::color_string::CString, Colorful};
 
 use crate::print::buffer::Result;
-
 
 pub(in crate::print) trait ColorfulExt {
     fn clear(&self) -> CString;
@@ -16,7 +15,6 @@ impl<'a> ColorfulExt for &'a str {
     }
 }
 
-
 pub trait Formatter {
     type Error;
     fn const_scalar<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
@@ -24,19 +22,23 @@ pub trait Formatter {
     fn typed<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error>;
     fn error<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error>;
     fn set<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
     fn tuple<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
     fn array<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
-    fn object<F>(&mut self, type_id: Option<&str>, f: F)
-        -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
-    fn json_object<F>(&mut self, f: F)
-        -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
+    fn object<F>(&mut self, type_id: Option<&str>, f: F) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
+    fn json_object<F>(&mut self, f: F) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
     fn named_tuple<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
     fn comma(&mut self) -> Result<Self::Error>;
     fn ellipsis(&mut self) -> Result<Self::Error>;
     fn object_field(&mut self, f: CString) -> Result<Self::Error>;
@@ -70,7 +72,8 @@ impl<T: Output> Formatter for Printer<T> {
         Ok(())
     }
     fn set<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block("{".clear(), f, "}".clear())?;
@@ -82,15 +85,14 @@ impl<T: Output> Formatter for Printer<T> {
     fn ellipsis(&mut self) -> Result<Self::Error> {
         Printer::ellipsis(self)
     }
-    fn object<F>(&mut self, type_name: Option<&str>, f: F)
-        -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    fn object<F>(&mut self, type_name: Option<&str>, f: F) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         match type_name {
             Some(tname) => {
-                self.block((String::from(tname) + " {").blue(),
-                            f, "}".blue())?;
+                self.block((String::from(tname) + " {").blue(), f, "}".blue())?;
             }
             _ => {
                 self.block("Object {".blue(), f, "}".blue())?;
@@ -98,9 +100,9 @@ impl<T: Output> Formatter for Printer<T> {
         }
         Ok(())
     }
-    fn json_object<F>(&mut self, f: F)
-        -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    fn json_object<F>(&mut self, f: F) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block("{".blue(), f, "}".blue())?;
@@ -113,14 +115,16 @@ impl<T: Output> Formatter for Printer<T> {
         Ok(())
     }
     fn tuple<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block("(".clear(), f, ")".clear())?;
         Ok(())
     }
     fn named_tuple<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block("(".blue(), f, ")".blue())?;
@@ -133,7 +137,8 @@ impl<T: Output> Formatter for Printer<T> {
         Ok(())
     }
     fn array<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block("[".clear(), f, "]".clear())?;

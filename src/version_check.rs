@@ -1,34 +1,32 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::platform::home_dir;
-use crate::server::version::Version;
 use crate::self_upgrade;
-
+use crate::server::version::Version;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Cache {
-    #[serde(with="humantime_serde")]
+    #[serde(with = "humantime_serde")]
     timestamp: SystemTime,
-    #[serde(with="humantime_serde")]
+    #[serde(with = "humantime_serde")]
     expires: SystemTime,
     version: Option<Version<String>>,
 }
 
 fn cache_age() -> Duration {
-    Duration::from_secs(thread_rng().gen_range(16*3600..32*3600))
+    Duration::from_secs(thread_rng().gen_range(16 * 3600..32 * 3600))
 }
 
 fn negative_cache_age() -> Duration {
-    Duration::from_secs(thread_rng().gen_range(6*3600..12*3600))
+    Duration::from_secs(thread_rng().gen_range(6 * 3600..12 * 3600))
 }
-
 
 fn read_cache(dir: &Path) -> anyhow::Result<Cache> {
     let file = fs::File::open(dir.join("version_check.json"))?;
@@ -46,11 +44,15 @@ fn newer_warning(ver: &Version<String>) {
         log::warn!(
             "Newer version of edgedb tool exists {} (current {}). \
                 To upgrade run `edgedb self-upgrade`",
-            ver, env!("CARGO_PKG_VERSION"));
+            ver,
+            env!("CARGO_PKG_VERSION")
+        );
     } else {
         log::warn!(
             "Newer version of edgedb tool exists {} (current {})",
-            ver, env!("CARGO_PKG_VERSION"));
+            ver,
+            env!("CARGO_PKG_VERSION")
+        );
     }
 }
 
@@ -65,7 +67,7 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
             }
             return Ok(());
         }
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             log::debug!("Error reading cache: {}", e);
         }
@@ -75,15 +77,20 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
         Ok(repo) => repo,
         Err(e) => {
             log::info!("Error while checking for updates: {}", e);
-            write_cache(cache_dir, &Cache {
-                timestamp,
-                expires: timestamp + negative_cache_age(),
-                version: None,
-            })?;
+            write_cache(
+                cache_dir,
+                &Cache {
+                    timestamp,
+                    expires: timestamp + negative_cache_age(),
+                    version: None,
+                },
+            )?;
             return Ok(());
         }
     };
-    let max = repo.packages.iter()
+    let max = repo
+        .packages
+        .iter()
         .filter(|pkg| pkg.basename == "edgedb-cli")
         .map(|pkg| &pkg.version)
         .max();
@@ -93,12 +100,19 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
         }
     }
     log::debug!("Remote version {:?}", max);
-    write_cache(cache_dir, &Cache {
-        timestamp,
-        expires: timestamp +
-            if max.is_some() { cache_age() } else { negative_cache_age() },
-        version: max.cloned(),
-    })?;
+    write_cache(
+        cache_dir,
+        &Cache {
+            timestamp,
+            expires: timestamp
+                + if max.is_some() {
+                    cache_age()
+                } else {
+                    negative_cache_age()
+                },
+            version: max.cloned(),
+        },
+    )?;
     Ok(())
 }
 
@@ -114,7 +128,8 @@ pub fn check(no_version_check_opt: bool) {
         return;
     }
     if env::var_os("EDGEDB_NO_VERSION_CHECK")
-        .map(|x| !x.is_empty()).unwrap_or(false)
+        .map(|x| !x.is_empty())
+        .unwrap_or(false)
     {
         log::debug!("Skipping version check due to EDGEDB_NO_VERSION_CHECK");
         return;

@@ -1,6 +1,6 @@
 // We don't need to hunt of unused imports on windows, as they are harmless
 #![cfg_attr(windows, allow(unused_imports))]
-#![type_length_limit="8388608"]
+#![type_length_limit = "8388608"]
 
 use std::env;
 use std::path::Path;
@@ -58,19 +58,20 @@ fn main() {
             eprintln!("edgedb error: {:#}", err);
             for item in err.chain() {
                 if let Some(e) = item.downcast_ref::<hint::HintedError>() {
-                    eprintln!("  Hint: {}", e.hint
-                        .lines()
-                        .collect::<Vec<_>>()
-                        .join("\n        "));
+                    eprintln!(
+                        "  Hint: {}",
+                        e.hint.lines().collect::<Vec<_>>().join("\n        ")
+                    );
                 } else if item.is::<bug::Bug>() {
-                    eprintln!("  Hint: This is most likely a bug in EdgeDB \
+                    eprintln!(
+                        "  Hint: This is most likely a bug in EdgeDB \
                         or command-line tools. Please consider opening an \
                         issue ticket at \
                         https://github.com/edgedb/edgedb-cli/issues/new\
-                        ?template=bug_report.md");
+                        ?template=bug_report.md"
+                    );
                     code = 13;
-                } else if let Some(e) = e.downcast_ref::<commands::ExitCode>()
-                {
+                } else if let Some(e) = e.downcast_ref::<commands::ExitCode>() {
                     code = e.code();
                 }
             }
@@ -96,9 +97,8 @@ fn _main() -> anyhow::Result<()> {
 
     let opt = Options::from_args_and_env()?;
 
-    let mut builder = env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("warn")
-    );
+    let mut builder =
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"));
     log_levels::init(&mut builder, &opt);
     builder.init();
 

@@ -1,11 +1,10 @@
 use std::io;
-use std::process::{Command, Child, exit};
+use std::process::{exit, Child, Command};
 use std::time::Duration;
 
 use anyhow::Context;
 use serde::de::DeserializeOwned;
 use wait_timeout::ChildExt;
-
 
 pub struct ProcessGuard {
     child: Child,
@@ -29,9 +28,9 @@ pub fn exists(pid: u32) -> bool {
 #[cfg(windows)]
 pub fn exists(pid: u32) -> bool {
     use std::ptr::null_mut;
-    use winapi::um::processthreadsapi::{OpenProcess};
-    use winapi::um::winnt::{PROCESS_QUERY_INFORMATION};
     use winapi::um::handleapi::CloseHandle;
+    use winapi::um::processthreadsapi::OpenProcess;
+    use winapi::um::winnt::PROCESS_QUERY_INFORMATION;
 
     let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, pid) };
     if handle == null_mut() {
@@ -48,18 +47,17 @@ pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
 
     let trap = signal::trap::Trap::trap(&[SIGINT, SIGTERM, SIGCHLD]);
     log::info!("Running {:?}", cmd);
-    let mut child = cmd.spawn()
+    let mut child = cmd
+        .spawn()
         .with_context(|| format!("process {:?} failed", cmd))?;
     let pid = child.id() as i32;
     let status = 'child: loop {
         for sig in trap {
             match sig {
-                SIGINT|SIGTERM => {
-                    log::info!("Interrupted by {:?}. Propagating signal",
-                               sig);
+                SIGINT | SIGTERM => {
+                    log::info!("Interrupted by {:?}. Propagating signal", sig);
                     if unsafe { libc::kill(pid, sig as libc::c_int) } != 0 {
-                        log::debug!("Error signalling process: {}",
-                            io::Error::last_os_error());
+                        log::debug!("Error signalling process: {}", io::Error::last_os_error());
                     }
                 }
                 _ => {}
@@ -71,7 +69,7 @@ pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
         unreachable!();
     };
     if status.success() {
-        return Ok(())
+        return Ok(());
     }
     anyhow::bail!("process {:?} failed: {}", cmd, status);
 }
@@ -79,12 +77,8 @@ pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
 pub fn run_or_stderr(cmd: &mut Command) -> anyhow::Result<Result<(), String>> {
     match cmd.output() {
         Ok(child) if child.status.success() => Ok(Ok(())),
-        Ok(out) => {
-            Ok(Err(String::from_utf8(out.stderr)
-                .with_context(|| {
-                    format!("can decode error output of {:?}", cmd)
-                })?))
-        }
+        Ok(out) => Ok(Err(String::from_utf8(out.stderr)
+            .with_context(|| format!("can decode error output of {:?}", cmd))?)),
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd)),
     }
 }
@@ -103,24 +97,17 @@ pub fn get_text(cmd: &mut Command) -> anyhow::Result<String> {
         Ok(out) => anyhow::bail!("process {:?} failed: {}", cmd, out.status),
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd))?,
     };
-    String::from_utf8(data)
-        .with_context(|| format!("can decode output of {:?}", cmd))
+    String::from_utf8(data).with_context(|| format!("can decode output of {:?}", cmd))
 }
 
-pub fn get_json_or_stderr<T: DeserializeOwned>(cmd: &mut Command)
-    -> anyhow::Result<Result<T, String>>
-{
+pub fn get_json_or_stderr<T: DeserializeOwned>(
+    cmd: &mut Command,
+) -> anyhow::Result<Result<T, String>> {
     match cmd.output() {
-        Ok(out) if out.status.success() => {
-            Ok(Ok(serde_json::from_slice(&out.stdout[..])
-                .with_context(|| format!("can decode output of {:?}", cmd))?))
-        }
-        Ok(out) => {
-            Ok(Err(String::from_utf8(out.stderr)
-                .with_context(|| {
-                    format!("can decode error output of {:?}", cmd)
-                })?))
-        }
+        Ok(out) if out.status.success() => Ok(Ok(serde_json::from_slice(&out.stdout[..])
+            .with_context(|| format!("can decode output of {:?}", cmd))?)),
+        Ok(out) => Ok(Err(String::from_utf8(out.stderr)
+            .with_context(|| format!("can decode error output of {:?}", cmd))?)),
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd))?,
     }
 }
@@ -135,31 +122,40 @@ impl ProcessGuard {
 
 impl Drop for ProcessGuard {
     fn drop(&mut self) {
-         #[cfg(unix)] {
-             let pid = self.child.id() as i32;
-             if unsafe { libc::kill(pid, libc::SIGTERM) } != 0 {
-                 log::error!("error stopping command: {}",
-                     io::Error::last_os_error());
-             }
-         }
-         if cfg!(not(unix)) {
-             self.child.kill().map_err(|e| {
-                 log::error!("error stopping command: {}", e);
-             }).ok();
-         }
-         match self.child.wait_timeout(Duration::from_secs(10)) {
-             Ok(None) => {
-                 self.child.kill().map_err(|e| {
-                     log::warn!("error stopping command: {}", e);
-                 }).ok();
-                 self.child.wait().map_err(|e| {
-                     log::error!("error waiting for stopped command: {}", e);
-                 }).ok();
-             }
-             Ok(Some(_)) => {}
-             Err(e) => {
-                 log::error!("error stopping command: {}", e);
-             }
-         }
+        #[cfg(unix)]
+        {
+            let pid = self.child.id() as i32;
+            if unsafe { libc::kill(pid, libc::SIGTERM) } != 0 {
+                log::error!("error stopping command: {}", io::Error::last_os_error());
+            }
+        }
+        if cfg!(not(unix)) {
+            self.child
+                .kill()
+                .map_err(|e| {
+                    log::error!("error stopping command: {}", e);
+                })
+                .ok();
+        }
+        match self.child.wait_timeout(Duration::from_secs(10)) {
+            Ok(None) => {
+                self.child
+                    .kill()
+                    .map_err(|e| {
+                        log::warn!("error stopping command: {}", e);
+                    })
+                    .ok();
+                self.child
+                    .wait()
+                    .map_err(|e| {
+                        log::error!("error waiting for stopped command: {}", e);
+                    })
+                    .ok();
+            }
+            Ok(Some(_)) => {}
+            Err(e) => {
+                log::error!("error stopping command: {}", e);
+            }
+        }
     }
 }

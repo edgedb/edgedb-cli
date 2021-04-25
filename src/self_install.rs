@@ -3,23 +3,22 @@
 
 use std::env;
 use std::fs;
-use std::io::{Write, stdout, BufWriter};
-use std::path::{PathBuf, Path};
-use std::process::{Command, exit};
+use std::io::{stdout, BufWriter, Write};
+use std::path::{Path, PathBuf};
+use std::process::{exit, Command};
 use std::str::FromStr;
 
 use anyhow::Context;
 use clap::{Clap, IntoApp};
 use clap_generate::{generate, generators};
 use fn_error_context::context;
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
 use crate::options::RawOptions;
-use crate::platform::{home_dir, get_current_uid};
+use crate::platform::{get_current_uid, home_dir};
 use crate::process;
-use crate::table;
 use crate::question::read_choice;
-
+use crate::table;
 
 #[derive(Clap, Clone, Debug)]
 pub struct SelfInstall {
@@ -27,13 +26,13 @@ pub struct SelfInstall {
     #[clap(long)]
     pub nightly: bool,
     /// Enable verbose output
-    #[clap(short='v', long)]
+    #[clap(short = 'v', long)]
     pub verbose: bool,
     /// Skip printing messages and confirmation prompts
-    #[clap(short='q', long)]
+    #[clap(short = 'q', long)]
     pub quiet: bool,
     /// Disable confirmation prompt
-    #[clap(short='y')]
+    #[clap(short = 'y')]
     pub no_confirm: bool,
     /// Do not configure the PATH environment variable
     #[clap(long)]
@@ -65,11 +64,11 @@ pub struct GenCompletions {
     pub shell: Option<Shell>,
 
     /// Install all completions into the prefix
-    #[clap(long, conflicts_with="shell")]
+    #[clap(long, conflicts_with = "shell")]
     pub prefix: Option<PathBuf>,
 
     /// Install all completions into the prefix
-    #[clap(long, conflicts_with="shell", conflicts_with="prefix")]
+    #[clap(long, conflicts_with = "shell", conflicts_with = "prefix")]
     pub home: bool,
 }
 
@@ -82,7 +81,8 @@ pub struct Settings {
 }
 
 fn print_long_description(settings: &Settings) {
-    println!(r###"
+    println!(
+        r###"
 Welcome to EdgeDB!
 
 This will install the official EdgeDB command-line tools.
@@ -92,37 +92,45 @@ The `edgedb` binary will be placed in the {dir_kind} bin directory located at:
   {installation_path}
 {profile_update}
 "###,
-        dir_kind=if settings.system { "system" } else { "user" },
-        installation_path=settings.installation_path.display(),
-        profile_update=if cfg!(windows) {
-            format!(r###"
+        dir_kind = if settings.system { "system" } else { "user" },
+        installation_path = settings.installation_path.display(),
+        profile_update = if cfg!(windows) {
+            format!(
+                r###"
 This path will then be added to your `PATH` environment variable by
 modifying the `HKEY_CURRENT_USER/Environment/PATH` registry key.
-"###)
+"###
+            )
         } else if settings.modify_path {
-            format!(r###"
+            format!(
+                r###"
 This path will then be added to your PATH environment variable by
 modifying the profile file{s} located at:
 
 {rc_files}
 "###,
-            s=if settings.rc_files.len() > 1 { "s" } else { "" },
-            rc_files=settings.rc_files.iter()
-                     .map(|p| format!("  {}", p.display()))
-                     .collect::<Vec<_>>()
-                     .join("\n"),
+                s = if settings.rc_files.len() > 1 { "s" } else { "" },
+                rc_files = settings
+                    .rc_files
+                    .iter()
+                    .map(|p| format!("  {}", p.display()))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
             )
         } else if should_modify_path(&settings.installation_path) {
-            format!(r###"
+            format!(
+                r###"
 Path {installation_path} should be added to the PATH manually after
 installation.
 "###,
-                installation_path=settings.installation_path.display())
+                installation_path = settings.installation_path.display()
+            )
         } else {
             r###"
 This path is already in your PATH environment variable, so no profile will
 be modified.
-"###.into()
+"###
+            .into()
         },
     )
 }
@@ -154,8 +162,7 @@ fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
 
     if is_zsh() {
         let var = env::var_os("ZDOTDIR");
-        let zdotdir = var.as_deref()
-            .map_or_else(|| home_dir.as_path(), Path::new);
+        let zdotdir = var.as_deref().map_or_else(|| home_dir.as_path(), Path::new);
         let zprofile = zdotdir.join(".zprofile");
         rc_files.push(zprofile);
     }
@@ -172,30 +179,35 @@ fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
 
 fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
     if path.exists() {
-        let text = fs::read_to_string(path)
-            .context("cannot read file")?;
+        let text = fs::read_to_string(path).context("cannot read file")?;
         if text.contains(line) {
-            return Ok(())
+            return Ok(());
         }
     }
-    let mut file = fs::OpenOptions::new().create(true).append(true).open(path)
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
         .context("cannot file for append (writing)")?;
-    file.write(format!("{}\n", line).as_bytes(),)
+    file.write(format!("{}\n", line).as_bytes())
         .context("cannot append to file")?;
     Ok(())
 }
 
 fn print_post_install_message(settings: &Settings) {
     if cfg!(windows) {
-        print!(r###"# The EdgeDB command-line tool is now installed!
+        print!(
+            r###"# The EdgeDB command-line tool is now installed!
 
 We've updated your environment configuration to have {dir}
 in your `PATH` environment variable. You may need to reopen the terminal for
 this change to take effect, and for the `edgedb` command to become available.
 "###,
-            dir=settings.installation_path.display());
+            dir = settings.installation_path.display()
+        );
     } else if settings.modify_path {
-        print!(r###"# The EdgeDB command-line tool is now installed!
+        print!(
+            r###"# The EdgeDB command-line tool is now installed!
 
 We've updated your shell profile to have {dir} in your `PATH`
 environment variable. Next time you open the terminal it will be configured
@@ -204,40 +216,43 @@ automatically.
 For this session please run:
   source {env_path}
 "###,
-            dir=settings.installation_path.display(),
-            env_path=settings.env_file.display());
+            dir = settings.installation_path.display(),
+            env_path = settings.env_file.display()
+        );
     } else {
         println!(r###"The EdgeDB command-line tool is now installed!"###);
     }
     if is_zsh() {
         let fpath = process::get_text(
             Command::new(env::var("SHELL").unwrap_or_else(|_| "zsh".into()))
-            .arg("-ic")
-            .arg("echo $fpath")
-        ).ok();
+                .arg("-ic")
+                .arg("echo $fpath"),
+        )
+        .ok();
         let func_dir = home_dir().ok().map(|p| p.join(".zfunc"));
         let func_dir = func_dir.as_ref().and_then(|p| p.to_str());
         if let Some((fpath, func_dir)) = fpath.zip(func_dir) {
             if !fpath.split(" ").any(|s| s == func_dir) {
-                print!(r###"
+                print!(
+                    r###"
 To enable zsh completion, add:
   fpath+=~/.zfunc
 to your ~/.zshrc before `compinit` command.
-"###);
+"###
+                );
             }
         }
     }
-    println!("\nTo install the EdgeDB server component locally run:\n  \
-                edgedb server install");
+    println!(
+        "\nTo install the EdgeDB server component locally run:\n  \
+                edgedb server install"
+    );
 }
 
 pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
     match _main(options) {
         Ok(()) => {
-            if cfg!(windows)
-               && !options.no_confirm
-               && !options.no_wait_for_exit_prompt
-            {
+            if cfg!(windows) && !options.no_confirm && !options.no_wait_for_exit_prompt {
                 // This is needed so user can read the message if console
                 // was open just for this process
                 eprintln!("Press the Enter key to continue");
@@ -246,10 +261,7 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
             Ok(())
         }
         Err(e) => {
-            if cfg!(windows)
-               && !options.no_confirm
-               && !options.no_wait_for_exit_prompt
-            {
+            if cfg!(windows) && !options.no_confirm && !options.no_wait_for_exit_prompt {
                 // This is needed so user can read the message if console
                 // was open just for this process
                 eprintln!("edgedb error: {:#}", e);
@@ -278,9 +290,11 @@ fn customize(settings: &mut Settings) -> anyhow::Result<()> {
                     break;
                 }
                 choice => {
-                    eprintln!("Invalid choice {:?}. \
+                    eprintln!(
+                        "Invalid choice {:?}. \
                         Use single letter `y` or `n`.",
-                        choice);
+                        choice
+                    );
                 }
             }
         }
@@ -292,16 +306,17 @@ fn customize(settings: &mut Settings) -> anyhow::Result<()> {
 
 fn _main(options: &SelfInstall) -> anyhow::Result<()> {
     let mut settings = if !cfg!(windows) && get_current_uid() == 0 {
-        anyhow::bail!("Installation as root is not supported. \
-            Try running without sudo.")
+        anyhow::bail!(
+            "Installation as root is not supported. \
+            Try running without sudo."
+        )
     } else {
         let base = home_dir()?.join(".edgedb");
         let installation_path = base.join("bin");
         Settings {
             rc_files: get_rc_files()?,
             system: false,
-            modify_path: !options.no_modify_path &&
-                         should_modify_path(&installation_path),
+            modify_path: !options.no_modify_path && should_modify_path(&installation_path),
             installation_path,
             env_file: base.join("env"),
         }
@@ -335,33 +350,31 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
     } else {
         settings.installation_path.join("edgedb")
     };
-    let exe_path = env::current_exe()
-        .with_context(|| format!("cannot determine running executable path"))?;
+    let exe_path =
+        env::current_exe().with_context(|| format!("cannot determine running executable path"))?;
     fs::create_dir_all(&settings.installation_path)
-        .with_context(|| format!("failed to create {:?}",
-                                 settings.installation_path))?;
+        .with_context(|| format!("failed to create {:?}", settings.installation_path))?;
     fs::remove_file(&tmp_path).ok();
-    fs::copy(&exe_path, &tmp_path)
-        .with_context(|| format!("failed to write {:?}", tmp_path))?;
-    fs::rename(&tmp_path, &path)
-        .with_context(|| format!("failed to rename {:?}", tmp_path))?;
+    fs::copy(&exe_path, &tmp_path).with_context(|| format!("failed to write {:?}", tmp_path))?;
+    fs::rename(&tmp_path, &path).with_context(|| format!("failed to rename {:?}", tmp_path))?;
     write_completions_home()?;
 
     if settings.modify_path {
-        #[cfg(windows)] {
+        #[cfg(windows)]
+        {
             windows_add_to_path(&settings.installation_path)
                 .context("failed adding a directory to PATH")?;
         }
         if cfg!(unix) {
-            let line = format!("\nexport PATH=\"{}:$PATH\"",
-                               settings.installation_path.display());
+            let line = format!(
+                "\nexport PATH=\"{}:$PATH\"",
+                settings.installation_path.display()
+            );
             for path in &settings.rc_files {
                 ensure_line(&path, &line)
-                    .with_context(|| format!(
-                        "failed to update profile file {:?}", path))?;
+                    .with_context(|| format!("failed to update profile file {:?}", path))?;
             }
-            fs::write(&settings.env_file, &(line + "\n"))
-                .context("failed to write env file")?;
+            fs::write(&settings.env_file, &(line + "\n")).context("failed to write env file")?;
         }
     }
 
@@ -395,9 +408,7 @@ pub fn string_from_winreg_value(val: &winreg::RegValue) -> Option<String> {
             })
         }
         _ => None,
-
     }
-
 }
 
 #[cfg(windows)]
@@ -441,8 +452,8 @@ pub fn string_to_winreg_bytes(s: &str) -> Vec<u8> {
 
 #[cfg(windows)]
 fn windows_add_to_path(installation_path: &Path) -> anyhow::Result<()> {
-    use std::ptr;
     use std::env::{join_paths, split_paths};
+    use std::ptr;
     use winapi::shared::minwindef::*;
     use winapi::um::winuser::SendMessageTimeoutA;
     use winapi::um::winuser::{HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE};
@@ -460,11 +471,15 @@ fn windows_add_to_path(installation_path: &Path) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let new_path = join_paths(vec![installation_path].into_iter()
-                              .chain(old_path.iter().map(|x| x.as_ref())))
-            .context("can't join path")?;
-    let new_path = new_path.to_str()
-            .ok_or_else(|| anyhow::anyhow!("failed to convert PATH to utf-8"))?;
+    let new_path = join_paths(
+        vec![installation_path]
+            .into_iter()
+            .chain(old_path.iter().map(|x| x.as_ref())),
+    )
+    .context("can't join path")?;
+    let new_path = new_path
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("failed to convert PATH to utf-8"))?;
 
     let root = RegKey::predef(HKEY_CURRENT_USER);
     let environment = root
@@ -509,13 +524,13 @@ pub fn write_completions_home() -> anyhow::Result<()> {
     let home = home_dir()?;
     write_completion(
         &home.join(".local/share/bash-completion/completions/edgedb"),
-        Shell::Bash)?;
+        Shell::Bash,
+    )?;
     write_completion(
         &home.join(".config/fish/completions/edgedb.fish"),
-        Shell::Fish)?;
-    write_completion(
-        &home.join(".zfunc/_edgedb"),
-        Shell::Zsh)?;
+        Shell::Fish,
+    )?;
+    write_completion(&home.join(".zfunc/_edgedb"), Shell::Zsh)?;
     Ok(())
 }
 
@@ -525,13 +540,13 @@ pub fn gen_completions(options: &GenCompletions) -> anyhow::Result<()> {
     } else if let Some(prefix) = &options.prefix {
         write_completion(
             &prefix.join("share/bash-completion/completions/edgedb"),
-            Shell::Bash)?;
+            Shell::Bash,
+        )?;
         write_completion(
             &prefix.join("share/fish/completions/edgedb.fish"),
-            Shell::Fish)?;
-        write_completion(
-            &prefix.join("share/zsh/site-functions/_edgedb"),
-            Shell::Zsh)?;
+            Shell::Fish,
+        )?;
+        write_completion(&prefix.join("share/zsh/site-functions/_edgedb"), Shell::Zsh)?;
     } else if options.home {
         write_completions_home()?;
     } else {
@@ -554,10 +569,14 @@ impl Settings {
         if self.modify_path && !self.rc_files.is_empty() {
             table.add_row(Row::new(vec![
                 Cell::new("Profile Files"),
-                Cell::new(&self.rc_files.iter()
-                    .map(|p| p.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join("\n")),
+                Cell::new(
+                    &self
+                        .rc_files
+                        .iter()
+                        .map(|p| p.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                ),
             ]));
         }
         table.set_format(*table::FORMAT);
@@ -590,9 +609,7 @@ impl Shell {
             Bash => generate::<generators::Bash, _>(&mut app, n, buf),
             Elvish => generate::<generators::Elvish, _>(&mut app, n, buf),
             Fish => generate::<generators::Fish, _>(&mut app, n, buf),
-            PowerShell => {
-                generate::<generators::PowerShell, _>(&mut app, n, buf)
-            }
+            PowerShell => generate::<generators::PowerShell, _>(&mut app, n, buf),
             Zsh => generate::<generators::Zsh, _>(&mut app, n, buf),
         }
     }

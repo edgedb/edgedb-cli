@@ -1,14 +1,12 @@
 use async_std::prelude::StreamExt;
 
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
-use edgedb_derive::Queryable;
-use crate::commands::Options;
 use crate::commands::filter;
-use edgedb_client::client::Connection;
+use crate::commands::Options;
 use crate::table;
-
-
+use edgedb_client::client::Connection;
+use edgedb_derive::Queryable;
 
 #[derive(Queryable)]
 struct ScalarType {
@@ -17,10 +15,13 @@ struct ScalarType {
     kind: String,
 }
 
-pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
-    pattern: &Option<String>, system: bool, case_sensitive: bool)
-    -> Result<(), anyhow::Error>
-{
+pub async fn list_scalar_types<'x>(
+    cli: &mut Connection,
+    options: &Options,
+    pattern: &Option<String>,
+    system: bool,
+    case_sensitive: bool,
+) -> Result<(), anyhow::Error> {
     let pat = filter::pattern_to_value(pattern, case_sensitive);
     let filter = match (pattern, system) {
         (None, true) => "FILTER NOT .is_from_alias",
@@ -29,9 +30,7 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
                 re_test("^(?:std|schema|math|sys|cfg|cal|stdgraphql)::",
                 .name)"#
         }
-        (Some(_), true) => {
-            "FILTER NOT .is_from_alias AND re_test(<str>$0, .name)"
-        }
+        (Some(_), true) => "FILTER NOT .is_from_alias AND re_test(<str>$0, .name)",
         (Some(_), false) => {
             r#"FILTER NOT .is_from_alias
                 AND re_test(<str>$0, .name) AND
@@ -40,7 +39,8 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
         }
     };
 
-    let query = &format!(r###"
+    let query = &format!(
+        r###"
         WITH MODULE schema
         SELECT ScalarType {{
             name,
@@ -53,18 +53,24 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
         }}
         {filter}
         ORDER BY .name;
-    "###, filter=filter);
+    "###,
+        filter = filter
+    );
 
     let mut items = cli.query::<ScalarType>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let term_width = term_size::dimensions_stdout()
-            .map(|(w, _h)| w).unwrap_or(80);
-        let extending_width = (term_width-10) / 2;
+            .map(|(w, _h)| w)
+            .unwrap_or(80);
+        let extending_width = (term_width - 10) / 2;
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
         table.set_titles(Row::new(
             ["Name", "Extending", "Kind"]
-            .iter().map(|x| table::header_cell(x)).collect()));
+                .iter()
+                .map(|x| table::header_cell(x))
+                .collect(),
+        ));
         while let Some(item) = items.next().await.transpose()? {
             table.add_row(Row::new(vec![
                 Cell::new(&item.name),
@@ -76,9 +82,14 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
             if let Some(pattern) = pattern {
                 eprintln!("No scalar types found matching {:?}", pattern);
             } else if !system {
-                eprintln!("No user-defined scalar types found. {}",
-                    if options.command_line { "Try --system" }
-                    else { r"Try \lT -s" });
+                eprintln!(
+                    "No user-defined scalar types found. {}",
+                    if options.command_line {
+                        "Try --system"
+                    } else {
+                        r"Try \lT -s"
+                    }
+                );
             }
         } else {
             table.printstd();

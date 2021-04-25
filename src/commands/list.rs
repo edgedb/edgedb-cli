@@ -1,13 +1,12 @@
-use async_std::stream::Stream;
 use async_std::prelude::StreamExt;
+use async_std::stream::Stream;
 
 use crate::commands::Options;
 
-
-pub async fn print<S, E>(mut items: S, title: &str, options: &Options)
-    -> Result<(), anyhow::Error>
-    where S: Stream<Item=Result<String, E>> + Unpin,
-          anyhow::Error: From<E>,
+pub async fn print<S, E>(mut items: S, title: &str, options: &Options) -> Result<(), anyhow::Error>
+where
+    S: Stream<Item = Result<String, E>> + Unpin,
+    anyhow::Error: From<E>,
 {
     if !options.command_line {
         println!("{}:", title);

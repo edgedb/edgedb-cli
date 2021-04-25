@@ -1,8 +1,7 @@
-use clap::{Clap, AppSettings, ArgSettings, ValueHint};
+use clap::{AppSettings, ArgSettings, Clap, ValueHint};
 use std::path::PathBuf;
 
 use crate::repl;
-
 
 #[derive(Clap, Clone, Debug)]
 pub enum Common {
@@ -167,11 +166,11 @@ pub struct CreateDatabase {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListAliases {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short = 'I')]
     pub case_sensitive: bool,
-    #[clap(long, short='s')]
+    #[clap(long, short = 's')]
     pub system: bool,
-    #[clap(long, short='v')]
+    #[clap(long, short = 'v')]
     pub verbose: bool,
 }
 
@@ -179,7 +178,7 @@ pub struct ListAliases {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListCasts {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short = 'I')]
     pub case_sensitive: bool,
 }
 
@@ -187,11 +186,11 @@ pub struct ListCasts {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListIndexes {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short = 'I')]
     pub case_sensitive: bool,
-    #[clap(long, short='s')]
+    #[clap(long, short = 's')]
     pub system: bool,
-    #[clap(long, short='v')]
+    #[clap(long, short = 'v')]
     pub verbose: bool,
 }
 
@@ -199,9 +198,9 @@ pub struct ListIndexes {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListTypes {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short = 'I')]
     pub case_sensitive: bool,
-    #[clap(long, short='s')]
+    #[clap(long, short = 's')]
     pub system: bool,
 }
 
@@ -209,7 +208,7 @@ pub struct ListTypes {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListRoles {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short = 'I')]
     pub case_sensitive: bool,
 }
 
@@ -217,7 +216,7 @@ pub struct ListRoles {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListModules {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short = 'I')]
     pub case_sensitive: bool,
 }
 
@@ -225,7 +224,7 @@ pub struct ListModules {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Describe {
     pub name: String,
-    #[clap(long, short='v')]
+    #[clap(long, short = 'v')]
     pub verbose: bool,
 }
 
@@ -270,7 +269,7 @@ pub struct Restore {
     pub allow_non_empty: bool,
 
     /// Verbose output
-    #[clap(long, short='v')]
+    #[clap(long, short = 'v')]
     pub verbose: bool,
 }
 
@@ -316,19 +315,18 @@ pub struct ConfigureSet {
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub enum ListParameter {
-
     /// Insert a client authentication rule
-    #[clap(name="Auth")]
+    #[clap(name = "Auth")]
     Auth(AuthParameter),
 
     /// Insert an application port with the specicified protocol
-    #[clap(name="Port")]
+    #[clap(name = "Port")]
     Port(PortParameter),
 }
 
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersionFlag)]
-#[clap(rename_all="snake_case")]
+#[clap(rename_all = "snake_case")]
 pub enum ValueParameter {
     /// Specifies the TCP/IP address(es) on which the server is to listen for
     /// connections from client applications.
@@ -373,17 +371,17 @@ pub enum ValueParameter {
 
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersionFlag)]
-#[clap(rename_all="snake_case")]
+#[clap(rename_all = "snake_case")]
 pub enum ConfigParameter {
     /// Reset listen addresses to 127.0.0.1
     ListenAddresses,
     /// Reset port to 5656
     ListenPort,
     /// Remove all the application ports
-    #[clap(name="Port")]
+    #[clap(name = "Port")]
     Port,
     /// Clear authentication table (only admin socket can be used to connect)
-    #[clap(name="Auth")]
+    #[clap(name = "Auth")]
     Auth,
     /// Reset shared_buffers postgres configuration parameter to default value
     SharedBuffers,
@@ -425,7 +423,7 @@ pub struct AuthParameter {
 
     /// The name(s) of the database role(s) this rule applies to. If set to
     /// '*', then it applies to all roles.
-    #[clap(long="user")]
+    #[clap(long = "user")]
     pub users: Vec<String>,
 
     /// The name of the authentication method type. Valid values are: Trust
@@ -442,9 +440,8 @@ pub struct AuthParameter {
 #[derive(Clap, Clone, Debug)]
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct PortParameter {
-
     /// The TCP/IP address(es) for the application port.
-    #[clap(long="address")]
+    #[clap(long = "address")]
     pub addresses: Vec<String>,
 
     /// The TCP port for the application port.

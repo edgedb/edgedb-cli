@@ -1,9 +1,8 @@
-use std::fmt::Write;
 use std::collections::HashMap;
+use std::fmt::Write;
 use std::sync::Arc;
 
-use colorful::{Colorful, RGB, Style as TermStyle};
-
+use colorful::{Colorful, Style as TermStyle, RGB};
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
 pub enum Style {
@@ -34,7 +33,6 @@ pub struct Theme {
 
 #[derive(Debug, Clone)]
 pub struct Styler(Arc<Theme>);
-
 
 trait AddStyle: Sized {
     fn decorator(self) -> Styled<Self>;
@@ -98,14 +96,13 @@ impl Styler {
         t.insert(DeclName, Item(RGB::new(0xbc, 0x74, 0xd7), Some(Bold)));
         t.insert(Tag, Item(RGB::new(0x1d, 0xbd, 0xd0), None));
         t.insert(Comment, Item(RGB::new(0x56, 0x56, 0x56), None));
-        t.insert(BackslashCommand,
-            Item(RGB::new(0xbc, 0x74, 0xd7), Some(Bold)));
-        t.insert(Error,
-            Item(RGB::new(0xff, 0x40, 0x40), Some(Bold)));
+        t.insert(
+            BackslashCommand,
+            Item(RGB::new(0xbc, 0x74, 0xd7), Some(Bold)),
+        );
+        t.insert(Error, Item(RGB::new(0xff, 0x40, 0x40), Some(Bold)));
 
-        return Styler(Arc::new(Theme {
-            items: t,
-        }));
+        return Styler(Arc::new(Theme { items: t }));
     }
     pub fn apply(&self, style: Style, data: &str, buf: &mut String) {
         if let Some(Item(col, style)) = self.0.items.get(&style) {

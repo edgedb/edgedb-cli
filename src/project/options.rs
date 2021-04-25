@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
-use clap::{Clap, AppSettings, ValueHint};
 use crate::server::methods::InstallMethod;
 use crate::server::version::Version;
-
+use clap::{AppSettings, Clap, ValueHint};
 
 #[derive(Clap, Debug, Clone)]
 #[clap(setting=AppSettings::DisableVersionFlag)]
@@ -53,7 +52,7 @@ pub struct Unlink {
     pub project_dir: Option<PathBuf>,
 
     /// If specified, the associated EdgeDB instance is destroyed by running edgedb server destroy.
-    #[clap(long, short='D')]
+    #[clap(long, short = 'D')]
     pub destroy_server_instance: bool,
 
     #[clap(long)]

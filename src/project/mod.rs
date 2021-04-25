@@ -5,25 +5,20 @@ use anyhow::Context;
 
 pub mod options;
 
-mod main;
-pub mod init;
-mod unlink;
 mod config;
+pub mod init;
+mod main;
+mod unlink;
 
+pub use init::stash_path;
 pub use main::main;
-pub use init::{stash_path};
 pub use unlink::unlink;
 
 pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<PathBuf> {
-    project_dir_opt(cli_option)?
-    .ok_or_else(|| {
-        anyhow::anyhow!("no `edgedb.toml` found")
-    })
+    project_dir_opt(cli_option)?.ok_or_else(|| anyhow::anyhow!("no `edgedb.toml` found"))
 }
 
-pub fn project_dir_opt(cli_options: Option<&Path>)
-    -> anyhow::Result<Option<PathBuf>>
-{
+pub fn project_dir_opt(cli_options: Option<&Path>) -> anyhow::Result<Option<PathBuf>> {
     match cli_options {
         Some(dir) => {
             if dir.join("edgedb.toml").exists() {
@@ -33,8 +28,7 @@ pub fn project_dir_opt(cli_options: Option<&Path>)
             }
         }
         None => {
-            let dir = env::current_dir()
-                .context("failed to get current directory")?;
+            let dir = env::current_dir().context("failed to get current directory")?;
             init::search_dir(&dir)
         }
     }

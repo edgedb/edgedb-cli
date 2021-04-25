@@ -1,6 +1,5 @@
-use std::error::Error;
 use crate::SERVER;
-
+use std::error::Error;
 
 #[test]
 fn simple_query() -> Result<(), Box<dyn Error>> {

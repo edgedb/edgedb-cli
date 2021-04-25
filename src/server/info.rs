@@ -1,4 +1,4 @@
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::MajorVersion;
@@ -10,9 +10,8 @@ use crate::server::package::Package;
 use crate::server::version::Version;
 use crate::table;
 
-
 #[derive(serde::Serialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 struct JsonInfo<'a> {
     installation_method: &'a str,
     major_version: &'a MajorVersion,
@@ -20,17 +19,18 @@ struct JsonInfo<'a> {
     binary_path: Option<&'a str>,
 }
 
-
 pub fn info(options: &Info) -> anyhow::Result<()> {
-    let version_query = VersionQuery::new(
-        options.nightly, options.version.as_ref());
+    let version_query = VersionQuery::new(options.nightly, options.version.as_ref());
     let current_os = detect::current_os()?;
     let avail_methods = current_os.get_available_methods()?;
     let (distr, method, _) = find_distribution(
-        &*current_os, &avail_methods,
-        &version_query, &options.method)?;
+        &*current_os,
+        &avail_methods,
+        &version_query,
+        &options.method,
+    )?;
     let cmd = distr.downcast_ref::<Package>().map(|pkg| {
-        if cfg!(target_os="macos") {
+        if cfg!(target_os = "macos") {
             macos::get_server_path(&pkg.slot)
         } else {
             linux::get_server_path(Some(&pkg.slot))
@@ -42,23 +42,27 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
                 if let Some(cmd) = cmd.to_str() {
                     println!("{}", serde_json::to_string(cmd)?);
                 } else {
-                    anyhow::bail!("Path {:?} can't be represented as JSON",
-                        cmd);
+                    anyhow::bail!("Path {:?} can't be represented as JSON", cmd);
                 }
             } else {
                 println!("{}", cmd.display());
             }
         } else {
-            anyhow::bail!("cannot print binary path for {} installation",
-                method.option());
+            anyhow::bail!(
+                "cannot print binary path for {} installation",
+                method.option()
+            );
         }
     } else if options.json {
-        println!("{}", serde_json::to_string_pretty(&JsonInfo {
-            installation_method: method.short_name(),
-            major_version: distr.major_version(),
-            version: distr.version(),
-            binary_path: cmd.as_ref().and_then(|cmd| cmd.to_str()),
-        })?)
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&JsonInfo {
+                installation_method: method.short_name(),
+                major_version: distr.major_version(),
+                version: distr.version(),
+                binary_path: cmd.as_ref().and_then(|cmd| cmd.to_str()),
+            })?
+        )
     } else {
         let mut table = Table::new();
         table.add_row(Row::new(vec![

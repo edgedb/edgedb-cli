@@ -1,28 +1,29 @@
-use test_case::test_case;
 use predicates::str::contains;
+use test_case::test_case;
 
-use crate::measure::Time;
-use crate::docker::{Context, build_image};
+use crate::common::{dock_centos, dock_debian, dock_ubuntu, dock_ubuntu_jspy};
+use crate::docker::{build_image, Context};
 use crate::docker::{run, run_docker, run_systemd};
-use crate::common::{dock_ubuntu, dock_ubuntu_jspy, dock_centos, dock_debian};
-
+use crate::measure::Time;
 
 #[test_case("edbtest_centos7", &dock_centos(7))]
-fn package_no_systemd(tagname: &str, dockerfile: &str)
-    -> anyhow::Result<()>
-{
+fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run(tagname, r###"
+    run(
+        tagname,
+        r###"
         edgedb server install
         edgedb server init test1
-    "###).code(2)
-        .stderr(contains("Bootstrapping complete"))
-        .stderr(contains("start --foreground"));
+    "###,
+    )
+    .code(2)
+    .stderr(contains("Bootstrapping complete"))
+    .stderr(contains("start --foreground"));
     Ok(())
 }
 
@@ -36,16 +37,17 @@ fn package_no_systemd(tagname: &str, dockerfile: &str)
 #[test_case("edbtest_centos8", &dock_centos(8), "--nightly")]
 #[test_case("edbtest_buster", &dock_debian("buster"), "--nightly")]
 #[test_case("edbtest_stretch", &dock_debian("stretch"), "--nightly")]
-fn package(tagname: &str, dockerfile: &str, version: &str)
-    -> anyhow::Result<()>
-{
+fn package(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_systemd(tagname, &format!(r###"
+    run_systemd(
+        tagname,
+        &format!(
+            r###"
             edgedb server install {version}
             edgedb server init test1 {version}
             val=$(edgedb -Itest1 --wait-until-available=60s \
@@ -55,16 +57,16 @@ fn package(tagname: &str, dockerfile: &str, version: &str)
             timeout 180 edgedb server destroy test1
             edgedb server uninstall --all --verbose
         "###,
-        version=version,
-    )).success();
+            version = version,
+        ),
+    )
+    .success();
     Ok(())
 }
 
 #[test_case("edbtest_focal", &dock_ubuntu_jspy("focal"), "")]
 #[test_case("edbtest_focal", &dock_ubuntu_jspy("focal"), "--nightly")]
-fn package_jspy(tagname: &str, dockerfile: &str, version: &str)
-    -> anyhow::Result<()>
-{
+fn package_jspy(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
@@ -72,7 +74,10 @@ fn package_jspy(tagname: &str, dockerfile: &str, version: &str)
         .add_edbconnect()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_systemd(tagname, &format!(r###"
+    run_systemd(
+        tagname,
+        &format!(
+            r###"
             edgedb server install {version}
             edgedb server init test1 {version}
             val=$(edgedb -Itest1 --wait-until-available=60s \
@@ -84,8 +89,10 @@ fn package_jspy(tagname: &str, dockerfile: &str, version: &str)
             timeout 180 edgedb server destroy test1
             edgedb server uninstall --all --verbose
         "###,
-        version=version,
-    )).success();
+            version = version,
+        ),
+    )
+    .success();
     Ok(())
 }
 
@@ -101,16 +108,17 @@ fn package_jspy(tagname: &str, dockerfile: &str, version: &str)
 #[test_case("edbtest_centos8", &dock_centos(8), "--nightly")]
 #[test_case("edbtest_buster", &dock_debian("buster"), "--nightly")]
 #[test_case("edbtest_stretch", &dock_debian("stretch"), "--nightly")]
-fn docker(tagname: &str, dockerfile: &str, version: &str)
-    -> anyhow::Result<()>
-{
+fn docker(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_docker(tagname, &format!(r###"
+    run_docker(
+        tagname,
+        &format!(
+            r###"
             edgedb server install --method=docker {version}
             RUST_LOG=info edgedb server init test1 {version}
             val=$(edgedb -Itest1 --wait-until-available=60s \
@@ -120,16 +128,16 @@ fn docker(tagname: &str, dockerfile: &str, version: &str)
             timeout 180 edgedb server destroy test1
             edgedb server uninstall --all --verbose
         "###,
-        version=version,
-    )).success();
+            version = version,
+        ),
+    )
+    .success();
     Ok(())
 }
 
 #[test_case("edbtest_focal", &dock_ubuntu_jspy("focal"), "")]
 #[test_case("edbtest_focal", &dock_ubuntu_jspy("focal"), "--nightly")]
-fn docker_jspy(tagname: &str, dockerfile: &str, version: &str)
-    -> anyhow::Result<()>
-{
+fn docker_jspy(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
     let _tm = Time::measure();
     let context = Context::new()
         .add_file("Dockerfile", dockerfile)?
@@ -137,7 +145,10 @@ fn docker_jspy(tagname: &str, dockerfile: &str, version: &str)
         .add_edbconnect()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_docker(tagname, &format!(r###"
+    run_docker(
+        tagname,
+        &format!(
+            r###"
             edgedb server install --method=docker {version}
             edgedb server init test1 {version}
             val=$(edgedb -Itest1 --wait-until-available=60s \
@@ -149,7 +160,9 @@ fn docker_jspy(tagname: &str, dockerfile: &str, version: &str)
             timeout 180 edgedb server destroy test1
             edgedb server uninstall --all --verbose
         "###,
-        version=version,
-    )).success();
+            version = version,
+        ),
+    )
+    .success();
     Ok(())
 }

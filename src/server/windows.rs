@@ -1,20 +1,15 @@
-use crate::server::methods::{InstallationMethods, InstallMethod};
+use crate::server::methods::{InstallMethod, InstallationMethods};
 use crate::server::os_trait::{CurrentOs, Method};
 
-use serde::Serialize;
 use crate::server::docker::DockerCandidate;
-use crate::server::package::{PackageCandidate};
-
+use crate::server::package::PackageCandidate;
+use serde::Serialize;
 
 #[derive(Debug, Serialize)]
-pub struct Windows {
-}
-
+pub struct Windows {}
 
 impl CurrentOs for Windows {
-    fn get_available_methods(&self)
-        -> Result<InstallationMethods, anyhow::Error>
-    {
+    fn get_available_methods(&self) -> Result<InstallationMethods, anyhow::Error> {
         Ok(InstallationMethods {
             package: PackageCandidate {
                 supported: false,
@@ -29,10 +24,11 @@ impl CurrentOs for Windows {
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
-    fn make_method<'x>(&'x self, method: &InstallMethod,
-        methods: &InstallationMethods)
-        -> anyhow::Result<Box<dyn Method + 'x>>
-    {
+    fn make_method<'x>(
+        &'x self,
+        method: &InstallMethod,
+        methods: &InstallationMethods,
+    ) -> anyhow::Result<Box<dyn Method + 'x>> {
         use InstallMethod::*;
 
         match method {
@@ -44,7 +40,6 @@ impl CurrentOs for Windows {
 
 impl Windows {
     pub fn new() -> Windows {
-        Windows {
-        }
+        Windows {}
     }
 }

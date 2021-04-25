@@ -1,23 +1,23 @@
-pub mod options;
+mod debian_like;
+pub mod detect;
+pub mod distribution;
 mod main;
 mod metadata;
 pub mod methods;
-pub mod detect;
-pub mod distribution;
+pub mod options;
+pub mod os_trait;
 pub mod remote;
 pub mod version;
-pub mod os_trait;
-mod debian_like;
 
 // OSs
-mod unix;
-mod linux;
-mod debian;
-mod ubuntu;
 mod centos;
+mod debian;
+mod linux;
 mod macos;
-mod windows;
+mod ubuntu;
+mod unix;
 mod unknown_os;
+mod windows;
 
 // Methods
 mod docker;
@@ -39,7 +39,6 @@ mod upgrade;
 
 pub use main::main;
 
-
 pub fn is_valid_name(name: &str) -> bool {
     let mut chars = name.chars();
     match chars.next() {
@@ -51,5 +50,5 @@ pub fn is_valid_name(name: &str) -> bool {
             return false;
         }
     }
-    return true
+    return true;
 }

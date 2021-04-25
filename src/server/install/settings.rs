@@ -1,13 +1,12 @@
 use linked_hash_map::LinkedHashMap;
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
+use crate::server::detect::VersionQuery;
+use crate::server::distribution::DistributionRef;
+use crate::server::methods::InstallMethod;
 use crate::server::options::Install;
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::detect::VersionQuery;
-use crate::server::methods::InstallMethod;
-use crate::server::distribution::DistributionRef;
 use crate::table;
-
 
 #[derive(Debug)]
 pub struct SettingsBuilder<'a> {
@@ -27,15 +26,17 @@ pub struct Settings {
 }
 
 impl<'os> SettingsBuilder<'os> {
-    pub fn new(os: &'os dyn CurrentOs, options: &Install,
-        methods: LinkedHashMap<InstallMethod, Box<dyn Method + 'os>>)
-        -> Result<SettingsBuilder<'os>, anyhow::Error>
-    {
-        let version_query = VersionQuery::new(
-            options.nightly, options.version.as_ref());
+    pub fn new(
+        os: &'os dyn CurrentOs,
+        options: &Install,
+        methods: LinkedHashMap<InstallMethod, Box<dyn Method + 'os>>,
+    ) -> Result<SettingsBuilder<'os>, anyhow::Error> {
+        let version_query = VersionQuery::new(options.nightly, options.version.as_ref());
         Ok(SettingsBuilder {
             os,
-            method: options.method.clone()
+            method: options
+                .method
+                .clone()
                 .or_else(|| methods.keys().next().cloned())
                 .unwrap_or(InstallMethod::Package),
             version_query,
@@ -44,14 +45,11 @@ impl<'os> SettingsBuilder<'os> {
             methods,
         })
     }
-    pub fn build(mut self)
-        -> anyhow::Result<(Settings, Box<dyn Method + 'os>)>
-    {
+    pub fn build(mut self) -> anyhow::Result<(Settings, Box<dyn Method + 'os>)> {
         if self.distribution.is_none() {
             anyhow::bail!("No installable version found");
         }
-        let method = self.methods.remove(&self.method)
-            .expect("method exists");
+        let method = self.methods.remove(&self.method).expect("method exists");
         let settings = Settings {
             method: self.method,
             distribution: self.distribution.unwrap(),
@@ -60,8 +58,10 @@ impl<'os> SettingsBuilder<'os> {
         Ok((settings, method))
     }
     pub fn auto_version(&mut self) -> anyhow::Result<()> {
-        self.distribution =
-            self.methods.get(&self.method).expect("method exists")
+        self.distribution = self
+            .methods
+            .get(&self.method)
+            .expect("method exists")
             .get_version(&self.version_query)
             .map_err(|e| {
                 log::warn!("Unable to determine version: {:#}", e);
@@ -89,15 +89,9 @@ impl Settings {
             Cell::new(self.distribution.version().as_ref()),
         ]));
         for (k, v) in &self.extra {
-            table.add_row(Row::new(vec![
-                Cell::new(k),
-                Cell::new(v),
-            ]));
+            table.add_row(Row::new(vec![Cell::new(k), Cell::new(v)]));
         }
         table.set_format(*table::FORMAT);
         table.printstd();
     }
 }
-
-
-

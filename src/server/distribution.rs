@@ -1,12 +1,11 @@
 use std::fmt;
 use std::sync::Arc;
 
+use serde::{de, ser};
 use serde::{Deserialize, Serialize};
-use serde::{ser, de};
 
-use crate::server::version::Version;
 use crate::server::detect::VersionQuery;
-
+use crate::server::version::Version;
 
 #[derive(Debug, Clone)]
 pub struct DistributionRef(Arc<dyn Distribution>);
@@ -14,7 +13,10 @@ pub struct DistributionRef(Arc<dyn Distribution>);
 pub trait Distribution: downcast_rs::DowncastSync + fmt::Debug {
     fn major_version(&self) -> &MajorVersion;
     fn version(&self) -> &Version<String>;
-    fn into_ref(self) -> DistributionRef where Self: Sized {
+    fn into_ref(self) -> DistributionRef
+    where
+        Self: Sized,
+    {
         DistributionRef(Arc::new(self))
     }
 }
@@ -65,7 +67,8 @@ impl MajorVersion {
 
 impl<'de> Deserialize<'de> for MajorVersion {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: de::Deserializer<'de>,
+    where
+        D: de::Deserializer<'de>,
     {
         let s: String = Deserialize::deserialize(deserializer)?;
         match &s[..] {

@@ -1,22 +1,21 @@
-use std::fmt;
 use std::error::Error;
+use std::fmt;
 
-use anyhow::{Context};
+use anyhow::Context;
 
-use edgedb_protocol::value::Value;
-use edgedb_protocol::codec;
-use edgedb_protocol::descriptors::{InputTypedesc, Descriptor};
-use crate::repl;
 use crate::prompt;
-
+use crate::repl;
+use edgedb_protocol::codec;
+use edgedb_protocol::descriptors::{Descriptor, InputTypedesc};
+use edgedb_protocol::value::Value;
 
 #[derive(Debug)]
 pub struct Canceled;
 
-
-pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
-    -> Result<Value, anyhow::Error>
-{
+pub async fn input_variables(
+    desc: &InputTypedesc,
+    state: &mut repl::PromptRpc,
+) -> Result<Value, anyhow::Error> {
     if desc.is_empty_tuple() {
         return Ok(Value::Tuple(Vec::new()));
     }
@@ -24,8 +23,7 @@ pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
         Descriptor::Tuple(tuple) => {
             let mut val = Vec::with_capacity(tuple.element_types.len());
             for (idx, el) in tuple.element_types.iter().enumerate() {
-                val.push(input_item(&format!("{}", idx),
-                    desc.get(*el)?, desc, state).await?);
+                val.push(input_item(&format!("{}", idx), desc.get(*el)?, desc, state).await?);
             }
             return Ok(Value::Tuple(val));
         }
@@ -33,27 +31,27 @@ pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
             let mut fields = Vec::with_capacity(tuple.elements.len());
             let shape = tuple.elements[..].into();
             for el in tuple.elements.iter() {
-                fields.push(input_item(&el.name,
-                    desc.get(el.type_pos)?, desc, state).await?);
+                fields.push(input_item(&el.name, desc.get(el.type_pos)?, desc, state).await?);
             }
             return Ok(Value::NamedTuple { shape, fields });
         }
         root => {
-            return Err(anyhow::anyhow!(
-                "Unknown input type descriptor: {:?}", root));
+            return Err(anyhow::anyhow!("Unknown input type descriptor: {:?}", root));
         }
     }
 }
 
-async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
-    state: &mut repl::PromptRpc)
-    -> Result<Value, anyhow::Error>
-{
+async fn input_item(
+    name: &str,
+    mut item: &Descriptor,
+    all: &InputTypedesc,
+    state: &mut repl::PromptRpc,
+) -> Result<Value, anyhow::Error> {
     match item {
         Descriptor::Scalar(s) => {
             item = all.get(s.base_type_pos)?;
         }
-        _ => {},
+        _ => {}
     }
     match item {
         Descriptor::BaseScalar(s) => {
@@ -63,20 +61,16 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
                 codec::STD_INT16 => "int16",
                 codec::STD_INT32 => "int32",
                 codec::STD_INT64 => "int64",
-                _ => return Err(anyhow::anyhow!(
-                        "Unimplemented input type {}", s.id))
+                _ => return Err(anyhow::anyhow!("Unimplemented input type {}", s.id)),
             };
 
             let val = match state.variable_input(name, type_name, "").await? {
-                | prompt::Input::Text(val) => val,
-                | prompt::Input::Interrupt
-                | prompt::Input::Eof => Err(Canceled)?,
+                prompt::Input::Text(val) => val,
+                prompt::Input::Interrupt | prompt::Input::Eof => Err(Canceled)?,
             };
 
             match s.id {
-                codec::STD_STR => {
-                    Ok(Value::Str(val))
-                }
+                codec::STD_STR => Ok(Value::Str(val)),
                 codec::STD_UUID => {
                     let v = val.parse().context("invalid uuid value")?;
                     Ok(Value::Uuid(v))
@@ -93,17 +87,17 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
                     let v = val.parse::<i64>().context("invalid int64 value")?;
                     Ok(Value::Int64(v))
                 }
-                _ => Err(anyhow::anyhow!(
-                         "Unimplemented input type {}", s.id))
+                _ => Err(anyhow::anyhow!("Unimplemented input type {}", s.id)),
             }
         }
         _ => Err(anyhow::anyhow!(
-                "Unimplemented input type descriptor: {:?}", item)),
+            "Unimplemented input type descriptor: {:?}",
+            item
+        )),
     }
 }
 
-impl Error for Canceled {
-}
+impl Error for Canceled {}
 
 impl fmt::Display for Canceled {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

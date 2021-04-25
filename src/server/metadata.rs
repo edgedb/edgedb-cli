@@ -1,15 +1,14 @@
-use serde::{Deserialize, Serialize};
 use serde::de;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::server::version::Version;
-use crate::server::distribution::{MajorVersion};
+use crate::server::distribution::MajorVersion;
 use crate::server::methods::InstallMethod;
 use crate::server::options::StartConf;
-
+use crate::server::version::Version;
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
-#[serde(into="MetadataV2")]
+#[serde(into = "MetadataV2")]
 pub struct Metadata {
     pub version: MajorVersion,
     pub slot: Option<String>,
@@ -23,9 +22,9 @@ pub struct Metadata {
 pub struct MetadataV2 {
     format: u16,
     version: MajorVersion,
-    #[serde(default, skip_serializing_if="Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     current_version: Option<Version<String>>,
-    #[serde(default, skip_serializing_if="Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     slot: Option<String>,
     method: InstallMethod,
     port: u16,
@@ -34,7 +33,7 @@ pub struct MetadataV2 {
 
 #[derive(Deserialize, Debug)]
 pub struct MetadataV1 {
-    #[serde(default="two")]
+    #[serde(default = "two")]
     format: u16,
     version: Version<String>,
     method: InstallMethod,
@@ -54,20 +53,16 @@ impl<'de> Deserialize<'de> for Metadata {
     {
         let v = Value::deserialize(deserializer)?;
         match Option::deserialize(&v["format"]).map_err(de::Error::custom)? {
-            None | Some(1) => {
-                Ok(MetadataV1::deserialize(v)
-                    .map_err(de::Error::custom)?
-                    .into())
-            }
-            Some(2) => {
-                Ok(MetadataV2::deserialize(v)
-                    .map_err(de::Error::custom)?
-                    .into())
-            }
-            Some(ver) => {
-                Err(de::Error::custom(
-                    format!("unsupported metadata format {}", ver)))
-            }
+            None | Some(1) => Ok(MetadataV1::deserialize(v)
+                .map_err(de::Error::custom)?
+                .into()),
+            Some(2) => Ok(MetadataV2::deserialize(v)
+                .map_err(de::Error::custom)?
+                .into()),
+            Some(ver) => Err(de::Error::custom(format!(
+                "unsupported metadata format {}",
+                ver
+            ))),
         }
     }
 }
@@ -119,64 +114,83 @@ impl From<Metadata> for MetadataV2 {
 #[cfg(test)]
 mod test {
     use super::Metadata;
-    use crate::server::version::Version;
-    use crate::server::distribution::{MajorVersion};
+    use crate::server::distribution::MajorVersion;
     use crate::server::methods::InstallMethod;
     use crate::server::options::StartConf;
+    use crate::server::version::Version;
 
     #[test]
     fn old_metadata() {
-        assert_eq!(serde_json::from_str::<Metadata>(r###"
+        assert_eq!(
+            serde_json::from_str::<Metadata>(
+                r###"
             {"version":"1-alpha5","method":"Package","port":10700,
              "nightly":false,"start_conf":"Auto"}
-        "###).unwrap(), Metadata {
-            version: MajorVersion::Stable(Version("1-alpha5".into())),
-            current_version: None,
-            slot: Some("1-alpha5".into()),
-            method: InstallMethod::Package,
-            port: 10700,
-            start_conf: StartConf::Auto,
-        });
+        "###
+            )
+            .unwrap(),
+            Metadata {
+                version: MajorVersion::Stable(Version("1-alpha5".into())),
+                current_version: None,
+                slot: Some("1-alpha5".into()),
+                method: InstallMethod::Package,
+                port: 10700,
+                start_conf: StartConf::Auto,
+            }
+        );
 
-        assert_eq!(serde_json::from_str::<Metadata>(r###"
+        assert_eq!(
+            serde_json::from_str::<Metadata>(
+                r###"
             {"version":"1-alpha6","method":"Package","port":10700,
              "nightly":true,"start_conf":"Auto"}
-        "###).unwrap(), Metadata {
-            version: MajorVersion::Nightly,
-            current_version: None,
-            slot: Some("1-alpha6".into()),
-            method: InstallMethod::Package,
-            port: 10700,
-            start_conf: StartConf::Auto,
-        });
+        "###
+            )
+            .unwrap(),
+            Metadata {
+                version: MajorVersion::Nightly,
+                current_version: None,
+                slot: Some("1-alpha6".into()),
+                method: InstallMethod::Package,
+                port: 10700,
+                start_conf: StartConf::Auto,
+            }
+        );
     }
 
     #[test]
     fn new_metadata() {
-        assert_eq!(serde_json::to_string_pretty(&Metadata {
-            version: MajorVersion::Stable(Version("1-alpha5".into())),
-            current_version: None,
-            slot: Some("1-alpha5".into()),
-            method: InstallMethod::Package,
-            port: 10700,
-            start_conf: StartConf::Auto,
-        }).unwrap(), r###"{
+        assert_eq!(
+            serde_json::to_string_pretty(&Metadata {
+                version: MajorVersion::Stable(Version("1-alpha5".into())),
+                current_version: None,
+                slot: Some("1-alpha5".into()),
+                method: InstallMethod::Package,
+                port: 10700,
+                start_conf: StartConf::Auto,
+            })
+            .unwrap(),
+            r###"{
   "format": 2,
   "version": "1-alpha5",
   "slot": "1-alpha5",
   "method": "Package",
   "port": 10700,
   "start_conf": "Auto"
-}"###);
+}"###
+        );
 
-        assert_eq!(serde_json::to_string_pretty(&Metadata {
-            version: MajorVersion::Nightly,
-            current_version: Some(Version("1a3.dev.g124bc".into())),
-            slot: Some("1-alpha6".into()),
-            method: InstallMethod::Package,
-            port: 10700,
-            start_conf: StartConf::Auto,
-        }).unwrap(), r###"{
+        assert_eq!(
+            serde_json::to_string_pretty(&Metadata {
+                version: MajorVersion::Nightly,
+                current_version: Some(Version("1a3.dev.g124bc".into())),
+                slot: Some("1-alpha6".into()),
+                method: InstallMethod::Package,
+                port: 10700,
+                start_conf: StartConf::Auto,
+            })
+            .unwrap(),
+            r###"{
   "format": 2,
   "version": "nightly",
   "current_version": "1a3.dev.g124bc",
@@ -184,6 +198,7 @@ mod test {
   "method": "Package",
   "port": 10700,
   "start_conf": "Auto"
-}"###);
+}"###
+        );
     }
 }

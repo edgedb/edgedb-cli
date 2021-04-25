@@ -1,14 +1,12 @@
 use async_std::prelude::StreamExt;
 
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
-use edgedb_derive::Queryable;
-use crate::commands::Options;
 use crate::commands::filter;
-use edgedb_client::client::Connection;
+use crate::commands::Options;
 use crate::table;
-
-
+use edgedb_client::client::Connection;
+use edgedb_derive::Queryable;
 
 #[derive(Queryable)]
 struct Index {
@@ -17,17 +15,21 @@ struct Index {
     subject_name: String,
 }
 
-pub async fn list_indexes(cli: &mut Connection, options: &Options,
-    pattern: &Option<String>, system: bool, case_sensitive: bool,
-    verbose: bool)
-    -> Result<(), anyhow::Error>
-{
+pub async fn list_indexes(
+    cli: &mut Connection,
+    options: &Options,
+    pattern: &Option<String>,
+    system: bool,
+    case_sensitive: bool,
+    verbose: bool,
+) -> Result<(), anyhow::Error> {
     let pat = filter::pattern_to_value(pattern, case_sensitive);
     let mut filters = Vec::with_capacity(3);
     if !system {
         filters.push(
             r#"NOT re_test("^(?:std|schema|math|sys|cfg|cal|stdgraphql)::",
-               .subject_name)"#);
+               .subject_name)"#,
+        );
     }
     if !verbose {
         filters.push("NOT .is_implicit");
@@ -40,7 +42,8 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
     } else {
         format!("FILTER {}", filters.join(" AND "))
     };
-    let query = &format!(r###"
+    let query = &format!(
+        r###"
         WITH
             MODULE schema,
             I := {{
@@ -68,7 +71,9 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         }}
         {filter}
         ORDER BY .subject_name;
-    "###, filter=filter);
+    "###,
+        filter = filter
+    );
     let mut items = cli.query::<Index>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
@@ -76,7 +81,10 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         if verbose {
             table.set_titles(Row::new(
                 ["Index On", "Implicit", "Subject"]
-                .iter().map(|x| table::header_cell(x)).collect()));
+                    .iter()
+                    .map(|x| table::header_cell(x))
+                    .collect(),
+            ));
             while let Some(item) = items.next().await.transpose()? {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.expr),
@@ -87,7 +95,10 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         } else {
             table.set_titles(Row::new(
                 ["Index On", "Subject"]
-                .iter().map(|x| table::header_cell(x)).collect()));
+                    .iter()
+                    .map(|x| table::header_cell(x))
+                    .collect(),
+            ));
             while let Some(item) = items.next().await.transpose()? {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.expr),
@@ -113,8 +124,7 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
     } else {
         if verbose {
             while let Some(item) = items.next().await.transpose()? {
-                println!("{}\t{}\t{}",
-                    item.expr, item.is_implicit, item.subject_name);
+                println!("{}\t{}\t{}", item.expr, item.is_implicit, item.subject_name);
             }
         } else {
             while let Some(item) = items.next().await.transpose()? {

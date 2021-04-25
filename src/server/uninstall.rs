@@ -1,8 +1,7 @@
 use crate::commands::ExitCode;
 use crate::server::detect::{self, VersionQuery};
-use crate::server::options::Uninstall;
 use crate::server::distribution::MajorVersion;
-
+use crate::server::options::Uninstall;
 
 pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
     let os = detect::current_os()?;
@@ -20,15 +19,12 @@ pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
             let exact = inst.get_current_version()?;
             candidates.retain(|cand| {
                 let del = match (cand.major_version(), major) {
-                    (MajorVersion::Nightly, MajorVersion::Nightly)
-                    => Some(cand.version()) == exact,
-                    (MajorVersion::Stable(a), MajorVersion::Stable(b))
-                    => a == b,
+                    (MajorVersion::Nightly, MajorVersion::Nightly) => Some(cand.version()) == exact,
+                    (MajorVersion::Stable(a), MajorVersion::Stable(b)) => a == b,
                     _ => false,
                 };
                 if del && !options.unused {
-                    log::warn!("Version {} is used by {:?}",
-                        cand.version(), inst.name());
+                    log::warn!("Version {} is used by {:?}", cand.version(), inst.name());
                     all = false;
                 }
                 return !del;
@@ -38,19 +34,19 @@ pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
             }
         }
         if candidates.is_empty() && options.unused {
-            log::info!("{}: All instances are used. Nothing to uninstall",
-                meth.name().title());
+            log::info!(
+                "{}: All instances are used. Nothing to uninstall",
+                meth.name().title()
+            );
             continue;
         }
         for cand in candidates {
-            log::info!("{}: Uninstalling {}",
-                meth.name().title(), cand.version());
+            log::info!("{}: Uninstalling {}", meth.name().title(), cand.version());
             meth.uninstall(&cand)?;
         }
     }
     if !all {
-        eprintln!(
-            "edgedb error: some instances are used. See messages above.");
+        eprintln!("edgedb error: some instances are used. See messages above.");
         return Err(ExitCode::new(2))?;
     }
     Ok(())

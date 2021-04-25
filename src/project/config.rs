@@ -6,9 +6,8 @@ use fn_error_context::context;
 
 use crate::server::distribution::MajorVersion;
 
-
 #[derive(serde::Deserialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 struct SrcConfig {
     edgedb: SrcEdgedb,
     #[serde(flatten)]
@@ -16,7 +15,7 @@ struct SrcConfig {
 }
 
 #[derive(serde::Deserialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 struct SrcEdgedb {
     #[serde(default)]
     server_version: Option<MajorVersion>,
@@ -36,8 +35,7 @@ pub struct Edgedb {
 
 fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
     for key in extra.keys() {
-        log::warn!("Unknown config option `{}{}`",
-                   prefix, key.escape_default());
+        log::warn!("Unknown config option `{}{}`", prefix, key.escape_default());
     }
 }
 
@@ -51,6 +49,6 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
     return Ok(Config {
         edgedb: Edgedb {
             server_version: val.edgedb.server_version,
-        }
-    })
+        },
+    });
 }

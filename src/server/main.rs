@@ -1,4 +1,4 @@
-use crate::server::options::{ServerCommand, Command};
+use crate::server::options::{Command, ServerCommand};
 
 use crate::server::control;
 use crate::server::destroy;
@@ -10,7 +10,6 @@ use crate::server::list_versions;
 use crate::server::reset_password;
 use crate::server::uninstall;
 use crate::server::upgrade;
-
 
 pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
     use Command::*;
