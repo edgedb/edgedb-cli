@@ -126,17 +126,16 @@ impl<T: Output> Printer<T> {
         }
         Ok(())
     }
-    pub(in crate::print) fn write_indent(&mut self) -> Result<T::Error> {
+    pub(in crate::print) fn write_indent(&mut self) {
         //debug_assert_eq!(self.column, 0);
         //debug_assert!(!self.flow);
-        const INDENT32: &'static str = "                                ";
+        const INDENT32: &str = "                                ";
         for _ in 0..(self.cur_indent / INDENT32.len()) {
             self.buffer.push_str(INDENT32);
         }
         self.buffer
             .push_str(&INDENT32[..(self.cur_indent % INDENT32.len())]);
         self.column += self.cur_indent;
-        Ok(())
     }
     pub(in crate::print) fn rollback(&mut self) {
         self.buffer.truncate(self.committed);
@@ -208,7 +207,7 @@ impl<T: Output> Printer<T> {
         self.delim = None;
         if !self.flow {
             self.cur_indent -= self.indent;
-            self.write_indent()?;
+            self.write_indent();
         }
         self.write(val.clone())?;
         if flag {
@@ -235,7 +234,7 @@ impl<T: Output> Printer<T> {
                 f(self)?;
                 self.close_block(&close, flag)?;
             }
-            Err(e) => return Err(e)?,
+            Err(e) => return Err(e),
         }
         Ok(())
     }
@@ -250,7 +249,7 @@ impl<T: Output> Printer<T> {
             }
         }
         if !self.flow && self.delim != Field {
-            self.write_indent()?;
+            self.write_indent();
         }
         self.delim = None;
         Ok(())

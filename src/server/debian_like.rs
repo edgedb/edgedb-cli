@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::io;
+
 use std::process::Command as StdCommand;
 use std::str;
 
@@ -124,20 +125,19 @@ impl Debian {
             .context("invalid debian package")?;
         let key = task::block_on(remote::get_string(install::KEY_FILE_URL))
             .context("downloading key file")?;
-        let mut operations = Vec::new();
-        operations.push(Operation::PrivilegedCmd(
-            Command::new("apt-get").arg("update"),
-        ));
-        operations.push(Operation::PrivilegedCmd(
-            Command::new("apt-get")
-                .arg("install")
-                .arg("-y")
-                .args(&["gnupg", "apt-transport-https"]),
-        ));
-        operations.push(Operation::FeedPrivilegedCmd {
-            input: key.into(),
-            cmd: Command::new("apt-key").arg("add").arg("-"),
-        });
+        let mut operations = vec![
+            Operation::PrivilegedCmd(Command::new("apt-get").arg("update")),
+            Operation::PrivilegedCmd(
+                Command::new("apt-get")
+                    .arg("install")
+                    .arg("-y")
+                    .args(&["gnupg", "apt-transport-https"]),
+            ),
+            Operation::FeedPrivilegedCmd {
+                input: key.into(),
+                cmd: Command::new("apt-key").arg("add").arg("-"),
+            },
+        ];
         let nightly = settings.distribution.major_version().is_nightly();
         let sources_list = sources_list(&self.codename, nightly);
         let list_path = sources_list_path(nightly);
@@ -183,20 +183,19 @@ impl Debian {
                     env::var("DEBIAN_FRONTEND").unwrap_or_else(|_| "noninteractive".into()),
                 ),
         ));
-        return Ok(operations);
+        Ok(operations)
     }
     pub fn uninstall_operations(&self, distr: &DistributionRef) -> anyhow::Result<Vec<Operation>> {
         let pkg = distr
             .downcast_ref::<Package>()
             .context("invalid debian package")?;
-        let mut operations = Vec::new();
-        operations.push(Operation::PrivilegedCmd(
+        let operations = vec![Operation::PrivilegedCmd(
             Command::new("apt-get")
                 .arg("remove")
                 .arg("-y")
                 .arg(format!("edgedb-server-{}", pkg.slot)),
-        ));
-        return Ok(operations);
+        )];
+        Ok(operations)
     }
 }
 
@@ -233,16 +232,16 @@ pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
                 Some(line) => line.trim(),
                 None => continue,
             };
-            if line.starts_with("Installed:") {
-                let ver = line["Installed:".len()..].trim();
+            if let Some(ver) = line.strip_prefix("Installed:") {
                 if ver == "(none)" {
                     break;
                 }
-                let (_pkg_name, major_version) = if pkg_name.starts_with("edgedb-server-") {
-                    ("edgedb-server", &pkg_name["edgedb-server-".len()..])
-                } else {
-                    ("edgedb", &pkg_name["edgedb-".len()..])
-                };
+                let (_pkg_name, major_version) =
+                    if let Some(pkg_name) = pkg_name.strip_prefix("edgedb-server-") {
+                        ("edgedb-server", pkg_name)
+                    } else {
+                        ("edgedb", &pkg_name["edgedb-".len()..])
+                    };
                 result.push(
                     Package {
                         slot: major_version.to_owned(),

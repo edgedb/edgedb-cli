@@ -44,7 +44,7 @@ pub fn revert(instance: InstanceRef, options: &Revert) -> anyhow::Result<()> {
                     up.pid
                 );
                 eprintln!("Run with `--ignore-pid-check` to overrride");
-                return Err(ExitCode::new(3))?;
+                return Err(ExitCode::new(3).into());
             }
             DataDirectory::Upgrading(_) => {
                 println!("Note: it looks like backup is from a broken upgrade");
@@ -62,11 +62,11 @@ pub fn revert(instance: InstanceRef, options: &Revert) -> anyhow::Result<()> {
         if let Some(Ok(val)) = io::BufReader::new(io::stdin()).lines().next() {
             if val != "Yes" {
                 eprintln!("Canceled ({:?} != \"Yes\")", val);
-                return Err(ExitCode::new(2))?;
+                return Err(ExitCode::new(2).into());
             }
         } else {
             eprintln!("Canceled");
-            return Err(ExitCode::new(1))?;
+            return Err(ExitCode::new(1).into());
         }
     }
     instance.revert(&data_info)?;

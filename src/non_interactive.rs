@@ -57,7 +57,7 @@ pub async fn query(
                         print::completion(&e.completion_message);
                         return Ok(());
                     }
-                    Err(e) => Err(e)?,
+                    Err(e) => return Err(e),
                 },
             };
             while let Some(row) = items.next().await.transpose()? {
@@ -75,7 +75,7 @@ pub async fn query(
                         print::completion(&e.completion_message);
                         return Ok(());
                     }
-                    Err(e) => Err(e)?,
+                    Err(e) => return Err(e),
                 },
             };
             match print::native_to_stdout(items, &cfg).await {
@@ -102,7 +102,7 @@ pub async fn query(
                         print::completion(&e.completion_message);
                         return Ok(());
                     }
-                    Err(e) => Err(e)?,
+                    Err(e) => return Err(e),
                 },
             };
             while let Some(row) = items.next().await.transpose()? {
@@ -122,7 +122,7 @@ pub async fn query(
                         print::completion(&e.completion_message);
                         return Ok(());
                     }
-                    Err(e) => Err(e)?,
+                    Err(e) => return Err(e),
                 },
             };
             while let Some(row) = items.next().await.transpose()? {

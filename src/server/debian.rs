@@ -23,7 +23,7 @@ pub struct Debian {
 
 impl Debian {
     pub fn new(rel: &os_release::OsRelease) -> anyhow::Result<Debian> {
-        let codename = match (rel.version.find("("), rel.version.find(")")) {
+        let codename = match (rel.version.find('('), rel.version.find(')')) {
             (Some(start), Some(end)) => &rel.version[start + 1..end],
             _ => "",
         };
@@ -88,7 +88,7 @@ impl<'os> Method for PackageMethod<'os, Debian> {
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         Ok(self
             .installed
-            .get_or_try_init(|| debian_like::get_installed())?
+            .get_or_try_init(debian_like::get_installed)?
             .clone())
     }
     fn detect_all(&self) -> serde_json::Value {
@@ -106,7 +106,7 @@ impl<'os> Method for PackageMethod<'os, Debian> {
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
         unix::clean_storage(storage)
     }
-    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
+    fn all_instances(&self) -> anyhow::Result<Vec<InstanceRef<'_>>> {
         linux::all_instances(self)
     }
     fn get_instance<'x>(&'x self, name: &str) -> anyhow::Result<InstanceRef<'x>> {

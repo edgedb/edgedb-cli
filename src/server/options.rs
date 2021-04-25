@@ -397,7 +397,7 @@ fn instance_name_opt(name: &str) -> Result<(), String> {
     if is_valid_name(&name) {
         return Ok(());
     }
-    return Err("instance name must be a valid identifier, \
+    Err("instance name must be a valid identifier, \
                 (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)"
-        .into());
+        .into())
 }

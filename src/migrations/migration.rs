@@ -74,7 +74,7 @@ async fn read_file(path: &Path, validate_hashes: bool) -> anyhow::Result<Migrati
     if validate_hashes {
         validate_text(&text, &data)?;
     }
-    return Ok(data);
+    Ok(data)
 }
 
 fn file_num(path: &Path) -> Option<u64> {
@@ -93,13 +93,13 @@ async fn _read_all(
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return Ok(LinkedHashMap::new());
         }
-        Err(e) => Err(e)?,
+        Err(e) => return Err(e.into()),
     };
     let mut all = HashMap::new();
     while let Some(item) = dir.next().await.transpose()? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
-        if lossy_name.starts_with(".")
+        if lossy_name.starts_with('.')
             || !lossy_name.ends_with(".edgeql")
             || !item.file_type().await?.is_file()
         {

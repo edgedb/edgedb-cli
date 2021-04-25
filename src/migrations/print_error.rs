@@ -24,7 +24,7 @@ fn end_of_last_token(data: &str) -> Option<u64> {
     for tok in &mut tokenizer {
         off = tok.ok()?.end.offset;
     }
-    return Some(off);
+    Some(off)
 }
 
 fn get_error_info<'x>(
@@ -54,7 +54,7 @@ fn get_error_info<'x>(
         }
         _ => return None,
     };
-    return Some(res);
+    Some(res)
 }
 
 pub fn print_migration_error(

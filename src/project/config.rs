@@ -46,9 +46,9 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
     let val: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
     warn_extra(&val.extra, "");
     warn_extra(&val.edgedb.extra, "edgedb.");
-    return Ok(Config {
+    Ok(Config {
         edgedb: Edgedb {
             server_version: val.edgedb.server_version,
         },
-    });
+    })
 }

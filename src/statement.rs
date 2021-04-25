@@ -5,7 +5,6 @@ use std::pin::Pin;
 use std::slice;
 use std::task::{Context, Poll};
 
-use anyhow;
 use async_std::io::Read as AsyncRead;
 use bytes::{BufMut, Bytes, BytesMut};
 
@@ -78,7 +77,7 @@ where
             }
         };
         let data = buf.split_to(statement_len).freeze();
-        return Poll::Ready(Ok(data));
+        Poll::Ready(Ok(data))
     }
 }
 

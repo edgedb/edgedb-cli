@@ -31,7 +31,7 @@ pub async fn get_databases(cli: &mut Connection) -> Result<Vec<String>, anyhow::
 
 pub async fn list_databases(cli: &mut Connection, options: &Options) -> Result<(), anyhow::Error> {
     let databases = get_databases(cli).await?;
-    let stream = from_iter(databases.into_iter().map(|s| Ok::<_, anyhow::Error>(s)));
+    let stream = from_iter(databases.into_iter().map(Ok::<_, anyhow::Error>));
     list::print(stream, "List of databases", options).await?;
     Ok(())
 }

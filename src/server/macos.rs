@@ -271,14 +271,16 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                         .stdout
                         .split(|&b| b == b'\n')
                         .filter_map(|line| str::from_utf8(line).ok());
-                    let mut version = None;
+                    let mut maybe_version: Option<&str> = None;
                     for line in lines {
-                        if line.starts_with("version:") {
-                            version = Some(line["version:".len()..].trim());
-                            break;
-                        }
+                        maybe_version = match line.strip_prefix("version:") {
+                            Some(version) => Some(version),
+                            None => continue,
+                        };
+
+                        break;
                     }
-                    let version = if let Some(version) = version {
+                    let version = if let Some(version) = maybe_version {
                         version
                     } else {
                         log::info!("Cannot get version of {:?}", line);
@@ -317,7 +319,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
         unix::bootstrap(self, init)
     }
-    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
+    fn all_instances(&self) -> anyhow::Result<Vec<InstanceRef<'_>>> {
         let mut instances = BTreeSet::new();
         let user_base = unix::base_data_dir()?;
         if user_base.exists() {
@@ -412,7 +414,7 @@ impl LocalInstance<'_> {
         unit_path(&self.name)
     }
     fn socket_dir(&self) -> anyhow::Result<PathBuf> {
-        Ok(runtime_dir(&self.name)?)
+        runtime_dir(&self.name)
     }
 }
 

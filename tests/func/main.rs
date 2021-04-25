@@ -30,7 +30,7 @@ mod non_interactive;
 mod interactive;
 
 pub static SHUTDOWN_INFO: Lazy<Mutex<Vec<ShutdownInfo>>> = Lazy::new(|| Mutex::new(Vec::new()));
-pub static SERVER: Lazy<ServerGuard> = Lazy::new(|| ServerGuard::start());
+pub static SERVER: Lazy<ServerGuard> = Lazy::new(ServerGuard::start);
 
 #[cfg(not(windows))]
 #[test]
@@ -80,7 +80,9 @@ impl ServerGuard {
         }
         cmd.stdout(Stdio::piped());
 
-        let mut process = cmd.spawn().expect(&format!("Can run {}", bin_name));
+        let mut process = cmd
+            .spawn()
+            .unwrap_or_else(|_| panic!("Cannot run {}", bin_name));
         let process_in = process.stdout.take().expect("stdout is pipe");
         let (tx, rx) = sync_channel(1);
         let thread = thread::spawn(move || {
@@ -88,10 +90,9 @@ impl ServerGuard {
             for line in buf.lines() {
                 match line {
                     Ok(line) => {
-                        if line.starts_with("EDGEDB_SERVER_DATA:") {
+                        if let Some(line) = line.strip_prefix("EDGEDB_SERVER_DATA:") {
                             let data: serde_json::Value =
-                                from_str(&line["EDGEDB_SERVER_DATA:".len()..])
-                                    .expect("valid server data");
+                                from_str(line).expect("valid server data");
                             println!("Server data {:?}", data);
                             let port = data
                                 .get("port")
@@ -133,7 +134,7 @@ impl ServerGuard {
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
-        return cmd;
+        cmd
     }
 
     #[cfg(not(windows))]
@@ -146,7 +147,7 @@ impl ServerGuard {
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
-        return spawn_command(cmd, Some(10000)).expect("start interactive");
+        spawn_command(cmd, Some(10000)).expect("start interactive")
     }
     #[cfg(not(windows))]
     pub fn custom_interactive(
@@ -162,7 +163,7 @@ impl ServerGuard {
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
         f(&mut cmd);
-        return spawn_command(cmd, Some(10000)).expect("start interactive");
+        spawn_command(cmd, Some(10000)).expect("start interactive")
     }
 
     pub fn database_cmd(&self, database_name: &str) -> Command {
@@ -172,7 +173,7 @@ impl ServerGuard {
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--database").arg(database_name);
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
-        return cmd;
+        cmd
     }
 }
 

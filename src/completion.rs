@@ -58,7 +58,7 @@ trait MapRangeStrExt<K, V> {
     fn range_from<'x>(&'x self, val: &str) -> std::collections::btree_map::Range<'x, K, V>;
 }
 
-pub fn current<'x>(data: &'x str, pos: usize) -> (usize, Current<'x>) {
+pub fn current(data: &str, pos: usize) -> (usize, Current) {
     let mut offset = 0;
     loop {
         if preparser::is_empty(&data[offset..]) {
@@ -156,16 +156,10 @@ pub fn complete(input: &str, cursor: usize) -> Option<(usize, Vec<Pair>)> {
                 }
             }
             match &fsm {
-                Fsm::Command => {
-                    return Some((cursor, complete_command("")));
-                }
-                Fsm::Setting => {
-                    return Some((cursor, complete_setting("")));
-                }
-                Fsm::SetValue(cfg) => {
-                    return Some((cursor, complete_setting_value("", cfg)));
-                }
-                _ => return None,
+                Fsm::Command => Some((cursor, complete_command(""))),
+                Fsm::Setting => Some((cursor, complete_setting(""))),
+                Fsm::SetValue(cfg) => Some((cursor, complete_setting_value("", cfg))),
+                _ => None,
             }
         }
     }
@@ -179,7 +173,7 @@ fn hint_command(cmd: &str) -> Option<Hint> {
         .take_while(|x| x.starts_with(cmd));
     if let Some(matching) = rng.next() {
         let full_match = cmd.len() == matching.len();
-        if full_match || !rng.next().is_some() {
+        if full_match || rng.next().is_none() {
             let full_name = CMD_CACHE.aliases.get(&matching[1..]);
             let cinfo = CMD_CACHE
                 .commands
@@ -238,7 +232,7 @@ fn hint_setting_name(sname: &str) -> Option<Hint> {
 
     if let Some((matching, setting)) = rng.next() {
         let full_match = sname.len() == matching.len();
-        if full_match || !rng.next().is_some() {
+        if full_match || rng.next().is_none() {
             let mut output = String::from(&matching[sname.len()..]);
             let complete = output.len() + 1;
             if let Some(ref values) = setting.values {
@@ -265,7 +259,7 @@ fn hint_setting_name(sname: &str) -> Option<Hint> {
         .filter(|(confidence, _pv)| *confidence > 0.8)
         .collect();
     candidates.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
-    let options: Vec<_> = candidates.into_iter().map(|(_c, pv)| &pv[..]).collect();
+    let options: Vec<_> = candidates.into_iter().map(|(_c, pv)| pv).collect();
     let text = match options.len() {
         0 => "  ← unknown setting".into(),
         1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
@@ -281,7 +275,7 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<Hint> {
             let mut matches = variants.iter().filter(|v| v.starts_with(input));
             if let Some(matching) = matches.next() {
                 let full_match = input.len() == matching.len();
-                if full_match || !matches.next().is_some() {
+                if full_match || matches.next().is_none() {
                     // TODO(tailhook) describe setting
                     return Some(Hint::new(&matching[input.len()..], 1000));
                 } else {
@@ -378,7 +372,7 @@ impl BackslashFsm {
             },
             Final => Final,
             Arguments(cmd, args) => match token.item {
-                T::Argument(x) if x.starts_with("-") => Arguments(cmd, args),
+                T::Argument(x) if x.starts_with('-') => Arguments(cmd, args),
                 T::Argument(_) if args.len() <= 1 => Final,
                 T::Argument(_) => Arguments(cmd, &args[1..]),
                 _ => Final,
@@ -440,7 +434,7 @@ impl BackslashFsm {
                 }
             }
             (SetValue(SettingValue::Usize), T::Argument(arg)) => {
-                if let Ok(_) = usize::from_str(arg) {
+                if usize::from_str(arg).is_ok() {
                     ValidationResult::Valid
                 } else {
                     ValidationResult::Invalid

@@ -44,7 +44,7 @@ pub fn tmp_file_path(path: &Path) -> PathBuf {
 }
 
 #[cfg(unix)]
-pub fn path_bytes<'x>(path: &'x Path) -> anyhow::Result<&'x [u8]> {
+pub fn path_bytes(path: &Path) -> anyhow::Result<&[u8]> {
     use std::os::unix::ffi::OsStrExt;
     return Ok(path.as_os_str().as_bytes());
 }
@@ -59,7 +59,7 @@ pub fn path_bytes<'x>(path: &'x Path) -> anyhow::Result<&'x [u8]> {
 }
 
 #[cfg(unix)]
-pub fn bytes_to_path<'x>(path: &'x [u8]) -> anyhow::Result<&'x Path> {
+pub fn bytes_to_path(path: &[u8]) -> anyhow::Result<&Path> {
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
 

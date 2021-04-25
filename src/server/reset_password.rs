@@ -103,7 +103,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     })?;
     if save {
         let mut creds = credentials.unwrap_or_else(Default::default);
-        creds.user = user.into();
+        creds.user = user;
         creds.password = Some(password);
         write_credentials(&credentials_file, &creds)?;
     }
@@ -131,7 +131,7 @@ pub fn password_hash(password: &str) -> String {
     ring::rand::SystemRandom::new()
         .fill(&mut salt)
         .expect("random bytes");
-    return _build_verifier(password, &salt[..], HASH_ITERATIONS);
+    _build_verifier(password, &salt[..], HASH_ITERATIONS)
 }
 
 fn _build_verifier(password: &str, salt: &[u8], iterations: u32) -> String {

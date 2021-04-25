@@ -53,10 +53,10 @@ impl LocalInstance<'_> {
             None => anyhow::bail!("missing `slot` in metadata"),
         })
     }
-    fn socket_dir(&self) -> anyhow::Result<PathBuf> {
-        Ok(dirs::runtime_dir()
+    fn socket_dir(&self) -> PathBuf {
+        dirs::runtime_dir()
             .unwrap_or_else(|| Path::new("/run/user").join(get_current_uid().to_string()))
-            .join(format!("edgedb-{}", self.name)))
+            .join(format!("edgedb-{}", self.name))
     }
 }
 
@@ -119,7 +119,7 @@ impl Instance for LocalInstance<'_> {
     }
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
         if admin {
-            let socket = self.socket_dir()?.join(format!(
+            let socket = self.socket_dir().join(format!(
                 ".s.EDGEDB{}.{}",
                 if admin { ".admin" } else { "" },
                 self.get_meta()?.port
@@ -157,7 +157,7 @@ impl Instance for LocalInstance<'_> {
         unix::status(&self.name, &self.path, service_exists, service)
     }
     fn get_command(&self) -> anyhow::Result<Command> {
-        let socket_dir = self.socket_dir()?;
+        let socket_dir = self.socket_dir();
         let mut cmd = Command::new(get_server_path(Some(self.get_slot()?)));
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
@@ -405,7 +405,7 @@ pub fn systemd_status(name: &str, system: bool) -> Service {
     }
 }
 
-pub fn all_instances<'x>(method: &'x dyn Method) -> anyhow::Result<Vec<InstanceRef<'x>>> {
+pub fn all_instances(method: &dyn Method) -> anyhow::Result<Vec<InstanceRef<'_>>> {
     let mut instances = BTreeSet::new();
     let user_base = unix::base_data_dir()?;
     if user_base.exists() {
@@ -473,7 +473,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
         Err(e) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
-        Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
+        Err(e) => return Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e)),
     }
 
     let mut cmd = Command::new("systemctl");
@@ -485,7 +485,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
         Err(e) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
-        Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
+        Err(e) => return Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e)),
     }
 
     let svc_path = systemd_service_path(name, system)?;

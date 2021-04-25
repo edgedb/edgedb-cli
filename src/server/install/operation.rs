@@ -47,7 +47,7 @@ impl Command {
         for arg in &self.arguments {
             cmd.arg(arg);
         }
-        return cmd;
+        cmd
     }
 }
 
@@ -102,7 +102,7 @@ fn tmp_filename(path: &Path) -> PathBuf {
     name_buf.push(name);
     name_buf.push(SUFFIX);
     buf.push(name_buf);
-    return buf;
+    buf
 }
 
 impl Operation {
@@ -124,9 +124,9 @@ impl Operation {
                     buf.push_str("sudo ");
                     for (key, value) in &cmd.environ {
                         buf.push_str(&key.to_string_lossy());
-                        buf.push_str("=");
+                        buf.push('=');
                         buf.push_str(&value.to_string_lossy());
-                        buf.push_str(" ");
+                        buf.push(' ');
                     }
                 }
                 write!(&mut buf, "{}", cmd.cmd.display()).unwrap();

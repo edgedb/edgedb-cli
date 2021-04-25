@@ -121,15 +121,13 @@ pub async fn list_indexes(
         } else {
             table.printstd();
         }
+    } else if verbose {
+        while let Some(item) = items.next().await.transpose()? {
+            println!("{}\t{}\t{}", item.expr, item.is_implicit, item.subject_name);
+        }
     } else {
-        if verbose {
-            while let Some(item) = items.next().await.transpose()? {
-                println!("{}\t{}\t{}", item.expr, item.is_implicit, item.subject_name);
-            }
-        } else {
-            while let Some(item) = items.next().await.transpose()? {
-                println!("{}\t{}", item.expr, item.subject_name);
-            }
+        while let Some(item) = items.next().await.transpose()? {
+            println!("{}\t{}", item.expr, item.subject_name);
         }
     }
     Ok(())

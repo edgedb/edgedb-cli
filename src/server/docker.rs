@@ -361,10 +361,10 @@ impl DockerCandidate {
 
 impl Tag {
     fn from_pair(name: &str, digest: &str) -> Option<Tag> {
-        if name.starts_with("1") {
+        if name.starts_with('1') {
             // examples: `1-alpha4`, `1.1`
             // digest example: sha256:0d56a04fe70892...
-            let rev = digest.split(":").skip(1).next();
+            let rev = digest.split(':').nth(1);
             match rev {
                 Some(rev) => Some(Tag::Stable(name.into(), rev[..7].into())),
                 None => None,
@@ -583,7 +583,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             upgrade::dump_and_stop(&inst, dump_path.as_ref())?;
             let meta = upgrade::UpgradeMeta {
                 source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
-                target: new_version.clone(),
+                target: new_version,
                 started: SystemTime::now(),
                 pid: std::process::id(),
             };
@@ -830,7 +830,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         params.user(&tmp_role);
         params.password(&tmp_password);
         params.database("edgedb");
-        task::block_on(upgrade::restore_instance(inst, &dump_path, params.clone()))?;
+        task::block_on(upgrade::restore_instance(inst, &dump_path, params))?;
         let mut conn_params = inst.get_connector(false)?;
         conn_params.wait_until_available(Duration::from_secs(30));
         task::block_on(async {
@@ -958,13 +958,10 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             if words.next() != Some("edgedb/edgedb") {
                 continue;
             }
-            match (words.next(), words.next()) {
-                (Some(name), Some(digest)) => {
-                    if let Some(tag) = Tag::from_pair(name, digest) {
-                        result.push(tag.into_distr());
-                    }
+            if let (Some(name), Some(digest)) = (words.next(), words.next()) {
+                if let Some(tag) = Tag::from_pair(name, digest) {
+                    result.push(tag.into_distr());
                 }
-                _ => {}
             }
         }
         Ok(result)
@@ -1028,7 +1025,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 .arg(image.tag.as_image_name())
                 .arg("sh")
                 .arg("-c")
-                .arg(format!("chown -R 999:999 /mnt")),
+                .arg("chown -R 999:999 /mnt"),
         )?;
 
         let password = generate_password();
@@ -1206,12 +1203,8 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
         if out.status.success() {
             let mut items =
                 serde_json::Deserializer::from_slice(&out.stdout).into_iter::<serde_json::Value>();
-            let backup_meta = decode_next(&mut items)
-                .context("error reading backup.json")
-                .into();
-            let data_meta = decode_next(&mut items)
-                .context("error reading metadata.json")
-                .into();
+            let backup_meta = decode_next(&mut items).context("error reading backup.json");
+            let data_meta = decode_next(&mut items).context("error reading metadata.json");
             Ok(BackupStatus::Exists {
                 backup_meta,
                 data_meta,
@@ -1365,7 +1358,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
                     .and_then(|x| x.upgrading.as_ref())
                     .ok_or_else(|| anyhow::anyhow!("no upgrade metadata"))
                     .and_then(|s| {
-                        Ok(serde_json::from_str(s).context("cannot decode upgrade metadata")?)
+                        serde_json::from_str(s).context("cannot decode upgrade metadata")
                     }),
             ),
             Ok(None) => match metadata {
@@ -1384,7 +1377,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         let port_status = probe_port(&metadata, &reserved_port);
         let backup = match self.get_backup() {
             Ok(v) => v,
-            Err(e) => BackupStatus::Error(e.into()),
+            Err(e) => BackupStatus::Error(e),
         };
         let credentials_file_exists = home_dir()
             .map(|home| {
@@ -1507,7 +1500,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             .with_context(|| format!("version {} not found", current_version))?;
         let image = tag.clone().into_image();
         let create = Create {
-            name: name,
+            name,
             image: &image,
             port: self.get_port()?,
             start_conf: self.get_start_conf()?,

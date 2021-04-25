@@ -108,7 +108,7 @@ impl InstallationMethods {
                 ?template=install-unsupported.md",
             );
         }
-        return buf;
+        buf
     }
 }
 

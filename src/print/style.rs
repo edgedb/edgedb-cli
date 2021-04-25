@@ -102,7 +102,7 @@ impl Styler {
         );
         t.insert(Error, Item(RGB::new(0xff, 0x40, 0x40), Some(Bold)));
 
-        return Styler(Arc::new(Theme { items: t }));
+        Styler(Arc::new(Theme { items: t }))
     }
     pub fn apply(&self, style: Style, data: &str, buf: &mut String) {
         if let Some(Item(col, style)) = self.0.items.get(&style) {

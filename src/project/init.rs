@@ -55,23 +55,21 @@ fn ask_method(available: &InstallationMethods, options: &Init) -> anyhow::Result
     if options.non_interactive {
         if let Some(meth) = &options.server_install_method {
             return Ok(meth.clone());
+        } else if available.package.supported {
+            return Ok(InstallMethod::Package);
+        } else if available.docker.supported {
+            return Ok(InstallMethod::Docker);
         } else {
-            if available.package.supported {
-                return Ok(InstallMethod::Package);
-            } else if available.docker.supported {
-                return Ok(InstallMethod::Docker);
-            } else {
-                let mut buf = String::with_capacity(1024);
-                buf.push_str("No installation method supported for the platform:");
-                available.package.format_error(&mut buf);
-                available.docker.format_error(&mut buf);
-                buf.push_str(
-                    "Please consider opening an issue at \
+            let mut buf = String::with_capacity(1024);
+            buf.push_str("No installation method supported for the platform:");
+            available.package.format_error(&mut buf);
+            available.docker.format_error(&mut buf);
+            buf.push_str(
+                "Please consider opening an issue at \
                     https://github.com/edgedb/edgedb-cli/issues/new\
                     ?template=install-unsupported.md",
-                );
-                anyhow::bail!(buf);
-            }
+            );
+            anyhow::bail!(buf);
         }
     }
     let mut q = question::Numeric::new(
@@ -257,7 +255,7 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
             To init project run the command on the host system instead and \
             choose `Local (docker)` installation method."
         );
-        return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
+        return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER).into());
     }
     let (dir, base_dir) = match &init.project_dir {
         Some(dir) => (Some(dir.clone()), dir.clone()),
@@ -390,7 +388,7 @@ fn init_existing(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         version: distr.version().clone(),
         nightly: distr.major_version().is_nightly(),
         distribution: distr,
-        method: method,
+        method,
         storage: meth.get_storage(false, &name)?,
         credentials: home_dir()?
             .join(".edgedb")
@@ -418,7 +416,7 @@ fn init_existing(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             edgedb server start --foreground {}",
             settings.name.escape_default()
         );
-        return Err(ExitCode::new(2))?;
+        return Err(ExitCode::new(2).into());
     } else {
         task::block_on(migrate(&inst))?;
         println!("Project initialialized.");
@@ -438,7 +436,7 @@ fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return Ok(false);
         }
-        Err(e) => return Err(e)?,
+        Err(e) => return Err(e.into()),
     };
     for item in dir {
         let entry = item?;
@@ -451,7 +449,7 @@ fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
             return Ok(true);
         }
     }
-    return Ok(false);
+    Ok(false)
 }
 
 #[context("cannot create default schema in `{}`", dir.display())]
@@ -480,7 +478,7 @@ fn stash_name(path: &Path) -> anyhow::Result<OsString> {
     let mut base = base.to_os_string();
     base.push("-");
     base.push(&hash);
-    return Ok(base);
+    Ok(base)
 }
 
 #[context("error writing project dir {:?}", dir)]
@@ -593,7 +591,7 @@ fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         version: distr.version().clone(),
         nightly: distr.major_version().is_nightly(),
         distribution: distr,
-        method: method,
+        method,
         storage: meth.get_storage(false, &name)?,
         credentials: home_dir()?
             .join(".edgedb")
@@ -622,7 +620,7 @@ fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             edgedb server start --foreground {}",
             settings.name.escape_default()
         );
-        return Err(ExitCode::new(2))?;
+        return Err(ExitCode::new(2).into());
     } else {
         task::block_on(migrate(&inst))?;
         println!("Project initialialized.");

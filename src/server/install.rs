@@ -30,7 +30,7 @@ fn docker_check() -> anyhow::Result<bool> {
             return Ok(true);
         }
     }
-    return Ok(false);
+    Ok(false)
 }
 pub fn optional_docker_check() -> bool {
     if cfg!(target_os = "linux") {
@@ -43,7 +43,7 @@ pub fn optional_docker_check() -> bool {
                 .unwrap_or(false);
         }
     }
-    return false;
+    false
 }
 
 pub fn install(options: &Install) -> Result<(), anyhow::Error> {
@@ -55,7 +55,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
             run the following on the host system instead:\n  \
             edgedb server install --method=docker"
         );
-        return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
+        return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER).into());
     }
     let current_os = detect::current_os()?;
     let avail_methods = current_os.get_available_methods()?;
@@ -84,7 +84,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
                         effective_method.option()
                     );
                 }
-                return Err(ExitCode::new(exit_codes::ALREADY_INSTALLED))?;
+                return Err(ExitCode::new(exit_codes::ALREADY_INSTALLED).into());
             }
         }
     }

@@ -27,7 +27,7 @@ pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
                     log::warn!("Version {} is used by {:?}", cand.version(), inst.name());
                     all = false;
                 }
-                return !del;
+                !del
             });
             if candidates.is_empty() {
                 break;
@@ -47,7 +47,7 @@ pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
     }
     if !all {
         eprintln!("edgedb error: some instances are used. See messages above.");
-        return Err(ExitCode::new(2))?;
+        return Err(ExitCode::new(2).into());
     }
     Ok(())
 }

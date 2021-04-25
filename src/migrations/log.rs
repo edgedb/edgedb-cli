@@ -45,7 +45,7 @@ fn topology_sort(migrations: Vec<Migration>) -> Vec<Migration> {
     let mut queue = migrations
         .iter()
         .filter(|item| item.parent_names.is_empty())
-        .map(|item| item.clone())
+        .cloned()
         .collect::<Vec<_>>();
     while let Some(item) = queue.pop() {
         output.push(item.clone());
@@ -58,7 +58,7 @@ fn topology_sort(migrations: Vec<Migration>) -> Vec<Migration> {
             }
         }
     }
-    return output;
+    output
 }
 
 pub async fn log_db(
@@ -97,7 +97,7 @@ pub async fn log_fs(_common: &Options, options: &MigrationLog) -> Result<(), any
 
     let ctx = Context::from_config(&options.cfg);
     let migrations = migration::read_all(&ctx, true).await?;
-    let limit = options.limit.unwrap_or(migrations.len());
+    let limit = options.limit.unwrap_or_else(|| migrations.len());
     if options.newest_first {
         for rev in migrations.keys().rev().take(limit) {
             println!("{}", rev);

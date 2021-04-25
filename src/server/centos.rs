@@ -143,13 +143,12 @@ impl Centos {
         let pkg = distr
             .downcast_ref::<Package>()
             .context("invalid centos package")?;
-        let mut operations = Vec::new();
-        operations.push(Operation::PrivilegedCmd(
+        let operations = vec![Operation::PrivilegedCmd(
             Command::new("yum")
                 .arg("-y")
                 .arg("remove")
                 .arg(format!("edgedb-server-{}", pkg.slot)),
-        ));
+        )];
         Ok(operations)
     }
 }
@@ -194,7 +193,7 @@ impl CurrentOs for Centos {
     }
 }
 
-fn split_on<'x>(s: &'x str, delimiter: char) -> (&'x str, &'x str) {
+fn split_on(s: &str, delimiter: char) -> (&str, &str) {
     if let Some(idx) = s.find(delimiter) {
         (&s[..idx], &s[idx + 1..])
     } else {
@@ -281,11 +280,12 @@ impl<'os> Method for PackageMethod<'os, Centos> {
                     if arch != ARCH {
                         continue;
                     }
-                    let (_pkg_name, major_version) = if pkg_name.starts_with("edgedb-server-") {
-                        ("edgedb-server", &pkg_name["edgedb-server-".len()..])
-                    } else {
-                        ("edgedb", &pkg_name["edgedb-".len()..])
-                    };
+                    let (_pkg_name, major_version) =
+                        if let Some(pkg_name) = pkg_name.strip_prefix("edgedb-server-") {
+                            ("edgedb-server", pkg_name)
+                        } else {
+                            ("edgedb", &pkg_name["edgedb-".len()..])
+                        };
 
                     if major_version
                         .chars()
@@ -327,7 +327,7 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
         unix::clean_storage(storage)
     }
-    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
+    fn all_instances(&self) -> anyhow::Result<Vec<InstanceRef<'_>>> {
         linux::all_instances(self)
     }
     fn get_instance<'x>(&'x self, name: &str) -> anyhow::Result<InstanceRef<'x>> {

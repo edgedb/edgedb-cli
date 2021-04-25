@@ -8,7 +8,7 @@ use crate::completion::{BackslashFsm, ValidationResult};
 use crate::print::style::{Style, Styler};
 
 static UNRESERVED_KEYWORDS: Lazy<HashSet<&'static str>> =
-    Lazy::new(|| keywords::UNRESERVED_KEYWORDS.iter().map(|x| *x).collect());
+    Lazy::new(|| keywords::UNRESERVED_KEYWORDS.iter().copied().collect());
 
 pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
     let mut pos = 0;

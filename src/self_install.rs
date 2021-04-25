@@ -95,12 +95,11 @@ The `edgedb` binary will be placed in the {dir_kind} bin directory located at:
         dir_kind = if settings.system { "system" } else { "user" },
         installation_path = settings.installation_path.display(),
         profile_update = if cfg!(windows) {
-            format!(
-                r###"
+            r###"
 This path will then be added to your `PATH` environment variable by
 modifying the `HKEY_CURRENT_USER/Environment/PATH` registry key.
 "###
-            )
+            .into()
         } else if settings.modify_path {
             format!(
                 r###"
@@ -144,14 +143,14 @@ fn should_modify_path(dir: &Path) -> bool {
             }
         }
     }
-    return true;
+    true
 }
 
 fn is_zsh() -> bool {
     if let Ok(shell) = env::var("SHELL") {
         return shell.contains("zsh");
     }
-    return false;
+    false
 }
 
 fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
@@ -177,7 +176,7 @@ fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
     Ok(rc_files)
 }
 
-fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
+fn ensure_line(path: &Path, line: &str) -> anyhow::Result<()> {
     if path.exists() {
         let text = fs::read_to_string(path).context("cannot read file")?;
         if text.contains(line) {
@@ -232,7 +231,7 @@ For this session please run:
         let func_dir = home_dir().ok().map(|p| p.join(".zfunc"));
         let func_dir = func_dir.as_ref().and_then(|p| p.to_str());
         if let Some((fpath, func_dir)) = fpath.zip(func_dir) {
-            if !fpath.split(" ").any(|s| s == func_dir) {
+            if !fpath.split(' ').any(|s| s == func_dir) {
                 print!(
                     r###"
 To enable zsh completion, add:
@@ -351,7 +350,7 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
         settings.installation_path.join("edgedb")
     };
     let exe_path =
-        env::current_exe().with_context(|| format!("cannot determine running executable path"))?;
+        env::current_exe().with_context(|| "cannot determine running executable path")?;
     fs::create_dir_all(&settings.installation_path)
         .with_context(|| format!("failed to create {:?}", settings.installation_path))?;
     fs::remove_file(&tmp_path).ok();
@@ -359,23 +358,16 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
     fs::rename(&tmp_path, &path).with_context(|| format!("failed to rename {:?}", tmp_path))?;
     write_completions_home()?;
 
-    if settings.modify_path {
-        #[cfg(windows)]
-        {
-            windows_add_to_path(&settings.installation_path)
-                .context("failed adding a directory to PATH")?;
+    if settings.modify_path && cfg!(unix) {
+        let line = format!(
+            "\nexport PATH=\"{}:$PATH\"",
+            settings.installation_path.display()
+        );
+        for path in &settings.rc_files {
+            ensure_line(&path, &line)
+                .with_context(|| format!("failed to update profile file {:?}", path))?;
         }
-        if cfg!(unix) {
-            let line = format!(
-                "\nexport PATH=\"{}:$PATH\"",
-                settings.installation_path.display()
-            );
-            for path in &settings.rc_files {
-                ensure_line(&path, &line)
-                    .with_context(|| format!("failed to update profile file {:?}", path))?;
-            }
-            fs::write(&settings.env_file, &(line + "\n")).context("failed to write env file")?;
-        }
+        fs::write(&settings.env_file, &(line + "\n")).context("failed to write env file")?;
     }
 
     print_post_install_message(&settings);

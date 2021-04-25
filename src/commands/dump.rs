@@ -152,14 +152,12 @@ async fn dump_db(
     Ok(())
 }
 
-async fn get_text(cli: &mut Connection, query: &str) -> Result<String, anyhow::Error> {
+async fn get_text(cli: &mut Connection, query: &str) -> anyhow::Result<String> {
     let mut response = cli.query(query, &Value::empty_tuple()).await?;
-    let text = loop {
-        if let Some(text) = response.next().await.transpose()? {
-            break text;
-        } else {
-            anyhow::bail!("`{}` returns empty value", query.escape_default());
-        }
+    let text = if let Some(text) = response.next().await.transpose()? {
+        text
+    } else {
+        anyhow::bail!("`{}` returns empty value", query.escape_default());
     };
     anyhow::ensure!(
         matches!(response.next().await, None),

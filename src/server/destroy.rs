@@ -19,7 +19,7 @@ pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return Ok(Vec::new());
         }
-        Err(e) => return Err(e)?,
+        Err(e) => return Err(e.into()),
     };
     for item in dir {
         let entry = item?;
@@ -65,7 +65,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     let project_dirs = find_project_dirs(&options.name)?;
     if !options.force && !project_dirs.is_empty() {
         print_warning(&options.name, &project_dirs);
-        return Err(ExitCode::new(2))?;
+        return Err(ExitCode::new(2).into());
     }
     do_destroy(options)?;
     for dir in project_dirs {
@@ -89,7 +89,7 @@ pub fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
             Err(e) if e.is::<InstanceNotFound>() => {
                 errors.push((meth.name(), e));
             }
-            Err(e) => Err(e)?,
+            Err(e) => return Err(e),
         }
     }
     if errors.len() == methods.len() {

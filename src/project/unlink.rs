@@ -10,7 +10,7 @@ use crate::server::destroy;
 use crate::server::options::Destroy;
 
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
-    let dir = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let dir = project_dir(options.project_dir.as_deref())?;
     let stash_path = stash_path(&dir)?;
     if stash_path.exists() {
         if options.destroy_server_instance {
@@ -35,7 +35,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                     .position(|d| d == &stash_path)
                     .map(|pos| project_dirs.remove(pos));
                 destroy::print_warning(inst, &project_dirs);
-                return Err(ExitCode::new(2))?;
+                return Err(ExitCode::new(2).into());
             }
             if options.destroy_server_instance {
                 destroy::do_destroy(&Destroy {

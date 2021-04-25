@@ -69,14 +69,14 @@ impl<'a> Iterator for ToDo<'a> {
     fn next(&mut self) -> Option<ToDoItem<'a>> {
         loop {
             let tail = self.tail.trim_start();
-            if tail.starts_with("\\") {
+            if tail.starts_with('\\') {
                 let len = backslash::full_statement(&tail);
                 self.tail = &tail[len..];
                 return Some(ToDoItem::Backslash(&tail[..len]));
             } else if preparser::is_empty(tail) {
                 return None;
             } else {
-                let len = full_statement(&tail.as_bytes(), None).unwrap_or(tail.len());
+                let len = full_statement(&tail.as_bytes(), None).unwrap_or_else(|_| tail.len());
                 self.tail = &tail[len..];
                 if preparser::is_empty(&tail[..len]) {
                     continue;
@@ -168,7 +168,7 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize) 
         }
         _ => {}
     }
-    return true;
+    true
 }
 
 fn print_json_limit_error(path: &str) {
@@ -184,9 +184,10 @@ fn check_json_limit(json: &serde_json::Value, path: &str, limit: usize) -> bool 
     let mut path_buf = path.to_owned();
     if !_check_json_limit(json, &mut path_buf, limit) {
         print_json_limit_error(&path_buf);
-        return false;
+        false
+    } else {
+        true
     }
-    return true;
 }
 
 async fn execute_backslash(mut state: &mut repl::State, text: &str) -> anyhow::Result<()> {
@@ -210,7 +211,7 @@ async fn execute_backslash(mut state: &mut repl::State, text: &str) -> anyhow::R
         Ok(Skip) => {}
         Ok(Quit) => {
             state.terminate().await;
-            return Err(CleanShutdown)?;
+            return Err(CleanShutdown.into());
         }
         Ok(Input(text)) => state.initial_text = text,
         Err(e) => {
@@ -280,7 +281,7 @@ async fn execute_query(
                 print_query_error(&err, statement, state.verbose_errors)?;
                 state.last_error = Some(err.into());
                 seq.err_sync().await?;
-                return Err(QueryError)?;
+                return Err(QueryError.into());
             }
             _ => {
                 eprintln!("WARNING: unsolicited message {:?}", msg);
@@ -315,7 +316,7 @@ async fn execute_query(
                 eprintln!("{}", err.display(state.verbose_errors));
                 state.last_error = Some(err.into());
                 seq.err_sync().await?;
-                return Err(QueryError)?;
+                return Err(QueryError.into());
             }
             _ => {
                 eprintln!("WARNING: unsolicited message {:?}", msg);
@@ -353,7 +354,7 @@ async fn execute_query(
             eprintln!("{:#}", e);
             state.last_error = Some(e);
             seq.end_clean();
-            return Err(QueryError)?;
+            return Err(QueryError.into());
         }
     };
 
@@ -377,8 +378,8 @@ async fn execute_query(
             Ok(ref val) => print::completion(val),
             Err(e) => {
                 eprintln!("Error: {}", e);
-                state.last_error = Some(e.into());
-                return Err(QueryError)?;
+                state.last_error = Some(e);
+                return Err(QueryError.into());
             }
         }
         return Ok(());
@@ -408,7 +409,7 @@ async fn execute_query(
                             using `\\set limit`."
                         );
                         items.skip_remaining().await?;
-                        return Err(QueryError)?;
+                        return Err(QueryError.into());
                     }
                 }
                 let mut text = match tab_separated::format_row(&row) {
@@ -418,7 +419,7 @@ async fn execute_query(
                         // exhaust the iterator to get connection in the
                         // consistent state
                         items.skip_remaining().await?;
-                        return Err(QueryError)?;
+                        return Err(QueryError.into());
                     }
                 };
                 // trying to make writes atomic if possible
@@ -441,7 +442,7 @@ async fn execute_query(
                         _ => eprintln!("{:#?}", e),
                     }
                     state.last_error = Some(e.into());
-                    return Err(QueryError)?;
+                    return Err(QueryError.into());
                 }
             }
             println!();
@@ -465,7 +466,7 @@ async fn execute_query(
                 if let Some(limit) = state.implicit_limit {
                     if !check_json_limit(&jitems, "", limit) {
                         items.skip_remaining().await?;
-                        return Err(QueryError)?;
+                        return Err(QueryError.into());
                     }
                 }
                 let jitems = jitems.as_array().ok_or_else(|| {
@@ -500,11 +501,11 @@ async fn execute_query(
                     if index >= limit {
                         print_json_limit_error(&path);
                         items.skip_remaining().await?;
-                        return Err(QueryError)?;
+                        return Err(QueryError.into());
                     }
                     if !check_json_limit(&value, &path, limit) {
                         items.skip_remaining().await?;
-                        return Err(QueryError)?;
+                        return Err(QueryError.into());
                     }
                 }
                 // trying to make writes atomic if possible
@@ -540,7 +541,7 @@ async fn _interactive_main(
             .ensure_connection()
             .race(async {
                 ctrlc.next().await;
-                Err(Interrupted)?
+                Err(Interrupted.into())
             })
             .await?;
         let cur_initial = replace(&mut state.initial_text, String::new());
@@ -552,7 +553,7 @@ async fn _interactive_main(
                         ctrlc.next().await;
                     })
                     .await;
-                return Err(CleanShutdown)?;
+                return Err(CleanShutdown.into());
             }
             prompt::Input::Interrupt => {
                 continue;
@@ -565,7 +566,7 @@ async fn _interactive_main(
                     execute_backslash(state, text)
                         .race(async {
                             ctrlc.next().await;
-                            Err(Interrupted)?
+                            Err(Interrupted.into())
                         })
                         .await
                 }
@@ -574,13 +575,13 @@ async fn _interactive_main(
                         .soft_reconnect()
                         .race(async {
                             ctrlc.next().await;
-                            Err(Interrupted)?
+                            Err(Interrupted.into())
                         })
                         .await?;
                     execute_query(options, state, statement)
                         .race(async {
                             ctrlc.next().await;
-                            Err(Interrupted)?
+                            Err(Interrupted.into())
                         })
                         .await
                 }
@@ -592,11 +593,11 @@ async fn _interactive_main(
                         .reconnect()
                         .race(async {
                             ctrlc.next().await;
-                            Err(Interrupted)?
+                            Err(Interrupted.into())
                         })
                         .await?;
                 } else if err.is::<CleanShutdown>() {
-                    return Err(err)?;
+                    return Err(err);
                 } else if !err.is::<QueryError>() {
                     eprintln!("Error: {:#}", err);
                 }

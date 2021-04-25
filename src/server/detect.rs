@@ -137,6 +137,7 @@ impl VersionQuery {
             Nightly => Some("--nightly".into()),
         }
     }
+    #[allow(dead_code)]
     pub fn installed_matches(&self, pkg: &InstalledPackage) -> bool {
         use VersionQuery::*;
 
@@ -175,6 +176,7 @@ impl InstalledPackage {
         // TODO(tailhook) get nightly flag from the source index
         return self.version.as_ref().contains(".dev");
     }
+    #[allow(dead_code)]
     pub fn full_version(&self) -> Version<String> {
         Version(format!("{}-{}", self.version, self.revision))
     }

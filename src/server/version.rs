@@ -36,6 +36,7 @@ impl<T: AsRef<str>> AsRef<str> for Version<T> {
 }
 
 impl<T: AsRef<str>> Version<T> {
+    #[allow(dead_code)]
     pub fn to_ref(&self) -> Version<&str> {
         Version(self.0.as_ref())
     }
@@ -44,8 +45,8 @@ impl<T: AsRef<str>> Version<T> {
 impl<T: AsRef<str>> Version<T> {
     pub fn num(&self) -> &str {
         let s = self.0.as_ref();
-        if s.starts_with("v") {
-            &s[1..]
+        if let Some(s) = s.strip_prefix('v') {
+            &s
         } else {
             s
         }
@@ -89,7 +90,11 @@ impl<'a> Iterator for Components<'a> {
                     }
                     self.1.next();
                 }
-                let end = self.1.peek().map(|&(x, _)| x).unwrap_or(self.0.len());
+                let end = self
+                    .1
+                    .peek()
+                    .map(|&(x, _)| x)
+                    .unwrap_or_else(|| self.0.len());
                 let val = &self.0[start..end];
                 return Some(val.parse().map(Numeric).unwrap_or(String(val)));
             } else {
@@ -99,7 +104,11 @@ impl<'a> Iterator for Components<'a> {
                     }
                     self.1.next();
                 }
-                let end = self.1.peek().map(|&(x, _)| x).unwrap_or(self.0.len());
+                let end = self
+                    .1
+                    .peek()
+                    .map(|&(x, _)| x)
+                    .unwrap_or_else(|| self.0.len());
                 let val = &self.0[start..end];
                 return Some(String(val));
             }
@@ -143,7 +152,7 @@ impl<T: AsRef<str>> Ord for Version<T> {
                 (Some(String(x)), None)
                 // git revision starts with g
                 if matches!(x, "a"|"b"|"c"|"rc"|"pre"|"dev"|"dirty")
-                || x.starts_with("g")
+                || x.starts_with('g')
                 => Less,
                 (Some(String(_)), None) => Greater,
                 (None, None) => return Equal,

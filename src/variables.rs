@@ -47,11 +47,8 @@ async fn input_item(
     all: &InputTypedesc,
     state: &mut repl::PromptRpc,
 ) -> Result<Value, anyhow::Error> {
-    match item {
-        Descriptor::Scalar(s) => {
-            item = all.get(s.base_type_pos)?;
-        }
-        _ => {}
+    if let Descriptor::Scalar(s) = item {
+        item = all.get(s.base_type_pos)?;
     }
     match item {
         Descriptor::BaseScalar(s) => {
@@ -66,7 +63,7 @@ async fn input_item(
 
             let val = match state.variable_input(name, type_name, "").await? {
                 prompt::Input::Text(val) => val,
-                prompt::Input::Interrupt | prompt::Input::Eof => Err(Canceled)?,
+                prompt::Input::Interrupt | prompt::Input::Eof => return Err(Canceled.into()),
             };
 
             match s.id {

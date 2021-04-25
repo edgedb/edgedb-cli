@@ -46,7 +46,7 @@ pub fn ident<'s>(value: &'static str) -> impl Parser<TokenStream<'s>, Output = (
 
 pub fn kind<'x>(kind: Kind) -> TokenMatch<'x> {
     TokenMatch {
-        kind: kind,
+        kind,
         phantom: PhantomData,
     }
 }
@@ -170,9 +170,7 @@ fn migration<'a>() -> impl Parser<TokenStream<'a>, Output = Migration> {
                 match item {
                     SetMessage(text) => {
                         if m.message.is_some() {
-                            return Err(Error::Message(
-                                "duplicate `SET message` statement".into(),
-                            ))?;
+                            return Err(Error::Message("duplicate `SET message` statement".into()));
                         }
                         m.message = Some(text);
                     }

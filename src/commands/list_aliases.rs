@@ -101,15 +101,13 @@ pub async fn list_aliases(
         } else {
             table.printstd();
         }
+    } else if verbose {
+        while let Some(item) = items.next().await.transpose()? {
+            println!("{}\t{}\t{}", item.name, item.klass, item.expr);
+        }
     } else {
-        if verbose {
-            while let Some(item) = items.next().await.transpose()? {
-                println!("{}\t{}\t{}", item.name, item.klass, item.expr);
-            }
-        } else {
-            while let Some(item) = items.next().await.transpose()? {
-                println!("{}\t{}", item.name, item.klass);
-            }
+        while let Some(item) = items.next().await.transpose()? {
+            println!("{}\t{}", item.name, item.klass);
         }
     }
     Ok(())

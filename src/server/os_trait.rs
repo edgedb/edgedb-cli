@@ -73,7 +73,7 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()>;
     fn bootstrap(&self, settings: &init::Settings) -> anyhow::Result<()>;
     fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade) -> anyhow::Result<()>;
-    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>;
+    fn all_instances(&self) -> anyhow::Result<Vec<InstanceRef<'_>>>;
     fn get_instance<'x>(&'x self, name: &str) -> anyhow::Result<InstanceRef<'x>>;
     fn destroy(&self, options: &Destroy) -> anyhow::Result<()>;
     fn uninstall(&self, distr: &DistributionRef) -> anyhow::Result<()>;
@@ -98,6 +98,7 @@ impl PartialEq for PreciseVersion {
 }
 
 impl PreciseVersion {
+    #[allow(dead_code)]
     pub fn from_pair(major: &str, revision: &str) -> PreciseVersion {
         let nightly = revision.contains(".dev");
         PreciseVersion {
@@ -109,18 +110,22 @@ impl PreciseVersion {
             version: Version(format!("{}-{}", major, revision)),
         }
     }
+    #[allow(dead_code)]
     pub fn nightly(full_version: &str) -> PreciseVersion {
         PreciseVersion {
             major: MajorVersion::Nightly,
             version: Version(full_version.into()),
         }
     }
+    #[allow(dead_code)]
     pub fn major(&self) -> &MajorVersion {
         &self.major
     }
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &str {
         self.version.num()
     }
+    #[allow(dead_code)]
     pub fn as_ver(&self) -> &Version<String> {
         &self.version
     }

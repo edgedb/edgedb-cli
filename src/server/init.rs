@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::default::Default;
 use std::fmt;
@@ -73,13 +74,13 @@ fn _read_ports(path: &Path) -> anyhow::Result<BTreeMap<String, u16>> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return Ok(BTreeMap::new());
         }
-        Err(e) => return Err(e)?,
+        Err(e) => return Err(e.into()),
     };
     Ok(serde_json::from_str(&data)?)
 }
 
 fn next_min_port(port_map: &BTreeMap<String, u16>) -> u16 {
-    if port_map.len() == 0 {
+    if port_map.is_empty() {
         return MIN_PORT;
     }
     let port_set: BTreeSet<u16> = port_map.values().cloned().collect();
@@ -90,7 +91,7 @@ fn next_min_port(port_map: &BTreeMap<String, u16>) -> u16 {
         }
         prev = port;
     }
-    return prev + 1;
+    prev + 1
 }
 
 fn _write_ports(port_map: &BTreeMap<String, u16>, port_file: &Path) -> anyhow::Result<()> {
@@ -129,15 +130,18 @@ where
         for distr in method.installed_versions()? {
             if cond(&distr) {
                 if let Some(ref mut max_ver) = max_ver {
-                    if max_ver.major_version() == distr.major_version() {
-                        if max_ver.version() < distr.version() {
-                            *max_ver = distr;
+                    match max_ver.major_version().cmp(distr.major_version()) {
+                        Ordering::Equal => {
+                            if max_ver.version() < distr.version() {
+                                *max_ver = distr;
+                            }
                         }
-                        ver_methods.insert(meth.clone());
-                    } else if max_ver.major_version() < distr.major_version() {
-                        *max_ver = distr;
-                        ver_methods.clear();
-                        ver_methods.insert(meth.clone());
+                        Ordering::Less => {
+                            *max_ver = distr;
+                            ver_methods.clear();
+                            ver_methods.insert(meth.clone());
+                        }
+                        Ordering::Greater => {}
                     }
                 } else {
                     max_ver = Some(distr);
@@ -279,7 +283,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 edgedb server start --foreground {}",
                 settings.name.escape_default()
             );
-            return Err(ExitCode::new(2))?;
+            return Err(ExitCode::new(2).into());
         }
         Ok(())
     }
@@ -346,7 +350,7 @@ pub fn bootstrap_script(settings: &Settings, password: &str) -> String {
         )
         .unwrap();
     }
-    return output;
+    output
 }
 
 pub fn save_credentials(settings: &Settings, password: &str) -> anyhow::Result<()> {

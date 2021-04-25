@@ -44,17 +44,20 @@ pub struct Package {
     pub slot: String,
 }
 
-impl<'a> Into<DistributionRef> for &'a PackageInfo {
-    fn into(self: &'a PackageInfo) -> DistributionRef {
-        let slot = self.slot.as_ref().expect("only server packages supported");
-        let major_version = if self.is_nightly() {
+impl<'a> From<&PackageInfo> for DistributionRef {
+    fn from(pkg_info: &PackageInfo) -> DistributionRef {
+        let slot = pkg_info
+            .slot
+            .as_ref()
+            .expect("only server packages supported");
+        let major_version = if pkg_info.is_nightly() {
             MajorVersion::Nightly
         } else {
             MajorVersion::Stable(slot.clone())
         };
         Package {
             major_version,
-            version: Version(format!("{}-{}", self.version, self.revision)),
+            version: Version(format!("{}-{}", pkg_info.version, pkg_info.revision)),
             slot: slot.as_ref().to_owned(),
         }
         .into_ref()
@@ -171,6 +174,7 @@ impl PackageInfo {
     pub fn is_nightly(&self) -> bool {
         return self.version.as_ref().contains(".dev");
     }
+    #[allow(dead_code)]
     pub fn precise_version(&self) -> PreciseVersion {
         let slot = self.slot.as_ref().expect("only server packages supported");
         if self.is_nightly() {

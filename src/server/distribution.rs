@@ -33,6 +33,7 @@ impl MajorVersion {
     pub fn is_nightly(&self) -> bool {
         matches!(self, MajorVersion::Nightly)
     }
+    #[allow(dead_code)]
     pub fn as_stable(&self) -> Option<&Version<String>> {
         match self {
             MajorVersion::Stable(v) => Some(v),

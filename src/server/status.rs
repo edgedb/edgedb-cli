@@ -170,7 +170,9 @@ impl Status {
                         "upgrading {} -> {} for {}",
                         up.source,
                         up.target,
-                        format_duration(up.started.elapsed().unwrap_or(Duration::new(0, 0)))
+                        format_duration(
+                            up.started.elapsed().unwrap_or_else(|_| Duration::new(0, 0))
+                        )
                     )
                 }
                 DataDirectory::Normal => "normal".into(),
@@ -191,13 +193,11 @@ impl Status {
                 } => {
                     format!("present, {}", format::done_before(b.timestamp))
                 }
-                BackupStatus::Error(_) => {
-                    format!("error")
-                }
+                BackupStatus::Error(_) => "error".to_string(),
             }
         );
     }
-    pub fn json<'x>(&'x self) -> JsonStatus<'x> {
+    pub fn json(&self) -> JsonStatus<'_> {
         let meta = self.metadata.as_ref().ok();
         JsonStatus {
             name: &self.name,
@@ -207,7 +207,7 @@ impl Status {
             method: self.method.short_name(),
         }
     }
-    pub fn print_json_and_exit<'x>(&'x self) -> ! {
+    pub fn print_json_and_exit(&self) -> ! {
         println!(
             "{}",
             serde_json::to_string_pretty(&self.json()).expect("status is json-serializable")
@@ -353,14 +353,14 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool) -> anyhow::Resu
                         .metadata
                         .as_ref()
                         .map(|m| m.port.to_string())
-                        .unwrap_or("?".into()),
+                        .unwrap_or_else(|_| "?".into()),
                 ),
                 Cell::new(
                     &status
                         .metadata
                         .as_ref()
                         .map(|m| m.version.title())
-                        .unwrap_or("?".into()),
+                        .unwrap_or_else(|_| "?"),
                 ),
                 Cell::new(status_str(&status.service)),
             ]));

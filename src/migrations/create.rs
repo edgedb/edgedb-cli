@@ -72,6 +72,11 @@ pub struct Proposal {
     pub required_user_input: Vec<RequiredUserInput>,
 }
 
+// NOTE: clippy emits warning about needless question mark inside Queryable.String
+// This could be a bug in clippy.
+//
+// Adding #[allow(clippy::needless_question_mark)] does not help.
+#[allow(clippy::needless_question_mark)]
 #[derive(Deserialize, Queryable, Debug)]
 #[edgedb(json)]
 pub struct CurrentMigration {
@@ -96,7 +101,6 @@ async fn query_row<R>(cli: &mut Connection, text: &str) -> anyhow::Result<R>
 where
     R: Queryable,
 {
-    let text = text.as_ref();
     log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
     cli.query_row(text, &Value::empty_tuple()).await
 }
@@ -158,7 +162,7 @@ async fn gen_start_migration(ctx: &Context) -> anyhow::Result<(String, SourceMap
     while let Some(item) = dir.next().await.transpose()? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
-        if lossy_name.starts_with(".")
+        if lossy_name.starts_with('.')
             || !lossy_name.ends_with(".esdl")
             || !item.file_type().await?.is_file()
         {
@@ -182,7 +186,7 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection) -> any
                 print_migration_error(&e, &source_map)?;
                 anyhow::bail!("cannot proceed until .esdl files are fixed");
             }
-            Err(e) => Err(e)?,
+            Err(e) => Err(e),
         },
     }
 }
@@ -237,7 +241,7 @@ async fn run_non_interactive(
     };
     if descr.confirmed.is_empty() && !options.allow_empty {
         eprintln!("No schema changes detected.");
-        return Err(ExitCode::new(4))?;
+        return Err(ExitCode::new(4).into());
     }
     write_migration(ctx, &descr, index, false).await?;
     Ok(())
@@ -280,7 +284,7 @@ async fn run_interactive(
                     match get_user_input(&proposal.required_user_input) {
                         Ok(data) => break data,
                         Err(e) if e.is::<Refused>() => continue,
-                        Err(e) => return Err(e.into()),
+                        Err(e) => return Err(e),
                     };
                 };
             } else {
@@ -301,7 +305,7 @@ async fn run_interactive(
                             match get_user_input(&proposal.required_user_input) {
                                 Ok(data) => input = data,
                                 Err(e) if e.is::<Refused>() => continue,
-                                Err(e) => return Err(e.into()),
+                                Err(e) => return Err(e),
                             };
                             break;
                         }
@@ -353,7 +357,7 @@ async fn run_interactive(
                         }
                         Quit => {
                             eprintln!("Migration aborted no results are saved.");
-                            return Err(ExitCode::new(0))?;
+                            return Err(ExitCode::new(0).into());
                         }
                     }
                 }
@@ -398,7 +402,7 @@ async fn run_interactive(
     };
     if descr.confirmed.is_empty() && !options.allow_empty {
         eprintln!("No schema changes detected.");
-        return Err(ExitCode::new(4))?;
+        return Err(ExitCode::new(4).into());
     }
     write_migration(ctx, &descr, index, true).await?;
     Ok(())
@@ -421,11 +425,7 @@ async fn _write_migration(
     filepath: &Path,
     verbose: bool,
 ) -> anyhow::Result<()> {
-    let statements = descr
-        .confirmed
-        .iter()
-        .map(|s| s.clone())
-        .collect::<Vec<_>>();
+    let statements = descr.confirmed.to_vec();
     let mut hasher = Hasher::start_migration(&descr.parent);
     for statement in &statements {
         hasher
@@ -552,7 +552,7 @@ fn substitute_placeholders<'x>(
     for item in &mut parser {
         let item = match item {
             Ok(item) => item,
-            Err(e) => Err(bug::error(format!("server sent invalid query: {}", e)))?,
+            Err(e) => return Err(bug::error(format!("server sent invalid query: {}", e))),
         };
         if item.token.kind == TokenKind::Substitution {
             output.push_str(&input[start..item.start.offset as usize]);
@@ -561,7 +561,7 @@ fn substitute_placeholders<'x>(
                 .value
                 .strip_prefix(r"\(")
                 .and_then(|item| item.strip_suffix(")"))
-                .ok_or_else(|| bug::error(format!("bad substitution token")))?;
+                .ok_or_else(|| bug::error("bad substitution token".to_string()))?;
             let expr = placeholders
                 .get(name)
                 .ok_or_else(|| bug::error(format!("missing input for {:?} placeholder", name)))?;
@@ -596,7 +596,7 @@ fn add_newline() {
     fn wrapper(s: &str) -> String {
         let mut data = s.to_string();
         add_newline_after_comment(&mut data).unwrap();
-        return data;
+        data
     }
     assert_eq!(wrapper("1+1"), "1+1");
     assert_eq!(wrapper("1    "), "1    ");

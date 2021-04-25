@@ -23,11 +23,14 @@ pub struct Confirm<'a> {
 }
 
 pub fn read_choice() -> anyhow::Result<std::string::String> {
-    for line in stdin().lock().lines() {
-        let line = line.context("reading user input")?;
-        return Ok(line.trim().to_lowercase());
-    }
-    anyhow::bail!("Unexpected end of input");
+    Ok(stdin()
+        .lock()
+        .lines()
+        .next()
+        .context("reading user input")
+        .expect("Unexpected end of input")?
+        .trim()
+        .to_lowercase())
 }
 
 impl<'a, T: Clone + 'a> Numeric<'a, T> {
@@ -92,11 +95,11 @@ impl<'a> String<'a> {
         };
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         let mut val = editor.readline_with_initial(&prompt, (&self.initial, ""))?;
-        if val == "" {
+        if val.is_empty() {
             val = self.default.to_string();
         }
         self.initial = val.clone();
-        return Ok(val);
+        Ok(val)
     }
 }
 

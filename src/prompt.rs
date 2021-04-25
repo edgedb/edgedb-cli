@@ -59,7 +59,7 @@ impl Helper for EdgeqlHelper {}
 impl Hinter for EdgeqlHelper {
     type Hint = completion::Hint;
     fn hint(&self, line: &str, pos: usize, _ctx: &Context) -> Option<Self::Hint> {
-        return completion::hint(line, pos);
+        completion::hint(line, pos)
     }
 }
 
@@ -71,27 +71,16 @@ impl Highlighter for EdgeqlHelper {
     ) -> Cow<'b, str> {
         if info.line_no() > 0 {
             return format!("{0:.>1$}", " ", prompt.len()).into();
-        } else if prompt.ends_with("> ") {
-            let content = &prompt[..prompt.len() - 2];
-            if content.ends_with(TX_MARKER) {
-                return format!(
-                    "{}{}> ",
-                    &content[..content.len() - TX_MARKER.len()],
-                    TX_MARKER.green()
-                )
-                .into();
-            } else if content.ends_with(FAILURE_MARKER) {
-                return format!(
-                    "{}{}> ",
-                    &content[..content.len() - FAILURE_MARKER.len()],
-                    FAILURE_MARKER.red()
-                )
-                .into();
+        } else if let Some(content) = prompt.strip_suffix("> ") {
+            if let Some(content) = content.strip_suffix(TX_MARKER) {
+                return format!("{}{}> ", &content, TX_MARKER.green()).into();
+            } else if let Some(content) = content.strip_suffix(FAILURE_MARKER) {
+                return format!("{}{}> ", &content, FAILURE_MARKER.red()).into();
             } else {
-                return prompt.into();
+                prompt.into()
             }
         } else {
-            return prompt.into();
+            prompt.into()
         }
     }
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
@@ -120,12 +109,12 @@ impl Highlighter for EdgeqlHelper {
             }
         }
     }
-    fn highlight_char<'l>(&self, _line: &'l str, _pos: usize) -> bool {
+    fn highlight_char(&self, _line: &'_ str, _pos: usize) -> bool {
         // TODO(tailhook) optimize: only need to return true on insert
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        return hint.light_gray().to_string().into();
+        hint.light_gray().to_string().into()
     }
     fn highlight_candidate<'h>(
         &self,
@@ -139,9 +128,9 @@ impl Highlighter for EdgeqlHelper {
             let (value, descr) = item.split_at(pos);
             buf.push_str(value);
             write!(buf, "{}", descr.light_gray()).unwrap();
-            return buf.into();
+            buf.into()
         } else {
-            return item.into();
+            item.into()
         }
     }
     fn has_continuation_prompt(&self) -> bool {
@@ -157,9 +146,9 @@ impl Validator for EdgeqlHelper {
             completion::Current::Backslash(_) => true,
         };
         if complete {
-            return Ok(ValidationResult::Valid(None));
+            Ok(ValidationResult::Valid(None))
         } else {
-            return Ok(ValidationResult::Incomplete);
+            Ok(ValidationResult::Incomplete)
         }
     }
 }
@@ -230,7 +219,7 @@ pub fn create_editor(config: &ConfigBuilder) -> Editor<EdgeqlHelper> {
     editor.set_helper(Some(EdgeqlHelper {
         styler: Styler::dark_256(),
     }));
-    return editor;
+    editor
 }
 
 pub fn var_editor(config: &ConfigBuilder, type_name: &str) -> Editor<()> {
@@ -240,7 +229,7 @@ pub fn var_editor(config: &ConfigBuilder, type_name: &str) -> Editor<()> {
             eprintln!("Can't load history: {:#}", e);
         })
         .ok();
-    return editor;
+    editor
 }
 
 pub fn edgeql_input(
@@ -310,7 +299,7 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>) -> Result<(), anyho
                         task::block_on(data.send(Input::Interrupt))?;
                         continue;
                     }
-                    Err(e) => Err(e)?,
+                    Err(e) => return Err(e.into()),
                 };
                 editor.add_history_entry(&text);
                 save_history(&mut editor, &format!("var_{}", &type_name));
@@ -385,7 +374,7 @@ fn show_history(history: &History) -> Result<(), anyhow::Error> {
             }
         }
     }
-    drop(childin);
+
     let res = child.wait()?;
     if res.success() {
         Ok(())
@@ -394,7 +383,7 @@ fn show_history(history: &History) -> Result<(), anyhow::Error> {
     }
 }
 
-fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
+fn spawn_editor(data: &str) -> anyhow::Result<String> {
     let mut temp_file = tempfile::Builder::new().suffix(".edgedb").tempfile()?;
     temp_file.write_all(data.as_bytes())?;
     let temp_path = temp_file.into_temp_path();
@@ -407,7 +396,7 @@ fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
     cmd.arg(&temp_path);
     let res = cmd.status()?;
     if res.success() {
-        return Ok(fs::read_to_string(&temp_path)?);
+        Ok(fs::read_to_string(&temp_path)?)
     } else {
         Err(anyhow::anyhow!("editor exited with: {}", res))
     }

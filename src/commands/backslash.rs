@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow;
 use clap::{self, Clap, IntoApp};
 use edgedb_protocol::server_message::ErrorResponse;
 use once_cell::sync::Lazy;
@@ -16,7 +15,7 @@ use crate::prompt;
 use crate::repl;
 use crate::table;
 
-pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(|| CommandCache::new());
+pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(CommandCache::new);
 
 pub enum ExecuteResult {
     Skip,
@@ -243,10 +242,10 @@ impl<'a> Parser<'a> {
         } else {
             Item::Argument(value)
         };
-        return Some(Token {
+        Some(Token {
             item,
             span: (offset, offset + end),
-        });
+        })
     }
 }
 
@@ -260,7 +259,7 @@ impl<'a> Iterator for Parser<'a> {
             }
             self.offset = tok.span.1;
         }
-        return result;
+        result
     }
 }
 
@@ -354,7 +353,7 @@ impl CommandCache {
             all_commands: commands
                 .keys()
                 .map(|x| &x[..])
-                .chain(aliases.keys().map(|x| *x))
+                .chain(aliases.keys().copied())
                 .map(|n| String::from("\\") + n)
                 .collect(),
             commands,
@@ -370,10 +369,10 @@ pub fn full_statement(s: &str) -> usize {
             _ => {}
         }
     }
-    return s.len();
+    s.len()
 }
 
-pub fn backslashify_help<'x>(text: &'x str) -> Cow<'x, str> {
+pub fn backslashify_help(text: &str) -> Cow<'_, str> {
     pub static USAGE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(USAGE:\s*)(\w)").unwrap());
     USAGE.replace(text, "$1\\$2")
 }
@@ -453,7 +452,7 @@ fn unquote_argument(s: &str) -> String {
             _ => buf.push(c),
         }
     }
-    return buf;
+    buf
 }
 
 pub fn bool_str(val: bool) -> &'static str {
@@ -617,7 +616,7 @@ mod test {
     use super::Item::{self, *};
     use super::Parser;
 
-    fn tok_values<'x>(s: &'x str) -> Vec<Item<'x>> {
+    fn tok_values(s: &str) -> Vec<Item<'_>> {
         Parser::new(s).map(|tok| tok.item).collect::<Vec<_>>()
     }
 

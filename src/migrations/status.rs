@@ -63,7 +63,7 @@ pub async fn status(
     if db_migration.as_ref() != migrations.keys().last() {
         if !status.quiet {
             if let Some(db_migration) = &db_migration {
-                if let Some(_) = migrations.get(db_migration) {
+                if migrations.get(db_migration).is_some() {
                     let mut iter = migrations.keys().skip_while(|k| k != &db_migration);
                     iter.next(); // skip db_migration itself
                     let first = iter.next().unwrap(); // we know it's not last

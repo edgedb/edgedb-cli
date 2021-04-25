@@ -49,7 +49,7 @@ impl Unix {
         self.get_sudo_path();
     }
     pub fn get_user_id(&self) -> Uid {
-        *self.user_id.get_or_init(|| get_current_uid())
+        *self.user_id.get_or_init(get_current_uid)
     }
     pub fn get_sudo_path(&self) -> Option<&PathBuf> {
         self.sudo_path
@@ -90,7 +90,7 @@ impl Unix {
                                {}. Please run `{}` as root user.",
                         operation_name, hint_cmd
                     );
-                    return Err(ExitCode::new(exit_codes::NO_SUDO))?;
+                    return Err(ExitCode::new(exit_codes::NO_SUDO).into());
                 }
             }
         }
@@ -244,7 +244,7 @@ pub fn instances_from_data_dir(
     Ok(())
 }
 
-pub fn status(name: &String, data_dir: &Path, service_exists: bool, service: Service) -> Status {
+pub fn status(name: &str, data_dir: &Path, service_exists: bool, service: Service) -> Status {
     use DataDirectory::*;
 
     let base = data_dir.parent().expect("data dir is not root");
@@ -254,12 +254,10 @@ pub fn status(name: &String, data_dir: &Path, service_exists: bool, service: Ser
         let upgrade_file = base.join(format!("{}.UPGRADE_IN_PROGRESS", name));
         if upgrade_file.exists() {
             (Upgrading(read_upgrade(&upgrade_file)), metadata)
+        } else if metadata.is_ok() {
+            (Normal, metadata)
         } else {
-            if metadata.is_ok() {
-                (Normal, metadata)
-            } else {
-                (NoMetadata, metadata)
-            }
+            (NoMetadata, metadata)
         }
     } else {
         (Absent, Err(anyhow::anyhow!("No data directory")))
@@ -422,7 +420,7 @@ fn print_errors(errors: Vec<String>) -> anyhow::Result<()> {
     for er in errors {
         eprintln!("  {}", er);
     }
-    return Err(ExitCode::new(2))?;
+    Err(ExitCode::new(2).into())
 }
 
 fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade) -> anyhow::Result<()> {
@@ -501,7 +499,7 @@ fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade) -> anyhow::Result<
                     e
                 ));
             }
-            Err(e) => return Err(e)?,
+            Err(e) => return Err(e),
         }
     }
     print_errors(errors)?;
@@ -677,9 +675,9 @@ fn do_instance_upgrade(
         Ok(()) => {}
         Err(e) if e.is::<CannotStartService>() => {
             eprintln!("Upgrade complete, but cannot start instance: {:#}", e);
-            return Err(ExitCode::new(2))?;
+            return Err(ExitCode::new(2).into());
         }
-        Err(e) => return Err(e)?,
+        Err(e) => return Err(e),
     }
 
     Ok(())

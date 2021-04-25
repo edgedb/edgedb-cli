@@ -3,7 +3,7 @@ use predicates::str::ends_with;
 use std::fs;
 
 #[test]
-fn bare_status() -> anyhow::Result<()> {
+fn bare_status() {
     SERVER
         .admin_cmd()
         .arg("create-database")
@@ -22,11 +22,10 @@ r###"Detected differences between the database schema and the schema source, in 
     };
 Some migrations are missing, use `edgedb create-migration`
 "###));
-    Ok(())
 }
 
 #[test]
-fn initial() -> anyhow::Result<()> {
+fn initial() {
     fs::remove_file("tests/migrations/db1/initial/migrations/00002.edgeql").ok();
     fs::remove_file("tests/migrations/db1/initial/migrations/00003.edgeql").ok();
     SERVER
@@ -215,12 +214,10 @@ fn initial() -> anyhow::Result<()> {
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
             (00003.edgeql)\n",
         ));
-
-    Ok(())
 }
 
 #[test]
-fn modified1() -> anyhow::Result<()> {
+fn modified1() {
     fs::remove_file("tests/migrations/db1/modified1/migrations/00002.edgeql").ok();
     SERVER
         .admin_cmd()
@@ -381,11 +378,10 @@ Some migrations are missing, use `edgedb create-migration`
             m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q\n\
         ",
         );
-    Ok(())
 }
 
 #[test]
-fn error() -> anyhow::Result<()> {
+fn error() {
     SERVER
         .admin_cmd()
         .arg("create-database")
@@ -410,11 +406,10 @@ fn error() -> anyhow::Result<()> {
 edgedb error: cannot proceed until .esdl files are fixed
 "###,
         ));
-    Ok(())
 }
 
 #[test]
-fn modified2_interactive() -> anyhow::Result<()> {
+fn modified2_interactive() {
     fs::remove_file("tests/migrations/db1/modified2/migrations/00002.edgeql").ok();
     SERVER
         .admin_cmd()
@@ -481,11 +476,10 @@ fn modified2_interactive() -> anyhow::Result<()> {
         .assert()
         .code(4)
         .stderr(ends_with("No schema changes detected.\n"));
-    Ok(())
 }
 
 #[test]
-fn modified3_interactive() -> anyhow::Result<()> {
+fn modified3_interactive() {
     fs::remove_file("tests/migrations/db1/modified3/migrations/00002.edgeql").ok();
     SERVER
         .admin_cmd()
@@ -546,11 +540,10 @@ fn modified3_interactive() -> anyhow::Result<()> {
         .assert()
         .code(4)
         .stderr(ends_with("No schema changes detected.\n"));
-    Ok(())
 }
 
 #[test]
-fn prompt_id() -> anyhow::Result<()> {
+fn prompt_id() {
     fs::remove_file("tests/migrations/db2/migrations/00001.edgeql").ok();
     SERVER
         .admin_cmd()
@@ -570,11 +563,10 @@ fn prompt_id() -> anyhow::Result<()> {
     // on pre-prompt_id version this would require an extra prompt
     cmd.exp_string("extra DDL statements").unwrap();
     cmd.exp_string("Created").unwrap();
-    Ok(())
 }
 
 #[test]
-fn input_required() -> anyhow::Result<()> {
+fn input_required() {
     fs::remove_file("tests/migrations/db3/migrations/00002.edgeql").ok();
     SERVER
         .admin_cmd()
@@ -617,11 +609,10 @@ fn input_required() -> anyhow::Result<()> {
     cmd.exp_string("cast_expr>").unwrap();
     cmd.send_line(".foo[IS Child2] # comment").unwrap();
     cmd.exp_string("Created").unwrap();
-    Ok(())
 }
 
 #[test]
-fn eof_err() -> anyhow::Result<()> {
+fn eof_err() {
     SERVER
         .admin_cmd()
         .arg("create-database")
@@ -646,5 +637,4 @@ fn eof_err() -> anyhow::Result<()> {
 edgedb error: cannot proceed until .esdl files are fixed
 "###,
         ));
-    Ok(())
 }

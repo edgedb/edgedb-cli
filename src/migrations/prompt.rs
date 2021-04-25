@@ -29,22 +29,22 @@ impl Highlighter for ExpressionHelper {
         info: PromptInfo<'_>,
     ) -> Cow<'b, str> {
         if info.line_no() > 0 {
-            return format!("{0:.>1$}", " ", prompt.len()).into();
+            format!("{0:.>1$}", " ", prompt.len()).into()
         } else {
-            return prompt.into();
+            prompt.into()
         }
     }
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
         let mut buf = String::with_capacity(line.len() + 8);
         highlight::edgeql(&mut buf, line, &self.styler);
-        return buf.into();
+        buf.into()
     }
-    fn highlight_char<'l>(&self, _line: &'l str, _pos: usize) -> bool {
+    fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
         // TODO(tailhook) optimize: only need to return true on insert
         true
     }
-    fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        return hint.light_gray().to_string().into();
+    fn highlight_hint<'l>(&self, hint: &'l str) -> std::borrow::Cow<'l, str> {
+        hint.light_gray().to_string().into()
     }
     fn has_continuation_prompt(&self) -> bool {
         true
@@ -71,7 +71,7 @@ pub fn expression(prompt: &str, history_name: &str) -> Result<String, anyhow::Er
     let history_name = format!("migr_{}", &history_name);
     let config = Config::builder();
     let config = config.edit_mode(EditMode::Emacs);
-    let mut editor = Editor::<ExpressionHelper>::with_config(config.clone().build());
+    let mut editor = Editor::<ExpressionHelper>::with_config(config.build());
     editor.bind_sequence(
         KeyPress::Enter,
         Cmd::AcceptOrInsertLine {

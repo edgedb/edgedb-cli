@@ -121,7 +121,10 @@ fn print_versions(
 ) -> anyhow::Result<()> {
     match options.column.as_ref().map(|s| &s[..]) {
         None if options.json => print_json(versions),
-        None => print_table(versions),
+        None => {
+            print_table(versions);
+            Ok(())
+        }
         Some("major-version") => print_set(versions.keys().map(|v| v.title()), options.json),
         Some("available") => print_set(versions.values().map(|info| &info.latest), options.json),
         Some("installed") => print_set(
@@ -165,7 +168,7 @@ fn print_json(versions: BTreeMap<MajorVersion, VersionInfo>) -> anyhow::Result<(
     Ok(())
 }
 
-fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>) -> anyhow::Result<()> {
+fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>) {
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
     table.add_row(Row::new(vec![
@@ -215,5 +218,4 @@ fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>) -> anyhow::Result<
         ]));
     }
     table.printstd();
-    Ok(())
 }

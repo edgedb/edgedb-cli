@@ -3,7 +3,6 @@ use std::fs;
 use std::time::Duration;
 
 use anyhow::Context;
-use atty;
 use clap::{AppSettings, Clap, ValueHint};
 use edgedb_client::Builder;
 
@@ -249,7 +248,7 @@ impl Options {
 
 fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
     let instance = if let Some(dsn) = &tmp.dsn {
-        return Ok(Builder::from_dsn(dsn)?);
+        return Builder::from_dsn(dsn);
     } else if tmp.instance.is_some()
         || tmp.host.is_some()
         || tmp.port.is_some()
@@ -299,18 +298,16 @@ fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
         database.as_ref().map(|db| conn_params.database(db));
         let host = host.unwrap_or_else(|| String::from("localhost"));
         let port = port.unwrap_or(5656);
-        let unix_host = host.contains("/");
+        let unix_host = host.contains('/');
         if admin || unix_host {
             let prefix = if unix_host { &host } else { "/var/run/edgedb" };
             let path = if prefix.contains(".s.EDGEDB") {
                 // it's the full path
                 prefix.into()
+            } else if admin {
+                format!("{}/.s.EDGEDB.admin.{}", prefix, port)
             } else {
-                if admin {
-                    format!("{}/.s.EDGEDB.admin.{}", prefix, port)
-                } else {
-                    format!("{}/.s.EDGEDB.{}", prefix, port)
-                }
+                format!("{}/.s.EDGEDB.{}", prefix, port)
             };
             conn_params.unix_addr(path);
         } else {

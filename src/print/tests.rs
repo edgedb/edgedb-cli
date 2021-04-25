@@ -28,20 +28,17 @@ impl<I: Clone> Stream for UnfusedStream<'_, I> {
         _cx: &mut task::Context<'_>,
     ) -> task::Poll<Option<Self::Item>> {
         let val = self.0.as_mut().expect("no poll after EOS");
-        if val.len() == 0 {
+        if val.is_empty() {
             self.0.take().unwrap();
             return task::Poll::Ready(None);
         }
         let item = val[0].clone();
         *val = &val[1..];
-        return task::Poll::Ready(Some(Ok(item)));
+        task::Poll::Ready(Some(Ok(item)))
     }
 }
 
-fn test_format_cfg<I: FormatExt + Clone + Send + Sync>(
-    items: &[I],
-    config: &Config,
-) -> Result<String, Infallible> {
+fn test_format_cfg<I: FormatExt + Clone + Send + Sync>(items: &[I], config: &Config) -> String {
     let mut out = String::new();
     task::block_on(_native_format(
         UnfusedStream::new(items),
@@ -51,10 +48,10 @@ fn test_format_cfg<I: FormatExt + Clone + Send + Sync>(
         &mut out,
     ))
     .unwrap();
-    Ok(out)
+    out
 }
 
-fn test_format<I: FormatExt + Clone + Send + Sync>(items: &[I]) -> Result<String, Infallible> {
+fn test_format<I: FormatExt + Clone + Send + Sync>(items: &[I]) -> String {
     test_format_cfg(
         items,
         &Config {
@@ -92,9 +89,9 @@ fn json_fmt_width(w: usize, j: &str) -> String {
 
 #[test]
 fn int() {
-    assert_eq!(test_format(&[Value::Int64(10)]).unwrap(), "{10}");
+    assert_eq!(test_format(&[Value::Int64(10)]), "{10}");
     assert_eq!(
-        test_format(&[Value::Int64(10), Value::Int64(20),]).unwrap(),
+        test_format(&[Value::Int64(10), Value::Int64(20),]),
         "{10, 20}"
     );
 }
@@ -104,8 +101,7 @@ fn bigdecimal() {
     assert_eq!(
         test_format(&[Value::Decimal(
             TryFrom::try_from(BigDecimal::from_str("10.1").unwrap()).unwrap()
-        ),])
-        .unwrap(),
+        ),]),
         "{10.1n}"
     );
 }
@@ -117,8 +113,7 @@ fn bigint() {
             Value::BigInt(10.into()),
             Value::BigInt(10000.into()),
             Value::BigInt(100000000000i64.into()),
-        ])
-        .unwrap(),
+        ]),
         "{10n, 10000n, 1e11n}"
     );
 }
@@ -129,8 +124,7 @@ fn datetime() {
         test_format(&[
             Value::Datetime(Datetime::from_micros(-1000000000000000)),
             Value::Datetime(Datetime::from_micros(1604506938347258)),
-        ])
-        .unwrap(),
+        ]),
         "{<datetime>\'1968-04-23T22:13:20Z\', \
       <datetime>\'2050-11-04T16:22:18.347258Z\'}"
     );
@@ -148,8 +142,7 @@ fn decimal() {
             Value::Decimal(
                 TryFrom::try_from(BigDecimal::from_str("0.000000000000508").unwrap()).unwrap()
             ),
-        ])
-        .unwrap(),
+        ]),
         "{10000.0n, 1.0e11n, 100000000000.1n, 0.508e-12}"
     );
 }
@@ -161,8 +154,7 @@ fn array_ellipsis() {
             Value::Int64(10),
             Value::Int64(20),
             Value::Int64(30),
-        ]),])
-        .unwrap(),
+        ]),]),
         "{[10, 20, 30]}"
     );
     assert_eq!(
@@ -173,8 +165,7 @@ fn array_ellipsis() {
                 Value::Int64(30),
             ]),],
             Config::new().max_items(2)
-        )
-        .unwrap(),
+        ),
         "{[10, 20, ...]}"
     );
     assert_eq!(
@@ -185,8 +176,7 @@ fn array_ellipsis() {
                 Value::Int64(30),
             ]),],
             Config::new().max_items(2).max_width(10)
-        )
-        .unwrap(),
+        ),
         r###"{
   [
     10,
@@ -199,8 +189,7 @@ fn array_ellipsis() {
         test_format_cfg(
             &[Value::Array(vec![Value::Int64(10),]),],
             Config::new().max_items(2)
-        )
-        .unwrap(),
+        ),
         "{[10]}"
     );
 }
@@ -212,8 +201,7 @@ fn set_ellipsis() {
             Value::Int64(10),
             Value::Int64(20),
             Value::Int64(30),
-        ]),])
-        .unwrap(),
+        ]),]),
         "{{10, 20, 30}}"
     );
     assert_eq!(
@@ -224,16 +212,14 @@ fn set_ellipsis() {
                 Value::Int64(30),
             ]),],
             Config::new().max_items(2)
-        )
-        .unwrap(),
+        ),
         "{{10, 20, ...}}"
     );
     assert_eq!(
         test_format_cfg(
             &[Value::Set(vec![Value::Int64(10),]),],
             Config::new().max_items(2)
-        )
-        .unwrap(),
+        ),
         "{{10}}"
     );
 }
@@ -244,16 +230,14 @@ fn wrap() {
         test_format_cfg(
             &[Value::Int64(10), Value::Int64(20),],
             Config::new().max_width(10)
-        )
-        .unwrap(),
+        ),
         "{10, 20}"
     );
     assert_eq!(
         test_format_cfg(
             &[Value::Int64(10), Value::Int64(20), Value::Int64(30),],
             Config::new().max_width(10)
-        )
-        .unwrap(),
+        ),
         "{\n  10,\n  20,\n  30,\n}"
     );
 }
@@ -287,8 +271,7 @@ fn object() {
                 },
             ],
             Config::new().max_width(60)
-        )
-        .unwrap(),
+        ),
         r###"{
   Object {field1: 10, field2: 20},
   Object {field1: 30, field2: 40},
@@ -302,13 +285,12 @@ fn object() {
                     fields: vec![Some(Value::Int32(10)), Some(Value::Int32(20)),]
                 },
                 Value::Object {
-                    shape: shape.clone(),
+                    shape,
                     fields: vec![Some(Value::Int32(30)), None,]
                 },
             ],
             Config::new().max_width(20)
-        )
-        .unwrap(),
+        ),
         r###"{
   Object {
     field1: 10,
@@ -346,13 +328,12 @@ fn link_property() {
                     fields: vec![Some(Value::Int32(10)), Some(Value::Int32(20)),]
                 },
                 Value::Object {
-                    shape: shape.clone(),
+                    shape,
                     fields: vec![Some(Value::Int32(30)), Some(Value::Int32(40)),]
                 },
             ],
             Config::new().max_width(60)
-        )
-        .unwrap(),
+        ),
         r###"{
   Object {field1: 10, @field2: 20},
   Object {field1: 30, @field2: 40},
@@ -362,32 +343,21 @@ fn link_property() {
 
 #[test]
 fn str() {
-    assert_eq!(
-        test_format(&[Value::Str("hello".into())]).unwrap(),
-        "{'hello'}"
-    );
-    assert_eq!(
-        test_format(&[Value::Str("a\nb".into())]).unwrap(),
-        "{'a\\nb'}"
-    );
-    assert_eq!(
-        test_format(&[Value::Str("a'b".into())]).unwrap(),
-        r"{'a\'b'}"
-    );
+    assert_eq!(test_format(&[Value::Str("hello".into())]), "{'hello'}");
+    assert_eq!(test_format(&[Value::Str("a\nb".into())]), "{'a\\nb'}");
+    assert_eq!(test_format(&[Value::Str("a'b".into())]), r"{'a\'b'}");
     assert_eq!(
         test_format_cfg(
             &[Value::Str("a\nb".into())],
             Config::new().expand_strings(true)
-        )
-        .unwrap(),
+        ),
         "{\n  'a\nb',\n}"
     );
     assert_eq!(
         test_format_cfg(
             &[Value::Str("a'b".into())],
             Config::new().expand_strings(true)
-        )
-        .unwrap(),
+        ),
         r"{'a\'b'}"
     );
 }
@@ -395,17 +365,11 @@ fn str() {
 #[test]
 fn bytes() {
     assert_eq!(
-        test_format(&[Value::Bytes(b"hello".to_vec())]).unwrap(),
+        test_format(&[Value::Bytes(b"hello".to_vec())]),
         "{b'hello'}"
     );
-    assert_eq!(
-        test_format(&[Value::Bytes(b"a\nb".to_vec())]).unwrap(),
-        "{b'a\\nb'}"
-    );
-    assert_eq!(
-        test_format(&[Value::Bytes(b"a'b".to_vec())]).unwrap(),
-        r"{b'a\'b'}"
-    );
+    assert_eq!(test_format(&[Value::Bytes(b"a\nb".to_vec())]), "{b'a\\nb'}");
+    assert_eq!(test_format(&[Value::Bytes(b"a'b".to_vec())]), r"{b'a\'b'}");
 }
 
 #[test]
@@ -425,8 +389,7 @@ fn all_widths() {
                 ))],
             }],
             Config::new().max_width(width),
-        )
-        .unwrap();
+        );
     }
 }
 

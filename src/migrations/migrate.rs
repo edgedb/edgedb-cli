@@ -106,7 +106,7 @@ pub async fn migrate(
                     );
                 }
             }
-            return Err(ExitCode::new(0))?;
+            return Err(ExitCode::new(0).into());
         }
         Some(target_rev.clone())
     } else {

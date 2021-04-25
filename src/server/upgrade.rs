@@ -75,7 +75,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
             Err(e) if e.is::<InstanceNotFound>() => {
                 errors.push((meth.name(), e));
             }
-            Err(e) => Err(e)?,
+            Err(e) => return Err(e),
         }
     }
     if errors.len() == methods.len() {
@@ -153,7 +153,7 @@ pub fn get_installed(
         }
         return Ok(Some(ver.version().clone()));
     }
-    return Ok(None);
+    Ok(None)
 }
 
 #[context("failed to write backup metadata file {}", path.display())]

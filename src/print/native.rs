@@ -29,7 +29,7 @@ fn format_string(s: &str, expanded: bool) -> String {
         }
     }
     buf.push('\'');
-    return buf;
+    buf
 }
 
 fn format_bytes(bytes: &[u8]) -> String {
@@ -51,7 +51,7 @@ fn format_bytes(bytes: &[u8]) -> String {
         }
     }
     buf.push('\'');
-    return buf;
+    buf
 }
 
 fn format_bigint(bint: BigInt) -> String {

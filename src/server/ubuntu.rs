@@ -83,7 +83,7 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         Ok(self
             .installed
-            .get_or_try_init(|| debian_like::get_installed())?
+            .get_or_try_init(debian_like::get_installed)?
             .clone())
     }
     fn detect_all(&self) -> serde_json::Value {
@@ -101,7 +101,7 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
     fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
         unix::bootstrap(self, init)
     }
-    fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
+    fn all_instances(&self) -> anyhow::Result<Vec<InstanceRef<'_>>> {
         linux::all_instances(self)
     }
     fn get_instance<'x>(&'x self, name: &str) -> anyhow::Result<InstanceRef<'x>> {

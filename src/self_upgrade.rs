@@ -78,7 +78,7 @@ fn binary_path() -> anyhow::Result<PathBuf> {
 
 fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {
     let exe_path =
-        env::current_exe().with_context(|| format!("cannot determine running executable path"))?;
+        env::current_exe().with_context(|| "cannot determine running executable path")?;
     Ok(exe_path == path)
 }
 

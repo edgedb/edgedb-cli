@@ -137,20 +137,19 @@ async fn restore_db<'x>(
         all: _,
         verbose: _,
     } = *params;
-    if !allow_non_empty {
-        if is_empty_db(cli)
+    if !allow_non_empty
+        && is_empty_db(cli)
             .await
             .context("Error checking DB emptyness")?
-        {
-            if options.command_line {
-                return Err(anyhow::anyhow!(
-                    "\
-                    cannot restore: the database is not empty; \
-                    consider using the --allow-non-empty option"
-                ));
-            } else {
-                return Err(anyhow::anyhow!("cannot restore: the database is not empty"));
-            }
+    {
+        if options.command_line {
+            return Err(anyhow::anyhow!(
+                "\
+                cannot restore: the database is not empty; \
+                consider using the --allow-non-empty option"
+            ));
+        } else {
+            return Err(anyhow::anyhow!("cannot restore: the database is not empty"));
         }
     }
 
@@ -190,21 +189,18 @@ async fn restore_db<'x>(
         data: header,
     })])
     .await?;
-    loop {
-        let msg = seq.message().await?;
-        match msg {
-            ServerMessage::RestoreReady(_) => {
-                log::info!(target: "edgedb::restore",
+    let msg = seq.message().await?;
+    match msg {
+        ServerMessage::RestoreReady(_) => {
+            log::info!(target: "edgedb::restore",
                     "Schema applied in {:?}", start_headers.elapsed());
-                break;
-            }
-            ServerMessage::ErrorResponse(err) => {
-                seq.err_sync().await.ok();
-                return Err(anyhow::anyhow!(err).context("Error initiating restore protocol"));
-            }
-            _ => {
-                return Err(anyhow::anyhow!("WARNING: unsolicited message {:?}", msg));
-            }
+        }
+        ServerMessage::ErrorResponse(err) => {
+            seq.err_sync().await.ok();
+            return Err(anyhow::anyhow!(err).context("Error initiating restore protocol"));
+        }
+        _ => {
+            return Err(anyhow::anyhow!("WARNING: unsolicited message {:?}", msg));
         }
     }
     let result = send_blocks(&mut seq.writer, &mut input, filename.as_ref())
@@ -248,24 +244,17 @@ async fn send_blocks(
     }
 }
 
-async fn wait_response(reader: &mut Reader<'_>, start: Instant) -> Result<(), anyhow::Error> {
-    loop {
-        let msg = reader.message().await?;
-        match msg {
-            ServerMessage::CommandComplete(_) => {
-                log::info!(target: "edgedb::restore",
+async fn wait_response(reader: &mut Reader<'_>, start: Instant) -> anyhow::Result<()> {
+    let msg = reader.message().await?;
+    match msg {
+        ServerMessage::CommandComplete(_) => {
+            log::info!(target: "edgedb::restore",
                     "Complete in {:?}", start.elapsed());
-                break;
-            }
-            ServerMessage::ErrorResponse(err) => {
-                return Err(anyhow::anyhow!(err));
-            }
-            _ => {
-                return Err(anyhow::anyhow!("WARNING: unsolicited message {:?}", msg));
-            }
+            Ok(())
         }
+        ServerMessage::ErrorResponse(err) => Err(anyhow::anyhow!(err)),
+        _ => Err(anyhow::anyhow!("WARNING: unsolicited message {:?}", msg)),
     }
-    Ok(())
 }
 
 fn path_to_database_name(path: &Path) -> anyhow::Result<String> {
