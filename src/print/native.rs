@@ -24,6 +24,7 @@ fn format_string(s: &str, expanded: bool) -> String {
             '\u{0080}'..='\u{009F}'
             => buf.push_str(&format!("\\u{:04x}", c as u32)),
             '\'' => buf.push_str("\\'"),
+            '\\' => buf.push_str("\\\\"),
             '\r' if !expanded => buf.push_str("\\r"),
             '\n' if !expanded => buf.push_str("\\n"),
             '\t' if !expanded => buf.push_str("\\t"),
@@ -49,6 +50,7 @@ fn format_bytes(bytes: &[u8]) -> String {
             b'\r' => buf.push_str("\\r"),
             b'\n' => buf.push_str("\\n"),
             b'\t' => buf.push_str("\\t"),
+            b'\\' => buf.push_str("\\\\"),
             _ => buf.push(*b as char),
         }
     }
