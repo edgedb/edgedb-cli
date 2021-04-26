@@ -371,7 +371,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
 
 impl LocalInstance<'_> {
     fn launchd_name(&self) -> String {
-        format!("gui/{}/edgedb-server-{}", get_current_uid(), self.name)
+        launchd_name(&self.name)
     }
     fn get_meta(&self) -> anyhow::Result<&Metadata> {
         self.metadata.get_or_try_init(|| read_metadata(&self.path))
@@ -433,9 +433,13 @@ impl<'a> Instance for LocalInstance<'a> {
         if options.foreground {
             process::run(&mut self.get_command()?)?;
         } else {
-            process::run(&mut StdCommand::new("launchctl")
-                .arg("load").arg("-w")
-                .arg(&self.unit_path()?))?;
+            let lname = self.launchd_name();
+            process::run(
+                StdCommand::new("launchctl").arg("enable").arg(&lname)
+            )?;
+            process::run(
+                StdCommand::new("launchctl").arg("kickstart").arg(&lname)
+            )?;
         }
         Ok(())
     }
@@ -668,18 +672,26 @@ pub fn create_launchctl_service(name: &str, meta: &Metadata)
     let plist_dir = plist_dir(false)?;
     fs::create_dir_all(&plist_dir)?;
     let plist_path = plist_dir.join(&plist_name(name));
+    let unit_name = launchd_name(name);
     fs::write(&plist_path, plist_data(name, meta)?)?;
     fs::create_dir_all(runtime_base()?)?;
 
-    process::run(StdCommand::new("launchctl")
-        .arg("load")
-        .arg(plist_path))?;
+    process::run(
+        StdCommand::new("launchctl").arg("enable").arg(&unit_name),
+    )?;
+    process::run(
+        StdCommand::new("launchctl").arg("kickstart").arg(&unit_name),
+    )?;
     Ok(())
 }
 
 fn unit_path(name: &str) -> anyhow::Result<PathBuf> {
     let plist = format!("com.edgedb.edgedb-server-{}.plist", &name);
     Ok(home_dir()?.join("Library/LaunchAgents").join(plist))
+}
+
+fn launchd_name(name: &str) -> String {
+    format!("gui/{}/edgedb-server-{}", get_current_uid(), name)
 }
 
 #[context("cannot scan package paths of edgedb-server-{}", pkg.slot)]
