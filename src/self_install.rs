@@ -17,8 +17,10 @@ use prettytable::{Table, Row, Cell};
 use crate::options::RawOptions;
 use crate::platform::{home_dir, get_current_uid};
 use crate::process;
+use crate::project::init;
+use crate::project::options::Init;
+use crate::question::{self, read_choice};
 use crate::table;
-use crate::question::read_choice;
 
 
 #[derive(Clap, Clone, Debug)]
@@ -32,7 +34,7 @@ pub struct SelfInstall {
     /// Skip printing messages and confirmation prompts
     #[clap(short='q', long)]
     pub quiet: bool,
-    /// Disable confirmation prompt
+    /// Disable confirmation prompt, also disables running `project init`
     #[clap(short='y')]
     pub no_confirm: bool,
     /// Do not configure the PATH environment variable
@@ -185,9 +187,12 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_post_install_message(settings: &Settings) {
+fn print_post_install_message(settings: &Settings,
+    init_result: anyhow::Result<bool>)
+{
     if cfg!(windows) {
-        print!(r###"# The EdgeDB command-line tool is now installed!
+        print!(r###"
+The EdgeDB command-line tool is now installed!
 
 We've updated your environment configuration to have {dir}
 in your `PATH` environment variable. You may need to reopen the terminal for
@@ -195,7 +200,8 @@ this change to take effect, and for the `edgedb` command to become available.
 "###,
             dir=settings.installation_path.display());
     } else if settings.modify_path {
-        print!(r###"# The EdgeDB command-line tool is now installed!
+        print!(r###"
+The EdgeDB command-line tool is now installed!
 
 We've updated your shell profile to have {dir} in your `PATH`
 environment variable. Next time you open the terminal it will be configured
@@ -207,7 +213,9 @@ For this session please run:
             dir=settings.installation_path.display(),
             env_path=settings.env_file.display());
     } else {
-        println!(r###"The EdgeDB command-line tool is now installed!"###);
+        println!(r###"
+The EdgeDB command-line tool is now installed!
+"###);
     }
     if is_zsh() {
         let fpath = process::get_text(
@@ -227,8 +235,23 @@ to your ~/.zshrc before `compinit` command.
             }
         }
     }
-    println!("\nTo install the EdgeDB server component locally run:\n  \
-                edgedb server install");
+    match init_result {
+        Ok(true) => {
+            println!("`edgedb` without parameters will automatically \
+                      connect to the initialized project.");
+        }
+        Ok(false) => {
+            println!("To install the EdgeDB server and \
+                      initialize the project, run the following from \
+                      the project directory:");
+            println!("  edgedb project init");
+        }
+        Err(e) => {
+            println!("There was an error while initializing project: {:#}", e);
+            println!("To restart project initialization, run:");
+            println!("  edgedb project init");
+        }
+    }
 }
 
 pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
@@ -288,6 +311,45 @@ fn customize(settings: &mut Settings) -> anyhow::Result<()> {
         println!("No options to customize");
     }
     Ok(())
+}
+
+fn try_project_init() -> anyhow::Result<bool> {
+    let base_dir = env::current_dir()
+        .context("failed to get current directory")?;
+    if base_dir.parent().is_none() {
+        // can't initialize project in root dir
+        return Ok(false);
+    }
+
+    let base_dir = env::current_dir()
+        .context("failed to get current directory")?;
+    let dir = init::search_dir(&base_dir)?;
+    if let Some(dir) = dir {
+        println!("Command-line tools are installed successfully.");
+        println!();
+        let q = question::Confirm::new(format!(
+            "Do you want to initialize EdgeDB server instance for the project \
+             defined in `{}`?",
+            dir.join("edgedb.toml").display(),
+        ));
+        if !q.ask()? {
+            return Ok(false);
+        }
+
+        let init = Init {
+            project_dir: None,
+            server_version: None,
+            server_instance: None,
+            server_install_method: None,
+            non_interactive: false,
+        };
+        let dir = fs::canonicalize(&dir)
+            .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
+        init::init_existing(&init, &dir)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 fn _main(options: &SelfInstall) -> anyhow::Result<()> {
@@ -365,7 +427,13 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
         }
     }
 
-    print_post_install_message(&settings);
+    let init_result = if options.no_confirm {
+        Ok(false)
+    } else {
+        try_project_init()
+    };
+
+    print_post_install_message(&settings, init_result);
 
     Ok(())
 }

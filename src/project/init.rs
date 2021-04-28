@@ -284,7 +284,9 @@ fn write_config(path: &Path, distr: &DistributionRef) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn init_existing(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
+pub fn init_existing(options: &Init, project_dir: &Path)
+    -> anyhow::Result<()>
+{
     println!("Found `edgedb.toml` in `{}`", project_dir.display());
 
     let stash_dir = stash_path(project_dir)?;
@@ -471,7 +473,7 @@ pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(stash_base()?.join(hname))
 }
 
-fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
+pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     eprintln!("`edgedb.toml` is not found in `{}` or above",
               project_dir.display());
 
