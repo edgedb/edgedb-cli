@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::server::version::Version;
 use crate::server::os_trait::CurrentOs;
 use crate::server::methods::{self, InstallMethod};
-use crate::server::distribution::{DistributionRef};
+use crate::server::distribution::{DistributionRef, MajorVersion};
 
 use anyhow::Context;
 
@@ -147,16 +147,19 @@ impl VersionQuery {
             Stable(Some(v)) => &pkg.major_version == v && !pkg.is_nightly(),
         }
     }
-    pub fn distribution_matches(&self, distr: &DistributionRef) -> bool {
+    pub fn matches(&self, version: &MajorVersion) -> bool {
         use VersionQuery as Q;
         use crate::server::distribution::MajorVersion as V;
 
-        match (self, distr.major_version()) {
+        match (self, version) {
             (Q::Nightly, V::Nightly) => true,
             (Q::Stable(None), V::Stable(_)) => true,
             (Q::Stable(Some(q)), V::Stable(v)) if q == v => true,
             _ => false,
-         }
+        }
+    }
+    pub fn distribution_matches(&self, distr: &DistributionRef) -> bool {
+        self.matches(distr.major_version())
     }
 }
 

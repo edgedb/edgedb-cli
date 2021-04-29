@@ -24,7 +24,7 @@ mod docker;
 pub mod package;
 
 // commands
-mod control;
+pub mod control;
 pub mod destroy;
 pub mod errors;
 mod info;
