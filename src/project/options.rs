@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use clap::{Clap, AppSettings, ValueHint};
 use crate::server::methods::InstallMethod;
 use crate::server::version::Version;
+use crate::server::options::instance_name_opt;
 
 
 #[derive(Clap, Debug, Clone)]
@@ -33,7 +34,7 @@ pub struct Init {
     pub server_version: Option<Version<String>>,
 
     /// Specifies the EdgeDB server instance to be associated with the project
-    #[clap(long)]
+    #[clap(long, validator(instance_name_opt))]
     pub server_instance: Option<String>,
 
     /// Specifies a project root directory explicitly.
