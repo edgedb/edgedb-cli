@@ -20,8 +20,9 @@ use crate::process::ProcessGuard;
 use crate::project::config;
 use crate::project::options::Init;
 use crate::question;
+use crate::server::control::get_instance;
 use crate::server::detect::{self, VersionQuery};
-use crate::server::distribution::DistributionRef;
+use crate::server::distribution::{DistributionRef, MajorVersion};
 use crate::server::init::{self, try_bootstrap, allocate_port};
 use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::is_valid_name;
@@ -121,7 +122,7 @@ fn ask_method(available: &InstallationMethods, options: &Init)
 }
 
 fn ask_name(methods: &Methods, dir: &Path, options: &Init)
-    -> anyhow::Result<String>
+    -> anyhow::Result<(String, bool)>
 {
     let instances = methods.values()
         .map(|m| m.all_instances())
@@ -161,7 +162,7 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
         if instances.contains(&default_name) {
             log::warn!("Instance {:?} already exists", default_name);
         }
-        return Ok(default_name)
+        return Ok((default_name, false))
     }
     let mut q = question::String::new(
         "Specify the name of EdgeDB instance to use with this project"
@@ -181,10 +182,10 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
                          target_name)
             );
             if confirm.ask()? {
-                return Ok(target_name);
+                return Ok((target_name, true));
             }
         } else {
-            return Ok(target_name)
+            return Ok((target_name, false))
         }
     }
 }
@@ -283,11 +284,11 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
 }
 
 #[context("cannot write config `{}`", path.display())]
-fn write_config(path: &Path, distr: &DistributionRef) -> anyhow::Result<()> {
+fn write_config(path: &Path, version: &MajorVersion) -> anyhow::Result<()> {
     let text = format!("\
         [edgedb]\n\
         server-version = {:?}\n\
-    ", distr.major_version().as_str());
+    ", version.as_str());
     let tmp = tmp_file_path(path);
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, text)?;
@@ -300,6 +301,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
 {
     println!("Found `edgedb.toml` in `{}`", project_dir.display());
 
+    let mut err_manual = false;
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
@@ -307,21 +309,10 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     }
 
     let config_path = project_dir.join("edgedb.toml");
+    let schema_dir = project_dir.join("dbschema");
+    let schema_files = find_schema_files(&schema_dir)?;
     let config = config::read(&config_path)?;
 
-    let os = detect::current_os()?;
-    let avail_methods = os.get_available_methods()?;
-    let mut methods = avail_methods.instantiate_all(&*os, true)?;
-
-    let method = ask_method(&avail_methods, options)?;
-    if !methods.contains_key(&method) {
-        // This should error out and show the error,
-        // but we can proceed if it worked second time.
-        methods[&method] = os.make_method(&method, &avail_methods)?;
-    }
-    let meth = methods.get(&method).expect("method works");
-
-    println!("Checking EdgeDB versions...");
     let ver_query = if let Some(ver) = &options.server_version {
         match ver.num() {
             "nightly" => VersionQuery::Nightly,
@@ -333,78 +324,106 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             Some(ver) => ver.to_query(),
         }
     };
-    let distr = meth.get_version(&ver_query)
-        .map_err(|e| {
-            eprintln!("edgedb error: \
-                Cannot find EdgeDB version {}: {}", ver_query, e);
-            eprintln!("  Hint: try different installation method \
-                or remove `server-version` from `edgedb.toml` to \
-                install the latest stable");
-            ExitCode::new(1)
-        })?;
 
-    let installed = meth.installed_versions()?;
-    let name = ask_name(&methods, project_dir, options)?;
-    let schema_dir = project_dir.join("dbschema");
-    let schema_files = find_schema_files(&schema_dir)?;
+    let os = detect::current_os()?;
+    let avail_methods = os.get_available_methods()?;
+    let mut methods = avail_methods.instantiate_all(&*os, true)?;
+    let (name, exists) = ask_name(&methods, project_dir, options)?;
 
-    table::settings(&[
-        ("Project directory", &project_dir.display().to_string()),
-        ("Project config", &config_path.display().to_string()),
-        (&format!("Schema dir {}",
-            if schema_files { "(non-empty)" } else { "(empty)" }),
-            &schema_dir.display().to_string()),
-        ("Installation method", method.title()),
-        ("Version", distr.version().as_ref()),
-        ("Instance name", &name),
-    ]);
+    let inst = if exists {
+        let inst = get_instance(&methods, &name)?;
+        let inst_ver = inst.get_version()?;
+        if !ver_query.matches(inst_ver) {
+            eprintln!("WARNING: existing instance has version {}, \
+                but {} required by `edgedb.toml`",
+                inst_ver.title(), ver_query);
+        }
+        inst
+    } else {
+        let method = ask_method(&avail_methods, options)?;
+        if !methods.contains_key(&method) {
+            // This should error out and show the error,
+            // but we can proceed if it worked second time.
+            methods[&method] = os.make_method(&method, &avail_methods)?;
+        }
+        let meth = methods.get(&method).expect("method works");
 
-    // TODO(tailhook) this condition doesn't work for nightly
-    if !installed.iter().any(|x| x.major_version() == distr.major_version()) {
-        println!("Installing EdgeDB server {}...",
-                 distr.major_version().title());
-        meth.install(&install::Settings {
-            method: method.clone(),
-            distribution: distr.clone(),
-            extra: LinkedHashMap::new(),
-        })?;
-    }
+        println!("Checking EdgeDB versions...");
 
-    write_config(&config_path, &distr)?;
-    if !schema_files {
-        write_default(&schema_dir)?;
-    }
+        let distr = meth.get_version(&ver_query)
+            .map_err(|e| {
+                eprintln!("edgedb error: \
+                    Cannot find EdgeDB version {}: {}", ver_query, e);
+                eprintln!("  Hint: try different installation method \
+                    or remove `server-version` from `edgedb.toml` to \
+                    install the latest stable");
+                ExitCode::new(1)
+            })?;
 
-    let settings = init::Settings {
-        name: name.clone(),
-        system: false,
-        version: distr.version().clone(),
-        nightly: distr.major_version().is_nightly(),
-        distribution: distr,
-        method: method,
-        storage: meth.get_storage(false, &name)?,
-        credentials: home_dir()?.join(".edgedb").join("credentials")
-            .join(format!("{}.json", &name)),
-        user: "edgedb".into(),
-        database: "edgedb".into(),
-        port: allocate_port(&name)?,
-        start_conf: StartConf::Auto,
-        suppress_messages: true,
+        let installed = meth.installed_versions()?;
+
+        table::settings(&[
+            ("Project directory", &project_dir.display().to_string()),
+            ("Project config", &config_path.display().to_string()),
+            (&format!("Schema dir {}",
+                if schema_files { "(non-empty)" } else { "(empty)" }),
+                &schema_dir.display().to_string()),
+            ("Installation method", method.title()),
+            ("Version", distr.version().as_ref()),
+            ("Instance name", &name),
+        ]);
+        // TODO(tailhook) this condition doesn't work for nightly
+        if !installed.iter()
+            .any(|x| x.major_version() == distr.major_version())
+        {
+            println!("Installing EdgeDB server {}...",
+                     distr.major_version().title());
+            meth.install(&install::Settings {
+                method: method.clone(),
+                distribution: distr.clone(),
+                extra: LinkedHashMap::new(),
+            })?;
+        }
+
+        write_config(&config_path, distr.major_version())?;
+        if !schema_files {
+            write_default(&schema_dir)?;
+        }
+
+        let settings = init::Settings {
+            name: name.clone(),
+            system: false,
+            version: distr.version().clone(),
+            nightly: distr.major_version().is_nightly(),
+            distribution: distr,
+            method: method,
+            storage: meth.get_storage(false, &name)?,
+            credentials: home_dir()?.join(".edgedb").join("credentials")
+                .join(format!("{}.json", &name)),
+            user: "edgedb".into(),
+            database: "edgedb".into(),
+            port: allocate_port(&name)?,
+            start_conf: StartConf::Auto,
+            suppress_messages: true,
+        };
+
+        println!("Initializing EdgeDB instance...");
+        if !try_bootstrap(meth.as_ref(), &settings)? {
+            err_manual = true;
+        }
+
+        meth.get_instance(&name)?
     };
-
-    println!("Initializing EdgeDB instance...");
-    let err_manual = !try_bootstrap(meth.as_ref(), &settings)?;
 
     write_stash_dir(&stash_dir, project_dir, &name)?;
 
-    let inst = meth.get_instance(&name)?;
     if err_manual {
         run_and_migrate(&inst)?;
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
             You can run server manually via: \n  \
             edgedb server start --foreground {}",
-            settings.name.escape_default());
+            name.escape_default());
         return Err(ExitCode::new(2))?;
     } else {
         task::block_on(migrate(&inst))?;
@@ -510,81 +529,96 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         }
     }
 
+    let mut err_manual = false;
+
     let config_path = project_dir.join("edgedb.toml");
+    let schema_dir = project_dir.join("dbschema");
+    let schema_files = find_schema_files(&schema_dir)?;
 
     let os = detect::current_os()?;
     let avail_methods = os.get_available_methods()?;
     let methods = avail_methods.instantiate_all(&*os, true)?;
+    let (name, exists) = ask_name(&methods, project_dir, options)?;
 
-    let method = ask_method(&avail_methods, options)?;
+    let inst = if exists {
+        let inst = get_instance(&methods, &name)?;
 
-    println!("Checking EdgeDB versions...");
-    let meth = methods.get(&method).expect("chosen method works");
-    let installed = meth.installed_versions()?;
+        write_config(&config_path, inst.get_version()?)?;
+        if !schema_files {
+            write_default(&schema_dir)?;
+        }
 
-    let distr = ask_version(meth.as_ref(), options)?;
-    let name = ask_name(&methods, project_dir, options)?;
-    let schema_dir = project_dir.join("dbschema");
-    let schema_files = find_schema_files(&schema_dir)?;
+        inst
+    } else {
+        let method = ask_method(&avail_methods, options)?;
 
-    table::settings(&[
-        ("Project directory", &project_dir.display().to_string()),
-        ("Project config", &config_path.display().to_string()),
-        (&format!("Schema dir {}",
-            if schema_files { "(non-empty)" } else { "(empty)" }),
-            &schema_dir.display().to_string()),
-        ("Installation method", method.title()),
-        ("Version", distr.version().as_ref()),
-        ("Instance name", &name),
-    ]);
+        println!("Checking EdgeDB versions...");
+        let meth = methods.get(&method).expect("chosen method works");
+        let installed = meth.installed_versions()?;
 
-    // TODO(tailhook) this condition doesn't work for nightly
-    if !installed.iter().any(|x| x.major_version() == distr.major_version()) {
-        println!("Installing EdgeDB server {}...",
-                 distr.major_version().title());
-        meth.install(&install::Settings {
-            method: method.clone(),
-            distribution: distr.clone(),
-            extra: LinkedHashMap::new(),
-        })?;
-    }
+        let distr = ask_version(meth.as_ref(), options)?;
 
-    write_config(&config_path, &distr)?;
-    if !schema_files {
-        write_default(&schema_dir)?;
-    }
+        table::settings(&[
+            ("Project directory", &project_dir.display().to_string()),
+            ("Project config", &config_path.display().to_string()),
+            (&format!("Schema dir {}",
+                if schema_files { "(non-empty)" } else { "(empty)" }),
+                &schema_dir.display().to_string()),
+            ("Installation method", method.title()),
+            ("Version", distr.version().as_ref()),
+            ("Instance name", &name),
+        ]);
 
-    let settings = init::Settings {
-        name: name.clone(),
-        system: false,
-        version: distr.version().clone(),
-        nightly: distr.major_version().is_nightly(),
-        distribution: distr,
-        method: method,
-        storage: meth.get_storage(false, &name)?,
-        credentials: home_dir()?.join(".edgedb").join("credentials")
-            .join(format!("{}.json", &name)),
-        user: "edgedb".into(),
-        database: "edgedb".into(),
-        port: allocate_port(&name)?,
-        start_conf: StartConf::Auto,
-        suppress_messages: true,
+        // TODO(tailhook) this condition doesn't work for nightly
+        if !installed.iter()
+            .any(|x| x.major_version() == distr.major_version()) {
+            println!("Installing EdgeDB server {}...",
+                     distr.major_version().title());
+            meth.install(&install::Settings {
+                method: method.clone(),
+                distribution: distr.clone(),
+                extra: LinkedHashMap::new(),
+            })?;
+        }
+
+        write_config(&config_path, distr.major_version())?;
+        if !schema_files {
+            write_default(&schema_dir)?;
+        }
+        let settings = init::Settings {
+            name: name.clone(),
+            system: false,
+            version: distr.version().clone(),
+            nightly: distr.major_version().is_nightly(),
+            distribution: distr,
+            method: method,
+            storage: meth.get_storage(false, &name)?,
+            credentials: home_dir()?.join(".edgedb").join("credentials")
+                .join(format!("{}.json", &name)),
+            user: "edgedb".into(),
+            database: "edgedb".into(),
+            port: allocate_port(&name)?,
+            start_conf: StartConf::Auto,
+            suppress_messages: true,
+        };
+
+        println!("Initializing EdgeDB instance...");
+        if !try_bootstrap(meth.as_ref(), &settings)? {
+            err_manual = true;
+        }
+
+        meth.get_instance(&name)?
     };
-
-    println!("Initializing EdgeDB instance...");
-    let err_manual = !try_bootstrap(meth.as_ref(), &settings)?;
-    // TODO(tailhook) execute migrations
 
     write_stash_dir(&stash_dir, project_dir, &name)?;
 
-    let inst = meth.get_instance(&name)?;
     if err_manual {
         run_and_migrate(&inst)?;
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
             You can run server manually via: \n  \
             edgedb server start --foreground {}",
-            settings.name.escape_default());
+            name.escape_default());
         return Err(ExitCode::new(2))?;
     } else {
         task::block_on(migrate(&inst))?;
