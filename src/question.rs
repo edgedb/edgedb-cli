@@ -48,16 +48,15 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
     pub fn is_empty(&self) -> bool {
         self.options.is_empty()
     }
-    //pub fn ask_or(&self, non_interactive: bool, response: ) -> anyhow::Result<T> {
     pub fn ask(&self) -> anyhow::Result<T> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
-        let prompt = format!("{} ", self.suffix);
+        println!("{}", self.suffix);
         loop {
             println!("{}", self.question);
             for (idx, (title, _)) in self.options.iter().enumerate() {
                 println!("{}. {}", idx+1, title);
             }
-            let value = editor.readline(&prompt)?;
+            let value = editor.readline("> ")?;
             let choice = match value.parse::<u32>() {
                 Ok(choice) => choice,
                 Err(e) => {
@@ -88,14 +87,14 @@ impl<'a> String<'a> {
         self
     }
     pub fn ask(&mut self) -> anyhow::Result<std::string::String> {
-        let prompt = if self.default.is_empty() {
-            format!("{}: ", self.question)
+        if self.default.is_empty() {
+            println!("{}: ", self.question);
         } else {
-            format!("{} [default: {}]: ", self.question, self.default)
-        };
+            println!("{} [default: {}]: ", self.question, self.default);
+        }
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         let mut val = editor.readline_with_initial(
-            &prompt,
+            "> ",
             (&self.initial, ""),
         )?;
         if val == "" {
@@ -121,13 +120,13 @@ impl<'a> Confirm<'a> {
     }
     pub fn ask(&self) -> anyhow::Result<bool> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
-        let prompt = if self.is_dangerous {
-            format!("{} (type `Yes`) ", self.question)
+        if self.is_dangerous {
+            println!("{} (type `Yes`)", self.question);
         } else {
-            format!("{} [Y/n] ", self.question)
+            println!("{} [Y/n]", self.question);
         };
         loop {
-            let val = editor.readline(&prompt)?;
+            let val = editor.readline("> ")?;
             if self.is_dangerous {
                 match val.as_ref() {
                     "Yes" => return Ok(true),
