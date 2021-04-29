@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::borrow::Cow;
 use std::env;
 use std::ffi::OsString;
 use std::fs;
@@ -132,9 +133,19 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
     let default_name = if let Some(name) = &options.server_instance {
         name.clone()
     } else {
-        let stem = dir.file_stem()
+        let path_stem = dir.file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("edgedb");
+        let stem = path_stem
+            .replace(|c: char| !c.is_ascii_alphanumeric(), "_");
+        let stem = stem.trim_matches('_');
+        let stem: Cow<str> = if stem.is_empty() {
+            "inst".into()
+        } else if stem.chars().next().expect("not empty").is_numeric() {
+            format!("_{}", stem).into()
+        } else {
+            stem.into()
+        };
         let mut name = stem.to_string();
 
         while instances.contains(&name) {

@@ -390,7 +390,7 @@ impl fmt::Display for StartConf {
     }
 }
 
-fn instance_name_opt(name: &str) -> Result<(), String> {
+pub fn instance_name_opt(name: &str) -> Result<(), String> {
     if is_valid_name(&name) {
         return Ok(())
     }
