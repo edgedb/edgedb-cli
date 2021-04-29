@@ -79,7 +79,7 @@ fn ask_method(available: &InstallationMethods, options: &Init)
         }
     }
     let mut q = question::Numeric::new(
-        "What type of EdgeDB instance would you like to use with this project?"
+        "How would you like to run EdgeDB for this project?"
     );
     if available.package.supported {
         q.option("Local (native package)", InstallMethod::Package);
@@ -300,6 +300,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     -> anyhow::Result<()>
 {
     println!("Found `edgedb.toml` in `{}`", project_dir.display());
+    println!("Initializing project...");
 
     let mut err_manual = false;
     let stash_dir = stash_path(project_dir)?;
@@ -427,9 +428,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         return Err(ExitCode::new(2))?;
     } else {
         task::block_on(migrate(&inst))?;
-        println!("Project initialialized.");
-        println!("To connect run either of:\n  edgedb\n  edgedb -I {}",
-                 name.escape_default());
+        print_initialized(&name, &options.project_dir);
     }
 
     Ok(())
@@ -509,7 +508,7 @@ pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
 }
 
 pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
-    eprintln!("`edgedb.toml` is not found in `{}` or above",
+    eprintln!("No `edgedb.toml` found in `{}` or above",
               project_dir.display());
 
     let stash_dir = stash_path(project_dir)?;
@@ -622,12 +621,20 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         return Err(ExitCode::new(2))?;
     } else {
         task::block_on(migrate(&inst))?;
-        println!("Project initialialized.");
-        println!("To connect run either of:\n  edgedb\n  edgedb -I {}",
-                 name.escape_default());
+        print_initialized(&name, &options.project_dir);
     }
 
     Ok(())
+}
+
+fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
+    println!("Project initialialized.");
+    if let Some(dir) = dir_option {
+        println!("To connect to {}, navigate to {} and run `edgedb`",
+            name, dir.display());
+    } else {
+        println!("To connect to {}, just run `edgedb`", name);
+    }
 }
 
 fn run_and_migrate(inst: &InstanceRef) -> anyhow::Result<()> {

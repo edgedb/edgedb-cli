@@ -36,7 +36,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
         Numeric {
             question,
             options: Vec::new(),
-            suffix: "Your choice?",
+            suffix: "Type a number to select an option:",
         }
     }
     pub fn option<S: Into<Cow<'a, str>>>(&mut self, name: S, value: T)
@@ -62,7 +62,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
                 Ok(choice) => choice,
                 Err(e) => {
                     eprintln!("Error reading choice: {}", e);
-                    println!("Please enter number");
+                    println!("Please enter a number");
                     continue;
                 }
             };
@@ -91,7 +91,7 @@ impl<'a> String<'a> {
         let prompt = if self.default.is_empty() {
             format!("{}: ", self.question)
         } else {
-            format!("{} [{}]: ", self.question, self.default)
+            format!("{} [default: {}]: ", self.question, self.default)
         };
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         let mut val = editor.readline_with_initial(
