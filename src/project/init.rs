@@ -300,10 +300,15 @@ pub fn init_existing(options: &Init, project_dir: &Path)
 
     let os = detect::current_os()?;
     let avail_methods = os.get_available_methods()?;
-    let methods = avail_methods.instantiate_all(&*os, true)?;
+    let mut methods = avail_methods.instantiate_all(&*os, true)?;
 
     let method = ask_method(&avail_methods, options)?;
-    let meth = methods.get(&method).expect("chosen method works");
+    if !methods.contains_key(&method) {
+        // This should error out and show the error,
+        // but we can proceed if it worked second time.
+        methods[&method] = os.make_method(&method, &avail_methods)?;
+    }
+    let meth = methods.get(&method).expect("method works");
 
     println!("Checking EdgeDB versions...");
     let ver_query = if let Some(ver) = &options.server_version {
