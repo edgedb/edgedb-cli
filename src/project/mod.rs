@@ -14,6 +14,7 @@ pub use main::main;
 pub use init::{stash_path};
 pub use unlink::unlink;
 
+#[allow(unused)]  // TODO(tailhook) will be used in `project info`
 pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<PathBuf> {
     project_dir_opt(cli_option)?
     .ok_or_else(|| {
