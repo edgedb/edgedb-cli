@@ -17,7 +17,7 @@ async-std = {version="1.9", features=[
     "unstable"
 ]}
 bytes = "1.0.1"
-rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb_20201001"}
+rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb_20210403"}
 #clap = "3.0.0-beta.2"
 clap = { git="https://github.com/clap-rs/clap" }
 clap_generate = { git="https://github.com/clap-rs/clap" }

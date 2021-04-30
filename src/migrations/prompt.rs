@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use anyhow::Context as _;
 use colorful::Colorful;
-use rustyline::{self, error::ReadlineError, KeyPress, Cmd};
+use rustyline::{self, error::ReadlineError, KeyEvent, Modifiers, Cmd};
 use rustyline::{Editor, Config, Helper};
 use rustyline::config::EditMode;
 use rustyline::hint::Hinter;
@@ -77,9 +77,9 @@ pub fn expression(prompt: &str, history_name: &str)
     let config = config.edit_mode(EditMode::Emacs);
     let mut editor = Editor::<ExpressionHelper>::with_config(
         config.clone().build());
-    editor.bind_sequence(KeyPress::Enter,
+    editor.bind_sequence(KeyEvent::new('\r', Modifiers::NONE),
         Cmd::AcceptOrInsertLine { accept_in_the_middle: false });
-    editor.bind_sequence(KeyPress::Meta('\r'), Cmd::AcceptLine);
+    editor.bind_sequence(KeyEvent::new('\r', Modifiers::ALT), Cmd::AcceptLine);
     load_history(&mut editor, &history_name).map_err(|e| {
         eprintln!("Can't load history: {:#}", e);
     }).ok();

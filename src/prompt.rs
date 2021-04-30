@@ -8,7 +8,7 @@ use anyhow::{self, Context as _Context};
 use async_std::channel::{Sender, Receiver, RecvError};
 use async_std::task;
 use dirs::data_local_dir;
-use rustyline::{self, error::ReadlineError, KeyPress, Cmd};
+use rustyline::{self, error::ReadlineError, KeyEvent, Modifiers, Cmd};
 use rustyline::{Editor, Config, Helper, Context};
 use rustyline::config::{EditMode, CompletionType, Builder as ConfigBuilder};
 use rustyline::hint::Hinter;
@@ -201,9 +201,9 @@ pub fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
 pub fn create_editor(config: &ConfigBuilder) -> Editor<EdgeqlHelper> {
     let mut editor = Editor::<EdgeqlHelper>::with_config(
         config.clone().build());
-    editor.bind_sequence(KeyPress::Enter,
+    editor.bind_sequence(KeyEvent::new('\r', Modifiers::NONE),
         Cmd::AcceptOrInsertLine { accept_in_the_middle: false });
-    editor.bind_sequence(KeyPress::Meta('\r'), Cmd::AcceptLine);
+    editor.bind_sequence(KeyEvent::new('\r', Modifiers::ALT), Cmd::AcceptLine);
     load_history(&mut editor, "edgeql").map_err(|e| {
         eprintln!("Can't load history: {:#}", e);
     }).ok();
