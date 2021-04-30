@@ -1,18 +1,41 @@
+use std::path::{Path, PathBuf};
+use std::env;
 use std::fs;
 
 use anyhow::Context;
 
 use crate::commands::ExitCode;
 use crate::project::options::Unlink;
-use crate::project::{project_dir, stash_path};
+use crate::project::{stash_path};
 use crate::server::destroy;
 use crate::server::options::Destroy;
 use crate::question;
 
+fn search_dir(base: &Path) -> anyhow::Result<PathBuf> {
+    let mut path = base;
+    let stash_dir = stash_path(path)?;
+    if stash_dir.exists() || path.join("edgedb.toml").exists() {
+        return Ok(stash_dir)
+    }
+    while let Some(parent) = path.parent() {
+        let stash_dir = stash_path(&path)?;
+        if stash_dir.exists() || path.join("edgedb.toml").exists() {
+            return Ok(stash_dir)
+        }
+        path = parent;
+    }
+    anyhow::bail!("no project directory found");
+}
 
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
-    let dir = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
-    let stash_path = stash_path(&dir)?;
+    let stash_path = if let Some(dir) = &options.project_dir {
+        stash_path(dir)?
+    } else {
+        let base = env::current_dir()
+            .context("failed to get current directory")?;
+        search_dir(&base)?
+    };
+
     if stash_path.exists() {
         if options.destroy_server_instance {
             let inst = fs::read_to_string(&stash_path.join("instance-name"))
