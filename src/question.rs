@@ -15,12 +15,13 @@ pub struct Numeric<'a, T: Clone + 'a> {
 pub struct String<'a> {
     question: &'a str,
     default: &'a str,
-    initial: std::string::String,
+    initial: Option<std::string::String>,
 }
 
 pub struct Confirm<'a> {
     question: Cow<'a, str>,
     is_dangerous: bool,
+    default: Option<bool>,
 }
 
 pub fn read_choice() -> anyhow::Result<std::string::String> {
@@ -79,7 +80,7 @@ impl<'a> String<'a> {
         String {
             question,
             default: "",
-            initial: std::string::String::new(),
+            initial: None,
         }
     }
     pub fn default(&mut self, default: &'a str) -> &mut Self {
@@ -93,14 +94,16 @@ impl<'a> String<'a> {
             println!("{} [default: {}]: ", self.question, self.default);
         }
         let mut editor = Editor::<()>::with_config(Config::builder().build());
+        let initial = self.initial.as_ref().map(|s| &s[..])
+            .unwrap_or(self.default);
         let mut val = editor.readline_with_initial(
             "> ",
-            (&self.initial, ""),
+            (initial, ""),
         )?;
         if val == "" {
             val = self.default.to_string();
         }
-        self.initial = val.clone();
+        self.initial = Some(val.clone());
         return Ok(val);
     }
 }
@@ -110,23 +113,38 @@ impl<'a> Confirm<'a> {
         Confirm {
             question: question.into(),
             is_dangerous: false,
+            default: None,
         }
     }
     pub fn new_dangerous<Q: Into<Cow<'a, str>>>(question: Q) -> Confirm<'a> {
         Confirm {
             question: question.into(),
             is_dangerous: true,
+            default: None,
         }
+    }
+    pub fn default(&mut self, value: bool) -> &mut Self {
+        self.default = Some(value);
+        self
     }
     pub fn ask(&self) -> anyhow::Result<bool> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         if self.is_dangerous {
             println!("{} (type `Yes`)", self.question);
         } else {
-            println!("{} [Y/n]", self.question);
+            println!("{} [{}]", self.question, match self.default {
+                None => "y/n",
+                Some(true) => "Y/n",
+                Some(false) => "y/N",
+            });
         };
+        let mut initial = match self.default {
+            None => "",
+            Some(true) => "Y",
+            Some(false) => "N",
+        }.to_string();
         loop {
-            let val = editor.readline("> ")?;
+            let val = editor.readline_with_initial("> ", (&initial, ""))?;
             if self.is_dangerous {
                 match val.as_ref() {
                     "Yes" => return Ok(true),
@@ -136,7 +154,11 @@ impl<'a> Confirm<'a> {
                 match val.as_ref() {
                     "y" | "Y" | "yes" | "Yes" | "YES" => return Ok(true),
                     "n" | "N" | "no" | "No" | "NO" => return Ok(false),
+                    "" if self.default.is_some() => {
+                        return Ok(self.default.unwrap());
+                    }
                     _ => {
+                        initial = val;
                         eprintln!("Please answer Y or N");
                         continue;
                     }

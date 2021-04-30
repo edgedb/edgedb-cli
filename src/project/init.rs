@@ -520,9 +520,10 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     if options.non_interactive {
         eprintln!("Initializing new project...");
     } else {
-        let q = question::Confirm::new(
+        let mut q = question::Confirm::new(
             "Do you want to initialize a new project?"
         );
+        q.default(true);
         if !q.ask()? {
             return Ok(());
         }
