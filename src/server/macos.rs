@@ -334,17 +334,28 @@ impl<'os> Method for PackageMethod<'os, Macos> {
         unix::upgrade(todo, options, self)
     }
     fn destroy(&self, options: &Destroy) -> anyhow::Result<()> {
-        let mut found = false;
-        log::info!(target: "edgedb::server::destroy",
-            "Unloading service");
-        let unit_path = unit_path(&options.name)?;
-        process::run(&mut StdCommand::new("launchctl")
-            .arg("unload").arg(&unit_path))?;
-        if unit_path.exists() {
+        let mut found;
+        let mut unit_file = unit_path(&options.name, true)?;
+        if unit_file.exists() {
             found = true;
+        } else {
+            unit_file = unit_path(&options.name, false)?;
+            found = unit_file.exists();
+        }
+        if found {
+            match launchctl_status(&options.name, false, &StatusCache::new()) {
+                Service::Running {..} => {
+                    log::info!(target: "edgedb::server::destroy",
+                               "Unloading service");
+                    let domain_target = get_domain_target();
+                    process::run(&mut StdCommand::new("launchctl")
+                        .arg("bootout").arg(&domain_target).arg(&unit_file))?;
+                },
+                _ => {},
+            }
             log::info!(target: "edgedb::server::destroy",
-                "Removing unit file {}", unit_path.display());
-            fs::remove_file(unit_path)?;
+                       "Removing unit file {}", unit_file.display());
+            fs::remove_file(unit_file)?;
         }
         let dir = unix::storage_dir(&options.name)?;
         if dir.exists() {
@@ -385,7 +396,7 @@ impl LocalInstance<'_> {
         })
     }
     fn unit_path(&self) -> anyhow::Result<PathBuf> {
-        unit_path(&self.name)
+        unit_path(&self.name, self.get_meta()?.start_conf == StartConf::Auto)
     }
     fn socket_dir(&self) -> anyhow::Result<PathBuf> {
         Ok(runtime_dir(&self.name)?)
@@ -424,8 +435,12 @@ impl<'a> Instance for LocalInstance<'a> {
         let service = launchctl_status(&self.name, system,
             // TODO
             &StatusCache::new());
-        let service_exists = launchd_plist_path(&self.name, system)
-            .map(|p| p.exists())
+        let service_exists = self.get_start_conf()
+            .map(|start_conf| launchd_plist_path(
+                &self.name, system, start_conf == StartConf::Auto)
+                .map(|p| p.exists())
+                .unwrap_or(false)
+            )
             .unwrap_or(false);
         unix::status(&self.name, &self.path, service_exists, service)
     }
@@ -433,20 +448,36 @@ impl<'a> Instance for LocalInstance<'a> {
         if options.foreground {
             process::run(&mut self.get_command()?)?;
         } else {
-            let lname = self.launchd_name();
-            process::run(
-                StdCommand::new("launchctl").arg("enable").arg(&lname)
-            )?;
-            process::run(
-                StdCommand::new("launchctl").arg("kickstart").arg(&lname)
-            )?;
+            match launchctl_status(&options.name, false, &StatusCache::new()) {
+                Service::Running {..} => {
+                    log::error!(target: "edgedb::server::start",
+                               "Service is already running");
+                },
+                _ => {
+                    let domain_target = get_domain_target();
+                    process::run(
+                        StdCommand::new("launchctl").arg("bootstrap")
+                            .arg(&domain_target).arg(&self.unit_path()?)
+                    )?;
+                },
+            }
         }
         Ok(())
     }
     fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
-        process::run(&mut StdCommand::new("launchctl")
-            .arg("unload")
-            .arg(&self.unit_path()?))?;
+        match launchctl_status(&_options.name, false, &StatusCache::new()) {
+            Service::Running {..} => {
+                let domain_target = get_domain_target();
+                process::run(&mut StdCommand::new("launchctl")
+                    .arg("bootout")
+                    .arg(&domain_target)
+                    .arg(&self.unit_path()?))?;
+            },
+            _ => {
+                log::error!(target: "edgedb::server::stop",
+                           "Service is not running");
+            },
+        }
         Ok(())
     }
     fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
@@ -457,9 +488,17 @@ impl<'a> Instance for LocalInstance<'a> {
         Ok(())
     }
     fn service_status(&self) -> anyhow::Result<()> {
-        process::exit_from(&mut StdCommand::new("launchctl")
-            .arg("print")
-            .arg(self.launchd_name()))?;
+        match launchctl_status(&self.name, false, &StatusCache::new()) {
+            Service::Running {..} => {
+                process::exit_from(&mut StdCommand::new("launchctl")
+                    .arg("print")
+                    .arg(self.launchd_name()))?;
+            },
+            _ => {
+                log::error!(target: "edgedb::server::status",
+                            "Service is not running");
+            },
+        }
         Ok(())
     }
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
@@ -525,11 +564,15 @@ pub fn get_server_path(slot: &str) -> PathBuf {
         .join("bin/edgedb-server")
 }
 
-fn plist_dir(system: bool) -> anyhow::Result<PathBuf> {
-    if system {
-        Ok(PathBuf::from("/Library/LaunchDaemons"))
+fn plist_dir(system: bool, auto_start: bool, name: &str) -> anyhow::Result<PathBuf> {
+    if auto_start {
+        if system {
+            Ok(PathBuf::from("/Library/LaunchDaemons"))
+        } else {
+            Ok(home_dir()?.join("Library/LaunchAgents"))
+        }
     } else {
-        Ok(home_dir()?.join("Library/LaunchAgents"))
+        unix::storage_dir(name)
     }
 }
 
@@ -537,10 +580,10 @@ fn plist_name(name: &str) -> String {
     format!("com.edgedb.edgedb-server-{}.plist", name)
 }
 
-pub fn launchd_plist_path(name: &str, system: bool)
+pub fn launchd_plist_path(name: &str, system: bool, auto_start: bool)
     -> anyhow::Result<PathBuf>
 {
-    Ok(plist_dir(system)?.join(plist_name(name)))
+    Ok(plist_dir(system, auto_start, name)?.join(plist_name(name)))
 }
 
 fn plist_data(name: &str, meta: &Metadata)
@@ -556,9 +599,6 @@ fn plist_data(name: &str, meta: &Metadata)
         "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>Disabled</key>
-    {disabled}
-
     <key>Label</key>
     <string>edgedb-server-{instance_name}</string>
 
@@ -569,9 +609,6 @@ fn plist_data(name: &str, meta: &Metadata)
         <string>--runstate-dir={runtime_dir}</string>
         <string>--port={port}</string>
     </array>
-
-    <key>RunAtLoad</key>
-    <true/>
 
     <key>StandardOutPath</key>
     <string>{log_path}</string>
@@ -593,10 +630,6 @@ fn plist_data(name: &str, meta: &Metadata)
         server_path=path.display(),
         runtime_dir=runtime_dir(&name)?.display(),
         log_path=log_file(&name)?.display(),
-        disabled=match meta.start_conf {
-            StartConf::Auto => "<false/>",
-            StartConf::Manual => "<true/>",
-        },
         port=meta.port,
         userinfo=if system {
             "<key>UserName</key><string>edgedb</string>"
@@ -669,29 +702,31 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
 pub fn create_launchctl_service(name: &str, meta: &Metadata)
     -> anyhow::Result<()>
 {
-    let plist_dir = plist_dir(false)?;
+    let auto_start = meta.start_conf == StartConf::Auto;
+    let plist_dir = plist_dir(false, auto_start, name)?;
     fs::create_dir_all(&plist_dir)?;
     let plist_path = plist_dir.join(&plist_name(name));
     let unit_name = launchd_name(name);
     fs::write(&plist_path, plist_data(name, meta)?)?;
     fs::create_dir_all(runtime_base()?)?;
-
-    process::run(
-        StdCommand::new("launchctl").arg("enable").arg(&unit_name),
-    )?;
-    process::run(
-        StdCommand::new("launchctl").arg("kickstart").arg(&unit_name),
-    )?;
+    if auto_start {
+        process::run(
+            StdCommand::new("launchctl").arg("enable").arg(&unit_name),
+        )?;
+    }
     Ok(())
 }
 
-fn unit_path(name: &str) -> anyhow::Result<PathBuf> {
-    let plist = format!("com.edgedb.edgedb-server-{}.plist", &name);
-    Ok(home_dir()?.join("Library/LaunchAgents").join(plist))
+fn unit_path(name: &str, auto_start: bool) -> anyhow::Result<PathBuf> {
+    launchd_plist_path(name, false, auto_start)
+}
+
+fn get_domain_target() -> String {
+    format!("gui/{}", get_current_uid())
 }
 
 fn launchd_name(name: &str) -> String {
-    format!("gui/{}/edgedb-server-{}", get_current_uid(), name)
+    format!("{}/edgedb-server-{}", get_domain_target(), name)
 }
 
 #[context("cannot scan package paths of edgedb-server-{}", pkg.slot)]
