@@ -13,12 +13,18 @@ use crate::question;
 
 fn search_dir(base: &Path) -> anyhow::Result<PathBuf> {
     let mut path = base;
-    let stash_dir = stash_path(path)?;
+    let canon = fs::canonicalize(&path)
+        .with_context(|| format!("failed to canonicalize dir {:?}", path))?;
+    let stash_dir = stash_path(&canon)?;
     if stash_dir.exists() || path.join("edgedb.toml").exists() {
         return Ok(stash_dir)
     }
     while let Some(parent) = path.parent() {
-        let stash_dir = stash_path(&path)?;
+        let canon = fs::canonicalize(&parent)
+            .with_context(|| {
+                format!("failed to canonicalize dir {:?}", parent)
+            })?;
+        let stash_dir = stash_path(&canon)?;
         if stash_dir.exists() || path.join("edgedb.toml").exists() {
             return Ok(stash_dir)
         }
@@ -29,7 +35,9 @@ fn search_dir(base: &Path) -> anyhow::Result<PathBuf> {
 
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
     let stash_path = if let Some(dir) = &options.project_dir {
-        stash_path(dir)?
+        let canon = fs::canonicalize(&dir)
+            .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
+        stash_path(&canon)?
     } else {
         let base = env::current_dir()
             .context("failed to get current directory")?;
@@ -79,6 +87,8 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
             };
             fs::remove_dir_all(&stash_path)?;
         }
+    } else {
+        log::warn!("no project directory exists");
     }
     Ok(())
 }
