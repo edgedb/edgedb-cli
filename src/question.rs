@@ -7,7 +7,7 @@ use anyhow::Context;
 
 
 pub struct Numeric<'a, T: Clone + 'a> {
-    question: &'a str,
+    question: Cow<'a, str>,
     options: Vec<(Cow<'a, str>, T)>,
     suffix: &'a str,
 }
@@ -33,9 +33,9 @@ pub fn read_choice() -> anyhow::Result<std::string::String> {
 }
 
 impl<'a, T: Clone + 'a> Numeric<'a, T> {
-    pub fn new(question: &'a str) -> Self {
+    pub fn new<Q: Into<Cow<'a, str>>>(question: Q) -> Self {
         Numeric {
-            question,
+            question: question.into(),
             options: Vec::new(),
             suffix: "Type a number to select an option:",
         }
@@ -51,12 +51,12 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
     }
     pub fn ask(&self) -> anyhow::Result<T> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
-        println!("{}", self.suffix);
         loop {
             println!("{}", self.question);
             for (idx, (title, _)) in self.options.iter().enumerate() {
                 println!("{}. {}", idx+1, title);
             }
+            println!("{}", self.suffix);
             let value = editor.readline("> ")?;
             let choice = match value.parse::<u32>() {
                 Ok(choice) => choice,
