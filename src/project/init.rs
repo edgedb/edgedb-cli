@@ -27,7 +27,7 @@ use crate::server::init::{self, try_bootstrap, allocate_port};
 use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::is_valid_name;
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
-use crate::server::options::StartConf;
+use crate::server::options::{StartConf, Start};
 use crate::server::os_trait::{Method, InstanceRef};
 use crate::server::version::Version;
 use crate::table;
@@ -427,7 +427,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             name.escape_default());
         return Err(ExitCode::new(2))?;
     } else {
-        task::block_on(migrate(&inst))?;
+        task::block_on(migrate(&inst, exists && !options.non_interactive))?;
         print_initialized(&name, &options.project_dir);
     }
 
@@ -621,7 +621,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             name.escape_default());
         return Err(ExitCode::new(2))?;
     } else {
-        task::block_on(migrate(&inst))?;
+        task::block_on(migrate(&inst, exists && !options.non_interactive))?;
         print_initialized(&name, &options.project_dir);
     }
 
@@ -643,18 +643,80 @@ fn run_and_migrate(inst: &InstanceRef) -> anyhow::Result<()> {
     log::info!("Running server manually: {:?}", cmd);
     let child = ProcessGuard::run(&mut cmd)
         .with_context(|| format!("error running server {:?}", cmd))?;
-    task::block_on(migrate(&inst))?;
+    task::block_on(migrate(&inst, false))?;
     drop(child);
     Ok(())
 }
 
-async fn migrate(inst: &InstanceRef<'_>) -> anyhow::Result<()> {
+async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
+    -> anyhow::Result<()>
+{
     use crate::commands::Options;
     use crate::commands::parser::{Migrate, MigrationConfig};
+    use Action::*;
+
+    #[derive(Clone, Copy)]
+    enum Action {
+        Retry,
+        Service,
+        Run,
+        Skip,
+    }
 
     println!("Applying migrations...");
     let conn_params = inst.get_connector(false)?;
-    let mut conn = conn_params.connect().await?;
+
+    let mut conn = loop {
+        match conn_params.connect().await {
+            Ok(conn) => break conn,
+            Err(e) if ask_for_running => {
+                eprintln!("edgedb error: {}", e);
+                let mut q = question::Numeric::new(
+                    format!(
+                        "Cannot connect to an instance {:?}. What to do?",
+                        inst.name(),
+                    )
+                );
+                q.option("Start the service (if possible).",
+                    Service);
+                q.option("Start in the foreground, \
+                          apply migrations and shutdown.",
+                    Run);
+                q.option("I have just started it manually. Try again!",
+                    Retry);
+                q.option("Skip migrations.",
+                    Skip);
+                match q.ask()? {
+                    Service => match
+                        inst.start(&Start {
+                            name: inst.name().into(),
+                            foreground: false,
+                        })
+                    {
+                        Ok(()) => continue,
+                        Err(e) => {
+                            eprintln!("edgedb error: {}", e);
+                            continue;
+                        }
+                    }
+                    Run => {
+                        run_and_migrate(inst)?;
+                        return Ok(());
+                    }
+                    Retry => continue,
+                    Skip => {
+                        eprintln!("Skipping migrations. \
+                            Once service is running, \
+                            you can apply migrations by running:\n  \
+                              edgedb migrate");
+                        return Ok(());
+                    }
+                }
+            }
+            Err(e) => return Err(e)?,
+        };
+    };
+
     migrations::migrate(
         &mut conn,
         &Options {
