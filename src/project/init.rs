@@ -28,7 +28,7 @@ use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::is_valid_name;
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
 use crate::server::options::StartConf;
-use crate::server::os_trait::{Method, InstanceRef};
+use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
 use crate::server::version::Version;
 use crate::table;
 
@@ -38,7 +38,14 @@ const DEFAULT_ESDL: &str = "\
     \n\
     }\n\
 ";
-
+const WINDOWS_DOCKER_HELP: &str = "\
+    You can download Docker Desktop for Windows here: \
+    https://hub.docker.com/editions/community/docker-ce-desktop-windows/ \
+\n";
+const UNIX_DOCKER_HELP: &str = "\
+    Please install Docker by following the instructions at \
+    https://docs.docker.com/get-docker/\
+\n";
 
 pub fn search_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
     let mut path = base;
@@ -328,7 +335,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
 
     let os = detect::current_os()?;
     let avail_methods = os.get_available_methods()?;
-    let mut methods = avail_methods.instantiate_all(&*os, true)?;
+    let methods = avail_methods.instantiate_all(&*os, true)?;
     let (name, exists) = ask_name(&methods, project_dir, options)?;
 
     let inst = if exists {
@@ -342,12 +349,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         inst
     } else {
         let method = ask_method(&avail_methods, options)?;
-        if !methods.contains_key(&method) {
-            // This should error out and show the error,
-            // but we can proceed if it worked second time.
-            methods[&method] = os.make_method(&method, &avail_methods)?;
-        }
-        let meth = methods.get(&method).expect("method works");
+        let meth = assert_method(&method, &*os, &methods, &avail_methods)?;
 
         println!("Checking EdgeDB versions...");
 
@@ -409,7 +411,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         };
 
         println!("Initializing EdgeDB instance...");
-        if !try_bootstrap(meth.as_ref(), &settings)? {
+        if !try_bootstrap(meth, &settings)? {
             err_manual = true;
         }
 
@@ -507,6 +509,38 @@ pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(stash_base()?.join(hname))
 }
 
+pub fn assert_method<'x: 'y, 'y>(method: &InstallMethod,
+    os: &'x dyn CurrentOs,
+    methods: &'y Methods<'x>, available: &InstallationMethods)
+    -> anyhow::Result<&'y (dyn Method + 'x)>
+{
+    if let Some(meth) = methods.get(&method) {
+        Ok(meth.as_ref())
+    } else {
+        let mut buf = String::with_capacity(1024);
+        match method {
+            InstallMethod::Docker => {
+                available.docker.format_error(&mut buf);
+                if available.docker.platform_supported {
+                    if cfg!(windows) {
+                        buf.push_str(WINDOWS_DOCKER_HELP);
+                    } else {
+                        buf.push_str(UNIX_DOCKER_HELP);
+                    }
+                }
+            }
+            InstallMethod::Package => {
+                available.package.format_error(&mut buf);
+            }
+        }
+        // This should error out and show the error,
+        let e = os.make_method(&method, &available)
+            .expect_err("make method worked second time");
+        eprint!("{}", buf);
+        return Err(e);
+    }
+}
+
 pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     eprintln!("No `edgedb.toml` found in `{}` or above",
               project_dir.display());
@@ -551,12 +585,12 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         inst
     } else {
         let method = ask_method(&avail_methods, options)?;
+        let meth = assert_method(&method, &*os, &methods, &avail_methods)?;
 
         println!("Checking EdgeDB versions...");
-        let meth = methods.get(&method).expect("chosen method works");
         let installed = meth.installed_versions()?;
 
-        let distr = ask_version(meth.as_ref(), options)?;
+        let distr = ask_version(meth, options)?;
 
         table::settings(&[
             ("Project directory", &project_dir.display().to_string()),
@@ -603,7 +637,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         };
 
         println!("Initializing EdgeDB instance...");
-        if !try_bootstrap(meth.as_ref(), &settings)? {
+        if !try_bootstrap(meth, &settings)? {
             err_manual = true;
         }
 
