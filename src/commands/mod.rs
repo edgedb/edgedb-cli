@@ -1,6 +1,7 @@
 mod exit;
 mod configure;
 mod describe;
+mod describe_schema;
 mod dump;
 mod execute;
 mod filter;
@@ -26,6 +27,7 @@ pub mod parser;
 pub use self::configure::configure;
 pub use self::dump::{dump, dump_all};
 pub use self::describe::describe;
+pub use self::describe_schema::describe_schema;
 pub use self::list_aliases::list_aliases;
 pub use self::list_casts::list_casts;
 pub use self::list_databases::list_databases;

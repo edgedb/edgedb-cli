@@ -30,6 +30,7 @@ const HELP: &str = r###"
 Introspection
   (options: -v = verbose, -s = show system objects, -I = case-sensitive match)
   \d [-v] NAME             describe schema object
+  \ds, \describe-schema    describe the whole schema
   \l, \list-databases      list databases
   \lT [-sI] [PATTERN]      list scalar types
                            (alias: \list-scalar-types)
@@ -262,6 +263,7 @@ impl CommandCache {
         let mut clap = Backslash::into_app();
         let mut aliases = BTreeMap::new();
         aliases.insert("d", "describe");
+        aliases.insert("ds", "describe-schema");
         aliases.insert("l", "list-databases");
         aliases.insert("lT", "list-scalar-types");
         aliases.insert("lt", "list-object-types");

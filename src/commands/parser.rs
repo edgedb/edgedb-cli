@@ -37,6 +37,8 @@ pub enum Common {
     Configure(Configure),
     /// Describe a named database object
     Describe(Describe),
+    /// Describe schema of the current database
+    DescribeSchema(DescribeSchema),
     /// Create a database backup
     Dump(Dump),
     /// Restore a database backup from file
@@ -227,6 +229,11 @@ pub struct Describe {
     pub name: String,
     #[clap(long, short='v')]
     pub verbose: bool,
+}
+
+#[derive(Clap, Clone, Debug)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
+pub struct DescribeSchema {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
