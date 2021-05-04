@@ -63,6 +63,9 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
         Describe(c) => {
             commands::describe(cli, &options, &c.name, c.verbose).await?;
         }
+        DescribeSchema(_) => {
+            commands::describe_schema(cli, &options).await?;
+        }
         Dump(c) => {
             commands::dump(cli, &options, c).await?;
         }
