@@ -10,7 +10,7 @@ use anyhow::Context;
 use async_std::task;
 use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
-use rand::{thread_rng, seq::SliceRandom};
+use rand::{thread_rng, Rng};
 
 use crate::commands::ExitCode;
 use crate::connect::Connector;
@@ -32,7 +32,6 @@ use crate::server::os_trait::{Method, InstanceRef};
 use crate::server::version::Version;
 use crate::table;
 
-const CHARS: &str = "abcdefghijklmnopqrstuvwxyz0123456789";
 const DEFAULT_ESDL: &str = "\
     module default {\n\
     \n\
@@ -150,11 +149,8 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
         let mut name = stem.to_string();
 
         while instances.contains(&name) {
-            name = format!("{}_{}", stem,
-                (0..7)
-                .flat_map(|_| CHARS.as_bytes().choose(&mut thread_rng()))
-                .map(|b| *b as char)
-                .collect::<String>());
+            name = format!("{}_{:04}",
+                stem, thread_rng().gen_range(0..10000));
         }
         name
     };
