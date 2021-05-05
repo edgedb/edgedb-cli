@@ -140,7 +140,7 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
     let default_name = if let Some(name) = &options.server_instance {
         name.clone()
     } else {
-        let path_stem = dir.file_stem()
+        let path_stem = dir.file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("edgedb");
         let stem = path_stem
@@ -490,7 +490,7 @@ fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
     let lnk = tmp.join("project-link");
     symlink_dir(project_dir, &lnk)
         .map_err(|e| {
-            log::warn!("Error symlinking project at {:?}: {}", lnk, e);
+            log::info!("Error symlinking project at {:?}: {}", lnk, e);
         }).ok();
     fs::rename(&tmp, dir)?;
     Ok(())
