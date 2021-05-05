@@ -490,7 +490,7 @@ fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
     let lnk = tmp.join("project-link");
     symlink_dir(project_dir, &lnk)
         .map_err(|e| {
-            log::warn!("Error symlinking project at {:?}: {}", lnk, e);
+            log::info!("Error symlinking project at {:?}: {}", lnk, e);
         }).ok();
     fs::rename(&tmp, dir)?;
     Ok(())
