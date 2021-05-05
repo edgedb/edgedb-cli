@@ -272,7 +272,8 @@ fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
         let dir = project::stash_path(&config_dir)?;
         Some(
             fs::read_to_string(dir.join("instance-name"))
-            .context("error reading project settings")?
+            .context("error reading project settings")
+            .hint(CONNECTION_ARG_HINT)?
         )
     };
 
