@@ -309,7 +309,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
-        anyhow::bail!("project dir already exists");
+        anyhow::bail!("project is already initialized.");
     }
 
     let config_path = project_dir.join("edgedb.toml");
@@ -544,7 +544,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
-        anyhow::bail!("project dir already exists");
+        anyhow::bail!("project is already initialized.");
     }
 
     if options.non_interactive {
