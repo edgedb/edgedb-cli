@@ -18,7 +18,7 @@ pub enum Command {
     /// Initialize a new or existing project
     Init(Init),
     /// Remove association with and optionally destroy the
-    /// linked EdgeDB intstance.
+    /// linked EdgeDB instance.
     Unlink(Unlink),
 }
 

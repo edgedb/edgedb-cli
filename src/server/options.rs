@@ -142,8 +142,8 @@ pub struct Init {
     #[clap(long, default_value="edgedb")]
     pub default_user: String,
 
-    /// Overwrite data directory and credential file if any of these exists.
-    /// This is mainly useful for recovering from interruped initializations.
+    /// Overwrite data directory and credential file if any of these exist.
+    /// This is mainly useful for recovering from interrupted initializations.
     #[clap(long)]
     pub overwrite: bool,
 
@@ -277,7 +277,7 @@ pub struct Upgrade {
     #[clap(long)]
     pub to_version: Option<Version<String>>,
 
-    /// Upgrade specifies instance to a latest nightly version
+    /// Upgrade specified instance to a latest nightly version
     #[clap(long)]
     pub to_nightly: bool,
 
@@ -326,7 +326,7 @@ pub struct ResetPassword {
     /// Read a password from stdin rather than generating new one
     #[clap(long)]
     pub password_from_stdin: bool,
-    /// Save new user and password password into a credentials file. By default
+    /// Save new user and password into a credentials file. By default
     /// credentials file is updated only if user name matches.
     #[clap(long)]
     pub save_credentials: bool,
