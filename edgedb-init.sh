@@ -151,7 +151,7 @@ get_architecture() {
             ;;
 
         *)
-            err "unrecognized OS type: $_ostype"
+            err "unsupported OS: $_ostype"
             ;;
 
     esac
@@ -162,10 +162,24 @@ get_architecture() {
             _cputype=x86_64
             ;;
 
+        arm64 | aarch64)
+            _cputype=arm64
+            ;;
+
         *)
-            err "unknown CPU type: $_cputype"
+            err "unsupported CPU architecture: $_cputype"
+            ;;
 
     esac
+
+    if [ "$_cputype" = "arm64" ]; then
+        if [ "$_ostype" = "macos" ]; then
+            # Rely on Rosetta for now
+            _cputype=x86_64
+        else
+            err "unsupported CPU architecture: $_cputype"
+        fi
+    fi
 
     local _arch="${_ostype}-${_cputype}"
 
