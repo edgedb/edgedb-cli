@@ -486,7 +486,7 @@ pub struct CreateMigration {
     /// to be done. Unless `--allow-unsafe` is also specified.
     #[clap(long)]
     pub non_interactive: bool,
-    /// Apply the most propbable unsafe changes in case there are ones. This
+    /// Apply the most probable unsafe changes in case there are ones. This
     /// is only useful in non-interactive mode
     #[clap(long)]
     pub allow_unsafe: bool,
@@ -547,7 +547,7 @@ pub struct MigrationLog {
     #[clap(long)]
     pub from_db: bool,
 
-    /// Sort migrations starting from never to older,
+    /// Sort migrations starting from newer to older,
     /// by default older revisions go first
     #[clap(long)]
     pub newest_first: bool,
