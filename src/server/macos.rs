@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::str;
+use std::thread;
+use std::time;
 use std::path::{Path, PathBuf};
 use std::process::{Command as StdCommand};
 
@@ -334,12 +336,21 @@ impl<'os> Method for PackageMethod<'os, Macos> {
         unix::upgrade(todo, options, self)
     }
     fn destroy(&self, options: &Destroy) -> anyhow::Result<()> {
+        if is_service_loaded(&options.name) {
+            // bootout will fail if the service is not loaded (e.g. manually-
+            // starting services that never started after reboot), also it's
+            // unnecessary to unload the service if it wasn't loaded.
+            log::info!(target: "edgedb::server::destroy",
+                       "Unloading service");
+            process::run(&mut StdCommand::new("launchctl")
+                .arg("bootout")
+                .arg(&launchd_name(&options.name))
+            )?;
+        }
+
         let mut found = false;
-        log::info!(target: "edgedb::server::destroy",
-            "Unloading service");
-        let unit_path = unit_path(&options.name)?;
-        process::run(&mut StdCommand::new("launchctl")
-            .arg("unload").arg(&unit_path))?;
+        let system = false;
+        let unit_path = launchd_plist_path(&options.name, system)?;
         if unit_path.exists() {
             found = true;
             log::info!(target: "edgedb::server::destroy",
@@ -384,9 +395,6 @@ impl LocalInstance<'_> {
             }
         })
     }
-    fn unit_path(&self) -> anyhow::Result<PathBuf> {
-        unit_path(&self.name)
-    }
     fn socket_dir(&self) -> anyhow::Result<PathBuf> {
         Ok(runtime_dir(&self.name)?)
     }
@@ -424,42 +432,98 @@ impl<'a> Instance for LocalInstance<'a> {
         let service = launchctl_status(&self.name, system,
             // TODO
             &StatusCache::new());
-        let service_exists = launchd_plist_path(&self.name, system)
-            .map(|p| p.exists())
-            .unwrap_or(false);
+        let service_exists = match self.get_start_conf() {
+            Ok(StartConf::Auto) => launchd_plist_path(&self.name, system)
+                .map(|p| p.exists())
+                .unwrap_or(false),
+            _ => false,
+        };
         unix::status(&self.name, &self.path, service_exists, service)
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
             process::run(&mut self.get_command()?)?;
-        } else {
+        } else if self.get_start_conf()? == StartConf::Auto ||
+                is_service_loaded(&self.name) {
+            // For auto-starting services, we assume they are already loaded.
+            // If the server is already running, kickstart won't do anything;
+            // or else it will try to (re-)start the server.
             let lname = self.launchd_name();
-            process::run(
-                StdCommand::new("launchctl").arg("enable").arg(&lname)
-            )?;
             process::run(
                 StdCommand::new("launchctl").arg("kickstart").arg(&lname)
             )?;
+        } else {
+            bootstrap_launchctl_service(&self.name, self.get_meta()?)?;
         }
         Ok(())
     }
     fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
-        process::run(&mut StdCommand::new("launchctl")
-            .arg("unload")
-            .arg(&self.unit_path()?))?;
+        let mut signal_sent = false;
+        let deadline = time::Instant::now() + time::Duration::from_secs(30);
+        let lname = self.launchd_name();
+        loop {
+            match launchctl_status(&self.name, false, &StatusCache::new()) {
+                Service::Running {..} => {
+                    if signal_sent {
+                        if time::Instant::now() > deadline {
+                            log::warn!(target: "edgedb::server::stop",
+                                       "Timing out; send SIGKILL now.");
+                            process::run(StdCommand::new("launchctl")
+                                .arg("kill")
+                                .arg("SIGKILL")
+                                .arg(&lname)
+                            )?;
+                            break;
+                        }
+                        thread::sleep(time::Duration::from_secs_f32(0.3));
+                    } else {
+                        process::run(StdCommand::new("launchctl")
+                            .arg("kill")
+                            .arg("SIGTERM")
+                            .arg(&lname)
+                        )?;
+                        signal_sent = true;
+                    }
+                },
+                Service::Failed {..} => {
+                    // Successfully stopped
+                    break;
+                },
+                Service::Inactive { error } => {
+                    log::info!(target: "edgedb::server::stop", "{}", error);
+                    break;
+                }
+            }
+        }
         Ok(())
     }
     fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
-        process::run(&mut StdCommand::new("launchctl")
-            .arg("kickstart")
-            .arg("-k")
-            .arg(self.launchd_name()))?;
+        if self.get_start_conf()? == StartConf::Auto ||
+                is_service_loaded(&self.name) {
+            // Only use kickstart -k to restart the service if it's loaded
+            // already, or it will fail with an error. We assume the service is
+            // loaded for auto-starting services.
+            process::run(&mut StdCommand::new("launchctl")
+                .arg("kickstart")
+                .arg("-k")
+                .arg(self.launchd_name())
+            )?;
+        } else {
+            bootstrap_launchctl_service(&self.name, self.get_meta()?)?;
+        }
         Ok(())
     }
     fn service_status(&self) -> anyhow::Result<()> {
-        process::exit_from(&mut StdCommand::new("launchctl")
-            .arg("print")
-            .arg(self.launchd_name()))?;
+        if is_service_loaded(&self.name) {
+            process::exit_from(&mut StdCommand::new("launchctl")
+                .arg("print")
+                .arg(self.launchd_name()))?;
+        } else {
+            // launchctl print will fail if the service is not loaded, let's
+            // just give a more understandable error here.
+            log::error!(target: "edgedb::server::status",
+                        "Service is not loaded");
+        }
         Ok(())
     }
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
@@ -556,9 +620,6 @@ fn plist_data(name: &str, meta: &Metadata)
         "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>Disabled</key>
-    {disabled}
-
     <key>Label</key>
     <string>edgedb-server-{instance_name}</string>
 
@@ -569,9 +630,6 @@ fn plist_data(name: &str, meta: &Metadata)
         <string>--runstate-dir={runtime_dir}</string>
         <string>--port={port}</string>
     </array>
-
-    <key>RunAtLoad</key>
-    <true/>
 
     <key>StandardOutPath</key>
     <string>{log_path}</string>
@@ -593,10 +651,6 @@ fn plist_data(name: &str, meta: &Metadata)
         server_path=path.display(),
         runtime_dir=runtime_dir(&name)?.display(),
         log_path=log_file(&name)?.display(),
-        disabled=match meta.start_conf {
-            StartConf::Auto => "<false/>",
-            StartConf::Manual => "<true/>",
-        },
         port=meta.port,
         userinfo=if system {
             "<key>UserName</key><string>edgedb</string>"
@@ -654,6 +708,13 @@ pub fn launchctl_status(name: &str, _system: bool, cache: &StatusCache)
     Inactive { error: format!("service {:?} not found", svc_name) }
 }
 
+pub fn is_service_loaded(name: &str) -> bool {
+    match launchctl_status(name, false, &StatusCache::new()) {
+        Service::Inactive {..} => false,
+        _ => true,
+    }
+}
+
 fn runtime_base() -> anyhow::Result<PathBuf> {
     Ok(home_dir()?.join(".edgedb/run"))
 }
@@ -666,32 +727,58 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
     Ok(home_dir()?.join(format!(".edgedb/logs/{}.log", name)))
 }
 
-pub fn create_launchctl_service(name: &str, meta: &Metadata)
+fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
     -> anyhow::Result<()>
 {
-    let plist_dir = plist_dir(false)?;
-    fs::create_dir_all(&plist_dir)?;
-    let plist_path = plist_dir.join(&plist_name(name));
+    let plist_dir_path;
+    let tmpdir;
+    if meta.start_conf == StartConf::Auto {
+        plist_dir_path = plist_dir(false)?;
+        fs::create_dir_all(&plist_dir_path)?;
+    } else {
+        tmpdir = tempfile::tempdir()?;
+        plist_dir_path = tmpdir.path().to_path_buf();
+    }
+    let plist_path = plist_dir_path.join(&plist_name(name));
     let unit_name = launchd_name(name);
     fs::write(&plist_path, plist_data(name, meta)?)?;
     fs::create_dir_all(runtime_base()?)?;
 
+    // Clear the disabled status of the unit name, in case the user disabled
+    // a service with the same name some time ago and it's likely forgotten
+    // because the user is now creating a new service with the same name.
+    // This doesn't make the service auto-starting, because we're "hiding" the
+    // plist file from launchd if the service is configured as manual start.
+    // Actually it is necessary to clear the disabled status even for manually-
+    // starting services, because manual start won't work on disabled services.
     process::run(
         StdCommand::new("launchctl").arg("enable").arg(&unit_name),
     )?;
-    process::run(
-        StdCommand::new("launchctl").arg("kickstart").arg(&unit_name),
+    process::run(StdCommand::new("launchctl")
+        .arg("bootstrap")
+        .arg(get_domain_target())
+        .arg(plist_path)
     )?;
+
     Ok(())
 }
 
-fn unit_path(name: &str) -> anyhow::Result<PathBuf> {
-    let plist = format!("com.edgedb.edgedb-server-{}.plist", &name);
-    Ok(home_dir()?.join("Library/LaunchAgents").join(plist))
+pub fn create_launchctl_service(name: &str, meta: &Metadata)
+    -> anyhow::Result<()>
+{
+    if meta.start_conf == StartConf::Auto {
+        bootstrap_launchctl_service(name, meta)
+    } else {
+        Ok(())
+    }
+}
+
+fn get_domain_target() -> String {
+    format!("gui/{}", get_current_uid())
 }
 
 fn launchd_name(name: &str) -> String {
-    format!("gui/{}/edgedb-server-{}", get_current_uid(), name)
+    format!("{}/edgedb-server-{}", get_domain_target(), name)
 }
 
 #[context("cannot scan package paths of edgedb-server-{}", pkg.slot)]
