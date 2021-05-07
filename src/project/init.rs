@@ -763,3 +763,11 @@ async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
         }).await?;
     Ok(())
 }
+
+#[test]
+fn test_stash_name() {
+    assert_eq!(
+        stash_name(&Path::new("/home/user/work/project1")).unwrap(),
+        "project1-cf1c841351bf7f147d70dcb6203441cf77a05249",
+    );
+}
