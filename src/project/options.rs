@@ -20,6 +20,9 @@ pub enum Command {
     /// Remove association with and optionally destroy the
     /// linked EdgeDB instance.
     Unlink(Unlink),
+    /// Remove association with and optionally destroy the
+    /// linked EdgeDB instance.
+    Info(Info),
 }
 
 #[derive(Clap, Debug, Clone)]
@@ -59,4 +62,20 @@ pub struct Unlink {
 
     #[clap(long)]
     pub non_interactive: bool,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
+pub struct Info {
+    /// Specifies a project root directory explicitly.
+    #[clap(value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    /// Display only the server binary path
+    #[clap(long)]
+    pub instance_name: bool,
+
+    /// Output in JSON format
+    #[clap(long)]
+    pub json: bool,
 }
