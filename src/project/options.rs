@@ -29,7 +29,7 @@ pub enum Command {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Init {
     /// Specifies a project root directory explicitly.
-    #[clap(value_hint=ValueHint::DirPath)]
+    #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
     /// Specifies the desired EdgeDB server version
@@ -53,7 +53,7 @@ pub struct Init {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Unlink {
     /// Specifies a project root directory explicitly.
-    #[clap(value_hint=ValueHint::DirPath)]
+    #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
     /// If specified, the associated EdgeDB instance is destroyed by running edgedb server destroy.
@@ -68,7 +68,7 @@ pub struct Unlink {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Info {
     /// Specifies a project root directory explicitly.
-    #[clap(value_hint=ValueHint::DirPath)]
+    #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
     /// Display only the server binary path
