@@ -545,6 +545,7 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                 continue;
             }
             prompt::Input::Text(inp) => inp,
+            prompt::Input::Value(_) => unreachable!(),
         };
         for item in ToDo::new(&inp) {
             let result = match item {

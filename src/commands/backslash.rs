@@ -593,6 +593,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         Edit(c) => {
             match prompt.spawn_editor(c.entry).await? {
                 | prompt::Input::Text(text) => Ok(Input(text)),
+                | prompt::Input::Value(_) => unreachable!(),
                 | prompt::Input::Interrupt
                 | prompt::Input::Eof => Ok(Skip),
             }

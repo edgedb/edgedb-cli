@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -9,8 +10,9 @@ use edgedb_protocol::server_message::TransactionState;
 
 use crate::async_util::timeout;
 use crate::connect::Connector;
-use crate::prompt;
 use crate::print;
+use crate::prompt::variable::VariableInput;
+use crate::prompt;
 
 
 pub const TX_MARKER: &str = "[tx]";
@@ -63,13 +65,13 @@ pub struct State {
 
 impl PromptRpc {
     pub async fn variable_input(&mut self,
-        name: &str, type_name: &str, initial: &str)
+        name: &str, var_type: Arc<dyn VariableInput>, initial: &str)
         -> anyhow::Result<prompt::Input>
     {
         self.control.send(
                 prompt::Control::ParameterInput {
                     name: name.to_owned(),
-                    type_name: type_name.to_owned(),
+                    var_type,
                     initial: initial.to_owned(),
                 }
             ).await

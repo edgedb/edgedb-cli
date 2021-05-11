@@ -1,13 +1,13 @@
 use std::fmt;
 use std::error::Error;
-
-use anyhow::{Context};
+use std::sync::Arc;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::codec;
 use edgedb_protocol::descriptors::{InputTypedesc, Descriptor};
 use crate::repl;
 use crate::prompt;
+use crate::prompt::variable::{self, VariableInput};
 
 
 #[derive(Debug)]
@@ -57,45 +57,23 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
     }
     match item {
         Descriptor::BaseScalar(s) => {
-            let type_name = match s.id {
-                codec::STD_STR => "str",
-                codec::STD_UUID => "uuid",
-                codec::STD_INT16 => "int16",
-                codec::STD_INT32 => "int32",
-                codec::STD_INT64 => "int64",
+            let var_type: Arc<dyn VariableInput> = match s.id {
+                codec::STD_STR => Arc::new(variable::Str),
+                codec::STD_UUID => Arc::new(variable::Uuid),
+                codec::STD_INT16 => Arc::new(variable::Int16),
+                codec::STD_INT32 => Arc::new(variable::Int32),
+                codec::STD_INT64 => Arc::new(variable::Int64),
                 _ => return Err(anyhow::anyhow!(
                         "Unimplemented input type {}", s.id))
             };
 
-            let val = match state.variable_input(name, type_name, "").await? {
-                | prompt::Input::Text(val) => val,
+            let val = match state.variable_input(name, var_type, "").await? {
+                | prompt::Input::Value(val) => val,
+                | prompt::Input::Text(_) => unreachable!(),
                 | prompt::Input::Interrupt
                 | prompt::Input::Eof => Err(Canceled)?,
             };
-
-            match s.id {
-                codec::STD_STR => {
-                    Ok(Value::Str(val))
-                }
-                codec::STD_UUID => {
-                    let v = val.parse().context("invalid uuid value")?;
-                    Ok(Value::Uuid(v))
-                }
-                codec::STD_INT16 => {
-                    let v = val.parse::<i16>().context("invalid int16 value")?;
-                    Ok(Value::Int16(v))
-                }
-                codec::STD_INT32 => {
-                    let v = val.parse::<i32>().context("invalid int32 value")?;
-                    Ok(Value::Int32(v))
-                }
-                codec::STD_INT64 => {
-                    let v = val.parse::<i64>().context("invalid int64 value")?;
-                    Ok(Value::Int64(v))
-                }
-                _ => Err(anyhow::anyhow!(
-                         "Unimplemented input type {}", s.id))
-            }
+            Ok(val)
         }
         _ => Err(anyhow::anyhow!(
                 "Unimplemented input type descriptor: {:?}", item)),
