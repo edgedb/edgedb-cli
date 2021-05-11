@@ -3,6 +3,7 @@ use std::fs;
 use std::io::{ErrorKind, Write};
 use std::env;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 
 use anyhow::{self, Context as _Context};
 use async_std::channel::{Sender, Receiver, RecvError};
@@ -18,18 +19,26 @@ use rustyline::validate::{Validator, ValidationResult, ValidationContext};
 use rustyline::completion::Completer;
 
 use edgeql_parser::preparser::full_statement;
+use edgedb_protocol::value::Value;
 use crate::commands::backslash;
 use crate::completion;
 use crate::print::style::Styler;
 use crate::highlight;
+use crate::prompt::variable::VariableInput;
 use crate::repl::{TX_MARKER, FAILURE_MARKER};
 
 use colorful::Colorful;
 
+pub mod variable;
+
 
 pub enum Control {
     EdgeqlInput { prompt: String, initial: String },
-    ParameterInput { name: String, type_name: String, initial: String },
+    ParameterInput {
+        name: String,
+        var_type: Arc<dyn VariableInput>,
+        initial: String,
+    },
     ShowHistory,
     SpawnEditor { entry: Option<isize> },
     ViMode,
@@ -39,6 +48,7 @@ pub enum Control {
 
 pub enum Input {
     Text(String),
+    Value(Value),
     Eof,
     Interrupt,
 }
@@ -194,7 +204,7 @@ fn _save_history<H: Helper>(ed: &mut Editor<H>, name: &str)
 
 pub fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
     _save_history(ed, name).map_err(|e| {
-        eprintln!("Can't save history: {:#}", e);
+        log::warn!("Cannot save history: {:#}", e);
     }).ok();
 }
 
@@ -205,7 +215,7 @@ pub fn create_editor(config: &ConfigBuilder) -> Editor<EdgeqlHelper> {
         Cmd::AcceptOrInsertLine { accept_in_the_middle: false });
     editor.bind_sequence(KeyEvent::new('\r', Modifiers::ALT), Cmd::AcceptLine);
     load_history(&mut editor, "edgeql").map_err(|e| {
-        eprintln!("Can't load history: {:#}", e);
+        log::warn!("Cannot load history: {:#}", e);
     }).ok();
     editor.set_helper(Some(EdgeqlHelper {
         styler: Styler::dark_256(),
@@ -213,10 +223,15 @@ pub fn create_editor(config: &ConfigBuilder) -> Editor<EdgeqlHelper> {
     return editor;
 }
 
-pub fn var_editor(config: &ConfigBuilder, type_name: &str) -> Editor<()> {
-    let mut editor = Editor::<()>::with_config(config.clone().build());
-    load_history(&mut editor, &format!("var_{}", type_name)).map_err(|e| {
-        eprintln!("Can't load history: {:#}", e);
+pub fn var_editor(config: &ConfigBuilder, var_type: &Arc<dyn VariableInput>)
+    -> Editor<variable::VarHelper>
+{
+    let mut editor = Editor::<variable::VarHelper>::with_config(
+        config.clone().build());
+    editor.set_helper(Some(variable::VarHelper::new(var_type.clone())));
+    let history_name = format!("var_{}", var_type.type_name());
+    load_history(&mut editor, &history_name).map_err(|e| {
+        log::warn!("Cannot load history: {:#}", e);
     }).ok();
     return editor;
 }
@@ -273,27 +288,40 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
             Ok(Control::EdgeqlInput { prompt, initial }) => {
                 edgeql_input(&prompt, &mut editor, &data, &initial)?;
             }
-            Ok(Control::ParameterInput { name, type_name, initial })
+            Ok(Control::ParameterInput { name, var_type, initial })
             => {
-                let prompt = format!("Parameter <{}>${}: ", &type_name, &name);
-                let mut editor = var_editor(&config, &type_name);
-                let text = match
-                    editor.readline_with_initial(&prompt, (&initial, ""))
-                {
-                    Ok(text) => text,
-                    Err(ReadlineError::Eof) => {
-                        task::block_on(data.send(Input::Eof))?;
-                        continue;
+                let mut initial = initial;
+                let prompt = format!(
+                    "Parameter <{}>${}: ",
+                    &var_type.type_name(), &name);
+                let mut editor = var_editor(&config, &var_type);
+                let (text, value) = loop {
+                    let text = match
+                        editor.readline_with_initial(&prompt, (&initial, ""))
+                    {
+                        Ok(text) => text,
+                        Err(ReadlineError::Eof) => {
+                            task::block_on(data.send(Input::Eof))?;
+                            continue;
+                        }
+                        Err(ReadlineError::Interrupted) => {
+                            task::block_on(data.send(Input::Interrupt))?;
+                            continue;
+                        }
+                        Err(e) => Err(e)?,
+                    };
+                    match var_type.parse(&text) {
+                        Ok(value) => break (text, value),
+                        Err(e) => {
+                            println!("Bad value: {}", e);
+                            initial = text;
+                        }
                     }
-                    Err(ReadlineError::Interrupted) => {
-                        task::block_on(data.send(Input::Interrupt))?;
-                        continue;
-                    }
-                    Err(e) => Err(e)?,
                 };
                 editor.add_history_entry(&text);
-                save_history(&mut editor, &format!("var_{}", &type_name));
-                task::block_on(data.send(Input::Text(text)))?;
+                save_history(&mut editor,
+                    &format!("var_{}", &var_type.type_name()));
+                task::block_on(data.send(Input::Value(value)))?;
             }
             Ok(Control::ShowHistory) => {
                 match show_history(editor.history()) {
