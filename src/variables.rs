@@ -63,6 +63,12 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
                 codec::STD_INT16 => Arc::new(variable::Int16),
                 codec::STD_INT32 => Arc::new(variable::Int32),
                 codec::STD_INT64 => Arc::new(variable::Int64),
+                codec::STD_FLOAT32 => Arc::new(variable::Float32),
+                codec::STD_FLOAT64 => Arc::new(variable::Float64),
+                codec::STD_DECIMAL => Arc::new(variable::Decimal),
+                codec::STD_BOOL => Arc::new(variable::Bool),
+                codec::STD_JSON => Arc::new(variable::Json),
+                codec::STD_BIGINT => Arc::new(variable::BigInt),
                 _ => return Err(anyhow::anyhow!(
                         "Unimplemented input type {}", s.id))
             };

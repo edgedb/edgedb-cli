@@ -302,11 +302,11 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                         Ok(text) => text,
                         Err(ReadlineError::Eof) => {
                             task::block_on(data.send(Input::Eof))?;
-                            continue;
+                            continue 'outer;
                         }
                         Err(ReadlineError::Interrupted) => {
                             task::block_on(data.send(Input::Interrupt))?;
-                            continue;
+                            continue 'outer;
                         }
                         Err(e) => Err(e)?,
                     };
