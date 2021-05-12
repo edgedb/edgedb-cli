@@ -1,6 +1,7 @@
 use std::env;
 use std::time::Duration;
 use std::fs;
+use std::str::FromStr;
 
 use anyhow::Context;
 use atty;
@@ -203,10 +204,7 @@ impl Options {
                                   user.escape_default())))
                  .context("error reading password")?)
         } else {
-            match env::var("EDGEDB_PASSWORD") {
-                Ok(p) => Some(p),
-                Err(_) => None,
-            }
+            get_env("EDGEDB_PASSWORD")?
         };
         conn_params.modify(|params| {
             password.map(|password| params.password(password));
@@ -248,13 +246,54 @@ impl Options {
     }
 }
 
+fn is_env(name: &str) -> bool {
+    env::var_os(name).map(|v| !v.is_empty()).unwrap_or(false)
+}
+
+fn get_env(name: &str) -> anyhow::Result<Option<String>> {
+    match env::var(name) {
+        Ok(v) if v.is_empty() => Ok(None),
+        Ok(v) => Ok(Some(v)),
+        Err(env::VarError::NotPresent) => Ok(None),
+        Err(e) => {
+            Err(e).with_context(|| {
+                format!("Cannot decode environment variable {:?}", name)
+            })
+        }
+    }
+}
+
+fn env_fallback<T: FromStr>(value: Option<T>, name: &str)
+    -> anyhow::Result<Option<T>>
+    where <T as FromStr>::Err: std::error::Error + Send + Sync + 'static
+{
+    match value {
+        Some(value) => Ok(Some(value)),
+        None => match get_env(name) {
+            Ok(Some(value)) => {
+                Ok(Some(value.parse().with_context(|| {
+                    format!("Cannot parse environment variable {:?}", name)
+                })?))
+            }
+            Ok(None) => Ok(None),
+            Err(e) => Err(e),
+        },
+    }
+}
+
 fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
     let instance = if let Some(dsn) = &tmp.dsn {
         return Ok(Builder::from_dsn(dsn)?);
+    } else if let Some(inst) = get_env("EDGEDB_INSTANCE")? {
+        if inst.starts_with("edgedb://") {
+            return Ok(Builder::from_dsn(&inst)?);
+        } else {
+            Some(inst)
+        }
     } else if tmp.instance.is_some() ||
             tmp.host.is_some() || tmp.port.is_some() ||
-            env::var("EDGEDB_HOST").is_ok() ||
-            env::var("EDGEDB_PORT").is_ok()
+            is_env("EDGEDB_HOST") ||
+            is_env("EDGEDB_PORT")
     {
         tmp.instance.clone()
     } else {
@@ -278,13 +317,10 @@ fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
     };
 
     let admin = tmp.admin;
-    let user = tmp.user.clone().or_else(|| env::var("EDGEDB_USER").ok());
-    let host = tmp.host.clone().or_else(|| env::var("EDGEDB_HOST").ok());
-    let port = tmp.port.or_else(|| {
-        env::var("EDGEDB_PORT").ok().and_then(|x| x.parse().ok())
-    });
-    let database = tmp.database.clone()
-        .or_else(|| env::var("EDGEDB_DATABASE").ok());
+    let user = env_fallback(tmp.user.clone(), "EDGEDB_USER")?;
+    let host = env_fallback(tmp.host.clone(), "EDGEDB_HOST")?;
+    let port = env_fallback(tmp.port, "EDGEDB_PORT")?;
+    let database = env_fallback(tmp.database.clone(), "EDGEDB_DATABASE")?;
 
     let mut conn_params = Builder::new();
     if let Some(name) = &instance {
