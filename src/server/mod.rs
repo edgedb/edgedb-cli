@@ -35,7 +35,7 @@ mod reset_password;
 mod revert;
 mod status;
 mod uninstall;
-mod upgrade;
+pub mod upgrade;
 
 pub use main::main;
 
