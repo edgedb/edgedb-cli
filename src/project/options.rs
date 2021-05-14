@@ -23,6 +23,22 @@ pub enum Command {
     /// Remove association with and optionally destroy the
     /// linked EdgeDB instance.
     Info(Info),
+    /// Upgrade EdgeDB instance used for the current project
+    ///
+    /// This command has two modes of operation.
+    ///
+    /// Upgrade instance to a version specified in `edgedb.toml`:
+    ///   project upgrade
+    ///
+    /// Update `edgedb.toml` to a new version and upgrade the instance:
+    ///   project upgrade --to-latest
+    ///   project upgrade --to-version=1-beta2
+    ///   project upgrade --to-nightly
+    ///
+    /// In all cases your data is preserved and converted using dump/restore
+    /// mechanism. This might fail if lower version is specified (for example
+    /// if upgrading from nightly to the stable version).
+    Upgrade(Upgrade),
 }
 
 #[derive(Clap, Debug, Clone)]
@@ -78,4 +94,32 @@ pub struct Info {
     /// Output in JSON format
     #[clap(long)]
     pub json: bool,
+}
+
+#[derive(Clap, Debug, Clone)]
+#[clap(setting=AppSettings::DisableVersionFlag)]
+pub struct Upgrade {
+    /// Specifies a project root directory explicitly.
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    /// Upgrade to a latest stable version
+    #[clap(long)]
+    pub to_latest: bool,
+
+    /// Upgrade to a specified major version
+    #[clap(long)]
+    pub to_version: Option<Version<String>>,
+
+    /// Upgrade to a latest nightly version
+    #[clap(long)]
+    pub to_nightly: bool,
+
+    /// Verbose output
+    #[clap(short='v', long)]
+    pub verbose: bool,
+
+    /// Force upgrade process even if there is no new version
+    #[clap(long)]
+    pub force: bool,
 }

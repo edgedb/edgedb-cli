@@ -10,6 +10,7 @@ mod config;
 mod info;
 mod main;
 mod unlink;
+mod upgrade;
 pub mod init;
 
 pub use main::main;

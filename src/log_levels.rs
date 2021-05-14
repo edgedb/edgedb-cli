@@ -1,6 +1,7 @@
 use crate::options::{Options, Command};
 use crate::commands::parser::Common;
 use crate::server::options::Command as Server;
+use crate::project::options::Command as Project;
 
 
 pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
@@ -37,6 +38,15 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
             }
             _ => {}
         },
+        Some(Command::Project(p)) => match &p.subcommand {
+            Project::Upgrade(u) if u.verbose => {
+                builder.filter_module(
+                    "edgedb::server::upgrade", log::LevelFilter::Info);
+                builder.filter_module(
+                    "edgedb::project::upgrade", log::LevelFilter::Info);
+            }
+            _ => {}
+        }
         _ => {}
     }
 }

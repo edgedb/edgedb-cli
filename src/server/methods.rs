@@ -41,13 +41,28 @@ impl InstallationMethods {
                         methods.insert(meth_name.clone(), meth);
                     }
                     Err(e) if skip_on_error => {
-                        eprintln!("WARNING: {:#}", e);
+                        log::warn!("{:#}", e);
                     }
                     Err(e) => return Err(e),
                 }
             }
         }
         Ok(methods)
+    }
+    pub fn instantiate_any<'x>(&self, os: &'x dyn CurrentOs)
+        -> anyhow::Result<Box<dyn Method + 'x>>
+    {
+        use InstallMethod::*;
+
+        for meth_name in &[Package, Docker] {
+            if self.is_supported(meth_name) {
+                match os.make_method(meth_name, &self) {
+                    Ok(meth) => return Ok(meth),
+                    Err(e) => log::warn!("{:#}", e),
+                }
+            }
+        }
+        anyhow::bail!("no supported installation method found");
     }
     pub fn is_supported(&self, meth: &InstallMethod) -> bool {
         use InstallMethod::*;

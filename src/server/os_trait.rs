@@ -11,7 +11,7 @@ use crate::server::init::{self, Storage};
 use crate::server::install;
 use crate::server::upgrade;
 use crate::server::metadata::Metadata;
-use crate::server::methods::{InstallationMethods, InstallMethod};
+use crate::server::methods::{InstallationMethods, InstallMethod, Methods};
 use crate::server::options::{Start, Stop, Restart, Logs};
 use crate::server::options::{StartConf, Upgrade, Destroy};
 use crate::server::status::Status;
@@ -27,6 +27,17 @@ pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
     fn make_method<'x>(&'x self, method: &InstallMethod,
         methods: &InstallationMethods)
         -> anyhow::Result<Box<dyn Method + 'x>>;
+}
+
+impl dyn CurrentOs {
+    pub fn all_methods<'x>(&'x self) -> anyhow::Result<Methods<'x>> {
+        let avail = self.get_available_methods()?;
+        avail.instantiate_all(self, true)
+    }
+    pub fn any_method<'x>(&'x self) -> anyhow::Result<Box<dyn Method + 'x>> {
+        let avail = self.get_available_methods()?;
+        avail.instantiate_any(self)
+    }
 }
 
 pub trait Instance: fmt::Debug {
@@ -134,6 +145,9 @@ impl PreciseVersion {
 impl InstanceRef<'_> {
     pub fn name(&self) -> &str {
         self.0.name()
+    }
+    pub fn method(&self) -> &dyn Method {
+        self.0.method()
     }
     pub fn get_version(&self) -> anyhow::Result<&MajorVersion> {
         self.0.get_version()

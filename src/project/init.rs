@@ -286,12 +286,16 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[context("cannot write config `{}`", path.display())]
-fn write_config(path: &Path, version: &MajorVersion) -> anyhow::Result<()> {
-    let text = format!("\
+pub fn format_config(version: &str) -> String {
+    return format!("\
         [edgedb]\n\
         server-version = {:?}\n\
-    ", version.as_str());
+    ", version)
+}
+
+#[context("cannot write config `{}`", path.display())]
+fn write_config(path: &Path, version: &MajorVersion) -> anyhow::Result<()> {
+    let text = format_config(version.as_str());
     let tmp = tmp_file_path(path);
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, text)?;

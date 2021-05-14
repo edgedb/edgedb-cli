@@ -9,19 +9,19 @@ use crate::server::distribution::MajorVersion;
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all="kebab-case")]
-struct SrcConfig {
-    edgedb: SrcEdgedb,
+pub struct SrcConfig {
+    pub edgedb: SrcEdgedb,
     #[serde(flatten)]
-    extra: BTreeMap<String, toml::Value>,
+    pub extra: BTreeMap<String, toml::Value>,
 }
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all="kebab-case")]
-struct SrcEdgedb {
+pub struct SrcEdgedb {
     #[serde(default)]
-    server_version: Option<MajorVersion>,
+    pub server_version: Option<toml::Spanned<MajorVersion>>,
     #[serde(flatten)]
-    extra: BTreeMap<String, toml::Value>,
+    pub extra: BTreeMap<String, toml::Value>,
 }
 
 #[derive(Debug)]
@@ -50,7 +50,7 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
     warn_extra(&val.edgedb.extra, "edgedb.");
     return Ok(Config {
         edgedb: Edgedb {
-            server_version: val.edgedb.server_version,
+            server_version: val.edgedb.server_version.map(|x| x.into_inner()),
         }
     })
 }
