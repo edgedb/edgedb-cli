@@ -42,6 +42,8 @@ mod table;
 mod variables;
 mod version_check;
 
+#[macro_use] mod markdown;
+
 fn main() {
     match _main() {
         Ok(()) => {}
