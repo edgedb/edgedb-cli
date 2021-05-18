@@ -76,6 +76,8 @@ url = "2.1.1"
 immutable-chunkmap = "0.5.9"
 regex = "1.4.5"
 toml = "0.5.8"
+termimad = "0.10.2"
+minimad = "0.7.0"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
