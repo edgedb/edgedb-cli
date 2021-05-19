@@ -14,7 +14,7 @@ use once_cell::unsync::OnceCell;
 use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
-use crate::platform::{get_current_uid, home_dir};
+use crate::platform::{get_current_uid, home_dir, cache_dir};
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
@@ -716,7 +716,7 @@ pub fn is_service_loaded(name: &str) -> bool {
 }
 
 fn runtime_base() -> anyhow::Result<PathBuf> {
-    Ok(home_dir()?.join(".edgedb/run"))
+    Ok(cache_dir()?.join("run"))
 }
 
 fn runtime_dir(name: &str) -> anyhow::Result<PathBuf> {
@@ -724,7 +724,7 @@ fn runtime_dir(name: &str) -> anyhow::Result<PathBuf> {
 }
 
 fn log_file(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(home_dir()?.join(format!(".edgedb/logs/{}.log", name)))
+    Ok(cache_dir()?.join(format!("logs/{}.log", name)))
 }
 
 fn bootstrap_launchctl_service(name: &str, meta: &Metadata)

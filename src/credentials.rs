@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use async_std::task;
 use edgedb_client::Builder;
 
-use crate::platform::home_dir;
+use crate::platform::config_dir;
 
 
 
@@ -12,6 +12,5 @@ pub fn get_connector(name: &str) -> anyhow::Result<Builder> {
 }
 
 pub fn path(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(home_dir()?.join(".edgedb").join("credentials")
-        .join(format!("{}.json", name)))
+    Ok(config_dir()?.join("credentials").join(format!("{}.json", name)))
 }

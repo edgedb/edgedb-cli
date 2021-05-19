@@ -15,7 +15,6 @@ use serde::{Serialize, Deserialize};
 
 use crate::credentials::{self, get_connector};
 use crate::process;
-use crate::platform::home_dir;
 
 use crate::commands::ExitCode;
 use crate::server::detect::Lazy;
@@ -1301,12 +1300,9 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             Ok(v) => v,
             Err(e) => BackupStatus::Error(e.into()),
         };
-        let credentials_file_exists = home_dir().map(|home| {
-            home.join(".edgedb")
-                .join("credentials")
-                .join(format!("{}.json", self.name))
-                .exists()
-        }).unwrap_or(false);
+        let credentials_file_exists = credentials::path(&self.name)
+            .map(|path| path.exists())
+            .unwrap_or(false);
 
         Status {
             method: InstallMethod::Docker,

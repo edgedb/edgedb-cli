@@ -11,8 +11,9 @@ use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
+use crate::credentials;
+use crate::platform::{Uid, get_current_uid};
 use crate::process::ProcessGuard;
-use crate::platform::{Uid, home_dir, get_current_uid};
 use crate::server::control::read_metadata;
 use crate::server::detect::{VersionQuery, Lazy};
 use crate::server::errors::{CannotCreateService, CannotStartService};
@@ -267,12 +268,9 @@ pub fn status(name: &String, data_dir: &Path,
         .and_then(|ports| ports.get(name).cloned());
     let port_status = probe_port(&metadata, &reserved_port);
     let backup = backup_status(&base.join(format!("{}.backup", name)));
-    let credentials_file_exists = home_dir().map(|home| {
-        home.join(".edgedb")
-            .join("credentials")
-            .join(format!("{}.json", name))
-            .exists()
-    }).unwrap_or(false);
+    let credentials_file_exists = credentials::path(&name)
+        .map(|path| path.exists())
+        .unwrap_or(false);
 
     Status {
         method: InstallMethod::Package,

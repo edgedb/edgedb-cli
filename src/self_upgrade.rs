@@ -12,7 +12,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 use url::Url;
 
 use crate::async_util::timeout;
-use crate::platform::home_dir;
 use crate::process;
 use crate::server::package::RepositoryInfo;
 use crate::server::remote;
@@ -67,14 +66,18 @@ pub fn can_upgrade() -> bool {
     })
 }
 
-fn binary_path() -> anyhow::Result<PathBuf> {
-    let dir = home_dir()?.join(".edgedb").join("bin");
-    let default_path = if cfg!(windows) {
-        dir.join("edgedb.exe")
-    } else {
-        dir.join("edgedb")
-    };
-    Ok(default_path)
+pub fn binary_path() -> anyhow::Result<PathBuf> {
+    match dirs::executable_dir() {
+        Some(dir) => Ok(dir),
+        // windows and macos fit this branch
+        None => {
+            Ok(dirs::data_dir()
+                .context("cannot determine local data directory")?
+                .join("edgedb")
+                .join("bin")
+            )
+        }
+    }
 }
 
 fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {

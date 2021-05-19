@@ -14,8 +14,9 @@ use rand::{thread_rng, Rng};
 
 use crate::commands::ExitCode;
 use crate::connect::Connector;
+use crate::credentials;
 use crate::migrations;
-use crate::platform::{tmp_file_path, home_dir, path_bytes, symlink_dir};
+use crate::platform::{tmp_file_path, config_dir, path_bytes, symlink_dir};
 use crate::process::ProcessGuard;
 use crate::project::config;
 use crate::project::options::Init;
@@ -401,8 +402,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             distribution: distr,
             method: method,
             storage: meth.get_storage(false, &name)?,
-            credentials: home_dir()?.join(".edgedb").join("credentials")
-                .join(format!("{}.json", &name)),
+            credentials: credentials::path(&name)?,
             user: "edgedb".into(),
             database: "edgedb".into(),
             port: allocate_port(&name)?,
@@ -501,7 +501,7 @@ fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
 }
 
 pub fn stash_base() -> anyhow::Result<PathBuf> {
-    Ok(home_dir()?.join(".edgedb").join("projects"))
+    Ok(config_dir()?.join("projects"))
 }
 
 pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
@@ -627,8 +627,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             distribution: distr,
             method: method,
             storage: meth.get_storage(false, &name)?,
-            credentials: home_dir()?.join(".edgedb").join("credentials")
-                .join(format!("{}.json", &name)),
+            credentials: credentials::path(&name)?,
             user: "edgedb".into(),
             database: "edgedb".into(),
             port: allocate_port(&name)?,

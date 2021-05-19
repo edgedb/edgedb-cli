@@ -11,10 +11,11 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 use fn_error_context::context;
 use rand::{Rng, SeedableRng};
 
+use crate::credentials;
 use crate::server::options::ResetPassword;
 use crate::server::detect;
 use crate::server::control;
-use crate::platform::{home_dir, tmp_file_name};
+use crate::platform::tmp_file_name;
 
 const PASSWORD_LENGTH: usize = 24;
 const PASSWORD_CHARS: &[u8] = b"0123456789\
@@ -47,8 +48,7 @@ pub fn write_credentials(path: &Path, credentials: &Credentials)
 }
 
 pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
-    let credentials_file = home_dir()?.join(".edgedb").join("credentials")
-        .join(format!("{}.json", options.name));
+    let credentials_file = credentials::path(&options.name)?;
     let (credentials, save, user) = if credentials_file.exists() {
         let creds = read_credentials(&credentials_file)?;
         let user = options.user.clone().unwrap_or_else(|| creds.user.clone());

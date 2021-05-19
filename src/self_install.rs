@@ -16,11 +16,12 @@ use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
 use crate::options::RawOptions;
-use crate::platform::{home_dir, get_current_uid};
+use crate::platform::{home_dir, config_dir, get_current_uid};
 use crate::process;
 use crate::project::init;
 use crate::project::options::Init;
 use crate::question::{self, read_choice};
+use crate::self_upgrade;
 use crate::table;
 use crate::print_markdown;
 
@@ -385,15 +386,15 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
         anyhow::bail!("Installation as root is not supported. \
             Try running without sudo.")
     } else {
-        let base = home_dir()?.join(".edgedb");
-        let installation_path = base.join("bin");
+        let installation_path = self_upgrade::binary_path()?
+            .parent().unwrap().to_owned();
         Settings {
             rc_files: get_rc_files()?,
             system: false,
             modify_path: !options.no_modify_path &&
                          should_modify_path(&installation_path),
             installation_path,
-            env_file: base.join("env"),
+            env_file: config_dir()?.join("env"),
         }
     };
     if !options.quiet {
@@ -450,8 +451,13 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
                     .with_context(|| format!(
                         "failed to update profile file {:?}", path))?;
             }
+            if let Some(dir) = settings.env_file.parent() {
+                fs::create_dir_all(&dir)
+                    .with_context(|| format!("failed to create {:?}", dir))?;
+            }
             fs::write(&settings.env_file, &(line + "\n"))
-                .context("failed to write env file")?;
+                .with_context(|| format!("failed to write env file {:?}",
+                                         settings.env_file))?;
         }
     }
 
