@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::ffi::OsString;
 
+use anyhow::Context;
+
 
 #[cfg(windows)]
 pub type Uid = u32;
@@ -18,13 +20,37 @@ pub fn get_current_uid() -> Uid {
     unsafe { libc::geteuid() }
 }
 
+pub fn cache_dir() -> anyhow::Result<PathBuf> {
+    let dir = if cfg!(windows) {
+        dirs::data_local_dir()
+            .context("cannot determine local data directory")?
+            .join("EdgeDB")
+            .join("cache")
+    } else {
+        dirs::cache_dir()
+            .context("cannot determine cache directory")?
+            .join("edgedb")
+    };
+    Ok(dir)
+}
+
 pub fn home_dir() -> anyhow::Result<PathBuf> {
     dirs::home_dir()
     .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))
 }
 
 pub fn config_dir() -> anyhow::Result<PathBuf> {
-    Ok(home_dir()?.join(".edgedb").join("config"))
+    let dir = if cfg!(windows) {
+        dirs::data_local_dir()
+            .context("cannot determine local data directory")?
+            .join("EdgeDB")
+            .join("config")
+    } else {
+        dirs::config_dir()
+            .context("cannot determine config directory")?
+            .join("edgedb")
+    };
+    Ok(dir)
 }
 
 pub fn tmp_file_name(path: &Path) -> OsString {

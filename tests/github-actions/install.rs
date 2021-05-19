@@ -75,8 +75,13 @@ fn github_action_install() -> anyhow::Result<()> {
     shut_tx.send(()).ok();
     tokio.block_on(http)?;
 
-    let edgedb = home_dir().unwrap()
-        .join(".edgedb").join("bin").join("edgedb");
+    let bin_dir = dirs::executable_dir()
+        .unwrap_or(dirs::data_dir().unwrap().join("edgedb").join("bin"));
+    let edgedb = if cfg!(windows) {
+        bin_dir.join("edgedb.exe")
+    } else {
+        bin_dir.join("edgedb")
+    };
 
     Command::new(&edgedb)
         .arg("--version")

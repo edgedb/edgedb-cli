@@ -7,7 +7,7 @@ use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use serde::{Serialize, Deserialize};
 
-use crate::platform::home_dir;
+use crate::platform;
 use crate::server::version::Version;
 use crate::self_upgrade;
 
@@ -103,7 +103,7 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
 }
 
 fn cache_dir() -> anyhow::Result<PathBuf> {
-    let dir = home_dir()?.join(".edgedb").join("cache");
+    let dir = platform::cache_dir()?;
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }

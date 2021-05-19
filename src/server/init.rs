@@ -13,7 +13,8 @@ use prettytable::{Table, Row, Cell};
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
-use crate::platform::{config_dir, home_dir};
+use crate::credentials;
+use crate::platform::config_dir;
 use crate::server::reset_password::{generate_password, write_credentials};
 use crate::server::reset_password::{password_hash};
 use crate::server::detect::{self, VersionQuery};
@@ -224,8 +225,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         nightly: version_query.is_nightly(),
         method: meth_name,
         storage: method.get_storage(options.system, &options.name)?,
-        credentials: home_dir()?.join(".edgedb").join("credentials")
-            .join(format!("{}.json", &options.name)),
+        credentials: credentials::path(&options.name)?,
         user: options.default_user.clone(),
         database: options.default_database.clone(),
         port,
@@ -234,7 +234,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
     };
     settings.print();
     println!("Initializing EdgeDB instance...");
-    
+
     if settings.system {
         anyhow::bail!("System instances are not implemented yet"); // TODO
     } else {
