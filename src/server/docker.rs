@@ -56,7 +56,7 @@ pub enum Tag {
 #[derive(Debug, Deserialize)]
 pub struct TagList {
     count: u64,
-    next: String,
+    next: Option<String>,
     previous: Option<String>,
     results: Vec<TagInfo>,
 }
@@ -378,7 +378,6 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                     let data: TagList = remote::get_json(&url,
                         "failed to fetch tag list from the Docker registry"
                     ).await?;
-                    let last_page = data.results.len() < 1000;
                     tags.extend(data.results
                         .into_iter()
                         .flat_map(|t| {
@@ -386,10 +385,11 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                                 Tag::from_pair(&t.name, &img.digest)
                             })
                         }));
-                    if last_page {
+                    if let Some(next_url) = data.next {
+                        url = next_url;
+                    } else {
                         break;
-                    }
-                    url = data.next;
+                    };
                 }
                 Ok(tags)
             })
