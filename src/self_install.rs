@@ -9,8 +9,9 @@ use std::process::{Command, exit};
 use std::str::FromStr;
 
 use anyhow::Context;
-use clap::{Clap, IntoApp};
+use clap::IntoApp;
 use clap_generate::{generate, generators};
+use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
@@ -24,7 +25,7 @@ use crate::table;
 use crate::print_markdown;
 
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct SelfInstall {
     /// Install nightly version of command-line tools
     #[clap(long)]
@@ -59,7 +60,7 @@ pub enum Shell {
     Zsh,
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct GenCompletions {
     /// Shell to print out completions for
     #[clap(long, possible_values=&[

@@ -1,10 +1,14 @@
-use clap::{Clap, AppSettings, ArgSettings, ValueHint};
 use std::path::PathBuf;
 
+use clap::{AppSettings, ArgSettings, ValueHint};
+use edgedb_cli_derive::EdbClap;
+
 use crate::repl;
+use crate::options::ConnectionOptions;
 
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
+#[edb(inherit(ConnectionOptions))]
 pub enum Common {
     /// Create a new database
     CreateDatabase(CreateDatabase),
@@ -53,15 +57,14 @@ pub enum Common {
     MigrationLog(MigrationLog),
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 #[clap(setting=AppSettings::NoBinaryName)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Backslash {
     #[clap(subcommand)]
     pub command: BackslashCmd,
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub enum BackslashCmd {
     #[clap(flatten)]
     Common(Common),
@@ -74,14 +77,13 @@ pub enum BackslashCmd {
     Exit,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct SetCommand {
     #[clap(subcommand)]
     pub setting: Option<Setting>,
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub enum Setting {
     /// Set input mode. One of: vi, emacs
     InputMode(InputMode),
@@ -101,42 +103,36 @@ pub enum Setting {
     PrintStats(PrintStats),
 }
 
-#[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug, Default)]
 pub struct InputMode {
     #[clap(possible_values=&["vi", "emacs"][..])]
     pub mode: Option<repl::InputMode>,
 }
 
-#[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug, Default)]
 pub struct SettingBool {
     #[clap(possible_values=&["on", "off"][..])]
     pub value: Option<String>,
 }
 
-#[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug, Default)]
 pub struct Limit {
     pub limit: Option<usize>,
 }
 
-#[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug, Default)]
 pub struct SettingUsize {
     pub value: Option<usize>,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 #[clap(setting=AppSettings::TrailingVarArg)]
 #[clap(setting=AppSettings::AllowLeadingHyphen)]
 pub struct Edit {
     pub entry: Option<isize>,
 }
 
-#[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug, Default)]
 pub struct OutputMode {
     #[clap(possible_values=
         &["json", "json-elements", "default", "tab-separated"][..]
@@ -144,8 +140,7 @@ pub struct OutputMode {
     pub mode: Option<repl::OutputMode>,
 }
 
-#[derive(Clap, Clone, Debug, Default)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug, Default)]
 pub struct PrintStats {
     #[clap(possible_values=
         &["off", "query", "detailed"][..]
@@ -153,20 +148,17 @@ pub struct PrintStats {
     pub value: Option<repl::PrintStats>,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct Connect {
     pub database_name: String,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct CreateDatabase {
     pub database_name: String,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ListAliases {
     pub pattern: Option<String>,
     #[clap(long, short='c')]
@@ -177,16 +169,14 @@ pub struct ListAliases {
     pub verbose: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ListCasts {
     pub pattern: Option<String>,
     #[clap(long, short='c')]
     pub case_sensitive: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ListIndexes {
     pub pattern: Option<String>,
     #[clap(long, short='c')]
@@ -197,8 +187,7 @@ pub struct ListIndexes {
     pub verbose: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ListTypes {
     pub pattern: Option<String>,
     #[clap(long, short='c')]
@@ -207,32 +196,28 @@ pub struct ListTypes {
     pub system: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ListRoles {
     pub pattern: Option<String>,
     #[clap(long, short='c')]
     pub case_sensitive: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ListModules {
     pub pattern: Option<String>,
     #[clap(long, short='c')]
     pub case_sensitive: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct Describe {
     pub name: String,
     #[clap(long, short='v')]
     pub verbose: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct DescribeSchema {
 }
 
@@ -241,8 +226,7 @@ pub enum DumpFormat {
     Dir,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct Dump {
     /// Path to file write dump to (or directory if `--all` is specified).
     /// Use dash `-` to write into stdout (latter does not work in `--all` mode)
@@ -259,8 +243,7 @@ pub struct Dump {
     pub format: Option<DumpFormat>,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct Restore {
     /// Path to file (or directory in case of `--all) to read dump from.
     /// Use dash `-` to read from stdin
@@ -281,15 +264,13 @@ pub struct Restore {
     pub verbose: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct Configure {
     #[clap(subcommand)]
     pub command: ConfigureCommand,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub enum ConfigureCommand {
     /// Insert another configuration entry to the list setting
     Insert(ConfigureInsert),
@@ -299,29 +280,25 @@ pub enum ConfigureCommand {
     Set(ConfigureSet),
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ConfigureInsert {
     #[clap(subcommand)]
     pub parameter: ListParameter,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ConfigureReset {
     #[clap(subcommand)]
     pub parameter: ConfigParameter,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ConfigureSet {
     #[clap(subcommand)]
     pub parameter: ValueParameter,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub enum ListParameter {
 
     /// Insert a client authentication rule
@@ -333,8 +310,7 @@ pub enum ListParameter {
     Port(PortParameter),
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 #[clap(rename_all="snake_case")]
 pub enum ValueParameter {
     /// Specifies the TCP/IP address(es) on which the server is to listen for
@@ -378,8 +354,7 @@ pub enum ValueParameter {
     EffectiveIoConcurrency(ConfigStr),
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 #[clap(rename_all="snake_case")]
 pub enum ConfigParameter {
     /// Reset listen addresses to 127.0.0.1
@@ -404,26 +379,22 @@ pub enum ConfigParameter {
     EffectiveIoConcurrency,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ListenAddresses {
     pub address: Vec<String>,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ListenPort {
     pub port: u16,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ConfigStr {
     pub value: String,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct AuthParameter {
     /// The priority of the authentication rule. The lower this number, the
     /// higher the priority.
@@ -446,8 +417,7 @@ pub struct AuthParameter {
     pub comment: Option<String>,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct PortParameter {
 
     /// The TCP/IP address(es) for the application port.
@@ -477,15 +447,14 @@ pub struct PortParameter {
     pub concurrency: i64,
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct MigrationConfig {
-    /// Directory where *.edgeql files are located
+    /// Directory where `*.edgeql` files are located
     #[clap(long, default_value="./dbschema", value_hint=ValueHint::DirPath)]
     pub schema_dir: PathBuf,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct CreateMigration {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
@@ -506,8 +475,7 @@ pub struct CreateMigration {
     pub debug_print_queries: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct Migrate {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
@@ -527,8 +495,7 @@ pub struct Migrate {
     pub to_revision: Option<String>,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ShowStatus {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
@@ -538,8 +505,7 @@ pub struct ShowStatus {
     pub quiet: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct MigrationLog {
     #[clap(flatten)]
     pub cfg: MigrationConfig,

@@ -1,19 +1,20 @@
 use std::path::PathBuf;
 
-use clap::{Clap, AppSettings, ValueHint};
+use clap::{ValueHint};
+use edgedb_cli_derive::EdbClap;
+
 use crate::server::methods::InstallMethod;
 use crate::server::version::Version;
 use crate::server::options::instance_name_opt;
 
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct ProjectCommand {
     #[clap(subcommand)]
     pub subcommand: Command,
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub enum Command {
     /// Initialize a new or existing project
     Init(Init),
@@ -43,8 +44,7 @@ pub enum Command {
     Upgrade(Upgrade),
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Init {
     /// Specifies a project root directory explicitly.
     #[clap(long, value_hint=ValueHint::DirPath)]
@@ -67,8 +67,7 @@ pub struct Init {
     pub non_interactive: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Unlink {
     /// Specifies a project root directory explicitly.
     #[clap(long, value_hint=ValueHint::DirPath)]
@@ -82,8 +81,7 @@ pub struct Unlink {
     pub non_interactive: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Info {
     /// Specifies a project root directory explicitly.
     #[clap(long, value_hint=ValueHint::DirPath)]
@@ -98,8 +96,7 @@ pub struct Info {
     pub json: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Upgrade {
     /// Specifies a project root directory explicitly.
     #[clap(long, value_hint=ValueHint::DirPath)]
