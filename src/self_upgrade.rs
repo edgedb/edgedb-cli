@@ -6,7 +6,7 @@ use std::time::{Duration};
 
 use anyhow::Context;
 use async_std::task;
-use clap::Clap;
+use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
 use url::Url;
@@ -19,7 +19,7 @@ use crate::server::remote;
 use crate::server::version::Version;
 
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct SelfUpgrade {
     /// Enable verbose output
     #[clap(short='v', long)]

@@ -1,0 +1,22 @@
+[package]
+name = "edgedb-cli-derive"
+license = "MIT/Apache-2.0"
+version = "0.1.0"
+authors = ["EdgeDB Inc. <hello@edgedb.com>"]
+edition = "2018"
+
+[dependencies]
+clap = { git="https://github.com/clap-rs/clap" }
+clap_generate = { git="https://github.com/clap-rs/clap" }
+termimad = "0.10.2"
+minimad = "0.7.0"
+syn = {version="1.0.72", features=["extra-traits"]}
+quote = "1.0.9"
+proc-macro2 = "1.0.19"
+proc-macro-error = "1.0.4"
+trybuild = "1.0.19"
+linked-hash-map = "0.5.4"
+heck = "0.3.0"
+
+[lib]
+proc-macro = true

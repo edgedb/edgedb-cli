@@ -1,22 +1,22 @@
 use std::fmt;
 use std::str::FromStr;
 
-use clap::{Clap, AppSettings, ArgSettings, ValueHint};
+use clap::{AppSettings, ArgSettings, ValueHint};
 use serde::{Serialize, Deserialize};
+use edgedb_cli_derive::EdbClap;
 
 use crate::server::version::Version;
 use crate::server::methods::InstallMethod;
 use crate::server::is_valid_name;
 
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct ServerCommand {
     #[clap(subcommand)]
     pub subcommand: Command,
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub enum InstanceCommand {
     /// Start an instance
     Start(Start),
@@ -32,7 +32,7 @@ pub enum InstanceCommand {
     Revert(Revert),
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub enum Command {
     /// Install edgedb-server
     Install(Install),
@@ -57,7 +57,7 @@ pub enum Command {
     _Detect(Detect),
 }
 
-#[derive(Clap, Debug, Clone)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Install {
     #[clap(short='i', long)]
     pub interactive: bool,
@@ -69,7 +69,7 @@ pub struct Install {
     pub method: Option<InstallMethod>,
 }
 
-#[derive(Clap, Debug, Clone)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Uninstall {
     /// Uninstall all versions
     #[clap(long)]
@@ -88,8 +88,7 @@ pub struct Uninstall {
     pub verbose: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct ListVersions {
     #[clap(long)]
     pub installed_only: bool,
@@ -111,7 +110,7 @@ pub enum StartConf {
     Manual,
 }
 
-#[derive(Clap, Debug, Clone)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Init {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -158,7 +157,7 @@ pub struct Init {
     pub upgrade_marker: Option<String>,
 }
 
-#[derive(Clap, Debug, Clone)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Destroy {
     /// Database server instance name to destroy
     #[clap(validator(instance_name_opt))]
@@ -173,8 +172,7 @@ pub struct Destroy {
     pub force: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Start {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -192,8 +190,7 @@ pub struct Start {
     pub foreground: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Stop {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -201,8 +198,7 @@ pub struct Stop {
     pub name: String,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Restart {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -210,8 +206,7 @@ pub struct Restart {
     pub name: String,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Status {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -235,8 +230,7 @@ pub struct Status {
     pub json: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Logs {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -252,8 +246,8 @@ pub struct Logs {
     pub follow: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag, after_help="\
+#[derive(EdbClap, Debug, Clone)]
+#[clap(after_help="\
 There are few modes of operation of this command:
 
 edgedb server upgrade
@@ -294,8 +288,7 @@ pub struct Upgrade {
     pub force: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Revert {
     /// Name of the instance to revert
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
@@ -310,8 +303,7 @@ pub struct Revert {
     pub no_confirm: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct ResetPassword {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
@@ -338,8 +330,7 @@ pub struct ResetPassword {
     pub quiet: bool,
 }
 
-#[derive(Clap, Debug, Clone)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Debug, Clone)]
 pub struct Info {
     /// Display only the server binary path
     #[clap(long)]
@@ -357,9 +348,8 @@ pub struct Info {
 }
 
 
-#[derive(Clap, Debug, Clone)]
+#[derive(EdbClap, Debug, Clone)]
 #[clap(setting=AppSettings::Hidden)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct Detect {
 }
 

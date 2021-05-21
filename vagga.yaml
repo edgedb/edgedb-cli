@@ -22,6 +22,12 @@ commands:
     container: ubuntu
     run: [cargo, check, --tests, --features=github_action_install]
 
+  ncheck: !Command
+    description: Run cargo check on nightly
+    symlink-name: cargo
+    container: nightly
+    run: [cargo, rustc, "--", -Zmacro-backtrace]
+
   cargo-expand: !Command
     description: Print macro-expanded form for the crate
     container: nightly
@@ -201,6 +207,35 @@ containers:
     - !Container ubuntu
     - !Sh 'cargo install cargo-fuzz cargo-outdated cargo-bloat --root=/usr'
     environ: *environ
+
+  nightly:
+    setup:
+    - !Ubuntu bionic
+    - !UbuntuUniverse
+    - !Install
+      - ca-certificates
+      - git
+      - build-essential
+      - vim
+      - less  # as pager for repl
+      - musl-tools
+      - zlib1g-dev
+
+    - !TarInstall
+      url: "https://static.rust-lang.org/dist/rust-nightly-x86_64-unknown-linux-gnu.tar.gz"
+      script: "./install.sh --prefix=/usr \
+                --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
+    - !Env RUSTFLAGS: -g
+
+    volumes:
+      /tmp: !Tmpfs
+        size: 2G
+    environ: &environ
+      HOME: /work/target
+      CARGO_HOME: /work/target
+      RUST_BACKTRACE: 1
+      EDGEDB_HOST: '/work/tmp/run'
+      EDGEDB_MAJOR_VERSION: 1-alpha8-dev5429
 
   test_install:
     setup:

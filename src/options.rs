@@ -4,9 +4,11 @@ use std::fs;
 use std::str::FromStr;
 
 use anyhow::Context;
+use anymap::AnyMap;
 use atty;
 use clap::{Clap, AppSettings, ValueHint};
 use edgedb_client::Builder;
+use edgedb_cli_derive::EdbClap;
 
 use crate::commands::parser::Common;
 use crate::connect::Connector;
@@ -23,10 +25,12 @@ static CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
     to specify connection parameters. See `--help` for details";
 
+pub trait PropagateArgs {
+    fn propagate_args(&self, dest: &mut AnyMap, matches: &clap::ArgMatches);
+}
 
-#[derive(Clap, Debug)]
-#[clap(version=clap::crate_version!())]
-pub struct RawOptions {
+#[derive(EdbClap, Debug)]
+pub struct ConnectionOptions {
     /// DSN for EdgeDB to connect to (overrides all other options
     /// except password)
     #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
@@ -84,6 +88,12 @@ pub struct RawOptions {
     #[clap(short='I', long, help_heading=Some("CONNECTION OPTIONS"))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub instance: Option<String>,
+}
+
+#[derive(EdbClap, Debug)]
+#[edb(main)]
+#[clap(version=clap::crate_version!())]
+pub struct RawOptions {
 
     #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
     #[cfg_attr(not(feature="dev_mode"),
@@ -116,19 +126,26 @@ pub struct RawOptions {
     #[clap(long)]
     pub no_version_check: bool,
 
+    #[edb(inheritable)]
+    pub conn: ConnectionOptions,
+
     #[clap(subcommand)]
     pub subcommand: Option<Command>,
 }
 
-#[derive(Clap, Clone, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub enum Command {
     /// Change role parameters
+    #[edb(inherit(ConnectionOptions))]
     AlterRole(RoleParams),
     /// Create a new role
+    #[edb(inherit(ConnectionOptions))]
     CreateSuperuserRole(RoleParams),
     /// Delete a role
+    #[edb(inherit(ConnectionOptions))]
     DropRole(RoleName),
     /// Execute EdgeQL query
+    #[edb(inherit(ConnectionOptions))]
     Query(Query),
     /// Manage local server installations
     Server(server::options::ServerCommand),
@@ -146,14 +163,12 @@ pub enum Command {
     Common(Common),
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct Query {
     pub queries: Vec<String>,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct RoleParams {
     /// Role name
     pub role: String,
@@ -165,8 +180,7 @@ pub struct RoleParams {
     pub set_password_from_stdin: bool,
 }
 
-#[derive(Clap, Clone, Debug)]
-#[clap(setting=AppSettings::DisableVersionFlag)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct RoleName {
     pub role: String,
 }
@@ -185,19 +199,19 @@ pub struct Options {
 
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
-        let tmp = RawOptions::parse();
+        let tmp = <RawOptions as Clap>::parse();
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
             && atty::is(atty::Stream::Stdin);
-        let mut conn_params = Connector::new(conn_params(&tmp));
-        let password = if tmp.password_from_stdin {
+        let mut conn_params = Connector::new(conn_params(&tmp.conn));
+        let password = if tmp.conn.password_from_stdin {
             let password = rpassword::read_password()
                 .expect("password can be read");
             Some(password)
-        } else if tmp.no_password {
+        } else if tmp.conn.no_password {
             None
-        } else if tmp.password {
+        } else if tmp.conn.password {
             let user = conn_params.get()?.get_user();
             Some(rpassword::read_password_from_tty(
                     Some(&format!("Password for '{}': ",
@@ -208,8 +222,9 @@ impl Options {
         };
         conn_params.modify(|params| {
             password.map(|password| params.password(password));
-            tmp.wait_until_available.map(|w| params.wait_until_available(w));
-            tmp.connect_timeout.map(|t| params.connect_timeout(t));
+            tmp.conn.wait_until_available
+                .map(|w| params.wait_until_available(w));
+            tmp.conn.connect_timeout.map(|t| params.connect_timeout(t));
         });
 
         let subcommand = if let Some(query) = tmp.query {
@@ -281,7 +296,7 @@ fn env_fallback<T: FromStr>(value: Option<T>, name: &str)
     }
 }
 
-fn conn_params(tmp: &RawOptions) -> anyhow::Result<Builder> {
+fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     let instance = if let Some(dsn) = &tmp.dsn {
         return Ok(Builder::from_dsn(dsn)?);
     } else if let Some(inst) = get_env("EDGEDB_INSTANCE")? {
