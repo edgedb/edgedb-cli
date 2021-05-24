@@ -24,7 +24,7 @@ pub enum InstanceCommand {
     Stop(Stop),
     /// Restart an instance
     Restart(Restart),
-    /// Status of an instance
+    /// Show statuses of all or of a matching instance
     Status(Status),
     /// Show logs of an instance
     Logs(Logs),
