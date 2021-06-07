@@ -7,8 +7,8 @@ use crate::print;
 
 fn process_params(options: &RoleParams) -> Result<Vec<String>, anyhow::Error> {
     let mut result = Vec::new();
-    if options.password || options.password_from_stdin {
-        let password = if options.password_from_stdin {
+    if options.set_password || options.set_password_from_stdin {
+        let password = if options.set_password_from_stdin {
             rpassword::read_password()?
         } else {
             loop {

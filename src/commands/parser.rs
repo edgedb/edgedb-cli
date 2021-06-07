@@ -169,7 +169,7 @@ pub struct CreateDatabase {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListAliases {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short='c')]
     pub case_sensitive: bool,
     #[clap(long, short='s')]
     pub system: bool,
@@ -181,7 +181,7 @@ pub struct ListAliases {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListCasts {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short='c')]
     pub case_sensitive: bool,
 }
 
@@ -189,7 +189,7 @@ pub struct ListCasts {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListIndexes {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short='c')]
     pub case_sensitive: bool,
     #[clap(long, short='s')]
     pub system: bool,
@@ -201,7 +201,7 @@ pub struct ListIndexes {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListTypes {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short='c')]
     pub case_sensitive: bool,
     #[clap(long, short='s')]
     pub system: bool,
@@ -211,7 +211,7 @@ pub struct ListTypes {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListRoles {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short='c')]
     pub case_sensitive: bool,
 }
 
@@ -219,7 +219,7 @@ pub struct ListRoles {
 #[clap(setting=AppSettings::DisableVersionFlag)]
 pub struct ListModules {
     pub pattern: Option<String>,
-    #[clap(long, short='I')]
+    #[clap(long, short='c')]
     pub case_sensitive: bool,
 }
 

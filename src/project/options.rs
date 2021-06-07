@@ -28,12 +28,14 @@ pub enum Command {
     /// This command has two modes of operation.
     ///
     /// Upgrade instance to a version specified in `edgedb.toml`:
-    ///   project upgrade
+    ///
+    ///     project upgrade
     ///
     /// Update `edgedb.toml` to a new version and upgrade the instance:
-    ///   project upgrade --to-latest
-    ///   project upgrade --to-version=1-beta2
-    ///   project upgrade --to-nightly
+    ///
+    ///     project upgrade --to-latest
+    ///     project upgrade --to-version=1-beta2
+    ///     project upgrade --to-nightly
     ///
     /// In all cases your data is preserved and converted using dump/restore
     /// mechanism. This might fail if lower version is specified (for example
