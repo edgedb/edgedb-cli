@@ -158,11 +158,11 @@ pub struct RoleParams {
     /// Role name
     pub role: String,
     /// Set the password for role (read separately from the terminal)
-    #[clap(long="password")]
-    pub password: bool,
+    #[clap(long)]
+    pub set_password: bool,
     /// Set the password for role, read from the stdin
     #[clap(long)]
-    pub password_from_stdin: bool,
+    pub set_password_from_stdin: bool,
 }
 
 #[derive(Clap, Clone, Debug)]
