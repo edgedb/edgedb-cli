@@ -288,7 +288,10 @@ fn mk_subcommands(s: &types::Enum, app: &syn::Ident, for_update: bool)
             }
         } else {
             let isub = syn::Ident::new("sub", Span::call_site());
-            let name = s.attrs.rename_all.convert(&sub.ident.to_string());
+            let name = sub.attrs.name.clone()
+                .unwrap_or_else(|| {
+                    s.attrs.rename_all.convert(&sub.ident.to_string())
+                });
             let cmd_def = mk_subcommand(sub, &isub);
             let opts = if let Some(ty) = &sub.ty {
                 if for_update {
@@ -617,7 +620,10 @@ fn mk_match_subcommand(s: &types::Enum, sub: &syn::Ident) -> TokenStream {
                 };
             });
         } else {
-            let name = s.attrs.rename_all.convert(&ident.to_string());
+            let name = subcmd.attrs.name.clone()
+                .unwrap_or_else(|| {
+                    s.attrs.rename_all.convert(&ident.to_string())
+                });
             match &subcmd.ty {
                 Some(ty) => {
                     branches.push(quote! {

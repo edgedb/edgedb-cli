@@ -104,7 +104,7 @@ fn _main() -> anyhow::Result<()> {
     log_levels::init(&mut builder, &opt);
     builder.init();
 
-    log::debug!("Options: {:#?}", opt);
+    log::debug!(target: "edgedb::cli", "Options: {:#?}", opt);
 
     version_check::check(opt.no_version_check);
 
