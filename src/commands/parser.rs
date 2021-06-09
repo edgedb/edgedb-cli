@@ -10,51 +10,101 @@ use crate::options::ConnectionOptions;
 #[derive(EdbClap, Clone, Debug)]
 #[edb(inherit(ConnectionOptions))]
 pub enum Common {
-    /// Create a new database
-    CreateDatabase(CreateDatabase),
-    /// Display list of databases in the server instance
-    ListDatabases,
-    /// List ports exposed by EdgeDB. Works on EdgeDB <= 1-alpha7
-    #[clap(setting=AppSettings::Hidden)]
-    ListPorts,
+    /// Database commands
+    Database(Database),
+    /// Various list commands
+    List(List),
     /// Show postgres address. Works on dev-mode database only.
     #[clap(setting=AppSettings::Hidden)]
     Pgaddr,
     /// Run psql shell. Works on dev-mode database only.
     #[clap(setting=AppSettings::Hidden)]
     Psql,
-    /// Display list of aliases defined in the schema
-    ListAliases(ListAliases),
-    /// Display list of casts defined in the schema
-    ListCasts(ListCasts),
-    /// Display list of indexes defined in the schema
-    ListIndexes(ListIndexes),
-    /// Display list of scalar types defined in the schema
-    ListScalarTypes(ListTypes),
-    /// Display list of object types defined in the schema
-    ListObjectTypes(ListTypes),
-    /// Display list of roles in the server instance
-    ListRoles(ListRoles),
-    /// Display list of modules defined in the schema
-    ListModules(ListModules),
     /// Modify database configuration
-    Configure(Configure),
-    /// Describe a named database object
+    Config(Configure),
+    /// Describe database schema or an object
     Describe(Describe),
-    /// Describe schema of the current database
-    DescribeSchema(DescribeSchema),
     /// Create a database backup
     Dump(Dump),
     /// Restore a database backup from file
     Restore(Restore),
-    /// Create a migration script
-    CreateMigration(CreateMigration),
-    /// Bring current database to the latest or a specified revision
+    /// Migration management subcommands
+    Migration(Migration),
+    /// An alias for `edgedb migration apply`
     Migrate(Migrate),
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct Migration {
+    #[clap(subcommand)]
+    pub subcommand: MigrationCmd,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct Describe {
+    #[clap(subcommand)]
+    pub subcommand: DescribeCmd,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub enum DescribeCmd {
+    Object(DescribeObject),
+    /// Describe schema of the current database
+    Schema(DescribeSchema),
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct List {
+    #[clap(subcommand)]
+    pub subcommand: ListCmd,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub enum ListCmd {
+    /// Display list of aliases defined in the schema
+    Aliases(ListAliases),
+    /// Display list of databases in the server instance
+    Databases,
+    /// List ports exposed by EdgeDB. Works on EdgeDB <= 1-alpha7
+    #[clap(setting=AppSettings::Hidden)]
+    Ports,
+    /// Display list of casts defined in the schema
+    Casts(ListCasts),
+    /// Display list of indexes defined in the schema
+    Indexes(ListIndexes),
+    /// Display list of scalar types defined in the schema
+    Scalars(ListTypes),
+    /// Display list of object types defined in the schema
+    Types(ListTypes),
+    /// Display list of roles in the server instance
+    Roles(ListRoles),
+    /// Display list of modules defined in the schema
+    Modules(ListModules),
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub enum MigrationCmd {
+    /// Bring current database to the latest or a specified revision
+    Apply(Migrate),
+    /// Create a migration script
+    Create(CreateMigration),
     /// Show current migration state
-    ShowStatus(ShowStatus),
+    Status(ShowStatus),
     /// Show all migration versions
-    MigrationLog(MigrationLog),
+    Log(MigrationLog),
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct Database {
+    #[clap(subcommand)]
+    pub subcommand: DatabaseCmd,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+#[edb(inherit(ConnectionOptions))]
+pub enum DatabaseCmd {
+    /// Create a new DB
+    Create(CreateDatabase),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -211,7 +261,7 @@ pub struct ListModules {
 }
 
 #[derive(EdbClap, Clone, Debug)]
-pub struct Describe {
+pub struct DescribeObject {
     pub name: String,
     #[clap(long, short='v')]
     pub verbose: bool,

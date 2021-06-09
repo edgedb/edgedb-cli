@@ -38,6 +38,7 @@ pub enum ContainerAttr {
 #[derive(Debug)]
 pub enum SubcommandAttr {
     Inherit(syn::Type),
+    Name(syn::LitStr),
     Default(syn::Ident),
     Value {
         name: syn::Ident,
@@ -102,6 +103,7 @@ pub struct FieldAttrs {
 }
 
 pub struct SubcommandAttrs {
+    pub name: Option<String>,
     pub doc: Option<Markdown>,
     pub about: Option<Markdown>,
     pub flatten: bool,
@@ -244,6 +246,11 @@ impl Parse for SubcommandAttr {
             syn::parenthesized!(content in input);
             let ty = content.parse()?;
             Ok(Inherit(ty))
+        } else if lookahead.peek(kw::name) {
+            let _kw: kw::name = input.parse()?;
+            let _eq: syn::Token![=] = input.parse()?;
+            let val = input.parse()?;
+            Ok(Name(val))
         } else {
             let name: syn::Ident = input.parse()?;
             let lookahead = input.lookahead1();
@@ -456,6 +463,7 @@ impl SubcommandAttrs {
         use SubcommandAttr::*;
 
         let mut res = SubcommandAttrs {
+            name: None,
             doc: None,
             about: None,
             flatten: false,
@@ -476,6 +484,7 @@ impl SubcommandAttrs {
                 for item in chunk.0 {
                     match item {
                         Inherit(ty) => res.inherit.push(ty),
+                        Name(name) => res.name = Some(name.value()),
                         Value { name, value } if name == "about" => {
                             try_set_opt(&mut res.about, value);
                         }

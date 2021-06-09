@@ -151,16 +151,31 @@ pub enum Command {
     Server(server::options::ServerCommand),
     /// Manage project installation
     Project(project::options::ProjectCommand),
-    /// Install server
-    #[clap(setting=AppSettings::Hidden, name="_self_install")]
-    _SelfInstall(self_install::SelfInstall),
     /// Generate shell completions
     #[clap(setting=AppSettings::Hidden, name="_gen_completions")]
     _GenCompletions(self_install::GenCompletions),
-    /// Upgrade this edgedb binary
-    SelfUpgrade(self_upgrade::SelfUpgrade),
+    /// Self-installation commands
+    #[clap(name="self")]
+    SelfCommand(SelfCommand),
+    /// Install server
+    #[clap(setting=AppSettings::Hidden, name="_self_install")]
+    _SelfInstall(self_install::SelfInstall),
     #[clap(flatten)]
     Common(Common),
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct SelfCommand {
+    #[clap(subcommand)]
+    pub subcommand: SelfSubcommand,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub enum SelfSubcommand {
+    /// Upgrade this edgedb binary
+    Upgrade(self_upgrade::SelfUpgrade),
+    /// Install server
+    Install(self_install::SelfInstall),
 }
 
 #[derive(EdbClap, Clone, Debug)]

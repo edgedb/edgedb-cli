@@ -6,11 +6,11 @@ use predicates::str::ends_with;
 #[test]
 fn bare_status() -> anyhow::Result<()> {
     SERVER.admin_cmd()
-        .arg("create-database").arg("empty")
+        .arg("database").arg("create").arg("empty")
         .assert().success();
     SERVER.admin_cmd()
         .arg("--database=empty")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/bare")
         .assert().code(2)
         .stderr(ends_with(
@@ -18,7 +18,7 @@ r###"Detected differences between the database schema and the schema source, in 
     CREATE TYPE default::Type1 {
         CREATE PROPERTY field1 -> std::str;
     };
-Some migrations are missing, use `edgedb create-migration`
+Some migrations are missing, use `edgedb migration create`
 "###));
     Ok(())
 }
@@ -30,23 +30,23 @@ fn initial() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db1/initial/migrations/00003.edgeql")
         .ok();
     SERVER.admin_cmd()
-        .arg("create-database").arg("initial")
+        .arg("database").arg("create").arg("initial")
         .assert().success();
     SERVER.admin_cmd()
         .arg("--database=initial")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(3)
         .stderr(ends_with("Database is empty. While there are 1 migrations \
             on the filesystem. Run `edgedb migrate` to apply\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(1).stderr(ends_with(
             "edgedb error: Database must be updated \
-            to the last migration on the filesystem for `create-migration`. \
+            to the last migration on the filesystem for `migration create`. \
             Run:\n  \
               edgedb migrate\n"));
     SERVER.admin_cmd()
@@ -59,7 +59,7 @@ fn initial() -> anyhow::Result<()> {
             (00001.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().success()
         .stderr(ends_with("Database is up to date. \
@@ -67,19 +67,19 @@ fn initial() -> anyhow::Result<()> {
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa.\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(4).stderr(ends_with("No schema changes detected.\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(4).stderr(ends_with("No schema changes detected.\n"));
 
     SERVER.admin_cmd()
         .arg("--database=initial")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--allow-empty")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(0)
@@ -97,7 +97,7 @@ fn initial() -> anyhow::Result<()> {
 
     SERVER.admin_cmd()
         .arg("--database=initial")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--allow-empty")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/initial")
@@ -113,7 +113,7 @@ fn initial() -> anyhow::Result<()> {
 
     // Now test partial migrations
     SERVER.admin_cmd()
-        .arg("create-database").arg("initial_2")
+        .arg("database").arg("create").arg("initial_2")
         .assert().success();
     SERVER.admin_cmd()
         .arg("--database=initial_2")
@@ -166,23 +166,23 @@ fn modified1() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db1/modified1/migrations/00002.edgeql")
         .ok();
     SERVER.admin_cmd()
-        .arg("create-database").arg("modified1")
+        .arg("database").arg("create").arg("modified1")
         .assert().success();
     SERVER.admin_cmd()
         .arg("--database=modified1")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(3)
         .stderr(ends_with("Database is empty. While there are 1 migrations \
             on the filesystem. Run `edgedb migrate` to apply\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(1).stderr(ends_with(
             "edgedb error: Database must be updated \
-            to the last migration on the filesystem for `create-migration`. \
+            to the last migration on the filesystem for `migration create`. \
             Run:\n  \
               edgedb migrate\n"));
     SERVER.admin_cmd()
@@ -195,7 +195,7 @@ fn modified1() -> anyhow::Result<()> {
             (00001.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(2)
         .stderr(ends_with(
@@ -203,16 +203,16 @@ r###"Detected differences between the database schema and the schema source, in 
     CREATE TYPE default::Type2 {
         CREATE PROPERTY field2 -> std::str;
     };
-Some migrations are missing, use `edgedb create-migration`
+Some migrations are missing, use `edgedb migration create`
 "###));
     SERVER.admin_cmd()
         .arg("--database=modified1")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(0);
     SERVER.admin_cmd()
-        .arg("migration-log")
+        .arg("migration").arg("log")
         .arg("--from-fs")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .arg("--newest-first")
@@ -221,7 +221,7 @@ Some migrations are missing, use `edgedb create-migration`
         .stdout("m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q\n");
     SERVER.admin_cmd()
         .arg("--database=modified1")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(3)
         .stderr(ends_with("Database is at migration \
@@ -247,7 +247,7 @@ Some migrations are missing, use `edgedb create-migration`
             m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().success()
         .stderr(ends_with("Database is up to date. \
@@ -255,12 +255,12 @@ Some migrations are missing, use `edgedb create-migration`
             m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q.\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(4).stderr(ends_with("No schema changes detected.\n"));
     SERVER.admin_cmd()
-        .arg("migration-log")
+        .arg("migration").arg("log")
         .arg("--from-fs")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .arg("--newest-first")
@@ -270,7 +270,7 @@ Some migrations are missing, use `edgedb create-migration`
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa\n\
         ");
     SERVER.admin_cmd()
-        .arg("migration-log")
+        .arg("migration").arg("log")
         .arg("--from-fs")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(0)
@@ -284,11 +284,11 @@ Some migrations are missing, use `edgedb create-migration`
 #[test]
 fn error() -> anyhow::Result<()> {
     SERVER.admin_cmd()
-        .arg("create-database").arg("empty_err")
+        .arg("database").arg("create").arg("empty_err")
         .assert().success();
     SERVER.admin_cmd()
         .arg("--database=empty_err")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/error")
         .env("NO_COLOR", "1")
         .assert().code(1)
@@ -309,7 +309,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db1/modified2/migrations/00002.edgeql")
         .ok();
     SERVER.admin_cmd()
-        .arg("create-database").arg("modified2")
+        .arg("database").arg("create").arg("modified2")
         .assert().success();
     SERVER.admin_cmd()
         .arg("--database=modified2")
@@ -322,7 +322,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
 
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=modified2");
-        cmd.arg("create-migration");
+        cmd.arg("migration").arg("create");
         cmd.arg("--schema-dir=tests/migrations/db1/modified2");
     });
     cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
@@ -341,7 +341,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
             (00002.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=modified2")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/modified2")
         .assert().success()
         .stderr(ends_with("Database is up to date. \
@@ -349,7 +349,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
             m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q.\n"));
     SERVER.admin_cmd()
         .arg("--database=modified2")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--schema-dir=tests/migrations/db1/modified2")
         .assert().code(4).stderr(ends_with("No schema changes detected.\n"));
     Ok(())
@@ -360,7 +360,7 @@ fn modified3_interactive() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db1/modified3/migrations/00002.edgeql")
         .ok();
     SERVER.admin_cmd()
-        .arg("create-database").arg("modified3")
+        .arg("database").arg("create").arg("modified3")
         .assert().success();
     SERVER.admin_cmd()
         .arg("--database=modified3")
@@ -373,7 +373,7 @@ fn modified3_interactive() -> anyhow::Result<()> {
 
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=modified3");
-        cmd.arg("create-migration");
+        cmd.arg("migration").arg("create");
         cmd.arg("--schema-dir=tests/migrations/db1/modified3");
     });
     cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
@@ -395,12 +395,12 @@ fn modified3_interactive() -> anyhow::Result<()> {
         .assert().success();  // revision can be different because of order
     SERVER.admin_cmd()
         .arg("--database=modified3")
-        .arg("show-status")
+        .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/modified3")
         .assert().success();  // revision can be different because of order
     SERVER.admin_cmd()
         .arg("--database=modified3")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/modified3")
         .assert().code(4).stderr(ends_with("No schema changes detected.\n"));
@@ -412,11 +412,11 @@ fn prompt_id() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db2/migrations/00001.edgeql")
         .ok();
     SERVER.admin_cmd()
-        .arg("create-database").arg("db2")
+        .arg("database").arg("create").arg("db2")
         .assert().success();
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=db2");
-        cmd.arg("create-migration");
+        cmd.arg("migration").arg("create");
         cmd.arg("--schema-dir=tests/migrations/db2");
     });
     cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
@@ -434,7 +434,7 @@ fn input_required() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db3/migrations/00002.edgeql")
         .ok();
     SERVER.admin_cmd()
-        .arg("create-database").arg("db3")
+        .arg("database").arg("create").arg("db3")
         .assert().success();
     SERVER.admin_cmd()
         .arg("--database=db3")
@@ -447,7 +447,7 @@ fn input_required() -> anyhow::Result<()> {
 
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=db3");
-        cmd.arg("create-migration");
+        cmd.arg("migration").arg("create");
         cmd.arg("--schema-dir=tests/migrations/db3");
     });
     cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
@@ -459,7 +459,7 @@ fn input_required() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db3/migrations/00002.edgeql").unwrap();
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=db3");
-        cmd.arg("create-migration");
+        cmd.arg("migration").arg("create");
         cmd.arg("--schema-dir=tests/migrations/db3");
     });
     cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
@@ -473,11 +473,11 @@ fn input_required() -> anyhow::Result<()> {
 #[test]
 fn eof_err() -> anyhow::Result<()> {
     SERVER.admin_cmd()
-        .arg("create-database").arg("db_eof_err")
+        .arg("database").arg("create").arg("db_eof_err")
         .assert().success();
     SERVER.admin_cmd()
         .arg("--database=db_eof_err")
-        .arg("create-migration")
+        .arg("migration").arg("create")
         .arg("--schema-dir=tests/migrations/db_eof_err")
         .env("NO_COLOR", "1")
         .assert().code(1)

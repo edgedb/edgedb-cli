@@ -34,7 +34,7 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
                 eprintln!("... and {} more changes", changes - 3);
             }
             eprintln!("Some migrations are missing, \
-                       use `edgedb create-migration`");
+                       use `edgedb migration create`");
         }
         return Err(ExitCode::new(2).into());
     }
