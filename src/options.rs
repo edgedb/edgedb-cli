@@ -137,6 +137,7 @@ pub struct RawOptions {
 pub enum Command {
     /// Execute EdgeQL query
     #[edb(inherit(ConnectionOptions))]
+    #[clap(setting=AppSettings::Hidden)]
     Query(Query),
     /// Manage local server installations
     Server(server::options::ServerCommand),
