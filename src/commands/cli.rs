@@ -49,28 +49,6 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         Command::Project(cmd) => {
             project::main(cmd)
         }
-        Command::CreateSuperuserRole(opt) => {
-            task::block_on(async {
-                let mut conn = options.conn_params.connect().await?;
-                commands::roles::create_superuser(
-                    &mut conn, &cmdopt, opt).await?;
-                Ok(())
-            }).into()
-        },
-        Command::AlterRole(opt) => {
-            task::block_on(async {
-                let mut conn = options.conn_params.connect().await?;
-                commands::roles::alter(&mut conn, &cmdopt, opt).await?;
-                Ok(())
-            }).into()
-        },
-        Command::DropRole(opt) => {
-            task::block_on(async {
-                let mut conn = options.conn_params.connect().await?;
-                commands::roles::drop(&mut conn, &cmdopt, &opt.role).await?;
-                Ok(())
-            }).into()
-        },
         Command::Query(q) => {
             task::block_on(async {
                 let mut conn = options.conn_params.connect().await?;

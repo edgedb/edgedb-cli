@@ -135,15 +135,6 @@ pub struct RawOptions {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
-    /// Change role parameters
-    #[edb(inherit(ConnectionOptions))]
-    AlterRole(RoleParams),
-    /// Create a new role
-    #[edb(inherit(ConnectionOptions))]
-    CreateSuperuserRole(RoleParams),
-    /// Delete a role
-    #[edb(inherit(ConnectionOptions))]
-    DropRole(RoleName),
     /// Execute EdgeQL query
     #[edb(inherit(ConnectionOptions))]
     Query(Query),
@@ -181,23 +172,6 @@ pub enum SelfSubcommand {
 #[derive(EdbClap, Clone, Debug)]
 pub struct Query {
     pub queries: Vec<String>,
-}
-
-#[derive(EdbClap, Clone, Debug)]
-pub struct RoleParams {
-    /// Role name
-    pub role: String,
-    /// Set the password for role (read separately from the terminal)
-    #[clap(long)]
-    pub set_password: bool,
-    /// Set the password for role, read from the stdin
-    #[clap(long)]
-    pub set_password_from_stdin: bool,
-}
-
-#[derive(EdbClap, Clone, Debug)]
-pub struct RoleName {
-    pub role: String,
 }
 
 #[derive(Debug, Clone)]

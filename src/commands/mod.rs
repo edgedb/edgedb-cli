@@ -18,7 +18,6 @@ mod list_roles;
 mod list_scalar_types;
 mod psql;
 mod restore;
-mod roles;
 pub mod backslash;
 pub mod cli;
 pub mod options;
