@@ -6,7 +6,7 @@ use std::str::FromStr;
 use anyhow::Context;
 use anymap::AnyMap;
 use atty;
-use clap::{Clap, AppSettings, ValueHint};
+use clap::{AppSettings, ValueHint};
 use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
 
@@ -20,6 +20,7 @@ use crate::self_install;
 use crate::self_upgrade;
 use crate::server;
 
+pub mod describe;
 
 static CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
@@ -135,25 +136,29 @@ pub struct RawOptions {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
+    #[clap(flatten)]
+    Common(Common),
     /// Execute EdgeQL query
-    #[edb(inherit(ConnectionOptions))]
-    #[clap(setting=AppSettings::Hidden)]
+    #[edb(inherit(ConnectionOptions), hidden)]
     Query(Query),
     /// Manage local server installations
+    #[edb(expand_help)]
     Server(server::options::ServerCommand),
     /// Manage project installation
+    #[edb(expand_help)]
     Project(project::options::ProjectCommand),
     /// Generate shell completions
-    #[clap(setting=AppSettings::Hidden, name="_gen_completions")]
+    #[clap(name="_gen_completions")]
+    #[edb(hidden)]
     _GenCompletions(self_install::GenCompletions),
     /// Self-installation commands
     #[clap(name="self")]
+    #[edb(expand_help)]
     SelfCommand(SelfCommand),
     /// Install server
-    #[clap(setting=AppSettings::Hidden, name="_self_install")]
+    #[clap(name="_self_install")]
+    #[edb(hidden)]
     _SelfInstall(self_install::SelfInstall),
-    #[clap(flatten)]
-    Common(Common),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -187,9 +192,63 @@ pub struct Options {
     pub no_version_check: bool,
 }
 
+fn make_subcommand_help<T: describe::Describe>() -> String {
+    use std::fmt::Write;
+
+    let mut buf = String::with_capacity(4096);
+
+    write!(&mut buf, "SUBCOMMANDS:\n").unwrap();
+    let descr = T::describe();
+    let mut empty_line = true;
+
+    for cmd in descr.subcommands() {
+        let cdescr = cmd.describe();
+        if cmd.hidden {
+            continue;
+        }
+        if cmd.expand_help {
+            if !empty_line {
+                buf.push('\n');
+            }
+            for subcmd in cdescr.subcommands() {
+                let sdescr = subcmd.describe();
+                if subcmd.hidden {
+                    continue;
+                }
+                writeln!(&mut buf, "    {:24} {}",
+                    format!("{} {}", cmd.name, subcmd.name),
+                    sdescr.help_title,
+                ).unwrap();
+            }
+            buf.push('\n');
+            empty_line = true;
+        } else {
+            writeln!(&mut buf, "    {:24} {}",
+                cmd.name, cdescr.help_title).unwrap();
+            empty_line = false;
+        }
+    }
+    buf.truncate(buf.trim_end().len());
+
+    return buf;
+}
+
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
-        let tmp = <RawOptions as Clap>::parse();
+        let mut app = <RawOptions as clap::IntoApp>::into_app();
+        let sub_cmd = make_subcommand_help::<RawOptions>();
+        let mut help = Vec::with_capacity(2048);
+        app.write_help(&mut help).unwrap();
+
+        let subcmd_index = std::str::from_utf8(&help).unwrap()
+            .find("SUBCOMMANDS:").unwrap();
+        help.truncate(subcmd_index);
+        help.extend(sub_cmd.as_bytes());
+        let help = std::str::from_utf8(Vec::leak(help)).unwrap();
+        let app = app.override_help(help);
+        let app = app.setting(AppSettings::UnifiedHelpMessage);
+        let matches = app.get_matches();
+        let tmp = <RawOptions as clap::FromArgMatches>::from_arg_matches(&matches);
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()

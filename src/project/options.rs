@@ -18,11 +18,9 @@ pub struct ProjectCommand {
 pub enum Command {
     /// Initialize a new or existing project
     Init(Init),
-    /// Remove association with and optionally destroy the
-    /// linked EdgeDB instance.
+    /// Clean-up the project configuration
     Unlink(Unlink),
-    /// Remove association with and optionally destroy the
-    /// linked EdgeDB instance.
+    /// Get various metadata about the project
     Info(Info),
     /// Upgrade EdgeDB instance used for the current project
     ///
