@@ -2,11 +2,13 @@ use std::env;
 use std::time::Duration;
 use std::fs;
 use std::str::FromStr;
+use std::process::exit;
 
 use anyhow::Context;
 use anymap::AnyMap;
 use atty;
-use clap::{AppSettings, ValueHint};
+use clap::{ValueHint};
+use colorful::Colorful;
 use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
 
@@ -233,22 +235,68 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
     return buf;
 }
 
+fn update_help(mut app: clap::App) -> clap::App {
+    let sub_cmd = make_subcommand_help::<RawOptions>();
+    let mut help = Vec::with_capacity(2048);
+    app.write_help(&mut help).unwrap();
+
+    let subcmd_index = std::str::from_utf8(&help).unwrap()
+        .find("SUBCOMMANDS:").unwrap();
+    help.truncate(subcmd_index);
+    help.extend(sub_cmd.as_bytes());
+    let help = std::str::from_utf8(Vec::leak(help)).unwrap();
+    return app.override_help(help);
+}
+
+fn get_matches(app: clap::App) -> clap::ArgMatches {
+    use clap::ErrorKind::*;
+
+    match app.try_get_matches() {
+        Ok(matches) => matches,
+        Err(e) => {
+            match e.kind {
+                UnknownArgument | InvalidSubcommand => {
+                    let new_name = match &e.info[0][..] {
+                         "configure" => "config",
+                         "create-database" => "database create",
+                         "create-migration" => "migration create",
+                         "list-aliases" => "list aliases",
+                         "list-casts" => "list casts",
+                         "list-databases" => "list databases",
+                         "list-indexes" => "list indexes",
+                         "list-object-types" => "list types",
+                         "list-scalar-types" => "list scalars",
+                         "list-roles" => "list roles",
+                         "migration-log" => "migration log",
+                         "self-upgrade" => "self upgrade",
+                         "show-status" => "migration status",
+                         _ => e.exit(),
+                    };
+                    let error = "error:".bold().red();
+                    let cmd = e.info[0][..].green();
+                    let instead = format!("edgedb {}", new_name).green();
+                    eprintln!("\
+                        {error} The subcommand '{cmd}' was renamed\n\
+                        \n        \
+                            Use '{instead}' instead\
+                    ", error=error, cmd=cmd, instead=instead);
+                    exit(1);
+                }
+                _ => {}
+            }
+            e.exit();
+        }
+    }
+}
+
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
-        let mut app = <RawOptions as clap::IntoApp>::into_app();
-        let sub_cmd = make_subcommand_help::<RawOptions>();
-        let mut help = Vec::with_capacity(2048);
-        app.write_help(&mut help).unwrap();
+        let app = <RawOptions as clap::IntoApp>::into_app();
+        let app = update_help(app);
+        let matches = get_matches(app);
+        let tmp = <RawOptions as clap::FromArgMatches>
+            ::from_arg_matches(&matches);
 
-        let subcmd_index = std::str::from_utf8(&help).unwrap()
-            .find("SUBCOMMANDS:").unwrap();
-        help.truncate(subcmd_index);
-        help.extend(sub_cmd.as_bytes());
-        let help = std::str::from_utf8(Vec::leak(help)).unwrap();
-        let app = app.override_help(help);
-        let app = app.setting(AppSettings::UnifiedHelpMessage);
-        let matches = app.get_matches();
-        let tmp = <RawOptions as clap::FromArgMatches>::from_arg_matches(&matches);
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
