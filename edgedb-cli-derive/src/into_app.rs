@@ -23,6 +23,21 @@ pub fn structure(s: &types::Struct) -> TokenStream {
     let from_matches = mk_struct_matches(&s, &matches);
     let update_matches = mk_struct_update_matches(&s, &matches);
     let propagate_args = mk_struct_propagate(&s, &dest, &matches);
+
+    let help = s.attrs.help.as_ref().or(s.attrs.doc.as_ref())
+        .map(|text| text.clap_text().value()).unwrap_or_else(String::new);
+    let help_title = s.attrs.help.as_ref().or(s.attrs.doc.as_ref())
+        .map(|text| text.formatted_title().value())
+        .unwrap_or_else(String::new);
+    let subcmds = if let Some(sub) =
+        s.fields.iter().find(|s| s.attrs.subcommand)
+    {
+        let ty = &sub.ty;
+        quote!(<#ty as crate::options::describe::DescribeEnum>::subcommands)
+    } else {
+        quote!(crate::options::describe::empty_subcommands)
+    };
+
     quote! {
         impl #impl_gen clap::Clap for #ident #ty_gen #where_cl { }
         impl #impl_gen clap::IntoApp for #ident #ty_gen #where_cl {
@@ -53,11 +68,25 @@ pub fn structure(s: &types::Struct) -> TokenStream {
             }
         }
         impl #impl_gen crate::options::PropagateArgs
-            for #ident #ty_gen #where_cl {
+            for #ident #ty_gen #where_cl
+        {
             fn propagate_args(&self, #dest: &mut ::anymap::AnyMap,
                 #matches: &clap::ArgMatches)
             {
                 #propagate_args
+            }
+        }
+        impl #impl_gen crate::options::describe::Describe
+            for #ident #ty_gen #where_cl
+        {
+            fn describe() -> crate::options::describe::Command {
+                static COMMAND: crate::options::describe::Command =
+                    crate::options::describe::Command {
+                        help: #help,
+                        help_title: #help_title,
+                        describe_subcommands: #subcmds,
+                    };
+                return COMMAND.clone();
             }
         }
     }
@@ -72,6 +101,7 @@ pub fn subcommands(e: &types::Enum) -> TokenStream {
     let augment_for_update = mk_subcommands(&e, &app, true);
     let from_sub = mk_match_subcommand(&e, &sub);
     let propagation = mk_subcommand_propagation(&e);
+    let describe_subcommands = mk_subcommand_describe(&e);
     quote! {
         impl #impl_gen clap::Subcommand for #ident #ty_gen #where_cl {
             fn from_subcommand(subcommand: Option<(&str, &clap::ArgMatches)>)
@@ -97,6 +127,14 @@ pub fn subcommands(e: &types::Enum) -> TokenStream {
             {
                 #augment_for_update
                 return #app;
+            }
+        }
+        impl #impl_gen crate::options::describe::DescribeEnum
+            for #ident #ty_gen #where_cl
+        {
+            fn subcommands() -> &'static [crate::options::describe::Subcommand]
+            {
+                #describe_subcommands
             }
         }
         #propagation
@@ -341,6 +379,11 @@ fn mk_subcommand(s: &types::Subcommand, sub: &syn::Ident)
     for (name, value) in &s.attrs.options {
         modifiers.extend(quote! {
             #sub = #sub.#name(#value);
+        });
+    }
+    if s.attrs.hidden {
+        modifiers.extend(quote! {
+            #sub = #sub.setting(clap::AppSettings::Hidden);
         });
     }
 
@@ -725,4 +768,81 @@ fn mk_subcommand_propagation(e: &types::Enum) -> TokenStream {
             }
         }
     };
+}
+
+fn subcmd_to_desc(sub: &types::Subcommand, e: &types::Enum) -> TokenStream {
+    let name = sub.attrs.name.clone()
+        .unwrap_or_else(|| {
+            e.attrs.rename_all.convert(&sub.ident.to_string())
+        });
+    let about = sub.attrs.about.as_ref()
+        .or(sub.attrs.doc.as_ref())
+        .map(|a| a.clap_text())
+        .map(|v| quote!(Some(#v)))
+        .unwrap_or_else(|| quote!(None));
+    let title = sub.attrs.about.as_ref()
+        .or(sub.attrs.doc.as_ref())
+        .map(|a| a.formatted_title())
+        .map(|v| quote!(Some(#v)))
+        .unwrap_or_else(|| quote!(None));
+    let hidden = sub.attrs.hidden;
+    let expand_help = sub.attrs.expand_help;
+    let describe_inner = if let Some(ty) = &sub.ty {
+        quote!(<#ty as crate::options::describe::Describe>::describe)
+    } else {
+        quote!(crate::options::describe::empty_command)
+    };
+    quote! {
+        crate::options::describe::Subcommand {
+            name: #name,
+            override_about: #about,
+            override_title: #title,
+            hidden: #hidden,
+            expand_help: #expand_help,
+            describe_inner: #describe_inner,
+        }
+    }
+}
+
+fn mk_subcommand_describe(e: &types::Enum) -> TokenStream {
+    if e.subcommands.iter().any(|s| s.attrs.flatten) {
+        let capacity = e.subcommands.len();
+        let vec = syn::Ident::new("vec", Span::call_site());
+        let mut items = Vec::with_capacity(e.subcommands.len());
+        for sub in &e.subcommands {
+            if sub.attrs.flatten {
+                let ty = &sub.ty;
+                items.push(quote! {
+                    #vec.extend(
+                        <#ty as crate::options::describe::DescribeEnum>
+                        ::subcommands()
+                        .iter().cloned()
+                    );
+                });
+            } else {
+                let cmd = subcmd_to_desc(sub, e);
+                items.push(quote! {
+                    #vec.push(#cmd);
+                });
+            }
+        }
+        quote! {
+            static ALL: ::once_cell::sync::OnceCell<
+                Vec<crate::options::describe::Subcommand>
+            > = ::once_cell::sync::OnceCell::new();
+            return ALL.get_or_init(|| {
+                let mut #vec = Vec::with_capacity(#capacity);
+                #( #items )*
+                return #vec;
+            });
+        }
+    } else {
+        let direct = e.subcommands.iter().map(|s| subcmd_to_desc(s, e));
+        quote! {
+            static SUBCOMMANDS: &[crate::options::describe::Subcommand] = &[
+                #( #direct ),*
+            ];
+            return SUBCOMMANDS;
+        }
+    }
 }

@@ -38,6 +38,8 @@ pub enum ContainerAttr {
 #[derive(Debug)]
 pub enum SubcommandAttr {
     Inherit(syn::Type),
+    Hidden,
+    ExpandHelp,
     Name(syn::LitStr),
     Default(syn::Ident),
     Value {
@@ -107,6 +109,8 @@ pub struct SubcommandAttrs {
     pub doc: Option<Markdown>,
     pub about: Option<Markdown>,
     pub flatten: bool,
+    pub hidden: bool,
+    pub expand_help: bool,
     pub inherit: Vec<syn::Type>,
     pub options: LinkedHashMap<syn::Ident, syn::Expr>,
 }
@@ -251,6 +255,12 @@ impl Parse for SubcommandAttr {
             let _eq: syn::Token![=] = input.parse()?;
             let val = input.parse()?;
             Ok(Name(val))
+        } else if lookahead.peek(kw::hidden) {
+            let _kw: kw::hidden = input.parse()?;
+            Ok(Hidden)
+        } else if lookahead.peek(kw::expand_help) {
+            let _kw: kw::expand_help = input.parse()?;
+            Ok(ExpandHelp)
         } else {
             let name: syn::Ident = input.parse()?;
             let lookahead = input.lookahead1();
@@ -467,6 +477,8 @@ impl SubcommandAttrs {
             doc: None,
             about: None,
             flatten: false,
+            expand_help: false,
+            hidden: false,
             inherit: Vec::new(),
             options: LinkedHashMap::new(),
         };
@@ -485,6 +497,8 @@ impl SubcommandAttrs {
                     match item {
                         Inherit(ty) => res.inherit.push(ty),
                         Name(name) => res.name = Some(name.value()),
+                        Hidden => res.hidden = true,
+                        ExpandHelp => res.expand_help = true,
                         Value { name, value } if name == "about" => {
                             try_set_opt(&mut res.about, value);
                         }
@@ -593,47 +607,8 @@ impl Markdown {
         return buf;
     }
     pub fn clap_text(&self) -> syn::LitStr {
-        use minimad::{Text, Composite};
-        use minimad::Line::*;
-        use minimad::CompositeStyle::*;
-
-        let text = self.markdown_text();
-        let lines = Text::from(&text[..]).lines;
-        let mut text = Text { lines: Vec::with_capacity(lines.len()) };
-        for line in lines.into_iter() {
-            if let Normal(Composite { style, compounds: cmps }) = line {
-                if cmps.len() == 0  {
-                    text.lines.push(
-                        Normal(Composite { style, compounds: cmps })
-                    );
-                    continue;
-                }
-                match (style, text.lines.last_mut()) {
-                    (_, Some(&mut Normal(Composite { ref compounds , ..})))
-                        if compounds.len() == 0
-                    => {
-                        text.lines.push(
-                            Normal(Composite { style, compounds: cmps })
-                        );
-                    }
-                    | (Paragraph, Some(&mut Normal(Composite {
-                        style: Paragraph, ref mut compounds })))
-                    | (Paragraph, Some(&mut Normal(Composite {
-                        style: ListItem, ref mut compounds })))
-                    | (Quote, Some(&mut Normal(Composite {
-                        style: Quote, ref mut compounds })))
-                    => {
-                        compounds.push(minimad::Compound::raw_str(" "));
-                        compounds.extend(cmps);
-                    }
-                    _ => {
-                        text.lines.push(
-                            Normal(Composite { style, compounds: cmps })
-                        );
-                    }
-                }
-            }
-        }
+        let markdown = self.markdown_text();
+        let text = parse_markdown(&markdown);
         let skin = termimad::MadSkin::default();
         let fmt = termimad::FmtText::from_text(
             &skin,
@@ -641,6 +616,20 @@ impl Markdown {
             None,
         );
         syn::LitStr::new(&fmt.to_string(), self.source.span())
+    }
+    pub fn formatted_title(&self) -> syn::LitStr {
+        let markdown = self.markdown_text();
+        let mut text = parse_markdown(&markdown);
+        if !text.lines.is_empty() {
+            text.lines.drain(1..);
+        }
+        let skin = termimad::MadSkin::default();
+        let fmt = termimad::FmtText::from_text(
+            &skin,
+            text,
+            None,
+        );
+        syn::LitStr::new(fmt.to_string().trim(), self.source.span())
     }
 }
 
@@ -719,4 +708,48 @@ impl CliParse {
         use ParserKind::*;
         !matches!(self.kind, FromOccurrences | FromFlag)
     }
+}
+
+fn parse_markdown(text: &str) -> minimad::Text {
+    use minimad::{Text, Composite};
+    use minimad::Line::*;
+    use minimad::CompositeStyle::*;
+
+    let lines = Text::from(&text[..]).lines;
+    let mut text = Text { lines: Vec::with_capacity(lines.len()) };
+    for line in lines.into_iter() {
+        if let Normal(Composite { style, compounds: cmps }) = line {
+            if cmps.len() == 0  {
+                text.lines.push(
+                    Normal(Composite { style, compounds: cmps })
+                );
+                continue;
+            }
+            match (style, text.lines.last_mut()) {
+                (_, Some(&mut Normal(Composite { ref compounds , ..})))
+                    if compounds.len() == 0
+                => {
+                    text.lines.push(
+                        Normal(Composite { style, compounds: cmps })
+                    );
+                }
+                | (Paragraph, Some(&mut Normal(Composite {
+                    style: Paragraph, ref mut compounds })))
+                | (Paragraph, Some(&mut Normal(Composite {
+                    style: ListItem, ref mut compounds })))
+                | (Quote, Some(&mut Normal(Composite {
+                    style: Quote, ref mut compounds })))
+                => {
+                    compounds.push(minimad::Compound::raw_str(" "));
+                    compounds.extend(cmps);
+                }
+                _ => {
+                    text.lines.push(
+                        Normal(Composite { style, compounds: cmps })
+                    );
+                }
+            }
+        }
+    }
+    return text;
 }

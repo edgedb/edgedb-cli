@@ -54,6 +54,7 @@ pub enum Command {
     Info(Info),
     /// Show system introspection debug info
     #[clap(name="_detect")]
+    #[edb(hidden)]
     _Detect(Detect),
 }
 

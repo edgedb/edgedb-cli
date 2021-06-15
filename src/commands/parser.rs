@@ -10,28 +10,34 @@ use crate::options::ConnectionOptions;
 #[derive(EdbClap, Clone, Debug)]
 #[edb(inherit(ConnectionOptions))]
 pub enum Common {
-    /// Database commands
-    Database(Database),
-    /// Various list commands
-    List(List),
-    /// Show postgres address. Works on dev-mode database only.
-    #[clap(setting=AppSettings::Hidden)]
-    Pgaddr,
-    /// Run psql shell. Works on dev-mode database only.
-    #[clap(setting=AppSettings::Hidden)]
-    Psql,
-    /// Modify database configuration
-    Config(Configure),
-    /// Describe database schema or an object
-    Describe(Describe),
     /// Create a database backup
     Dump(Dump),
     /// Restore a database backup from file
     Restore(Restore),
+    /// Modify database configuration
+    Config(Configure),
+
     /// Migration management subcommands
+    #[edb(expand_help)]
     Migration(Migration),
     /// An alias for `edgedb migration apply`
     Migrate(Migrate),
+
+    /// Database commands
+    #[edb(expand_help)]
+    Database(Database),
+    /// Describe database schema or an object
+    #[edb(expand_help)]
+    Describe(Describe),
+
+    /// List matching database objects by name and type
+    List(List),
+    /// Show postgres address. Works on dev-mode database only.
+    #[edb(hidden)]
+    Pgaddr,
+    /// Run psql shell. Works on dev-mode database only.
+    #[edb(hidden)]
+    Psql,
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -48,6 +54,7 @@ pub struct Describe {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum DescribeCmd {
+    /// Describe a database object
     Object(DescribeObject),
     /// Describe schema of the current database
     Schema(DescribeSchema),
@@ -66,7 +73,7 @@ pub enum ListCmd {
     /// Display list of databases in the server instance
     Databases,
     /// List ports exposed by EdgeDB. Works on EdgeDB <= 1-alpha7
-    #[clap(setting=AppSettings::Hidden)]
+    #[edb(hidden)]
     Ports,
     /// Display list of casts defined in the schema
     Casts(ListCasts),
