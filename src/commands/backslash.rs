@@ -105,6 +105,12 @@ pub struct Argument {
     pub name: String,
 }
 
+pub enum Command {
+    Settings,
+    Normal(CommandInfo),
+    Subcommands(BTreeMap<String, CommandInfo>),
+}
+
 #[derive(Debug)]
 pub struct CommandInfo {
     pub options: String,
@@ -124,9 +130,9 @@ pub struct SettingInfo {
 
 pub struct CommandCache {
     pub settings: BTreeMap<&'static str, SettingInfo>,
-    pub commands: BTreeMap<String, CommandInfo>,
+    pub commands: BTreeMap<String, Command>,
     pub aliases: BTreeMap<&'static str, &'static str>,
-    pub all_commands: BTreeSet<String>,
+    pub top_commands: BTreeSet<String>,
 }
 
 impl<'a> Parser<'a> {
@@ -256,6 +262,25 @@ impl<'a> Iterator for Parser<'a> {
     }
 }
 
+impl CommandInfo {
+    fn from(cmd: &clap::App) -> CommandInfo {
+        CommandInfo {
+            options: cmd.get_arguments()
+                .filter_map(|a| a.get_short())
+                .collect(),
+            arguments: cmd.get_arguments()
+                .filter(|a| a.get_short().is_none())
+                .filter(|a| a.get_long().is_none())
+                .map(|a| Argument {
+                    required: false,
+                    name: a.get_name().to_owned(),
+                })
+                .collect(),
+            description: cmd.get_about().map(|x| x.to_owned()),
+        }
+    }
+}
+
 impl CommandCache {
     fn new() -> CommandCache {
         let mut clap = Backslash::into_app();
@@ -282,23 +307,22 @@ impl CommandCache {
         let commands: BTreeMap<_,_> = clap.get_subcommands_mut()
             .map(|cmd| {
                 let name = cmd.get_name().to_owned();
-                if name == "set" {
+                let cmd_info = if name == "set" {
                     setting_cmd = Some(&*cmd);
-                }
-                (name, CommandInfo {
-                    options: cmd.get_arguments()
-                        .filter_map(|a| a.get_short())
-                        .collect(),
-                    arguments: cmd.get_arguments()
-                        .filter(|a| a.get_short().is_none())
-                        .filter(|a| a.get_long().is_none())
-                        .map(|a| Argument {
-                            required: false,
-                            name: a.get_name().to_owned(),
+                    Command::Settings
+                } else if cmd.has_subcommands() {
+                    Command::Subcommands(cmd.get_subcommands()
+                        .map(|cmd| {
+                            (
+                                cmd.get_name().into(),
+                                CommandInfo::from(cmd),
+                            )
                         })
-                        .collect(),
-                    description: cmd.get_about().map(|x| x.to_owned()),
-                })
+                        .collect())
+                } else {
+                    Command::Normal(CommandInfo::from(cmd))
+                };
+                (name, cmd_info)
             })
             .collect();
         let setting_cmd = setting_cmd.expect("set command exists");
@@ -306,27 +330,29 @@ impl CommandCache {
             .map(|cmd| (cmd.get_name(), cmd))
             .collect();
         let settings = Setting::all_items().into_iter().map(|setting| {
-                let cmd = setting_cmd.remove(&setting.name())
-                    .expect("all settings have cmd");
-                let arg = cmd.get_arguments().next()
-                    .expect("setting has argument");
-                let values = arg.get_possible_values()
-                    .map(|v| v.iter().map(|x| (*x).to_owned()).collect());
-                let description = cmd.get_about().unwrap_or("").to_owned();
-                let info = SettingInfo {
-                    name: setting.name(),
-                    name_description: format!("{} -- {}",
-                        setting.name(), description),
-                    description,
-                    setting,
-                    value_name: arg.get_name().to_owned(),
-                    values,
-                 };
-                (info.name, info)
-            }).collect();
+            let cmd = setting_cmd.remove(&setting.name())
+                .expect("all settings have cmd");
+            let arg = cmd.get_arguments()
+                .filter(|a| a.get_name() != "help" && a.get_name() != "version")
+                .next()
+                .expect("setting has argument");
+            let values = arg.get_possible_values()
+                .map(|v| v.iter().map(|x| (*x).to_owned()).collect());
+            let description = cmd.get_about().unwrap_or("").trim().to_owned();
+            let info = SettingInfo {
+                name: setting.name(),
+                name_description: format!("{} -- {}",
+                    setting.name(), description),
+                description,
+                setting,
+                value_name: arg.get_name().to_owned(),
+                values,
+             };
+            (info.name, info)
+        }).collect();
         CommandCache {
             settings,
-            all_commands: commands.keys().map(|x| &x[..])
+            top_commands: commands.keys().map(|x| &x[..])
                 .chain(aliases.keys().map(|x| *x))
                 .map(|n| String::from("\\") + n)
                 .collect(),

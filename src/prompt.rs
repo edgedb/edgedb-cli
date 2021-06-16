@@ -124,7 +124,7 @@ impl Highlighter for EdgeqlHelper {
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        return hint.light_gray().to_string().into()
+        return hint.rgb(0x56, 0x56, 0x56).to_string().into()
     }
     fn highlight_candidate<'h>(&self, item: &'h str, _typ: CompletionType)
         -> std::borrow::Cow<'h, str>

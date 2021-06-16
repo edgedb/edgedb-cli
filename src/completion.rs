@@ -1,8 +1,8 @@
-use std::cmp::{min, Ordering};
-use std::str::FromStr;
-
 use std::ops::Bound;
 use std::borrow::Borrow;
+use std::cmp::{min, Ordering};
+use std::collections::BTreeMap;
+use std::str::FromStr;
 
 use edgeql_parser::preparser;
 
@@ -21,6 +21,7 @@ pub enum BackslashFsm {
     Command,
     Final,
     Arguments(&'static backslash::CommandInfo, &'static [backslash::Argument]),
+    Subcommands(&'static BTreeMap<String, backslash::CommandInfo>),
     Setting,
     SetValue(SettingValue)
 }
@@ -90,7 +91,7 @@ pub fn current<'x>(data: &'x str, pos: usize) -> (usize, Current<'x>) {
 
 
 fn complete_command(input: &str) -> Vec<Pair> {
-    backslash::CMD_CACHE.all_commands
+    backslash::CMD_CACHE.top_commands
         .range_from(input)
         .filter(|x| x.starts_with(input))
         .map(|x| Pair { value: x, description: x })
@@ -104,6 +105,22 @@ fn complete_setting(input: &str) -> Vec<Pair> {
             Pair {
                 value: name,
                 description: &setting.name_description,
+            }
+        })
+        .collect()
+}
+
+fn complete_subcommand(input: &str,
+    cmds: &'static BTreeMap<String, backslash::CommandInfo>)
+    -> Vec<Pair>
+{
+    cmds.range_from(input)
+        .filter(|(name, _)| name.starts_with(input))
+        .map(|(name, cmdinfo)| {
+            Pair {
+                value: name,
+                description: &cmdinfo.description.as_ref()
+                    .map(|x| x.trim()).unwrap_or(""),
             }
         })
         .collect()
@@ -145,6 +162,10 @@ pub fn complete(input: &str, cursor: usize)
                         (Fsm::Setting, Argument(arg)) => {
                             return Some((token.span.0, complete_setting(arg)));
                         }
+                        (Fsm::Subcommands(cmds), Argument(arg)) => {
+                            return Some((token.span.0,
+                                         complete_subcommand(arg, cmds)));
+                        }
                         (Fsm::SetValue(cfg), Argument(arg)) => {
                             return Some((token.span.0,
                                          complete_setting_value(arg, cfg)));
@@ -172,17 +193,98 @@ pub fn complete(input: &str, cursor: usize)
 }
 
 fn hint_command(cmd: &str) -> Option<Hint> {
-    use backslash::CMD_CACHE;
-    let mut rng = CMD_CACHE.all_commands.range_from(cmd)
+    use backslash::{CMD_CACHE, Command};
+    let mut rng = CMD_CACHE.top_commands.range_from(cmd)
         .take_while(|x| x.starts_with(cmd));
     if let Some(matching) = rng.next() {
         let full_match = cmd.len() == matching.len();
         if full_match || !rng.next().is_some() {
             let full_name = CMD_CACHE.aliases.get(&matching[1..]);
-            let cinfo = CMD_CACHE.commands
-                .get(*full_name.unwrap_or(&&matching[1..]))
-                .expect("command is defined");
+            match CMD_CACHE.commands.get(*full_name.unwrap_or(&&matching[1..]))
+            {
+                Some(Command::Normal(cinfo)) => {
+                    let mut output = String::from(&matching[cmd.len()..]);
+                    let complete = output.len() + 1;
+                    if !cinfo.options.is_empty() {
+                        output.push_str(" [-");
+                        output.push_str(&cinfo.options);
+                        output.push(']');
+                    }
+                    for arg in &cinfo.arguments {
+                        output.push_str(" [");
+                        output.push_str(&arg.name.to_uppercase());
+                        output.push(']');
+                    }
+                    if let Some(ref descr) = cinfo.description {
+                        output.push_str("  -- ");
+                        output.push_str(descr);
+                    } else if let Some(full) = full_name {
+                        output.push_str("  -- alias of \\");
+                        output.push_str(full);
+                    }
+                    return Some(Hint::new(output, complete));
+                }
+                Some(Command::Settings) => {
+                    let mut output = String::from(&matching[cmd.len()..]);
+                    let complete = output.len() + 1;
+                    output.push_str(" {");
+                    for (cmd, _) in &CMD_CACHE.settings {
+                        if !output.ends_with("{") {
+                            output.push(',');
+                        }
+                        output.push_str(cmd);
+                    }
+                    output.push_str("}");
+                    return Some(Hint::new(output, complete));
+                }
+                Some(Command::Subcommands(sub)) => {
+                    let mut output = String::from(&matching[cmd.len()..]);
+                    let complete = output.len() + 1;
+                    output.push_str(" {");
+                    for (cmd, _) in sub {
+                        if !output.ends_with("{") {
+                            output.push(',');
+                        }
+                        output.push_str(cmd);
+                    }
+                    output.push_str("}");
+                    return Some(Hint::new(output, complete));
+                }
+                None => return None,
+            }
+        } else  { // multiple choices possible
+            return None
+        }
+    }
+    let mut candidates: Vec<(f64, &String)> = backslash::CMD_CACHE.top_commands
+        .iter()
+        .map(|pv| (strsim::jaro_winkler(cmd, pv), pv))
+        .filter(|(confidence, _pv)| *confidence > 0.8)
+        .collect();
+    candidates.sort_by(|a, b| {
+        b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal)
+    });
+    let options: Vec<_> = candidates.into_iter()
+        .map(|(_c, pv)| &pv[..])
+        .collect();
+    let text = match options.len() {
+        0 => "  ← unknown backslash command".into(),
+        1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
+        _ => {
+            format!("  ← unknown, try: {}, ...", options[..2].join(", "))
+        }
+    };
+    Some(Hint::new(text, 0))
+}
 
+fn hint_subcommand(cmd: &str, cmds: &BTreeMap<String, backslash::CommandInfo>)
+    -> Option<Hint>
+{
+    let mut rng = cmds.range_from(cmd)
+        .take_while(|(name, _)| name.starts_with(cmd));
+    if let Some((matching, cinfo)) = rng.next() {
+        let full_match = cmd.len() == matching.len();
+        if full_match || !rng.next().is_some() {
             let mut output = String::from(&matching[cmd.len()..]);
             let complete = output.len() + 1;
             if !cinfo.options.is_empty() {
@@ -197,18 +299,14 @@ fn hint_command(cmd: &str) -> Option<Hint> {
             }
             if let Some(ref descr) = cinfo.description {
                 output.push_str("  -- ");
-                output.push_str(descr);
-            } else if let Some(full) = full_name {
-                output.push_str("  -- alias of \\");
-                output.push_str(full);
+                output.push_str(descr.trim());
             }
             return Some(Hint::new(output, complete));
         } else  { // multiple choices possible
             return None
         }
     }
-    let mut candidates: Vec<(f64, &String)> = backslash::CMD_CACHE.all_commands
-        .iter()
+    let mut candidates: Vec<(f64, &String)> = cmds.keys()
         .map(|pv| (strsim::jaro_winkler(cmd, pv), pv))
         .filter(|(confidence, _pv)| *confidence > 0.8)
         .collect();
@@ -219,7 +317,7 @@ fn hint_command(cmd: &str) -> Option<Hint> {
         .map(|(_c, pv)| &pv[..])
         .collect();
     let text = match options.len() {
-        0 => "  ← unknown backslash command".into(),
+        0 => "  ← unknown subcommand".into(),
         1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
         _ => {
             format!("  ← unknown, try: {}, ...", options[..2].join(", "))
@@ -346,6 +444,9 @@ pub fn hint(input: &str, pos: usize) -> Option<Hint> {
                         (Fsm::SetValue(cfg), Argument(arg)) => {
                             return hint_setting_value(arg, cfg);
                         }
+                        (Fsm::Subcommands(cmds), Argument(cmd)) => {
+                            return hint_subcommand(cmd, cmds);
+                        }
                         _ => return None,
                     }
                 } else {
@@ -361,6 +462,7 @@ impl BackslashFsm {
     pub fn advance(self, token: backslash::Token) -> Self {
         use BackslashFsm::*;
         use backslash::Item as T;
+        use backslash::Command;
         match self {
             Command => match token.item {
                 T::Command(x) if x == "\\set" => Setting,
@@ -368,17 +470,27 @@ impl BackslashFsm {
                     let name = &name[1..];
                     let full = backslash::CMD_CACHE.aliases.get(name)
                         .unwrap_or(&name);
-                    if let Some(cmd) = backslash::CMD_CACHE.commands.get(*full)
+                    match backslash::CMD_CACHE.commands.get(*full)
                     {
-                        if cmd.arguments.is_empty() {
-                            Final
-                        } else {
-                            Arguments(cmd, &cmd.arguments[..])
+                        Some(Command::Normal(cmd)) => {
+                            if cmd.arguments.is_empty() {
+                                Final
+                            } else {
+                                Arguments(cmd, &cmd.arguments[..])
+                            }
                         }
-                    } else {
-                        Final
+                        Some(Command::Subcommands(s)) => Subcommands(s),
+                        Some(Command::Settings) => Setting,
+                        None => Final,
                     }
                 }
+                _ => Final,
+            }
+            Subcommands(sub) => match token.item {
+                T::Argument(name) => match sub.get(name) {
+                    Some(cmd) => Arguments(cmd, &cmd.arguments),
+                    None => Final,
+                },
                 _ => Final,
             }
             Final => Final,
@@ -414,7 +526,7 @@ impl BackslashFsm {
 
         match (self, &token.item) {
             (Command, T::Command(cmd)) => {
-                let mut rng = CMD_CACHE.all_commands.range_from(cmd)
+                let mut rng = CMD_CACHE.top_commands.range_from(cmd)
                     .take_while(|x| x.starts_with(cmd));
                 if let Some(matching) = rng.next() {
                     if cmd.len() == matching.len() {
