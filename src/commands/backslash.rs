@@ -117,7 +117,7 @@ pub struct SettingInfo {
     pub name: &'static str,
     pub description: String,
     pub name_description: String,
-    pub setting: Setting,
+    pub setting: &'static Setting,
     pub value_name: String,
     pub values: Option<Vec<String>>,
 }
@@ -258,20 +258,18 @@ impl<'a> Iterator for Parser<'a> {
 
 impl CommandCache {
     fn new() -> CommandCache {
-        use Setting::*;
-
         let mut clap = Backslash::into_app();
         let mut aliases = BTreeMap::new();
         aliases.insert("d", "describe");
-        aliases.insert("ds", "describe-schema");
-        aliases.insert("l", "list-databases");
-        aliases.insert("lT", "list-scalar-types");
-        aliases.insert("lt", "list-object-types");
-        aliases.insert("lr", "list-roles");
-        aliases.insert("lm", "list-modules");
-        aliases.insert("la", "list-aliases");
-        aliases.insert("lc", "list-casts");
-        aliases.insert("li", "list-indexes");
+        aliases.insert("ds", "describe schema");
+        aliases.insert("l", "list databases");
+        aliases.insert("ls", "list scalars");
+        aliases.insert("lt", "list types");
+        aliases.insert("lr", "list roles");
+        aliases.insert("lm", "list modules");
+        aliases.insert("la", "list aliases");
+        aliases.insert("lc", "list casts");
+        aliases.insert("li", "list indexes");
         aliases.insert("s", "history");
         aliases.insert("e", "edit");
         aliases.insert("c", "connect");
@@ -307,16 +305,7 @@ impl CommandCache {
         let mut setting_cmd: BTreeMap<_, _> = setting_cmd.get_subcommands()
             .map(|cmd| (cmd.get_name(), cmd))
             .collect();
-        let settings = vec![
-                InputMode(Default::default()),
-                ImplicitProperties(Default::default()),
-                VerboseErrors(Default::default()),
-                Limit(Default::default()),
-                OutputMode(Default::default()),
-                ExpandStrings(Default::default()),
-                HistorySize(Default::default()),
-                PrintStats(Default::default()),
-            ].into_iter().map(|setting| {
+        let settings = Setting::all_items().into_iter().map(|setting| {
                 let cmd = setting_cmd.remove(&setting.name())
                     .expect("all settings have cmd");
                 let arg = cmd.get_arguments().next()
@@ -531,7 +520,9 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         Set(SetCommand {setting: Some(ref cmd)}) => {
             match cmd {
                 InputMode(m) => {
-                    prompt.input_mode(m.mode.expect("only writes here")).await?;
+                    prompt.input_mode(
+                        m.value.expect("only writes here")
+                    ).await?;
                 }
                 ImplicitProperties(b) => {
                     prompt.print.implicit_properties = b.unwrap_value();
@@ -540,7 +531,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                     prompt.verbose_errors = b.unwrap_value();
                 }
                 Limit(c) => {
-                    let limit = c.limit.expect("only set here");
+                    let limit = c.value.expect("only set here");
                     if limit == 0 {
                         prompt.implicit_limit = None;
                         prompt.print.max_items = None;
@@ -554,7 +545,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                     prompt.set_history_limit(limit).await?;
                 }
                 OutputMode(c) => {
-                    prompt.output_mode = c.mode.expect("only writes here");
+                    prompt.output_mode = c.value.expect("only writes here");
                 }
                 ExpandStrings(b) => {
                     prompt.print.expand_strings = b.unwrap_value();

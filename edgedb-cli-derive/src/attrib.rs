@@ -29,6 +29,7 @@ pub enum FieldAttr {
 pub enum ContainerAttr {
     Inherit(syn::Type),
     Default(syn::Ident),
+    Setting,
     Value {
         name: syn::Ident,
         value: syn::Expr,
@@ -68,6 +69,7 @@ pub struct ContainerAttrs {
     pub after_help: Option<Markdown>,
     pub help: Option<Markdown>,
     pub main: bool,
+    pub setting: bool,
     pub rename_all: Case,
     pub inherit: Vec<syn::Type>,
     pub options: LinkedHashMap<syn::Ident, syn::Expr>,
@@ -147,6 +149,9 @@ impl Parse for ContainerAttr {
             syn::parenthesized!(content in input);
             let ty = content.parse()?;
             Ok(Inherit(ty))
+        } else if lookahead.peek(kw::setting_impl) {
+            let _kw: kw::setting_impl = input.parse()?;
+            Ok(Setting)
         } else {
             let name: syn::Ident = input.parse()?;
             let lookahead = input.lookahead1();
@@ -312,6 +317,7 @@ impl ContainerAttrs {
             after_help: None,
             help: None,
             main: false,
+            setting: false,
             inherit: Vec::new(),
             rename_all: Case::KebabCase,
             options: LinkedHashMap::new(),
@@ -331,6 +337,9 @@ impl ContainerAttrs {
                     match item {
                         Inherit(ty) => {
                             res.inherit.push(ty);
+                        }
+                        Setting => {
+                            res.setting = true;
                         }
                         Value { name, value } if name == "before_help" => {
                             try_set_opt(&mut res.before_help, value);
