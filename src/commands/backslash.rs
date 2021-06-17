@@ -31,22 +31,21 @@ Introspection
   (options: -v = verbose, -s = show system objects, -I = case-sensitive match)
   \d [-v] NAME             describe schema object
   \ds, \describe-schema    describe the whole schema
-  \l, \list-databases      list databases
-  \lT [-sI] [PATTERN]      list scalar types
-                           (alias: \list-scalar-types)
+  \l, \list databases      list databases
+  \ls [-sI] [PATTERN]      list scalar types
+                           (alias: \list scalars)
   \lt [-sI] [PATTERN]      list object types
-                           (alias: \list-object-types)
+                           (alias: \list types)
   \lr [-I]                 list roles
-                           (alias: \list-roles)
+                           (alias: \list roles)
   \lm [-I]                 list modules
-                           (alias: \list-modules)
+                           (alias: \list modules)
   \la [-Isv] [PATTERN]     list expression aliases
-                           (alias: \list-aliases)
+                           (alias: \list aliases)
   \lc [-I] [PATTERN]       list casts
-                           (alias: \list-casts)
+                           (alias: \list casts)
   \li [-Isv] [PATTERN]     list indexes
-                           (alias: \list-indexes)
-  \list-ports              list ports
+                           (alias: \list indexes)
 
 Operations
   \dump FILENAME           dump current database into a file
@@ -116,6 +115,7 @@ pub struct CommandInfo {
     pub options: String,
     pub arguments: Vec<Argument>,
     pub description: Option<String>,
+    pub name_description: String,
 }
 
 #[derive(Debug)]
@@ -131,7 +131,7 @@ pub struct SettingInfo {
 pub struct CommandCache {
     pub settings: BTreeMap<&'static str, SettingInfo>,
     pub commands: BTreeMap<String, Command>,
-    pub aliases: BTreeMap<&'static str, &'static str>,
+    pub aliases: BTreeMap<&'static str, &'static [&'static str]>,
     pub top_commands: BTreeSet<String>,
 }
 
@@ -276,7 +276,12 @@ impl CommandInfo {
                     name: a.get_name().to_owned(),
                 })
                 .collect(),
-            description: cmd.get_about().map(|x| x.to_owned()),
+            description: cmd.get_about().map(|x| x.trim().to_owned()),
+            name_description: if let Some(desc) = cmd.get_about() {
+                format!("{} -- {}", cmd.get_name(), desc.trim())
+            } else {
+                cmd.get_name().to_string()
+            },
         }
     }
 }
@@ -285,24 +290,24 @@ impl CommandCache {
     fn new() -> CommandCache {
         let mut clap = Backslash::into_app();
         let mut aliases = BTreeMap::new();
-        aliases.insert("d", "describe");
-        aliases.insert("ds", "describe schema");
-        aliases.insert("l", "list databases");
-        aliases.insert("ls", "list scalars");
-        aliases.insert("lt", "list types");
-        aliases.insert("lr", "list roles");
-        aliases.insert("lm", "list modules");
-        aliases.insert("la", "list aliases");
-        aliases.insert("lc", "list casts");
-        aliases.insert("li", "list indexes");
-        aliases.insert("s", "history");
-        aliases.insert("e", "edit");
-        aliases.insert("c", "connect");
-        aliases.insert("E", "last-error");
-        aliases.insert("q", "exit");
-        aliases.insert("quit", "exit");
-        aliases.insert("?", "help");
-        aliases.insert("h", "help");
+        aliases.insert("d", &["describe"][..]);
+        aliases.insert("ds", &["describe", "schema"]);
+        aliases.insert("l", &["list", "databases"]);
+        aliases.insert("ls", &["list", "scalars"]);
+        aliases.insert("lt", &["list", "types"]);
+        aliases.insert("lr", &["list", "roles"]);
+        aliases.insert("lm", &["list", "modules"]);
+        aliases.insert("la", &["list", "aliases"]);
+        aliases.insert("lc", &["list", "casts"]);
+        aliases.insert("li", &["list", "indexes"]);
+        aliases.insert("s", &["history"]);
+        aliases.insert("e", &["edit"]);
+        aliases.insert("c", &["connect"]);
+        aliases.insert("E", &["last-error"]);
+        aliases.insert("q", &["exit"]);
+        aliases.insert("quit", &["exit"]);
+        aliases.insert("?", &["help"]);
+        aliases.insert("h", &["help"]);
         let mut setting_cmd = None;
         let commands: BTreeMap<_,_> = clap.get_subcommands_mut()
             .map(|cmd| {
@@ -392,7 +397,7 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
                     })
                 }
                 if let Some(cmd) = CMD_CACHE.aliases.get(&x[1..]) {
-                    arguments.push(cmd.to_string())
+                    arguments.extend(cmd.iter().map(|s| s.to_string()))
                 } else {
                     arguments.push(x[1..].to_owned())
                 }
