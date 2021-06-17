@@ -119,8 +119,7 @@ fn complete_subcommand(input: &str,
         .map(|(name, cmdinfo)| {
             Pair {
                 value: name,
-                description: &cmdinfo.description.as_ref()
-                    .map(|x| x.trim()).unwrap_or(""),
+                description: &cmdinfo.name_description,
             }
         })
         .collect()
@@ -180,6 +179,9 @@ pub fn complete(input: &str, cursor: usize)
                 Fsm::Command => {
                     return Some((cursor, complete_command("")));
                 }
+                Fsm::Subcommands(s) => {
+                    return Some((cursor, complete_subcommand("", s)));
+                }
                 Fsm::Setting => {
                     return Some((cursor, complete_setting("")));
                 }
@@ -192,40 +194,71 @@ pub fn complete(input: &str, cursor: usize)
     }
 }
 
-fn hint_command(cmd: &str) -> Option<Hint> {
+fn add_cmd_info(output: &mut String,
+    alias_of: Option<&[&str]>, cinfo: &backslash::CommandInfo)
+{
+    if !cinfo.options.is_empty() {
+        output.push_str(" [-");
+        output.push_str(&cinfo.options);
+        output.push(']');
+    }
+    for arg in &cinfo.arguments {
+        output.push_str(" [");
+        output.push_str(&arg.name.to_uppercase());
+        output.push(']');
+    }
+    if let Some(ref descr) = cinfo.description {
+        output.push_str("  -- ");
+        output.push_str(descr);
+    } else if let Some(alias_of) = alias_of {
+        output.push_str("  -- alias of \\");
+        output.push_str(alias_of[0]);
+        for item in &alias_of[1..] {
+            output.push(' ');
+            output.push_str(item);
+        }
+    }
+}
+
+fn hint_command(input: &str) -> Option<Hint> {
     use backslash::{CMD_CACHE, Command};
-    let mut rng = CMD_CACHE.top_commands.range_from(cmd)
-        .take_while(|x| x.starts_with(cmd));
+
+    let mut rng = CMD_CACHE.top_commands.range_from(input)
+        .take_while(|x| x.starts_with(input));
     if let Some(matching) = rng.next() {
-        let full_match = cmd.len() == matching.len();
+        let full_match = input.len() == matching.len();
         if full_match || !rng.next().is_some() {
-            let full_name = CMD_CACHE.aliases.get(&matching[1..]);
-            match CMD_CACHE.commands.get(*full_name.unwrap_or(&&matching[1..]))
-            {
+            let aliased = CMD_CACHE.aliases.get(&matching[1..]);
+            let cmd = if let Some(aliased) = aliased {
+                let cmd = CMD_CACHE.commands.get(aliased[0]);
+                debug_assert!(aliased.len() <= 2);
+                match (aliased.get(1), cmd) {
+                    (None, Some(cmd)) => Some(cmd),
+                    (Some(next), Some(Command::Subcommands(cmds)))
+                    => match cmds.get(*next) {
+                        Some(cinfo) => {
+                            let mut output
+                                = String::from(&matching[input.len()..]);
+                            let complete = output.len() + 1;
+                            add_cmd_info(&mut output, Some(aliased), cinfo);
+                            return Some(Hint::new(output, complete));
+                        }
+                        None => None,
+                    },
+                    _ => None,
+                }
+            } else {
+                CMD_CACHE.commands.get(&matching[1..])
+            };
+            match cmd {
                 Some(Command::Normal(cinfo)) => {
-                    let mut output = String::from(&matching[cmd.len()..]);
+                    let mut output = String::from(&matching[input.len()..]);
                     let complete = output.len() + 1;
-                    if !cinfo.options.is_empty() {
-                        output.push_str(" [-");
-                        output.push_str(&cinfo.options);
-                        output.push(']');
-                    }
-                    for arg in &cinfo.arguments {
-                        output.push_str(" [");
-                        output.push_str(&arg.name.to_uppercase());
-                        output.push(']');
-                    }
-                    if let Some(ref descr) = cinfo.description {
-                        output.push_str("  -- ");
-                        output.push_str(descr);
-                    } else if let Some(full) = full_name {
-                        output.push_str("  -- alias of \\");
-                        output.push_str(full);
-                    }
+                    add_cmd_info(&mut output, aliased.map(|x| *x), cinfo);
                     return Some(Hint::new(output, complete));
                 }
                 Some(Command::Settings) => {
-                    let mut output = String::from(&matching[cmd.len()..]);
+                    let mut output = String::from(&matching[input.len()..]);
                     let complete = output.len() + 1;
                     output.push_str(" {");
                     for (cmd, _) in &CMD_CACHE.settings {
@@ -238,7 +271,7 @@ fn hint_command(cmd: &str) -> Option<Hint> {
                     return Some(Hint::new(output, complete));
                 }
                 Some(Command::Subcommands(sub)) => {
-                    let mut output = String::from(&matching[cmd.len()..]);
+                    let mut output = String::from(&matching[input.len()..]);
                     let complete = output.len() + 1;
                     output.push_str(" {");
                     for (cmd, _) in sub {
@@ -258,7 +291,7 @@ fn hint_command(cmd: &str) -> Option<Hint> {
     }
     let mut candidates: Vec<(f64, &String)> = backslash::CMD_CACHE.top_commands
         .iter()
-        .map(|pv| (strsim::jaro_winkler(cmd, pv), pv))
+        .map(|pv| (strsim::jaro_winkler(input, pv), pv))
         .filter(|(confidence, _pv)| *confidence > 0.8)
         .collect();
     candidates.sort_by(|a, b| {
@@ -463,14 +496,17 @@ impl BackslashFsm {
         use BackslashFsm::*;
         use backslash::Item as T;
         use backslash::Command;
+        use backslash::CMD_CACHE;
+
         match self {
             Command => match token.item {
                 T::Command(x) if x == "\\set" => Setting,
                 T::Command(name) => {
                     let name = &name[1..];
-                    let full = backslash::CMD_CACHE.aliases.get(name)
-                        .unwrap_or(&name);
-                    match backslash::CMD_CACHE.commands.get(*full)
+                    let name_slice = &[name];
+                    let path = CMD_CACHE.aliases.get(&name).map(|x| *x)
+                        .unwrap_or(name_slice);
+                    match CMD_CACHE.commands.get(path[0])
                     {
                         Some(Command::Normal(cmd)) => {
                             if cmd.arguments.is_empty() {
@@ -479,7 +515,17 @@ impl BackslashFsm {
                                 Arguments(cmd, &cmd.arguments[..])
                             }
                         }
-                        Some(Command::Subcommands(s)) => Subcommands(s),
+                        Some(Command::Subcommands(subcmds)) => {
+                            if path.len() > 1 {
+                                if let Some(cmd) = subcmds.get(path[1]) {
+                                    Arguments(cmd, &cmd.arguments[..])
+                                } else {
+                                    Final
+                                }
+                            } else {
+                                Subcommands(subcmds)
+                            }
+                        }
                         Some(Command::Settings) => Setting,
                         None => Final,
                     }
