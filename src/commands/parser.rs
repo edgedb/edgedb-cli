@@ -53,6 +53,7 @@ pub struct Describe {
 }
 
 #[derive(EdbClap, Clone, Debug)]
+#[edb(inherit(ConnectionOptions))]
 pub enum DescribeCmd {
     /// Describe a database object
     Object(DescribeObject),
@@ -67,6 +68,7 @@ pub struct List {
 }
 
 #[derive(EdbClap, Clone, Debug)]
+#[edb(inherit(ConnectionOptions))]
 pub enum ListCmd {
     /// Display list of aliases defined in the schema
     Aliases(ListAliases),
@@ -90,6 +92,7 @@ pub enum ListCmd {
 }
 
 #[derive(EdbClap, Clone, Debug)]
+#[edb(inherit(ConnectionOptions))]
 pub enum MigrationCmd {
     /// Bring current database to the latest or a specified revision
     Apply(Migrate),

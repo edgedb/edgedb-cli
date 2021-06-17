@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeSet, BTreeMap};
 
 use anyhow;
-use clap::{self, Clap, IntoApp};
+use clap::{self, FromArgMatches};
 use edgedb_protocol::server_message::ErrorResponse;
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
@@ -18,6 +18,15 @@ use crate::table;
 
 
 pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(|| CommandCache::new());
+
+pub trait IntoApp {
+    fn into_app<'help>() -> clap::App<'help>;
+    fn augment_clap(app: clap::App<'_>) -> clap::App<'_>;
+}
+
+pub trait Subcommand {
+    fn augment_subcommands(app: clap::App<'_>) -> clap::App<'_>;
+}
 
 
 pub enum ExecuteResult {
@@ -420,12 +429,14 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
             }
         }
     }
-    Backslash::try_parse_from(arguments)
-    .map_err(|e| ParseError {
-        help: e.kind == clap::ErrorKind::DisplayHelp,
-        message: backslashify_help(&e.to_string()).into(),
-        span: None,
-    })
+    Backslash::into_app()
+        .try_get_matches_from(arguments)
+        .map(|m| Backslash::from_arg_matches(&m))
+        .map_err(|e| ParseError {
+            help: e.kind == clap::ErrorKind::DisplayHelp,
+            message: backslashify_help(&e.to_string()).into(),
+            span: None,
+        })
 }
 
 fn unquote_argument(s: &str) -> String {
