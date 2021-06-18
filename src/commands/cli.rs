@@ -10,6 +10,7 @@ use crate::self_upgrade;
 use crate::server;
 use crate::project;
 use crate::print::style::Styler;
+use crate::directory_check;
 
 
 pub fn main(options: Options) -> Result<(), anyhow::Error> {
@@ -24,6 +25,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
     };
     match options.subcommand.as_ref().expect("subcommand is present") {
         Command::Common(cmd) => {
+            directory_check::check_and_warn();
             match cmd {
                 Common::Migration(
                     Migration { subcommand: MigrationCmd::Log(mlog), .. }
@@ -44,12 +46,15 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             }
         },
         Command::Server(cmd) => {
+            directory_check::check_and_error()?;
             server::main(cmd)
         }
         Command::Project(cmd) => {
+            directory_check::check_and_error()?;
             project::main(cmd)
         }
         Command::Query(q) => {
+            directory_check::check_and_warn();
             task::block_on(async {
                 let mut conn = options.conn_params.connect().await?;
                 for query in &q.queries {

@@ -17,6 +17,7 @@ mod commands;
 mod completion;
 mod connect;
 mod credentials;
+mod directory_check;
 mod error_display;
 mod format;
 mod highlight;
@@ -111,6 +112,7 @@ fn _main() -> anyhow::Result<()> {
     if opt.subcommand.is_some() {
         commands::cli::main(opt)
     } else {
+        directory_check::check_and_warn();
         if opt.interactive {
             interactive::main(opt)
         } else {
