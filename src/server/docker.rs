@@ -370,7 +370,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
     fn get_tags(&self) -> anyhow::Result<&[Tag]> {
         self.tags.get_or_try_init(|| {
             task::block_on(async {
-                let mut url = "https://registry.hub.docker.com/\
+                let mut url = "https://hub.docker.com/\
                         v2/repositories/edgedb/edgedb/tags\
                         ?page_size=1000".to_string();
                 let mut tags = Vec::new();
