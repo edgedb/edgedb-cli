@@ -1010,6 +1010,7 @@ dependencies = [
  "pretty_assertions",
  "prettytable-rs",
  "rand 0.8.2",
+ "rcgen",
  "regex",
  "rexpect",
  "ring",
@@ -1070,7 +1071,7 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#fb8a9b2ceef8105f10fa467da754418a74607398"
+source = "git+https://github.com/fantix/edgedb-rust?branch=tls#e91e9fcec6da6981cc52ee94bb7266f7d6df1130"
 dependencies = [
  "anyhow",
  "async-listen",
@@ -1092,7 +1093,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#fb8a9b2ceef8105f10fa467da754418a74607398"
+source = "git+https://github.com/fantix/edgedb-rust?branch=tls#e91e9fcec6da6981cc52ee94bb7266f7d6df1130"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -1103,7 +1104,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#fb8a9b2ceef8105f10fa467da754418a74607398"
+source = "git+https://github.com/fantix/edgedb-rust?branch=tls#e91e9fcec6da6981cc52ee94bb7266f7d6df1130"
 dependencies = [
  "bigdecimal",
  "bytes",
@@ -2145,6 +2146,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pem"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd56cbd21fea48d0c440b41cd69c589faacade08c992d9a54e471b79d0fd13eb"
+dependencies = [
+ "base64 0.13.0",
+ "once_cell",
+ "regex",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2447,6 +2459,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3190ef7066a446f2e7f42e239d161e905420ccab01eb967c9eb27d21b2322a73"
 dependencies = [
  "rand_core 0.6.1",
+]
+
+[[package]]
+name = "rcgen"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48b4fc1b81d685fcd442a86da2e2c829d9e353142633a8159f42bf28e7e94428"
+dependencies = [
+ "chrono",
+ "pem",
+ "ring",
+ "yasna",
 ]
 
 [[package]]
@@ -3764,4 +3788,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "244c3741f4240ef46274860397c7c74e50eb23624996930e484c16679633a54c"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "yasna"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e262a29d0e61ccf2b6190d7050d4b237535fc76ce4c1210d9caa316f71dffa75"
+dependencies = [
+ "chrono",
 ]

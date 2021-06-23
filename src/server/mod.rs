@@ -36,9 +36,9 @@ mod revert;
 mod status;
 mod uninstall;
 pub mod upgrade;
+pub mod authenticate;
 
 pub use main::main;
-
 
 pub fn is_valid_name(name: &str) -> bool {
     let mut chars = name.chars();

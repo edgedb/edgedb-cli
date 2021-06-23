@@ -138,6 +138,9 @@ pub struct RawOptions {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
+    /// Authenticate to a remote instance
+    #[clap()]
+    Authenticate(Authenticate),
     #[clap(flatten)]
     Common(Common),
     /// Execute EdgeQL query
@@ -180,6 +183,42 @@ pub enum SelfSubcommand {
 #[derive(EdbClap, Clone, Debug)]
 pub struct Query {
     pub queries: Vec<String>,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+#[clap(long_about = "Authenticate to a remote EdgeDB instance and
+assign an instance name to simplify future connections.")]
+pub struct Authenticate {
+    /// The host and port of the remote instance
+    #[clap(name="host:port")]
+    pub host: String,
+
+    /// Specify a new instance name for the remote server. If not
+    /// present, the name will be interactively asked.
+    #[clap(short='n', long)]
+    pub name: Option<String>,
+
+    /// The database user to log into the remote server. If not
+    /// present, the username will be interactively asked.
+    #[clap(short='u', long)]
+    pub user: Option<String>,
+
+    /// The password for the database user to log into the remote
+    /// server. This is also available as an environment variable
+    /// `EDGEDB_PASSWORD`.
+    #[clap(short='p', long)]
+    pub password: Option<String>,
+
+    /// The name of the default database to connect to.
+    #[clap(short='d', long)]
+    pub database: Option<String>,
+
+    /// Automatically yes to prompts, or abort on unexpected questions.
+    #[clap(short='y', long, hidden=true)]
+    pub assume_yes: bool,
+
+    #[clap(long, hidden=true)]
+    pub generate_dev_cert: bool,
 }
 
 #[derive(Debug, Clone)]

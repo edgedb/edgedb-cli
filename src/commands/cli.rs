@@ -68,5 +68,12 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             SelfSubcommand::Upgrade(s) => self_upgrade::main(s),
             SelfSubcommand::Install(s) => self_install::main(s),
         },
+        Command::Authenticate(cmd) => {
+            // This magically tries to find edgedb.toml?
+            // let builder = options.conn_params.get()?;
+            // println!("{}", builder.get_addr());
+            // Ok(())
+            server::authenticate::authenticate(cmd)
+        }
     }
 }

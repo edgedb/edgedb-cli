@@ -7,9 +7,9 @@ edition = "2018"
 
 [dependencies]
 edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
-edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust", features=["all-types"]}
-edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust"}
-edgedb-client = {git = "https://github.com/edgedb/edgedb-rust"}
+edgedb-protocol = {git = "https://github.com/fantix/edgedb-rust", features=["all-types"], branch = "tls"}
+edgedb-derive = {git = "https://github.com/fantix/edgedb-rust", branch = "tls"}
+edgedb-client = {git = "https://github.com/fantix/edgedb-rust", branch = "tls"}
 snafu = {version="0.6.0", features=["backtraces"]}
 anyhow = "1.0.23"
 async-std = {version="1.9", features=[
@@ -79,6 +79,7 @@ toml = "0.5.8"
 termimad = "0.10.2"
 minimad = "0.7.0"
 edgedb-cli-derive = { path="edgedb-cli-derive" }
+rcgen = "0.8.11"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
