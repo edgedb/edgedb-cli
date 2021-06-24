@@ -15,6 +15,10 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
                 builder.filter_module("edgedb::self_upgrade",
                     log::LevelFilter::Info);
             }
+            SelfSubcommand::Migrate(s) if s.verbose => {
+                builder.filter_module("edgedb::self_migrate",
+                    log::LevelFilter::Info);
+            }
             _ => {}
         },
         Some(Command::Common(Common::Restore(r))) if r.verbose => {

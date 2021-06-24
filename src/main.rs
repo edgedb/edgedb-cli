@@ -36,6 +36,7 @@ mod prompt;
 mod question;
 mod repl;
 mod self_install;
+mod self_migrate;
 mod self_upgrade;
 mod server;
 mod statement;

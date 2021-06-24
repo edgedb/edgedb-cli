@@ -46,9 +46,6 @@ pub struct LocalInstance<'a> {
 }
 
 impl LocalInstance<'_> {
-    fn get_meta(&self) -> anyhow::Result<&Metadata> {
-        self.metadata.get_or_try_init(|| read_metadata(&self.path))
-    }
     fn get_slot(&self) -> anyhow::Result<&String> {
         self.slot.get_or_try_init(|| {
             match &self.get_meta()?.slot {
@@ -67,6 +64,9 @@ impl LocalInstance<'_> {
 }
 
 impl Instance for LocalInstance<'_> {
+    fn get_meta(&self) -> anyhow::Result<&Metadata> {
+        self.metadata.get_or_try_init(|| read_metadata(&self.path))
+    }
     fn get_version(&self) -> anyhow::Result<&MajorVersion> {
         Ok(&self.get_meta()?.version)
     }

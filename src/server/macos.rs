@@ -384,9 +384,6 @@ impl LocalInstance<'_> {
     fn launchd_name(&self) -> String {
         launchd_name(&self.name)
     }
-    fn get_meta(&self) -> anyhow::Result<&Metadata> {
-        self.metadata.get_or_try_init(|| read_metadata(&self.path))
-    }
     fn get_slot(&self) -> anyhow::Result<&String> {
         self.slot.get_or_try_init(|| {
             match &self.get_meta()?.slot {
@@ -401,6 +398,9 @@ impl LocalInstance<'_> {
 }
 
 impl<'a> Instance for LocalInstance<'a> {
+    fn get_meta(&self) -> anyhow::Result<&Metadata> {
+        self.metadata.get_or_try_init(|| read_metadata(&self.path))
+    }
     fn name(&self) -> &str {
         &self.name
     }

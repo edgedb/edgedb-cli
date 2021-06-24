@@ -6,6 +6,7 @@ use crate::non_interactive;
 use crate::commands;
 use crate::migrations;
 use crate::self_install;
+use crate::self_migrate;
 use crate::self_upgrade;
 use crate::server;
 use crate::project;
@@ -72,6 +73,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         Command::SelfCommand(c) => match &c.subcommand {
             SelfSubcommand::Upgrade(s) => self_upgrade::main(s),
             SelfSubcommand::Install(s) => self_install::main(s),
+            SelfSubcommand::Migrate(s) => self_migrate::main(s),
         },
     }
 }

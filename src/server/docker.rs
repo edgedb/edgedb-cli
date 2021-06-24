@@ -1166,20 +1166,6 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
             anyhow::bail!(stderr);
         }
     }
-    fn get_meta(&self) -> anyhow::Result<&Metadata> {
-        self.metadata.get_or_try_init(|| {
-            let volume_name = self.volume_name();
-            let data = process::get_text(Command::new(&self.method.cli)
-                .arg("run")
-                .arg("--rm")
-                .arg("--mount")
-                    .arg(format!("source={},target=/mnt", volume_name))
-                .arg("busybox")
-                .arg("cat")
-                .arg(format!("/mnt/{}/metadata.json", self.name)))?;
-            Ok(serde_json::from_str(&data)?)
-        })
-    }
     fn get_container(&self) -> anyhow::Result<&Option<Container>> {
         self.container.get_or_try_init(|| {
             self.method.inspect_container(&self.volume_name())
@@ -1212,6 +1198,20 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     }
     fn method(&self) -> &dyn Method {
         self.method
+    }
+    fn get_meta(&self) -> anyhow::Result<&Metadata> {
+        self.metadata.get_or_try_init(|| {
+            let volume_name = self.volume_name();
+            let data = process::get_text(Command::new(&self.method.cli)
+                .arg("run")
+                .arg("--rm")
+                .arg("--mount")
+                    .arg(format!("source={},target=/mnt", volume_name))
+                .arg("busybox")
+                .arg("cat")
+                .arg(format!("/mnt/{}/metadata.json", self.name)))?;
+            Ok(serde_json::from_str(&data)?)
+        })
     }
     fn get_version(&self) -> anyhow::Result<&MajorVersion> {
         if let Some(ver) = self.get_labels()?
