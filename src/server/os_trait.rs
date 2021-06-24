@@ -43,6 +43,7 @@ impl dyn CurrentOs {
 pub trait Instance: fmt::Debug {
     fn name(&self) -> &str;
     fn method(&self) -> &dyn Method;
+    fn get_meta(&self) -> anyhow::Result<&Metadata>;
     fn get_version(&self) -> anyhow::Result<&MajorVersion>;
     fn get_current_version(&self) -> anyhow::Result<Option<&Version<String>>>;
     fn get_port(&self) -> anyhow::Result<u16>;
@@ -148,6 +149,9 @@ impl InstanceRef<'_> {
     }
     pub fn method(&self) -> &dyn Method {
         self.0.method()
+    }
+    pub fn get_meta(&self) -> anyhow::Result<&Metadata> {
+        self.0.get_meta()
     }
     pub fn get_version(&self) -> anyhow::Result<&MajorVersion> {
         self.0.get_version()

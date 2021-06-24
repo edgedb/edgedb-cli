@@ -24,6 +24,17 @@ pub struct Confirm<'a> {
     default: Option<bool>,
 }
 
+pub struct Variant<'a, T: 'a> {
+    result: T,
+    input: &'a [&'a str],
+    help: Cow<'a, str>,
+}
+
+pub struct Choice<'a, T: 'a> {
+    question: Cow<'a, str>,
+    choices: Vec<Variant<'a, T>>,
+}
+
 pub fn read_choice() -> anyhow::Result<std::string::String> {
     for line in stdin().lock().lines() {
         let line = line.context("reading user input")?;
@@ -164,6 +175,50 @@ impl<'a> Confirm<'a> {
                     }
                 }
             }
+        }
+    }
+}
+
+impl<'a, T: Clone + 'a> Choice<'a, T> {
+    pub fn new<Q: Into<Cow<'a, str>>>(question: Q) -> Self {
+        Choice {
+            question: question.into(),
+            choices: Vec::new(),
+        }
+    }
+    pub fn option<H: Into<Cow<'a, str>>>(&mut self,
+        result: T, input: &'a [&'a str], help: H)
+        -> &mut Self
+    {
+        self.choices.push(Variant { result, input, help: help.into() });
+        self
+    }
+    pub fn ask(&self) -> anyhow::Result<T> {
+        let mut editor = Editor::<()>::with_config(Config::builder().build());
+        let options = self.choices.iter()
+            .map(|c| c.input[0])
+            .chain(Some("?"))
+            .collect::<Vec<_>>()
+            .join(",");
+        loop {
+            println!("{} [{}]", self.question, options);
+            let val = editor.readline("> ")?;
+            if matches!(val.as_ref(), "?" | "h" | "help") {
+                for choice in &self.choices {
+                    println!("{} - {}", choice.input.join(" or "), choice.help)
+                }
+                println!("h or ? - print help");
+                continue;
+            }
+            for choice in &self.choices {
+                for item in choice.input {
+                    if item == &val {
+                        return Ok(choice.result.clone());
+                    }
+                }
+            }
+            eprintln!("Invalid option {:?}, please use one of: {}",
+                val, options);
         }
     }
 }

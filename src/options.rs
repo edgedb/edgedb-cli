@@ -19,6 +19,7 @@ use crate::hint::HintExt;
 use crate::project;
 use crate::repl::OutputMode;
 use crate::self_install;
+use crate::self_migrate;
 use crate::self_upgrade;
 use crate::server;
 
@@ -175,6 +176,9 @@ pub enum SelfSubcommand {
     Upgrade(self_upgrade::SelfUpgrade),
     /// Install server
     Install(self_install::SelfInstall),
+    /// Migrate files from `~/.edgedb` to new directory layout
+    #[edb(hidden)]
+    Migrate(self_migrate::SelfMigrate),
 }
 
 #[derive(EdbClap, Clone, Debug)]

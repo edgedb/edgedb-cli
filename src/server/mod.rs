@@ -15,7 +15,7 @@ mod linux;
 mod debian;
 mod ubuntu;
 mod centos;
-mod macos;
+pub mod macos;
 mod windows;
 mod unknown_os;
 

@@ -14,7 +14,7 @@ mod upgrade;
 pub mod init;
 
 pub use main::main;
-pub use init::{stash_path};
+pub use init::{stash_path, stash_base};
 pub use unlink::unlink;
 
 #[allow(unused)]  // TODO(tailhook) will be used in `project info`
