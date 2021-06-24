@@ -88,38 +88,40 @@ pub struct Settings {
 
 fn print_long_description(settings: &Settings) {
     println!();
-    print_markdown!(r###"
-        # Welcome to EdgeDB!
-
-        This will install the official EdgeDB command-line tools.
-
-        The `edgedb` binary will be placed in the ${dir_kind} bin directory
-        located at:
-
-            ${installation_path}
-
-        ${update_win
-        This path will then be added to your `PATH` environment variable by
-        modifying the `HKEY_CURRENT_USER/Environment/PATH` registry key.
-        }
-
-        ${update_files
-        This path will then be added to your `PATH` environment variable by
-        modifying the profile file${s} located at:
-
-            ${rc_files}
-        }
-
+    print_markdown!("\
+        # Welcome to EdgeDB!\n\
+        \n\
+        This will install the official EdgeDB command-line tools.\n\
+        \n\
+        The `edgedb` binary will be placed in the ${dir_kind} bin directory \
+        located at:\n\
+        ```\n\
+            ${installation_path}\n\
+        ```\n\
+        \n\
+        ${update_win\n\
+        This path will then be added to your `PATH` environment variable by \
+        modifying the `HKEY_CURRENT_USER/Environment/PATH` registry key.\n\
+        }\n\
+        \n\
+        ${update_files\n\
+        This path will then be added to your `PATH` environment variable by \
+        modifying the profile file${s} located at:\n\
+        ```\n\
+            ${rc_files}\n\
+        ```\n\
+        }\n\
+        \n\
         ${modify_path
-        Path ${installation_path} should be added to the `PATH` manually after
-        installation.
-        }
-
-        ${no_modified
-        This path is already in your `PATH` environment variable, so no
-        profile will be modified.
-        }
-        "###,
+        Path ${installation_path} should be added to the `PATH` manually \
+        after installation.\n\
+        }\n\
+        \n\
+        ${no_modified\n\
+        This path is already in your `PATH` environment variable, so no \
+        profile will be modified.\n\
+        }\n\
+        ",
         dir_kind=if settings.system { "system" } else { "user" },
         installation_path=settings.installation_path.display(),
         update_win: if cfg!(windows),
@@ -202,35 +204,35 @@ fn print_post_install_message(settings: &Settings,
     init_result: anyhow::Result<bool>)
 {
     if cfg!(windows) {
-        print_markdown!(r###"
-            # The EdgeDB command-line tool is now installed!
-
-            We've updated your environment configuration to have `${dir}` in
-            your `PATH` environment variable. You may need to reopen the
-            terminal for this change to take effect, and for the `edgedb`
-            command to become available.
-            "###,
+        print_markdown!("\
+            # The EdgeDB command-line tool is now installed!\n\
+            \n\
+            We've updated your environment configuration to have `${dir}` in\n\
+            your `PATH` environment variable. You may need to reopen the\n\
+            terminal for this change to take effect, and for the `edgedb`\n\
+            command to become available.\
+            ",
             dir=settings.installation_path.display(),
         );
     } else if settings.modify_path {
-        print_markdown!(r###"
-            # The EdgeDB command-line tool is now installed!
-
-            We've updated your shell profile to have ${dir} in your `PATH`
-            environment variable. Next time you open the terminal it will be
-            configured automatically.
-
-            For this session please run:
-
-                source ${env_path}
-
-            "###,
+        print_markdown!("\
+            # The EdgeDB command-line tool is now installed!\n\
+            \n\
+            We've updated your shell profile to have ${dir} in your `PATH`\n\
+            environment variable. Next time you open the terminal it will be\n\
+            configured automatically.\n\
+            \n\
+            For this session please run:\n\
+            ```\n\
+                source ${env_path}\n\
+            ```\
+            ",
             dir=settings.installation_path.display(),
             env_path=settings.env_file.display(),
         );
     } else {
-        print_markdown!("
-            # The EdgeDB command-line tool is now installed!
+        print_markdown!("\
+            # The EdgeDB command-line tool is now installed!\
         ");
     }
     if is_zsh() {
@@ -243,39 +245,40 @@ fn print_post_install_message(settings: &Settings,
         let func_dir = func_dir.as_ref().and_then(|p| p.to_str());
         if let Some((fpath, func_dir)) = fpath.zip(func_dir) {
             if !fpath.split(" ").any(|s| s == func_dir) {
-                print_markdown!(r###"
-                    To enable zsh completion, add:
-
-                        fpath+=~/.zfunc
-
-                    to your `~/.zshrc` before `compinit` command.
-                "###);
+                print_markdown!("\n\
+                    To enable zsh completion, add:\n\
+                    ```\n\
+                        fpath+=~/.zfunc\n\
+                    ```\n\
+                    to your `~/.zshrc` before `compinit` command.\
+                ");
             }
         }
     }
     match init_result {
         Ok(true) => {
-            print_markdown!("
-                `edgedb` without parameters will automatically
-                connect to the initialized project.
+            print_markdown!("\n\
+                `edgedb` without parameters will automatically\n\
+                connect to the initialized project.\n\
             ");
         }
         Ok(false) => {
-            print_markdown!("
-                To install the EdgeDB server and initialize the project, run
-                the following from the project directory:
-
-                    edgedb project init
-
+            print_markdown!("\
+                To install the EdgeDB server and initialize the project, run\n\
+                the following from the project directory:\n\
+                ```\n\
+                    edgedb project init\n\
+                ```\
             ");
         }
         Err(e) => {
             print_markdown!("
-                **There was an error while initializing project: ${err}**
-
-                To restart project initialization, run:
-
-                    edgedb project init
+                **There was an error while initializing project: ${err}**\n\
+                \n\
+                To restart project initialization, run:\n\
+                ```\n\
+                    edgedb project init\n\
+                ```\
                 ",
                 err=format!("{:#}", e),
             );
