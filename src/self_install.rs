@@ -224,7 +224,7 @@ fn print_post_install_message(settings: &Settings,
             \n\
             For this session please run:\n\
             ```\n\
-                source ${env_path}\n\
+                source \"${env_path}\"\n\
             ```\
             ",
             dir=settings.installation_path.display(),
@@ -263,7 +263,7 @@ fn print_post_install_message(settings: &Settings,
             ");
         }
         Ok(false) => {
-            print_markdown!("\
+            print_markdown!("\n\
                 To install the EdgeDB server and initialize the project, run\n\
                 the following from the project directory:\n\
                 ```\n\
