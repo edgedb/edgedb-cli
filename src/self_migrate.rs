@@ -1,3 +1,4 @@
+use std::env;
 use std::path::Path;
 use std::io;
 
@@ -10,6 +11,7 @@ use crate::project;
 use crate::question;
 use crate::print_markdown;
 use crate::commands::ExitCode;
+use crate::self_upgrade::binary_path;
 
 
 #[derive(EdbClap, Clone, Debug)]
@@ -146,7 +148,28 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn try_move_bin(exe_path: &Path) -> anyhow::Result<()> {
+    let bin_path = binary_path()?;
+    let bin_dir = bin_path.parent().unwrap();
+    if !bin_dir.exists() {
+        fs::create_dir_all(&bin_dir)?;
+    }
+    fs::rename(&exe_path, &bin_path)?;
+    Ok(())
+}
+
 pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
+    if let Ok(exe_path) = env::current_exe() {
+        if exe_path.starts_with(base) {
+            try_move_bin(&exe_path)
+            .map_err(|e| {
+                eprintln!("Cannot move executable to the new location. \
+                    Try `edgedb self upgrade` instead");
+                e
+            })?;
+        }
+    }
+
     let source = base.join("credentials");
     let target = credentials::base_dir()?;
     if source.exists() {

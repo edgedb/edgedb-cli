@@ -12,6 +12,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use url::Url;
 
 use crate::async_util::timeout;
+use crate::platform::home_dir;
 use crate::process;
 use crate::server::package::RepositoryInfo;
 use crate::server::remote;
@@ -67,23 +68,38 @@ pub fn can_upgrade() -> bool {
 }
 
 pub fn binary_path() -> anyhow::Result<PathBuf> {
-    match dirs::executable_dir() {
-        Some(dir) => Ok(dir),
+    let dir = match dirs::executable_dir() {
+        Some(dir) => dir,
         // windows and macos fit this branch
         None => {
-            Ok(dirs::data_dir()
+            dirs::data_dir()
                 .context("cannot determine local data directory")?
                 .join("edgedb")
                 .join("bin")
-            )
         }
-    }
+    };
+    let path = if cfg!(windows) {
+        dir.join("edgedb.exe")
+    } else {
+        dir.join("edgedb")
+    };
+    Ok(path)
+}
+
+pub fn old_binary_path() -> anyhow::Result<PathBuf> {
+    let bin_name = if cfg!(windows) {
+        "edgedb.exe"
+    } else {
+        "edgedb"
+    };
+    Ok(home_dir()?.join(".edgedb").join("bin").join(bin_name))
 }
 
 fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {
     let exe_path = env::current_exe()
         .with_context(|| format!("cannot determine running executable path"))?;
-    Ok(exe_path == path)
+    Ok(exe_path == path ||
+       matches!(old_binary_path(), Ok(old) if exe_path == old))
 }
 
 #[context("cannot download {} -> {}", url, path.display())]
@@ -158,15 +174,15 @@ pub fn main(options: &SelfUpgrade) -> anyhow::Result<()> {
         fs::hard_link(&path, &backup_path)
             .map_err(|e| log::warn!("Cannot keep a backup file: {:#}", e))
             .ok();
-        fs::rename(&tmp_path, &path)?;
     } else if cfg!(windows) {
         fs::remove_file(&backup_path).ok();
         fs::rename(&path, &backup_path)?;
-        fs::rename(&tmp_path, &path)?;
     } else {
         anyhow::bail!("unknown OS");
     }
-    process::run(Command::new(&path).arg("_gen_completions").arg("--home"))?;
+    process::run(Command::new(&tmp_path)
+        .arg("self").arg("install").arg("--upgrade"))?;
+    fs::remove_file(&tmp_path).ok();
     if !options.quiet {
         println!("Upgraded to version {} (revision {})",
             pkg.version, pkg.revision);
