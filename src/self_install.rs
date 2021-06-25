@@ -9,7 +9,7 @@ use std::process::{Command, exit};
 use std::str::FromStr;
 
 use anyhow::Context;
-use clap::IntoApp;
+use clap::{IntoApp, ArgSettings};
 use clap_generate::{generate, generators};
 use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
@@ -22,6 +22,7 @@ use crate::project::init;
 use crate::project::options::Init;
 use crate::question::{self, read_choice};
 use crate::self_upgrade;
+use crate::self_migrate;
 use crate::table;
 use crate::print_markdown;
 
@@ -50,6 +51,10 @@ pub struct SelfInstall {
     /// in a new window.
     #[clap(long)]
     pub no_wait_for_exit_prompt: bool,
+
+    /// Installation is run from `self ugprade` command
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub upgrade: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -290,6 +295,7 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
     match _main(options) {
         Ok(()) => {
             if cfg!(windows)
+               && !options.upgrade
                && !options.no_confirm
                && !options.no_wait_for_exit_prompt
             {
@@ -302,6 +308,7 @@ pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
         }
         Err(e) => {
             if cfg!(windows)
+               && !options.upgrade
                && !options.no_confirm
                && !options.no_wait_for_exit_prompt
             {
@@ -400,7 +407,7 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
             env_file: config_dir()?.join("env"),
         }
     };
-    if !options.quiet {
+    if !options.quiet && !options.upgrade {
         print_long_description(&settings);
         settings.print();
         if !options.no_confirm {
@@ -434,11 +441,16 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
     fs::create_dir_all(&settings.installation_path)
         .with_context(|| format!("failed to create {:?}",
                                  settings.installation_path))?;
-    fs::remove_file(&tmp_path).ok();
-    fs::copy(&exe_path, &tmp_path)
-        .with_context(|| format!("failed to write {:?}", tmp_path))?;
-    fs::rename(&tmp_path, &path)
-        .with_context(|| format!("failed to rename {:?}", tmp_path))?;
+    if exe_path.parent() == path.parent() {
+        fs::rename(&exe_path, &path)
+            .with_context(|| format!("failed to rename {:?}", exe_path))?;
+    } else {
+        fs::remove_file(&tmp_path).ok();
+        fs::copy(&exe_path, &tmp_path)
+            .with_context(|| format!("failed to write {:?}", tmp_path))?;
+        fs::rename(&tmp_path, &path)
+            .with_context(|| format!("failed to rename {:?}", tmp_path))?;
+    }
     write_completions_home()?;
 
     if settings.modify_path {
@@ -464,13 +476,30 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
         }
     }
 
-    let init_result = if options.no_confirm {
-        Ok(false)
-    } else {
-        try_project_init()
-    };
+    let base = home_dir()?.join(".edgedb");
+    if base.exists() {
+        eprintln!("\
+            Edgedb CLI has stopped using '{}' for storing data \
+                and now uses standard locations of your OS. \
+        ", base.display());
+        let q = question::Confirm::new(format!("\
+            Do you want to run `edgedb self migrate` now to update \
+            the directory layout?\
+        "));
+        if q.ask()? {
+            self_migrate::migrate(&base, false)?;
+        }
+    }
 
-    print_post_install_message(&settings, init_result);
+    if !options.upgrade {
+        let init_result = if options.no_confirm {
+            Ok(false)
+        } else {
+            try_project_init()
+        };
+
+        print_post_install_message(&settings, init_result);
+    }
 
     Ok(())
 }
