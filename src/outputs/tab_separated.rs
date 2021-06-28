@@ -30,13 +30,14 @@ fn value_to_string(v: &Value) -> Result<String, anyhow::Error> {
         Bool(v) => Ok(v.to_string()),
         Json(v) => Ok(v.to_string()),
         Enum(v) => Ok(v.to_string()),
+        Duration(v) => Ok(v.to_string()),
+        RelativeDuration(v) => Ok(v.to_string()),
         | Datetime(_) // TODO(tailhook)
         | BigInt(_) // TODO(tailhook)
         | Decimal(_) // TODO(tailhook)
         | LocalDatetime(_) // TODO(tailhook)
         | LocalDate(_) // TODO(tailhook)
         | LocalTime(_) // TODO(tailhook)
-        | Duration(_) // TODO(tailhook)
         | Bytes(_)
         | Object {..}
         | NamedTuple {..}
