@@ -116,6 +116,9 @@ impl FormatExt for Value {
             V::LocalTime(t)
             => prn.typed("cal::local_time", format!("{:?}", t)),
             V::Duration(d) => prn.typed("duration", d.to_string()),
+            V::RelativeDuration(d) => {
+                prn.typed("cal::relative_duration", d.to_string())
+            }
             V::Json(d) => prn.const_scalar(format!("{:?}", d)),
             V::Set(items) => {
                 prn.set(|prn| {
