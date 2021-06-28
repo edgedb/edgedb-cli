@@ -212,12 +212,14 @@ fn object() {
             flag_implicit: false,
             flag_link_property: false,
             flag_link: false,
+            cardinality: None,
             name: "field1".into(),
         },
         ShapeElement {
             flag_implicit: false,
             flag_link_property: false,
             flag_link: false,
+            cardinality: None,
             name: "field2".into(),
         }
     ]);
@@ -263,12 +265,14 @@ fn link_property() {
             flag_implicit: false,
             flag_link_property: false,
             flag_link: false,
+            cardinality: None,
             name: "field1".into(),
         },
         ShapeElement {
             flag_implicit: false,
             flag_link_property: true,
             flag_link: false,
+            cardinality: None,
             name: "field2".into(),
         }
     ]);
@@ -328,6 +332,7 @@ fn all_widths() {
             flag_implicit: false,
             flag_link_property: false,
             flag_link: false,
+            cardinality: None,
             name: "field1".into(),
         },
     ]);
