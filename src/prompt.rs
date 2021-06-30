@@ -405,7 +405,7 @@ fn show_history(history: &History) -> Result<(), anyhow::Error> {
 
 fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
     let mut temp_file = tempfile::Builder::new()
-        .suffix(".edgedb")
+        .suffix(".edgeql")
         .tempfile()?;
     temp_file.write_all(data.as_bytes())?;
     let temp_path = temp_file.into_temp_path();
@@ -423,4 +423,3 @@ fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
         Err(anyhow::anyhow!("editor exited with: {}", res))
     }
 }
-
