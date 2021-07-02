@@ -75,5 +75,15 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             SelfSubcommand::Install(s) => self_install::main(s),
             SelfSubcommand::Migrate(s) => self_migrate::main(s),
         },
+        Command::Authenticate(cmd) => {
+            task::block_on(async {
+                server::authenticate::authenticate(cmd, &options).await?;
+                Ok(())
+            }).into()
+        },
+        Command::_GenDevCert(_) => {
+            server::authenticate::generate_dev_cert()?;
+            Ok(())
+        },
     }
 }

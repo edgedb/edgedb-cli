@@ -1,5 +1,4 @@
 use std::env;
-use std::io;
 use std::path::PathBuf;
 use std::process::exit;
 use std::str::FromStr;
@@ -167,6 +166,9 @@ pub struct RawOptions {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
+    /// Authenticate to a remote instance
+    #[clap()]
+    Authenticate(Authenticate),
     #[clap(flatten)]
     Common(Common),
     /// Execute EdgeQL query
@@ -190,6 +192,9 @@ pub enum Command {
     #[clap(name="_self_install")]
     #[edb(hidden)]
     _SelfInstall(self_install::SelfInstall),
+    #[clap(name="_generate_dev_cert")]
+    #[edb(hidden)]
+    _GenDevCert(GenerateDevCert)
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -212,6 +217,24 @@ pub enum SelfSubcommand {
 #[derive(EdbClap, Clone, Debug)]
 pub struct Query {
     pub queries: Vec<String>,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+#[clap(long_about = "Authenticate to a remote EdgeDB instance and
+assign an instance name to simplify future connections.")]
+pub struct Authenticate {
+    /// Specify a new instance name for the remote server. If not
+    /// present, the name will be interactively asked.
+    #[clap()]
+    pub name: Option<String>,
+
+    /// Automatically yes to prompts, or abort on unexpected questions.
+    #[clap(short='y', long, hidden=true)]
+    pub assume_yes: bool,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct GenerateDevCert {
 }
 
 #[derive(Debug, Clone)]
@@ -497,8 +520,8 @@ fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
         } else {
             conn_params.tcp_addr(host, port);
             if let Some(cert_file) = &tmp.tls_cert_file {
-                let data = fs::read(cert_file)?;
-                conn_params.pem_certificates(&mut io::Cursor::new(&data[..]))?;
+                let data = fs::read_to_string(cert_file)?;
+                conn_params.pem_certificates(&data)?;
                 if tmp.no_tls_verify_hostname {
                     conn_params.verify_hostname(false);
                 }
