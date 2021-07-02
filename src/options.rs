@@ -1,8 +1,9 @@
 use std::env;
-use std::time::Duration;
-use std::fs;
-use std::str::FromStr;
+use std::io;
+use std::path::PathBuf;
 use std::process::exit;
+use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::Context;
 use anymap::AnyMap;
@@ -11,6 +12,7 @@ use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
+use fs_err as fs;
 
 use crate::commands::parser::Common;
 use crate::connect::Connector;
@@ -86,6 +88,32 @@ pub struct ConnectionOptions {
     #[clap(long, name="TIMEOUT", help_heading=Some("CONNECTION OPTIONS"),
            parse(try_from_str=humantime::parse_duration))]
     pub connect_timeout: Option<Duration>,
+
+    /// Certificate to match server against
+    ///
+    /// This might either be full self-signed server certificate or certificate
+    /// authority (CA) certificate that server certificate is signed with.
+    pub tls_cert_file: Option<PathBuf>,
+
+
+    /// Verify hostname of the server using provided certificate
+    ///
+    /// It's useful when certificate authority (CA) is used for handling
+    /// certificate and usually not used for self-signed certificates.
+    ///
+    /// By default it's enabled when no specific certificate is present
+    /// (via `--tls-cert-file` or in credentials JSON file)
+    #[clap(long)]
+    pub tls_verify_hostname: bool,
+
+    /// Do not verify hostname of the server
+    ///
+    /// This allows using any certificate for any hostname. However,
+    /// certificate must be present and match certificate specified with
+    /// `--tls-cert-file` or credentials file or signed by one of the root
+    /// certificate authorities.
+    #[clap(long)]
+    pub no_tls_verify_hostname: bool,
 
     /// Local instance name created with `edgedb server init` to connect to
     /// (overrides host and port)
@@ -468,6 +496,16 @@ fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
             conn_params.unix_addr(path);
         } else {
             conn_params.tcp_addr(host, port);
+            if let Some(cert_file) = &tmp.tls_cert_file {
+                let data = fs::read(cert_file)?;
+                conn_params.pem_certificates(&mut io::Cursor::new(&data[..]))?;
+                if tmp.no_tls_verify_hostname {
+                    conn_params.verify_hostname(false);
+                }
+                if tmp.tls_verify_hostname {
+                    conn_params.verify_hostname(true);
+                }
+            }
         }
     }
     Ok(conn_params)
