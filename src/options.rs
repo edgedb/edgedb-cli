@@ -1,7 +1,10 @@
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 use std::process::exit;
+use std::process::exit;
 use std::str::FromStr;
+use std::time::Duration;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -167,6 +170,9 @@ pub struct RawOptions {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
+    /// Authenticate to a remote instance
+    #[clap()]
+    Authenticate(Authenticate),
     #[clap(flatten)]
     Common(Common),
     /// Execute EdgeQL query
@@ -190,6 +196,9 @@ pub enum Command {
     #[clap(name="_self_install")]
     #[edb(hidden)]
     _SelfInstall(self_install::SelfInstall),
+    #[clap(name="_generate_dev_cert")]
+    #[edb(hidden)]
+    _GenDevCert(GenerateDevCert)
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -213,6 +222,24 @@ pub enum SelfSubcommand {
 pub struct Query {
     #[clap(required=true)]
     pub queries: Vec<String>,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+#[clap(long_about = "Authenticate to a remote EdgeDB instance and
+assign an instance name to simplify future connections.")]
+pub struct Authenticate {
+    /// Specify a new instance name for the remote server. If not
+    /// present, the name will be interactively asked.
+    #[clap()]
+    pub name: Option<String>,
+
+    /// Automatically yes to prompts, or abort on unexpected questions.
+    #[clap(short='y', long, hidden=true)]
+    pub assume_yes: bool,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct GenerateDevCert {
 }
 
 #[derive(Debug, Clone)]
