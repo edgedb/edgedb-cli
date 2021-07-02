@@ -210,9 +210,15 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
     }
 
     if field.multiple {
-        modifiers.extend(quote! {
-            #arg = #arg.multiple(true);
-        });
+        if field.attrs.long.is_some() || field.attrs.short.is_some() {
+            modifiers.extend(quote! {
+                #arg = #arg.multiple_occurrences(true);
+            });
+        } else {
+            modifiers.extend(quote! {
+                #arg = #arg.multiple_values(true);
+            });
+        }
     }
     if field.parse.kind == ParserKind::FromOccurrences {
         modifiers.extend(quote! {
