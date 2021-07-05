@@ -1,6 +1,10 @@
+use std::fs;
+use std::path::Path;
 use std::sync::{Mutex, Arc};
 
-use edgedb_client::verify_server_cert;
+use anyhow::Context;
+use edgedb_client::{verify_server_cert, Builder};
+use edgedb_client::errors::PasswordRequired;
 use pem;
 use ring::digest;
 use rcgen::{Certificate, CertificateParams, DistinguishedName, DnType};
@@ -8,26 +12,29 @@ use rustls;
 use rustls::{RootCertStore, ServerCertVerifier, ServerCertVerified, TLSError};
 use webpki::DNSNameRef;
 
-use crate::options::{Authenticate, Options};
+use crate::options::{Authenticate, Options, ConnectionOptions};
 use crate::{question, credentials};
+use crate::platform::tmp_file_name;
 use crate::server::reset_password::write_credentials;
 
 struct InteractiveCertVerifier {
     cert_out: Mutex<Option<String>>,
     verify_hostname: Option<bool>,
-    prompt: bool,
-    assume_yes: bool,
+    system_ca_only: bool,
+    non_interactive: bool,
 }
 
 impl InteractiveCertVerifier {
     fn new(
-        assume_yes: bool, verify_hostname: Option<bool>, prompt: bool,
+        non_interactive: bool,
+        verify_hostname: Option<bool>,
+        system_ca_only: bool,
     ) -> Self {
         Self {
             cert_out: Mutex::new(None),
-            verify_hostname: verify_hostname,
-            prompt,
-            assume_yes,
+            verify_hostname,
+            system_ca_only,
+            non_interactive,
         }
     }
 }
@@ -42,16 +49,15 @@ impl ServerCertVerifier for InteractiveCertVerifier {
         let untrusted_index = presented_certs.len() - 1;
         match verify_server_cert(roots, presented_certs) {
             Ok(cert) => {
-                // `self.prompt == true` means no cert was provided to the CLI,
-                // in which case we should check the hostname
-                if self.verify_hostname.unwrap_or(self.prompt) {
+                if self.verify_hostname.unwrap_or(self.system_ca_only) {
                     cert.verify_is_valid_for_dns_name(dns_name)
                         .map_err(TLSError::WebPKIError)?;
                 }
             }
             Err(e) => {
-                // Bail out if we shouldn't ask the user to trust any cert
-                if !self.prompt {
+                if !self.system_ca_only {
+                    // Don't continue if the verification failed when the user
+                    // already specified a certificate to trust
                     return Err(e);
                 }
 
@@ -71,7 +77,7 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                     &digest::SHA1_FOR_LEGACY_USE_ONLY,
                     &presented_certs[untrusted_index].0
                 );
-                if self.assume_yes {
+                if self.non_interactive {
                     eprintln!(
                         "Trusting unknown server certificate: {:?}",
                         fingerprint,
@@ -105,17 +111,51 @@ impl ServerCertVerifier for InteractiveCertVerifier {
     }
 }
 
+fn gen_default_instance_name(input: &dyn ToString) -> String {
+    let input = input.to_string();
+    input.strip_suffix(":5656").unwrap_or(&input).chars().map(|x| match x {
+        'A'..='Z' => x,
+        'a'..='z' => x,
+        '0'..='9' => x,
+        _ => '_',
+    }).collect::<String>()
+}
+
 pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<()> {
     let builder = opts.conn_params.get()?;
     let mut creds = builder.as_credentials()?;
-    let verifier = Arc::new(
+    let mut verifier = Arc::new(
         InteractiveCertVerifier::new(
-            cmd.assume_yes,
+            cmd.non_interactive,
             creds.tls_verify_hostname,
             creds.tls_cert_data.is_none(),
         )
     );
-    builder.connect_with_cert_verifier(Some(verifier.clone())).await?;
+    let r = builder.connect_with_cert_verifier(verifier.clone()).await;
+    if let Err(e) = r {
+        if e.is::<PasswordRequired>() && !cmd.non_interactive {
+            let password = rpassword::read_password_from_tty(
+                Some(&format!("Password for '{}': ",
+                              builder.get_user().escape_default())))
+                .context("error reading password")?;
+            let mut builder = builder.clone();
+            builder.password(&password);
+            if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
+                builder.pem_certificates(cert)?;
+            }
+            creds = builder.as_credentials()?;
+            verifier = Arc::new(
+                InteractiveCertVerifier::new(
+                    true,
+                    creds.tls_verify_hostname,
+                    creds.tls_cert_data.is_none(),
+                )
+            );
+            builder.connect_with_cert_verifier(verifier.clone()).await?;
+        } else {
+            return Err(e);
+        }
+    }
     if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
         creds.tls_cert_data = Some(cert.clone());
     }
@@ -123,25 +163,21 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
     let cred_path = match &cmd.name {
         Some(name) => credentials::path(name),
         None => {
-            if cmd.assume_yes {
-                anyhow::bail!("Instance name required.")
+            let default = gen_default_instance_name(builder.get_addr());
+            if cmd.non_interactive {
+                eprintln!("Using generated instance name: {}", &default);
+                credentials::path(&default)
+            } else {
+                let name = question::String::new(
+                    "Specify a new instance name for the remote server"
+                ).default(&default).ask()?;
+                credentials::path(&name)
             }
-            let mut q = question::String::new(
-                "Specify a new instance name for the remote server"
-            );
-            let default = builder.get_addr().to_string().chars().map(|x| match x {
-                'A'..='Z' => x,
-                'a'..='z' => x,
-                '0'..='9' => x,
-                _ => '_',
-            }).collect::<String>();
-            q.default(&default);
-            credentials::path(&q.ask()?)
         }
     }?;
     if cred_path.exists() {
-        if cmd.assume_yes {
-            eprintln!("{} will be overwritten!", cred_path.display());
+        if cmd.non_interactive {
+            eprintln!("Overwriting {}", cred_path.display());
         } else {
             let mut q = question::Confirm::new_dangerous(
                 format!("{} exists! Overwrite?", cred_path.display())
@@ -157,10 +193,71 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
     Ok(())
 }
 
+pub fn prompt_conn_params(
+    options: &ConnectionOptions,
+    builder: &mut Builder,
+    auth: &Authenticate,
+) -> anyhow::Result<()> {
+    if auth.non_interactive && options.password {
+        anyhow::bail!("Not both --password and authenticate --non-interactive")
+    }
+    let (host, port) = builder.get_addr().get_tcp_addr().ok_or_else(|| {
+        anyhow::anyhow!("Cannot authenticate to a UNIX domain socket.")
+    })?;
+    let (mut host, mut port) = (host.clone(), *port);
+    if options.host.is_none() && host == "127.0.0.1" {
+        // Workaround for the `edgedb authenticate`
+        // https://github.com/briansmith/webpki/issues/54
+        builder.tcp_addr("localhost", port);
+        host = "localhost".into();
+    }
+
+    if auth.non_interactive {
+        eprintln!(
+            "Authenticating to edgedb://{}@{}/{}",
+            builder.get_user(),
+            builder.get_addr(),
+            builder.get_database(),
+        );
+    } else {
+        if options.host.is_none() {
+            host = question::String::new("Specify the host of the server")
+                .default(&host)
+                .ask()?
+        };
+        if options.port.is_none() {
+            port = question::String::new("Specify the port of the server")
+                .default(&port.to_string())
+                .ask()?
+                .parse()?
+        }
+        if options.host.is_none() || options.port.is_none() {
+            builder.tcp_addr(host, port);
+        }
+        if options.user.is_none() {
+            builder.user(
+                question::String::new("Specify the database user")
+                    .default(builder.get_user())
+                    .ask()?
+            );
+        }
+        if options.database.is_none() {
+            builder.database(
+                question::String::new("Specify the database name")
+                    .default(builder.get_database())
+                    .ask()?
+            );
+        }
+    }
+    Ok(())
+}
+
 pub fn generate_self_signed_cert() -> anyhow::Result<(String, String)> {
     let mut distinguished_name = DistinguishedName::new();
     distinguished_name.push(DnType::CommonName, "EdgeDB Development Server");
-    let mut cert_params = CertificateParams::new(vec!["127.0.0.1".to_string(), "localhost".to_string()]);
+    let mut cert_params = CertificateParams::new(
+        vec!["localhost".to_string()]
+    );
     cert_params.distinguished_name = distinguished_name;
     let cert = Certificate::from_params(cert_params)?;
 
@@ -169,9 +266,11 @@ pub fn generate_self_signed_cert() -> anyhow::Result<(String, String)> {
     Ok((cert_pem, key_pem))
 }
 
-pub fn generate_dev_cert() -> anyhow::Result<()> {
+pub fn generate_dev_cert(path: &String) -> anyhow::Result<()> {
     let (cert_pem, key_pem) = generate_self_signed_cert()?;
-    print!("{}", key_pem);
-    print!("{}", cert_pem);
+    let path = Path::new(path);
+    let tmp_path = path.with_file_name(tmp_file_name(path));
+    fs::write(&tmp_path, [key_pem, cert_pem].join(""))?;
+    fs::rename(&tmp_path, path)?;
     Ok(())
 }
