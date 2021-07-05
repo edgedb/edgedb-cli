@@ -171,7 +171,6 @@ pub struct RawOptions {
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
     /// Authenticate to a remote instance
-    #[clap()]
     Authenticate(Authenticate),
     #[clap(flatten)]
     Common(Common),
@@ -230,16 +229,17 @@ assign an instance name to simplify future connections.")]
 pub struct Authenticate {
     /// Specify a new instance name for the remote server. If not
     /// present, the name will be interactively asked.
-    #[clap()]
     pub name: Option<String>,
 
-    /// Automatically yes to prompts, or abort on unexpected questions.
-    #[clap(short='y', long, hidden=true)]
-    pub assume_yes: bool,
+    /// Run in non-interactive mode (accepting all defaults)
+    #[clap(long)]
+    pub non_interactive: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct GenerateDevCert {
+    /// Specify a path to store the generated certificates
+    pub path: String,
 }
 
 #[derive(Debug, Clone)]
@@ -361,7 +361,18 @@ impl Options {
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
             && atty::is(atty::Stream::Stdin);
-        let mut conn_params = Connector::new(conn_params(&tmp.conn));
+
+        let mut builder = conn_params(&tmp.conn);
+        if let (Some(Command::Authenticate(auth)), None) = (&tmp.subcommand, &tmp.query) {
+            if builder.is_err() {
+                builder = Ok(Builder::new());
+                load_tls_options(&tmp.conn, builder.as_mut().unwrap())?;
+            }
+            server::authenticate::prompt_conn_params(
+                &tmp.conn, builder.as_mut().unwrap(), auth
+            )?;
+        }
+        let mut conn_params = Connector::new(builder);
         let password = if tmp.conn.password_from_stdin {
             let password = rpassword::read_password()
                 .expect("password can be read");
@@ -524,17 +535,24 @@ fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
             conn_params.unix_addr(path);
         } else {
             conn_params.tcp_addr(host, port);
-            if let Some(cert_file) = &tmp.tls_cert_file {
-                let data = fs::read_to_string(cert_file)?;
-                conn_params.pem_certificates(&data)?;
-            }
-            if tmp.no_tls_verify_hostname {
-                conn_params.verify_hostname(false);
-            }
-            if tmp.tls_verify_hostname {
-                conn_params.verify_hostname(true);
-            }
+            load_tls_options(tmp, &mut conn_params)?;
         }
     }
     Ok(conn_params)
+}
+
+fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
+    -> anyhow::Result<()>
+{
+    if let Some(cert_file) = &options.tls_cert_file {
+        let data = fs::read_to_string(cert_file)?;
+        builder.pem_certificates(&data)?;
+    }
+    if options.no_tls_verify_hostname {
+        builder.verify_hostname(false);
+    }
+    if options.tls_verify_hostname {
+        builder.verify_hostname(true);
+    }
+    Ok(())
 }
