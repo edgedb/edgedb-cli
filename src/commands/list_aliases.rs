@@ -62,7 +62,7 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         table.set_format(*table::FORMAT);
         if verbose {
             table.set_titles(Row::new(
-                ["Name", "Klass", "Expression"]
+                ["Name", "Class", "Expression"]
                 .iter().map(|x| table::header_cell(x)).collect()));
             while let Some(item) = items.next().await.transpose()? {
                 table.add_row(Row::new(vec![
@@ -73,7 +73,7 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
             }
         } else {
             table.set_titles(Row::new(
-                ["Name", "Klass"]
+                ["Name", "Class"]
                 .iter().map(|x| table::header_cell(x)).collect()));
             while let Some(item) = items.next().await.transpose()? {
                 table.add_row(Row::new(vec![
