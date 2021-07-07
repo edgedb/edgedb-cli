@@ -82,7 +82,7 @@ edgedb-cli-derive = { path="edgedb-cli-derive" }
 fs-err = "2.6.0"
 rcgen = "0.8.11"
 pem = "0.8"
-rustls = { version = "0.19.1", features = ["dangerous_configuration"] }
+rustls = {version="0.19.1", features=["dangerous_configuration"]}
 webpki = "0.21.4"
 
 [dev-dependencies]
