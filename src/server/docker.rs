@@ -1003,7 +1003,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
         }
 
-        process::run(Command::new(&self.cli)
+        let output = process::get_text(Command::new(&self.cli)
             .arg("run")
             .arg("--rm")
             .arg("--mount").arg(format!("source={},target=/mnt", volume))
@@ -1012,12 +1012,21 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg("-c")
             .arg(format!(r###"
                     echo {metadata} > /mnt/{name}/metadata.json
+                    edgedb _generate_dev_cert \
+                        --key-file /mnt/{name}/private.key \
+                        --cert-file /mnt/{name}/certificate.crt
+                    cat /mnt/{name}/certificate.crt
                 "###,
                 name=settings.name,
                 metadata=shell_words::quote(&md),
             )))?;
 
-        save_credentials(&settings, &password)?;
+        let (cstart, cend) = output.find("-----BEGIN CERTIFICATE-----")
+            .zip(find_end(&output, "-----END CERTIFICATE-----"))
+            .context("Error generating certificate")?;
+        let cert_data = &output[cstart..cend];
+
+        save_credentials(&settings, &password, Some(cert_data))?;
         drop(password);
 
         self.create(&Create {
@@ -1464,3 +1473,7 @@ fn decode_next<'x, R, T>(
 }
 
 
+
+fn find_end(haystack: &str, needle: &str) -> Option<usize> {
+    haystack.find(needle).map(|x| x + needle.len())
+}
