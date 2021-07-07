@@ -184,7 +184,7 @@ containers:
       suite: bionic.nightly
       components: [main]
       trusted: true
-    - !Install [edgedb-1-alpha8-dev5429]
+    - !Install [edgedb-1-beta3-dev202107020000]
     - !Text
       /var/docker.sock: ""
 
@@ -192,15 +192,15 @@ containers:
       /tmp: !Tmpfs
         size: 2G
     environ: &environ
-      HOME: /work/target
+      HOME: /work/tmp
       CARGO_HOME: /work/target
       RUST_BACKTRACE: 1
       # needed for musl build
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
       EDGEDB_HOST: '/work/tmp/run'
-      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-1-alpha8-dev5429/bin
-      EDGEDB_MAJOR_VERSION: 1-alpha8-dev5429
+      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-1-beta3-dev202107020000/bin
+      EDGEDB_MAJOR_VERSION: 1-beta3-dev202107020000
 
   tools:
     setup:
@@ -235,7 +235,7 @@ containers:
       CARGO_HOME: /work/target
       RUST_BACKTRACE: 1
       EDGEDB_HOST: '/work/tmp/run'
-      EDGEDB_MAJOR_VERSION: 1-alpha8-dev5429
+      EDGEDB_MAJOR_VERSION: 1-beta3-dev202107020000
 
   test_install:
     setup:

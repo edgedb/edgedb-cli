@@ -1,5 +1,4 @@
 use std::collections::{BTreeSet, BTreeMap};
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::time::SystemTime;
@@ -9,11 +8,13 @@ use async_std::task;
 use serde::Serialize;
 use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
+use fs_err as fs;
 
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::{Uid, get_current_uid};
 use crate::process::ProcessGuard;
+use crate::commands::cert;
 use crate::server::control::read_metadata;
 use crate::server::detect::{VersionQuery, Lazy};
 use crate::server::errors::{CannotCreateService, CannotStartService};
@@ -130,6 +131,12 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     let metadata = settings.metadata();
     write_metadata(&metapath, &metadata)?;
 
+    let (cert, key) = cert::generate_self_signed()?;
+    let cert_path = dir.join("certificate.crt");
+    let key_path = dir.join("private.key");
+    fs::write(cert_path, cert.as_bytes())?;
+    fs::write(key_path, key.as_bytes())?;
+
     let res = create_user_service(&settings.name, &metadata);
 
     match settings.start_conf {
@@ -139,7 +146,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
                 name: settings.name.clone(),
                 foreground: false,
             })?;
-            init_credentials(&settings, &inst)?;
+            init_credentials(&settings, &inst, Some(&cert))?;
             println!("Bootstrap complete. Server is up and running now.");
             if !settings.suppress_messages {
                 println!("To connect run:\n  edgedb -I {}",
@@ -153,7 +160,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             let child = ProcessGuard::run(&mut cmd)
                 .with_context(||
                     format!("error running server {:?}", cmd))?;
-            init_credentials(&settings, &inst)?;
+            init_credentials(&settings, &inst, Some(&cert))?;
             drop(child);
             if settings.start_conf == StartConf::Manual && res.is_ok() {
                 println!("Bootstrap complete. To start the server:\n  \

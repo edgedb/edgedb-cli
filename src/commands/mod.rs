@@ -1,5 +1,4 @@
 mod exit;
-mod cert;
 mod configure;
 mod describe;
 mod describe_schema;
@@ -20,6 +19,7 @@ mod list_scalar_types;
 mod psql;
 mod restore;
 pub mod backslash;
+pub mod cert;
 pub mod cli;
 pub mod options;
 pub mod parser;

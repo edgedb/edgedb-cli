@@ -6,7 +6,7 @@ use crate::platform::tmp_file_path;
 use crate::options::GenerateDevCert;
 
 
-pub fn generate_self_signed_cert() -> anyhow::Result<(String, String)> {
+pub fn generate_self_signed() -> anyhow::Result<(String, String)> {
     let mut distinguished_name = DistinguishedName::new();
     distinguished_name.push(DnType::CommonName, "EdgeDB Development Server");
     let mut cert_params = CertificateParams::new(
@@ -21,7 +21,7 @@ pub fn generate_self_signed_cert() -> anyhow::Result<(String, String)> {
 }
 
 pub fn generate_dev_cert(options: &GenerateDevCert) -> anyhow::Result<()> {
-    let (cert_pem, key_pem) = generate_self_signed_cert()?;
+    let (cert_pem, key_pem) = generate_self_signed()?;
     let tmp_key = tmp_file_path(&options.key_file);
     let tmp_cert = tmp_file_path(&options.cert_file);
     fs::write(&tmp_key, key_pem)?;

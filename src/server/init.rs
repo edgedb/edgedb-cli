@@ -325,7 +325,8 @@ pub fn bootstrap_script(settings: &Settings, password: &str) -> String {
     return output;
 }
 
-pub fn save_credentials(settings: &Settings, password: &str)
+pub fn save_credentials(settings: &Settings, password: &str,
+    certificate: Option<&str>)
     -> anyhow::Result<()>
 {
     let mut creds = Credentials::default();
@@ -333,11 +334,13 @@ pub fn save_credentials(settings: &Settings, password: &str)
     creds.user = settings.user.clone();
     creds.database = Some(settings.database.clone());
     creds.password = Some(password.into());
+    creds.tls_cert_data = certificate.map(|s| s.into());
     write_credentials(&settings.credentials, &creds)?;
     Ok(())
 }
 
-pub fn init_credentials(settings: &Settings, inst: &InstanceRef)
+pub fn init_credentials(settings: &Settings, inst: &InstanceRef,
+    certificate: Option<&str>)
     -> anyhow::Result<()>
 {
     let password = generate_password();
@@ -350,7 +353,7 @@ pub fn init_credentials(settings: &Settings, inst: &InstanceRef)
         Ok::<(), anyhow::Error>(())
     })?;
 
-    save_credentials(settings, &password)?;
+    save_credentials(settings, &password, certificate)?;
     Ok(())
 }
 
