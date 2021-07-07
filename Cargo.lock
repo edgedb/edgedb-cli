@@ -970,14 +970,17 @@ dependencies = [
  "once_cell",
  "openssl",
  "os-release",
+ "pem",
  "predicates",
  "pretty_assertions",
  "prettytable-rs",
  "rand 0.8.4",
+ "rcgen",
  "regex",
  "rexpect",
  "ring",
  "rpassword",
+ "rustls",
  "rustyline",
  "scram",
  "serde",
@@ -1008,6 +1011,7 @@ dependencies = [
  "uuid",
  "wait-timeout",
  "warp",
+ "webpki",
  "which",
  "whoami",
  "winapi",
@@ -2447,6 +2451,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d51e9f596de227fda2ea6c84607f5558e196eeaf43c986b724ba4fb8fdf497e7"
 dependencies = [
  "rand_core 0.6.3",
+]
+
+[[package]]
+name = "rcgen"
+version = "0.8.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48b4fc1b81d685fcd442a86da2e2c829d9e353142633a8159f42bf28e7e94428"
+dependencies = [
+ "chrono",
+ "pem",
+ "ring",
+ "yasna",
 ]
 
 [[package]]
@@ -3891,4 +3907,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "244c3741f4240ef46274860397c7c74e50eb23624996930e484c16679633a54c"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "yasna"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e262a29d0e61ccf2b6190d7050d4b237535fc76ce4c1210d9caa316f71dffa75"
+dependencies = [
+ "chrono",
 ]

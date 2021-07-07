@@ -36,6 +36,7 @@ mod revert;
 mod status;
 mod uninstall;
 pub mod upgrade;
+pub mod authenticate;
 
 pub use main::main;
 
