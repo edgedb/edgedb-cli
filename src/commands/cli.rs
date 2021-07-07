@@ -82,7 +82,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             }).into()
         },
         Command::_GenDevCert(cmd) => {
-            server::authenticate::generate_dev_cert(&cmd.path)?;
+            commands::generate_dev_cert(&cmd)?;
             Ok(())
         },
     }

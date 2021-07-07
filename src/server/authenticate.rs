@@ -1,5 +1,3 @@
-use std::fs;
-use std::path::Path;
 use std::sync::{Mutex, Arc};
 
 use anyhow::Context;
@@ -7,14 +5,12 @@ use edgedb_client::{verify_server_cert, Builder};
 use edgedb_client::errors::PasswordRequired;
 use pem;
 use ring::digest;
-use rcgen::{Certificate, CertificateParams, DistinguishedName, DnType};
 use rustls;
 use rustls::{RootCertStore, ServerCertVerifier, ServerCertVerified, TLSError};
 use webpki::DNSNameRef;
 
 use crate::options::{Authenticate, Options, ConnectionOptions};
 use crate::{question, credentials};
-use crate::platform::tmp_file_name;
 use crate::server::reset_password::write_credentials;
 
 struct InteractiveCertVerifier {
@@ -249,28 +245,5 @@ pub fn prompt_conn_params(
             );
         }
     }
-    Ok(())
-}
-
-pub fn generate_self_signed_cert() -> anyhow::Result<(String, String)> {
-    let mut distinguished_name = DistinguishedName::new();
-    distinguished_name.push(DnType::CommonName, "EdgeDB Development Server");
-    let mut cert_params = CertificateParams::new(
-        vec!["localhost".to_string()]
-    );
-    cert_params.distinguished_name = distinguished_name;
-    let cert = Certificate::from_params(cert_params)?;
-
-    let cert_pem = cert.serialize_pem()?;
-    let key_pem = cert.serialize_private_key_pem();
-    Ok((cert_pem, key_pem))
-}
-
-pub fn generate_dev_cert(path: &String) -> anyhow::Result<()> {
-    let (cert_pem, key_pem) = generate_self_signed_cert()?;
-    let path = Path::new(path);
-    let tmp_path = path.with_file_name(tmp_file_name(path));
-    fs::write(&tmp_path, [key_pem, cert_pem].join(""))?;
-    fs::rename(&tmp_path, path)?;
     Ok(())
 }

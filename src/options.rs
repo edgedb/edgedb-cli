@@ -1,10 +1,7 @@
 use std::env;
-use std::fs;
 use std::path::PathBuf;
 use std::process::exit;
-use std::process::exit;
 use std::str::FromStr;
-use std::time::Duration;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -238,8 +235,12 @@ pub struct Authenticate {
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct GenerateDevCert {
-    /// Specify a path to store the generated certificates
-    pub path: String,
+    /// Specify a path to store the generated key file
+    #[clap(long)]
+    pub key_file: PathBuf,
+    /// Specify a path to store the generated cert file
+    #[clap(long)]
+    pub cert_file: PathBuf,
 }
 
 #[derive(Debug, Clone)]
