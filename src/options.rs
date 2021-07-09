@@ -83,7 +83,7 @@ pub struct ConnectionOptions {
     pub wait_until_available: Option<Duration>,
 
     /// In case EdgeDB doesn't respond for a TIMEOUT, fail
-    /// (or retry if --wait-until-available is also specified). Default '10s'.
+    /// (or retry if `--wait-until-available` is also specified). Default '10s'.
     #[clap(long, name="TIMEOUT", help_heading=Some("CONNECTION OPTIONS"),
            parse(try_from_str=humantime::parse_duration))]
     pub connect_timeout: Option<Duration>,

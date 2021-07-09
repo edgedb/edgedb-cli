@@ -56,7 +56,9 @@ pub struct Init {
     #[clap(long, validator(instance_name_opt))]
     pub server_instance: Option<String>,
 
-    /// Specifies a project root directory explicitly.
+    /// Specifies which server should be used for this project: server
+    /// installed via the local package system (package) or as a docker
+    /// image (docker).
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub server_install_method: Option<InstallMethod>,
 
@@ -85,7 +87,7 @@ pub struct Info {
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// Display only the server binary path
+    /// Display only the instance name
     #[clap(long)]
     pub instance_name: bool,
 
