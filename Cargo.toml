@@ -10,9 +10,6 @@ edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
 edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust", features=["all-types"]}
 edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust"}
 edgedb-client = {git = "https://github.com/edgedb/edgedb-rust"}
-#edgedb-protocol = {path = "./edgedb-rust/edgedb-protocol", features=["all-types"]}
-#edgedb-derive = {path = "./edgedb-rust/edgedb-derive"}
-#edgedb-client = {path = "./edgedb-rust/edgedb-client"}
 snafu = {version="0.6.0", features=["backtraces"]}
 anyhow = "1.0.23"
 async-std = {version="1.9", features=[
