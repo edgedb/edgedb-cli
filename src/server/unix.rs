@@ -9,6 +9,7 @@ use serde::Serialize;
 use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
 use fs_err as fs;
+use edgedb_client::credentials::Credentials;
 
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -28,6 +29,7 @@ use crate::server::methods::InstallMethod;
 use crate::server::options::{self, Start, Upgrade, StartConf, Stop};
 use crate::server::os_trait::{Method, Instance, InstanceRef};
 use crate::server::package::Package;
+use crate::server::reset_password::write_credentials;
 use crate::server::status::{Service, Status, DataDirectory};
 use crate::server::status::{read_upgrade, backup_status, probe_port};
 use crate::server::upgrade;
@@ -98,6 +100,14 @@ impl Unix {
     }
 }
 
+fn write_certificates(data_dir: &Path) -> anyhow::Result<String> {
+    let (cert, key) = cert::generate_self_signed()?;
+    let cert_path = data_dir.join("certificate.crt");
+    let key_path = data_dir.join("private.key");
+    fs::write(cert_path, cert.as_bytes())?;
+    fs::write(key_path, key.as_bytes())?;
+    Ok(cert)
+}
 
 pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     -> anyhow::Result<()>
@@ -131,11 +141,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     let metadata = settings.metadata();
     write_metadata(&metapath, &metadata)?;
 
-    let (cert, key) = cert::generate_self_signed()?;
-    let cert_path = dir.join("certificate.crt");
-    let key_path = dir.join("private.key");
-    fs::write(cert_path, cert.as_bytes())?;
-    fs::write(key_path, key.as_bytes())?;
+    let cert = write_certificates(&dir)?;
 
     let res = create_user_service(&settings.name, &metadata);
 
@@ -528,6 +534,17 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
     })
 }
 
+fn update_credentials(instance_name: &str, certificate: &str)
+    -> anyhow::Result<()>
+{
+    let cred_path = credentials::path(instance_name)?;
+    let data = fs::read(&cred_path)?;
+    let mut creds: Credentials = serde_json::from_slice(&data)?;
+    creds.tls_cert_data = Some(certificate.into());
+    write_credentials(&cred_path, &creds)?;
+    Ok(())
+}
+
 fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
     new_meta: &Metadata, upgrade_marker: &Path)
     -> anyhow::Result<()>
@@ -556,6 +573,13 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
 
     let metapath = instance_dir.join("metadata.json");
     write_metadata(&metapath, &new_meta)?;
+
+    if !instance_dir.join("private.key").exists() {
+        let cert = write_certificates(&instance_dir)?;
+        if let Err(e) = update_credentials(inst.name(), &cert) {
+            log::warn!("Could not update credentials file: {:#}", e);
+        }
+    }
 
     let res = create_user_service(inst.name(), &new_meta)
         .map_err(CannotStartService);
