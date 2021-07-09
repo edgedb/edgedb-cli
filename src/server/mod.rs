@@ -31,7 +31,7 @@ mod info;
 pub mod init;
 pub mod install;
 mod list_versions;
-mod reset_password;
+pub mod reset_password;
 mod revert;
 mod status;
 mod uninstall;

@@ -767,6 +767,57 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let tmp_role = format!("tmp_upgrade_{}", timestamp());
         let tmp_password = generate_password();
 
+        process::run(
+            Command::new(&inst.method.cli)
+            .arg("run")
+            .arg("--rm")
+            .arg("--user=999:999")
+            .arg(format!("--publish={0}:{0}", port))
+            .arg("--mount")
+            .arg(format!("source={},target=/var/lib/edgedb/data", volume))
+            .arg(new_image.tag.as_image_name())
+            .arg("edgedb-server")
+            .arg("--bootstrap-command")
+            .arg(format!(r###"
+                CREATE SUPERUSER ROLE {role} {{
+                    SET password := {password};
+                }};
+            "###, role=tmp_role, password=quote_string(&tmp_password)))
+            .arg("--log-level=warn")
+            .arg("--runstate-dir").arg("/var/lib/edgedb/data/run")
+            .arg("--data-dir")
+            .arg(format!("/var/lib/edgedb/data/{}", inst.name()))
+            .arg("--bootstrap-only")
+        )?;
+
+        let output = process::get_text(Command::new(&self.cli)
+            .arg("run")
+            .arg("--rm")
+            .arg("--mount").arg(format!("source={},target=/mnt", volume))
+            .arg(new_image.tag.as_image_name())
+            .arg("sh")
+            .arg("-c")
+            .arg(format!(r###"
+                    if [ ! -e /mnt/{name}/private.key ]; then
+                        edgedb _generate_dev_cert \
+                            --key-file /mnt/{name}/private.key \
+                            --cert-file /mnt/{name}/certificate.crt
+                        cat /mnt/{name}/certificate.crt
+                    fi
+                "###,
+                name=inst.name(),
+            )))?;
+
+        let cert_data = output.find("-----BEGIN CERTIFICATE-----")
+            .zip(find_end(&output, "-----END CERTIFICATE-----"))
+            .map(|(start, end)| &output[start..end]);
+
+        if let Some(cert) = cert_data {
+            if let Err(e) = credentials::add_certificate(inst.name(), &cert) {
+                log::warn!("Could not update credentials file: {:#}", e);
+            }
+        }
+
         let mut cmd = DockerRun::new(&inst.method.cli);
         cmd.arg("--user=999:999");
         cmd.arg(format!("--publish={0}:{0}", port));
@@ -774,12 +825,6 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
         cmd.arg(new_image.tag.as_image_name());
         cmd.arg("edgedb-server");
-        cmd.arg("--bootstrap-command")
-            .arg(format!(r###"
-                CREATE SUPERUSER ROLE {role} {{
-                    SET password := {password};
-                }};
-            "###, role=tmp_role, password=quote_string(&tmp_password)));
         cmd.arg("--log-level=warn");
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
