@@ -307,7 +307,7 @@ pub struct Dump {
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct Restore {
-    /// Path to file (or directory in case of `--all) to read dump from.
+    /// Path to file (or directory in case of `--all`) to read dump from.
     /// Use dash `-` to read from stdin
     #[clap(value_hint=ValueHint::AnyPath)]
     pub path: PathBuf,
@@ -511,7 +511,7 @@ pub struct PortParameter {
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct MigrationConfig {
-    /// Directory where `*.edgeql` files are located
+    /// Directory where `*.esdl` and `*.edgeql` files are located
     #[clap(long, default_value="./dbschema", value_hint=ValueHint::DirPath)]
     pub schema_dir: PathBuf,
 }
