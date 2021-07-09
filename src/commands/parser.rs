@@ -15,7 +15,7 @@ pub enum Common {
     /// Restore a database backup from file
     Restore(Restore),
     /// Modify database configuration
-    Config(Configure),
+    Configure(Configure),
 
     /// Migration management subcommands
     #[edb(expand_help)]

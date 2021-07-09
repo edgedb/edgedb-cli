@@ -78,7 +78,7 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             commands::restore(cli, &options, params)
             .await?;
         }
-        Config(c) => {
+        Configure(c) => {
             commands::configure(cli, &options, c).await?;
         }
         Database(c) => match &c.subcommand {
