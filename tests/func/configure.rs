@@ -28,7 +28,7 @@ fn configure_all_parameters() {
     let db_simple_options = out.lines().collect::<BTreeSet<_>>();
 
     let cmd = SERVER.admin_cmd()
-        .arg("config").arg("set")
+        .arg("configure").arg("set")
         .arg("-h")
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
@@ -65,7 +65,7 @@ fn configure_all_parameters() {
     let db_object_options = out.lines().collect::<BTreeSet<_>>();
 
     let cmd = SERVER.admin_cmd()
-        .arg("config").arg("insert")
+        .arg("configure").arg("insert")
         .arg("-h")
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
@@ -81,7 +81,7 @@ fn configure_all_parameters() {
     }
 
     let cmd = SERVER.admin_cmd()
-        .arg("config").arg("reset")
+        .arg("configure").arg("reset")
         .arg("-h")
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();

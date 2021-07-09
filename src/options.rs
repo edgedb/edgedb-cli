@@ -318,7 +318,6 @@ fn get_matches(app: clap::App) -> clap::ArgMatches {
             match e.kind {
                 UnknownArgument | InvalidSubcommand => {
                     let new_name = match &e.info[0][..] {
-                         "configure" => "config",
                          "create-database" => "database create",
                          "create-migration" => "migration create",
                          "list-aliases" => "list aliases",
