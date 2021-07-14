@@ -18,11 +18,13 @@ struct InteractiveCertVerifier {
     verify_hostname: Option<bool>,
     system_ca_only: bool,
     non_interactive: bool,
+    quiet: bool,
 }
 
 impl InteractiveCertVerifier {
     fn new(
         non_interactive: bool,
+        quiet: bool,
         verify_hostname: Option<bool>,
         system_ca_only: bool,
     ) -> Self {
@@ -31,6 +33,7 @@ impl InteractiveCertVerifier {
             verify_hostname,
             system_ca_only,
             non_interactive,
+            quiet,
         }
     }
 }
@@ -74,10 +77,12 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                     &presented_certs[untrusted_index].0
                 );
                 if self.non_interactive {
-                    eprintln!(
-                        "Trusting unknown server certificate: {:?}",
-                        fingerprint,
-                    );
+                    if !self.quiet {
+                        eprintln!(
+                            "Trusting unknown server certificate: {:?}",
+                            fingerprint,
+                        );
+                    }
                 } else {
                     if let Ok(answer) = question::Confirm::new(
                         format!(
@@ -123,6 +128,7 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
     let mut verifier = Arc::new(
         InteractiveCertVerifier::new(
             cmd.non_interactive,
+            cmd.quiet,
             creds.tls_verify_hostname,
             creds.tls_cert_data.is_none(),
         )
@@ -143,6 +149,7 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
             verifier = Arc::new(
                 InteractiveCertVerifier::new(
                     true,
+                    false,
                     creds.tls_verify_hostname,
                     creds.tls_cert_data.is_none(),
                 )
@@ -173,7 +180,9 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
     }?;
     if cred_path.exists() {
         if cmd.non_interactive {
-            eprintln!("Overwriting {}", cred_path.display());
+            if !cmd.quiet {
+                eprintln!("Overwriting {}", cred_path.display());
+            }
         } else {
             let mut q = question::Confirm::new_dangerous(
                 format!("{} exists! Overwrite?", cred_path.display())
@@ -209,12 +218,14 @@ pub fn prompt_conn_params(
     }
 
     if auth.non_interactive {
-        eprintln!(
-            "Authenticating to edgedb://{}@{}/{}",
-            builder.get_user(),
-            builder.get_addr(),
-            builder.get_database(),
-        );
+        if !auth.quiet {
+            eprintln!(
+                "Authenticating to edgedb://{}@{}/{}",
+                builder.get_user(),
+                builder.get_addr(),
+                builder.get_database(),
+            );
+        }
     } else {
         if options.host.is_none() {
             host = question::String::new("Specify the host of the server")

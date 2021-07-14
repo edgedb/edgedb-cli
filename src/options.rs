@@ -231,6 +231,10 @@ pub struct Authenticate {
     /// Run in non-interactive mode (accepting all defaults)
     #[clap(long)]
     pub non_interactive: bool,
+
+    /// Reduce command verbosity.
+    #[clap(long)]
+    pub quiet: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]
