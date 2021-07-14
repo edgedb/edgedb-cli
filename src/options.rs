@@ -93,7 +93,7 @@ pub struct ConnectionOptions {
     /// This might either be full self-signed server certificate or certificate
     /// authority (CA) certificate that server certificate is signed with.
     #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
-    pub tls_cert_file: Option<PathBuf>,
+    pub tls_ca_file: Option<PathBuf>,
 
 
     /// Verify hostname of the server using provided certificate
@@ -102,7 +102,7 @@ pub struct ConnectionOptions {
     /// certificate and usually not used for self-signed certificates.
     ///
     /// By default it's enabled when no specific certificate is present
-    /// (via `--tls-cert-file` or in credentials JSON file)
+    /// (via `--tls-ca-file` or in credentials JSON file)
     #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
     pub tls_verify_hostname: bool,
 
@@ -110,7 +110,7 @@ pub struct ConnectionOptions {
     ///
     /// This allows using any certificate for any hostname. However,
     /// certificate must be present and match certificate specified with
-    /// `--tls-cert-file` or credentials file or signed by one of the root
+    /// `--tls-ca-file` or credentials file or signed by one of the root
     /// certificate authorities.
     #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
     pub no_tls_verify_hostname: bool,
@@ -548,7 +548,7 @@ fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
 fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
     -> anyhow::Result<()>
 {
-    if let Some(cert_file) = &options.tls_cert_file {
+    if let Some(cert_file) = &options.tls_ca_file {
         let data = fs::read_to_string(cert_file)?;
         builder.pem_certificates(&data)?;
     }
