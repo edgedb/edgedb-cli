@@ -727,6 +727,16 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
     Ok(cache_dir()?.join(format!("logs/{}.log", name)))
 }
 
+fn bootout_launchctl_service(name: &str) -> anyhow::Result<()> {
+    if is_service_loaded(name) {
+        let unit_name = launchd_name(name);
+        process::run(
+            StdCommand::new("launchctl").arg("bootout").arg(&unit_name),
+        )?;
+    }
+    Ok(())
+}
+
 fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
     -> anyhow::Result<()>
 {
@@ -766,6 +776,17 @@ fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
 pub fn create_launchctl_service(name: &str, meta: &Metadata)
     -> anyhow::Result<()>
 {
+    if meta.start_conf == StartConf::Auto {
+        bootstrap_launchctl_service(name, meta)
+    } else {
+        Ok(())
+    }
+}
+
+pub fn recreate_launchctl_service(name: &str, meta: &Metadata)
+    -> anyhow::Result<()>
+{
+    bootout_launchctl_service(name)?;
     if meta.start_conf == StartConf::Auto {
         bootstrap_launchctl_service(name, meta)
     } else {

@@ -227,7 +227,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     remove_file(&base.join("env"), dry_run)?;
     remove_dir_all(&base.join("bin"), dry_run)?;
 
-    if cfg!(target="macos") {
+    if cfg!(target_os="macos") {
         macos_recreate_all_services(dry_run)?;
     }
 
@@ -308,7 +308,7 @@ fn macos_recreate_all_services(dry_run: bool) -> anyhow::Result<()> {
         log::info!("Stopping instance {:?}", inst.name());
         inst.stop(&Stop { name: inst.name().into() })?;
         log::info!("Updating service file for instance {:?}", inst.name());
-        macos::create_launchctl_service(inst.name(), inst.get_meta()?)?;
+        macos::recreate_launchctl_service(inst.name(), inst.get_meta()?)?;
         if inst.get_start_conf()? == StartConf::Auto {
             log::info!("Starting instance {:?}", inst.name());
             inst.start(&Start {
