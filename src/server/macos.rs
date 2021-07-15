@@ -342,10 +342,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             // unnecessary to unload the service if it wasn't loaded.
             log::info!(target: "edgedb::server::destroy",
                        "Unloading service");
-            process::run(&mut StdCommand::new("launchctl")
-                .arg("bootout")
-                .arg(&launchd_name(&options.name))
-            )?;
+            bootout_launchctl_service(&options.name)?;
         }
 
         let mut found = false;
@@ -727,6 +724,14 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
     Ok(cache_dir()?.join(format!("logs/{}.log", name)))
 }
 
+fn bootout_launchctl_service(name: &str) -> anyhow::Result<()> {
+    let unit_name = launchd_name(name);
+    process::run(
+        StdCommand::new("launchctl").arg("bootout").arg(&unit_name),
+    )?;
+    Ok(())
+}
+
 fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
     -> anyhow::Result<()>
 {
@@ -771,6 +776,33 @@ pub fn create_launchctl_service(name: &str, meta: &Metadata)
     } else {
         Ok(())
     }
+}
+
+pub fn recreate_launchctl_service(instance: InstanceRef)
+    -> anyhow::Result<()>
+{
+    let name = instance.name();
+    let is_running = match launchctl_status(name, false, &StatusCache::new()) {
+        Service::Running {..} => {
+            log::info!("Stopping instance {:?}", name);
+            instance.stop(&Stop { name: name.into() })?;
+            bootout_launchctl_service(name)?;
+            true
+        },
+        Service::Failed {..} => {
+            bootout_launchctl_service(name)?;
+            false
+        },
+        _ => false,
+    };
+
+    let meta = instance.get_meta()?;
+    if is_running || meta.start_conf == StartConf::Auto {
+        log::info!("Updating service file for instance {:?}", name);
+        bootstrap_launchctl_service(name, meta)?;
+        log::info!("Started instance {:?}", name);
+    }
+    Ok(())
 }
 
 fn get_domain_target() -> String {
