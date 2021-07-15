@@ -293,7 +293,6 @@ fn remove_dir_all(path: &Path, dry_run: bool) -> anyhow::Result<()> {
 fn macos_recreate_all_services(dry_run: bool) -> anyhow::Result<()> {
     use crate::server::detect;
     use crate::server::methods::InstallMethod;
-    use crate::server::options::{Start, Stop, StartConf};
     use crate::server::macos;
 
     let os = detect::current_os()?;
@@ -305,22 +304,7 @@ fn macos_recreate_all_services(dry_run: bool) -> anyhow::Result<()> {
             log::info!("Would restart instance {:?}", inst.name());
             continue;
         }
-        log::info!("Stopping instance {:?}", inst.name());
-        inst.stop(&Stop { name: inst.name().into() })?;
-        log::info!("Updating service file for instance {:?}", inst.name());
-        macos::recreate_launchctl_service(inst.name(), inst.get_meta()?)?;
-        if inst.get_start_conf()? == StartConf::Auto {
-            log::info!("Starting instance {:?}", inst.name());
-            inst.start(&Start {
-                name: inst.name().into(),
-                foreground: false,
-            })?;
-        } else {
-            log::warn!(
-                "Service {:?} is not started due to `--start-conf=manual`",
-                inst.name(),
-            );
-        }
+        macos::recreate_launchctl_service(inst)?;
     }
 
     Ok(())
