@@ -56,6 +56,7 @@ pub struct ShutdownInfo {
 pub struct ServerGuard {
     port: u16,
     runstate_dir: String,
+    tls_cert_file: String,
 }
 
 impl ServerGuard {
@@ -72,6 +73,7 @@ impl ServerGuard {
         cmd.arg("--testmode");
         cmd.arg("--echo-runtime-info");
         cmd.arg("--port=auto");
+        cmd.arg("--generate-self-signed-cert");
         #[cfg(unix)]
         if unsafe { libc::geteuid() } == 0 {
             use std::os::unix::process::CommandExt;
@@ -103,7 +105,11 @@ impl ServerGuard {
                                 .and_then(|x| x.as_str())
                                 .map(|x| x.to_owned())
                                 .expect("valid server data");
-                            tx.send((port, runstate_dir))
+                            let tls_cert_file = data.get("tls_cert_file")
+                                .and_then(|x| x.as_str())
+                                .map(|x| x.to_owned())
+                                .expect("valid server data");
+                            tx.send((port, runstate_dir, tls_cert_file))
                                 .expect("valid channel");
                         }
                     }
@@ -114,7 +120,7 @@ impl ServerGuard {
                 }
             }
         });
-        let (port, runstate_dir) = rx.recv().expect("valid port received");
+        let (port, runstate_dir, tls_cert_file) = rx.recv().expect("valid port received");
 
         let mut sinfo = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
         if sinfo.is_empty() {
@@ -128,6 +134,7 @@ impl ServerGuard {
         ServerGuard {
             port,
             runstate_dir,
+            tls_cert_file,
         }
     }
 
@@ -165,6 +172,7 @@ impl ServerGuard {
         cmd.arg("--no-version-check");
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
+        cmd.arg("--tls-ca-file").arg(&self.tls_cert_file);
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
         f(&mut cmd);
         return spawn_command(cmd, Some(10000)).expect("start interactive");
@@ -176,6 +184,7 @@ impl ServerGuard {
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--database").arg(database_name);
+        cmd.arg("--tls-ca-file").arg(&self.tls_cert_file);
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
         return cmd
     }
