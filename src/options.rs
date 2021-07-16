@@ -192,9 +192,6 @@ pub enum Command {
     #[clap(name="_self_install")]
     #[edb(hidden)]
     _SelfInstall(self_install::SelfInstall),
-    #[clap(name="_generate_dev_cert")]
-    #[edb(hidden)]
-    _GenDevCert(GenerateDevCert)
 }
 
 #[derive(EdbClap, Clone, Debug)]

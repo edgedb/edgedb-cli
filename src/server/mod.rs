@@ -52,5 +52,5 @@ pub fn is_valid_name(name: &str) -> bool {
             return false;
         }
     }
-    return true
+    return name != "_localdev"
 }
