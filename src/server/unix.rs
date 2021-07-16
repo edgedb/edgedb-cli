@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
+use std::str;
 use std::time::SystemTime;
 
 use anyhow::Context;
@@ -14,7 +15,6 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::{Uid, get_current_uid};
 use crate::process::ProcessGuard;
-use crate::commands::cert;
 use crate::server::control::read_metadata;
 use crate::server::detect::{VersionQuery, Lazy};
 use crate::server::errors::{CannotCreateService, CannotStartService};
@@ -98,14 +98,6 @@ impl Unix {
     }
 }
 
-fn write_certificates(data_dir: &Path) -> anyhow::Result<String> {
-    let (cert, key) = cert::generate_self_signed()?;
-    let cert_path = data_dir.join("certificate.crt");
-    let key_path = data_dir.join("private.key");
-    fs::write(cert_path, cert.as_bytes())?;
-    fs::write(key_path, key.as_bytes())?;
-    Ok(cert)
-}
 
 pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     -> anyhow::Result<()>
@@ -128,6 +120,11 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     cmd.arg("--log-level=warn");
     cmd.arg("--data-dir").arg(&dir);
 
+    let cert_generated = settings.version > Version("1.0b2".into());
+    if cert_generated {
+        cmd.arg("--generate-self-signed-cert");
+    }
+
     log::debug!("Running bootstrap {:?}", cmd);
     match cmd.status() {
         Ok(s) if s.success() => {}
@@ -139,7 +136,23 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     let metadata = settings.metadata();
     write_metadata(&metapath, &metadata)?;
 
-    let cert = write_certificates(&dir)?;
+
+    let cert_data = if cert_generated {
+        match fs::read(dir.join("edbtlscert.pem")) {
+            Ok(data) => Some(data),
+            Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
+        }
+    } else {
+        None
+    };
+    let cert = if let Some(cert_data) = &cert_data {
+        match str::from_utf8(cert_data) {
+            Ok(cert) => Some(cert),
+            Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
+        }
+    } else {
+        None
+    };
 
     let res = create_user_service(&settings.name, &metadata);
 
@@ -150,7 +163,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
                 name: settings.name.clone(),
                 foreground: false,
             })?;
-            init_credentials(&settings, &inst, Some(&cert))?;
+            init_credentials(&settings, &inst, cert)?;
             println!("Bootstrap complete. Server is up and running now.");
             if !settings.suppress_messages {
                 println!("To connect run:\n  edgedb -I {}",
@@ -164,7 +177,7 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
             let child = ProcessGuard::run(&mut cmd)
                 .with_context(||
                     format!("error running server {:?}", cmd))?;
-            init_credentials(&settings, &inst, Some(&cert))?;
+            init_credentials(&settings, &inst, cert)?;
             drop(child);
             if settings.start_conf == StartConf::Manual && res.is_ok() {
                 println!("Bootstrap complete. To start the server:\n  \
@@ -543,6 +556,17 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
         })?;
 
     let mut cmd = inst.get_command()?;
+
+    let mut cert_generated = false;
+    if let Some(version) = &new_meta.current_version {
+        if version > &Version("1.0b2".into()) && !instance_dir.join(
+            "edbtlscert.pem"
+        ).exists() {
+            cmd.arg("--generate-self-signed-cert");
+            cert_generated = true;
+        }
+    }
+
     log::debug!("Running server: {:?}", cmd);
     let child = ProcessGuard::run(&mut cmd)
         .with_context(|| format!("error running server {:?}", cmd))?;
@@ -561,8 +585,15 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
     let metapath = instance_dir.join("metadata.json");
     write_metadata(&metapath, &new_meta)?;
 
-    if !instance_dir.join("private.key").exists() {
-        let cert = write_certificates(&instance_dir)?;
+    if cert_generated {
+        let cert_data = match fs::read(instance_dir.join("edbtlscert.pem")) {
+            Ok(data) => data,
+            Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
+        };
+        let cert = match str::from_utf8(&cert_data) {
+            Ok(cert) => cert,
+            Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
+        };
         if let Err(e) = credentials::add_certificate(inst.name(), &cert) {
             log::warn!("Could not update credentials file: {:#}", e);
         }
