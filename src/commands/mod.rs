@@ -1,5 +1,4 @@
 mod exit;
-mod cert;
 mod configure;
 mod describe;
 mod describe_schema;
@@ -25,7 +24,6 @@ pub mod options;
 pub mod parser;
 
 pub use self::configure::configure;
-pub use self::cert::generate_dev_cert;
 pub use self::dump::{dump, dump_all};
 pub use self::describe::describe;
 pub use self::describe_schema::describe_schema;

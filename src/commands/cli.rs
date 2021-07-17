@@ -81,9 +81,5 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 Ok(())
             }).into()
         },
-        Command::_GenDevCert(cmd) => {
-            commands::generate_dev_cert(&cmd)?;
-            Ok(())
-        },
     }
 }
