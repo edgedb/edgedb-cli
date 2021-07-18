@@ -788,6 +788,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             .arg("--data-dir")
             .arg(format!("/var/lib/edgedb/data/{}", inst.name()))
             .arg("--bootstrap-only")
+            .arg("--generate-self-signed-cert")
         )?;
 
         let output = process::get_text(Command::new(&self.cli)
@@ -797,16 +798,8 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             .arg(new_image.tag.as_image_name())
             .arg("sh")
             .arg("-c")
-            .arg(format!(r###"
-                    if [ ! -e /mnt/{name}/private.key ]; then
-                        edgedb _generate_dev_cert \
-                            --key-file /mnt/{name}/private.key \
-                            --cert-file /mnt/{name}/certificate.crt
-                        cat /mnt/{name}/certificate.crt
-                    fi
-                "###,
-                name=inst.name(),
-            )))?;
+            .arg(format!("cat /mnt/{}/edbtlscert.pem", inst.name()))
+        )?;
 
         let cert_data = output.find("-----BEGIN CERTIFICATE-----")
             .zip(find_end(&output, "-----END CERTIFICATE-----"))
@@ -1041,6 +1034,11 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
 
+        let cert_generated = settings.version > Version("1.0b2".into());
+        if cert_generated {
+            cmd.arg("--generate-self-signed-cert");
+        }
+
         log::debug!("Running bootstrap {:?}", cmd);
         match cmd.status() {
             Ok(s) if s.success() => {}
@@ -1057,21 +1055,25 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg("-c")
             .arg(format!(r###"
                     echo {metadata} > /mnt/{name}/metadata.json
-                    edgedb _generate_dev_cert \
-                        --key-file /mnt/{name}/private.key \
-                        --cert-file /mnt/{name}/certificate.crt
-                    cat /mnt/{name}/certificate.crt
+                    {cert_cmd}
                 "###,
                 name=settings.name,
                 metadata=shell_words::quote(&md),
+                cert_cmd=if cert_generated {
+                    format!("cat /mnt/{}/edbtlscert.pem", settings.name)
+                } else { "".into() }
             )))?;
 
-        let (cstart, cend) = output.find("-----BEGIN CERTIFICATE-----")
-            .zip(find_end(&output, "-----END CERTIFICATE-----"))
-            .context("Error generating certificate")?;
-        let cert_data = &output[cstart..cend];
+        let cert = if cert_generated {
+            let (cstart, cend) = output.find("-----BEGIN CERTIFICATE-----")
+                .zip(find_end(&output, "-----END CERTIFICATE-----"))
+                .context("Error generating certificate")?;
+            Some(&output[cstart..cend])
+        } else {
+            None
+        };
 
-        save_credentials(&settings, &password, Some(cert_data))?;
+        save_credentials(&settings, &password, cert)?;
         drop(password);
 
         self.create(&Create {
