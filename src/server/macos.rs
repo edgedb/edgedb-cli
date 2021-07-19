@@ -771,6 +771,9 @@ fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
 pub fn create_launchctl_service(name: &str, meta: &Metadata)
     -> anyhow::Result<()>
 {
+    if is_service_loaded(name) {
+        bootout_launchctl_service(name)?;
+    }
     if meta.start_conf == StartConf::Auto {
         bootstrap_launchctl_service(name, meta)
     } else {

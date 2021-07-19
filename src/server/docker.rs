@@ -767,6 +767,50 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let tmp_role = format!("tmp_upgrade_{}", timestamp());
         let tmp_password = generate_password();
 
+        process::run(
+            Command::new(&inst.method.cli)
+            .arg("run")
+            .arg("--rm")
+            .arg("--user=999:999")
+            .arg(format!("--publish={0}:{0}", port))
+            .arg("--mount")
+            .arg(format!("source={},target=/var/lib/edgedb/data", volume))
+            .arg(new_image.tag.as_image_name())
+            .arg("edgedb-server")
+            .arg("--bootstrap-command")
+            .arg(format!(r###"
+                CREATE SUPERUSER ROLE {role} {{
+                    SET password := {password};
+                }};
+            "###, role=tmp_role, password=quote_string(&tmp_password)))
+            .arg("--log-level=warn")
+            .arg("--runstate-dir").arg("/var/lib/edgedb/data/run")
+            .arg("--data-dir")
+            .arg(format!("/var/lib/edgedb/data/{}", inst.name()))
+            .arg("--bootstrap-only")
+            .arg("--generate-self-signed-cert")
+        )?;
+
+        let output = process::get_text(Command::new(&self.cli)
+            .arg("run")
+            .arg("--rm")
+            .arg("--mount").arg(format!("source={},target=/mnt", volume))
+            .arg(new_image.tag.as_image_name())
+            .arg("sh")
+            .arg("-c")
+            .arg(format!("cat /mnt/{}/edbtlscert.pem", inst.name()))
+        )?;
+
+        let cert_data = output.find("-----BEGIN CERTIFICATE-----")
+            .zip(find_end(&output, "-----END CERTIFICATE-----"))
+            .map(|(start, end)| &output[start..end]);
+
+        if let Some(cert) = cert_data {
+            if let Err(e) = credentials::add_certificate(inst.name(), &cert) {
+                log::warn!("Could not update credentials file: {:#}", e);
+            }
+        }
+
         let mut cmd = DockerRun::new(&inst.method.cli);
         cmd.arg("--user=999:999");
         cmd.arg(format!("--publish={0}:{0}", port));
@@ -774,12 +818,6 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
         cmd.arg(new_image.tag.as_image_name());
         cmd.arg("edgedb-server");
-        cmd.arg("--bootstrap-command")
-            .arg(format!(r###"
-                CREATE SUPERUSER ROLE {role} {{
-                    SET password := {password};
-                }};
-            "###, role=tmp_role, password=quote_string(&tmp_password)));
         cmd.arg("--log-level=warn");
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
@@ -996,6 +1034,11 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
 
+        let cert_generated = settings.version > Version("1.0b2".into());
+        if cert_generated {
+            cmd.arg("--generate-self-signed-cert");
+        }
+
         log::debug!("Running bootstrap {:?}", cmd);
         match cmd.status() {
             Ok(s) if s.success() => {}
@@ -1003,7 +1046,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
         }
 
-        process::run(Command::new(&self.cli)
+        let output = process::get_text(Command::new(&self.cli)
             .arg("run")
             .arg("--rm")
             .arg("--mount").arg(format!("source={},target=/mnt", volume))
@@ -1012,12 +1055,25 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg("-c")
             .arg(format!(r###"
                     echo {metadata} > /mnt/{name}/metadata.json
+                    {cert_cmd}
                 "###,
                 name=settings.name,
                 metadata=shell_words::quote(&md),
+                cert_cmd=if cert_generated {
+                    format!("cat /mnt/{}/edbtlscert.pem", settings.name)
+                } else { "".into() }
             )))?;
 
-        save_credentials(&settings, &password)?;
+        let cert = if cert_generated {
+            let (cstart, cend) = output.find("-----BEGIN CERTIFICATE-----")
+                .zip(find_end(&output, "-----END CERTIFICATE-----"))
+                .context("Error generating certificate")?;
+            Some(&output[cstart..cend])
+        } else {
+            None
+        };
+
+        save_credentials(&settings, &password, cert)?;
         drop(password);
 
         self.create(&Create {
@@ -1464,3 +1520,7 @@ fn decode_next<'x, R, T>(
 }
 
 
+
+fn find_end(haystack: &str, needle: &str) -> Option<usize> {
+    haystack.find(needle).map(|x| x + needle.len())
+}
