@@ -120,3 +120,6 @@ path = "src/main.rs"
 [profile.release]
 debug = true
 lto = true
+
+[patch.crates-io]
+rustls = { git = "https://github.com/edgedb/rustls", rev = "af7fc66" }
