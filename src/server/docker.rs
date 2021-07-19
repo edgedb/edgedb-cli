@@ -355,7 +355,7 @@ impl Tag {
                 Some(rev) => Some(Tag::Stable(name.into(), rev[..7].into())),
                 None => None,
             }
-        } else if name.starts_with("nightly_1") {
+        } else if name.starts_with("nightly_") {
             // example: `nightly_1-beta3-dev202107130000_cv202107130000`
             Some(Tag::Nightly(name.into()))
         } else {
