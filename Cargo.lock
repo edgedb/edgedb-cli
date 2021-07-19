@@ -1039,7 +1039,7 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.1.0"
-source = "git+https://github.com/fantix/edgedb-rust?branch=fix-docker-tls-wait#cf53a7c5576525632761e355aa0474316e01169c"
+source = "git+https://github.com/edgedb/edgedb-rust#9d8aeb5e7f0573c6add53b4f9caf75d94a64a1a1"
 dependencies = [
  "anyhow",
  "async-std",
@@ -1068,7 +1068,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/fantix/edgedb-rust?branch=fix-docker-tls-wait#cf53a7c5576525632761e355aa0474316e01169c"
+source = "git+https://github.com/edgedb/edgedb-rust#9d8aeb5e7f0573c6add53b4f9caf75d94a64a1a1"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -1079,7 +1079,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/fantix/edgedb-rust?branch=fix-docker-tls-wait#cf53a7c5576525632761e355aa0474316e01169c"
+source = "git+https://github.com/edgedb/edgedb-rust#9d8aeb5e7f0573c6add53b4f9caf75d94a64a1a1"
 dependencies = [
  "bigdecimal",
  "bytes",

@@ -7,9 +7,9 @@ edition = "2018"
 
 [dependencies]
 edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
-edgedb-protocol = {git = "https://github.com/fantix/edgedb-rust", features=["all-types"], branch="fix-docker-tls-wait"}
-edgedb-derive = {git = "https://github.com/fantix/edgedb-rust", branch="fix-docker-tls-wait"}
-edgedb-client = {git = "https://github.com/fantix/edgedb-rust", branch="fix-docker-tls-wait"}
+edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust", features=["all-types"]}
+edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust"}
+edgedb-client = {git = "https://github.com/edgedb/edgedb-rust"}
 snafu = {version="0.6.0", features=["backtraces"]}
 anyhow = "1.0.23"
 async-std = {version="1.9", features=[
