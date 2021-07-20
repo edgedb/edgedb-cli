@@ -17,6 +17,7 @@ use crate::platform::{Uid, get_current_uid};
 use crate::process::ProcessGuard;
 use crate::server::control::read_metadata;
 use crate::server::detect::{VersionQuery, Lazy};
+use crate::server::distribution::MajorVersion;
 use crate::server::errors::{CannotCreateService, CannotStartService};
 use crate::server::init::{self, read_ports, init_credentials, Storage};
 use crate::server::install::{self, exit_codes, Operation, operation};
@@ -120,7 +121,8 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     cmd.arg("--log-level=warn");
     cmd.arg("--data-dir").arg(&dir);
 
-    let cert_generated = settings.version > Version("1.0b2".into());
+    let cert_generated = settings.nightly ||
+        settings.version > Version("1.0b2".into());
     if cert_generated {
         cmd.arg("--generate-self-signed-cert");
     }
@@ -135,7 +137,6 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     let metapath = dir.join("metadata.json");
     let metadata = settings.metadata();
     write_metadata(&metapath, &metadata)?;
-
 
     let cert_data = if cert_generated {
         match fs::read(dir.join("edbtlscert.pem")) {
@@ -557,14 +558,16 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
 
     let mut cmd = inst.get_command()?;
 
-    let mut cert_generated = false;
-    if let Some(version) = &new_meta.current_version {
-        if version > &Version("1.0b2".into()) && !instance_dir.join(
-            "edbtlscert.pem"
-        ).exists() {
-            cmd.arg("--generate-self-signed-cert");
-            cert_generated = true;
+    let cert_generated = if instance_dir.join("edbtlscert.pem").exists() {
+        false
+    } else {
+        match &new_meta.version {
+            MajorVersion::Nightly => true,
+            MajorVersion::Stable(ver) => ver > &Version("1-beta2".into()),
         }
+    };
+    if cert_generated {
+        cmd.arg("--generate-self-signed-cert");
     }
 
     log::debug!("Running server: {:?}", cmd);
