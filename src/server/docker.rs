@@ -357,7 +357,12 @@ impl Tag {
             }
         } else if name.starts_with("nightly_") {
             // example: `nightly_1-beta3-dev202107130000_cv202107130000`
-            Some(Tag::Nightly(name.into()))
+            if let Some(c) = name.chars().skip("nightly_".len()).next() {
+                if c.is_numeric() {
+                    return Some(Tag::Nightly(name.into()));
+                }
+            }
+            None
         } else {
             // maybe `latest` or something unrelated
             None
@@ -767,47 +772,61 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let tmp_role = format!("tmp_upgrade_{}", timestamp());
         let tmp_password = generate_password();
 
-        process::run(
-            Command::new(&inst.method.cli)
-            .arg("run")
-            .arg("--rm")
-            .arg("--user=999:999")
-            .arg(format!("--publish={0}:{0}", port))
-            .arg("--mount")
-            .arg(format!("source={},target=/var/lib/edgedb/data", volume))
-            .arg(new_image.tag.as_image_name())
-            .arg("edgedb-server")
-            .arg("--bootstrap-command")
-            .arg(format!(r###"
-                CREATE SUPERUSER ROLE {role} {{
-                    SET password := {password};
-                }};
-            "###, role=tmp_role, password=quote_string(&tmp_password)))
-            .arg("--log-level=warn")
-            .arg("--runstate-dir").arg("/var/lib/edgedb/data/run")
-            .arg("--data-dir")
-            .arg(format!("/var/lib/edgedb/data/{}", inst.name()))
-            .arg("--bootstrap-only")
-            .arg("--generate-self-signed-cert")
-        )?;
+        let cert_generated = match &new_image.major_version {
+            MajorVersion::Stable(ver) => ver > &Version("1-beta2".into()),
+            MajorVersion::Nightly => true,
+        };
 
-        let output = process::get_text(Command::new(&self.cli)
-            .arg("run")
-            .arg("--rm")
-            .arg("--mount").arg(format!("source={},target=/mnt", volume))
-            .arg(new_image.tag.as_image_name())
-            .arg("sh")
-            .arg("-c")
-            .arg(format!("cat /mnt/{}/edbtlscert.pem", inst.name()))
-        )?;
+        let mut cmd = Command::new(&inst.method.cli);
+        cmd.arg("run");
+        cmd.arg("--rm");
+        cmd.arg("--user=999:999");
+        if cert_generated {
+            cmd.arg("-e").arg("EDGEDB_HIDE_GENERATED_CERT=1");
+        }
+        cmd.arg(format!("--publish={0}:{0}", port));
+        cmd.arg("--mount");
+        cmd.arg(format!("source={},target=/var/lib/edgedb/data", volume));
+        cmd.arg(new_image.tag.as_image_name());
+        cmd.arg("edgedb-server");
+        cmd.arg("--bootstrap-command");
+        cmd.arg(format!(r###"
+            CREATE SUPERUSER ROLE {role} {{
+                SET password := {password};
+            }};
+        "###, role=tmp_role, password=quote_string(&tmp_password)));
+        cmd.arg("--log-level=warn");
+        cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
+        cmd.arg("--data-dir");
+        cmd.arg(format!("/var/lib/edgedb/data/{}", inst.name()));
+        cmd.arg("--bootstrap-only");
+        if cert_generated {
+            cmd.arg("--generate-self-signed-cert");
+        }
 
-        let cert_data = output.find("-----BEGIN CERTIFICATE-----")
-            .zip(find_end(&output, "-----END CERTIFICATE-----"))
-            .map(|(start, end)| &output[start..end]);
+        process::run(&mut cmd)?;
 
-        if let Some(cert) = cert_data {
-            if let Err(e) = credentials::add_certificate(inst.name(), &cert) {
-                log::warn!("Could not update credentials file: {:#}", e);
+        if cert_generated {
+            let output = process::get_text(Command::new(&self.cli)
+                .arg("run")
+                .arg("--rm")
+                .arg("--mount").arg(format!("source={},target=/mnt", volume))
+                .arg(new_image.tag.as_image_name())
+                .arg("sh")
+                .arg("-c")
+                .arg(format!("cat /mnt/{}/edbtlscert.pem", inst.name()))
+            )?;
+
+            let cert_data = output.find("-----BEGIN CERTIFICATE-----")
+                .zip(find_end(&output, "-----END CERTIFICATE-----"))
+                .map(|(start, end)| &output[start..end]);
+
+            if let Some(cert) = cert_data {
+                if let Err(e) = credentials::add_certificate(
+                    inst.name(), &cert
+                ) {
+                    log::warn!("Could not update credentials file: {:#}", e);
+                }
             }
         }
 
@@ -1017,11 +1036,17 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg("-c")
             .arg(format!("chown -R 999:999 /mnt")))?;
 
+        let cert_generated = settings.nightly ||
+            settings.version > Version("1-beta2".into());
+
         let password = generate_password();
         let mut cmd = Command::new(&self.cli);
         cmd.arg("run");
         cmd.arg("--rm");
         cmd.arg("--user=999:999");
+        if cert_generated {
+            cmd.arg("-e").arg("EDGEDB_HIDE_GENERATED_CERT=1");
+        }
         cmd.arg("--mount")
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
         cmd.arg(image.tag.as_image_name());
@@ -1033,8 +1058,6 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
-
-        let cert_generated = settings.version > Version("1.0b2".into());
         if cert_generated {
             cmd.arg("--generate-self-signed-cert");
         }
