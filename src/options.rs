@@ -1,6 +1,6 @@
 use std::env;
+use std::ffi::OsString;
 use std::path::PathBuf;
-use std::process::exit;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -318,6 +318,12 @@ fn get_matches(app: clap::App) -> clap::ArgMatches {
         Err(e) => {
             match e.kind {
                 UnknownArgument | InvalidSubcommand => {
+                    // Make sure we're only dealing with the first-level command
+                    if let Some(first_cmd) = env::args_os().skip(1).next() {
+                        if first_cmd != e.info[0][..] {
+                            e.exit();
+                        }
+                    }
                     let new_name = match &e.info[0][..] {
                          "create-database" => "database create",
                          "create-migration" => "migration create",
@@ -333,15 +339,23 @@ fn get_matches(app: clap::App) -> clap::ArgMatches {
                          "show-status" => "migration status",
                          _ => e.exit(),
                     };
-                    let error = "error:".bold().red();
+                    let error = "warning:".bold().light_yellow();
                     let cmd = e.info[0][..].green();
                     let instead = format!("edgedb {}", new_name).green();
                     eprintln!("\
                         {error} The subcommand '{cmd}' was renamed\n\
-                        \n        \
+                        \n         \
                             Use '{instead}' instead\
+                        \n\
                     ", error=error, cmd=cmd, instead=instead);
-                    exit(1);
+                    let new_args: Vec<OsString> = env::args_os().take(1).chain(
+                        new_name.split(" ").map(|x|x.into())
+                    ).chain(
+                        env::args_os().skip(2)
+                    ).collect();
+                    let app = <RawOptions as clap::IntoApp>::into_app();
+                    let app = update_help(app);
+                    return app.get_matches_from(new_args);
                 }
                 _ => {}
             }
