@@ -331,6 +331,7 @@ fn get_matches(app: clap::App) -> clap::ArgMatches {
                          "list-casts" => "list casts",
                          "list-databases" => "list databases",
                          "list-indexes" => "list indexes",
+                         "list-modules" => "list modules",
                          "list-object-types" => "list types",
                          "list-scalar-types" => "list scalars",
                          "list-roles" => "list roles",
