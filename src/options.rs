@@ -518,7 +518,22 @@ fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     let admin = tmp.admin;
     let user = env_fallback(tmp.user.clone(), "EDGEDB_USER")?;
     let host = env_fallback(tmp.host.clone(), "EDGEDB_HOST")?;
-    let port = env_fallback(tmp.port, "EDGEDB_PORT")?;
+    let port = match env_fallback(tmp.port, "EDGEDB_PORT") {
+        Ok(port) => port,
+        Err(e) => {
+            if let Ok(Some(val)) = get_env("EDGEDB_PORT") {
+                if val.starts_with("tcp://") {
+                    // This is likely set by Docker for linked container which
+                    // happens to have the name "edgedb"
+                    None
+                } else {
+                    anyhow::bail!(e);
+                }
+            } else {
+                anyhow::bail!(e);
+            }
+        },
+    };
     let database = env_fallback(tmp.database.clone(), "EDGEDB_DATABASE")?;
 
     let mut conn_params = Builder::new();
