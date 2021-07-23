@@ -136,12 +136,14 @@ impl<T: AsRef<str>> Ord for Version<T> {
                 (None, Some(Numeric(_))) => Less,
                 (None, Some(String(x)))
                 if matches!(x, "a"|"b"|"c"|"rc"|"pre"|"dev"|"dirty")
+                || x.starts_with("beta") || x.starts_with("rc")
                 => Greater,
                 (None, Some(String(_))) => Less,
                 (Some(String(x)), None)
                 // git revision starts with g
                 if matches!(x, "a"|"b"|"c"|"rc"|"pre"|"dev"|"dirty")
                 || x.starts_with("g")
+                || x.starts_with("beta") || x.starts_with("rc")
                 => Less,
                 (Some(String(_)), None) => Greater,
                 (None, None) => return Equal,
@@ -204,5 +206,14 @@ mod test {
     #[test]
     fn edgedb_test() {
         assert!(Version("1-alpha2") < Version("1-alpha3"));
+        assert!(!(Version("1-beta2") < Version("1-beta2")));
+        assert!(Version("1-beta2") < Version("1-rc1"));
+        assert!(Version("1-beta2") < Version("1"));
+        assert!(Version("1-rc1") < Version("1"));
+        assert!(Version("1-rc2") < Version("1"));
+        assert!(Version("1") > Version("1-beta2"));
+        assert!(Version("1") > Version("1-rc1"));
+        assert!(Version("1") > Version("1-rc2"));
+        assert!(Version("3") < Version("12"));
     }
 }

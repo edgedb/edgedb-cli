@@ -98,3 +98,33 @@ impl DistributionRef {
         self.0.downcast_ref()
     }
 }
+
+#[test]
+fn test_major_version_cmp() {
+    assert!(
+        MajorVersion::Nightly >
+        MajorVersion::Stable(Version("1-beta2".into()))
+    );
+    assert!(
+        MajorVersion::Stable(Version("1-beta3".into())) >
+        MajorVersion::Stable(Version("1-beta2".into()))
+    );
+    assert!(
+        MajorVersion::Stable(Version("1-rc".into())) >
+        MajorVersion::Stable(Version("1-beta2".into()))
+    );
+    assert!(
+        MajorVersion::Stable(Version("1-rc2".into())) >
+        MajorVersion::Stable(Version("1-beta2".into()))
+    );
+    assert!(
+        !(
+            MajorVersion::Stable(Version("1-beta2".into())) >
+            MajorVersion::Stable(Version("1-beta2".into()))
+        )
+    );
+    assert!(
+        MajorVersion::Stable(Version("1".into())) >
+        MajorVersion::Stable(Version("1-beta2".into()))
+    );
+}
