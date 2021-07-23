@@ -772,11 +772,9 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let tmp_role = format!("tmp_upgrade_{}", timestamp());
         let tmp_password = generate_password();
 
-        let cert_generated = match &new_image.major_version {
-            MajorVersion::Stable(ver) => ver > &Version("1-beta2".into()),
-            MajorVersion::Nightly => true,
-        };
-
+        let cert_generated = new_image.major_version > MajorVersion::Stable(
+            Version("1-beta2".into())
+        );
         let mut cmd = Command::new(&inst.method.cli);
         cmd.arg("run");
         cmd.arg("--rm");
@@ -1036,9 +1034,9 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg("-c")
             .arg(format!("chown -R 999:999 /mnt")))?;
 
-        let cert_generated = settings.nightly ||
-            settings.version > Version("1-beta2".into());
-
+        let cert_generated = image.major_version > MajorVersion::Stable(
+            Version("1-beta2".into())
+        );
         let password = generate_password();
         let mut cmd = Command::new(&self.cli);
         cmd.arg("run");

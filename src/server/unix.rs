@@ -121,8 +121,9 @@ pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
     cmd.arg("--log-level=warn");
     cmd.arg("--data-dir").arg(&dir);
 
-    let cert_generated = settings.nightly ||
-        settings.version > Version("1.0b2".into());
+    let cert_generated = pkg.major_version > MajorVersion::Stable(
+        Version("1-beta2".into())
+    );
     if cert_generated {
         cmd.arg("--generate-self-signed-cert");
     }
@@ -561,10 +562,7 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
     let cert_generated = if instance_dir.join("edbtlscert.pem").exists() {
         false
     } else {
-        match &new_meta.version {
-            MajorVersion::Nightly => true,
-            MajorVersion::Stable(ver) => ver > &Version("1-beta2".into()),
-        }
+        new_meta.version > MajorVersion::Stable(Version("1-beta2".into()))
     };
     if cert_generated {
         cmd.arg("--generate-self-signed-cert");

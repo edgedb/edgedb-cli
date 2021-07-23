@@ -163,21 +163,21 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
         creds.tls_cert_data = Some(cert.clone());
     }
 
-    let cred_path = match &cmd.name {
-        Some(name) => credentials::path(name),
+    let (cred_path, instance_name) = match &cmd.name {
+        Some(name) => (credentials::path(name)?, name.clone()),
         None => {
             let default = gen_default_instance_name(builder.get_addr());
             if cmd.non_interactive {
                 eprintln!("Using generated instance name: {}", &default);
-                credentials::path(&default)
+                (credentials::path(&default)?, default)
             } else {
                 let name = question::String::new(
                     "Specify a new instance name for the remote server"
                 ).default(&default).ask()?;
-                credentials::path(&name)
+                (credentials::path(&name)?, name)
             }
         }
-    }?;
+    };
     if cred_path.exists() {
         if cmd.non_interactive {
             if !cmd.quiet {
@@ -195,6 +195,12 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
     }
 
     write_credentials(&cred_path, &creds)?;
+    if !cmd.quiet {
+        eprintln!(
+            "Authentication succeeded. To connect run:\n  edgedb -I {}",
+            instance_name,
+        );
+    }
     Ok(())
 }
 
