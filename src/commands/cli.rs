@@ -50,6 +50,10 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             directory_check::check_and_error()?;
             server::main(cmd)
         }
+        Command::Instance(cmd) => {
+            directory_check::check_and_error()?;
+            server::instance_main(cmd)
+        }
         Command::Project(cmd) => {
             directory_check::check_and_error()?;
             project::main(cmd)

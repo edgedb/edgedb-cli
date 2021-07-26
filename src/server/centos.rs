@@ -7,13 +7,13 @@ use async_std::task;
 use anyhow::Context;
 use serde::Serialize;
 
+use crate::server::create::{self, Storage};
 use crate::server::detect::{Lazy, ARCH};
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::{DistributionRef, MajorVersion, Distribution};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::linux;
-use crate::server::init::{self, Storage};
 use crate::server::methods::{InstallationMethods, InstallMethod};
 use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
 use crate::server::options::{Upgrade, Destroy};
@@ -301,8 +301,8 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     fn detect_all(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("can serialize")
     }
-    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
-        unix::bootstrap(self, init)
+    fn bootstrap(&self, settings: &create::Settings) -> anyhow::Result<()> {
+        unix::bootstrap(self, settings)
     }
     fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage> {
         unix::storage(system, name)

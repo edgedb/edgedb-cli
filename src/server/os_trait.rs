@@ -5,9 +5,9 @@ use std::process::Command;
 
 use edgedb_client as client;
 
+use crate::server::create::{self, Storage};
 use crate::server::detect::{VersionQuery};
 use crate::server::distribution::{MajorVersion, DistributionRef};
-use crate::server::init::{self, Storage};
 use crate::server::install;
 use crate::server::upgrade;
 use crate::server::metadata::Metadata;
@@ -84,7 +84,7 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn get_storage(&self, system: bool, name: &str)-> anyhow::Result<Storage>;
     fn storage_exists(&self, storage: &Storage) -> anyhow::Result<bool>;
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()>;
-    fn bootstrap(&self, settings: &init::Settings) -> anyhow::Result<()>;
+    fn bootstrap(&self, settings: &create::Settings) -> anyhow::Result<()>;
     fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
         -> anyhow::Result<()>;
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>;

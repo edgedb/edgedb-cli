@@ -25,10 +25,10 @@ pub mod package;
 
 // commands
 pub mod control;
+pub mod create;
 pub mod destroy;
 pub mod errors;
 mod info;
-pub mod init;
 pub mod install;
 mod list_versions;
 pub mod reset_password;
@@ -38,7 +38,7 @@ mod uninstall;
 pub mod upgrade;
 pub mod authenticate;
 
-pub use main::main;
+pub use main::{main, instance_main};
 
 
 pub fn is_valid_name(name: &str) -> bool {

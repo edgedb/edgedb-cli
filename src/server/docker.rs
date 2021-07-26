@@ -17,12 +17,12 @@ use crate::credentials::{self, get_connector};
 use crate::process;
 
 use crate::commands::ExitCode;
+use crate::server::create::{self as create_mod, read_ports, Storage};
+use crate::server::create::{bootstrap_script, save_credentials};
 use crate::server::detect::Lazy;
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::errors::InstanceNotFound;
-use crate::server::init::{self, read_ports, Storage};
-use crate::server::init::{bootstrap_script, save_credentials};
 use crate::server::install;
 use crate::server::options::{Start, Stop, Restart, Upgrade, Destroy, Logs};
 use crate::server::options::{StartConf};
@@ -1010,7 +1010,9 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             _ => unix::clean_storage(storage),
         }
     }
-    fn bootstrap(&self, settings: &init::Settings) -> anyhow::Result<()> {
+    fn bootstrap(
+        &self, settings: &create_mod::Settings
+    ) -> anyhow::Result<()> {
         let volume = match &settings.storage {
             Storage::DockerVolume(name) => name,
             other => anyhow::bail!("unsupported storage {:?}", other),

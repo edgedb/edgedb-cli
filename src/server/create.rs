@@ -21,7 +21,7 @@ use crate::server::detect::{self, VersionQuery};
 use crate::server::errors::CannotCreateService;
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod, Methods};
-use crate::server::options::{Init, StartConf};
+use crate::server::options::{Create, StartConf};
 use crate::server::os_trait::{Method, CurrentOs, InstanceRef};
 use crate::server::version::Version;
 use crate::server::distribution::DistributionRef;
@@ -208,7 +208,7 @@ pub fn find_distribution<'x>(current_os: &'x dyn CurrentOs,
     }
 }
 
-pub fn init(options: &Init) -> anyhow::Result<()> {
+pub fn create(options: &Create) -> anyhow::Result<()> {
     let version_query = VersionQuery::new(
         options.nightly, options.version.as_ref());
     let current_os = detect::current_os()?;

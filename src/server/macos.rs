@@ -17,11 +17,11 @@ use crate::credentials::{self, get_connector};
 use crate::platform::{get_current_uid, home_dir, cache_dir};
 use crate::process;
 use crate::server::control::read_metadata;
+use crate::server::create::{self, Storage};
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
 use crate::server::errors::InstanceNotFound;
-use crate::server::init::{self, Storage};
 use crate::server::install::{self, Operation, Command};
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod};
@@ -291,7 +291,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
         unix::clean_storage(storage)
     }
-    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
+    fn bootstrap(&self, init: &create::Settings) -> anyhow::Result<()> {
         unix::bootstrap(self, init)
     }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
