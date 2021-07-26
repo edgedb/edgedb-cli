@@ -480,6 +480,30 @@ fn env_fallback<T: FromStr>(value: Option<T>, name: &str)
     }
 }
 
+fn parse_port_env() -> anyhow::Result<(Option<String>, Option<u16>)> {
+    match get_env("EDGEDB_PORT") {
+        Ok(Some(value)) => if let Some(value) = value.strip_prefix("tcp://") {
+            // #389: `docker run --link=edgedb edgedb/edgedb-cli` will set env
+            // `EDGEDB_PORT` to `tcp://<host>:<port>` - we take it as default.
+            if let Some((host, port)) = value.split_once(":") {
+                let port = port.parse().with_context(|| {
+                    format!("Cannot parse port in Docker URI: EDGEDB_PORT")
+                })?;
+                Ok((Some(host.into()), Some(port)))
+            } else {
+                anyhow::bail!("Port not found in Docker URI: EDGEDB_PORT");
+            }
+        } else {
+            let port = value.parse().with_context(|| {
+                format!("Cannot parse environment variable: EDGEDB_PORT")
+            })?;
+            Ok((None, Some(port)))
+        }
+        Ok(None) => Ok((None, None)),
+        Err(e) => Err(e),
+    }
+}
+
 fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     let instance = if let Some(dsn) = &tmp.dsn {
         return Ok(Builder::from_dsn(dsn)?);
@@ -517,23 +541,19 @@ fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
 
     let admin = tmp.admin;
     let user = env_fallback(tmp.user.clone(), "EDGEDB_USER")?;
-    let host = env_fallback(tmp.host.clone(), "EDGEDB_HOST")?;
-    let port = match env_fallback(tmp.port, "EDGEDB_PORT") {
-        Ok(port) => port,
-        Err(e) => {
-            if let Ok(Some(val)) = get_env("EDGEDB_PORT") {
-                if val.starts_with("tcp://") {
-                    // This is likely set by Docker for linked container which
-                    // happens to have the name "edgedb"
-                    None
-                } else {
-                    anyhow::bail!(e);
-                }
-            } else {
-                anyhow::bail!(e);
-            }
-        },
+    let (host, port) = if tmp.port.is_none() {
+        parse_port_env()?
+    } else if tmp.host.is_none() {
+        // It's okay if we fail to extract host from the EDGEDB_PORT Docker URI
+        // because we will try EDGEDB_HOST later (we have tmp.port already)
+        match parse_port_env() {
+            Ok((host, _)) => (host, tmp.port),
+            Err(_) => (None, tmp.port),
+        }
+    } else {
+        (None, tmp.port)
     };
+    let host = env_fallback(tmp.host.clone(), "EDGEDB_HOST")?.or(host);
     let database = env_fallback(tmp.database.clone(), "EDGEDB_DATABASE")?;
 
     let mut conn_params = Builder::new();
