@@ -5,8 +5,6 @@ on:
     - cron: "0 0 * * *"
   workflow_dispatch:
     inputs: {}
-  repository_dispatch:
-    types: ["nightly-build"]
   push:
     branches:
       - nightly
