@@ -16,16 +16,26 @@ pub struct ServerCommand {
     pub subcommand: Command,
 }
 
+#[derive(EdbClap, Debug, Clone)]
+pub struct ServerInstanceCommand {
+    #[clap(subcommand)]
+    pub subcommand: InstanceCommand,
+}
+
 #[derive(EdbClap, Clone, Debug)]
 pub enum InstanceCommand {
+    /// Initialize a new server instance
+    Create(Create),
+    /// Show statuses of all or of a matching instance
+    Status(Status),
     /// Start an instance
     Start(Start),
     /// Stop an instance
     Stop(Stop),
     /// Restart an instance
     Restart(Restart),
-    /// Show statuses of all or of a matching instance
-    Status(Status),
+    /// Destroy an instance and remove the data
+    Destroy(Destroy),
     /// Show logs of an instance
     Logs(Logs),
     /// Revert a major instance upgrade
@@ -34,24 +44,19 @@ pub enum InstanceCommand {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
-    /// Install edgedb-server
+    /// Show locally installed EdgeDB servers
+    Info(Info),
+    /// Install an EdgeDB server locally
     Install(Install),
-    /// Uninstall edgedb-server
+    /// Uninstall an EdgeDB server locally
     Uninstall(Uninstall),
-    /// List available and installed versions of the server
-    ListVersions(ListVersions),
-    /// Initialize a new server instance
-    Init(Init),
-    /// Destroy a server instance and remove the data stored
-    Destroy(Destroy),
-    #[clap(flatten)]
-    Instance(InstanceCommand),
     /// Upgrade installations and instances
     Upgrade(Upgrade),
+    /// List available and installed versions of the server
+    ListVersions(ListVersions),
     /// Reset password for a user in the instance
+    #[edb(hidden)]
     ResetPassword(ResetPassword),
-    /// Show server information
-    Info(Info),
     /// Show system introspection debug info
     #[clap(name="_detect")]
     #[edb(hidden)]
@@ -112,7 +117,7 @@ pub enum StartConf {
 }
 
 #[derive(EdbClap, Debug, Clone)]
-pub struct Init {
+pub struct Create {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name

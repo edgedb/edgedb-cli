@@ -12,9 +12,9 @@ use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
 use crate::format;
+use crate::server::create::Storage;
 use crate::server::detect;
 use crate::server::distribution::MajorVersion;
-use crate::server::init::Storage;
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};

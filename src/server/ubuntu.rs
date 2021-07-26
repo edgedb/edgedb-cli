@@ -1,9 +1,9 @@
 use serde::Serialize;
 
+use crate::server::create::{self, Storage};
 use crate::server::debian_like;
 use crate::server::detect::VersionQuery;
 use crate::server::distribution::DistributionRef;
-use crate::server::init::{self, Storage};
 use crate::server::install;
 use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
@@ -103,8 +103,8 @@ impl<'os> Method for PackageMethod<'os, Ubuntu> {
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
         unix::clean_storage(storage)
     }
-    fn bootstrap(&self, init: &init::Settings) -> anyhow::Result<()> {
-        unix::bootstrap(self, init)
+    fn bootstrap(&self, settings: &create::Settings) -> anyhow::Result<()> {
+        unix::bootstrap(self, settings)
     }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
         linux::all_instances(self)

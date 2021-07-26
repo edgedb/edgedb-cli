@@ -16,10 +16,10 @@ use crate::credentials;
 use crate::platform::{Uid, get_current_uid};
 use crate::process::ProcessGuard;
 use crate::server::control::read_metadata;
+use crate::server::create::{self, read_ports, init_credentials, Storage};
 use crate::server::detect::{VersionQuery, Lazy};
 use crate::server::distribution::MajorVersion;
 use crate::server::errors::{CannotCreateService, CannotStartService};
-use crate::server::init::{self, read_ports, init_credentials, Storage};
 use crate::server::install::{self, exit_codes, Operation, operation};
 use crate::server::is_valid_name;
 use crate::server::linux;
@@ -100,7 +100,7 @@ impl Unix {
 }
 
 
-pub fn bootstrap(method: &dyn Method, settings: &init::Settings)
+pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
     -> anyhow::Result<()>
 {
     let dir = match &settings.storage {

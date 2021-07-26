@@ -22,9 +22,9 @@ use crate::project::config;
 use crate::project::options::Init;
 use crate::question;
 use crate::server::control::get_instance;
+use crate::server::create::{self, try_bootstrap, allocate_port};
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::{DistributionRef, MajorVersion};
-use crate::server::init::{self, try_bootstrap, allocate_port};
 use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::is_valid_name;
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
@@ -394,7 +394,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             write_default(&schema_dir)?;
         }
 
-        let settings = init::Settings {
+        let settings = create::Settings {
             name: name.clone(),
             system: false,
             version: distr.version().clone(),
@@ -619,7 +619,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         if !schema_files {
             write_default(&schema_dir)?;
         }
-        let settings = init::Settings {
+        let settings = create::Settings {
             name: name.clone(),
             system: false,
             version: distr.version().clone(),

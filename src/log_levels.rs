@@ -1,6 +1,7 @@
 use crate::options::{Options, Command, SelfSubcommand};
 use crate::commands::parser::{Common, MigrationCmd};
 use crate::server::options::Command as Server;
+use crate::server::options::InstanceCommand as Instance;
 use crate::project::options::Command as Project;
 
 
@@ -40,7 +41,10 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
                 builder.filter_module(
                     "edgedb::server::upgrade", log::LevelFilter::Info);
             }
-            Server::Destroy(d) if d.verbose => {
+            _ => {}
+        },
+        Some(Command::Instance(i)) => match &i.subcommand {
+            Instance::Destroy(d) if d.verbose => {
                 builder.filter_module(
                     "edgedb::server::destroy", log::LevelFilter::Info);
             }

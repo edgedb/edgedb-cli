@@ -177,6 +177,9 @@ pub enum Command {
     /// Manage local server installations
     #[edb(expand_help)]
     Server(server::options::ServerCommand),
+    /// Manage local server instances
+    #[edb(expand_help)]
+    Instance(server::options::ServerInstanceCommand),
     /// Manage project installation
     #[edb(expand_help)]
     Project(project::options::ProjectCommand),
@@ -318,51 +321,78 @@ fn get_matches(app: clap::App) -> clap::ArgMatches {
         Err(e) => {
             match e.kind {
                 UnknownArgument | InvalidSubcommand => {
-                    // Make sure we're only dealing with the first-level command
-                    if let Some(first_cmd) = env::args_os().skip(1).next() {
-                        if first_cmd != e.info[0][..] {
-                            e.exit();
-                        }
+                    let mismatch_cmd = &e.info[0][..];
+                    match get_deprecated_matches(mismatch_cmd) {
+                        Some(matches) => matches,
+                        None => e.exit(),
                     }
-                    let new_name = match &e.info[0][..] {
-                         "create-database" => "database create",
-                         "create-migration" => "migration create",
-                         "list-aliases" => "list aliases",
-                         "list-casts" => "list casts",
-                         "list-databases" => "list databases",
-                         "list-indexes" => "list indexes",
-                         "list-modules" => "list modules",
-                         "list-object-types" => "list types",
-                         "list-scalar-types" => "list scalars",
-                         "list-roles" => "list roles",
-                         "migration-log" => "migration log",
-                         "self-upgrade" => "self upgrade",
-                         "show-status" => "migration status",
-                         _ => e.exit(),
-                    };
-                    let error = "warning:".bold().light_yellow();
-                    let cmd = e.info[0][..].green();
-                    let instead = format!("edgedb {}", new_name).green();
-                    eprintln!("\
-                        {error} The subcommand '{cmd}' was renamed\n\
-                        \n         \
-                            Use '{instead}' instead\
-                        \n\
-                    ", error=error, cmd=cmd, instead=instead);
-                    let new_args: Vec<OsString> = env::args_os().take(1).chain(
-                        new_name.split(" ").map(|x|x.into())
-                    ).chain(
-                        env::args_os().skip(2)
-                    ).collect();
-                    let app = <RawOptions as clap::IntoApp>::into_app();
-                    let app = update_help(app);
-                    return app.get_matches_from(new_args);
                 }
-                _ => {}
+                _ => e.exit(),
             }
-            e.exit();
         }
     }
+}
+
+fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
+    let mut args = env::args_os().skip(1);
+    let old_name;
+    let skip;
+    let new_name = match args.next() {
+        Some(first_cmd) if first_cmd == "server" => match args.next() {
+            Some(second_cmd) if second_cmd == mismatch_cmd => {
+                old_name = format!("server {}", mismatch_cmd);
+                skip = 3;
+                match mismatch_cmd {
+                    "init" => "instance create",
+                    "status" => "instance status",
+                    "start" => "instance start",
+                    "stop" => "instance stop",
+                    "restart" => "instance restart",
+                    "destroy" => "instance destroy",
+                    "logs" => "instance logs",
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        }
+        Some(first_cmd) if first_cmd == mismatch_cmd => {
+            old_name = mismatch_cmd.into();
+            skip = 2;
+            match mismatch_cmd {
+                "create-database" => "database create",
+                "create-migration" => "migration create",
+                "list-aliases" => "list aliases",
+                "list-casts" => "list casts",
+                "list-databases" => "list databases",
+                "list-indexes" => "list indexes",
+                "list-modules" => "list modules",
+                "list-object-types" => "list types",
+                "list-scalar-types" => "list scalars",
+                "list-roles" => "list roles",
+                "migration-log" => "migration log",
+                "self-upgrade" => "self upgrade",
+                "show-status" => "migration status",
+                _ => return None,
+            }
+        }
+        _ => return None,
+    };
+    let error = "warning:".bold().light_yellow();
+    let instead = format!("edgedb {}", new_name).green();
+    eprintln!("\
+        {error} The subcommand '{cmd}' was renamed\n\
+        \n         \
+            Use '{instead}' instead\
+        \n\
+    ", error=error, cmd=old_name.green(), instead=instead);
+    let new_args: Vec<OsString> = env::args_os().take(1).chain(
+        new_name.split(" ").map(|x| x.into())
+    ).chain(
+        env::args_os().skip(skip)
+    ).collect();
+    let app = <RawOptions as clap::IntoApp>::into_app();
+    let app = update_help(app);
+    Some(app.get_matches_from(new_args))
 }
 
 impl Options {

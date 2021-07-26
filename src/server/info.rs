@@ -1,8 +1,8 @@
 use prettytable::{Table, Row, Cell};
 
+use crate::server::create::find_distribution;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::MajorVersion;
-use crate::server::init::find_distribution;
 use crate::server::linux;
 use crate::server::macos;
 use crate::server::options::Info;
