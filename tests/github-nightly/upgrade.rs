@@ -15,8 +15,8 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
     build_image(context, tagname)?;
     run_systemd(tagname, r###"
         edgedb server install --version=1-alpha7
-        edgedb server init test1 --start-conf=manual || test "$?" -eq 2
-        edgedb server start --foreground test1 &
+        edgedb instance create test1 --start-conf=manual || test "$?" -eq 2
+        edgedb instance start --foreground test1 &
         edgedb --wait-until-available=60s -Itest1 query '
             CREATE TYPE Type1 {
                 CREATE PROPERTY prop1 -> str;
@@ -26,7 +26,7 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
 
         RUST_LOG=debug edgedb server upgrade test1 --to-version=1-beta1
 
-        edgedb server start --foreground test1 &
+        edgedb instance start --foreground test1 &
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
@@ -49,7 +49,7 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
     build_image(context, tagname)?;
     run_systemd(tagname, r###"
         edgedb server install --version=1-alpha7
-        edgedb server init test1
+        edgedb instance create test1
 
         ver1=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
@@ -115,7 +115,7 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         cd /tmp/workdir
 
         edgedb server install --version=1-alpha7 --method=docker
-        edgedb server init test1
+        edgedb instance create test1
 
         ver1=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
