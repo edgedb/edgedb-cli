@@ -73,7 +73,8 @@ pub struct Unlink {
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// If specified, the associated EdgeDB instance is destroyed by running edgedb server destroy.
+    /// If specified, the associated EdgeDB instance is destroyed by running
+    /// `edgedb instance destroy`.
     #[clap(long, short='D')]
     pub destroy_server_instance: bool,
 

@@ -60,7 +60,7 @@ pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
         eprintln!("  {}", dest.display());
     }
     eprintln!("If you really want to destroy the instance, run:");
-    eprintln!("  edgedb server destroy {:?} --force", name);
+    eprintln!("  edgedb instance destroy {:?} --force", name);
 }
 
 pub fn destroy(options: &Destroy) -> anyhow::Result<()> {

@@ -425,7 +425,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
             You can run server manually via: \n  \
-            edgedb server start --foreground {}",
+            edgedb instance start --foreground {}",
             name.escape_default());
         return Err(ExitCode::new(2))?;
     } else {
@@ -650,7 +650,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
             You can run server manually via: \n  \
-            edgedb server start --foreground {}",
+            edgedb instance start --foreground {}",
             name.escape_default());
         return Err(ExitCode::new(2))?;
     } else {

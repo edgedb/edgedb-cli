@@ -115,7 +115,7 @@ pub struct ConnectionOptions {
     #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
     pub no_tls_verify_hostname: bool,
 
-    /// Local instance name created with `edgedb server init` to connect to
+    /// Local instance name created with `edgedb instance create` to connect to
     /// (overrides host and port)
     #[clap(short='I', long, help_heading=Some("CONNECTION OPTIONS"))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
@@ -150,7 +150,7 @@ pub struct RawOptions {
     #[clap(short='j', long, overrides_with="tab_separated")]
     pub json: bool,
 
-    /// Execute a query instead of starting REPL (alias to `edgedb query`)
+    /// Execute a query instead of starting REPL
     #[clap(short='c')]
     pub query: Option<String>,
 

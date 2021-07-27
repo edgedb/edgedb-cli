@@ -183,7 +183,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
             drop(child);
             if settings.start_conf == StartConf::Manual && res.is_ok() {
                 println!("Bootstrap complete. To start the server:\n  \
-                          edgedb server start {}",
+                          edgedb instance start {}",
                           settings.name.escape_default());
             }
         }
