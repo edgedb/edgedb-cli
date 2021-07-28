@@ -40,6 +40,8 @@ pub enum InstanceCommand {
     Logs(Logs),
     /// Revert a major instance upgrade
     Revert(Revert),
+    /// Reset password for a user in the instance
+    ResetPassword(ResetPassword),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -54,9 +56,6 @@ pub enum Command {
     Upgrade(Upgrade),
     /// List available and installed versions of the server
     ListVersions(ListVersions),
-    /// Reset password for a user in the instance
-    #[edb(hidden)]
-    ResetPassword(ResetPassword),
     /// Show system introspection debug info
     #[clap(name="_detect")]
     #[edb(hidden)]
