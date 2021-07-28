@@ -50,7 +50,6 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
         println!("Major version matches. Running a minor version upgrade.");
         inst.method().upgrade(
             &upgrade::ToDo::MinorUpgrade, &server::options::Upgrade {
-                nightly: false,
                 to_version: None,
                 to_nightly: false,
                 name: Some(instance_name.into()),
@@ -63,7 +62,6 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
                 instance_name.to_string(),
                 Some(to_version.to_query()),
             ), &server::options::Upgrade {
-                nightly: to_version.is_nightly(),
                 to_version: options.to_version.clone(),
                 to_nightly: to_version.is_nightly(),
                 name: Some(instance_name.into()),
@@ -118,16 +116,16 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
                 instance_name.to_string(),
                 to_version.map(|x| x.to_query()),
             ), &server::options::Upgrade {
-                nightly: true,
                 to_version: options.to_version.clone(),
-                to_nightly: true,
+                to_nightly: options.to_nightly,
                 name: Some(instance_name.into()),
                 verbose: options.verbose,
                 force: options.force,
             })?;
-        let version = inst.get_version()?;
-        modify_toml(&config_path, &version)?;
+        // re-read instance to invalidate cache in the object
         let new_inst = inst.method().get_instance(&instance_name)?;
+        let version = new_inst.get_version()?;
+        modify_toml(&config_path, &version)?;
         println!("Instance upgraded to {}",
             new_inst.get_current_version()?.unwrap());
         println!("Remember to commit it to the version control.");

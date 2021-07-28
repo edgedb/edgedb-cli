@@ -263,15 +263,8 @@ edgedb server upgrade <name> [--to-version=<ver>|--to-nightly]
   Upgrades specified instance to the specified major version of the server or
   to the latest nightly, by default upgrades to the latest stable. This only
   works for instances that initially aren't running nightly.
-
-edgedb server upgrade --nightly
-  Upgrades all existing nightly instances to the latest EdgeDB nightly.
 ")]
 pub struct Upgrade {
-    /// Upgrade all nightly instances
-    #[clap(long)]
-    pub nightly: bool,
-
     /// Upgrade specified instance(s) to a specified major version
     #[clap(long)]
     pub to_version: Option<Version<String>>,

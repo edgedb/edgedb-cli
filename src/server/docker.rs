@@ -511,51 +511,6 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         }
         Ok(())
     }
-    fn nightly_upgrade(&self, options: &Upgrade) -> anyhow::Result<()> {
-        let version_query = VersionQuery::Nightly;
-        let new = self.get_version(&version_query)
-            .context("Unable to determine version")?;
-        log::info!(target: "edgedb::server::upgrade",
-            "Installing nightly {}", new.version());
-        let new_version = new.version().clone();
-        self.install(&install::Settings {
-            method: self.name(),
-            distribution: new,
-            extra: LinkedHashMap::new(),
-        })?;
-
-        for inst in self._all_instances()? {
-            if !inst.get_version()?.is_nightly() {
-                continue;
-            }
-
-            let old = inst.get_current_version()?;
-            let new = self._get_version(&version_query)
-                .context("Unable to determine version")?;
-
-            if !options.force {
-                if let Some(old_ver) = old {
-                    if old_ver >= &new_version {
-                        log::info!(target: "edgedb::server::upgrade",
-                            "Instance {} is up to date {}. Skipping.",
-                            inst.name(), old_ver);
-                        return Ok(());
-                    }
-                }
-            }
-
-            let dump_path = format!("./edgedb.upgrade.{}.dump", inst.name());
-            upgrade::dump_and_stop(&inst, dump_path.as_ref())?;
-            let meta = upgrade::UpgradeMeta {
-                source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
-                target: new_version.clone(),
-                started: SystemTime::now(),
-                pid: std::process::id(),
-            };
-            self.reinit_and_restore(inst, &meta, dump_path.as_ref(), &new)?;
-        }
-        Ok(())
-    }
     fn instance_upgrade(&self, name: &str,
         version_query: &Option<VersionQuery>,
         options: &Upgrade) -> anyhow::Result<()>
@@ -575,14 +530,17 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let new_version = new.version().clone();
         let new_major = new.major_version().clone();
         let old_major = inst.get_version()?;
+        dbg!(&old, &new_version, &old_major, &new_major);
 
         if !options.force {
-            if let Some(old_ver) = old {
-                if old_ver >= &new_version {
-                    log::info!(target: "edgedb::server::upgrade",
-                        "Instance {} is up to date {}. Skipping.",
-                        inst.name(), old_ver);
-                    return Ok(());
+            if old_major == &new_major {
+                if let Some(old_ver) = old {
+                    if old_ver >= &new_version {
+                        log::info!(target: "edgedb::server::upgrade",
+                            "Instance {} is up to date {}. Skipping.",
+                            inst.name(), old_ver);
+                        return Ok(());
+                    }
                 }
             }
         }
@@ -1185,9 +1143,6 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         match todo {
             MinorUpgrade => {
                 self.minor_upgrade(options)
-            }
-            NightlyUpgrade => {
-                self.nightly_upgrade(options)
             }
             InstanceUpgrade(name, ref version) => {
                 self.instance_upgrade(name, version, options)
