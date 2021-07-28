@@ -312,7 +312,7 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
         table.set_titles(Row::new(
-            ["Name", "Port", "Version", "Status"]
+            ["Name", "Port", "Version", "Installation", "Status"]
             .iter().map(|x| table::header_cell(x)).collect()));
         for status in statuses {
             table.add_row(Row::new(vec![
@@ -321,6 +321,7 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
                     .map(|m| m.port.to_string()).unwrap_or("?".into())),
                 Cell::new(&status.metadata.as_ref()
                     .map(|m| m.version.title()).unwrap_or("?".into())),
+                Cell::new(status.method.short_name()),
                 Cell::new(status_str(&status.service)),
             ]));
         }
