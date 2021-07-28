@@ -21,18 +21,18 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
         Uninstall(c) => uninstall::uninstall(c),
         ListVersions(c) => list_versions::list_versions(c),
         Upgrade(c) => upgrade::upgrade(c),
-        ResetPassword(c) => reset_password::reset_password(c),
         Info(c) => info::info(c),
         _Detect(c) => detect::main(c),
     }
 }
 
 pub fn instance_main(cmd: &ServerInstanceCommand) -> Result<(), anyhow::Error> {
-    use InstanceCommand::{Create, Destroy};
+    use InstanceCommand::*;
 
     match &cmd.subcommand {
         Create(c) => create::create(c),
         Destroy(c) => destroy::destroy(c),
+        ResetPassword(c) => reset_password::reset_password(c),
         cmd => control::instance_command(cmd)
     }
 }

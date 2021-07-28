@@ -6,7 +6,6 @@ use std::num::NonZeroU32;
 use anyhow::Context;
 use async_std::task;
 use base64::display::Base64Display;
-use colorful::Colorful;
 use edgedb_client::credentials::Credentials;
 use edgeql_parser::helpers::{quote_string, quote_name};
 use fn_error_context::context;
@@ -49,11 +48,6 @@ pub fn write_credentials(path: &Path, credentials: &Credentials)
 }
 
 pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
-    eprintln!(
-        "{warning} The subcommand '{cmd}' is deprecated and will be removed.",
-        warning="warning".bold().light_yellow(),
-        cmd="server reset-password".green(),
-    );
     let credentials_file = credentials::path(&options.name)?;
     let (credentials, save, user) = if credentials_file.exists() {
         let creds = read_credentials(&credentials_file)?;
