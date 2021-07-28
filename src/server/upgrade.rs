@@ -37,17 +37,10 @@ pub struct BackupMeta {
 pub enum ToDo {
     MinorUpgrade,
     InstanceUpgrade(String, Option<VersionQuery>),
-    NightlyUpgrade,
 }
 
 fn interpret_options(options: &Upgrade) -> ToDo {
     if let Some(name) = &options.name {
-        if options.nightly {
-            eprintln!("Cannot upgrade specific nightly instance, \
-                use `--to-nightly` to upgrade to nightly. \
-                Use `--nightly` without instance name to upgrade all nightly \
-                instances");
-        }
         let nver = if options.to_nightly {
             Some(VersionQuery::Nightly)
         } else if let Some(ver) = &options.to_version {
@@ -56,8 +49,6 @@ fn interpret_options(options: &Upgrade) -> ToDo {
             None
         };
         ToDo::InstanceUpgrade(name.into(), nver)
-    } else if options.nightly {
-        ToDo::NightlyUpgrade
     } else {
         ToDo::MinorUpgrade
     }

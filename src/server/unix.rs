@@ -326,7 +326,6 @@ pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &dyn Method)
 
     match todo {
         MinorUpgrade => do_minor_upgrade(meth, options),
-        NightlyUpgrade => do_nightly_upgrade(meth, options),
         InstanceUpgrade(name, ref version) => {
             let inst = meth.get_instance(name)?;
             do_instance_upgrade(meth, inst, version, options)
@@ -432,85 +431,6 @@ fn print_errors(errors: Vec<String>) -> anyhow::Result<()> {
         eprintln!("  {}", er);
     }
     return Err(ExitCode::new(2))?;
-}
-
-fn do_nightly_upgrade(method: &dyn Method, options: &Upgrade)
-    -> anyhow::Result<()>
-{
-    let mut instances = Vec::new();
-    for inst in method.all_instances()? {
-        if !inst.get_version()?.is_nightly() {
-            continue;
-        }
-        instances.push(inst);
-    }
-    if instances.is_empty() {
-        return Ok(());
-    }
-
-    let version_query = VersionQuery::Nightly;
-    let new = method.get_version(&version_query)
-        .context("Unable to determine version")?;
-    let slot = new.downcast_ref::<Package>()
-        .context("invalid linux package")?
-        .slot.clone();
-
-    log::info!(target: "edgedb::server::upgrade",
-        "Installing nightly {}", new.version());
-    let new_version = new.version().clone();
-    let new_major = new.major_version().clone();
-    method.install(&install::Settings {
-        method: method.name(),
-        distribution: new,
-        extra: LinkedHashMap::new(),
-    })?;
-
-    let mut errors = Vec::new();
-
-    for inst in instances {
-        let old = inst.get_current_version()?;
-
-        if !options.force {
-            if let Some(old_ver) = old {
-                if old_ver >= &new_version {
-                    log::info!(target: "edgedb::server::upgrade",
-                        "Instance {} is up to date {}. Skipping.",
-                        inst.name(), old_ver);
-                    return Ok(());
-                }
-            }
-        }
-        let dump_path = storage_dir(inst.name())?
-            .parent().expect("instance path can't be root")
-            .join(format!("{}.dump", inst.name()));
-        let new_meta = Metadata {
-            version: new_major.clone(),
-            slot: Some(slot.clone()),
-            current_version: Some(new_version.clone()),
-            method: method.name(),
-            port: inst.get_port()?,
-            start_conf: inst.get_start_conf()?,
-        };
-        upgrade::dump_and_stop(inst.as_ref(), &dump_path)?;
-        let upgrade_meta = upgrade::UpgradeMeta {
-            source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
-            target: new_version.clone(),
-            started: SystemTime::now(),
-            pid: process::id(),
-        };
-        let inst = inst.upgrade(&new_meta)?;
-        match reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta) {
-            Ok(()) => {}
-            Err(e) if e.is::<CannotStartService>() => {
-                errors.push(
-                    format!("failed to start instance {:?}: {:#}",
-                        inst.name(), e));
-            }
-            Err(e) => return Err(e)?,
-        }
-    }
-    print_errors(errors)?;
-    Ok(())
 }
 
 #[context("failed to restore {:?}", inst.name())]
