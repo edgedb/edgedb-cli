@@ -392,14 +392,9 @@ impl Tag {
                 Some(rev) => Some(Tag::Stable(name.into(), rev[..7].into())),
                 None => None,
             }
-        } else if name.starts_with("nightly_") {
+        } else if let Some(version) = name.strip_prefix("nightly_") {
             // example: `nightly_1-beta3-dev202107130000_cv202107130000`
-            if let Some(c) = name.chars().skip("nightly_".len()).next() {
-                if c.is_numeric() {
-                    return Some(Tag::Nightly(name.into()));
-                }
-            }
-            None
+            return Some(Tag::Nightly(version.into()));
         } else {
             // maybe `latest` or something unrelated
             None
