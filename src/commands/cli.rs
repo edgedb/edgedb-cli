@@ -50,7 +50,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::Instance(cmd) => {
             directory_check::check_and_error()?;
-            server::instance_main(cmd)
+            server::instance_main(cmd, &options)
         }
         Command::Project(cmd) => {
             directory_check::check_and_error()?;
@@ -74,12 +74,6 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::CliCommand(c) => {
             cli::main(c)
-        },
-        Command::Authenticate(cmd) => {
-            task::block_on(async {
-                server::authenticate::authenticate(cmd, &options).await?;
-                Ok(())
-            }).into()
         },
     }
 }

@@ -30,13 +30,13 @@ pub mod destroy;
 pub mod errors;
 mod info;
 pub mod install;
+pub mod link;
 mod list_versions;
 pub mod reset_password;
 mod revert;
 mod status;
 mod uninstall;
 pub mod upgrade;
-pub mod authenticate;
 
 pub use main::{main, instance_main};
 

@@ -50,7 +50,12 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
                 return status::print_status_all(c.extended, c.debug, c.json);
             }
         }
-        _ => panic!("Should not be here"),
+        | Create(_)
+        | Destroy(_)
+        | Link(_)
+        | ResetPassword(_) => {
+            unreachable!("handled in server::main::instance_main()");
+        }
     };
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
@@ -78,6 +83,11 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
                 }
             }
         }
-        _ => panic!("Should not be here"),
+        | Create(_)
+        | Destroy(_)
+        | Link(_)
+        | ResetPassword(_) => {
+            unreachable!("handled in server::main::instance_main()");
+        }
     }
 }

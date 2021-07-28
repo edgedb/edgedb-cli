@@ -172,8 +172,6 @@ pub struct RawOptions {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
-    /// Authenticate to a remote instance
-    Authenticate(Authenticate),
     #[clap(flatten)]
     Common(Common),
     /// Execute EdgeQL query
@@ -205,23 +203,6 @@ pub enum Command {
 pub struct Query {
     #[clap(required=true)]
     pub queries: Vec<String>,
-}
-
-#[derive(EdbClap, Clone, Debug)]
-#[clap(long_about = "Authenticate to a remote EdgeDB instance and
-assign an instance name to simplify future connections.")]
-pub struct Authenticate {
-    /// Specify a new instance name for the remote server. If not
-    /// present, the name will be interactively asked.
-    pub name: Option<String>,
-
-    /// Run in non-interactive mode (accepting all defaults)
-    #[clap(long)]
-    pub non_interactive: bool,
-
-    /// Reduce command verbosity.
-    #[clap(long)]
-    pub quiet: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -402,15 +383,24 @@ impl Options {
             && atty::is(atty::Stream::Stdin);
 
         let mut builder = conn_params(&tmp.conn);
-        if let (Some(Command::Authenticate(auth)), None) = (&tmp.subcommand, &tmp.query) {
-            if builder.is_err() {
-                builder = Ok(Builder::new());
-                load_tls_options(&tmp.conn, builder.as_mut().unwrap())?;
+
+        // Special case for `edgedb instance link`
+        if let (Some(Command::Instance(i)), None) = (
+            &tmp.subcommand, &tmp.query
+        ) {
+            if let server::options::InstanceCommand::Link(
+                link
+            ) = &i.subcommand {
+                if builder.is_err() {
+                    builder = Ok(Builder::new());
+                    load_tls_options(&tmp.conn, builder.as_mut().unwrap())?;
+                }
+                server::link::prompt_conn_params(
+                    &tmp.conn, builder.as_mut().unwrap(), link
+                )?;
             }
-            server::authenticate::prompt_conn_params(
-                &tmp.conn, builder.as_mut().unwrap(), auth
-            )?;
         }
+
         let mut conn_params = Connector::new(builder);
         let password = if tmp.conn.password_from_stdin {
             let password = rpassword::read_password()
