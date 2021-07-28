@@ -4,11 +4,9 @@ use std::default::Default;
 use std::num::NonZeroU32;
 
 use anyhow::Context;
-use async_std::task;
 use base64::display::Base64Display;
 use colorful::Colorful;
 use edgedb_client::credentials::Credentials;
-use edgeql_parser::helpers::{quote_string, quote_name};
 use fn_error_context::context;
 use rand::{Rng, SeedableRng};
 
@@ -90,19 +88,9 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
 
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
-    let conn_params = control::get_instance(&methods, &options.name)
-        .and_then(|inst| inst.get_connector(true))
+    control::get_instance(&methods, &options.name)
+        .and_then(|inst| inst.reset_password(&user, &password))
         .with_context(|| format!("cannot find instance {:?}", options.name))?;
-    task::block_on(async {
-        let mut cli = conn_params.connect().await?;
-        cli.execute(&format!(r###"
-            ALTER ROLE {name} {{
-                SET password := {password};
-            }}"###,
-            name=quote_name(&user),
-            password=quote_string(&password))
-        ).await
-    })?;
     if save {
         let mut creds = credentials.unwrap_or_else(Default::default);
         creds.user = user.into();

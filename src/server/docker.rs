@@ -1,6 +1,7 @@
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Child, Stdio};
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
@@ -8,7 +9,7 @@ use std::time::{SystemTime, Duration, UNIX_EPOCH};
 use anyhow::Context;
 use async_std::task;
 use edgedb_client as client;
-use edgeql_parser::helpers::quote_string;
+use edgeql_parser::helpers::{quote_string, quote_name};
 use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
@@ -119,6 +120,7 @@ pub struct ContainerConfig {
 #[derive(Debug, Deserialize)]
 #[allow(dead_code, non_snake_case)]
 pub struct Container {
+    Image: String,
     State: ContainerState,
     Config: ContainerConfig,
 }
@@ -180,6 +182,12 @@ impl fmt::Debug for DockerRun {
 }
 
 impl DockerRun {
+    fn interactive(docker_cmd: impl AsRef<Path>) -> DockerRun {
+        let mut cmd = DockerRun::new(docker_cmd);
+        cmd.arg("-i");
+        cmd.command.stdin(Stdio::piped());
+        cmd
+    }
     fn new(docker_cmd: impl AsRef<Path>) -> DockerRun {
         let name = format!("edgedb_{}_{}", std::process::id(), timestamp());
         let mut command = Command::new(docker_cmd.as_ref());
@@ -192,8 +200,9 @@ impl DockerRun {
             command,
         }
     }
-    fn arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Command {
-        self.command.arg(arg)
+    fn arg(&mut self, arg: impl AsRef<OsStr>) -> &mut DockerRun {
+        self.command.arg(arg);
+        self
     }
     fn run(&mut self) -> anyhow::Result<DockerGuard> {
         Ok(DockerGuard {
@@ -204,18 +213,46 @@ impl DockerRun {
     }
 }
 
+impl DockerGuard {
+    fn feed(&mut self, text: &str) -> Result<(), io::Error> {
+        self.child.stdin.as_mut().expect("stdin is piped")
+            .write_all(text.as_bytes())
+    }
+    fn feed_eof(&mut self) {
+        self.child.stdin.take();
+    }
+    fn wait(&mut self) -> anyhow::Result<()> {
+        match self.child.wait() {
+            Ok(s) if s.success() => Ok(()),
+            Ok(s) => anyhow::bail!("docker command failed: {}", s),
+            Err(e) => Err(e)
+                .with_context(|| format!("error running docker command")),
+        }
+    }
+}
+
 impl Drop for DockerGuard {
     fn drop(&mut self) {
-        process::run(Command::new(&self.docker_cmd)
-            .arg("stop")
-            .arg(&self.name))
-            .map_err(|e| {
-                log::warn!("Error stopping container {:?}: {:#}",
-                           self.name, e);
-            }).ok();
-         self.child.wait().map_err(|e| {
-             log::error!("Error waiting for stopped container: {}", e);
-         }).ok();
+        match self.child.try_wait() {
+            Ok(Some(status)) => {
+                log::info!("Container status: {:}", status);
+            }
+            Ok(None) => {
+                process::run(Command::new(&self.docker_cmd)
+                    .arg("stop")
+                    .arg(&self.name))
+                    .map_err(|e| {
+                        log::warn!("Error stopping container {:?}: {:#}",
+                                   self.name, e);
+                    }).ok();
+                 self.child.wait().map_err(|e| {
+                     log::error!("Error waiting for stopped container: {}", e);
+                 }).ok();
+            }
+            Err(e) => {
+                log::info!("Container errored: {:}", e);
+            }
+        }
     }
 }
 
@@ -1514,6 +1551,31 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         let upgrade_container = format!("edgedb_upgrade_{}", name);
         self.method.delete_container(&upgrade_container)?;
 
+        Ok(())
+    }
+    fn reset_password(&self, user: &str, password: &str) -> anyhow::Result<()>
+    {
+        let container = self.get_container()?;
+        let container = container.as_ref()
+            .context("No server container found. Please start the server")?;
+        let mut child = DockerRun::interactive(&self.method.cli)
+            .arg("--user=999:999")
+            .arg("--mount")
+            .arg(format!("source={},target=/mnt", self.volume_name()))
+            .arg(&container.Image)
+            .arg("edgedb")
+            .arg("--admin")
+            .arg("--host").arg("/mnt/run")
+            .arg("--port").arg(self.get_port()?.to_string())
+            .run()?;
+        child.feed(&format!(r###"
+            ALTER ROLE {name} {{
+                SET password := {password};
+            }};"###,
+            name=quote_name(&user),
+            password=quote_string(&password)))?;
+        child.feed_eof();
+        child.wait()?;
         Ok(())
     }
 }

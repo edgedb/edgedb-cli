@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::process::Command;
 
+use async_std::task;
 use edgedb_client as client;
 
 use crate::server::create::{self, Storage};
@@ -59,6 +60,23 @@ pub trait Instance: fmt::Debug {
     fn upgrade(&self, meta: &Metadata) -> anyhow::Result<InstanceRef<'_>>;
     fn revert(&self, metadata: &Metadata)
         -> anyhow::Result<()>;
+    fn reset_password(&self, user: &str, password: &str) -> anyhow::Result<()>
+    {
+        use edgeql_parser::helpers::{quote_string, quote_name};
+
+        let conn_params = self.get_connector(true)?;
+        task::block_on(async {
+            let mut cli = conn_params.connect().await?;
+            cli.execute(&format!(r###"
+                ALTER ROLE {name} {{
+                    SET password := {password};
+                }}"###,
+                name=quote_name(&user),
+                password=quote_string(&password))
+            ).await
+        })?;
+        Ok(())
+    }
     fn into_ref<'x>(self) -> InstanceRef<'x>
         where Self: Sized + 'x
     {
@@ -202,6 +220,11 @@ impl InstanceRef<'_> {
         -> anyhow::Result<()>
     {
         self.0.revert(metadata)
+    }
+    pub fn reset_password(&self, user: &str, password: &str)
+        -> anyhow::Result<()>
+    {
+        self.0.reset_password(user, password)
     }
 }
 
