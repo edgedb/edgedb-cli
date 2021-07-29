@@ -123,7 +123,7 @@ async fn restore_db<'x>(cli: &mut Connection, options: &Options,
         all: _, verbose: _,
     } = *params;
     if !allow_non_empty {
-        if is_empty_db(cli).await.context("Error checking DB emptyness")? {
+        if is_empty_db(cli).await.context("Error checking if the DB is empty")? {
             if options.command_line {
                 return Err(anyhow::anyhow!("\
                     cannot restore: the database is not empty; \

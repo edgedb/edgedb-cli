@@ -47,7 +47,7 @@ pub struct Package {
 
 impl<'a> Into<DistributionRef> for &'a PackageInfo {
     fn into(self: &'a PackageInfo) -> DistributionRef {
-        let slot = self.slot.as_ref().expect("only server packages supported");
+        let slot = self.slot.as_ref().expect("only server packages are supported");
         let major_version = if self.is_nightly() {
             MajorVersion::Nightly
         } else {

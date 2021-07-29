@@ -187,7 +187,7 @@ impl Status {
     pub fn print_json_and_exit<'x>(&'x self) -> ! {
         println!("{}",
             serde_json::to_string_pretty(&self.json())
-            .expect("status is json-serializable"));
+            .expect("status is not json-serializable"));
         self.exit()
     }
     pub fn print_and_exit(&self) -> ! {

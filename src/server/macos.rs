@@ -89,7 +89,7 @@ impl CurrentOs for Macos {
     }
     fn detect_all(&self) -> serde_json::Value {
         self.unix.detect_all();
-        serde_json::to_value(self).expect("can serialize")
+        serde_json::to_value(self).expect("cannot serialize")
     }
     fn make_method<'x>(&'x self, method: &InstallMethod,
         methods: &InstallationMethods)

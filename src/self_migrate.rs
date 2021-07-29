@@ -66,7 +66,7 @@ fn move_file(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
             return Ok(());
         }
         let mut q = question::Choice::new(format!(
-            "Attempting to move {:?} > {:?}, but \
+            "Attempting to move {:?} -> {:?}, but \
             destination file exists. Do you want to overwrite?",
             src, dest));
         q.option(Yes, &["y"], "overwrite the destination file");
@@ -101,7 +101,7 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
             return Ok(());
         }
         let mut q = question::Choice::new(format!(
-            "Attempting to move {:?} > {:?}, but \
+            "Attempting to move {:?} -> {:?}, but \
             destination directory exists. Do you want to overwrite?",
             src, dest));
         q.option(Yes, &["y"], "overwrite the destination dir");
@@ -249,7 +249,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
         if !q.ask()? {
             eprintln!("edgedb error: Cancelled by user");
             print_markdown!("\
-                When all files are backed up, just run either of:\n\
+                When all files are backed up, run either of:\n\
                 ```\n\
                 rm -rf ~/.edgedb\n\
                 edgedb self migrate\n\

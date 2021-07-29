@@ -263,8 +263,8 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
     if optional_docker_check() {
         eprintln!("edgedb error: \
             `edgedb project init` in a Docker container is not supported.\n\
-            To init project run the command on the host system instead and \
-            choose `Local (docker)` installation method.");
+            To init a project run the command on the host system instead and \
+            choose the `Local (docker)` installation method.");
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     let (dir, base_dir) = match &init.project_dir {
@@ -344,7 +344,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         let inst_ver = inst.get_version()?;
         if !ver_query.matches(inst_ver) {
             eprintln!("WARNING: existing instance has version {}, \
-                but {} required by `edgedb.toml`",
+                but {} is required by `edgedb.toml`",
                 inst_ver.title(), ver_query);
         }
         inst
@@ -358,7 +358,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             .map_err(|e| {
                 eprintln!("edgedb error: \
                     Cannot find EdgeDB version {}: {}", ver_query, e);
-                eprintln!("  Hint: try different installation method \
+                eprintln!("  Hint: try a different installation method \
                     or remove `server-version` from `edgedb.toml` to \
                     install the latest stable");
                 ExitCode::new(1)
@@ -424,7 +424,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         run_and_migrate(&inst)?;
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
-            You can run server manually via: \n  \
+            You can run the server manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
         return Err(ExitCode::new(2))?;
@@ -535,7 +535,7 @@ pub fn assert_method<'x: 'y, 'y>(method: &InstallMethod,
         }
         // This should error out and show the error,
         let e = os.make_method(&method, &available)
-            .expect_err("make method worked second time");
+            .expect_err("make method worked the second time");
         eprint!("{}", buf);
         return Err(e);
     }
@@ -649,7 +649,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         run_and_migrate(&inst)?;
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
-            You can run server manually via: \n  \
+            You can run the server manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
         return Err(ExitCode::new(2))?;
@@ -662,12 +662,12 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 }
 
 fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
-    println!("Project initialialized.");
+    println!("Project initialized.");
     if let Some(dir) = dir_option {
         println!("To connect to {}, navigate to {} and run `edgedb`",
             name, dir.display());
     } else {
-        println!("To connect to {}, just run `edgedb`", name);
+        println!("To connect to {}, run `edgedb`", name);
     }
 }
 

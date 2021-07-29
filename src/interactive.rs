@@ -157,14 +157,14 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
                 return false;
             }
             for (idx, item) in items.iter().enumerate() {
-                write!(path, "[{}]", idx).expect("formatting succeeds");
+                write!(path, "[{}]", idx).expect("formatting failed");
                 _check_json_limit(item, path, limit);
                 path.truncate(level);
             }
         }
         Object(pairs) => {
             for (key, value) in pairs {
-                write!(path, ".{}", key).expect("formatting succeeds");
+                write!(path, ".{}", key).expect("formatting failed");
                 _check_json_limit(value, path, limit);
                 path.truncate(level);
             }
@@ -176,8 +176,8 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
 
 fn print_json_limit_error(path: &str) {
     eprintln!("Error: Cannot render JSON result: {} is too long. \
-        Consider putting an explicit LIMIT clause, \
-        or increase the implicit limit using `\\set limit`.",
+        Consider adding an explicit LIMIT clause, \
+        or increasing the implicit limit using `\\set limit`.",
         if path.is_empty() { "." } else { path });
 }
 
@@ -332,7 +332,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
     let desc = data_description.output()?;
     let indesc = data_description.input()?;
     if options.debug_print_descriptors {
-        println!("InputDescr {:#?}", indesc.descriptors());
+        println!("Input Descr {:#?}", indesc.descriptors());
         println!("Output Descr {:#?}", desc.descriptors());
     }
     let codec = desc.build_codec()?;
@@ -399,8 +399,8 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 if let Some(limit) = state.implicit_limit {
                     if index >= limit {
                         eprintln!("Error: Too many rows. Consider \
-                            putting an explicit LIMIT clause, \
-                            or increase the implicit limit \
+                            adding an explicit LIMIT clause, \
+                            or increasing the implicit limit \
                             using `\\set limit`.");
                         items.skip_remaining().await?;
                         return Err(QueryError)?;
@@ -455,7 +455,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 let text = match row {
                     Value::Str(s) => s,
                     _ => return Err(anyhow::anyhow!(
-                        "postres returned non-string in JSON mode")),
+                        "the server returned a non-string value in JSON mode")),
                 };
                 let jitems: serde_json::Value;
                 jitems = serde_json::from_str(&text)
@@ -468,8 +468,8 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 }
                 let jitems = jitems.as_array()
                     .ok_or_else(|| anyhow::anyhow!(
-                        "non-array returned from \
-                         postgres in JSON mode"))?;
+                        "the server returned a non-array value \
+                         in JSON mode"))?;
                 // trying to make writes atomic if possible
                 let mut data = print::json_to_string(jitems, &cfg)?;
                 data += "\n";
@@ -488,7 +488,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 let text = match row {
                     Value::Str(s) => s,
                     _ => return Err(anyhow::anyhow!(
-                        "postgres returned non-string in JSON mode")),
+                        "the server returned a non-string value in JSON mode")),
                 };
                 let value: serde_json::Value;
                 value = serde_json::from_str(&text)

@@ -142,7 +142,7 @@ pub async fn query(conn: &mut Connection, stmt: &str, options: &Options)
                     .context("cannot decode json result")?;
                 let items = items.as_array()
                     .ok_or_else(|| anyhow::anyhow!(
-                        "non-array returned from postgres in JSON mode"))?;
+                        "the server returned a non-array value in JSON mode"))?;
                 // trying to make writes atomic if possible
                 let mut data = print::json_to_string(items, &cfg)?;
                 data += "\n";

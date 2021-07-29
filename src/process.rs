@@ -82,7 +82,7 @@ pub fn run_or_stderr(cmd: &mut Command) -> anyhow::Result<Result<(), String>> {
         Ok(out) => {
             Ok(Err(String::from_utf8(out.stderr)
                 .with_context(|| {
-                    format!("can decode error output of {:?}", cmd)
+                    format!("cannot decode error output of {:?}", cmd)
                 })?))
         }
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd)),
@@ -104,7 +104,7 @@ pub fn get_text(cmd: &mut Command) -> anyhow::Result<String> {
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd))?,
     };
     String::from_utf8(data)
-        .with_context(|| format!("can decode output of {:?}", cmd))
+        .with_context(|| format!("cannot decode output of {:?}", cmd))
 }
 
 pub fn get_json_or_stderr<T: DeserializeOwned>(cmd: &mut Command)
@@ -113,12 +113,12 @@ pub fn get_json_or_stderr<T: DeserializeOwned>(cmd: &mut Command)
     match cmd.output() {
         Ok(out) if out.status.success() => {
             Ok(Ok(serde_json::from_slice(&out.stdout[..])
-                .with_context(|| format!("can decode output of {:?}", cmd))?))
+                .with_context(|| format!("cannot decode output of {:?}", cmd))?))
         }
         Ok(out) => {
             Ok(Err(String::from_utf8(out.stderr)
                 .with_context(|| {
-                    format!("can decode error output of {:?}", cmd)
+                    format!("cannot decode error output of {:?}", cmd)
                 })?))
         }
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd))?,

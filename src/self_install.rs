@@ -199,7 +199,7 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
         }
     }
     let mut file = fs::OpenOptions::new().create(true).append(true).open(path)
-        .context("cannot file for append (writing)")?;
+        .context("cannot open file for appending (writing)")?;
     file.write(format!("{}\n", line).as_bytes(),)
         .context("cannot append to file")?;
     Ok(())
@@ -367,7 +367,7 @@ fn try_project_init() -> anyhow::Result<bool> {
         println!("Command-line tools are installed successfully.");
         println!();
         let q = question::Confirm::new(format!(
-            "Do you want to initialize EdgeDB server instance for the project \
+            "Do you want to initialize an EdgeDB server instance for the project \
              defined in `{}`?",
             dir.join("edgedb.toml").display(),
         ));
