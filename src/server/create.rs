@@ -216,6 +216,15 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
     let (distr, meth_name, method) = find_distribution(
         &*current_os, &avail_methods,
         &version_query, &options.method)?;
+    let credentials_path = credentials::path(&options.name)?;
+    if credentials_path.exists() && !options.overwrite {
+        anyhow::bail!("Credential file {} already exists. \
+            This may mean that instance is already initialized, \
+            or the name is taken as a link to a remote instance. \
+            Use different instance name or \
+            run `edgedb instance destroy {}` first",
+            credentials_path.display(), options.name);
+    }
     let port = allocate_port(&options.name)?;
     let settings = Settings {
         name: options.name.clone(),
@@ -225,7 +234,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         nightly: version_query.is_nightly(),
         method: meth_name,
         storage: method.get_storage(options.system, &options.name)?,
-        credentials: credentials::path(&options.name)?,
+        credentials: credentials_path,
         user: options.default_user.clone(),
         database: options.default_database.clone(),
         port,
@@ -238,12 +247,6 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
     if settings.system {
         anyhow::bail!("System instances are not implemented yet"); // TODO
     } else {
-        if settings.credentials.exists() && !options.overwrite {
-            anyhow::bail!("Credential file {0} already exists. \
-                This may mean that instance is already initialized. \
-                You may run `--overwrite` to overwrite the instance.",
-                settings.credentials.display());
-        }
         if method.storage_exists(&settings.storage)? {
             if options.overwrite {
                 method.clean_storage(&settings.storage)
