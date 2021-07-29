@@ -1,8 +1,10 @@
 use std::fs;
 use std::path::{Path};
 
+use async_std::task;
 use fn_error_context::context;
 
+use crate::credentials;
 use crate::server::detect;
 use crate::server::options::InstanceCommand;
 use crate::server::metadata::Metadata;
@@ -59,7 +61,38 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
     };
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
-    let inst = get_instance(&methods, name)?;
+    let inst = match get_instance(&methods, name) {
+        Ok(inst) => inst,
+        Err(e) => {
+            if let Status(options) = cmd {
+                let status = match task::block_on(
+                    status::RemoteStatus::new(name.clone())
+                ) {
+                    Ok(status) => status,
+                    Err(_) => anyhow::bail!(e),
+                };
+                if options.service {
+                    let path = credentials::path(name)?;
+                    println!("Remote instance: {}", path.display());
+                } else if options.debug {
+                    println!("{:#?}", status);
+                } else if options.extended {
+                    status.print_extended();
+                } else if options.json {
+                    println!("{}",
+                        serde_json::to_string_pretty(&status.json())
+                        .expect("status is json-serializable"));
+                } else if let Some(error) = &status.error {
+                    println!("{}: {}", status.status, error);
+                } else {
+                    println!("{}", status.status);
+                }
+                status.exit()
+            } else {
+                anyhow::bail!(e);
+            }
+        }
+    };
     match cmd {
         Start(c) => inst.start(c),
         Stop(c) => inst.stop(c),

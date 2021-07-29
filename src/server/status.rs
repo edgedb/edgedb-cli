@@ -1,16 +1,20 @@
+use std::collections::HashSet;
 use std::io;
 use std::fs;
 use std::process::exit;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::path::Path;
 
 use anyhow::Context;
+use async_std::future;
 use async_std::task;
 use async_std::net::TcpStream;
 use async_std::io::timeout;
+use edgedb_client::Builder;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
+use crate::credentials;
 use crate::format;
 use crate::server::create::Storage;
 use crate::server::detect;
@@ -18,6 +22,7 @@ use crate::server::distribution::MajorVersion;
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
+use crate::server::version::Version;
 use crate::table;
 
 
@@ -66,6 +71,19 @@ pub struct Status {
     pub backup: BackupStatus,
     pub credentials_file_exists: bool,
     pub service_exists: bool,
+}
+
+#[derive(Debug)]
+pub struct RemoteStatus {
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub database: String,
+    pub version: Option<String>,
+    pub major_version: Option<MajorVersion>,
+    pub status: String,
+    pub error: Option<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -224,6 +242,101 @@ impl Status {
     }
 }
 
+impl RemoteStatus {
+    pub async fn new(name: String) -> anyhow::Result<Self> {
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let creds_path = credentials::path(&name)?;
+        let builder = future::timeout(
+            Duration::from_secs(1), Builder::read_credentials(creds_path)
+        ).await??;
+        if let Some((host, port)) = builder.get_addr().get_tcp_addr() {
+            let mut version = None;
+            let mut status = "unknown";
+            let mut error = None;
+            match future::timeout(
+                deadline - Instant::now() , builder.connect()
+            ).await {
+                Ok(Ok(mut con)) => {
+                    if let Ok(Ok(ver)) = future::timeout(
+                        deadline - Instant::now() , con.get_version()
+                    ).await {
+                        version = Some(ver);
+                        status = "running";
+                    }
+                }
+                Ok(Err(e)) => {
+                    status = "error";
+                    error = Some(format!("{}", e));
+                }
+                Err(_) => {}  // timeout, ignore
+            }
+            Ok(Self {
+                name,
+                host: host.clone(),
+                port: port.clone(),
+                user: builder.get_user().into(),
+                database: builder.get_database().into(),
+                major_version: version.as_ref().map(|version|
+                    if version.contains("+dev") {
+                        MajorVersion::Nightly
+                    } else if let Some((major_version, _))
+                        = version.split_once("+")
+                    {
+                        MajorVersion::Stable(Version(major_version.into()))
+                    } else {
+                        MajorVersion::Stable(Version(version.clone()))
+                    }
+                ),
+                version,
+                status: status.into(),
+                error,
+            })
+        } else {
+            anyhow::bail!("Ignoring instances on UNIX socket.");
+        }
+    }
+
+    pub fn print_extended(&self) {
+        println!("{}:", self.name);
+        println!("  Status: {}", self.status);
+        if let Some(error) = &self.error {
+            println!("  Error: {}", error);
+        }
+        println!("  Credentials: exist");
+        println!(
+            "  Version: {}",
+            self.major_version.as_ref()
+            .map(|v| v.title()).unwrap_or("unknown".into())
+        );
+        if let Some(version) = self.version.as_ref() {
+            println!("  Server Version: {}", version);
+        }
+        println!("  Installation method: remote");
+        println!("  Host: {}", self.host);
+        println!("  Port: {}", self.port);
+        println!("  User: {}", self.user);
+        println!("  Database: {}", self.database);
+    }
+
+    pub fn json<'x>(&'x self) -> JsonStatus<'x> {
+        JsonStatus {
+            name: &self.name,
+            port: Some(self.port),
+            major_version: self.major_version.as_ref(),
+            status: &self.status,
+            method: "remote",
+        }
+    }
+
+    pub fn exit(&self) -> ! {
+        if self.version.is_some() {
+            exit(0)
+        } else {
+            exit(3)
+        }
+    }
+}
+
 
 pub fn probe_port(metadata: &anyhow::Result<Metadata>, reserved: &Option<u16>)
     -> Port
@@ -278,15 +391,55 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
 {
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
+    let mut local_names = HashSet::new();
     let mut statuses = Vec::new();
     for meth in methods.values() {
         statuses.extend(
             meth.all_instances()?
             .into_iter()
-            .map(|i| i.get_status())
+            .map(|i| {
+                local_names.insert(String::from(i.name()));
+                i.get_status()
+            })
         );
     }
-    if statuses.is_empty() {
+
+    let mut tasks = Vec::new();
+    let creds_dir = credentials::base_dir()?;
+    for item in fs::read_dir(&creds_dir)? {
+        if let Ok(filename) = item?.file_name().into_string() {
+            if let Some(name) = filename.strip_suffix(".json") {
+                if !local_names.contains(name) {
+                    tasks.push((
+                        String::from(name),
+                        task::spawn(future::timeout(
+                            Duration::from_secs(1),
+                            RemoteStatus::new(name.into())
+                        ))
+                    ));
+                }
+            }
+        }
+    }
+    let remote_statuses = task::block_on(async {
+        let mut rv: Vec<RemoteStatus> = Vec::new();
+        for (name, task) in tasks {
+            match task.await {
+                Ok(Ok(status)) => rv.push(status),
+                Ok(Err(e)) => {
+                    eprintln!(
+                        "Cannot parse remote instance \"{}\": {:?}\
+                        \n    Is the credential file corrupted?",
+                        name, e
+                    );
+                }
+                Err(_) => {}  // timeout, ignore
+            }
+        }
+        rv
+    });
+
+    if statuses.is_empty() && remote_statuses.is_empty() {
         if json {
             println!("[]");
         } else {
@@ -298,14 +451,24 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
         for status in statuses {
             println!("{:#?}", status);
         }
+        for status in remote_statuses {
+            println!("{:#?}", status);
+        }
     } else if extended {
         for status in statuses {
+            status.print_extended();
+        }
+        for status in remote_statuses {
             status.print_extended();
         }
     } else if json {
         println!("{}", serde_json::to_string_pretty(&statuses
             .iter()
             .map(|status| status.json())
+            .chain(remote_statuses
+                .iter()
+                .map(|status| status.json())
+            )
             .collect::<Vec<_>>()
         )?);
     } else {
@@ -323,6 +486,17 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
                     .map(|m| m.version.title()).unwrap_or("?".into())),
                 Cell::new(status.method.short_name()),
                 Cell::new(status_str(&status.service)),
+            ]));
+        }
+        for status in remote_statuses {
+            table.add_row(Row::new(vec![
+                Cell::new(&status.name),
+                Cell::new(&status.port.to_string()),
+                Cell::new(&status.major_version.as_ref()
+                    .map(|m|m.title()).unwrap_or("?".into())
+                ),
+                Cell::new("remote"),
+                Cell::new(&status.status),
             ]));
         }
         table.printstd();
