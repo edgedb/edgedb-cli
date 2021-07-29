@@ -205,16 +205,6 @@ pub struct Query {
     pub queries: Vec<String>,
 }
 
-#[derive(EdbClap, Clone, Debug)]
-pub struct GenerateDevCert {
-    /// Specify a path to store the generated key file
-    #[clap(long)]
-    pub key_file: PathBuf,
-    /// Specify a path to store the generated cert file
-    #[clap(long)]
-    pub cert_file: PathBuf,
-}
-
 #[derive(Debug, Clone)]
 pub struct Options {
     pub conn_options: ConnectionOptions,

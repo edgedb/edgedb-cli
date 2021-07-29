@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::{Path};
 
+use anyhow::Context;
 use async_std::task;
 use fn_error_context::context;
 
 use crate::credentials;
+use crate::hint::HintedError;
 use crate::server::detect;
 use crate::server::options::InstanceCommand;
 use crate::server::options::Status;
@@ -46,6 +48,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         Restart(c) => &c.name,
         Logs(c) => &c.name,
         Revert(c) => &c.name,
+        Unlink(c) => &c.name,
         Status(c) => {
             if let Some(name) = &c.name {
                 name
@@ -76,6 +79,16 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
                 Err(e)
             },
         }
+        Unlink(_) => if inst.is_err() {
+            fs::remove_file(credentials::path(name)?)
+                .context(format!("Cannot unlink {}", name))?;
+            Ok(())
+        } else {
+            anyhow::bail!(HintedError {
+                error: anyhow::anyhow!("Cannot unlink a local instance."),
+                hint: "Use `instance destroy` instead.".into(),
+            });
+        },
         | Create(_)
         | Destroy(_)
         | Link(_)

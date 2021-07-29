@@ -36,9 +36,11 @@ pub enum InstanceCommand {
     Restart(Restart),
     /// Destroy an instance and remove the data
     Destroy(Destroy),
-    /// Link to a remote instance
+    /// Link a remote instance
     #[edb(inherit(crate::options::ConnectionOptions))]
     Link(Link),
+    /// Unlink a remote instance
+    Unlink(Unlink),
     /// Show logs of an instance
     Logs(Logs),
     /// Revert a major instance upgrade
@@ -195,6 +197,13 @@ pub struct Link {
     /// Reduce command verbosity.
     #[clap(long)]
     pub quiet: bool,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+#[clap(long_about = "Unlink from a remote EdgeDB instance.")]
+pub struct Unlink {
+    /// Specify the name of the remote instance.
+    pub name: String,
 }
 
 #[derive(EdbClap, Debug, Clone)]
