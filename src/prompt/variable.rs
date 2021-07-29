@@ -121,7 +121,7 @@ impl VariableInput for BigInt {
     fn parse(&self, input: &str) -> Result<Value, Error> {
         let dec: BigDecimal = input.parse().map_err(no_pos_err)?;
         let int = dec.to_bigint()
-            .context("number is not integer")
+            .context("number is not an integer")
             .map_err(no_pos_err)?;
         let int = int.try_into().map_err(no_pos_err)?;
         Ok(Value::BigInt(int))

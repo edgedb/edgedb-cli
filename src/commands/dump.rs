@@ -165,7 +165,7 @@ async fn get_text(cli: &mut Connection, query: &str)
         if let Some(text) = response.next().await.transpose()? {
             break text;
         } else {
-            anyhow::bail!("`{}` returns empty value", query.escape_default());
+            anyhow::bail!("`{}` returned an empty value", query.escape_default());
         }
     };
     anyhow::ensure!(matches!(response.next().await, None),

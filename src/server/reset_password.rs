@@ -71,7 +71,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
                 Some(&format!("Confirm password for '{}': ",
                               user.escape_default())))?;
             if password != confirm {
-                eprintln!("Password don't match");
+                eprintln!("Passwords don't match");
             } else {
                 break password;
             }
@@ -93,10 +93,10 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     }
     if !options.quiet {
         if save {
-            eprintln!("Password is successfully changed and saved to \
+            eprintln!("Password was successfully changed and saved to \
                 {}", credentials_file.display());
         } else {
-            eprintln!("Password is successfully changed.");
+            eprintln!("Password was successfully changed.");
         }
     }
     Ok(())

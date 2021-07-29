@@ -69,7 +69,7 @@ fn main() {
                 } else if item.is::<bug::Bug>() {
                     eprintln!("  Hint: This is most likely a bug in EdgeDB \
                         or command-line tools. Please consider opening an \
-                        issue ticket at \
+                        issue at \
                         https://github.com/edgedb/edgedb-cli/issues/new\
                         ?template=bug_report.md");
                     code = 13;

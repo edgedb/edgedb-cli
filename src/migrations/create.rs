@@ -118,7 +118,7 @@ y - confirm the prompt, use the DDL statements
 n - reject the prompt
 l - list the DDL statements associated with prompt
 c - list already confirmed EdgeQL statements
-b - revert back to previous save point, perhaps previous question
+b - revert back to previous save point
 s - stop and save changes (splits migration into multiple)
 q - quit without saving changes
 h or ? - print help
@@ -266,13 +266,13 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
             let input;
             if already_approved {
                 input = loop {
-                    println!("Following extra DDL statements will be applied:");
+                    println!("The following extra DDL statements will be applied:");
                     for statement in &proposal.statements {
                         for line in statement.text.lines() {
                             println!("    {}", line);
                         }
                     }
-                    println!("(approved as part as part of an earlier prompt)");
+                    println!("(approved as part of an earlier prompt)");
                     match get_user_input(&proposal.required_user_input) {
                         Ok(data) => break data,
                         Err(e) if e.is::<Refused>() => continue,
@@ -283,7 +283,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                 let prompt = if let Some(prompt) = &proposal.prompt {
                     prompt
                 } else {
-                    println!("Following DDL statements will be applied:");
+                    println!("The following DDL statements will be applied:");
                     for statement in &proposal.statements {
                         for line in statement.text.lines() {
                             println!("    {}", line);
@@ -313,7 +313,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                             continue 'migration;
                         }
                         List => {
-                            println!("Following DDL statements will be applied:");
+                            println!("The following DDL statements will be applied:");
                             for statement in &proposal.statements {
                                 for line in statement.text.lines() {
                                     println!("    {}", line);
@@ -327,7 +327,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                                     "No EdgeQL statements were confirmed yet");
                             } else {
                                 println!(
-                                    "Following EdgeQL statements were confirmed:");
+                                    "The following EdgeQL statements were confirmed:");
                                 for statement in &descr.confirmed {
                                     for line in statement.lines() {
                                         println!("    {}", line);
@@ -551,7 +551,7 @@ fn substitute_placeholders<'x>(input: &'x str,
         let item = match item {
             Ok(item) => item,
             Err(e) => Err(bug::error(format!(
-                "server sent invalid query: {}", e)))?,
+                "the server sent an invalid query: {}", e)))?,
         };
         if item.token.kind == TokenKind::Substitution {
             output.push_str(&input[start..item.start.offset as usize]);

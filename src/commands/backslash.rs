@@ -66,7 +66,7 @@ Editing
                            output as the input
 
 Settings
-  \set [OPTION [VALUE]]    how/change setting, type \set for listing
+  \set [OPTION [VALUE]]    show/change setting, type \set for listing
                            all available options
 
 Connection

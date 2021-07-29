@@ -26,11 +26,11 @@ impl FormatExt for Value {
                     for (key, value) in dict {
                         if key.starts_with('@') {
                             prn.object_field(serde_json::to_string(key)
-                                             .expect("can serialize string")
+                                             .expect("cannot serialize string")
                                              .rgb(0, 0xa5, 0xcb).bold())?;
                         } else {
                             prn.object_field(serde_json::to_string(key)
-                                             .expect("can serialize string")
+                                             .expect("cannot serialize string")
                                              .light_blue().bold())?;
                         }
                         value.format(prn)?;

@@ -421,7 +421,7 @@ impl Options {
         let mut conn_params = Connector::new(builder);
         let password = if tmp.conn.password_from_stdin {
             let password = rpassword::read_password()
-                .expect("password can be read");
+                .expect("password cannot be read");
             Some(password)
         } else if tmp.conn.no_password {
             None
@@ -444,7 +444,7 @@ impl Options {
         let subcommand = if let Some(query) = tmp.query {
             if tmp.subcommand.is_some() {
                 anyhow::bail!(
-                    "Option `-c` conflicts with specifying subcommand");
+                    "Option `-c` conflicts with specifying a subcommand");
             } else {
                 Some(Command::Query(Query {
                     queries: vec![query],
