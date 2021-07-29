@@ -294,10 +294,10 @@ impl Tag {
         self.into_image().into_ref()
     }
     pub fn as_image_name(&self) -> String {
-        format!("edgedb/edgedb:{}", match &self {
-                Tag::Stable(v, _) => v,
-                Tag::Nightly(n) => n,
-        })
+        match &self {
+            Tag::Stable(v, _) => format!("edgedb/edgedb:{}", v),
+            Tag::Nightly(n) => format!("edgedb/edgedb:nightly_{}", n),
+        }
     }
 }
 
@@ -525,12 +525,15 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let new_version = new.version().clone();
         let new_major = new.major_version().clone();
         let old_major = inst.get_version()?;
-        dbg!(&old, &new_version, &old_major, &new_major);
 
         if !options.force {
             if old_major == &new_major {
                 if let Some(old_ver) = old {
-                    if old_ver >= &new_version {
+                    // old nightly versions had nither `-` nor `.` in the name,
+                    // so just consider them old
+                    if old_ver.num().contains(|c| c == '-' || c == '.') &&
+                        old_ver >= &new_version
+                    {
                         log::info!(target: "edgedb::server::upgrade",
                             "Instance {} is up to date {}. Skipping.",
                             inst.name(), old_ver);
