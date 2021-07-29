@@ -154,6 +154,7 @@ impl Instance for LocalInstance<'_> {
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
         cmd.arg("--runstate-dir").arg(&socket_dir);
+        cmd.env("EDGEDB_SERVER_INSTANCE_NAME", self.name());
         Ok(cmd)
     }
     fn upgrade<'x>(&'x self, meta: &Metadata)
@@ -291,7 +292,7 @@ After=network.target
 Type=notify
 {userinfo}
 
-Environment=EDGEDATA={directory}
+Environment="EDGEDATA={directory}" "EDGEDB_SERVER_INSTANCE_NAME={instance_name}"
 RuntimeDirectory=edgedb-{instance_name}
 
 ExecStart={server_path} --data-dir=${{EDGEDATA}} --runstate-dir=%t/edgedb-{instance_name} --port={port}

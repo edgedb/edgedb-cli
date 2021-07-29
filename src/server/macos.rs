@@ -544,6 +544,7 @@ impl<'a> Instance for LocalInstance<'a> {
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
         cmd.arg("--runstate-dir").arg(&socket_dir);
+        cmd.env("EDGEDB_SERVER_INSTANCE_NAME", self.name());
         Ok(cmd)
     }
     fn upgrade(&self, meta: &Metadata)
@@ -627,6 +628,12 @@ fn plist_data(name: &str, meta: &Metadata)
         <string>--runstate-dir={runtime_dir}</string>
         <string>--port={port}</string>
     </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>EDGEDB_SERVER_INSTANCE_NAME</key>
+        <string>{instance_name}</string>
+    </dict>
 
     <key>StandardOutPath</key>
     <string>{log_path}</string>
