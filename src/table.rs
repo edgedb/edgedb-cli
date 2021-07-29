@@ -28,7 +28,7 @@ pub static FORMAT: Lazy<TableFormat> = Lazy::new(|| {
 });
 
 pub fn header_cell(title: &str) -> Cell {
-    Cell::new_align(title, Alignment::CENTER)
+    Cell::new_align(title, Alignment::LEFT)
         .with_style(Attr::Dim)
 }
 
