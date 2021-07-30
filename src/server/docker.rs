@@ -795,7 +795,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         ).map_err(|e| {
             eprintln!("edgedb error: failed to restore {:?}: {}",
                       inst.name(), e);
-            eprintln!("To undo run:\n  edgedb server revert {:?}",
+            eprintln!("To undo run:\n  edgedb instance revert {:?}",
                       inst.name());
             ExitCode::new(1).into()
         })
