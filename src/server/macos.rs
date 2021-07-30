@@ -545,6 +545,7 @@ impl<'a> Instance for LocalInstance<'a> {
         cmd.arg("--data-dir").arg(&self.path);
         cmd.arg("--runstate-dir").arg(&socket_dir);
         cmd.env("EDGEDB_SERVER_INSTANCE_NAME", self.name());
+        cmd.env("EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS", "1");
         Ok(cmd)
     }
     fn upgrade(&self, meta: &Metadata)
@@ -633,6 +634,8 @@ fn plist_data(name: &str, meta: &Metadata)
     <dict>
         <key>EDGEDB_SERVER_INSTANCE_NAME</key>
         <string>{instance_name}</string>
+        <key>EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS</key>
+        <string>1</string>
     </dict>
 
     <key>StandardOutPath</key>
