@@ -706,6 +706,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                         options.start_conf));
         cmd.env("EDGEDB_SERVER_INSTANCE_NAME", options.name);
         cmd.arg("--env").arg("EDGEDB_SERVER_INSTANCE_NAME");
+        cmd.arg("--env").arg("EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS=1");
         cmd.arg(options.image.tag.as_image_name());
         cmd.arg("edgedb-server");
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");

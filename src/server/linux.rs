@@ -155,6 +155,7 @@ impl Instance for LocalInstance<'_> {
         cmd.arg("--data-dir").arg(&self.path);
         cmd.arg("--runstate-dir").arg(&socket_dir);
         cmd.env("EDGEDB_SERVER_INSTANCE_NAME", self.name());
+        cmd.env("EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS", "1");
         Ok(cmd)
     }
     fn upgrade<'x>(&'x self, meta: &Metadata)
@@ -292,7 +293,7 @@ After=network.target
 Type=notify
 {userinfo}
 
-Environment="EDGEDATA={directory}" "EDGEDB_SERVER_INSTANCE_NAME={instance_name}"
+Environment="EDGEDATA={directory}" "EDGEDB_SERVER_INSTANCE_NAME={instance_name}" "EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS=1"
 RuntimeDirectory=edgedb-{instance_name}
 
 ExecStart={server_path} --data-dir=${{EDGEDATA}} --runstate-dir=%t/edgedb-{instance_name} --port={port}
