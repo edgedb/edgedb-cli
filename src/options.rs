@@ -14,6 +14,7 @@ use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
 use crate::commands::parser::Common;
+use crate::commands::ExitCode;
 use crate::connect::Connector;
 use crate::credentials::get_connector;
 use crate::hint::HintExt;
@@ -62,6 +63,7 @@ pub struct ConnectionOptions {
     /// Connect to a passwordless unix socket with superuser
     /// privileges by default. (DEPRECATED)
     #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub admin: bool,
 
     /// Ask for password on the terminal (TTY)
@@ -124,20 +126,20 @@ pub struct ConnectionOptions {
 
 #[derive(EdbClap, Debug)]
 #[edb(main)]
-#[clap(version=clap::crate_version!())]
+#[clap(setting=clap::AppSettings::DisableVersionFlag)]
 pub struct RawOptions {
 
-    #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
+    #[clap(long)]
     #[cfg_attr(not(feature="dev_mode"),
         clap(setting=clap::ArgSettings::Hidden))]
     pub debug_print_frames: bool,
 
-    #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
+    #[clap(long)]
     #[cfg_attr(not(feature="dev_mode"),
         clap(setting=clap::ArgSettings::Hidden))]
     pub debug_print_descriptors: bool,
 
-    #[clap(long, help_heading=Some("DEBUG OPTIONS"))]
+    #[clap(long)]
     #[cfg_attr(not(feature="dev_mode"),
         clap(setting=clap::ArgSettings::Hidden))]
     pub debug_print_codecs: bool,
@@ -153,6 +155,10 @@ pub struct RawOptions {
     /// Execute a query instead of starting REPL
     #[clap(short='c')]
     pub query: Option<String>,
+
+    /// Show command-line tool version
+    #[clap(short='V', long="version")]
+    pub print_version: bool,
 
     /// Disable version check
     #[clap(long)]
@@ -175,7 +181,6 @@ pub enum Command {
     #[edb(inherit(ConnectionOptions), hidden)]
     Query(Query),
     /// Manage local server installations
-    #[edb(expand_help)]
     Server(server::options::ServerCommand),
     /// Manage local server instances
     #[edb(expand_help)]
@@ -207,7 +212,8 @@ pub struct SelfCommand {
 pub enum SelfSubcommand {
     /// Upgrade this edgedb binary
     Upgrade(self_upgrade::SelfUpgrade),
-    /// Install server
+    /// Install the 'edgedb' command line tool
+    #[edb(hidden)]
     Install(self_install::SelfInstall),
     /// Migrate files from `~/.edgedb` to new directory layout
     #[edb(hidden)]
@@ -303,13 +309,14 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
 fn update_help(mut app: clap::App) -> clap::App {
     let sub_cmd = make_subcommand_help::<RawOptions>();
     let mut help = Vec::with_capacity(2048);
+    app = app.name("edgedb");
     app.write_help(&mut help).unwrap();
 
-    let subcmd_index = std::str::from_utf8(&help).unwrap()
-        .find("SUBCOMMANDS:").unwrap();
-    help.truncate(subcmd_index);
-    help.extend(sub_cmd.as_bytes());
-    let help = std::str::from_utf8(Vec::leak(help)).unwrap();
+    let help = String::from_utf8(help).unwrap();
+    let subcmd_index = help.find("SUBCOMMANDS:").unwrap();
+    let mut help = help[..subcmd_index].replacen("edgedb", "EdgeDB CLI", 1);
+    help.push_str(&sub_cmd);
+    let help = std::str::from_utf8(Vec::leak(help.into())).unwrap();
     return app.override_help(help);
 }
 
@@ -402,6 +409,11 @@ impl Options {
         let matches = get_matches(app);
         let tmp = <RawOptions as clap::FromArgMatches>
             ::from_arg_matches(&matches);
+
+        if tmp.print_version {
+            println!("EdgeDB CLI {}", clap::crate_version!());
+            return Err(ExitCode::new(0).into());
+        }
 
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()

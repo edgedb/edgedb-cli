@@ -45,7 +45,7 @@ fn simple_query() {
 fn version() {
     let cmd = SERVER.admin_cmd().arg("--version").assert();
     cmd.success()
-        .stdout(concat!("edgedb-cli ", env!("CARGO_PKG_VERSION"), "\n"));
+        .stdout(concat!("EdgeDB CLI ", env!("CARGO_PKG_VERSION"), "\n"));
 }
 
 pub struct ShutdownInfo {
