@@ -61,46 +61,15 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
     };
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
-    let inst = match get_instance(&methods, name) {
-        Ok(inst) => inst,
-        Err(e) => {
-            if let Status(options) = cmd {
-                let status = match task::block_on(
-                    status::RemoteStatus::new(name.clone())
-                ) {
-                    Ok(status) => status,
-                    Err(_) => anyhow::bail!(e),
-                };
-                if options.service {
-                    let path = credentials::path(name)?;
-                    println!("Remote instance: {}", path.display());
-                } else if options.debug {
-                    println!("{:#?}", status);
-                } else if options.extended {
-                    status.print_extended();
-                } else if options.json {
-                    println!("{}",
-                        serde_json::to_string_pretty(&status.json())
-                        .expect("status is json-serializable"));
-                } else if let Some(error) = &status.error {
-                    println!("{}: {}", status.status, error);
-                } else {
-                    println!("{}", status.status);
-                }
-                status.exit()
-            } else {
-                anyhow::bail!(e);
-            }
-        }
-    };
+    let inst = get_instance(&methods, name);
     match cmd {
-        Start(c) => inst.start(c),
-        Stop(c) => inst.stop(c),
-        Restart(c) => inst.restart(c),
-        Logs(c) => inst.logs(c),
-        Revert(c) => revert::revert(inst, c),
-        Status(options) => {
-            if options.service {
+        Start(c) => inst?.start(c),
+        Stop(c) => inst?.stop(c),
+        Restart(c) => inst?.restart(c),
+        Logs(c) => inst?.logs(c),
+        Revert(c) => revert::revert(inst?, c),
+        Status(options) => match inst {
+            Ok(inst) => if options.service {
                 inst.service_status()
             } else {
                 let status = inst.get_status();
@@ -114,6 +83,34 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
                 } else {
                     status.print_and_exit();
                 }
+            },
+            Err(e) => {
+                let path = credentials::path(name)?;
+                if !path.exists() {
+                    anyhow::bail!(e);
+                }
+                let status = task::block_on(
+                    status::RemoteStatus::new(name).probe(path)
+                );
+                if options.service {
+                    let path = credentials::path(name)?;
+                    println!("Remote instance: {}", path.display());
+                } else if options.debug {
+                    println!("{:#?}", status);
+                } else if options.extended {
+                    status.print_extended();
+                } else if options.json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&status.json())
+                            .expect("status is json-serializable"),
+                    );
+                } else if let Some(error) = status.status.get_error() {
+                    println!("{}: {}", status.status.display(), error);
+                } else {
+                    println!("{}", status.status.display());
+                }
+                status.exit()
             }
         }
         | Create(_)

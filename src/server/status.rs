@@ -3,7 +3,7 @@ use std::io;
 use std::fs;
 use std::process::exit;
 use std::time::{Duration, Instant};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use async_std::future;
@@ -74,16 +74,40 @@ pub struct Status {
 }
 
 #[derive(Debug)]
+pub enum RemoteStatusService {
+    Running,
+    Error(String),
+    Unknown(String),
+}
+
+impl RemoteStatusService {
+    pub fn display(&self) -> &str {
+        match self {
+            Self::Running => "running",
+            Self::Error(_) => "error",
+            Self::Unknown(_) => "unknown",
+        }
+    }
+
+    pub fn get_error(&self) -> Option<&String> {
+        match self {
+            Self::Running => None,
+            Self::Error(error) => Some(error),
+            Self::Unknown(error) => Some(error),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct RemoteStatus {
     pub name: String,
-    pub host: String,
-    pub port: u16,
-    pub user: String,
-    pub database: String,
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub user: Option<String>,
+    pub database: Option<String>,
     pub version: Option<String>,
     pub major_version: Option<MajorVersion>,
-    pub status: String,
-    pub error: Option<String>,
+    pub status: RemoteStatusService,
 }
 
 #[derive(serde::Serialize)]
@@ -243,63 +267,85 @@ impl Status {
 }
 
 impl RemoteStatus {
-    pub async fn new(name: String) -> anyhow::Result<Self> {
-        let deadline = Instant::now() + Duration::from_secs(1);
-        let creds_path = credentials::path(&name)?;
-        let builder = future::timeout(
-            Duration::from_secs(1), Builder::read_credentials(creds_path)
-        ).await??;
-        if let Some((host, port)) = builder.get_addr().get_tcp_addr() {
-            let mut version = None;
-            let mut status = "unknown";
-            let mut error = None;
-            match future::timeout(
-                deadline - Instant::now() , builder.connect()
-            ).await {
-                Ok(Ok(mut con)) => {
-                    if let Ok(Ok(ver)) = future::timeout(
-                        deadline - Instant::now() , con.get_version()
-                    ).await {
-                        version = Some(ver);
-                        status = "running";
-                    }
-                }
-                Ok(Err(e)) => {
-                    status = "error";
-                    error = Some(format!("{}", e));
-                }
-                Err(_) => {}  // timeout, ignore
-            }
-            Ok(Self {
-                name,
-                host: host.clone(),
-                port: port.clone(),
-                user: builder.get_user().into(),
-                database: builder.get_database().into(),
-                major_version: version.as_ref().map(|version|
-                    if version.contains("+dev") {
-                        MajorVersion::Nightly
-                    } else if let Some((major_version, _))
-                        = version.split_once("+")
-                    {
-                        MajorVersion::Stable(Version(major_version.into()))
-                    } else {
-                        MajorVersion::Stable(Version(version.clone()))
-                    }
-                ),
-                version,
-                status: status.into(),
-                error,
-            })
-        } else {
-            anyhow::bail!("Ignoring instances on UNIX socket.");
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.into(),
+            host: None,
+            port: None,
+            user: None,
+            database: None,
+            version: None,
+            major_version: None,
+            status: RemoteStatusService::Unknown("uninitialized".into())
         }
+    }
+
+    pub async fn probe(mut self, path: PathBuf) -> Self {
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let builder = match async {
+            Ok::<Builder, anyhow::Error>(future::timeout(
+                deadline - Instant::now(),
+                Builder::read_credentials(&path)
+            ).await??)
+        }.await {
+            Ok(builder) => builder,
+            Err(e) => {
+                self.status = RemoteStatusService::Error(format!("{}", e));
+                return self;
+            }
+        };
+        self.user = Some(builder.get_user().into());
+        self.database = Some(builder.get_database().into());
+        if let Some((host, port)) = builder.get_addr().get_tcp_addr() {
+            self.host = Some(host.clone());
+            self.port = Some(*port);
+        } else if let Some(addr) = builder.get_addr().get_unix_addr() {
+            self.host = Some(addr.display().to_string());
+        }
+        match future::timeout(
+            deadline - Instant::now(), async {
+                Ok::<String, anyhow::Error>(
+                    builder.connect().await?.get_version().await?
+                )
+            }
+        ).await {
+            Ok(Ok(version)) => {
+                self.status = RemoteStatusService::Running;
+                self.major_version = Some(if version.contains("+dev") {
+                    MajorVersion::Nightly
+                } else if let Some((major_version, _))
+                = version.split_once("+")
+                {
+                    MajorVersion::Stable(Version(major_version.into()))
+                } else {
+                    MajorVersion::Stable(Version(version.clone()))
+                });
+                self.version = Some(version);
+            }
+            Ok(Err(e)) => {
+                log::info!(
+                    "Error retrieving version from remote instance {}: {}",
+                    self.name, e
+                );
+                self.status = RemoteStatusService::Error(format!("{}", e));
+            }
+            Err(e) => {
+                log::info!(
+                    "Timed out retrieving version from remote instance {}: {}",
+                    self.name, e
+                );
+                self.status = RemoteStatusService::Unknown(
+                    "probe timed out".into()
+                );
+            }
+        };
+        self
     }
 
     pub fn print_extended(&self) {
         println!("{}:", self.name);
-        println!("  Status: {}", self.status);
-        if let Some(error) = &self.error {
+        println!("  Status: {}", self.status.display());
+        if let Some(error) = self.status.get_error() {
             println!("  Error: {}", error);
         }
         println!("  Credentials: exist");
@@ -312,24 +358,28 @@ impl RemoteStatus {
             println!("  Server Version: {}", version);
         }
         println!("  Installation method: remote");
-        println!("  Host: {}", self.host);
-        println!("  Port: {}", self.port);
-        println!("  User: {}", self.user);
-        println!("  Database: {}", self.database);
+        println!("  Host: {}",
+                 self.host.as_ref().unwrap_or(&"?".into()));
+        println!("  Port: {}",
+                 self.port.map(|port| port.to_string()).unwrap_or("?".into()));
+        println!("  User: {}",
+                 self.user.as_ref().unwrap_or(&"?".into()));
+        println!("  Database: {}",
+                 self.database.as_ref().unwrap_or(&"?".into()));
     }
 
     pub fn json<'x>(&'x self) -> JsonStatus<'x> {
         JsonStatus {
             name: &self.name,
-            port: Some(self.port),
+            port: self.port,
             major_version: self.major_version.as_ref(),
-            status: &self.status,
+            status: self.status.display(),
             method: "remote",
         }
     }
 
     pub fn exit(&self) -> ! {
-        if self.version.is_some() {
+        if let RemoteStatusService::Running = self.status {
             exit(0)
         } else {
             exit(3)
@@ -406,35 +456,24 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
 
     let mut tasks = Vec::new();
     let creds_dir = credentials::base_dir()?;
-    for item in fs::read_dir(&creds_dir)? {
-        if let Ok(filename) = item?.file_name().into_string() {
-            if let Some(name) = filename.strip_suffix(".json") {
-                if !local_names.contains(name) {
-                    tasks.push((
-                        String::from(name),
-                        task::spawn(future::timeout(
-                            Duration::from_secs(1),
-                            RemoteStatus::new(name.into())
-                        ))
-                    ));
+    if let Ok(creds_dir) = fs::read_dir(&creds_dir) {
+        for item in creds_dir {
+            let item = item?;
+            if let Ok(filename) = item.file_name().into_string() {
+                if let Some(name) = filename.strip_suffix(".json") {
+                    if !local_names.contains(name) {
+                        tasks.push(task::spawn(
+                            RemoteStatus::new(name).probe(item.path())
+                        ));
+                    }
                 }
             }
         }
     }
     let remote_statuses = task::block_on(async {
         let mut rv: Vec<RemoteStatus> = Vec::new();
-        for (name, task) in tasks {
-            match task.await {
-                Ok(Ok(status)) => rv.push(status),
-                Ok(Err(e)) => {
-                    eprintln!(
-                        "Cannot parse remote instance \"{}\": {:?}\
-                        \n    Is the credential file corrupted?",
-                        name, e
-                    );
-                }
-                Err(_) => {}  // timeout, ignore
-            }
+        for task in tasks {
+            rv.push(task.await);
         }
         rv
     });
@@ -491,12 +530,13 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
         for status in remote_statuses {
             table.add_row(Row::new(vec![
                 Cell::new(&status.name),
-                Cell::new(&status.port.to_string()),
+                Cell::new(&status.port.map(|port| port.to_string())
+                    .unwrap_or("?".into())),
                 Cell::new(&status.major_version.as_ref()
                     .map(|m|m.title()).unwrap_or("?".into())
                 ),
                 Cell::new("remote"),
-                Cell::new(&status.status),
+                Cell::new(status.status.display()),
             ]));
         }
         table.printstd();
