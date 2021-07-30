@@ -157,7 +157,7 @@ fn cli_install(tagname: &str, dockerfile: String)
         .stdout(predicates::function::function(|data: &str| {
             let tail = &data[data.find("--- DONE ---").unwrap()..];
             assert!(tail.contains(
-                concat!("edgedb-cli ", env!("CARGO_PKG_VERSION"))));
+                concat!("EdgeDB CLI ", env!("CARGO_PKG_VERSION"))));
             true
         }));
    Ok(())

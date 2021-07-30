@@ -88,7 +88,7 @@ fn github_action_install() -> anyhow::Result<()> {
         .assert()
         .success()
         .stdout(predicates::str::contains(
-            concat!("edgedb-cli ", env!("CARGO_PKG_VERSION"))));
+            concat!("EdgeDB CLI ", env!("CARGO_PKG_VERSION"))));
 
     if !cfg!(windows) {
         println!("Install");
