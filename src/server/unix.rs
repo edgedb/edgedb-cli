@@ -542,7 +542,7 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
         &instance_dir, inst, new_meta, &upgrade_marker
     ).map_err(|e| {
         eprintln!("edgedb error: failed to restore {:?}: {}", inst.name(), e);
-        eprintln!("To undo run:\n  edgedb server revert {:?}", inst.name());
+        eprintln!("To undo run:\n  edgedb instance revert {:?}", inst.name());
         ExitCode::new(1).into()
     })
 }
