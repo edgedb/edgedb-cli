@@ -1,5 +1,3 @@
-use async_std::task;
-
 use crate::options::Options;
 use crate::server::options::{ServerCommand, Command};
 use crate::server::options::{ServerInstanceCommand, InstanceCommand};
@@ -37,12 +35,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options) -> Result<(
         Create(c) => create::create(c),
         Destroy(c) => destroy::destroy(c),
         ResetPassword(c) => reset_password::reset_password(c),
-        Link(c) => {
-            task::block_on(async {
-                link::link(c, &options).await?;
-                Ok(())
-            }).into()
-        }
+        Link(c) => link::link(c, &options),
         cmd => control::instance_command(cmd)
     }
 }

@@ -377,6 +377,12 @@ impl Options {
             return Err(ExitCode::new(0).into());
         }
 
+        if tmp.subcommand.is_some() && tmp.query.is_some() {
+            anyhow::bail!(
+                "Option `-c` conflicts with specifying a subcommand"
+            );
+        }
+
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
@@ -385,9 +391,7 @@ impl Options {
         let mut builder = conn_params(&tmp.conn);
 
         // Special case for `edgedb instance link`
-        if let (Some(Command::Instance(i)), None) = (
-            &tmp.subcommand, &tmp.query
-        ) {
+        if let Some(Command::Instance(i)) = &tmp.subcommand {
             if let server::options::InstanceCommand::Link(
                 link
             ) = &i.subcommand {
@@ -425,14 +429,9 @@ impl Options {
         });
 
         let subcommand = if let Some(query) = tmp.query {
-            if tmp.subcommand.is_some() {
-                anyhow::bail!(
-                    "Option `-c` conflicts with specifying a subcommand");
-            } else {
-                Some(Command::Query(Query {
-                    queries: vec![query],
-                }))
-            }
+            Some(Command::Query(Query {
+                queries: vec![query],
+            }))
         } else {
             tmp.subcommand
         };

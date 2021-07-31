@@ -1,6 +1,7 @@
 use std::sync::{Mutex, Arc};
 
 use anyhow::Context;
+use async_std::task;
 use edgedb_client::{verify_server_cert, Builder};
 use edgedb_client::errors::PasswordRequired;
 use pem;
@@ -124,7 +125,11 @@ fn gen_default_instance_name(input: &dyn ToString) -> String {
     }).collect::<String>()
 }
 
-pub async fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
+pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
+    task::block_on(async_link(cmd, opts))
+}
+
+async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let builder = opts.conn_params.get()?;
     let mut creds = builder.as_credentials()?;
     let mut verifier = Arc::new(
