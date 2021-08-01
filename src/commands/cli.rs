@@ -1,17 +1,17 @@
 use async_std::task;
 
+use crate::cli::directory_check;
+use crate::cli::self_install;
+use crate::cli::self_migrate;
+use crate::cli::self_upgrade;
 use crate::options::{Options, Command, SelfSubcommand};
 use crate::commands::parser::{Common, MigrationCmd, Migration};
 use crate::non_interactive;
 use crate::commands;
 use crate::migrations;
-use crate::self_install;
-use crate::self_migrate;
-use crate::self_upgrade;
 use crate::server;
 use crate::project;
 use crate::print::style::Styler;
-use crate::directory_check;
 
 
 pub fn main(options: Options) -> Result<(), anyhow::Error> {

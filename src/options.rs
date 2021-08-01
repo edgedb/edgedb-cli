@@ -13,6 +13,9 @@ use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
+use crate::cli::self_install;
+use crate::cli::self_migrate;
+use crate::cli::self_upgrade;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
 use crate::connect::Connector;
@@ -20,9 +23,6 @@ use crate::credentials::get_connector;
 use crate::hint::HintExt;
 use crate::project;
 use crate::repl::OutputMode;
-use crate::self_install;
-use crate::self_migrate;
-use crate::self_upgrade;
 use crate::server;
 
 pub mod describe;
@@ -193,7 +193,7 @@ pub enum Command {
     #[edb(hidden)]
     _GenCompletions(self_install::GenCompletions),
     /// Self-installation commands
-    #[clap(name="self")]
+    #[clap(name="cli")]
     #[edb(expand_help)]
     SelfCommand(SelfCommand),
     /// Install server

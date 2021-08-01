@@ -9,15 +9,16 @@ use std::process::exit;
 use async_std::task;
 use clap::Clap;
 
+use crate::cli::{directory_check, self_install};
 use crate::options::Options;
 
 mod async_util;
 mod bug;
+mod cli;
 mod commands;
 mod completion;
 mod connect;
 mod credentials;
-mod directory_check;
 mod error_display;
 mod format;
 mod highlight;
@@ -35,16 +36,11 @@ mod project;
 mod prompt;
 mod question;
 mod repl;
-mod self_install;
-mod self_migrate;
-mod self_upgrade;
 mod server;
 mod statement;
 mod table;
 mod variables;
 mod version_check;
-
-#[macro_use] mod markdown;
 
 fn main() {
     match _main() {

@@ -7,9 +7,9 @@ use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use serde::{Serialize, Deserialize};
 
+use crate::cli::self_upgrade;
 use crate::platform;
 use crate::server::version::Version;
-use crate::self_upgrade;
 
 
 #[derive(Debug, Serialize, Deserialize)]

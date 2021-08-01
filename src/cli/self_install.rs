@@ -15,14 +15,14 @@ use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
+use crate::cli::self_migrate;
+use crate::cli::self_upgrade;
 use crate::options::RawOptions;
 use crate::platform::{home_dir, config_dir, get_current_uid};
 use crate::process;
 use crate::project::init;
 use crate::project::options::Init;
 use crate::question::{self, read_choice};
-use crate::self_upgrade;
-use crate::self_migrate;
 use crate::table;
 use crate::print_markdown;
 
