@@ -94,7 +94,7 @@ pub struct Settings {
 fn print_long_description(settings: &Settings) {
     println!();
     print_markdown!("\
-        # Welcome to EdgeDB!\n\
+        ## Welcome to EdgeDB!\n\
         \n\
         This will install the official EdgeDB command-line tools.\n\
         \n\
@@ -210,7 +210,7 @@ fn print_post_install_message(settings: &Settings,
 {
     if cfg!(windows) {
         print_markdown!("\
-            # The EdgeDB command-line tool is now installed!\n\
+            ## The EdgeDB command-line tool is now installed!\n\
             \n\
             We've updated your environment configuration to have `${dir}` in\n\
             your `PATH` environment variable. You may need to reopen the\n\
@@ -221,7 +221,7 @@ fn print_post_install_message(settings: &Settings,
         );
     } else if settings.modify_path {
         print_markdown!("\
-            # The EdgeDB command-line tool is now installed!\n\
+            ## The EdgeDB command-line tool is now installed!\n\
             \n\
             We've updated your shell profile to have ${dir} in your `PATH`\n\
             environment variable. Next time you open the terminal it will be\n\
@@ -237,7 +237,7 @@ fn print_post_install_message(settings: &Settings,
         );
     } else {
         print_markdown!("\
-            # The EdgeDB command-line tool is now installed!\
+            ## The EdgeDB command-line tool is now installed!\
         ");
     }
     if is_zsh() {
