@@ -13,9 +13,8 @@ use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
+use crate::cli::options::SelfCommand;
 use crate::cli::self_install;
-use crate::cli::self_migrate;
-use crate::cli::self_upgrade;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
 use crate::connect::Connector;
@@ -200,24 +199,6 @@ pub enum Command {
     #[clap(name="_self_install")]
     #[edb(hidden)]
     _SelfInstall(self_install::SelfInstall),
-}
-
-#[derive(EdbClap, Clone, Debug)]
-pub struct SelfCommand {
-    #[clap(subcommand)]
-    pub subcommand: SelfSubcommand,
-}
-
-#[derive(EdbClap, Clone, Debug)]
-pub enum SelfSubcommand {
-    /// Upgrade this edgedb binary
-    Upgrade(self_upgrade::SelfUpgrade),
-    /// Install the 'edgedb' command line tool
-    #[edb(hidden)]
-    Install(self_install::SelfInstall),
-    /// Migrate files from `~/.edgedb` to new directory layout
-    #[edb(hidden)]
-    Migrate(self_migrate::SelfMigrate),
 }
 
 #[derive(EdbClap, Clone, Debug)]

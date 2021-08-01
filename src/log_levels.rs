@@ -1,4 +1,5 @@
-use crate::options::{Options, Command, SelfSubcommand};
+use crate::cli::options::SelfSubcommand;
+use crate::options::{Options, Command};
 use crate::commands::parser::{Common, MigrationCmd};
 use crate::server::options::Command as Server;
 use crate::server::options::InstanceCommand as Instance;
