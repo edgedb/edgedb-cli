@@ -5,7 +5,7 @@ use std::io;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
-use crate::cli::self_upgrade::binary_path;
+use crate::cli::cli_upgrade::binary_path;
 use crate::credentials;
 use crate::platform::{home_dir, tmp_file_path, symlink_dir, config_dir};
 use crate::project;
@@ -15,7 +15,7 @@ use crate::commands::ExitCode;
 
 
 #[derive(EdbClap, Clone, Debug)]
-pub struct SelfMigrate {
+pub struct CliMigrate {
     /// Dry run: do no actually move anything
     #[clap(short='v', long)]
     pub verbose: bool,
@@ -32,7 +32,7 @@ enum ConfirmOverwrite {
     Quit,
 }
 
-pub fn main(options: &SelfMigrate) -> anyhow::Result<()> {
+pub fn main(options: &CliMigrate) -> anyhow::Result<()> {
     let base = home_dir()?.join(".edgedb");
     if !base.exists() {
         log::warn!("Directory {:?} does not exists. Nothing to do.", base);

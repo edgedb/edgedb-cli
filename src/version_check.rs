@@ -7,7 +7,7 @@ use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use serde::{Serialize, Deserialize};
 
-use crate::cli::self_upgrade;
+use crate::cli::cli_upgrade;
 use crate::platform;
 use crate::server::version::Version;
 
@@ -42,7 +42,7 @@ fn write_cache(dir: &Path, data: &Cache) -> anyhow::Result<()> {
 }
 
 fn newer_warning(ver: &Version<String>) {
-    if self_upgrade::can_upgrade() {
+    if cli_upgrade::can_upgrade() {
         log::warn!(
             "Newer version of edgedb tool exists {} (current {}). \
                 To upgrade run `edgedb self upgrade`",
@@ -71,7 +71,7 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
         }
     }
     let timestamp = SystemTime::now();
-    let repo = match self_upgrade::get_repo(Duration::from_secs(1)) {
+    let repo = match cli_upgrade::get_repo(Duration::from_secs(1)) {
         Ok(repo) => repo,
         Err(e) => {
             log::info!("Error while checking for updates: {}", e);

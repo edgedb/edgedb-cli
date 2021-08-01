@@ -13,8 +13,8 @@ use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
-use crate::cli::options::SelfCommand;
-use crate::cli::self_install;
+use crate::cli::cli_install;
+use crate::cli::options::CliCommand;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
 use crate::connect::Connector;
@@ -190,15 +190,15 @@ pub enum Command {
     /// Generate shell completions
     #[clap(name="_gen_completions")]
     #[edb(hidden)]
-    _GenCompletions(self_install::GenCompletions),
+    _GenCompletions(cli_install::GenCompletions),
     /// Self-installation commands
     #[clap(name="cli")]
     #[edb(expand_help)]
-    SelfCommand(SelfCommand),
+    CliCommand(CliCommand),
     /// Install server
     #[clap(name="_self_install")]
     #[edb(hidden)]
-    _SelfInstall(self_install::SelfInstall),
+    _SelfInstall(cli_install::CliInstall),
 }
 
 #[derive(EdbClap, Clone, Debug)]

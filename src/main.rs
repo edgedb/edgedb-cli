@@ -9,7 +9,7 @@ use std::process::exit;
 use async_std::task;
 use clap::Clap;
 
-use crate::cli::{directory_check, self_install};
+use crate::cli::{directory_check, cli_install};
 use crate::options::Options;
 
 mod async_util;
@@ -88,8 +88,8 @@ fn _main() -> anyhow::Result<()> {
     if let Some(arg0) = std::env::args_os().next() {
         if let Some(exe_name) = Path::new(&arg0).file_name() {
             if exe_name.to_string_lossy().contains("-init") {
-                let opt = self_install::SelfInstall::parse();
-                return self_install::main(&opt);
+                let opt = cli_install::CliInstall::parse();
+                return cli_install::main(&opt);
             }
         }
     }

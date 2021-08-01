@@ -15,8 +15,8 @@ use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
-use crate::cli::self_migrate;
-use crate::cli::self_upgrade;
+use crate::cli::cli_migrate;
+use crate::cli::cli_upgrade;
 use crate::options::RawOptions;
 use crate::platform::{home_dir, config_dir, get_current_uid};
 use crate::process;
@@ -28,7 +28,7 @@ use crate::print_markdown;
 
 
 #[derive(EdbClap, Clone, Debug)]
-pub struct SelfInstall {
+pub struct CliInstall {
     /// Install nightly version of command-line tools
     #[clap(long)]
     pub nightly: bool,
@@ -291,7 +291,7 @@ fn print_post_install_message(settings: &Settings,
     }
 }
 
-pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
+pub fn main(options: &CliInstall) -> anyhow::Result<()> {
     match _main(options) {
         Ok(()) => {
             if cfg!(windows)
@@ -391,12 +391,12 @@ fn try_project_init() -> anyhow::Result<bool> {
     }
 }
 
-fn _main(options: &SelfInstall) -> anyhow::Result<()> {
+fn _main(options: &CliInstall) -> anyhow::Result<()> {
     let mut settings = if !cfg!(windows) && get_current_uid() == 0 {
         anyhow::bail!("Installation as root is not supported. \
             Try running without sudo.")
     } else {
-        let installation_path = self_upgrade::binary_path()?
+        let installation_path = cli_upgrade::binary_path()?
             .parent().unwrap().to_owned();
         Settings {
             rc_files: get_rc_files()?,
@@ -487,7 +487,7 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
             the directory layout?\
         "));
         if q.ask()? {
-            self_migrate::migrate(&base, false)?;
+            cli_migrate::migrate(&base, false)?;
         }
     }
 
