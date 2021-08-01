@@ -343,6 +343,23 @@ fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
             }
             _ => return None,
         }
+        Some(first_cmd) if first_cmd == "self" => match args.next() {
+            Some(second_cmd) if first_cmd == mismatch_cmd => {
+                if let Ok(second_cmd) = second_cmd.into_string() {
+                    old_name = format!("self {}", second_cmd);
+                    skip = 3;
+                    match second_cmd.as_str() {
+                        "install" => "cli install",
+                        "migrate" => "cli migrate",
+                        "upgrade" => "cli upgrade",
+                        _ => return None,
+                    }
+                } else {
+                    return None;
+                }
+            }
+            _ => return None,
+        }
         Some(first_cmd) if first_cmd == mismatch_cmd => {
             old_name = mismatch_cmd.into();
             skip = 2;
