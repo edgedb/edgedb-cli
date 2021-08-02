@@ -179,14 +179,14 @@ pub enum Command {
     /// Execute EdgeQL query
     #[edb(inherit(ConnectionOptions), hidden)]
     Query(Query),
-    /// Manage local server installations
-    Server(server::options::ServerCommand),
-    /// Manage local server instances
-    #[edb(expand_help)]
-    Instance(server::options::ServerInstanceCommand),
     /// Manage project installation
     #[edb(expand_help)]
     Project(project::options::ProjectCommand),
+    /// Manage local server instances
+    #[edb(expand_help)]
+    Instance(server::options::ServerInstanceCommand),
+    /// Manage local server installations
+    Server(server::options::ServerCommand),
     /// Generate shell completions
     #[clap(name="_gen_completions")]
     #[edb(hidden)]
