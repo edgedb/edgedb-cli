@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::io;
 use std::fs;
 use std::process::exit;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
@@ -12,6 +12,7 @@ use async_std::net::TcpStream;
 use async_std::io::timeout;
 use edgedb_client::Builder;
 use fn_error_context::context;
+use futures::stream::{self, StreamExt};
 use prettytable::{Table, Row, Cell};
 
 use crate::credentials;
@@ -25,6 +26,8 @@ use crate::server::upgrade::{UpgradeMeta, BackupMeta};
 use crate::server::version::Version;
 use crate::table;
 
+
+const REMOTE_STATUS_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug)]
 pub enum Service {
@@ -281,13 +284,7 @@ impl RemoteStatus {
     }
 
     pub async fn probe(mut self, path: PathBuf) -> Self {
-        let deadline = Instant::now() + Duration::from_secs(1);
-        let builder = match async {
-            Ok::<Builder, anyhow::Error>(future::timeout(
-                deadline - Instant::now(),
-                Builder::read_credentials(&path)
-            ).await??)
-        }.await {
+        let builder = match Builder::read_credentials(&path).await {
             Ok(builder) => builder,
             Err(e) => {
                 self.status = RemoteStatusService::Error(format!("{}", e));
@@ -303,7 +300,7 @@ impl RemoteStatus {
             self.host = Some(addr.display().to_string());
         }
         match future::timeout(
-            deadline - Instant::now(), async {
+            REMOTE_STATUS_TIMEOUT, async {
                 Ok::<String, anyhow::Error>(
                     builder.connect().await?.get_version().await?
                 )
@@ -454,7 +451,7 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
         );
     }
 
-    let mut tasks = Vec::new();
+    let mut futures = Vec::new();
     let creds_dir = credentials::base_dir()?;
     if let Ok(creds_dir) = fs::read_dir(&creds_dir) {
         for item in creds_dir {
@@ -462,18 +459,19 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
             if let Ok(filename) = item.file_name().into_string() {
                 if let Some(name) = filename.strip_suffix(".json") {
                     if !local_names.contains(name) {
-                        tasks.push(task::spawn(
+                        futures.push(
                             RemoteStatus::new(name).probe(item.path())
-                        ));
+                        );
                     }
                 }
             }
         }
     }
+    let mut buffered_futs = stream::iter(futures).buffer_unordered(32);
     let remote_statuses = task::block_on(async {
         let mut rv: Vec<RemoteStatus> = Vec::new();
-        for task in tasks {
-            rv.push(task.await);
+        while let Some(status) = buffered_futs.next().await {
+            rv.push(status);
         }
         rv
     });
