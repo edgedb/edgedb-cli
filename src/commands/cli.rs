@@ -75,5 +75,8 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         Command::CliCommand(c) => {
             cli::main(c)
         },
+        Command::Info => {
+            task::block_on(commands::info(&options)).into()
+        }
     }
 }
