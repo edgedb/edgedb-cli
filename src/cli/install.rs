@@ -138,16 +138,16 @@ fn print_long_description(settings: &Settings) {
             s=if settings.rc_files.len() > 1 { "s" } else { "" },
         },
         modify_path: if !cfg!(windows) && !settings.modify_path &&
-                        should_modify_path(&settings.installation_path)
+                        no_dir_in_path(&settings.installation_path)
         => {
             installation_path=settings.installation_path.display()
         },
         no_modified: if !cfg!(windows) && !settings.modify_path &&
-                        !should_modify_path(&settings.installation_path),
+                        !no_dir_in_path(&settings.installation_path),
     );
 }
 
-fn should_modify_path(dir: &Path) -> bool {
+pub fn no_dir_in_path(dir: &Path) -> bool {
     if let Some(all_paths) = env::var_os("PATH") {
         for path in env::split_paths(&all_paths) {
             if path == dir {
@@ -166,7 +166,7 @@ fn is_zsh() -> bool {
     return false;
 }
 
-fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
+pub fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
     let mut rc_files = Vec::new();
 
     let home_dir = home_dir()?;
@@ -325,7 +325,7 @@ pub fn main(options: &CliInstall) -> anyhow::Result<()> {
 }
 
 fn customize(settings: &mut Settings) -> anyhow::Result<()> {
-    if should_modify_path(&settings.installation_path) {
+    if no_dir_in_path(&settings.installation_path) {
         loop {
             print!("Modify PATH variable? (Y/n)");
 
@@ -402,7 +402,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
             rc_files: get_rc_files()?,
             system: false,
             modify_path: !options.no_modify_path &&
-                         should_modify_path(&installation_path),
+                         no_dir_in_path(&installation_path),
             installation_path,
             env_file: config_dir()?.join("env"),
         }
@@ -455,8 +455,17 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
 
     if settings.modify_path {
         #[cfg(windows)] {
-            windows_add_to_path(&settings.installation_path)
-                .context("failed adding a directory to PATH")?;
+            use std::env::join_paths;
+
+            windows_augment_path(|orig_path| {
+                if orig_path.iter().any(|p| p == &settings.installation_path) {
+                    return None;
+                }
+                Some(join_paths(
+                    vec![&settings.installation_path].into_iter()
+                    .chain(orig_path.iter())
+                ).expect("paths can be joined"))
+            })?;
         }
         if cfg!(unix) {
             let line = format!("\nexport PATH=\"{}:$PATH\"",
@@ -574,7 +583,9 @@ pub fn string_to_winreg_bytes(s: &str) -> Vec<u8> {
 }
 
 #[cfg(windows)]
-fn windows_add_to_path(installation_path: &Path) -> anyhow::Result<()> {
+pub fn windows_augment_path<F: FnOnce(&[PathBuf]) -> Option<std::ffi::OsString>>(f: F)
+    -> anyhow::Result<()>
+{
     use std::ptr;
     use std::env::{join_paths, split_paths};
     use winapi::shared::minwindef::*;
@@ -589,14 +600,11 @@ fn windows_add_to_path(installation_path: &Path) -> anyhow::Result<()> {
         // Non-unicode path
         return Ok(());
     };
+    let new_path = match f(&old_path) {
+        Some(path) => path,
+        None => return Ok(()),
+    };
 
-    if old_path.iter().any(|p| p == installation_path) {
-        return Ok(());
-    }
-
-    let new_path = join_paths(vec![installation_path].into_iter()
-                              .chain(old_path.iter().map(|x| x.as_ref())))
-            .context("can't join path")?;
     let new_path = new_path.to_str()
             .ok_or_else(|| anyhow::anyhow!("failed to convert PATH to utf-8"))?;
 

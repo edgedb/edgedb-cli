@@ -30,6 +30,7 @@ fn docker_check() -> anyhow::Result<bool> {
     }
     return Ok(false)
 }
+
 pub fn optional_docker_check() -> bool {
     if cfg!(target_os="linux") {
         let do_docker_check = env::var_os("EDGEDB_SKIP_DOCKER_CHECK")

@@ -1,11 +1,14 @@
 use std::env;
-use std::path::Path;
-use std::io;
+use std::path::{Path, PathBuf};
+use std::io::{self, Write};
 
+use anyhow::Context;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
+use fn_error_context::context;
 
 use crate::cli::upgrade::binary_path;
+use crate::cli::install::{get_rc_files, no_dir_in_path};
 use crate::credentials;
 use crate::platform::{home_dir, tmp_file_path, symlink_dir, config_dir};
 use crate::project;
@@ -148,8 +151,7 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn try_move_bin(exe_path: &Path) -> anyhow::Result<()> {
-    let bin_path = binary_path()?;
+fn try_move_bin(exe_path: &Path, bin_path: &Path) -> anyhow::Result<()> {
     let bin_dir = bin_path.parent().unwrap();
     if !bin_dir.exists() {
         fs::create_dir_all(&bin_dir)?;
@@ -158,15 +160,114 @@ fn try_move_bin(exe_path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[context("error updating {:?}", path)]
+fn replace_line(path: &PathBuf, old_line: &str, new_line: &str)
+    -> anyhow::Result<bool>
+{
+    if !path.exists() {
+        return Ok(false);
+    }
+    let text = fs::read_to_string(path)
+        .context("cannot read file")?;
+    if let Some(idx) = text.find(old_line) {
+        log::info!("File {:?} contains old path, replacing", path);
+        let mut file = fs::File::create(path)?;
+        file.write(text[..idx].as_bytes())?;
+        file.write(new_line.as_bytes())?;
+        file.write(text[idx+old_line.len()..].as_bytes())?;
+        Ok(true)
+    } else {
+        log::info!("File {:?} has no old path, skipping", path);
+        return Ok(false);
+    }
+}
+
+fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
+    log::info!("Updating PATH");
+    let old_bin_dir = base.join("bin");
+    let new_bin_dir = new_bin_path.parent().unwrap();
+    #[cfg(windows)] {
+        use std::env::join_paths;
+
+        let mut modified = false;
+        crate::cli::install::windows_augment_path(|orig_path| {
+            if orig_path.iter().any(|p| p == new_bin_dir) {
+                return None;
+            }
+            Some(join_paths(
+                orig_path.iter()
+                .map(|x| {
+                    if x == &old_bin_dir {
+                        modified = true;
+                        new_bin_dir
+                    } else {
+                        x.as_ref()
+                    }
+                })
+           ).expect("paths can be joined"))
+        })?;
+        if modified && !no_dir_in_path(&new_bin_dir) {
+            print_markdown!("\
+                ## The `edgedb` executable is moved!\n\
+                \n\
+                We've updated your environment configuration to have\n\
+                `${dir}` in your `PATH` environment variable. You\n\
+                may need to reopen the terminal for this change to\n\
+                take effect, and for the `edgedb` command to become\n\
+                available.\
+                ",
+                dir=new_bin_dir.display(),
+            );
+        }
+    }
+    if cfg!(unix) {
+        let rc_files = get_rc_files()?;
+        let old_line = format!(
+            "\nexport PATH=\"{}:$PATH\"\n",
+            old_bin_dir.display(),
+        );
+        let new_line = format!(
+            "\nexport PATH=\"{}:$PATH\"\n",
+            new_bin_dir.display(),
+        );
+        let mut modified = false;
+        for path in &rc_files {
+            if replace_line(&path, &old_line, &new_line)? {
+                modified = true;
+            }
+        }
+        if modified && !no_dir_in_path(&new_bin_dir) {
+            print_markdown!("\
+                # The EdgeDB command-line tool is now installed!\n\
+                \n\
+                We've updated your shell profile to have ${dir} in your\n\
+                `PATH` environment variable. Next time you open the terminal\n\
+                it will be configured automatically.\n\
+                \n\
+                For this session please run:\n\
+                ```\n\
+                    source \"${env_path}\"\n\
+                ```\
+                ",
+                dir=new_bin_dir.display(),
+                env_path=config_dir()?.join("env").display(),
+            );
+        }
+    }
+    Ok(())
+}
+
 pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     if let Ok(exe_path) = env::current_exe() {
         if exe_path.starts_with(base) {
-            try_move_bin(&exe_path)
+            let new_bin_path = binary_path()?;
+            try_move_bin(&exe_path, &new_bin_path)
             .map_err(|e| {
                 eprintln!("Cannot move executable to the new location. \
                     Try `edgedb cli upgrade` instead");
                 e
             })?;
+            update_path(base, &new_bin_path)?;
         }
     }
 
