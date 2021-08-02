@@ -12,6 +12,7 @@ use edgedb_protocol::model::Datetime;
 use edgedb_protocol::codec::{ObjectShape, ShapeElement};
 use crate::print::{self, _native_format, Config};
 use crate::print::native::FormatExt;
+use crate::print::style::Styler;
 
 struct UnfusedStream<'a, I>(Option<&'a [I]>);
 
@@ -58,6 +59,7 @@ fn test_format<I: FormatExt + Clone + Send + Sync>(items: &[I])
         max_width: Some(80),
         implicit_properties: false,
         max_items: None,
+        styler: Styler::dark_256(),
     })
 }
 

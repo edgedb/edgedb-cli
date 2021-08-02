@@ -39,6 +39,7 @@ pub struct Config {
     pub max_width: Option<usize>,
     pub implicit_properties: bool,
     pub max_items: Option<usize>,
+    pub styler: style::Styler,
 }
 
 
@@ -62,6 +63,8 @@ pub(in crate::print) struct Printer<T> {
     committed_column: usize,
     column: usize,
     cur_indent: usize,
+
+    styler: style::Styler,
 }
 
 struct Stdout {}
@@ -75,6 +78,7 @@ impl Config {
             max_width: None,
             implicit_properties: false,
             max_items: None,
+            styler: style::Styler::dark_256(),
         }
     }
     #[allow(dead_code)]
@@ -116,7 +120,10 @@ async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<O>, rows: &mut S,
           O: Output,
           O::Error: fmt::Debug + Error + 'static,
 {
-    let branch = prn.open_block("{".clear()).wrap_err(PrintErr)?;
+    let branch = prn.open_block(
+        prn.styler.apply(style::Style::SetLiteral, "{")
+    ).wrap_err(PrintErr)?;
+
     debug_assert!(branch);
     while let Some(v) = rows.next().await.transpose().wrap_err(StreamErr)? {
         row_buf.push(v);
@@ -136,7 +143,10 @@ async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<O>, rows: &mut S,
         // After line is reached we get Exception::DisableFlow
     }
     *end_of_stream = true;
-    prn.close_block(&"}".clear(), true).wrap_err(PrintErr)?;
+    prn.close_block(
+        &prn.styler.apply(style::Style::SetLiteral, "}"),
+        true
+    ).wrap_err(PrintErr)?;
     Ok(())
 }
 
@@ -176,7 +186,10 @@ async fn format_rows<S, I, E, O>(prn: &mut Printer<O>,
         v.format(prn).wrap_err(PrintErr)?;
         prn.comma().wrap_err(PrintErr)?;
     }
-    prn.close_block(&"}".clear(), true).wrap_err(PrintErr)?;
+    prn.close_block(
+        &prn.styler.apply(style::Style::SetLiteral, "}"),
+        true
+    ).wrap_err(PrintErr)?;
     Ok(())
 }
 
@@ -221,6 +234,8 @@ async fn _native_format<S, I, E, O>(mut rows: S, config: &Config,
         committed_column: 0,
         column: 0,
         cur_indent: 0,
+
+        styler: config.styler.clone(),
     };
     let mut row_buf = Vec::new();
     let mut eos = false;
@@ -277,6 +292,8 @@ pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
         committed_column: 0,
         column: 0,
         cur_indent: 0,
+
+        styler: config.styler.clone(),
     };
     match format_rows_str(&mut prn, &items, "[", "]", false) {
         Ok(()) => {},
@@ -311,6 +328,8 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
         committed_column: 0,
         column: 0,
         cur_indent: 0,
+
+        styler: config.styler.clone(),
     };
     prn.end().unwrap_exc()?;
     match item.format(&mut prn) {

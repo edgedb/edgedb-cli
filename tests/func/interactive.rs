@@ -6,11 +6,11 @@ use crate::SERVER;
 fn simple_query() -> Result<(), Box<dyn Error>> {
     let mut cmd = SERVER.admin_interactive();
     cmd.exp_string("edgedb>")?;
-    cmd.send_line("SELECT 1+2;\n")?;
-    cmd.exp_string("{\u{1b}[38;5;2m3\u{1b}[0m}\r\n")?;
+    cmd.send_line("SELECT 'abc'++'def';\n")?;
+    cmd.exp_string("abcdef")?;
     cmd.exp_string("edgedb>")?;
-    cmd.send_line(" SELECT 2+3;\n")?;
-    cmd.exp_string("{\u{1b}[38;5;2m5\u{1b}[0m}\r\n")?;
+    cmd.send_line(" SELECT 'xy'++'z';\n")?;
+    cmd.exp_string("xyz")?;
     Ok(())
 }
 
@@ -18,9 +18,9 @@ fn simple_query() -> Result<(), Box<dyn Error>> {
 fn two_queries() -> Result<(), Box<dyn Error>> {
     let mut cmd = SERVER.admin_interactive();
     cmd.exp_string("edgedb>")?;
-    cmd.send_line("SELECT 1+2; SELECT 2+3;\n")?;
-    cmd.exp_string("{\u{1b}[38;5;2m3\u{1b}[0m}\r\n")?;
-    cmd.exp_string("{\u{1b}[38;5;2m5\u{1b}[0m}\r\n")?;
+    cmd.send_line("SELECT 'AB'++'C'; SELECT 'XY'++'Z';\n")?;
+    cmd.exp_string("ABC")?;
+    cmd.exp_string("XYZ")?;
     Ok(())
 }
 

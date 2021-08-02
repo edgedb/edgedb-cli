@@ -1,10 +1,11 @@
 use crate::print::stream::Output;
 use crate::print::Printer;
 
-use colorful::{Colorful, core::color_string::CString};
+use colorful::core::color_string::CString;
 
 use crate::print::buffer::Result;
 
+use crate::print::style::Style;
 
 pub(in crate::print) trait ColorfulExt {
     fn clear(&self) -> CString;
@@ -19,7 +20,11 @@ impl<'a> ColorfulExt for &'a str {
 
 pub trait Formatter {
     type Error;
-    fn const_scalar<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
+    fn const_number<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
+    fn const_string<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
+    fn const_uuid<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
+    fn const_bool<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
+    fn const_enum<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
     fn nil(&mut self) -> Result<Self::Error>;
     fn typed<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error>;
     fn error<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error>;
@@ -39,7 +44,7 @@ pub trait Formatter {
         where F: FnMut(&mut Self) -> Result<Self::Error>;
     fn comma(&mut self) -> Result<Self::Error>;
     fn ellipsis(&mut self) -> Result<Self::Error>;
-    fn object_field(&mut self, f: CString) -> Result<Self::Error>;
+    fn object_field(&mut self, f: &str, linkprop: bool) -> Result<Self::Error>;
     fn tuple_field(&mut self, f: &str) -> Result<Self::Error>;
 
     fn implicit_properties(&self) -> bool;
@@ -49,31 +54,55 @@ pub trait Formatter {
 
 impl<T: Output> Formatter for Printer<T> {
     type Error = T::Error;
-    fn const_scalar<S: ToString>(&mut self, s: S) -> Result<Self::Error> {
+    fn const_number<S: ToString>(&mut self, s: S) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(s.to_string().green())
+        self.write(self.styler.apply(Style::Number, &s.to_string()))
+    }
+    fn const_string<S: ToString>(&mut self, s: S) -> Result<Self::Error> {
+        self.delimit()?;
+        self.write(self.styler.apply(Style::String, &s.to_string()))
+    }
+    fn const_uuid<S: ToString>(&mut self, s: S) -> Result<Self::Error> {
+        self.delimit()?;
+        self.write(self.styler.apply(Style::UUID, &s.to_string()))
+    }
+    fn const_bool<S: ToString>(&mut self, s: S) -> Result<Self::Error> {
+        self.delimit()?;
+        self.write(self.styler.apply(Style::Boolean, &s.to_string()))
+    }
+    fn const_enum<S: ToString>(&mut self, s: S) -> Result<Self::Error> {
+        self.delimit()?;
+        self.write(self.styler.apply(Style::Enum, &s.to_string()))
     }
     fn nil(&mut self) -> Result<Self::Error> {
         self.delimit()?;
-        self.write("{}".dark_gray())
+        self.write(self.styler.apply(Style::SetLiteral, "{}"))
     }
     fn typed<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(format!("<{}>", typ).red())?;
-        self.write(format!("'{}'", s.to_string().escape_default()).green())?;
-        Ok(())
+        self.write(self.styler.apply(Style::Cast, &format!("<{}>", typ)))?;
+        self.write(self.styler.apply(
+            Style::String, &format!("'{}'", s.to_string().escape_default())
+        ))
     }
     fn error<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(format!("<err-{}>", typ).red())?;
-        self.write(format!("'{}'", s.to_string().escape_default()).red())?;
-        Ok(())
+        self.write(self.styler.apply(
+            Style::Error, &format!("<err-{}>", typ)
+        ))?;
+        self.write(self.styler.apply(
+            Style::Error, &format!("'{}'", s.to_string().escape_default())
+        ))
     }
     fn set<F>(&mut self, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>
     {
         self.delimit()?;
-        self.block("{".clear(), f, "}".clear())?;
+        self.block(
+            self.styler.apply(Style::SetLiteral, "{"),
+            f,
+            self.styler.apply(Style::SetLiteral, "}"),
+        )?;
         Ok(())
     }
     fn comma(&mut self) -> Result<Self::Error> {
@@ -88,12 +117,28 @@ impl<T: Output> Formatter for Printer<T> {
     {
         self.delimit()?;
         match type_name {
-            Some(tname) => {
-                self.block((String::from(tname) + " {").blue(),
-                            f, "}".blue())?;
+            Some(type_name) => {
+                if type_name == "std::VirtualObject" {
+                    self.block(
+                        self.styler.apply(Style::ObjectLiteral, "{"),
+                        f,
+                        self.styler.apply(Style::ObjectLiteral, "}"),
+                    )?;
+                } else {
+                    self.block(
+                        self.styler.apply(Style::ObjectLiteral,
+                                          &(String::from(type_name) + " {")),
+                        f,
+                        self.styler.apply(Style::ObjectLiteral, "}"),
+                    )?;
+                }
             }
             _ => {
-                self.block("Object {".blue(), f, "}".blue())?;
+                self.block(
+                    self.styler.apply(Style::ObjectLiteral, "Object {"),
+                    f,
+                    self.styler.apply(Style::ObjectLiteral, "}"),
+                )?;
             }
         }
         Ok(())
@@ -103,12 +148,20 @@ impl<T: Output> Formatter for Printer<T> {
         where F: FnMut(&mut Self) -> Result<Self::Error>
     {
         self.delimit()?;
-        self.block("{".blue(), f, "}".blue())?;
+        self.block(
+            self.styler.apply(Style::ObjectLiteral, "{"),
+            f,
+            self.styler.apply(Style::ObjectLiteral, "}"),
+        )?;
         Ok(())
     }
-    fn object_field(&mut self, f: CString) -> Result<Self::Error> {
+    fn object_field(&mut self, f: &str, linkprop: bool) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(f)?;
+        if linkprop {
+            self.write(self.styler.apply(Style::ObjectLinkProperty, f))?;
+        } else {
+            self.write(self.styler.apply(Style::ObjectPointer, f))?;
+        }
         self.field()?;
         Ok(())
     }
@@ -116,27 +169,39 @@ impl<T: Output> Formatter for Printer<T> {
         where F: FnMut(&mut Self) -> Result<Self::Error>
     {
         self.delimit()?;
-        self.block("(".clear(), f, ")".clear())?;
+        self.block(
+            self.styler.apply(Style::TupleLiteral, "("),
+            f,
+            self.styler.apply(Style::TupleLiteral, ")"),
+        )?;
         Ok(())
     }
     fn named_tuple<F>(&mut self, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>
     {
         self.delimit()?;
-        self.block("(".blue(), f, ")".blue())?;
+        self.block(
+            self.styler.apply(Style::TupleLiteral, "("),
+            f,
+            self.styler.apply(Style::TupleLiteral, ")"),
+        )?;
         Ok(())
     }
     fn tuple_field(&mut self, f: &str) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(f.clear())?;
-        self.write(" := ".clear())?;
+        self.write(self.styler.apply(Style::TupleField, f))?;
+        self.write(self.styler.apply(Style::TupleLiteral, " := "))?;
         Ok(())
     }
     fn array<F>(&mut self, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>
     {
         self.delimit()?;
-        self.block("[".clear(), f, "]".clear())?;
+        self.block(
+            self.styler.apply(Style::ArrayLiteral, "["),
+            f,
+            self.styler.apply(Style::ArrayLiteral, "]"),
+        )?;
         Ok(())
     }
 

@@ -1,7 +1,6 @@
 use std::cmp::min;
 
 use bigdecimal::BigDecimal;
-use colorful::Colorful;
 use num_bigint::BigInt;
 
 use edgedb_protocol::value::Value;
@@ -94,20 +93,20 @@ impl FormatExt for Value {
     fn format<F: Formatter>(&self, prn: &mut F) -> Result<F::Error> {
         use Value as V;
         match self {
-            V::Nothing => prn.const_scalar("Nothing"),
-            V::Uuid(u) => prn.const_scalar(u),
+            V::Nothing => prn.const_uuid("Nothing"),
+            V::Uuid(u) => prn.const_uuid(u),
             V::Str(s) => {
-                prn.const_scalar(format_string(s, prn.expand_strings()))
+                prn.const_string(format_string(s, prn.expand_strings()))
             }
-            V::Bytes(b) => prn.const_scalar(format_bytes(b)),
-            V::Int16(v) => prn.const_scalar(v),
-            V::Int32(v) => prn.const_scalar(v),
-            V::Int64(v) => prn.const_scalar(v),
-            V::Float32(v) => prn.const_scalar(v),
-            V::Float64(v) => prn.const_scalar(v),
-            V::BigInt(v) => prn.const_scalar(format_bigint(v.into())),
-            V::Decimal(v) => prn.const_scalar(format_decimal(v.into())),
-            V::Bool(v) => prn.const_scalar(v),
+            V::Bytes(b) => prn.const_string(format_bytes(b)),
+            V::Int16(v) => prn.const_number(v),
+            V::Int32(v) => prn.const_number(v),
+            V::Int64(v) => prn.const_number(v),
+            V::Float32(v) => prn.const_number(v),
+            V::Float64(v) => prn.const_number(v),
+            V::BigInt(v) => prn.const_number(format_bigint(v.into())),
+            V::Decimal(v) => prn.const_number(format_decimal(v.into())),
+            V::Bool(v) => prn.const_bool(v),
             V::Datetime(t) => prn.typed("datetime", format!("{:?}", t)),
             V::LocalDatetime(t)
             => prn.typed("cal::local_datetime", format!("{:?}", t)),
@@ -119,7 +118,7 @@ impl FormatExt for Value {
             V::RelativeDuration(d) => {
                 prn.typed("cal::relative_duration", d.to_string())
             }
-            V::Json(d) => prn.const_scalar(format!("{:?}", d)),
+            V::Json(d) => prn.const_string(format!("{:?}", d)),
             V::Set(items) => {
                 prn.set(|prn| {
                     if let Some(limit) = prn.max_items() {
@@ -156,12 +155,11 @@ impl FormatExt for Value {
                         if !fld.flag_implicit || prn.implicit_properties() {
                             if fld.flag_link_property {
                                 prn.object_field(
-                                    ("@".to_owned() + &fld.name)
-                                    .rgb(0, 0xa5, 0xcb).bold()
+                                    &("@".to_owned() + &fld.name),
+                                    true
                                 )?;
                             } else {
-                                prn.object_field(
-                                    fld.name.clone().light_blue().bold())?;
+                                prn.object_field(&fld.name, false)?;
                             };
                             value.format(prn)?;
                             prn.comma()?;
@@ -173,8 +171,7 @@ impl FormatExt for Value {
                             .iter().zip(fields)
                             .find(|(f, _) | f.name == "id")
                         {
-                            prn.object_field(
-                                fld.name.clone().light_blue().bold())?;
+                            prn.object_field(&fld.name, false)?;
                             value.format(prn)?;
                             prn.comma()?;
                         }
@@ -220,7 +217,7 @@ impl FormatExt for Value {
                     Ok(())
                 })
             }
-            V::Enum(v) => prn.const_scalar(&**v),
+            V::Enum(v) => prn.const_enum(&**v),
         }
     }
 }
