@@ -467,14 +467,11 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
             }
         }
     }
-    let mut buffered_futs = stream::iter(futures).buffer_unordered(32);
-    let remote_statuses = task::block_on(async {
-        let mut rv: Vec<RemoteStatus> = Vec::new();
-        while let Some(status) = buffered_futs.next().await {
-            rv.push(status);
-        }
-        rv
-    });
+    let remote_statuses = task::block_on(
+        stream::iter(futures)
+            .buffer_unordered(32)
+            .collect::<Vec<_>>()
+    );
 
     if statuses.is_empty() && remote_statuses.is_empty() {
         if json {
