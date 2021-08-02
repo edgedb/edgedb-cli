@@ -2,7 +2,8 @@ use std::fmt::Write;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use colorful::{Colorful, RGB, Style as TermStyle};
+use colorful::{Colorful, Color, Style as TermStyle};
+use colorful::core::color_string::CString;
 
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
@@ -11,12 +12,20 @@ pub enum Style {
     Comment,
     String,
     Number,
-    Constant,
+    Boolean,
+    UUID,
+    Enum,
+    Cast,
+    SetLiteral,
+    ArrayLiteral,
+    TupleLiteral,
+    TupleField,
+    ObjectLiteral,
+    ObjectLinkProperty,
+    ObjectPointer,
     Punctuation,
     Keyword,
-    DeclName,
-    Tag,
-    Attribute,
+    Operator,
     BackslashCommand,
     Error,
 }
@@ -25,7 +34,7 @@ pub enum Style {
 pub struct Styled<T>(T, Style);
 
 #[derive(Debug)]
-pub struct Item(RGB, Option<TermStyle>);
+pub struct Item(Option<Color>, Option<TermStyle>);
 
 #[derive(Debug)]
 pub struct Theme {
@@ -36,86 +45,44 @@ pub struct Theme {
 pub struct Styler(Arc<Theme>);
 
 
-trait AddStyle: Sized {
-    fn decorator(self) -> Styled<Self>;
-    fn comment(self) -> Styled<Self>;
-    fn string(self) -> Styled<Self>;
-    fn number(self) -> Styled<Self>;
-    fn constant(self) -> Styled<Self>;
-    fn punctuation(self) -> Styled<Self>;
-    fn keyword(self) -> Styled<Self>;
-    fn decl_name(self) -> Styled<Self>;
-    fn tag(self) -> Styled<Self>;
-    fn attribute(self) -> Styled<Self>;
-}
-
-impl<T: AsRef<str>> AddStyle for T {
-    fn decorator(self) -> Styled<Self> {
-        Styled(self, Style::Decorator)
-    }
-    fn comment(self) -> Styled<Self> {
-        Styled(self, Style::Comment)
-    }
-    fn string(self) -> Styled<Self> {
-        Styled(self, Style::String)
-    }
-    fn number(self) -> Styled<Self> {
-        Styled(self, Style::Number)
-    }
-    fn constant(self) -> Styled<Self> {
-        Styled(self, Style::Constant)
-    }
-    fn punctuation(self) -> Styled<Self> {
-        Styled(self, Style::Punctuation)
-    }
-    fn keyword(self) -> Styled<Self> {
-        Styled(self, Style::Keyword)
-    }
-    fn decl_name(self) -> Styled<Self> {
-        Styled(self, Style::DeclName)
-    }
-    fn tag(self) -> Styled<Self> {
-        Styled(self, Style::Tag)
-    }
-    fn attribute(self) -> Styled<Self> {
-        Styled(self, Style::Attribute)
-    }
-}
-
 impl Styler {
     pub fn dark_256() -> Styler {
         use self::Style::*;
         use colorful::Style::*;
 
         let mut t = HashMap::new();
-        t.insert(Decorator, Item(RGB::new(0xaf, 0x5f, 0x00), None));
-        t.insert(Comment, Item(RGB::new(0x56, 0x56, 0x56), Some(Bold)));
-        t.insert(String, Item(RGB::new(0x4a, 0xa3, 0x36), None));
-        t.insert(Number, Item(RGB::new(0xaf, 0x5f, 0x5f), None));
-        t.insert(Constant, Item(RGB::new(0x1d, 0xbd, 0xd0), None));
-        t.insert(Punctuation, Item(RGB::new(0xa7, 0xa9, 0x63), None));
-        t.insert(Keyword, Item(RGB::new(0x1d, 0xbd, 0xd0), None));
-        t.insert(DeclName, Item(RGB::new(0xbc, 0x74, 0xd7), Some(Bold)));
-        t.insert(Tag, Item(RGB::new(0x1d, 0xbd, 0xd0), None));
-        t.insert(Comment, Item(RGB::new(0x56, 0x56, 0x56), None));
-        t.insert(BackslashCommand,
-            Item(RGB::new(0xbc, 0x74, 0xd7), Some(Bold)));
-        t.insert(Error,
-            Item(RGB::new(0xff, 0x40, 0x40), Some(Bold)));
+        t.insert(String,            Item(Some(Color::DarkOliveGreen3a), None));
+        t.insert(SetLiteral,        Item(Some(Color::SteelBlue), None));
+        t.insert(ObjectLiteral,     Item(Some(Color::Grey63), None));
+        t.insert(ObjectLinkProperty,Item(Some(Color::IndianRed1b), None));
+        t.insert(Number,            Item(Some(Color::CadetBlue1), None));
+        t.insert(Boolean,           Item(Some(Color::LightSalmon3b), None));
+        t.insert(Enum,              Item(Some(Color::DarkGoldenrod), None));
+        t.insert(UUID,              Item(Some(Color::LightGoldenrod3), None));
+        t.insert(Keyword,           Item(Some(Color::IndianRed1b), None));
+        t.insert(Operator,          Item(Some(Color::IndianRed1b), None));
+        t.insert(Comment,           Item(Some(Color::Grey66), None));
+        t.insert(Cast,              Item(Some(Color::IndianRed1b), None));
+        t.insert(Error,             Item(Some(Color::IndianRed1c), None));
+        t.insert(BackslashCommand,  Item(Some(Color::MediumPurple2a), Some(Bold)));
 
         return Styler(Arc::new(Theme {
             items: t,
         }));
     }
-    pub fn apply(&self, style: Style, data: &str, buf: &mut String) {
+    pub fn write(&self, style: Style, data: &str, buf: &mut String) {
+        write!(buf, "{}", self.apply(style, data)).unwrap();
+    }
+    pub fn apply(&self, style: Style, data: &str) -> CString {
         if let Some(Item(col, style)) = self.0.items.get(&style) {
-            let mut c = data.color(*col);
-            if let Some(s) = style {
-                c = c.style(*s);
+            return match (col, style) {
+                (Some(c), Some(s)) => data.color(*c).style(*s),
+                (Some(c), None) => data.color(*c),
+                (None, Some(s)) => data.style(*s),
+                (None, None) => CString::new(data)
             }
-            write!(buf, "{}", c).unwrap();
         } else {
-            buf.push_str(data);
+            return CString::new(data);
         }
     }
 }

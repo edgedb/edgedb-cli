@@ -30,7 +30,7 @@ pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
         }
         if let Some(st) = token_style(tok.token.kind, tok.token.value)
         {
-            styler.apply(st, tok.token.value, outbuf);
+            styler.write(st, tok.token.value, outbuf);
         } else {
             outbuf.push_str(tok.token.value);
         }
@@ -56,7 +56,7 @@ pub fn backslash(outbuf: &mut String, text: &str, styler: &Styler) {
         };
         let value = &text[token.span.0..token.span.1];
         if let Some(st) = style {
-            styler.apply(st, value, outbuf);
+            styler.write(st, value, outbuf);
         } else {
             outbuf.push_str(value);
         }
@@ -70,7 +70,7 @@ fn emit_insignificant(buf: &mut String, styler: &Styler, mut chunk: &str) {
     while let Some(pos) = chunk.find('#') {
         if let Some(end) = chunk[pos..].find('\n') {
             buf.push_str(&chunk[..pos]);
-            styler.apply(Style::Comment, &chunk[pos..pos+end], buf);
+            styler.write(Style::Comment, &chunk[pos..pos+end], buf);
 
             // must be unstyled to work well at the end of input
             buf.push('\n');
@@ -88,57 +88,69 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
     use crate::print::style::Style as S;
 
     match kind {
-        T::Keyword => Some(S::Keyword),
+        T::Keyword => {
+            if value.eq_ignore_ascii_case("true") ||
+               value.eq_ignore_ascii_case("false")
+            {
+                Some(S::Boolean)
+            } else {
+                Some(S::Keyword)
+            }
+        },
+        T::Ident => {
+            let lc = value.to_lowercase();
+            if UNRESERVED_KEYWORDS.contains(&lc[..]) {
+                Some(S::Keyword)
+            } else {
+                None
+            }
+        },
 
-        T::At => Some(S::Punctuation),  // TODO(tailhook) but also decorators
+        T::At => Some(S::Operator),
         T::Dot => Some(S::Punctuation),
-        T::BackwardLink => Some(S::Punctuation),
+        T::BackwardLink => Some(S::Operator),
 
-        T::Assign => None,
-        T::SubAssign => None,
-        T::AddAssign => None,
-        T::Arrow => None,
-        T::Coalesce => None,
+        T::Assign => Some(S::Operator),
+        T::SubAssign => Some(S::Operator),
+        T::AddAssign => Some(S::Operator),
+        T::Arrow => Some(S::Operator),
+        T::Coalesce => Some(S::Operator),
         T::Namespace => None,
-        T::FloorDiv => None,
-        T::Concat => None,
-        T::GreaterEq => None,
-        T::LessEq => None,
-        T::NotEq => None,
+        T::FloorDiv => Some(S::Operator),
+        T::Concat => Some(S::Operator),
+        T::GreaterEq => Some(S::Operator),
+        T::LessEq => Some(S::Operator),
+        T::NotEq => Some(S::Operator),
         T::NotDistinctFrom => None,
         T::DistinctFrom => None,
-        T::Comma => None,
+        T::Comma => Some(S::Punctuation),
         T::OpenParen => None,
         T::CloseParen => None,
         T::OpenBracket => None,
         T::CloseBracket => None,
         T::OpenBrace => None,
         T::CloseBrace => None,
-        T::Semicolon => None,
-        T::Colon => None,
-        T::Add => None,
-        T::Sub => None,
-        T::Mul => None,
-        T::Div => None,
-        T::Modulo => None,
-        T::Pow => None,
-        T::Less => None,
-        T::Greater => None,
-        T::Eq => None,
-        T::Ampersand => None,
-        T::Pipe => None,
+        T::Semicolon => Some(S::Punctuation),
+        T::Colon => Some(S::Operator),
+        T::Add => Some(S::Operator),
+        T::Sub => Some(S::Operator),
+        T::Mul => Some(S::Operator),
+        T::Div => Some(S::Operator),
+        T::Modulo => Some(S::Operator),
+        T::Pow => Some(S::Operator),
+        T::Less => Some(S::Operator),
+        T::Greater => Some(S::Operator),
+        T::Eq => Some(S::Operator),
+        T::Ampersand => Some(S::Operator),
+        T::Pipe => Some(S::Operator),
         T::Argument => None, // TODO (tailhook)
-        T::DecimalConst => Some(S::Constant),
-        T::FloatConst => Some(S::Constant),
-        T::IntConst => Some(S::Constant),
-        T::BigIntConst => Some(S::Constant),
+        T::DecimalConst => Some(S::Number),
+        T::FloatConst => Some(S::Number),
+        T::IntConst => Some(S::Number),
+        T::BigIntConst => Some(S::Number),
         T::BinStr => Some(S::String),
         T::Str => Some(S::String),
         T::BacktickName => None,
-        T::Ident
-        if UNRESERVED_KEYWORDS.contains(&value.to_lowercase()[..])
-        => Some(S::Keyword),
-        T::Ident => None,
         T::Substitution => Some(S::Decorator),
     }
 }
