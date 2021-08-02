@@ -22,6 +22,7 @@ use crate::server::detect;
 use crate::server::distribution::MajorVersion;
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
+use crate::server::os_trait::InstanceRef;
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
 use crate::server::version::Version;
 use crate::table;
@@ -102,7 +103,7 @@ impl RemoteStatusService {
 }
 
 #[derive(Debug)]
-pub struct RemoteStatus {
+struct RemoteStatus {
     pub name: String,
     pub host: Option<String>,
     pub port: Option<u16>,
@@ -537,6 +538,52 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
         table.printstd();
     }
     Ok(())
+}
+
+pub fn print_status_local(
+    inst: InstanceRef, service: bool, debug: bool, extended: bool, json: bool
+) -> anyhow::Result<()> {
+    if service {
+        inst.service_status()
+    } else {
+        let status = inst.get_status();
+        if debug {
+            println!("{:#?}", status);
+            Ok(())
+        } else if extended {
+            status.print_extended_and_exit();
+        } else if json {
+            status.print_json_and_exit();
+        } else {
+            status.print_and_exit();
+        }
+    }
+}
+
+pub fn print_status_remote(
+    name: &str, service: bool, debug: bool, extended: bool, json: bool
+) -> anyhow::Result<()> {
+    let status = task::block_on(
+        RemoteStatus::new(name).probe(credentials::path(name)?)
+    );
+    if service {
+        println!("Remote instance: {}", credentials::path(name)?.display());
+    } else if debug {
+        println!("{:#?}", status);
+    } else if extended {
+        status.print_extended();
+    } else if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&status.json())
+                .expect("status is json-serializable"),
+        );
+    } else if let Some(error) = status.status.get_error() {
+        println!("{}: {}", status.status.display(), error);
+    } else {
+        println!("{}", status.status.display());
+    }
+    status.exit()
 }
 
 fn status_str(status: &Service) -> &'static str {
