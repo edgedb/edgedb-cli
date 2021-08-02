@@ -11,7 +11,9 @@ use rustls::{RootCertStore, ServerCertVerifier, ServerCertVerified, TLSError};
 use webpki::DNSNameRef;
 
 use crate::connect::Connector;
+use crate::hint::HintedError;
 use crate::options::{Options, ConnectionOptions};
+use crate::options::{conn_params, load_tls_options, ProjectNotFound};
 use crate::{question, credentials};
 use crate::server::reset_password::write_credentials;
 use crate::server::options::Link;
@@ -130,7 +132,23 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
 }
 
 async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
-    let builder = opts.conn_params.get()?;
+    let mut builder = match conn_params(&opts.conn_options) {
+        Ok(builder) => builder,
+        Err(e) => if let Some(he) = e.downcast_ref::<HintedError>() {
+            if he.error.is::<ProjectNotFound>() {
+                let mut builder = Builder::new();
+                load_tls_options(&opts.conn_options, &mut builder)?;
+                builder
+            } else {
+                return Err(e);
+            }
+        } else {
+            return Err(e);
+        }
+    };
+
+    prompt_conn_params(&opts.conn_options, &mut builder, cmd)?;
+
     let mut creds = builder.as_credentials()?;
     let mut verifier = Arc::new(
         InteractiveCertVerifier::new(
@@ -140,7 +158,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             creds.tls_cert_data.is_none(),
         )
     );
-    if let Err(e) = opts.conn_params.connect_with_cert_verifier(
+    if let Err(e) = builder.connect_with_cert_verifier(
     verifier.clone()
     ).await {
         if e.is::<PasswordRequired>() && !cmd.non_interactive {
@@ -217,7 +235,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn prompt_conn_params(
+fn prompt_conn_params(
     options: &ConnectionOptions,
     builder: &mut Builder,
     link: &Link,
