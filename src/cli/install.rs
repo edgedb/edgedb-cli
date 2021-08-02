@@ -138,16 +138,16 @@ fn print_long_description(settings: &Settings) {
             s=if settings.rc_files.len() > 1 { "s" } else { "" },
         },
         modify_path: if !cfg!(windows) && !settings.modify_path &&
-                        should_modify_path(&settings.installation_path)
+                        no_dir_in_path(&settings.installation_path)
         => {
             installation_path=settings.installation_path.display()
         },
         no_modified: if !cfg!(windows) && !settings.modify_path &&
-                        !should_modify_path(&settings.installation_path),
+                        !no_dir_in_path(&settings.installation_path),
     );
 }
 
-fn should_modify_path(dir: &Path) -> bool {
+pub fn no_dir_in_path(dir: &Path) -> bool {
     if let Some(all_paths) = env::var_os("PATH") {
         for path in env::split_paths(&all_paths) {
             if path == dir {
@@ -166,7 +166,7 @@ fn is_zsh() -> bool {
     return false;
 }
 
-fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
+pub fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
     let mut rc_files = Vec::new();
 
     let home_dir = home_dir()?;
@@ -325,7 +325,7 @@ pub fn main(options: &CliInstall) -> anyhow::Result<()> {
 }
 
 fn customize(settings: &mut Settings) -> anyhow::Result<()> {
-    if should_modify_path(&settings.installation_path) {
+    if no_dir_in_path(&settings.installation_path) {
         loop {
             print!("Modify PATH variable? (Y/n)");
 
@@ -402,7 +402,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
             rc_files: get_rc_files()?,
             system: false,
             modify_path: !options.no_modify_path &&
-                         should_modify_path(&installation_path),
+                         no_dir_in_path(&installation_path),
             installation_path,
             env_file: config_dir()?.join("env"),
         }
