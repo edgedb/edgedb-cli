@@ -67,10 +67,10 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             }).into()
         },
         Command::_SelfInstall(s) => {
-            cli::cli_install::main(s)
+            cli::install::main(s)
         }
         Command::_GenCompletions(s) => {
-            cli::cli_install::gen_completions(s)
+            cli::install::gen_completions(s)
         }
         Command::CliCommand(c) => {
             cli::main(c)

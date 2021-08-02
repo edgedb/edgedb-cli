@@ -1,8 +1,8 @@
 use edgedb_cli_derive::EdbClap;
 
-use crate::cli::cli_install;
-use crate::cli::cli_migrate;
-use crate::cli::cli_upgrade;
+use crate::cli::install;
+use crate::cli::migrate;
+use crate::cli::upgrade;
 
 
 #[derive(EdbClap, Clone, Debug)]
@@ -14,11 +14,11 @@ pub struct CliCommand {
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
     /// Upgrade this edgedb binary
-    Upgrade(cli_upgrade::CliUpgrade),
+    Upgrade(upgrade::CliUpgrade),
     /// Install the 'edgedb' command line tool
     #[edb(hidden)]
-    Install(cli_install::CliInstall),
+    Install(install::CliInstall),
     /// Migrate files from `~/.edgedb` to new directory layout
     #[edb(hidden)]
-    Migrate(cli_migrate::CliMigrate),
+    Migrate(migrate::CliMigrate),
 }

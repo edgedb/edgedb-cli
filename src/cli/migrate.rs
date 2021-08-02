@@ -5,7 +5,7 @@ use std::io;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
-use crate::cli::cli_upgrade::binary_path;
+use crate::cli::upgrade::binary_path;
 use crate::credentials;
 use crate::platform::{home_dir, tmp_file_path, symlink_dir, config_dir};
 use crate::project;

@@ -9,7 +9,6 @@ use std::process::exit;
 use async_std::task;
 use clap::Clap;
 
-use crate::cli::{directory_check, cli_install};
 use crate::options::Options;
 
 mod async_util;
@@ -88,8 +87,8 @@ fn _main() -> anyhow::Result<()> {
     if let Some(arg0) = std::env::args_os().next() {
         if let Some(exe_name) = Path::new(&arg0).file_name() {
             if exe_name.to_string_lossy().contains("-init") {
-                let opt = cli_install::CliInstall::parse();
-                return cli_install::main(&opt);
+                let opt = cli::install::CliInstall::parse();
+                return cli::install::main(&opt);
             }
         }
     }
@@ -109,7 +108,7 @@ fn _main() -> anyhow::Result<()> {
     if opt.subcommand.is_some() {
         commands::cli::main(opt)
     } else {
-        directory_check::check_and_warn();
+        cli::directory_check::check_and_warn();
         if opt.interactive {
             interactive::main(opt)
         } else {

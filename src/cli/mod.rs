@@ -1,9 +1,9 @@
-pub mod cli_install;
-pub mod cli_migrate;
-pub mod cli_upgrade;
 pub mod directory_check;
+pub mod install;
 pub mod main;
+pub mod migrate;
 pub mod options;
+pub mod upgrade;
 
 #[macro_use] mod markdown;
 

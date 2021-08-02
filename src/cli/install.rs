@@ -15,8 +15,8 @@ use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
-use crate::cli::cli_migrate;
-use crate::cli::cli_upgrade;
+use crate::cli::migrate;
+use crate::cli::upgrade;
 use crate::options::RawOptions;
 use crate::platform::{home_dir, config_dir, get_current_uid};
 use crate::process;
@@ -396,7 +396,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         anyhow::bail!("Installation as root is not supported. \
             Try running without sudo.")
     } else {
-        let installation_path = cli_upgrade::binary_path()?
+        let installation_path = upgrade::binary_path()?
             .parent().unwrap().to_owned();
         Settings {
             rc_files: get_rc_files()?,
@@ -487,7 +487,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
             the directory layout?\
         "));
         if q.ask()? {
-            cli_migrate::migrate(&base, false)?;
+            migrate::migrate(&base, false)?;
         }
     }
 

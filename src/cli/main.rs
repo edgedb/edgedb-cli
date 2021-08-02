@@ -1,16 +1,16 @@
-use crate::cli::cli_install;
-use crate::cli::cli_migrate;
-use crate::cli::cli_upgrade;
+use crate::cli::install;
+use crate::cli::migrate;
 use crate::cli::options::CliCommand;
 use crate::cli::options::Command;
+use crate::cli::upgrade;
 
 
 pub fn main(cmd: &CliCommand) -> anyhow::Result<()> {
     use Command::*;
 
     match &cmd.subcommand {
-        Upgrade(s) => cli_upgrade::main(s),
-        Install(s) => cli_install::main(s),
-        Migrate(s) => cli_migrate::main(s),
+        Upgrade(s) => upgrade::main(s),
+        Install(s) => install::main(s),
+        Migrate(s) => migrate::main(s),
     }
 }
