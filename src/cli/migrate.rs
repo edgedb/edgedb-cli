@@ -190,8 +190,7 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
         use std::env::join_paths;
 
         let mut modified = false;
-        crate::self_install::windows_augment_path(|orig_path| {
-            dbg!(&orig_path, &new_bin_dir, &old_bin_dir);
+        crate::cli::install::windows_augment_path(|orig_path| {
             if orig_path.iter().any(|p| p == new_bin_dir) {
                 return None;
             }
