@@ -20,7 +20,7 @@ use crate::server::version::Version;
 
 
 #[derive(EdbClap, Clone, Debug)]
-pub struct SelfUpgrade {
+pub struct CliUpgrade {
     /// Enable verbose output
     #[clap(short='v', long)]
     pub verbose: bool,
@@ -144,7 +144,7 @@ async fn download(url: &str, path: &Path, quiet: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn main(options: &SelfUpgrade) -> anyhow::Result<()> {
+pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     let path = binary_path()?;
     if !_can_upgrade(&path)? {
         anyhow::bail!("Only binary installed at {:?} can be upgraded", path);

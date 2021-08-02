@@ -13,6 +13,8 @@ use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
+use crate::cli;
+use crate::cli::options::CliCommand;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
 use crate::connect::Connector;
@@ -20,9 +22,6 @@ use crate::credentials::get_connector;
 use crate::hint::HintExt;
 use crate::project;
 use crate::repl::OutputMode;
-use crate::self_install;
-use crate::self_migrate;
-use crate::self_upgrade;
 use crate::server;
 
 pub mod describe;
@@ -191,33 +190,15 @@ pub enum Command {
     /// Generate shell completions
     #[clap(name="_gen_completions")]
     #[edb(hidden)]
-    _GenCompletions(self_install::GenCompletions),
+    _GenCompletions(cli::install::GenCompletions),
     /// Self-installation commands
-    #[clap(name="self")]
+    #[clap(name="cli")]
     #[edb(expand_help)]
-    SelfCommand(SelfCommand),
+    CliCommand(CliCommand),
     /// Install server
     #[clap(name="_self_install")]
     #[edb(hidden)]
-    _SelfInstall(self_install::SelfInstall),
-}
-
-#[derive(EdbClap, Clone, Debug)]
-pub struct SelfCommand {
-    #[clap(subcommand)]
-    pub subcommand: SelfSubcommand,
-}
-
-#[derive(EdbClap, Clone, Debug)]
-pub enum SelfSubcommand {
-    /// Upgrade this edgedb binary
-    Upgrade(self_upgrade::SelfUpgrade),
-    /// Install the 'edgedb' command line tool
-    #[edb(hidden)]
-    Install(self_install::SelfInstall),
-    /// Migrate files from `~/.edgedb` to new directory layout
-    #[edb(hidden)]
-    Migrate(self_migrate::SelfMigrate),
+    _SelfInstall(cli::install::CliInstall),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -377,7 +358,7 @@ fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
                 "list-scalar-types" => "list scalars",
                 "list-roles" => "list roles",
                 "migration-log" => "migration log",
-                "self-upgrade" => "self upgrade",
+                "self-upgrade" => "cli upgrade",
                 "show-status" => "migration status",
                 _ => return None,
             }

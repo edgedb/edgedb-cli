@@ -1,17 +1,15 @@
 use async_std::task;
 
-use crate::options::{Options, Command, SelfSubcommand};
+use crate::cli;
+use crate::cli::directory_check;
+use crate::options::{Options, Command};
 use crate::commands::parser::{Common, MigrationCmd, Migration};
 use crate::non_interactive;
 use crate::commands;
 use crate::migrations;
-use crate::self_install;
-use crate::self_migrate;
-use crate::self_upgrade;
 use crate::server;
 use crate::project;
 use crate::print::style::Styler;
-use crate::directory_check;
 
 
 pub fn main(options: Options) -> Result<(), anyhow::Error> {
@@ -69,15 +67,13 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             }).into()
         },
         Command::_SelfInstall(s) => {
-            self_install::main(s)
+            cli::install::main(s)
         }
         Command::_GenCompletions(s) => {
-            self_install::gen_completions(s)
+            cli::install::gen_completions(s)
         }
-        Command::SelfCommand(c) => match &c.subcommand {
-            SelfSubcommand::Upgrade(s) => self_upgrade::main(s),
-            SelfSubcommand::Install(s) => self_install::main(s),
-            SelfSubcommand::Migrate(s) => self_migrate::main(s),
+        Command::CliCommand(c) => {
+            cli::main(c)
         },
         Command::Authenticate(cmd) => {
             task::block_on(async {

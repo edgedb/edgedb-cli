@@ -5,17 +5,17 @@ use std::io;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
+use crate::cli::upgrade::binary_path;
 use crate::credentials;
 use crate::platform::{home_dir, tmp_file_path, symlink_dir, config_dir};
 use crate::project;
 use crate::question;
 use crate::print_markdown;
 use crate::commands::ExitCode;
-use crate::self_upgrade::binary_path;
 
 
 #[derive(EdbClap, Clone, Debug)]
-pub struct SelfMigrate {
+pub struct CliMigrate {
     /// Dry run: do no actually move anything
     #[clap(short='v', long)]
     pub verbose: bool,
@@ -32,7 +32,7 @@ enum ConfirmOverwrite {
     Quit,
 }
 
-pub fn main(options: &SelfMigrate) -> anyhow::Result<()> {
+pub fn main(options: &CliMigrate) -> anyhow::Result<()> {
     let base = home_dir()?.join(".edgedb");
     if !base.exists() {
         log::warn!("Directory {:?} does not exists. Nothing to do.", base);
@@ -164,7 +164,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             try_move_bin(&exe_path)
             .map_err(|e| {
                 eprintln!("Cannot move executable to the new location. \
-                    Try `edgedb self upgrade` instead");
+                    Try `edgedb cli upgrade` instead");
                 e
             })?;
         }
@@ -252,7 +252,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
                 When all files are backed up, run either of:\n\
                 ```\n\
                 rm -rf ~/.edgedb\n\
-                edgedb self migrate\n\
+                edgedb cli migrate\n\
                 ```\
             ");
             return Err(ExitCode::new(2).into());

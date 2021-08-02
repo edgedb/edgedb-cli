@@ -34,10 +34,11 @@ macro_rules! print_markdown {
             });
             let mut expander = minimad::OwningTemplateExpander::new();
             $crate::_md_set_items!(expander $(, $($item)*)?);
-            let skin = termimad::get_default_skin();
+            let mut skin = termimad::MadSkin::default();
+            skin.headers[0].align = minimad::Alignment::Left;
             let (width, _) = termimad::terminal_size();
             let fmt = termimad::FmtText::from_text(
-                skin,
+                &skin,
                 expander.expand(&template),
                 Some(width as usize),
             );

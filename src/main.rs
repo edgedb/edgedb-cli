@@ -13,11 +13,11 @@ use crate::options::Options;
 
 mod async_util;
 mod bug;
+mod cli;
 mod commands;
 mod completion;
 mod connect;
 mod credentials;
-mod directory_check;
 mod error_display;
 mod format;
 mod highlight;
@@ -35,16 +35,11 @@ mod project;
 mod prompt;
 mod question;
 mod repl;
-mod self_install;
-mod self_migrate;
-mod self_upgrade;
 mod server;
 mod statement;
 mod table;
 mod variables;
 mod version_check;
-
-#[macro_use] mod markdown;
 
 fn main() {
     match _main() {
@@ -92,8 +87,8 @@ fn _main() -> anyhow::Result<()> {
     if let Some(arg0) = std::env::args_os().next() {
         if let Some(exe_name) = Path::new(&arg0).file_name() {
             if exe_name.to_string_lossy().contains("-init") {
-                let opt = self_install::SelfInstall::parse();
-                return self_install::main(&opt);
+                let opt = cli::install::CliInstall::parse();
+                return cli::install::main(&opt);
             }
         }
     }
@@ -113,7 +108,7 @@ fn _main() -> anyhow::Result<()> {
     if opt.subcommand.is_some() {
         commands::cli::main(opt)
     } else {
-        directory_check::check_and_warn();
+        cli::directory_check::check_and_warn();
         if opt.interactive {
             interactive::main(opt)
         } else {

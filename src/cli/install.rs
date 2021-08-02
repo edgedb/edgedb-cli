@@ -15,20 +15,20 @@ use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
+use crate::cli::migrate;
+use crate::cli::upgrade;
 use crate::options::RawOptions;
 use crate::platform::{home_dir, config_dir, get_current_uid};
 use crate::process;
 use crate::project::init;
 use crate::project::options::Init;
 use crate::question::{self, read_choice};
-use crate::self_upgrade;
-use crate::self_migrate;
 use crate::table;
 use crate::print_markdown;
 
 
 #[derive(EdbClap, Clone, Debug)]
-pub struct SelfInstall {
+pub struct CliInstall {
     /// Install nightly version of command-line tools
     #[clap(long)]
     pub nightly: bool,
@@ -291,7 +291,7 @@ fn print_post_install_message(settings: &Settings,
     }
 }
 
-pub fn main(options: &SelfInstall) -> anyhow::Result<()> {
+pub fn main(options: &CliInstall) -> anyhow::Result<()> {
     match _main(options) {
         Ok(()) => {
             if cfg!(windows)
@@ -391,12 +391,12 @@ fn try_project_init() -> anyhow::Result<bool> {
     }
 }
 
-fn _main(options: &SelfInstall) -> anyhow::Result<()> {
+fn _main(options: &CliInstall) -> anyhow::Result<()> {
     let mut settings = if !cfg!(windows) && get_current_uid() == 0 {
         anyhow::bail!("Installation as root is not supported. \
             Try running without sudo.")
     } else {
-        let installation_path = self_upgrade::binary_path()?
+        let installation_path = upgrade::binary_path()?
             .parent().unwrap().to_owned();
         Settings {
             rc_files: get_rc_files()?,
@@ -483,11 +483,11 @@ fn _main(options: &SelfInstall) -> anyhow::Result<()> {
                 and now uses standard locations of your OS. \
         ", base.display());
         let q = question::Confirm::new(format!("\
-            Do you want to run `edgedb self migrate` now to update \
+            Do you want to run `edgedb cli migrate` now to update \
             the directory layout?\
         "));
         if q.ask()? {
-            self_migrate::migrate(&base, false)?;
+            migrate::migrate(&base, false)?;
         }
     }
 
