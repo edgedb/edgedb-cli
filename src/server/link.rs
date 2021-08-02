@@ -1,3 +1,4 @@
+use std::fs;
 use std::sync::{Mutex, Arc};
 
 use anyhow::Context;
@@ -295,5 +296,11 @@ fn prompt_conn_params(
             );
         }
     }
+    Ok(())
+}
+
+pub fn unlink(name: &str) -> anyhow::Result<()> {
+    fs::remove_file(credentials::path(name)?)
+        .context(format!("Cannot unlink {}", name))?;
     Ok(())
 }
