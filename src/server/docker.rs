@@ -529,7 +529,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         if !options.force {
             if old_major == &new_major {
                 if let Some(old_ver) = old {
-                    // old nightly versions had nither `-` nor `.` in the name,
+                    // old nightly versions had neither `-` nor `.` in the name,
                     // so just consider them old
                     if old_ver.num().contains(|c| c == '-' || c == '.') &&
                         old_ver >= &new_version
