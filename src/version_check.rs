@@ -45,7 +45,7 @@ fn newer_warning(ver: &Version<String>) {
     if cli::upgrade::can_upgrade() {
         log::warn!(
             "Newer version of edgedb tool exists {} (current {}). \
-                To upgrade run `edgedb self upgrade`",
+                To upgrade run `edgedb cli upgrade`",
             ver, env!("CARGO_PKG_VERSION"));
     } else {
         log::warn!(

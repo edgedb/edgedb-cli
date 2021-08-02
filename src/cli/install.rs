@@ -483,7 +483,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
                 and now uses standard locations of your OS. \
         ", base.display());
         let q = question::Confirm::new(format!("\
-            Do you want to run `edgedb self migrate` now to update \
+            Do you want to run `edgedb cli migrate` now to update \
             the directory layout?\
         "));
         if q.ask()? {

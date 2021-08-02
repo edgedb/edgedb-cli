@@ -164,7 +164,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             try_move_bin(&exe_path)
             .map_err(|e| {
                 eprintln!("Cannot move executable to the new location. \
-                    Try `edgedb self upgrade` instead");
+                    Try `edgedb cli upgrade` instead");
                 e
             })?;
         }
@@ -252,7 +252,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
                 When all files are backed up, run either of:\n\
                 ```\n\
                 rm -rf ~/.edgedb\n\
-                edgedb self migrate\n\
+                edgedb cli migrate\n\
                 ```\
             ");
             return Err(ExitCode::new(2).into());
