@@ -118,7 +118,7 @@ impl<T: Output> Formatter for Printer<T> {
         self.delimit()?;
         match type_name {
             Some(type_name) => {
-                if type_name == "std::VirtualObject" {
+                if type_name == "std::FreeObject" {
                     self.block(
                         self.styler.apply(Style::ObjectLiteral, "{"),
                         f,
