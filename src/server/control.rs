@@ -1,10 +1,13 @@
 use std::fs;
 use std::path::{Path};
 
+use async_std::task;
 use fn_error_context::context;
 
+use crate::credentials;
 use crate::server::detect;
 use crate::server::options::InstanceCommand;
+use crate::server::options::Status;
 use crate::server::metadata::Metadata;
 use crate::server::methods::Methods;
 use crate::server::revert;
@@ -59,29 +62,19 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
     };
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
-    let inst = get_instance(&methods, name)?;
+    let inst = get_instance(&methods, name);
     match cmd {
-        Start(c) => inst.start(c),
-        Stop(c) => inst.stop(c),
-        Restart(c) => inst.restart(c),
-        Logs(c) => inst.logs(c),
-        Revert(c) => revert::revert(inst, c),
-        Status(options) => {
-            if options.service {
-                inst.service_status()
-            } else {
-                let status = inst.get_status();
-                if options.debug {
-                    println!("{:#?}", status);
-                    Ok(())
-                } else if options.extended {
-                    status.print_extended_and_exit();
-                } else if options.json {
-                    status.print_json_and_exit();
-                } else {
-                    status.print_and_exit();
-                }
-            }
+        Start(c) => inst?.start(c),
+        Stop(c) => inst?.stop(c),
+        Restart(c) => inst?.restart(c),
+        Logs(c) => inst?.logs(c),
+        Revert(c) => revert::revert(inst?, c),
+        Status(options) => match inst {
+            Ok(inst) => local_status(options, inst),
+            Err(e) => {
+                remote_status(name, options)?;
+                Err(e)
+            },
         }
         | Create(_)
         | Destroy(_)
@@ -90,4 +83,51 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
             unreachable!("handled in server::main::instance_main()");
         }
     }
+}
+
+fn local_status(options: &Status, inst: InstanceRef) -> anyhow::Result<()> {
+    if options.service {
+        inst.service_status()
+    } else {
+        let status = inst.get_status();
+        if options.debug {
+            println!("{:#?}", status);
+            Ok(())
+        } else if options.extended {
+            status.print_extended_and_exit();
+        } else if options.json {
+            status.print_json_and_exit();
+        } else {
+            status.print_and_exit();
+        }
+    }
+}
+
+fn remote_status(name: &String, options: &Status) -> anyhow::Result<()> {
+    let path = credentials::path(name)?;
+    if !path.exists() {
+        return Ok(());
+    }
+    let status = task::block_on(
+        status::RemoteStatus::new(name).probe(path)
+    );
+    if options.service {
+        let path = credentials::path(name)?;
+        println!("Remote instance: {}", path.display());
+    } else if options.debug {
+        println!("{:#?}", status);
+    } else if options.extended {
+        status.print_extended();
+    } else if options.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&status.json())
+                .expect("status is json-serializable"),
+        );
+    } else if let Some(error) = status.status.get_error() {
+        println!("{}: {}", status.status.display(), error);
+    } else {
+        println!("{}", status.status.display());
+    }
+    status.exit()
 }

@@ -1,16 +1,21 @@
+use std::collections::HashSet;
 use std::io;
 use std::fs;
 use std::process::exit;
 use std::time::Duration;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
+use async_std::future;
 use async_std::task;
 use async_std::net::TcpStream;
 use async_std::io::timeout;
+use edgedb_client::Builder;
 use fn_error_context::context;
+use futures::stream::{self, StreamExt};
 use prettytable::{Table, Row, Cell};
 
+use crate::credentials;
 use crate::format;
 use crate::server::create::Storage;
 use crate::server::detect;
@@ -18,8 +23,11 @@ use crate::server::distribution::MajorVersion;
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
+use crate::server::version::Version;
 use crate::table;
 
+
+const REMOTE_STATUS_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug)]
 pub enum Service {
@@ -66,6 +74,43 @@ pub struct Status {
     pub backup: BackupStatus,
     pub credentials_file_exists: bool,
     pub service_exists: bool,
+}
+
+#[derive(Debug)]
+pub enum RemoteStatusService {
+    Running,
+    Error(String),
+    Unknown(String),
+}
+
+impl RemoteStatusService {
+    pub fn display(&self) -> &str {
+        match self {
+            Self::Running => "running",
+            Self::Error(_) => "error",
+            Self::Unknown(_) => "unknown",
+        }
+    }
+
+    pub fn get_error(&self) -> Option<&String> {
+        match self {
+            Self::Running => None,
+            Self::Error(error) => Some(error),
+            Self::Unknown(error) => Some(error),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RemoteStatus {
+    pub name: String,
+    pub host: Option<String>,
+    pub port: Option<u16>,
+    pub user: Option<String>,
+    pub database: Option<String>,
+    pub version: Option<String>,
+    pub major_version: Option<MajorVersion>,
+    pub status: RemoteStatusService,
 }
 
 #[derive(serde::Serialize)]
@@ -224,6 +269,121 @@ impl Status {
     }
 }
 
+impl RemoteStatus {
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.into(),
+            host: None,
+            port: None,
+            user: None,
+            database: None,
+            version: None,
+            major_version: None,
+            status: RemoteStatusService::Unknown("uninitialized".into())
+        }
+    }
+
+    pub async fn probe(mut self, path: PathBuf) -> Self {
+        let builder = match Builder::read_credentials(&path).await {
+            Ok(builder) => builder,
+            Err(e) => {
+                self.status = RemoteStatusService::Error(format!("{}", e));
+                return self;
+            }
+        };
+        self.user = Some(builder.get_user().into());
+        self.database = Some(builder.get_database().into());
+        if let Some((host, port)) = builder.get_addr().get_tcp_addr() {
+            self.host = Some(host.clone());
+            self.port = Some(*port);
+        } else if let Some(addr) = builder.get_addr().get_unix_addr() {
+            self.host = Some(addr.display().to_string());
+        }
+        match future::timeout(
+            REMOTE_STATUS_TIMEOUT, async {
+                Ok::<String, anyhow::Error>(
+                    builder.connect().await?.get_version().await?
+                )
+            }
+        ).await {
+            Ok(Ok(version)) => {
+                self.status = RemoteStatusService::Running;
+                self.major_version = Some(if version.contains("+dev") {
+                    MajorVersion::Nightly
+                } else if let Some((major_version, _))
+                = version.split_once("+")
+                {
+                    MajorVersion::Stable(Version(major_version.into()))
+                } else {
+                    MajorVersion::Stable(Version(version.clone()))
+                });
+                self.version = Some(version);
+            }
+            Ok(Err(e)) => {
+                log::info!(
+                    "Error retrieving version from remote instance {}: {}",
+                    self.name, e
+                );
+                self.status = RemoteStatusService::Error(format!("{}", e));
+            }
+            Err(e) => {
+                log::info!(
+                    "Timed out retrieving version from remote instance {}: {}",
+                    self.name, e
+                );
+                self.status = RemoteStatusService::Unknown(
+                    "probe timed out".into()
+                );
+            }
+        };
+        self
+    }
+
+    pub fn print_extended(&self) {
+        println!("{}:", self.name);
+        println!("  Status: {}", self.status.display());
+        if let Some(error) = self.status.get_error() {
+            println!("  Error: {}", error);
+        }
+        println!("  Credentials: exist");
+        println!(
+            "  Version: {}",
+            self.major_version.as_ref()
+            .map(|v| v.title()).unwrap_or("unknown".into())
+        );
+        if let Some(version) = self.version.as_ref() {
+            println!("  Server Version: {}", version);
+        }
+        println!("  Installation method: remote");
+        println!("  Host: {}",
+                 self.host.as_ref().unwrap_or(&"?".into()));
+        println!("  Port: {}",
+                 self.port.map(|port| port.to_string()).unwrap_or("?".into()));
+        println!("  User: {}",
+                 self.user.as_ref().unwrap_or(&"?".into()));
+        println!("  Database: {}",
+                 self.database.as_ref().unwrap_or(&"?".into()));
+    }
+
+    pub fn json<'x>(&'x self) -> JsonStatus<'x> {
+        JsonStatus {
+            name: &self.name,
+            port: self.port,
+            major_version: self.major_version.as_ref(),
+            status: self.status.display(),
+            method: "remote",
+        }
+    }
+
+    pub fn exit(&self) -> ! {
+        if let RemoteStatusService::Running = self.status {
+            exit(0)
+        } else {
+            exit(3)
+        }
+    }
+}
+
 
 pub fn probe_port(metadata: &anyhow::Result<Metadata>, reserved: &Option<u16>)
     -> Port
@@ -278,15 +438,42 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
 {
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
+    let mut local_names = HashSet::new();
     let mut statuses = Vec::new();
     for meth in methods.values() {
         statuses.extend(
             meth.all_instances()?
             .into_iter()
-            .map(|i| i.get_status())
+            .map(|i| {
+                local_names.insert(String::from(i.name()));
+                i.get_status()
+            })
         );
     }
-    if statuses.is_empty() {
+
+    let mut futures = Vec::new();
+    let creds_dir = credentials::base_dir()?;
+    if let Ok(creds_dir) = fs::read_dir(&creds_dir) {
+        for item in creds_dir {
+            let item = item?;
+            if let Ok(filename) = item.file_name().into_string() {
+                if let Some(name) = filename.strip_suffix(".json") {
+                    if !local_names.contains(name) {
+                        futures.push(
+                            RemoteStatus::new(name).probe(item.path())
+                        );
+                    }
+                }
+            }
+        }
+    }
+    let remote_statuses = task::block_on(
+        stream::iter(futures)
+            .buffer_unordered(32)
+            .collect::<Vec<_>>()
+    );
+
+    if statuses.is_empty() && remote_statuses.is_empty() {
         if json {
             println!("[]");
         } else {
@@ -298,14 +485,24 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
         for status in statuses {
             println!("{:#?}", status);
         }
+        for status in remote_statuses {
+            println!("{:#?}", status);
+        }
     } else if extended {
         for status in statuses {
+            status.print_extended();
+        }
+        for status in remote_statuses {
             status.print_extended();
         }
     } else if json {
         println!("{}", serde_json::to_string_pretty(&statuses
             .iter()
             .map(|status| status.json())
+            .chain(remote_statuses
+                .iter()
+                .map(|status| status.json())
+            )
             .collect::<Vec<_>>()
         )?);
     } else {
@@ -323,6 +520,18 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
                     .map(|m| m.version.title()).unwrap_or("?".into())),
                 Cell::new(status.method.short_name()),
                 Cell::new(status_str(&status.service)),
+            ]));
+        }
+        for status in remote_statuses {
+            table.add_row(Row::new(vec![
+                Cell::new(&status.name),
+                Cell::new(&status.port.map(|port| port.to_string())
+                    .unwrap_or("?".into())),
+                Cell::new(&status.major_version.as_ref()
+                    .map(|m|m.title()).unwrap_or("?".into())
+                ),
+                Cell::new("remote"),
+                Cell::new(status.status.display()),
             ]));
         }
         table.printstd();
