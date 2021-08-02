@@ -455,8 +455,17 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
 
     if settings.modify_path {
         #[cfg(windows)] {
-            windows_add_to_path(&settings.installation_path)
-                .context("failed adding a directory to PATH")?;
+            use std::env::join_paths;
+
+            windows_augment_path(|orig_path| {
+                if orig_path.iter().any(|p| p == &settings.installation_path) {
+                    return None;
+                }
+                Some(join_paths(
+                    vec![&settings.installation_path].into_iter()
+                    .chain(orig_path.iter())
+                ).expect("paths can be joined"))
+            })?;
         }
         if cfg!(unix) {
             let line = format!("\nexport PATH=\"{}:$PATH\"",
@@ -574,7 +583,9 @@ pub fn string_to_winreg_bytes(s: &str) -> Vec<u8> {
 }
 
 #[cfg(windows)]
-fn windows_add_to_path(installation_path: &Path) -> anyhow::Result<()> {
+pub fn windows_augment_path<F: FnOnce(&[PathBuf]) -> Option<std::ffi::OsString>>(f: F)
+    -> anyhow::Result<()>
+{
     use std::ptr;
     use std::env::{join_paths, split_paths};
     use winapi::shared::minwindef::*;
@@ -589,14 +600,11 @@ fn windows_add_to_path(installation_path: &Path) -> anyhow::Result<()> {
         // Non-unicode path
         return Ok(());
     };
+    let new_path = match f(&old_path) {
+        Some(path) => path,
+        None => return Ok(()),
+    };
 
-    if old_path.iter().any(|p| p == installation_path) {
-        return Ok(());
-    }
-
-    let new_path = join_paths(vec![installation_path].into_iter()
-                              .chain(old_path.iter().map(|x| x.as_ref())))
-            .context("can't join path")?;
     let new_path = new_path.to_str()
             .ok_or_else(|| anyhow::anyhow!("failed to convert PATH to utf-8"))?;
 

@@ -148,8 +148,7 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn try_move_bin(exe_path: &Path) -> anyhow::Result<()> {
-    let bin_path = binary_path()?;
+fn try_move_bin(exe_path: &Path, bin_path: &Path) -> anyhow::Result<()> {
     let bin_dir = bin_path.parent().unwrap();
     if !bin_dir.exists() {
         fs::create_dir_all(&bin_dir)?;
@@ -161,12 +160,40 @@ fn try_move_bin(exe_path: &Path) -> anyhow::Result<()> {
 pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     if let Ok(exe_path) = env::current_exe() {
         if exe_path.starts_with(base) {
-            try_move_bin(&exe_path)
+            let old_bin_dir = base.join("bin");
+            let new_bin_path = binary_path()?;
+            let new_bin_dir = new_bin_path.parent().unwrap();
+            try_move_bin(&exe_path, &new_bin_path)
             .map_err(|e| {
                 eprintln!("Cannot move executable to the new location. \
                     Try `edgedb cli upgrade` instead");
                 e
             })?;
+            #[cfg(windows)] {
+                use std::env::join_paths;
+
+                let mut modified = false;
+                crate::self_install::windows_augment_path(|orig_path| {
+                    dbg!(&orig_path, &new_bin_dir, &old_bin_dir);
+                    if orig_path.iter().any(|p| p == new_bin_dir) {
+                        return None;
+                    }
+                    Some(join_paths(
+                        orig_path.iter()
+                        .map(|x| {
+                            if x == &old_bin_dir {
+                                modified = true;
+                                new_bin_dir
+                            } else {
+                                x.as_ref()
+                            }
+                        })
+                   ).expect("paths can be joined"))
+                })?;
+                if modified {
+                    eprintln!("PATH is modified. Start new command-line window to apply");
+                }
+            }
         }
     }
 
