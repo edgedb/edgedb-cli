@@ -1,3 +1,4 @@
+use crate::options::Options;
 use crate::server::options::{ServerCommand, Command};
 use crate::server::options::{ServerInstanceCommand, InstanceCommand};
 
@@ -7,6 +8,7 @@ use crate::server::destroy;
 use crate::server::detect;
 use crate::server::info;
 use crate::server::install;
+use crate::server::link;
 use crate::server::list_versions;
 use crate::server::reset_password;
 use crate::server::uninstall;
@@ -26,13 +28,14 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
     }
 }
 
-pub fn instance_main(cmd: &ServerInstanceCommand) -> Result<(), anyhow::Error> {
+pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options) -> Result<(), anyhow::Error> {
     use InstanceCommand::*;
 
     match &cmd.subcommand {
         Create(c) => create::create(c),
         Destroy(c) => destroy::destroy(c),
         ResetPassword(c) => reset_password::reset_password(c),
+        Link(c) => link::link(c, &options),
         cmd => control::instance_command(cmd)
     }
 }

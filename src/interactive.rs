@@ -92,6 +92,7 @@ impl<'a> Iterator for ToDo<'a> {
 pub fn main(options: Options) -> Result<(), anyhow::Error> {
     let (control_wr, control_rd) = channel(1);
     let (repl_wr, repl_rd) = channel(1);
+    let conn = options.create_connector()?;
     let state = repl::State {
         prompt: repl::PromptRpc {
             control: control_wr,
@@ -108,8 +109,8 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         input_mode: repl::InputMode::Emacs,
         print_stats: repl::PrintStats::Off,
         history_limit: 10000,
-        database: options.conn_params.get()?.get_database().into(),
-        conn_params: options.conn_params.clone(),
+        database: conn.get()?.get_database().into(),
+        conn_params: conn,
         last_version: None,
         connection: None,
         initial_text: "".into(),

@@ -1,6 +1,7 @@
 use std::sync::{Mutex, Arc};
 
 use anyhow::Context;
+use async_std::task;
 use edgedb_client::{verify_server_cert, Builder};
 use edgedb_client::errors::PasswordRequired;
 use pem;
@@ -9,9 +10,13 @@ use rustls;
 use rustls::{RootCertStore, ServerCertVerifier, ServerCertVerified, TLSError};
 use webpki::DNSNameRef;
 
-use crate::options::{Authenticate, Options, ConnectionOptions};
+use crate::connect::Connector;
+use crate::hint::HintedError;
+use crate::options::{Options, ConnectionOptions};
+use crate::options::{conn_params, load_tls_options, ProjectNotFound};
 use crate::{question, credentials};
 use crate::server::reset_password::write_credentials;
+use crate::server::options::Link;
 
 struct InteractiveCertVerifier {
     cert_out: Mutex<Option<String>>,
@@ -122,8 +127,28 @@ fn gen_default_instance_name(input: &dyn ToString) -> String {
     }).collect::<String>()
 }
 
-pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<()> {
-    let builder = opts.conn_params.get()?;
+pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
+    task::block_on(async_link(cmd, opts))
+}
+
+async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
+    let mut builder = match conn_params(&opts.conn_options) {
+        Ok(builder) => builder,
+        Err(e) => if let Some(he) = e.downcast_ref::<HintedError>() {
+            if he.error.is::<ProjectNotFound>() {
+                let mut builder = Builder::new();
+                load_tls_options(&opts.conn_options, &mut builder)?;
+                builder
+            } else {
+                return Err(e);
+            }
+        } else {
+            return Err(e);
+        }
+    };
+
+    prompt_conn_params(&opts.conn_options, &mut builder, cmd)?;
+
     let mut creds = builder.as_credentials()?;
     let mut verifier = Arc::new(
         InteractiveCertVerifier::new(
@@ -133,8 +158,9 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
             creds.tls_cert_data.is_none(),
         )
     );
-    let r = builder.connect_with_cert_verifier(verifier.clone()).await;
-    if let Err(e) = r {
+    if let Err(e) = builder.connect_with_cert_verifier(
+    verifier.clone()
+    ).await {
         if e.is::<PasswordRequired>() && !cmd.non_interactive {
             let password = rpassword::read_password_from_tty(
                 Some(&format!("Password for '{}': ",
@@ -154,7 +180,9 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
                     creds.tls_cert_data.is_none(),
                 )
             );
-            builder.connect_with_cert_verifier(verifier.clone()).await?;
+            Connector::new(Ok(builder)).connect_with_cert_verifier(
+                verifier.clone()
+            ).await?;
         } else {
             return Err(e);
         }
@@ -168,7 +196,9 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
         None => {
             let default = gen_default_instance_name(builder.get_addr());
             if cmd.non_interactive {
-                eprintln!("Using generated instance name: {}", &default);
+                if !cmd.quiet {
+                    eprintln!("Using generated instance name: {}", &default);
+                }
                 (credentials::path(&default)?, default)
             } else {
                 let name = question::String::new(
@@ -197,34 +227,37 @@ pub async fn authenticate(cmd: &Authenticate, opts: &Options) -> anyhow::Result<
     write_credentials(&cred_path, &creds)?;
     if !cmd.quiet {
         eprintln!(
-            "Authentication succeeded. To connect run:\n  edgedb -I {}",
+            "Successfully linked to remote instance. To connect run:\
+            \n  edgedb -I {}",
             instance_name,
         );
     }
     Ok(())
 }
 
-pub fn prompt_conn_params(
+fn prompt_conn_params(
     options: &ConnectionOptions,
     builder: &mut Builder,
-    auth: &Authenticate,
+    link: &Link,
 ) -> anyhow::Result<()> {
-    if auth.non_interactive && options.password {
-        anyhow::bail!("Not both --password and authenticate --non-interactive")
+    if link.non_interactive && options.password {
+        anyhow::bail!(
+            "--password and --non-interactive are mutually exclusive."
+        )
     }
     let (host, port) = builder.get_addr().get_tcp_addr().ok_or_else(|| {
-        anyhow::anyhow!("Cannot authenticate to a UNIX domain socket.")
+        anyhow::anyhow!("Cannot link to a UNIX domain socket.")
     })?;
     let (mut host, mut port) = (host.clone(), *port);
     if options.host.is_none() && host == "127.0.0.1" {
-        // Workaround for the `edgedb authenticate`
+        // Workaround for the `edgedb instance link`
         // https://github.com/briansmith/webpki/issues/54
         builder.tcp_addr("localhost", port);
         host = "localhost".into();
     }
 
-    if auth.non_interactive {
-        if !auth.quiet {
+    if link.non_interactive {
+        if !link.quiet {
             eprintln!(
                 "Authenticating to edgedb://{}@{}/{}",
                 builder.get_user(),

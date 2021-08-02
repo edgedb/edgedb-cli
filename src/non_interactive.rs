@@ -21,7 +21,7 @@ use crate::outputs::tab_separated;
 pub async fn main(options: Options)
     -> Result<(), anyhow::Error>
 {
-    let mut conn = options.conn_params.connect().await?;
+    let mut conn = options.create_connector()?.connect().await?;
     let mut stdin = stdin();
     let mut inbuf = BytesMut::with_capacity(8192);
     loop {

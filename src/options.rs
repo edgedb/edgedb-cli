@@ -34,7 +34,7 @@ pub trait PropagateArgs {
     fn propagate_args(&self, dest: &mut AnyMap, matches: &clap::ArgMatches);
 }
 
-#[derive(EdbClap, Debug)]
+#[derive(EdbClap, Clone, Debug)]
 pub struct ConnectionOptions {
     /// DSN for EdgeDB to connect to (overrides all other options
     /// except password)
@@ -172,8 +172,6 @@ pub struct RawOptions {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
-    /// Authenticate to a remote instance
-    Authenticate(Authenticate),
     #[clap(flatten)]
     Common(Common),
     /// Execute EdgeQL query
@@ -208,23 +206,6 @@ pub struct Query {
 }
 
 #[derive(EdbClap, Clone, Debug)]
-#[clap(long_about = "Authenticate to a remote EdgeDB instance and
-assign an instance name to simplify future connections.")]
-pub struct Authenticate {
-    /// Specify a new instance name for the remote server. If not
-    /// present, the name will be interactively asked.
-    pub name: Option<String>,
-
-    /// Run in non-interactive mode (accepting all defaults)
-    #[clap(long)]
-    pub non_interactive: bool,
-
-    /// Reduce command verbosity.
-    #[clap(long)]
-    pub quiet: bool,
-}
-
-#[derive(EdbClap, Clone, Debug)]
 pub struct GenerateDevCert {
     /// Specify a path to store the generated key file
     #[clap(long)]
@@ -236,7 +217,7 @@ pub struct GenerateDevCert {
 
 #[derive(Debug, Clone)]
 pub struct Options {
-    pub conn_params: Connector,
+    pub conn_options: ConnectionOptions,
     pub subcommand: Option<Command>,
     pub interactive: bool,
     pub debug_print_frames: bool,
@@ -245,6 +226,10 @@ pub struct Options {
     pub output_mode: OutputMode,
     pub no_version_check: bool,
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("error searching for `edgedb.toml`")]
+pub struct ProjectNotFound(#[source] pub anyhow::Error);
 
 fn make_subcommand_help<T: describe::Describe>() -> String {
     use std::fmt::Write;
@@ -388,7 +373,7 @@ impl Options {
         let app = <RawOptions as clap::IntoApp>::into_app();
         let app = update_help(app);
         let matches = get_matches(app);
-        let tmp = <RawOptions as clap::FromArgMatches>
+        let tmp: RawOptions = <RawOptions as clap::FromArgMatches>
             ::from_arg_matches(&matches);
 
         if tmp.print_version {
@@ -396,59 +381,27 @@ impl Options {
             return Err(ExitCode::new(0).into());
         }
 
+        if tmp.subcommand.is_some() && tmp.query.is_some() {
+            anyhow::bail!(
+                "Option `-c` conflicts with specifying a subcommand"
+            );
+        }
+
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
             && atty::is(atty::Stream::Stdin);
 
-        let mut builder = conn_params(&tmp.conn);
-        if let (Some(Command::Authenticate(auth)), None) = (&tmp.subcommand, &tmp.query) {
-            if builder.is_err() {
-                builder = Ok(Builder::new());
-                load_tls_options(&tmp.conn, builder.as_mut().unwrap())?;
-            }
-            server::authenticate::prompt_conn_params(
-                &tmp.conn, builder.as_mut().unwrap(), auth
-            )?;
-        }
-        let mut conn_params = Connector::new(builder);
-        let password = if tmp.conn.password_from_stdin {
-            let password = rpassword::read_password()
-                .expect("password cannot be read");
-            Some(password)
-        } else if tmp.conn.no_password {
-            None
-        } else if tmp.conn.password {
-            let user = conn_params.get()?.get_user();
-            Some(rpassword::read_password_from_tty(
-                    Some(&format!("Password for '{}': ",
-                                  user.escape_default())))
-                 .context("error reading password")?)
-        } else {
-            get_env("EDGEDB_PASSWORD")?
-        };
-        conn_params.modify(|params| {
-            password.map(|password| params.password(password));
-            tmp.conn.wait_until_available
-                .map(|w| params.wait_until_available(w));
-            tmp.conn.connect_timeout.map(|t| params.connect_timeout(t));
-        });
-
         let subcommand = if let Some(query) = tmp.query {
-            if tmp.subcommand.is_some() {
-                anyhow::bail!(
-                    "Option `-c` conflicts with specifying a subcommand");
-            } else {
-                Some(Command::Query(Query {
-                    queries: vec![query],
-                }))
-            }
+            Some(Command::Query(Query {
+                queries: vec![query],
+            }))
         } else {
             tmp.subcommand
         };
 
         Ok(Options {
-            conn_params,
+            conn_options: tmp.conn,
             interactive,
             subcommand,
             debug_print_frames: tmp.debug_print_frames,
@@ -465,6 +418,33 @@ impl Options {
             },
             no_version_check: tmp.no_version_check,
         })
+    }
+
+    pub fn create_connector(&self) -> anyhow::Result<Connector> {
+        let conn = &self.conn_options;
+        let mut conn_params = Connector::new(conn_params(conn));
+        let password = if conn.password_from_stdin {
+            let password = rpassword::read_password()
+                .expect("password cannot be read");
+            Some(password)
+        } else if conn.no_password {
+            None
+        } else if conn.password {
+            let user = conn_params.get()?.get_user();
+            Some(rpassword::read_password_from_tty(
+                Some(&format!("Password for '{}': ",
+                              user.escape_default())))
+                .context("error reading password")?)
+        } else {
+            get_env("EDGEDB_PASSWORD")?
+        };
+        conn_params.modify(|params| {
+            password.map(|password| params.password(password));
+            conn.wait_until_available
+                .map(|w| params.wait_until_available(w));
+            conn.connect_timeout.map(|t| params.connect_timeout(t));
+        });
+        Ok(conn_params)
     }
 }
 
@@ -527,7 +507,7 @@ fn parse_port_env() -> anyhow::Result<(Option<String>, Option<u16>)> {
     }
 }
 
-fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
+pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     let instance = if let Some(dsn) = &tmp.dsn {
         return Ok(Builder::from_dsn(dsn)?);
     } else if let Some(inst) = get_env("EDGEDB_INSTANCE")? {
@@ -547,12 +527,13 @@ fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
             .context("cannot determine current dir")
             .hint(CONNECTION_ARG_HINT)?;
         let config_dir = project::project_dir_opt(Some(&dir))
-            .context("error searching for `edgedb.toml`")
+            .map_err(|e| ProjectNotFound(e).into())
             .hint(CONNECTION_ARG_HINT)?
             .ok_or_else(|| {
                 anyhow::anyhow!("no `edgedb.toml` found \
                     and no connection options are specified")
             })
+            .map_err(|e| ProjectNotFound(e).into())
             .hint(CONNECTION_ARG_HINT)?;
         let dir = project::stash_path(&config_dir)?;
         Some(
@@ -615,7 +596,7 @@ fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     Ok(conn_params)
 }
 
-fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
+pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
     -> anyhow::Result<()>
 {
     if let Some(cert_file) = &options.tls_ca_file {

@@ -13,17 +13,17 @@ use crate::print::style::Styler;
 
 
 pub fn main(options: Options) -> Result<(), anyhow::Error> {
-    let cmdopt = commands::Options {
-        command_line: true,
-        styler: if atty::is(atty::Stream::Stdout) {
-            Some(Styler::dark_256())
-        } else {
-            None
-        },
-        conn_params: options.conn_params.clone(),
-    };
     match options.subcommand.as_ref().expect("subcommand is present") {
         Command::Common(cmd) => {
+            let cmdopt = commands::Options {
+                command_line: true,
+                styler: if atty::is(atty::Stream::Stdout) {
+                    Some(Styler::dark_256())
+                } else {
+                    None
+                },
+                conn_params: options.create_connector()?,
+            };
             directory_check::check_and_warn();
             match cmd {
                 Common::Migration(
@@ -35,7 +35,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 }
                 cmd => {
                     task::block_on(async {
-                        let mut conn = options.conn_params.connect().await?;
+                        let mut conn = cmdopt.conn_params.connect().await?;
                         commands::execute::common(
                             &mut conn, cmd, &cmdopt
                         ).await?;
@@ -50,7 +50,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::Instance(cmd) => {
             directory_check::check_and_error()?;
-            server::instance_main(cmd)
+            server::instance_main(cmd, &options)
         }
         Command::Project(cmd) => {
             directory_check::check_and_error()?;
@@ -59,7 +59,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         Command::Query(q) => {
             directory_check::check_and_warn();
             task::block_on(async {
-                let mut conn = options.conn_params.connect().await?;
+                let mut conn = options.create_connector()?.connect().await?;
                 for query in &q.queries {
                     non_interactive::query(&mut conn, query, &options).await?;
                 }
@@ -74,12 +74,6 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::CliCommand(c) => {
             cli::main(c)
-        },
-        Command::Authenticate(cmd) => {
-            task::block_on(async {
-                server::authenticate::authenticate(cmd, &options).await?;
-                Ok(())
-            }).into()
         },
     }
 }
