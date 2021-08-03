@@ -37,10 +37,12 @@ enum ConfirmOverwrite {
 
 pub fn main(options: &CliMigrate) -> anyhow::Result<()> {
     let base = home_dir()?.join(".edgedb");
-    if !base.exists() {
+    if base.exists() {
+        migrate(&base, options.dry_run)
+    } else {
         log::warn!("Directory {:?} does not exists. Nothing to do.", base);
+        Ok(())
     }
-    migrate(&base, options.dry_run)
 }
 
 fn file_is_non_empty(path: &Path) -> anyhow::Result<bool> {
