@@ -181,7 +181,7 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
         anyhow::bail!("unknown OS");
     }
     process::run(Command::new(&tmp_path)
-        .arg("self").arg("install").arg("--upgrade"))?;
+        .arg("cli").arg("install").arg("--upgrade"))?;
     fs::remove_file(&tmp_path).ok();
     if !options.quiet {
         println!("Upgraded to version {} (revision {})",
