@@ -317,10 +317,6 @@ pub struct Restore {
     #[clap(long)]
     pub all: bool,
 
-    /// Allow restoring the database dump into a non-empty database
-    #[clap(long)]
-    pub allow_non_empty: bool,
-
     /// Verbose output
     #[clap(long, short='v')]
     pub verbose: bool,
