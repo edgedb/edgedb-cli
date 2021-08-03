@@ -11,7 +11,7 @@ mod debian_like;
 
 // OSs
 mod unix;
-mod linux;
+pub mod linux;
 mod debian;
 mod ubuntu;
 mod centos;

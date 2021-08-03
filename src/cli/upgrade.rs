@@ -12,7 +12,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use url::Url;
 
 use crate::async_util::timeout;
-use crate::platform::home_dir;
+use crate::platform::{home_dir, binary_path};
 use crate::process;
 use crate::server::package::RepositoryInfo;
 use crate::server::remote;
@@ -65,25 +65,6 @@ pub fn can_upgrade() -> bool {
         log::info!("Cannot compare current binary to default: {}", e);
         false
     })
-}
-
-pub fn binary_path() -> anyhow::Result<PathBuf> {
-    let dir = match dirs::executable_dir() {
-        Some(dir) => dir,
-        // windows and macos fit this branch
-        None => {
-            dirs::data_dir()
-                .context("cannot determine local data directory")?
-                .join("edgedb")
-                .join("bin")
-        }
-    };
-    let path = if cfg!(windows) {
-        dir.join("edgedb.exe")
-    } else {
-        dir.join("edgedb")
-    };
-    Ok(path)
 }
 
 pub fn old_binary_path() -> anyhow::Result<PathBuf> {

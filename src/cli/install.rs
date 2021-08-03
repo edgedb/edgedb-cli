@@ -16,9 +16,8 @@ use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
 use crate::cli::migrate;
-use crate::cli::upgrade;
 use crate::options::RawOptions;
-use crate::platform::{home_dir, config_dir, get_current_uid};
+use crate::platform::{home_dir, config_dir, get_current_uid, binary_path};
 use crate::process;
 use crate::project::init;
 use crate::project::options::Init;
@@ -396,7 +395,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         anyhow::bail!("Installation as root is not supported. \
             Try running without sudo.")
     } else {
-        let installation_path = upgrade::binary_path()?
+        let installation_path = binary_path()?
             .parent().unwrap().to_owned();
         Settings {
             rc_files: get_rc_files()?,

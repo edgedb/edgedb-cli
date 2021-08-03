@@ -9,7 +9,7 @@ use edgedb_client as client;
 use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
-use crate::platform::{get_current_uid};
+use crate::platform::{get_current_uid, data_dir};
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::detect::Lazy;
@@ -317,7 +317,7 @@ WantedBy=multi-user.target
     ))
 }
 
-fn unit_dir(system: bool) -> anyhow::Result<PathBuf> {
+pub fn unit_dir(system: bool) -> anyhow::Result<PathBuf> {
     if system {
         Ok(PathBuf::from("/etc/systemd/system"))
     } else {
@@ -406,7 +406,7 @@ pub fn all_instances<'x>(method: &'x dyn Method)
     -> anyhow::Result<Vec<InstanceRef<'x>>>
 {
     let mut instances = BTreeSet::new();
-    let user_base = unix::base_data_dir()?;
+    let user_base = data_dir()?;
     if user_base.exists() {
         unix::instances_from_data_dir(&user_base, false, &mut instances)?;
     }
@@ -425,7 +425,7 @@ pub fn all_instances<'x>(method: &'x dyn Method)
 pub fn get_instance<'x>(method: &'x dyn Method, name: &str)
     -> anyhow::Result<InstanceRef<'x>>
 {
-    let dir = unix::base_data_dir()?.join(name);
+    let dir = data_dir()?.join(name);
     if dir.exists() {
         Ok(LocalInstance {
             method,

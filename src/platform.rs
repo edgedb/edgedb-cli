@@ -115,3 +115,28 @@ pub fn symlink_dir(original: impl AsRef<Path>, path: impl AsRef<Path>)
     std::os::windows::fs::symlink_dir(original, path)?;
     Ok(())
 }
+
+pub fn binary_path() -> anyhow::Result<PathBuf> {
+    let dir = match dirs::executable_dir() {
+        Some(dir) => dir,
+        // windows and macos fit this branch
+        None => {
+            dirs::data_dir()
+                .context("cannot determine local data directory")?
+                .join("edgedb")
+                .join("bin")
+        }
+    };
+    let path = if cfg!(windows) {
+        dir.join("edgedb.exe")
+    } else {
+        dir.join("edgedb")
+    };
+    Ok(path)
+}
+
+pub fn data_dir() -> anyhow::Result<PathBuf> {
+    Ok(dirs::data_dir()
+        .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
+        .join("edgedb").join("data"))
+}
