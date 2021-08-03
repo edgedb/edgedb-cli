@@ -12,6 +12,7 @@ use async_std::io::{self, Read, prelude::ReadExt};
 use async_std::future::{timeout, pending};
 use async_std::prelude::{FutureExt, StreamExt};
 use bytes::{Bytes, BytesMut, BufMut};
+use fn_error_context::context;
 
 use edgeql_parser::helpers::quote_name;
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
@@ -83,7 +84,8 @@ async fn read_packet(input: &mut Input, expected: PacketType)
 }
 
 
-async fn is_empty_db(cli: &mut Connection) -> Result<bool, anyhow::Error> {
+#[context("error checking if DB is empty")]
+async fn is_non_empty_db(cli: &mut Connection) -> Result<bool, anyhow::Error> {
     let mut query = cli.query::<i64>(r###"SELECT
             count(
                 schema::Module
@@ -113,29 +115,20 @@ pub async fn restore<'x>(cli: &mut Connection, options: &Options,
     }
 }
 
-async fn restore_db<'x>(cli: &mut Connection, options: &Options,
+async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
     params: &RestoreCmd)
     -> Result<(), anyhow::Error>
 {
     use PacketType::*;
     let RestoreCmd {
-        allow_non_empty, path: ref filename,
+        path: ref filename,
         all: _, verbose: _,
     } = *params;
-    if !allow_non_empty {
-        if is_empty_db(cli).await.context("Error checking if the DB is empty")? {
-            if options.command_line {
-                return Err(anyhow::anyhow!("\
-                    cannot restore: the database is not empty; \
-                    consider using the --allow-non-empty option"));
-            } else {
-                return Err(anyhow::anyhow!(
-                    "cannot restore: the database is not empty"));
-            }
-        }
+    if is_non_empty_db(cli).await? {
+        return Err(anyhow::anyhow!("\
+            cannot restore: the database is not empty"));
     }
 
-    // TODO(tailhook) check that DB is empty
     let file_ctx = &|| format!("Failed to read dump {}", filename.display());
     let mut input = if filename.to_str() == Some("-") {
         Box::new(io::stdin()) as Input

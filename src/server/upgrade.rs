@@ -120,7 +120,6 @@ pub async fn restore_instance(inst: &dyn Instance,
     commands::restore_all(&mut cli, &options, &Restore {
         path: path.into(),
         all: true,
-        allow_non_empty: false,
         verbose: false,
     }).await?;
     Ok(())
