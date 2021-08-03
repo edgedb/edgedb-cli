@@ -205,7 +205,7 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
 }
 
 fn print_post_install_message(settings: &Settings,
-    init_result: anyhow::Result<bool>)
+    init_result: anyhow::Result<InitResult>)
 {
     if cfg!(windows) {
         print_markdown!("\
@@ -260,16 +260,40 @@ fn print_post_install_message(settings: &Settings,
         }
     }
     match init_result {
-        Ok(true) => {
+        Ok(InitResult::Initialized) => {
             print_markdown!("\n\
                 `edgedb` without parameters will automatically\n\
                 connect to the initialized project.\n\
             ");
         }
-        Ok(false) => {
+        Ok(InitResult::Refused | InitResult::NonInteractive) => {
+            print_markdown!("\n\
+                To install the EdgeDB server and initialize the project, run\n\
+                the following:\n\
+                ```\n\
+                    edgedb project init\n\
+                ```\
+            ");
+        }
+        Ok(InitResult::NotAProject) => {
             print_markdown!("\n\
                 To initialize a new project, run\n\
                 ```\n\
+                    edgedb project init\n\
+                ```\
+            ");
+        }
+        Ok(InitResult::Already) => {
+            print_markdown!("\n\
+                `edgedb` without parameters will automatically\n\
+                connect to the current project.\n\
+            ");
+        }
+        Ok(InitResult::OldLayout) => {
+            print_markdown!("\n\
+                To initialize a project run:\n\
+                ```\n\
+                    edgedb cli migrate\n\
                     edgedb project init\n\
                 ```\
             ");
@@ -350,18 +374,38 @@ fn customize(settings: &mut Settings) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn try_project_init() -> anyhow::Result<bool> {
+pub enum InitResult {
+    Initialized,
+    Already,
+    Refused,
+    NonInteractive,
+    NotAProject,
+    OldLayout,
+}
+
+fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
+    use InitResult::*;
+
     let base_dir = env::current_dir()
         .context("failed to get current directory")?;
     if base_dir.parent().is_none() {
         // can't initialize project in root dir
-        return Ok(false);
+        return Ok(NotAProject);
     }
 
     let base_dir = env::current_dir()
         .context("failed to get current directory")?;
     let dir = init::search_dir(&base_dir)?;
     if let Some(dir) = dir {
+        if init::stash_path(&base_dir)?.exists() {
+            log::info!("Project is already initialized. Skipping...");
+            return Ok(Already);
+        }
+        if !new_layout {
+            log::warn!("Project will not be initialized, \
+                because directory layout was not upgraded.");
+            return Ok(OldLayout);
+        }
         println!("Command-line tools are installed successfully.");
         println!();
         let q = question::Confirm::new(format!(
@@ -370,7 +414,7 @@ fn try_project_init() -> anyhow::Result<bool> {
             dir.join("edgedb.toml").display(),
         ));
         if !q.ask()? {
-            return Ok(false);
+            return Ok(Refused);
         }
 
         let init = Init {
@@ -383,9 +427,9 @@ fn try_project_init() -> anyhow::Result<bool> {
         let dir = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
         init::init_existing(&init, &dir)?;
-        Ok(true)
+        Ok(Initialized)
     } else {
-        Ok(false)
+        Ok(NotAProject)
     }
 }
 
@@ -484,7 +528,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     }
 
     let base = home_dir()?.join(".edgedb");
-    if base.exists() {
+    let new_layout = if base.exists() {
         eprintln!("\
             Edgedb CLI has stopped using '{}' for storing data \
                 and now uses standard locations of your OS. \
@@ -495,14 +539,19 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         "));
         if q.ask()? {
             migrate::migrate(&base, false)?;
+            true
+        } else {
+            false
         }
-    }
+    } else {
+        true
+    };
 
     if !options.upgrade {
         let init_result = if options.no_confirm {
-            Ok(false)
+            Ok(InitResult::NonInteractive)
         } else {
-            try_project_init()
+            try_project_init(new_layout)
         };
 
         print_post_install_message(&settings, init_result);
