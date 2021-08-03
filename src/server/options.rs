@@ -198,9 +198,13 @@ pub struct Link {
     #[clap(long)]
     pub quiet: bool,
 
-    /// Trust peer certificate
+    /// Trust peer certificate.
     #[clap(long)]
     pub trust: bool,
+
+    /// Overwrite existing credential file if any.
+    #[clap(long)]
+    pub overwrite: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]

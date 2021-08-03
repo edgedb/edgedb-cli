@@ -217,10 +217,12 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     };
     if cred_path.exists() {
-        if cmd.non_interactive {
+        if cmd.overwrite {
             if !cmd.quiet {
                 eprintln!("Overwriting {}", cred_path.display());
             }
+        } else if cmd.non_interactive {
+            anyhow::bail!("File {} exists; abort.", cred_path.display());
         } else {
             let mut q = question::Confirm::new_dangerous(
                 format!("{} exists! Overwrite?", cred_path.display())
