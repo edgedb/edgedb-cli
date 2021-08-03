@@ -7,9 +7,9 @@ use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 use fn_error_context::context;
 
-use crate::cli::upgrade::binary_path;
 use crate::cli::install::{get_rc_files, no_dir_in_path};
 use crate::credentials;
+use crate::platform::binary_path;
 use crate::platform::{home_dir, tmp_file_path, symlink_dir, config_dir};
 use crate::project;
 use crate::question;

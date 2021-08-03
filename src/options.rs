@@ -174,6 +174,8 @@ pub struct RawOptions {
 pub enum Command {
     #[clap(flatten)]
     Common(Common),
+    /// Show information about the EdgeDB installation
+    Info,
     /// Execute EdgeQL query
     #[edb(inherit(ConnectionOptions), hidden)]
     Query(Query),

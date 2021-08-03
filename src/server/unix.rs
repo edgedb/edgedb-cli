@@ -13,7 +13,7 @@ use fs_err as fs;
 
 use crate::commands::ExitCode;
 use crate::credentials;
-use crate::platform::{Uid, get_current_uid};
+use crate::platform::{Uid, get_current_uid, data_dir};
 use crate::process::ProcessGuard;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, read_ports, init_credentials, Storage};
@@ -218,9 +218,7 @@ fn write_metadata(path: &Path, metadata: &Metadata) -> anyhow::Result<()> {
 }
 
 pub fn storage_dir(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(dirs::data_dir()
-        .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-        .join("edgedb").join("data").join(name))
+    Ok(data_dir()?.join(name))
 }
 
 pub fn storage(system: bool, name: &str) -> anyhow::Result<Storage> {
@@ -311,12 +309,6 @@ pub fn status(name: &String, data_dir: &Path,
         service_exists,
         credentials_file_exists,
     }
-}
-
-pub fn base_data_dir() -> anyhow::Result<PathBuf> {
-    Ok(dirs::data_dir()
-        .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-        .join("edgedb").join("data"))
 }
 
 pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &dyn Method)

@@ -14,7 +14,7 @@ use once_cell::unsync::OnceCell;
 use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
-use crate::platform::{get_current_uid, home_dir, cache_dir};
+use crate::platform::{get_current_uid, home_dir, cache_dir, data_dir};
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, Storage};
@@ -296,7 +296,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     }
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>> {
         let mut instances = BTreeSet::new();
-        let user_base = unix::base_data_dir()?;
+        let user_base = data_dir()?;
         if user_base.exists() {
             unix::instances_from_data_dir(&user_base, false, &mut instances)?;
         }
@@ -588,7 +588,7 @@ pub fn get_server_path(slot: &str) -> PathBuf {
         .join("bin/edgedb-server")
 }
 
-fn plist_dir(system: bool) -> anyhow::Result<PathBuf> {
+pub fn plist_dir(system: bool) -> anyhow::Result<PathBuf> {
     if system {
         Ok(PathBuf::from("/Library/LaunchDaemons"))
     } else {
