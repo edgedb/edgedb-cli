@@ -73,8 +73,8 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
             if version.distribution_matches(&old_ver) {
                 if &effective_method == meth_kind {
                     eprintln!("EdgeDB {} ({}) is already installed. \
-                        Use `edgedb instance upgrade --local-minor` for \
-                        minor version upgrade.",
+                        Use `edgedb instance upgrade --local-minor` to \
+                        upgrade local instances to the latest minor version.",
                         old_ver.major_version().title(),
                         old_ver.version());
                 } else {
@@ -94,7 +94,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     settings.print();
     println!("Installing EdgeDB {}...", version);
     method.install(&settings)?;
-    println!("\nEdgedb server is installed now. Great!\n\
+    println!("\nEdgeDB is now installed. Great!\n\
         Initialize and start a new database instance with:\n  \
           edgedb instance create{arg} <instance-name>",
           arg=if options.nightly { " --nightly" } else { "" });

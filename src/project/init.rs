@@ -100,16 +100,16 @@ fn ask_method(available: &InstallationMethods, options: &Init)
             available.package.format_error(&mut buf);
             available.docker.format_error(&mut buf);
             if cfg!(windows) {
-                buf.push_str("EdgeDB server installation on Windows \
+                buf.push_str("EdgeDB version installation on Windows \
                     requires Docker Desktop to be installed and running. \
                     You can download Docker Desktop for Windows here: \
                     https://hub.docker.com/editions/community/docker-ce-desktop-windows/ \
                     Once Docker Desktop is installed and running, restart \
                     the command.");
             } else {
-                buf.push_str("It looks like there are no native EdgeDB server \
+                buf.push_str("It looks like there are no native EdgeDB version \
                     packages for your OS yet.  However, it is possible to \
-                    install and run EdgeDB server in a Docker container. \
+                    install and run EdgeDB version in a Docker container. \
                     Please install Docker by following the instructions at \
                     https://docs.docker.com/get-docker/.  Once Docker is \
                     installed, restart the command");
@@ -174,7 +174,7 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
     loop {
         let target_name = q.ask()?;
         if !is_valid_name(&target_name) {
-            eprintln!("instance name must be a valid identifier, \
+            eprintln!("Instance name must be a valid identifier, \
                        (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
             continue;
         }
@@ -313,7 +313,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
-        anyhow::bail!("project is already initialized.");
+        anyhow::bail!("Project is already initialized.");
     }
 
     let config_path = project_dir.join("edgedb.toml");
@@ -359,7 +359,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
                     Cannot find EdgeDB version {}: {}", ver_query, e);
                 eprintln!("  Hint: try a different installation method \
                     or remove `server-version` from `edgedb.toml` to \
-                    install the latest stable");
+                    install the latest stable version.");
                 ExitCode::new(1)
             })?;
 
@@ -379,7 +379,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         if !installed.iter()
             .any(|x| x.major_version() == distr.major_version())
         {
-            println!("Installing EdgeDB server {}...",
+            println!("Installing EdgeDB version {}...",
                      distr.major_version().title());
             meth.install(&install::Settings {
                 method: method.clone(),
@@ -423,7 +423,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         run_and_migrate(&inst)?;
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
-            You can run the server manually via: \n  \
+            You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
         return Err(ExitCode::new(2))?;
@@ -547,7 +547,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
-        anyhow::bail!("project is already initialized.");
+        anyhow::bail!("Project is already initialized.");
     }
 
     if options.non_interactive {
@@ -605,7 +605,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         // TODO(tailhook) this condition doesn't work for nightly
         if !installed.iter()
             .any(|x| x.major_version() == distr.major_version()) {
-            println!("Installing EdgeDB server {}...",
+            println!("Installing EdgeDB version {}...",
                      distr.major_version().title());
             meth.install(&install::Settings {
                 method: method.clone(),
@@ -648,7 +648,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         run_and_migrate(&inst)?;
         eprintln!("Bootstrapping complete, \
             but there was an error creating the service. \
-            You can run the server manually via: \n  \
+            You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
         return Err(ExitCode::new(2))?;

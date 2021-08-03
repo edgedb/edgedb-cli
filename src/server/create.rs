@@ -265,7 +265,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         if !try_bootstrap(method.as_ref(), &settings)? {
             eprintln!("Bootstrapping complete, \
                 but there was an error creating the service. \
-                You can run server manually via: \n  \
+                You can start it manually via: \n  \
                 edgedb instance start --foreground {}",
                 settings.name.escape_default());
             return Err(ExitCode::new(2))?;
