@@ -25,7 +25,7 @@ struct InteractiveCertVerifier {
     system_ca_only: bool,
     non_interactive: bool,
     quiet: bool,
-    trust: bool,
+    trust_tls_cert: bool,
 }
 
 impl InteractiveCertVerifier {
@@ -34,7 +34,7 @@ impl InteractiveCertVerifier {
         quiet: bool,
         verify_hostname: Option<bool>,
         system_ca_only: bool,
-        trust: bool,
+        trust_tls_cert: bool,
     ) -> Self {
         Self {
             cert_out: Mutex::new(None),
@@ -42,7 +42,7 @@ impl InteractiveCertVerifier {
             system_ca_only,
             non_interactive,
             quiet,
-            trust,
+            trust_tls_cert,
         }
     }
 }
@@ -85,7 +85,7 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                     &digest::SHA1_FOR_LEGACY_USE_ONLY,
                     &presented_certs[untrusted_index].0
                 );
-                if self.trust {
+                if self.trust_tls_cert {
                     if !self.quiet {
                         eprintln!(
                             "Trusting unknown server certificate: {:?}",
@@ -162,7 +162,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             cmd.quiet,
             creds.tls_verify_hostname,
             creds.tls_cert_data.is_none(),
-            cmd.trust,
+            cmd.trust_tls_cert,
         )
     );
     if let Err(e) = builder.connect_with_cert_verifier(

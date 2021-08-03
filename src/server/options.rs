@@ -200,7 +200,7 @@ pub struct Link {
 
     /// Trust peer certificate.
     #[clap(long)]
-    pub trust: bool,
+    pub trust_tls_cert: bool,
 
     /// Overwrite existing credential file if any.
     #[clap(long)]
