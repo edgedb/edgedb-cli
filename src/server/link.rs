@@ -25,6 +25,7 @@ struct InteractiveCertVerifier {
     system_ca_only: bool,
     non_interactive: bool,
     quiet: bool,
+    trust_tls_cert: bool,
 }
 
 impl InteractiveCertVerifier {
@@ -33,6 +34,7 @@ impl InteractiveCertVerifier {
         quiet: bool,
         verify_hostname: Option<bool>,
         system_ca_only: bool,
+        trust_tls_cert: bool,
     ) -> Self {
         Self {
             cert_out: Mutex::new(None),
@@ -40,6 +42,7 @@ impl InteractiveCertVerifier {
             system_ca_only,
             non_interactive,
             quiet,
+            trust_tls_cert,
         }
     }
 }
@@ -82,13 +85,15 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                     &digest::SHA1_FOR_LEGACY_USE_ONLY,
                     &presented_certs[untrusted_index].0
                 );
-                if self.non_interactive {
+                if self.trust_tls_cert {
                     if !self.quiet {
                         eprintln!(
                             "Trusting unknown server certificate: {:?}",
                             fingerprint,
                         );
                     }
+                } else if self.non_interactive {
+                    return Err(e);
                 } else {
                     if let Ok(answer) = question::Confirm::new(
                         format!(
@@ -157,6 +162,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             cmd.quiet,
             creds.tls_verify_hostname,
             creds.tls_cert_data.is_none(),
+            cmd.trust_tls_cert,
         )
     );
     if let Err(e) = builder.connect_with_cert_verifier(
@@ -179,6 +185,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                     false,
                     creds.tls_verify_hostname,
                     creds.tls_cert_data.is_none(),
+                    true,
                 )
             );
             Connector::new(Ok(builder)).connect_with_cert_verifier(
@@ -210,10 +217,12 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     };
     if cred_path.exists() {
-        if cmd.non_interactive {
+        if cmd.overwrite {
             if !cmd.quiet {
                 eprintln!("Overwriting {}", cred_path.display());
             }
+        } else if cmd.non_interactive {
+            anyhow::bail!("File {} exists; abort.", cred_path.display());
         } else {
             let mut q = question::Confirm::new_dangerous(
                 format!("{} exists! Overwrite?", cred_path.display())
