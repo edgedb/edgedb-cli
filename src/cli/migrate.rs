@@ -40,7 +40,7 @@ pub fn main(options: &CliMigrate) -> anyhow::Result<()> {
     if base.exists() {
         migrate(&base, options.dry_run)
     } else {
-        log::warn!("Directory {:?} does not exists. Nothing to do.", base);
+        log::warn!("Directory {:?} does not exist. Nothing to do.", base);
         Ok(())
     }
 }

@@ -268,8 +268,7 @@ fn print_post_install_message(settings: &Settings,
         }
         Ok(false) => {
             print_markdown!("\n\
-                To install the EdgeDB server and initialize the project, run\n\
-                the following from the project directory:\n\
+                To initialize a new project, run\n\
                 ```\n\
                     edgedb project init\n\
                 ```\

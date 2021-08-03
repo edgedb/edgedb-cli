@@ -24,7 +24,7 @@ pub struct ServerInstanceCommand {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum InstanceCommand {
-    /// Initialize a new server instance
+    /// Initialize a new EdgeDB instance
     Create(Create),
     /// Show all instances
     List(List),
@@ -124,7 +124,7 @@ pub enum StartConf {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Create {
-    /// Database server instance name
+    /// Database instance name
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -171,7 +171,7 @@ pub struct Create {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Destroy {
-    /// Database server instance name to destroy
+    /// Name of instance to destroy
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -222,25 +222,25 @@ pub struct Unlink {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Start {
-    /// Database server instance name
+    /// Name of instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
     #[clap(long)]
     #[cfg_attr(target_os="linux",
         clap(about="Start the server in the foreground rather than using \
-                    systemd to manage the process (note you might need to \
+                    systemd to manage the process (note: you might need to \
                     stop non-foreground instance first)"))]
     #[cfg_attr(target_os="macos",
         clap(about="Start the server in the foreground rather than using \
-                    launchctl to manage the process (note you might need to \
+                    launchctl to manage the process (note: you might need to \
                     stop non-foreground instance first)"))]
     pub foreground: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Stop {
-    /// Database server instance name
+    /// Name of instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -248,7 +248,7 @@ pub struct Stop {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Restart {
-    /// Database server instance name
+    /// Name of instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -271,7 +271,7 @@ pub struct List {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Status {
-    /// Database server instance name
+    /// Name of instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -295,7 +295,7 @@ pub struct Status {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Logs {
-    /// Database server instance name
+    /// Name of instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -372,7 +372,7 @@ pub struct Revert {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct ResetPassword {
-    /// Database server instance name
+    /// Name of instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,

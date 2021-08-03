@@ -206,10 +206,10 @@ pub enum Command {
     /// Manage project installation
     #[edb(expand_help)]
     Project(project::options::ProjectCommand),
-    /// Manage local server instances
+    /// Manage local EdgeDB instances
     #[edb(expand_help)]
     Instance(server::options::ServerInstanceCommand),
-    /// Manage local server installations
+    /// Manage local EdgeDB installations
     Server(server::options::ServerCommand),
     /// Generate shell completions
     #[clap(name="_gen_completions")]
@@ -219,7 +219,7 @@ pub enum Command {
     #[clap(name="cli")]
     #[edb(expand_help)]
     CliCommand(CliCommand),
-    /// Install server
+    /// Install EdgeDB
     #[clap(name="_self_install")]
     #[edb(hidden)]
     _SelfInstall(cli::install::CliInstall),
