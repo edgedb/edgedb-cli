@@ -197,6 +197,10 @@ pub struct Link {
     /// Reduce command verbosity.
     #[clap(long)]
     pub quiet: bool,
+
+    /// Trust peer certificate
+    #[clap(long)]
+    pub trust: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]
