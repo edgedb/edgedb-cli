@@ -228,7 +228,7 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                     or use `--allow-unsafe`");
             }
         } else {
-            anyhow::bail!("EdgeDB could not finalize \
+            anyhow::bail!("EdgeDB could not resolve \
                 migration automatically. Please run in \
                 interactive mode to confirm changes, \
                 or use `--allow-unsafe`");
@@ -392,7 +392,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                 format!("DECLARE SAVEPOINT migration_{}", save_point)
             ).await?;
         } else {
-            anyhow::bail!("EdgeDB could not finalize \
+            anyhow::bail!("EdgeDB could not resolve \
                 migration with your answers. \
                 Please retry with different answers");
         }
