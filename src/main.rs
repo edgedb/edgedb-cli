@@ -112,7 +112,7 @@ fn _main() -> anyhow::Result<()> {
         if opt.interactive {
             interactive::main(opt)
         } else {
-            task::block_on(non_interactive::main(opt))
+            task::block_on(non_interactive::interpret_stdin(opt))
         }
     }
 }
