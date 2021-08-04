@@ -237,11 +237,6 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
             #arg = #arg.value_name(#name);
         });
     }
-    for (name, value) in &field.attrs.options {
-        modifiers.extend(quote! {
-            #arg = #arg.#name(#value);
-        });
-    }
     match field.parse.kind {
         ParserKind::TryFromStr => {
             let ty = &field.ty;
@@ -270,6 +265,13 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
             });
         }
         _ => {}
+    }
+    // The arbitrary options must be added in the end so that e.g. explicit
+    // validator() could overwrite the validators added by default previously
+    for (name, value) in &field.attrs.options {
+        modifiers.extend(quote! {
+            #arg = #arg.#name(#value);
+        });
     }
 
     return quote! {

@@ -188,6 +188,8 @@ assign an instance name to simplify future connections.")]
 pub struct Link {
     /// Specify a new instance name for the remote server. If not
     /// present, the name will be interactively asked.
+    #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]
     pub name: Option<String>,
 
     /// Run in non-interactive mode (accepting all defaults)
@@ -211,6 +213,8 @@ pub struct Link {
 #[clap(long_about = "Unlink from a remote EdgeDB instance.")]
 pub struct Unlink {
     /// Specify the name of the remote instance.
+    #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
 }
 
