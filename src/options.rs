@@ -7,7 +7,7 @@ use std::time::Duration;
 use anyhow::Context;
 use anymap::AnyMap;
 use atty;
-use clap::{ValueHint};
+use clap::{ValueHint, AppSettings};
 use colorful::Colorful;
 use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
@@ -35,6 +35,7 @@ pub trait PropagateArgs {
 }
 
 #[derive(EdbClap, Clone, Debug)]
+#[clap(setting=AppSettings::DeriveDisplayOrder)]
 pub struct ConnectionOptions {
     /// DSN for EdgeDB to connect to (overrides all other options
     /// except password)
