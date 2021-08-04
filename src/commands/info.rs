@@ -37,7 +37,7 @@ pub async fn info(_options: &Options)-> Result<(), anyhow::Error>
         ]));
     }
     let data_dir = platform::data_dir()?;
-    if data_dir.exists() {
+    if cfg!(not(windows)) {
         table.add_row(Row::new(vec![
             Cell::new("Data"),
             Cell::new(&dir_to_str(data_dir)),
