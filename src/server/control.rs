@@ -47,16 +47,11 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         Logs(c) => &c.name,
         Revert(c) => &c.name,
         Unlink(c) => &c.name,
-        Status(c) => {
-            if let Some(name) = &c.name {
-                name
-            } else {
-                return status::print_status_all(c.extended, c.debug, c.json);
-            }
-        }
+        Status(c) => &c.name,
         | Create(_)
         | Destroy(_)
         | Link(_)
+        | List(_)
         | ResetPassword(_) => {
             unreachable!("handled in server::main::instance_main()");
         }
@@ -91,6 +86,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         | Create(_)
         | Destroy(_)
         | Link(_)
+        | List(_)
         | ResetPassword(_) => {
             unreachable!("handled in server::main::instance_main()");
         }

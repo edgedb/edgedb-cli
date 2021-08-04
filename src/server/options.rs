@@ -26,7 +26,9 @@ pub struct ServerInstanceCommand {
 pub enum InstanceCommand {
     /// Initialize a new server instance
     Create(Create),
-    /// Show statuses of all or of a matching instance
+    /// Show all instances
+    List(List),
+    /// Show status of a matching instance
     Status(Status),
     /// Start an instance
     Start(Start),
@@ -249,11 +251,26 @@ pub struct Restart {
 }
 
 #[derive(EdbClap, Debug, Clone)]
+pub struct List {
+    /// Output more debug info about each instance
+    #[clap(long)]
+    pub extended: bool,
+
+    /// Output all available debug info about each instance
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub debug: bool,
+
+    /// Output in JSON format
+    #[clap(long)]
+    pub json: bool,
+}
+
+#[derive(EdbClap, Debug, Clone)]
 pub struct Status {
     /// Database server instance name
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: String,
 
     /// Show current systems service info
     #[clap(long)]
