@@ -13,12 +13,12 @@ pub struct CliCommand {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
-    /// Upgrade this edgedb binary
+    /// Upgrade the 'edgedb' command-line tool
     Upgrade(upgrade::CliUpgrade),
-    /// Install the 'edgedb' command line tool
+    /// Install the 'edgedb' command-line tool
     #[edb(hidden)]
     Install(install::CliInstall),
-    /// Migrate files from `~/.edgedb` to new directory layout
+    /// Migrate files from `~/.edgedb` to the new directory layout
     #[edb(hidden)]
     Migrate(migrate::CliMigrate),
 }

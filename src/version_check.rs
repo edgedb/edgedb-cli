@@ -110,7 +110,7 @@ fn cache_dir() -> anyhow::Result<PathBuf> {
 
 pub fn check(no_version_check_opt: bool) {
     if no_version_check_opt {
-        log::debug!("Skipping version check due to --no-version-check");
+        log::debug!("Skipping version check due to --no-cli-update-check");
         return;
     }
     if env::var_os("EDGEDB_NO_VERSION_CHECK")
