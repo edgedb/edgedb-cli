@@ -11,6 +11,7 @@ use crate::server::install;
 use crate::server::link;
 use crate::server::list_versions;
 use crate::server::reset_password;
+use crate::server::status;
 use crate::server::uninstall;
 use crate::server::upgrade;
 
@@ -36,6 +37,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options) -> Result<(
         Destroy(c) => destroy::destroy(c),
         ResetPassword(c) => reset_password::reset_password(c),
         Link(c) => link::link(c, &options),
+        List(c) => status::print_status_all(c.extended, c.debug, c.json),
         cmd => control::instance_command(cmd)
     }
 }
