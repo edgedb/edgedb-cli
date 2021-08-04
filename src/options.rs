@@ -144,15 +144,15 @@ pub struct RawOptions {
     pub debug_print_codecs: bool,
 
     /// Tab-separated output of the queries
-    #[clap(short='t', long, overrides_with="json")]
+    #[clap(short='t', long, overrides_with="json",
+           setting=clap::ArgSettings::Hidden)]
     pub tab_separated: bool,
-
     /// JSON output for the queries (single JSON list per query)
-    #[clap(short='j', long, overrides_with="tab_separated")]
+    #[clap(short='j', long, overrides_with="tab_separated",
+           setting=clap::ArgSettings::Hidden)]
     pub json: bool,
-
     /// Execute a query instead of starting REPL
-    #[clap(short='c')]
+    #[clap(short='c', setting=clap::ArgSettings::Hidden)]
     pub query: Option<String>,
 
     /// Show command-line tool version
@@ -174,11 +174,11 @@ pub struct RawOptions {
 pub enum Command {
     #[clap(flatten)]
     Common(Common),
+    /// Execute EdgeQL queries
+    #[edb(inherit(ConnectionOptions))]
+    Query(Query),
     /// Show information about the EdgeDB installation
     Info,
-    /// Execute EdgeQL query
-    #[edb(inherit(ConnectionOptions), hidden)]
-    Query(Query),
     /// Manage project installation
     #[edb(expand_help)]
     Project(project::options::ProjectCommand),
@@ -203,8 +203,20 @@ pub enum Command {
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct Query {
-    #[clap(required=true)]
-    pub queries: Vec<String>,
+    /// Tab-separated output of the queries
+    #[clap(short='t', long, overrides_with="json")]
+    pub tab_separated: bool,
+
+    /// JSON output for the queries (single JSON list per query)
+    #[clap(short='j', long, overrides_with="tab_separated")]
+    pub json: bool,
+
+    /// Filename to execute queries from.
+    /// Pass `--file -` to execute queries from stdin.
+    #[clap(short='f', long)]
+    pub file: Option<String>,
+
+    pub queries: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -222,6 +234,17 @@ pub struct Options {
 #[derive(Debug, thiserror::Error)]
 #[error("error searching for `edgedb.toml`")]
 pub struct ProjectNotFound(#[source] pub anyhow::Error);
+
+fn say_option_is_deprecated(option_name: &str, suggestion: &str) {
+    let error = "warning:".bold().light_yellow();
+    let instead = suggestion.green();
+    eprintln!("\
+        {error} The '{opt}' option is deprecated.\n\
+        \n         \
+            Use '{instead}' instead.\
+        \n\
+    ", error=error, opt=option_name.green(), instead=instead);
+}
 
 fn make_subcommand_help<T: describe::Describe>() -> String {
     use std::fmt::Write;
@@ -385,9 +408,20 @@ impl Options {
             && tmp.subcommand.is_none()
             && atty::is(atty::Stream::Stdin);
 
+        if tmp.json {
+            say_option_is_deprecated("--json", "edgedb query --json");
+        }
+        if tmp.tab_separated {
+            say_option_is_deprecated(
+                "--tab-separated", "edgedb query --tab-separated");
+        }
         let subcommand = if let Some(query) = tmp.query {
+            say_option_is_deprecated("-c", "edgedb query");
             Some(Command::Query(Query {
-                queries: vec![query],
+                queries: Some(vec![query]),
+                tab_separated: tmp.tab_separated,
+                json: tmp.json,
+                file: None,
             }))
         } else {
             tmp.subcommand
