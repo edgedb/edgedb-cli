@@ -178,9 +178,14 @@ pub struct RawOptions {
     #[clap(short='V', long="version")]
     pub print_version: bool,
 
-    /// Disable version check
+    // (deprecated in favor of "no_cli_update_check")
     #[clap(long)]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub no_version_check: bool,
+
+    /// Disable checking if a new version of CLI is available
+    #[clap(long)]
+    pub no_cli_update_check: bool,
 
     #[edb(inheritable)]
     pub conn: ConnectionOptions,
@@ -248,7 +253,7 @@ pub struct Options {
     pub debug_print_descriptors: bool,
     pub debug_print_codecs: bool,
     pub output_format: OutputFormat,
-    pub no_version_check: bool,
+    pub no_cli_update_check: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -420,9 +425,9 @@ fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
     let error = "warning:".bold().light_yellow();
     let instead = format!("edgedb {}", new_name).green();
     eprintln!("\
-        {error} The subcommand '{cmd}' was renamed\n\
+        {error} The '{cmd}' subcommand was renamed.\n\
         \n         \
-            Use '{instead}' instead\
+            Use '{instead}' instead.\
         \n\
     ", error=error, cmd=old_name.green(), instead=instead);
     let new_args: Vec<OsString> = env::args_os().take(1).chain(
@@ -491,6 +496,17 @@ impl Options {
             tmp.subcommand
         };
 
+        let mut no_cli_update_check = tmp.no_cli_update_check;
+        if tmp.no_version_check {
+            no_cli_update_check = true;
+            eprintln!("\
+                {error} The '--no-version-check' option was renamed.\n\
+                \n         \
+                    Use '--no-cli-update-check' instead.\
+                \n\
+            ", error="warning:".bold().light_yellow());
+        }
+
         Ok(Options {
             conn_options: tmp.conn,
             interactive,
@@ -507,7 +523,7 @@ impl Options {
             } else {
                 OutputFormat::JsonPretty
             },
-            no_version_check: tmp.no_version_check,
+            no_cli_update_check,
         })
     }
 

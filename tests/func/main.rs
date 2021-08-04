@@ -142,7 +142,7 @@ impl ServerGuard {
 
     pub fn admin_cmd(&self) -> Command {
         let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
-        cmd.arg("--no-version-check");
+        cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
@@ -156,7 +156,7 @@ impl ServerGuard {
 
         let mut cmd = process::Command::cargo_bin("edgedb")
             .expect("binary found");
-        cmd.arg("--no-version-check");
+        cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
@@ -171,7 +171,7 @@ impl ServerGuard {
 
         let mut cmd = process::Command::cargo_bin("edgedb")
             .expect("binary found");
-        cmd.arg("--no-version-check");
+        cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--tls-ca-file").arg(&self.tls_cert_file);
@@ -182,7 +182,7 @@ impl ServerGuard {
 
     pub fn database_cmd(&self, database_name: &str) -> Command {
         let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
-        cmd.arg("--no-version-check");
+        cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--database").arg(database_name);
