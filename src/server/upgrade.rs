@@ -44,10 +44,10 @@ fn interpret_options(options: &Upgrade) -> anyhow::Result<ToDo> {
     if options.local_minor {
         if options.name.is_some() {
             Err(anyhow::anyhow!(
-                "Cannot execute minor version upgrade on a single instance"
+                "Cannot perform minor version upgrade on a single instance"
             )).hint(
                 "Run `edgedb instance upgrade --local-minor` without \
-                instance name.")?;
+                specifying an instance.")?;
         }
         Ok(ToDo::MinorUpgrade)
     } else if let Some(name) = &options.name {
