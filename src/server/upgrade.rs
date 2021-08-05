@@ -12,6 +12,7 @@ use crate::commands;
 use crate::connect::Connector;
 use crate::hint::HintExt;
 use crate::process::ProcessGuard;
+use crate::project;
 use crate::server::destroy;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::errors::InstanceNotFound;
@@ -93,15 +94,27 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
         let project_dirs = destroy::find_project_dirs(name)?;
         if !project_dirs.is_empty() {
             destroy::print_instance_in_use_warning(name, &project_dirs);
-            eprintln!("Go to each project directory and run:");
-            eprintln!("  edgedb project upgrade {}", match version {
-                | None
-                | Some(VersionQuery::Stable(None)) => "--to-latest".into(),
-                Some(VersionQuery::Nightly) => "--to-nightly".into(),
-                Some(VersionQuery::Stable(Some(version))) => {
-                    format!("--to-version {}", version)
-                }
-            });
+            let current_project = project::project_dir_opt(None)?;
+            eprintln!("To continue with the upgrade, run:");
+            for pd in project_dirs {
+                let pd = destroy::read_project_real_path(&pd)?;
+                eprintln!(
+                    "  edgedb project upgrade {}{}",
+                    match version {
+                        | Some(VersionQuery::Stable(None))
+                        | None => "--to-latest".into(),
+                        Some(VersionQuery::Nightly) => "--to-nightly".into(),
+                        Some(VersionQuery::Stable(Some(version))) => {
+                            format!("--to-version {}", version)
+                        }
+                    },
+                    if current_project.as_ref().map_or(false, |p| p == &pd) {
+                        "".into()
+                    } else {
+                        format!(" --project-dir '{}'", pd.display())
+                    }
+                );
+            }
             if !options.force {
                 anyhow::bail!("Upgrade aborted.");
             }
