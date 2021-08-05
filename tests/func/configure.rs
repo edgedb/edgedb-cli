@@ -45,8 +45,8 @@ fn configure_all_parameters() {
     }
 
     let cmd = SERVER.admin_cmd()
-        .arg("--tab-separated")
         .arg("query")
+        .arg("--output-format=tab-separated")
         .arg(r###"
             WITH Ptr := (SELECT schema::ObjectType
                          FILTER .name = 'cfg::Config'),

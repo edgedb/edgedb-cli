@@ -20,10 +20,11 @@ pub const FAILURE_MARKER: &str = "[tx:failed]";
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OutputMode {
+pub enum OutputFormat {
     Default,
     Json,
-    JsonElements,
+    JsonPretty,
+    JsonLines,
     TabSeparated,
 }
 
@@ -53,7 +54,7 @@ pub struct State {
     pub last_error: Option<anyhow::Error>,
     pub implicit_limit: Option<usize>,
     pub input_mode: InputMode,
-    pub output_mode: OutputMode,
+    pub output_format: OutputFormat,
     pub print_stats: PrintStats,
     pub history_limit: usize,
     pub conn_params: Connector,
@@ -227,14 +228,15 @@ impl std::str::FromStr for InputMode {
     }
 }
 
-impl std::str::FromStr for OutputMode {
+impl std::str::FromStr for OutputFormat {
     type Err = anyhow::Error;
-    fn from_str(s: &str) -> Result<OutputMode, anyhow::Error> {
+    fn from_str(s: &str) -> Result<OutputFormat, anyhow::Error> {
         match s {
-            "json" => Ok(OutputMode::Json),
-            "json-elements" => Ok(OutputMode::JsonElements),
-            "tab-separated" => Ok(OutputMode::TabSeparated),
-            "default" => Ok(OutputMode::Default),
+            "json" => Ok(OutputFormat::Json),
+            "json-pretty" => Ok(OutputFormat::JsonPretty),
+            "json-lines" => Ok(OutputFormat::JsonLines),
+            "tab-separated" => Ok(OutputFormat::TabSeparated),
+            "default" => Ok(OutputFormat::Default),
             _ => Err(anyhow::anyhow!("unsupported output mode {:?}", s)),
         }
     }
@@ -263,13 +265,14 @@ impl InputMode {
     }
 }
 
-impl OutputMode {
+impl OutputFormat {
     pub fn as_str(&self) -> &'static str {
-        use OutputMode::*;
+        use OutputFormat::*;
         match self {
             Default => "default",
             Json => "json",
-            JsonElements => "json-elements",
+            JsonPretty => "json-pretty",
+            JsonLines => "json-lines",
             TabSeparated => "tab-separated",
         }
     }

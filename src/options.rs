@@ -21,7 +21,7 @@ use crate::connect::Connector;
 use crate::credentials::get_connector;
 use crate::hint::HintExt;
 use crate::project;
-use crate::repl::OutputMode;
+use crate::repl::OutputFormat;
 use crate::server;
 
 pub mod describe;
@@ -203,13 +203,14 @@ pub enum Command {
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct Query {
-    /// Tab-separated output of the queries
-    #[clap(short='t', long, overrides_with="json")]
-    pub tab_separated: bool,
-
-    /// JSON output for the queries (single JSON list per query)
-    #[clap(short='j', long, overrides_with="tab_separated")]
-    pub json: bool,
+    /// Output format: `json`, `json-lines`, `tab-separated`.
+    /// Default is `json-lines`.
+    // todo: can't use `clap(default='json-lines')` just yet, as we
+    // need to see if the user did actually specify some output
+    // format or not. We need that to support the now deprecated
+    // --json and --tab-separated top-level options.
+    #[clap(long)]
+    pub output_format: Option<OutputFormat>,
 
     /// Filename to execute queries from.
     /// Pass `--file -` to execute queries from stdin.
@@ -227,7 +228,7 @@ pub struct Options {
     pub debug_print_frames: bool,
     pub debug_print_descriptors: bool,
     pub debug_print_codecs: bool,
-    pub output_mode: OutputMode,
+    pub output_format: OutputFormat,
     pub no_version_check: bool,
 }
 
@@ -408,18 +409,27 @@ impl Options {
             && atty::is(atty::Stream::Stdin);
 
         if tmp.json {
-            say_option_is_deprecated("--json", "edgedb query --json");
+            say_option_is_deprecated(
+                "--json",
+                "edgedb query --output-format=json");
         }
         if tmp.tab_separated {
             say_option_is_deprecated(
-                "--tab-separated", "edgedb query --tab-separated");
+                "--tab-separated",
+                "edgedb query --output-format=tab-separated");
         }
         let subcommand = if let Some(query) = tmp.query {
             say_option_is_deprecated("-c", "edgedb query");
+            let output_format = if tmp.json {
+                Some(OutputFormat::Json)
+            } else if tmp.tab_separated {
+                Some(OutputFormat::TabSeparated)
+            } else {
+                Some(OutputFormat::JsonPretty)
+            };
             Some(Command::Query(Query {
                 queries: Some(vec![query]),
-                tab_separated: tmp.tab_separated,
-                json: tmp.json,
+                output_format,
                 file: None,
             }))
         } else {
@@ -433,14 +443,14 @@ impl Options {
             debug_print_frames: tmp.debug_print_frames,
             debug_print_descriptors: tmp.debug_print_descriptors,
             debug_print_codecs: tmp.debug_print_codecs,
-            output_mode: if tmp.tab_separated {
-                OutputMode::TabSeparated
+            output_format: if tmp.tab_separated {
+                OutputFormat::TabSeparated
             } else if tmp.json {
-                OutputMode::Json
+                OutputFormat::Json
             } else if interactive {
-                OutputMode::Default
+                OutputFormat::Default
             } else {
-                OutputMode::JsonElements
+                OutputFormat::JsonPretty
             },
             no_version_check: tmp.no_version_check,
         })

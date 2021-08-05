@@ -154,8 +154,8 @@ pub enum Setting {
     VerboseErrors(SettingBool),
     /// Set implicit LIMIT. Defaults to 100, specify 0 to disable.
     Limit(Limit),
-    /// Set output mode. One of: json, json-elements, default, tab-separated
-    OutputMode(OutputMode),
+    /// Set output format.
+    OutputFormat(OutputFormat),
     /// Stop escaping newlines in quoted strings
     ExpandStrings(SettingBool),
     /// Set number of entries retained in history
@@ -195,11 +195,11 @@ pub struct Edit {
 }
 
 #[derive(EdbClap, Clone, Debug, Default)]
-pub struct OutputMode {
+pub struct OutputFormat {
     #[clap(name="mode", possible_values=
-        &["json", "json-elements", "default", "tab-separated"][..]
+        &["default", "json-pretty", "json", "json-lines", "tab-separated"][..]
     )]
-    pub value: Option<repl::OutputMode>,
+    pub value: Option<repl::OutputFormat>,
 }
 
 #[derive(EdbClap, Clone, Debug, Default)]
