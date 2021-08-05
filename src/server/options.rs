@@ -45,6 +45,8 @@ pub enum InstanceCommand {
     Unlink(Unlink),
     /// Show logs of an instance
     Logs(Logs),
+    /// Upgrade installations and instances
+    Upgrade(Upgrade),
     /// Revert a major instance upgrade
     Revert(Revert),
     /// Reset password for a user in the instance
@@ -59,8 +61,6 @@ pub enum Command {
     Install(Install),
     /// Uninstall an EdgeDB server locally
     Uninstall(Uninstall),
-    /// Upgrade installations and instances
-    Upgrade(Upgrade),
     /// List available and installed versions of the server
     ListVersions(ListVersions),
     /// Show system introspection debug info
@@ -313,17 +313,28 @@ pub struct Logs {
 #[clap(after_help="\
 There are few modes of operation of this command:
 
-edgedb server upgrade
-  Without arguments this command upgrades all instances which aren't running
+edgedb instance upgrade --local-minor
+  This command upgrades all instances which aren't running
   nightly EdgeDB to a latest minor version of the server.
 
-edgedb server upgrade <name> [--to-version=<ver>|--to-nightly]
-  Upgrades specified instance to the specified major version of the server or
-  to the latest nightly, by default upgrades to the latest stable. This only
-  works for instances that initially aren't running nightly.
+edgedb instance upgrade <name> --to-latest|--to-version=<ver>
+  Upgrades specified instance to the latest stable major version of the server,
+  or to the specified major version. This only works for instances that
+  initially aren't running nightly.
+
+edgedb instance upgrade <name> --to-nightly
+  Upgrades specified instance to the latest nightly version of the server.
 ")]
 pub struct Upgrade {
-    /// Upgrade specified instance(s) to a specified major version
+    /// Upgrade all local instances to the latest minor versions
+    #[clap(long)]
+    pub local_minor: bool,
+
+    /// Upgrade specified instance to the latest major version
+    #[clap(long)]
+    pub to_latest: bool,
+
+    /// Upgrade specified instance to a specified major version
     #[clap(long)]
     pub to_version: Option<Version<String>>,
 

@@ -38,16 +38,16 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
                 builder.filter_module(
                     "edgedb::server::uninstall", log::LevelFilter::Info);
             }
-            Server::Upgrade(u) if u.verbose => {
-                builder.filter_module(
-                    "edgedb::server::upgrade", log::LevelFilter::Info);
-            }
             _ => {}
         },
         Some(Command::Instance(i)) => match &i.subcommand {
             Instance::Destroy(d) if d.verbose => {
                 builder.filter_module(
                     "edgedb::server::destroy", log::LevelFilter::Info);
+            }
+            Instance::Upgrade(u) if u.verbose => {
+                builder.filter_module(
+                    "edgedb::server::upgrade", log::LevelFilter::Info);
             }
             _ => {}
         },

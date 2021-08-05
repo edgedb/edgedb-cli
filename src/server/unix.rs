@@ -554,8 +554,8 @@ fn do_instance_upgrade(method: &dyn Method,
         if &new_major == old_major && !new_major.is_nightly() {
             log::warn!(target: "edgedb::server::upgrade",
                 "Instance has up to date major version {}. \
-                 Use `edgedb server upgrade` (without instance name) \
-                 to upgrade minor versions.",
+                 Use `edgedb instance upgrade --local-minor` (without \
+                 instance name) to upgrade minor versions.",
                  old.map_or_else(|| old_major.title(), |v| v.num()));
             return Ok(());
         }

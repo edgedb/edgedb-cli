@@ -73,7 +73,8 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
             if version.distribution_matches(&old_ver) {
                 if &effective_method == meth_kind {
                     eprintln!("EdgeDB {} ({}) is already installed. \
-                        Use `edgedb server upgrade` for upgrade.",
+                        Use `edgedb instance upgrade --local-minor` for \
+                        minor version upgrade.",
                         old_ver.major_version().title(),
                         old_ver.version());
                 } else {
