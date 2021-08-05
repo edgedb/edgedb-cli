@@ -203,13 +203,13 @@ pub enum Command {
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct Query {
-    /// Output format: `json`, `json-lines`, `tab-separated`.
-    /// Default is `json-lines`.
-    // todo: can't use `clap(default='json-lines')` just yet, as we
+    /// Output format: `json`, `json-pretty`, `json-lines`, `tab-separated`.
+    /// Default is `json-pretty`.
+    // todo: can't use `clap(default='json-pretty')` just yet, as we
     // need to see if the user did actually specify some output
     // format or not. We need that to support the now deprecated
     // --json and --tab-separated top-level options.
-    #[clap(long)]
+    #[clap(short='F', long)]
     pub output_format: Option<OutputFormat>,
 
     /// Filename to execute queries from.
