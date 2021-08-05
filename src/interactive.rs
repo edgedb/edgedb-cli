@@ -105,7 +105,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         verbose_errors: false,
         last_error: None,
         implicit_limit: Some(100),
-        output_mode: options.output_mode,
+        output_format: options.output_format,
         input_mode: repl::InputMode::Emacs,
         print_stats: repl::PrintStats::Off,
         history_limit: 10000,
@@ -238,7 +238,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
     statement: &str)
     -> anyhow::Result<()>
 {
-    use crate::repl::OutputMode::*;
+    use crate::repl::OutputFormat::*;
     use crate::repl::PrintStats::*;
     let start = Instant::now();
 
@@ -262,10 +262,10 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
     seq.send_messages(&[
         ClientMessage::Prepare(Prepare {
             headers,
-            io_format: match state.output_mode {
+            io_format: match state.output_format {
                 Default | TabSeparated => IoFormat::Binary,
+                JsonLines | JsonPretty => IoFormat::JsonElements,
                 Json => IoFormat::Json,
-                JsonElements => IoFormat::JsonElements,
             },
             expected_cardinality: Cardinality::Many,
             statement_name: statement_name.clone(),
@@ -387,7 +387,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
         // update max_width each time
         cfg.max_width(w);
     }
-    match state.output_mode {
+    match state.output_format {
         TabSeparated => {
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
@@ -477,7 +477,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 stdout().write_all(data.as_bytes()).await?;
             }
         }
-        JsonElements => {
+        JsonPretty | JsonLines => {
             let mut index = 0;
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
@@ -486,7 +486,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                         .dark_gray()
                     );
                 }
-                let text = match row {
+                let mut text = match row {
                     Value::Str(s) => s,
                     _ => return Err(anyhow::anyhow!(
                         "the server returned a non-string value in JSON mode")),
@@ -506,12 +506,18 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                         return Err(QueryError)?;
                     }
                 }
-                // trying to make writes atomic if possible
-                let mut data;
-                data = print::json_item_to_string(&value, &cfg)?;
-                data += "\n";
-                stdout().write_all(data.as_bytes()).await?;
-                index += 1;
+                if state.output_format == JsonLines {
+                    // trying to make writes atomic if possible
+                    text += "\n";
+                    stdout().write_all(text.as_bytes()).await?;
+                } else {
+                    // trying to make writes atomic if possible
+                    let mut data;
+                    data = print::json_item_to_string(&value, &cfg)?;
+                    data += "\n";
+                    stdout().write_all(data.as_bytes()).await?;
+                    index += 1;
+                }
             }
         }
     }

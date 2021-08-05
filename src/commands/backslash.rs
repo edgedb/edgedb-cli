@@ -498,8 +498,8 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
         HistorySize(_) => {
             prompt.history_limit.to_string().into()
         }
-        OutputMode(_) => {
-            prompt.output_mode.as_str().into()
+        OutputFormat(_) => {
+            prompt.output_format.as_str().into()
         }
         ExpandStrings(_) => {
             bool_str(prompt.print.expand_strings).into()
@@ -586,8 +586,8 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                     let limit = c.value.expect("only set here");
                     prompt.set_history_limit(limit).await?;
                 }
-                OutputMode(c) => {
-                    prompt.output_mode = c.value.expect("only writes here");
+                OutputFormat(c) => {
+                    prompt.output_format = c.value.expect("only writes here");
                 }
                 ExpandStrings(b) => {
                     prompt.print.expand_strings = b.unwrap_value();
