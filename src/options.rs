@@ -315,6 +315,7 @@ fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
                     "restart" => "instance restart",
                     "destroy" => "instance destroy",
                     "logs" => "instance logs",
+                    "upgrade" => "instance upgrade",
                     _ => return None,
                 }
             }

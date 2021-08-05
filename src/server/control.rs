@@ -52,6 +52,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         | Destroy(_)
         | Link(_)
         | List(_)
+        | Upgrade(_)
         | ResetPassword(_) => {
             unreachable!("handled in server::main::instance_main()");
         }
@@ -87,6 +88,7 @@ pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
         | Destroy(_)
         | Link(_)
         | List(_)
+        | Upgrade(_)
         | ResetPassword(_) => {
             unreachable!("handled in server::main::instance_main()");
         }

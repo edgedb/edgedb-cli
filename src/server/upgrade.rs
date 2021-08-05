@@ -10,6 +10,7 @@ use serde::{Serialize, Deserialize};
 use edgedb_client as client;
 use crate::commands;
 use crate::connect::Connector;
+use crate::hint::HintExt;
 use crate::process::ProcessGuard;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::errors::InstanceNotFound;
@@ -39,23 +40,55 @@ pub enum ToDo {
     InstanceUpgrade(String, Option<VersionQuery>),
 }
 
-fn interpret_options(options: &Upgrade) -> ToDo {
-    if let Some(name) = &options.name {
+fn interpret_options(options: &Upgrade) -> anyhow::Result<ToDo> {
+    if options.local_minor {
+        if options.name.is_some() {
+            Err(anyhow::anyhow!(
+                "Cannot execute minor version upgrade on a single instance"
+            )).hint(
+                "Run `edgedb instance upgrade --local-minor` without \
+                instance name.")?;
+        }
+        Ok(ToDo::MinorUpgrade)
+    } else if let Some(name) = &options.name {
         let nver = if options.to_nightly {
+            if options.to_latest {
+                anyhow::bail!(
+                    "--to-nightly and --to-latest are mutually exclusive"
+                )
+            }
+            if options.to_version.is_some() {
+                anyhow::bail!(
+                    "--to-nightly and --to-version are mutually exclusive"
+                )
+            }
             Some(VersionQuery::Nightly)
+        } else if options.to_latest {
+            if options.to_version.is_some() {
+                anyhow::bail!(
+                    "--to-latest and --to-version are mutually exclusive"
+                )
+            }
+            None
         } else if let Some(ver) = &options.to_version {
             Some(VersionQuery::Stable(Some(ver.clone())))
         } else {
-            None
+            Err(anyhow::anyhow!("No upgrade operation specified."))
+                .hint("Use one of `--to-latest`, `--to-version` or \
+                      `--to-nightly`.")?
         };
-        ToDo::InstanceUpgrade(name.into(), nver)
+        Ok(ToDo::InstanceUpgrade(name.into(), nver))
     } else {
-        ToDo::MinorUpgrade
+        Err(anyhow::anyhow!("No upgrade operation specified."))
+            .hint("Use one of `--to-latest`, `--to-version` or \
+                      `--to-nightly` to upgrade a specific instance, or use \
+                      `--local-minor` to upgrade the minor version of all \
+                      local instances.")?
     }
 }
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
-    let todo = interpret_options(&options);
+    let todo = interpret_options(&options)?;
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
     let mut errors = Vec::new();

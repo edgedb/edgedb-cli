@@ -23,7 +23,6 @@ pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
         Install(c) => install::install(c),
         Uninstall(c) => uninstall::uninstall(c),
         ListVersions(c) => list_versions::list_versions(c),
-        Upgrade(c) => upgrade::upgrade(c),
         Info(c) => info::info(c),
         _Detect(c) => detect::main(c),
     }
@@ -38,6 +37,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options) -> Result<(
         ResetPassword(c) => reset_password::reset_password(c),
         Link(c) => link::link(c, &options),
         List(c) => status::print_status_all(c.extended, c.debug, c.json),
+        Upgrade(c) => upgrade::upgrade(c),
         cmd => control::instance_command(cmd)
     }
 }

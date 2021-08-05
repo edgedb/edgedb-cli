@@ -24,7 +24,7 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         ' 'INSERT Type1 { prop1 := "value1" }'
         kill %1 && wait
 
-        RUST_LOG=debug edgedb server upgrade test1 --to-version=1-beta1
+        RUST_LOG=debug edgedb instance upgrade test1 --to-version=1-beta1
 
         edgedb instance start --foreground test1 &
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
@@ -63,7 +63,7 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
                 CREATE PROPERTY prop1 -> str;
             }
         ' 'INSERT Type1 { prop1 := "value1" }'
-        if ! edgedb server upgrade test1 --to-version=1-beta1; then
+        if ! edgedb instance upgrade test1 --to-version=1-beta1; then
             res=$?
             journalctl -xe
             exit $res
@@ -127,7 +127,7 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
                 CREATE PROPERTY prop1 -> str;
             }
         ' 'INSERT Type1 { prop1 := "value1" }'
-        edgedb server upgrade test1
+        edgedb instance upgrade test1
 
         ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()

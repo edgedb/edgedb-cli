@@ -50,6 +50,8 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
         println!("Major version matches. Running a minor version upgrade.");
         inst.method().upgrade(
             &upgrade::ToDo::MinorUpgrade, &server::options::Upgrade {
+                local_minor: true,
+                to_latest: false,
                 to_version: None,
                 to_nightly: false,
                 name: Some(instance_name.into()),
@@ -62,6 +64,8 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
                 instance_name.to_string(),
                 Some(to_version.to_query()),
             ), &server::options::Upgrade {
+                local_minor: false,
+                to_latest: false,
                 to_version: options.to_version.clone(),
                 to_nightly: to_version.is_nightly(),
                 name: Some(instance_name.into()),
@@ -116,6 +120,8 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
                 instance_name.to_string(),
                 to_version.map(|x| x.to_query()),
             ), &server::options::Upgrade {
+                local_minor: false,
+                to_latest: false,
                 to_version: options.to_version.clone(),
                 to_nightly: options.to_nightly,
                 name: Some(instance_name.into()),
