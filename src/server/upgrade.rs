@@ -12,11 +12,11 @@ use crate::commands;
 use crate::connect::Connector;
 use crate::hint::HintExt;
 use crate::process::ProcessGuard;
+use crate::server::destroy;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::errors::InstanceNotFound;
 use crate::server::options::{Upgrade, Start, Stop};
 use crate::server::os_trait::{Method, Instance};
-use crate::server::upgrade;
 use crate::server::version::Version;
 
 
@@ -89,6 +89,24 @@ fn interpret_options(options: &Upgrade) -> anyhow::Result<ToDo> {
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let todo = interpret_options(&options)?;
+    if let ToDo::InstanceUpgrade(name, version) = &todo {
+        let project_dirs = destroy::find_project_dirs(name)?;
+        if !project_dirs.is_empty() {
+            destroy::print_instance_in_use_warning(name, &project_dirs);
+            eprintln!("Go to each project directory and run:");
+            eprintln!("  edgedb project upgrade {}", match version {
+                | None
+                | Some(VersionQuery::Stable(None)) => "--to-latest".into(),
+                Some(VersionQuery::Nightly) => "--to-nightly".into(),
+                Some(VersionQuery::Stable(Some(version))) => {
+                    format!("--to-version {}", version)
+                }
+            });
+            if !options.force {
+                anyhow::bail!("Upgrade aborted.");
+            }
+        }
+    }
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
     let mut errors = Vec::new();
@@ -196,13 +214,13 @@ pub fn dump_and_stop(inst: &dyn Instance, path: &Path) -> anyhow::Result<()> {
         let child = ProcessGuard::run(&mut cmd)
             .with_context(|| format!("error running server {:?}", cmd))?;
         task::block_on(
-            upgrade::dump_instance(inst, &path, inst.get_connector(false)?))?;
+            dump_instance(inst, &path, inst.get_connector(false)?))?;
         log::info!(target: "edgedb::server::upgrade",
             "Stopping the instance before executable upgrade");
         drop(child);
     } else {
         task::block_on(
-            upgrade::dump_instance(inst, &path, inst.get_connector(false)?))?;
+            dump_instance(inst, &path, inst.get_connector(false)?))?;
         log::info!(target: "edgedb::server::upgrade",
             "Stopping the instance before executable upgrade");
         inst.stop(&Stop { name: inst.name().into() })?;

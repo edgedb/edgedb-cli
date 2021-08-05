@@ -45,7 +45,7 @@ fn read_path(path: &Path) -> anyhow::Result<PathBuf> {
     Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
 
-pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
+pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
     eprintln!("Instance {:?} is used by the following projects:",
               name);
     for dir in project_dirs {
@@ -59,6 +59,10 @@ pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
         };
         eprintln!("  {}", dest.display());
     }
+}
+
+pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
+    print_instance_in_use_warning(name, project_dirs);
     eprintln!("If you really want to destroy the instance, run:");
     eprintln!("  edgedb instance destroy {:?} --force", name);
 }
