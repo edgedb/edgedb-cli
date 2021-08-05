@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::mem::replace;
 use std::str;
 use std::time::Instant;
+use std::vec::Vec;
+use std::ffi::OsString;
 
 use anyhow::{self, Context};
 use async_std::task;
@@ -9,6 +11,7 @@ use async_std::prelude::{StreamExt, FutureExt};
 use async_std::io::stdout;
 use async_std::io::prelude::WriteExt;
 use async_std::channel::{bounded as channel};
+use async_std::fs::{read_to_string as async_read_to_string};
 use async_ctrlc::CtrlC;
 use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
@@ -30,6 +33,7 @@ use crate::repl;
 use crate::variables::input_variables;
 use crate::error_display::print_query_error;
 use crate::outputs::tab_separated;
+use crate::platform::config_dir;
 
 
 const QUERY_OPT_IMPLICIT_LIMIT: u16 = 0xFF01;
@@ -124,6 +128,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
 pub async fn _main(options: Options, mut state: repl::State)
     -> anyhow::Result<()>
 {
+    let mut ctrlc = CtrlC::new()?;
     let mut conn = state.conn_params.connect().await?;
     let fetched_version = conn.get_version().await?;
     println!("{} {} (repl {})",
@@ -132,9 +137,18 @@ pub async fn _main(options: Options, mut state: repl::State)
         env!("CARGO_PKG_VERSION"));
     state.last_version = Some(fetched_version);
     println!("{}", r#"Type \help for help, \quit to quit."#.light_gray());
+    let rcfiles = _collect_rc_files();
+    for rcfile in rcfiles.iter() {
+        match _process_rc_file(rcfile, &options, &mut state, &mut ctrlc).await {
+            Ok(()) => (),
+            Err(e) => {
+                println!("error in {}:\n{}", rcfile.to_string_lossy(), e)
+            }
+        }
+    }
     state.set_history_limit(state.history_limit).await?;
     state.connection = Some(conn);
-    match _interactive_main(&options, &mut state).await {
+    match _interactive_main(&options, &mut state, &mut ctrlc).await {
         Ok(()) => return Ok(()),
         Err(e) => {
             if e.is::<CleanShutdown>() {
@@ -144,6 +158,44 @@ pub async fn _main(options: Options, mut state: repl::State)
         }
     }
 }
+
+fn _collect_rc_files() -> Vec<OsString>
+{
+    let mut vec = Vec::new();
+
+    match config_dir() {
+        Ok(cfgdir) => {
+            let user_rc = cfgdir.join("edgedbrc");
+            if user_rc.exists() {
+                if user_rc.is_file() {
+                    vec.push(user_rc.as_os_str().to_os_string());
+                } else {
+                    println!(
+                        "warning: {} exists but is not a regular file, ignoring",
+                        user_rc.to_string_lossy(),
+                    );
+                }
+            }
+        },
+        Err(e) => {
+            println!("warning: {}", e)
+        }
+    }
+
+    vec
+}
+
+async fn _process_rc_file(
+    file: &OsString,
+    options: &Options,
+    state: &mut repl::State,
+    ctrlc: &mut CtrlC,
+) -> Result<(), anyhow::Error>
+{
+    let contents = async_read_to_string(file).await?;
+    return _execute_input(&contents, options, state, ctrlc).await;
+}
+
 
 fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
     -> bool
@@ -532,10 +584,54 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
     return Ok(());
 }
 
-async fn _interactive_main(options: &Options, state: &mut repl::State)
-    -> Result<(), anyhow::Error>
+async fn _execute_input(
+    inp: &String,
+    options: &Options,
+    state: &mut repl::State,
+    ctrlc: &mut CtrlC,
+) -> Result<(), anyhow::Error>
 {
-    let mut ctrlc = CtrlC::new()?;
+    for item in ToDo::new(inp) {
+        let result = match item {
+            ToDoItem::Backslash(text) => {
+                execute_backslash(state, text)
+                    .race(async { ctrlc.next().await; Err(Interrupted)?})
+                    .await
+            }
+            ToDoItem::Query(statement) => {
+                state.soft_reconnect()
+                    .race(async { ctrlc.next().await; Err(Interrupted)?})
+                    .await?;
+                execute_query(options, state, statement)
+                    .race(async { ctrlc.next().await; Err(Interrupted)?})
+                    .await
+            }
+        };
+        if let Err(err) = result {
+            if err.is::<Interrupted>() {
+                eprintln!("Interrupted.");
+                state.reconnect()
+                    .race(async { ctrlc.next().await; Err(Interrupted)? })
+                    .await?;
+            } else if err.is::<CleanShutdown>() {
+                return Err(err)?;
+            } else if !err.is::<QueryError>() {
+                eprintln!("Error: {:#}", err);
+            }
+            // Don't continue next statements on error
+            break;
+        }
+    }
+
+    return Ok(());
+}
+
+async fn _interactive_main(
+    options: &Options,
+    state: &mut repl::State,
+    ctrlc: &mut CtrlC,
+) -> Result<(), anyhow::Error>
+{
     loop {
         state.ensure_connection()
             .race(async { ctrlc.next().await; Err(Interrupted)? })
@@ -554,37 +650,8 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             prompt::Input::Text(inp) => inp,
             prompt::Input::Value(_) => unreachable!(),
         };
-        for item in ToDo::new(&inp) {
-            let result = match item {
-                ToDoItem::Backslash(text) => {
-                    execute_backslash(state, text)
-                        .race(async { ctrlc.next().await; Err(Interrupted)?})
-                        .await
-                }
-                ToDoItem::Query(statement) => {
-                    state.soft_reconnect()
-                        .race(async { ctrlc.next().await; Err(Interrupted)?})
-                        .await?;
-                    execute_query(options, state, statement)
-                        .race(async { ctrlc.next().await; Err(Interrupted)?})
-                        .await
-                }
-            };
-            if let Err(err) = result {
-                if err.is::<Interrupted>() {
-                    eprintln!("Interrupted.");
-                    state.reconnect()
-                        .race(async { ctrlc.next().await; Err(Interrupted)? })
-                        .await?;
-                } else if err.is::<CleanShutdown>() {
-                    return Err(err)?;
-                } else if !err.is::<QueryError>() {
-                    eprintln!("Error: {:#}", err);
-                }
-                // Don't continue next statements on error
-                break;
-            }
-        }
+
+        _execute_input(&inp, options, state, ctrlc).await?;
     }
 }
 
