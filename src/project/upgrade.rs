@@ -108,7 +108,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
         };
         modify_toml(&config_path, &version)?;
         println!("Config updated successfully. \
-            Run `project init` to initialize an instance.")
+            Run `edgedb project init` to initialize an instance.")
     } else {
         let os = detect::current_os()?;
         let methods = os.all_methods()?;
