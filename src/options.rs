@@ -30,12 +30,18 @@ static CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
     to specify connection parameters. See `--help` for details";
 
+const CONN_OPTIONS_GROUP: &str =
+    "CONNECTION OPTIONS (`edgedb --help-connect` to see the full list)";
+
+const EDGEDB_ABOUT: &str = "\
+    Use the `edgedb` command-line tool to spin up local instances,\n\
+    manage EdgeDB projects, create and apply migrations, and more.\n\
+    \n\
+    Running `edgedb` without a subcommand opens an interactive shell.";
+
 pub trait PropagateArgs {
     fn propagate_args(&self, dest: &mut AnyMap, matches: &clap::ArgMatches);
 }
-
-const CONN_OPTIONS_GROUP: &str =
-    "CONNECTION OPTIONS (`edgedb --help-connect` to see the full list)";
 
 #[derive(EdbClap, Clone, Debug)]
 #[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
@@ -158,7 +164,8 @@ pub struct RawOptions {
         clap(setting=clap::ArgSettings::Hidden))]
     pub debug_print_codecs: bool,
 
-    /// Print all connection options for REPL and subcommands
+    /// Print all available connection options
+    /// for the interactive shell and subcommands
     #[clap(long)]
     pub help_connect: bool,
 
@@ -441,7 +448,9 @@ fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
 
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
-        let app = <RawOptions as clap::IntoApp>::into_app().name("edgedb");
+        let app = <RawOptions as clap::IntoApp>::into_app()
+                  .name("edgedb")
+                  .about(EDGEDB_ABOUT);
         let app = update_main_help(app);
         let matches = get_matches(app);
         let tmp: RawOptions = <RawOptions as clap::FromArgMatches>
