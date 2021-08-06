@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
 
 use anyhow::Context;
@@ -88,6 +88,20 @@ fn interpret_options(options: &Upgrade) -> anyhow::Result<ToDo> {
     }
 }
 
+pub fn print_project_upgrade_command(
+    version: &str, current_project: &Option<PathBuf>, project_dir: &Path
+) {
+    eprintln!(
+        "  edgedb project upgrade {}{}",
+        version,
+        if current_project.as_ref().map_or(false, |p| p == project_dir) {
+            "".into()
+        } else {
+            format!(" --project-dir '{}'", project_dir.display())
+        }
+    );
+}
+
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let todo = interpret_options(&options)?;
     if let ToDo::InstanceUpgrade(name, version) = &todo {
@@ -95,6 +109,14 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
         if !project_dirs.is_empty() {
             destroy::print_instance_in_use_warning(name, &project_dirs);
             let current_project = project::project_dir_opt(None)?;
+            let version = match version {
+                | Some(VersionQuery::Stable(None))
+                | None => "--to-latest".into(),
+                Some(VersionQuery::Nightly) => "--to-nightly".into(),
+                Some(VersionQuery::Stable(Some(version))) => {
+                    format!("--to-version {}", version)
+                }
+            };
             if options.force {
                 eprintln!(
                     "To update the project{} after the instance upgrade, run:",
@@ -105,22 +127,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
             }
             for pd in project_dirs {
                 let pd = destroy::read_project_real_path(&pd)?;
-                eprintln!(
-                    "  edgedb project upgrade {}{}",
-                    match version {
-                        | Some(VersionQuery::Stable(None))
-                        | None => "--to-latest".into(),
-                        Some(VersionQuery::Nightly) => "--to-nightly".into(),
-                        Some(VersionQuery::Stable(Some(version))) => {
-                            format!("--to-version {}", version)
-                        }
-                    },
-                    if current_project.as_ref().map_or(false, |p| p == &pd) {
-                        "".into()
-                    } else {
-                        format!(" --project-dir '{}'", pd.display())
-                    }
-                );
+                print_project_upgrade_command(&version, &current_project, &pd);
             }
             if !options.force {
                 anyhow::bail!("Upgrade aborted.");
@@ -132,7 +139,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let mut errors = Vec::new();
     for meth in methods.values() {
         match meth.upgrade(&todo, options) {
-            Ok(()) => {}
+            Ok(_) => {}
             Err(e) if e.is::<InstanceNotFound>() => {
                 errors.push((meth.name(), e));
             }

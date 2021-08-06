@@ -1,13 +1,17 @@
 use std::path::Path;
 use std::fs;
 
+use anyhow::Context;
+
 use crate::commands::ExitCode;
 use crate::platform::tmp_file_path;
 use crate::project::config::{self, SrcConfig};
 use crate::project::options::Upgrade;
 use crate::project::{self, project_dir, stash_path};
+use crate::question;
 use crate::server;
 use crate::server::control;
+use crate::server::destroy;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::{MajorVersion};
 use crate::server::upgrade;
@@ -45,21 +49,43 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
     let os = detect::current_os()?;
     let methods = os.all_methods()?;
     let inst = control::get_instance(&methods, &instance_name)?;
+    let mut should_upgrade = inst.get_version()? != &to_version;
 
-    if !to_version.is_nightly() && inst.get_version()? == &to_version {
-        println!("Major version matches. Running a minor version upgrade.");
-        inst.method().upgrade(
-            &upgrade::ToDo::MinorUpgrade, &server::options::Upgrade {
-                local_minor: true,
-                to_latest: false,
-                to_version: None,
-                to_nightly: false,
-                name: Some(instance_name.into()),
-                verbose: options.verbose,
-                force: options.force,
-            })?;
+    if should_upgrade {
+        if !question::Confirm::new(format!(
+            "Do you want to upgrade to {} per edgedb.toml?", to_version.title()
+        )).ask()? {
+            should_upgrade = false;
+        }
     } else {
-        inst.method().upgrade(
+        let version_query = to_version.to_query();
+        let method = inst.method();
+        let new_version = method.get_version(&version_query)
+            .context("Unable to determine version")?;
+        if let Some(old_version) = upgrade::get_installed(
+            &version_query, method
+        )? {
+            if &old_version < new_version.version() {
+                if to_version.is_nightly() {
+                    if question::Confirm::new(format!(
+                        "A new nightly version is available: {}. \
+                        Do you want to upgrade?", new_version.version()
+                    )).ask()? {
+                        should_upgrade = true;
+                    }
+                } else {
+                    println!("A new minor version is available: {}",
+                             new_version.version());
+                    println!("  Run `edgedb instance upgrade --local-minor` \
+                             to update.");
+                }
+            } else {
+                println!("Instance is up to date.")
+            }
+        }
+    }
+    if should_upgrade {
+        let upgraded = inst.method().upgrade(
             &upgrade::ToDo::InstanceUpgrade(
                 instance_name.to_string(),
                 Some(to_version.to_query()),
@@ -72,9 +98,18 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
                 verbose: options.verbose,
                 force: options.force,
             })?;
-        let new_inst = inst.method().get_instance(&instance_name)?;
-        println!("Instance upgraded to {}",
-            new_inst.get_current_version()?.unwrap());
+        if upgraded {
+            let new_inst = inst.method().get_instance(&instance_name)?;
+            println!("Instance upgraded to {}",
+                     new_inst.get_current_version()?.unwrap());
+            if !inst.get_version()?.is_nightly() {
+                print_other_project_warning(
+                    instance_name, &root, &to_version
+                )?;
+            }
+        } else {
+            println!("Instance is up to date.")
+        }
     }
     Ok(())
 }
@@ -106,16 +141,20 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
             let distr = meth.get_version(&VersionQuery::Stable(None))?;
             distr.major_version().clone()
         };
-        modify_toml(&config_path, &version)?;
-        println!("Config updated successfully. \
+        if modify_toml(&config_path, &version)? {
+            println!("Config updated successfully. \
             Run `edgedb project init` to initialize an instance.")
+        } else {
+            println!("Config is up to date. \
+            Run `edgedb project init` to initialize an instance.")
+        }
     } else {
         let os = detect::current_os()?;
         let methods = os.all_methods()?;
         let text = fs::read_to_string(stash_dir.join("instance-name"))?;
         let instance_name = text.trim();
         let inst = control::get_instance(&methods, &instance_name)?;
-        inst.method().upgrade(
+        let upgraded = inst.method().upgrade(
             &upgrade::ToDo::InstanceUpgrade(
                 instance_name.to_string(),
                 to_version.map(|x| x.to_query()),
@@ -131,39 +170,51 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
         // re-read instance to invalidate cache in the object
         let new_inst = inst.method().get_instance(&instance_name)?;
         let version = new_inst.get_version()?;
-        modify_toml(&config_path, &version)?;
-        println!("Instance upgraded to {}",
-            new_inst.get_current_version()?.unwrap());
-        println!("Remember to commit it to the version control.");
+        if modify_toml(&config_path, &version)? {
+            println!("Remember to commit it to the version control.");
+        }
+        if upgraded {
+            println!("Instance upgraded to {}",
+                     new_inst.get_current_version()?.unwrap());
+            print_other_project_warning(instance_name, &root, version)?;
+        } else {
+            println!("Instance is up to date.")
+        }
     };
     Ok(())
 }
 
 #[context("cannot modify `{}`", config.display())]
-fn modify_toml(config: &Path, ver: &MajorVersion) -> anyhow::Result<()> {
-    println!("Setting `server-version = {:?}` in `edgedb.toml`", ver.title());
+fn modify_toml(config: &Path, ver: &MajorVersion) -> anyhow::Result<bool> {
     let input = fs::read_to_string(&config)?;
-    let output = toml_set_version(&input, ver.as_str())?;
-    let tmp = tmp_file_path(config);
-    fs::remove_file(&tmp).ok();
-    fs::write(&tmp, output)?;
-    fs::rename(&tmp, config)?;
-    Ok(())
+    if let Some(output) = toml_set_version(&input, ver.as_str())? {
+        println!("Setting `server-version = {:?}` in `edgedb.toml`", ver.title());
+        let tmp = tmp_file_path(config);
+        fs::remove_file(&tmp).ok();
+        fs::write(&tmp, output)?;
+        fs::rename(&tmp, config)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
-fn toml_set_version(data: &str, version: &str) -> anyhow::Result<String> {
+fn toml_set_version(data: &str, version: &str) -> anyhow::Result<Option<String>> {
     use std::fmt::Write;
 
     let mut toml = toml::de::Deserializer::new(&data);
     let parsed: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
     if let Some(ver_position) = &parsed.edgedb.server_version {
+        if ver_position.get_ref().as_str() == version {
+            return Ok(None);
+        }
         let mut out = String::with_capacity(data.len() + 5);
         write!(&mut out, "{}{:?}{}",
             &data[..ver_position.start()],
             version,
             &data[ver_position.end()..],
         ).unwrap();
-        return Ok(out);
+        return Ok(Some(out));
     }
     eprintln!("No server-version found in `edgedb.toml`.");
     eprintln!("Please ensure that `edgedb.toml` contains:");
@@ -173,6 +224,45 @@ fn toml_set_version(data: &str, version: &str) -> anyhow::Result<String> {
         .collect::<Vec<_>>()
         .join("\n  "));
     return Err(ExitCode::new(2).into());
+}
+
+fn print_other_project_warning(
+    name: &str, project_path: &Path, to_version: &MajorVersion
+) -> anyhow::Result<()> {
+    let mut project_dirs = Vec::new();
+    for pd in destroy::find_project_dirs(name)? {
+        let real_pd = match destroy::read_project_real_path(&pd) {
+            Ok(path) => path,
+            Err(e) => {
+                eprintln!("edgedb error: {}", e);
+                continue;
+            }
+        };
+        if real_pd != project_path {
+            project_dirs.push(real_pd);
+        }
+    }
+    if !project_dirs.is_empty() {
+        eprintln!("Warning: the instance {} is still used by the following \
+                  projects:", name);
+        for pd in &project_dirs {
+            eprintln!("  {}", pd.display());
+        }
+        eprintln!("Run the following commands to update them:");
+        let version = match to_version {
+            MajorVersion::Nightly => "--to-nightly".into(),
+            MajorVersion::Stable(version) => {
+                format!("--to-version {}", version)
+            }
+        };
+        let current_project = project::project_dir_opt(None)?;
+        for pd in &project_dirs {
+            upgrade::print_project_upgrade_command(
+                &version, &current_project, pd
+            );
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -222,36 +312,36 @@ mod test {
         edgedb = {server-version = \"nightly\"}\n\
     ";
 
-    #[test_case(TOML_BETA1, "1-beta2" => TOML_BETA2)]
-    #[test_case(TOML_BETA2, "1-beta2" => TOML_BETA2)]
-    #[test_case(TOML_NIGHTLY, "1-beta2" => TOML_BETA2)]
-    #[test_case(TOML_BETA1, "1-beta1" => TOML_BETA1)]
-    #[test_case(TOML_BETA2, "1-beta1" => TOML_BETA1)]
-    #[test_case(TOML_NIGHTLY, "1-beta1" => TOML_BETA1)]
-    #[test_case(TOML_BETA1, "nightly" => TOML_NIGHTLY)]
-    #[test_case(TOML_BETA2, "nightly" => TOML_NIGHTLY)]
-    #[test_case(TOML_NIGHTLY, "nightly" => TOML_NIGHTLY)]
+    #[test_case(TOML_BETA1, "1-beta2" => Some(TOML_BETA2.into()))]
+    #[test_case(TOML_BETA2, "1-beta2" => None)]
+    #[test_case(TOML_NIGHTLY, "1-beta2" => Some(TOML_BETA2.into()))]
+    #[test_case(TOML_BETA1, "1-beta1" => None)]
+    #[test_case(TOML_BETA2, "1-beta1" => Some(TOML_BETA1.into()))]
+    #[test_case(TOML_NIGHTLY, "1-beta1" => Some(TOML_BETA1.into()))]
+    #[test_case(TOML_BETA1, "nightly" => Some(TOML_NIGHTLY.into()))]
+    #[test_case(TOML_BETA2, "nightly" => Some(TOML_NIGHTLY.into()))]
+    #[test_case(TOML_NIGHTLY, "nightly" => None)]
 
-    #[test_case(TOML2_BETA1, "1-beta2" => TOML2_BETA2)]
-    #[test_case(TOML2_BETA2, "1-beta2" => TOML2_BETA2)]
-    #[test_case(TOML2_NIGHTLY, "1-beta2" => TOML2_BETA2)]
-    #[test_case(TOML2_BETA1, "1-beta1" => TOML2_BETA1)]
-    #[test_case(TOML2_BETA2, "1-beta1" => TOML2_BETA1)]
-    #[test_case(TOML2_NIGHTLY, "1-beta1" => TOML2_BETA1)]
-    #[test_case(TOML2_BETA1, "nightly" => TOML2_NIGHTLY)]
-    #[test_case(TOML2_BETA2, "nightly" => TOML2_NIGHTLY)]
-    #[test_case(TOML2_NIGHTLY, "nightly" => TOML2_NIGHTLY)]
+    #[test_case(TOML2_BETA1, "1-beta2" => Some(TOML2_BETA2.into()))]
+    #[test_case(TOML2_BETA2, "1-beta2" => None)]
+    #[test_case(TOML2_NIGHTLY, "1-beta2" => Some(TOML2_BETA2.into()))]
+    #[test_case(TOML2_BETA1, "1-beta1" => None)]
+    #[test_case(TOML2_BETA2, "1-beta1" => Some(TOML2_BETA1.into()))]
+    #[test_case(TOML2_NIGHTLY, "1-beta1" => Some(TOML2_BETA1.into()))]
+    #[test_case(TOML2_BETA1, "nightly" => Some(TOML2_NIGHTLY.into()))]
+    #[test_case(TOML2_BETA2, "nightly" => Some(TOML2_NIGHTLY.into()))]
+    #[test_case(TOML2_NIGHTLY, "nightly" => None)]
 
-    #[test_case(TOMLI_BETA1, "1-beta2" => TOMLI_BETA2)]
-    #[test_case(TOMLI_BETA2, "1-beta2" => TOMLI_BETA2)]
-    #[test_case(TOMLI_NIGHTLY, "1-beta2" => TOMLI_BETA2)]
-    #[test_case(TOMLI_BETA1, "1-beta1" => TOMLI_BETA1)]
-    #[test_case(TOMLI_BETA2, "1-beta1" => TOMLI_BETA1)]
-    #[test_case(TOMLI_NIGHTLY, "1-beta1" => TOMLI_BETA1)]
-    #[test_case(TOMLI_BETA1, "nightly" => TOMLI_NIGHTLY)]
-    #[test_case(TOMLI_BETA2, "nightly" => TOMLI_NIGHTLY)]
-    #[test_case(TOMLI_NIGHTLY, "nightly" => TOMLI_NIGHTLY)]
-    fn set(src: &str, ver: &str) -> String {
+    #[test_case(TOMLI_BETA1, "1-beta2" => Some(TOMLI_BETA2.into()))]
+    #[test_case(TOMLI_BETA2, "1-beta2" => None)]
+    #[test_case(TOMLI_NIGHTLY, "1-beta2" => Some(TOMLI_BETA2.into()))]
+    #[test_case(TOMLI_BETA1, "1-beta1" => None)]
+    #[test_case(TOMLI_BETA2, "1-beta1" => Some(TOMLI_BETA1.into()))]
+    #[test_case(TOMLI_NIGHTLY, "1-beta1" => Some(TOMLI_BETA1.into()))]
+    #[test_case(TOMLI_BETA1, "nightly" => Some(TOMLI_NIGHTLY.into()))]
+    #[test_case(TOMLI_BETA2, "nightly" => Some(TOMLI_NIGHTLY.into()))]
+    #[test_case(TOMLI_NIGHTLY, "nightly" => None)]
+    fn set(src: &str, ver: &str) -> Option<String> {
         toml_set_version(src, ver).unwrap()
     }
 

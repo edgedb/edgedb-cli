@@ -471,7 +471,8 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             }
         }
     }
-    fn minor_upgrade(&self, options: &Upgrade) -> anyhow::Result<()> {
+    fn minor_upgrade(&self, options: &Upgrade) -> anyhow::Result<bool> {
+        let mut rv = false;
         for inst in self._all_instances()? {
             if inst.get_version()?.is_nightly() {
                 continue;
@@ -487,7 +488,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                         log::info!(target: "edgedb::server::upgrade",
                             "Instance {} is up to date {}",
                             inst.name(), old_ver);
-                        return Ok(());
+                        return Ok(rv);
                     }
                 }
             }
@@ -501,14 +502,15 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 start_conf: inst.get_start_conf()?,
             };
 
+            rv = true;
             inst.delete()?;
             self.create(&create)?;
         }
-        Ok(())
+        Ok(rv)
     }
     fn instance_upgrade(&self, name: &str,
         version_query: &Option<VersionQuery>,
-        options: &Upgrade) -> anyhow::Result<()>
+        options: &Upgrade) -> anyhow::Result<bool>
     {
         let inst = self._get_instance(name)?;
         let version_query = if let Some(q) = version_query {
@@ -537,7 +539,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                         log::info!(target: "edgedb::server::upgrade",
                             "Instance {} is up to date {}. Skipping.",
                             inst.name(), old_ver);
-                        return Ok(());
+                        return Ok(false);
                     }
                 }
             }
@@ -573,7 +575,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             };
             self.reinit_and_restore(inst, &meta, dump_path.as_ref(), &new)?;
         }
-        Ok(())
+        Ok(true)
     }
     fn _all_instances<'x>(&'x self)
         -> anyhow::Result<Vec<DockerInstance<'x, O>>>
@@ -1137,7 +1139,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         self._get_instance(name).map(|inst| inst.into_ref())
     }
     fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
-        -> anyhow::Result<()>
+        -> anyhow::Result<bool>
     {
         use upgrade::ToDo::*;
 
