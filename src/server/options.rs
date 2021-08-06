@@ -171,7 +171,7 @@ pub struct Create {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Destroy {
-    /// Name of instance to destroy
+    /// Name of the instance to destroy
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -222,7 +222,7 @@ pub struct Unlink {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Start {
-    /// Name of instance
+    /// Name of the instance to start
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -240,7 +240,7 @@ pub struct Start {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Stop {
-    /// Name of instance
+    /// Name of the instance to stop
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -248,7 +248,7 @@ pub struct Stop {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Restart {
-    /// Name of instance
+    /// Name of the instance to restart
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -271,7 +271,7 @@ pub struct List {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Status {
-    /// Name of instance
+    /// Name of the instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -295,7 +295,7 @@ pub struct Status {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Logs {
-    /// Name of instance
+    /// Name of the instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
@@ -372,7 +372,7 @@ pub struct Revert {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct ResetPassword {
-    /// Name of instance
+    /// Name of the instance to reset
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
