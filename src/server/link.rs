@@ -166,13 +166,22 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         )
     );
     if let Err(e) = builder.connect_with_cert_verifier(
-    verifier.clone()
+        verifier.clone()
     ).await {
-        if e.is::<PasswordRequired>() && !cmd.non_interactive {
-            let password = rpassword::read_password_from_tty(
-                Some(&format!("Password for '{}': ",
-                              builder.get_user().escape_default())))
-                .context("error reading password")?;
+        if e.is::<PasswordRequired>() {
+            let password;
+
+            if opts.conn_options.password_from_stdin {
+                password = rpassword::read_password()?;
+            } else if !cmd.non_interactive {
+                password = rpassword::read_password_from_tty(
+                    Some(&format!("Password for '{}': ",
+                                builder.get_user().escape_default())))
+                    .context("error reading password")?;
+            } else {
+                return Err(e);
+            }
+
             let mut builder = builder.clone();
             builder.password(&password);
             if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
