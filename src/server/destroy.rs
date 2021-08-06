@@ -39,18 +39,17 @@ pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
     Ok(res)
 }
 
-#[context("cannot read {:?}", path)]
-fn read_path(path: &Path) -> anyhow::Result<PathBuf> {
-    let bytes = fs::read(&path)?;
+#[context("cannot read {:?}", project_dir)]
+pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
+    let bytes = fs::read(&project_dir.join("project-path"))?;
     Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
 
-pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
-    eprintln!("Instance {:?} is used by the following projects:",
-              name);
+pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
+    eprintln!("Instance {:?} is used by the following project{}:",
+              name, if project_dirs.len() > 1 { "s" } else { "" });
     for dir in project_dirs {
-        let path_path = dir.join("project-path");
-        let dest = match read_path(&path_path) {
+        let dest = match read_project_real_path(dir) {
             Ok(path) => path,
             Err(e) => {
                 eprintln!("edgedb error: {}", e);
@@ -59,6 +58,10 @@ pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
         };
         eprintln!("  {}", dest.display());
     }
+}
+
+pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
+    print_instance_in_use_warning(name, project_dirs);
     eprintln!("If you really want to destroy the instance, run:");
     eprintln!("  edgedb instance destroy {:?} --force", name);
 }
@@ -71,8 +74,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     }
     do_destroy(options)?;
     for dir in project_dirs {
-        let path_path = dir.join("project-path");
-        match read_path(&path_path) {
+        match read_project_real_path(&dir) {
             Ok(path) => eprintln!("Unlinking {}", path.display()),
             Err(_) => eprintln!("Cleaning {}", dir.display()),
         };
