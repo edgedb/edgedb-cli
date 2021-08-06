@@ -55,13 +55,13 @@ pub enum InstanceCommand {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
-    /// Show locally installed EdgeDB servers
+    /// Show locally installed EdgeDB versions
     Info(Info),
-    /// Install an EdgeDB server locally
+    /// Install an EdgeDB version locally
     Install(Install),
-    /// Uninstall an EdgeDB server locally
+    /// Uninstall an EdgeDB version locally
     Uninstall(Uninstall),
-    /// List available and installed versions of the server
+    /// List available and installed versions of EdgeDB
     ListVersions(ListVersions),
     /// Show system introspection debug info
     #[clap(name="_detect")]
