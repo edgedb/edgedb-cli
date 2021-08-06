@@ -124,7 +124,7 @@ pub enum StartConf {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Create {
-    /// Database instance name
+    /// Name of the created instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
