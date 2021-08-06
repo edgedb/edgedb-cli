@@ -268,8 +268,7 @@ fn print_post_install_message(settings: &Settings,
         }
         Ok(InitResult::Refused | InitResult::NonInteractive) => {
             print_markdown!("\n\
-                To install the EdgeDB server and initialize the project, run\n\
-                the following:\n\
+                To initialize a new project, run:\n\
                 ```\n\
                     edgedb project init\n\
                 ```\
@@ -277,7 +276,7 @@ fn print_post_install_message(settings: &Settings,
         }
         Ok(InitResult::NotAProject) => {
             print_markdown!("\n\
-                To initialize a new project, run\n\
+                To initialize a new project, run:\n\
                 ```\n\
                     edgedb project init\n\
                 ```\
