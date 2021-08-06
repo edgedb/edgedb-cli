@@ -28,6 +28,8 @@ mod migrations;
 #[cfg(all(target_os="linux", not(target_env="musl")))]
 mod interactive;
 
+mod help;
+
 
 pub static SHUTDOWN_INFO: Lazy<Mutex<Vec<ShutdownInfo>>> =
     Lazy::new(|| Mutex::new(Vec::new()));
