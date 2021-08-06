@@ -20,13 +20,13 @@ USAGE:
     edgedb-init [FLAGS] [OPTIONS]
 
 FLAGS:
-    -h, --help              Prints help information
+    -h, --help              Print help information
         --nightly           Install nightly version of command-line tools
     -y                      Disable confirmation prompt
         --no-modify-path    Do not configure the PATH environment variable
     -q, --quiet             Disable progress output
     -v, --verbose           Enable verbose output
-    -V, --version           Prints version information
+    -V, --version           Print version information
 EOF
 }
 
