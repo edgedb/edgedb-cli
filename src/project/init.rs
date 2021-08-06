@@ -64,25 +64,24 @@ pub fn search_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
 fn ask_method(available: &InstallationMethods, options: &Init)
     -> anyhow::Result<InstallMethod>
 {
+    if let Some(meth) = &options.server_install_method {
+        return Ok(meth.clone());
+    }
     if options.non_interactive {
-        if let Some(meth) = &options.server_install_method {
-            return Ok(meth.clone());
+        if available.package.supported {
+            return Ok(InstallMethod::Package);
+        } else if available.docker.supported {
+            return Ok(InstallMethod::Docker);
         } else {
-            if available.package.supported {
-                return Ok(InstallMethod::Package);
-            } else if available.docker.supported {
-                return Ok(InstallMethod::Docker);
-            } else {
-                let mut buf = String::with_capacity(1024);
-                buf.push_str(
-                    "No installation method supported for the platform:");
-                available.package.format_error(&mut buf);
-                available.docker.format_error(&mut buf);
-                buf.push_str("Please consider opening an issue at \
-                    https://github.com/edgedb/edgedb-cli/issues/new\
-                    ?template=install-unsupported.md");
-                anyhow::bail!(buf);
-            }
+            let mut buf = String::with_capacity(1024);
+            buf.push_str(
+                "No installation method supported for the platform:");
+            available.package.format_error(&mut buf);
+            available.docker.format_error(&mut buf);
+            buf.push_str("Please consider opening an issue at \
+                https://github.com/edgedb/edgedb-cli/issues/new\
+                ?template=install-unsupported.md");
+            anyhow::bail!(buf);
         }
     }
     let mut q = question::Numeric::new(
