@@ -312,7 +312,7 @@ pub fn status(name: &String, data_dir: &Path,
 }
 
 pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &dyn Method)
-    -> anyhow::Result<()>
+    -> anyhow::Result<bool>
 {
     use upgrade::ToDo::*;
 
@@ -326,8 +326,9 @@ pub fn upgrade(todo: &upgrade::ToDo, options: &Upgrade, meth: &dyn Method)
 }
 
 fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
-    -> anyhow::Result<()>
+    -> anyhow::Result<bool>
 {
+    let mut rv = false;
     let mut by_major = BTreeMap::new();
     for inst in method.all_instances()? {
         if inst.get_version()?.is_nightly() {
@@ -358,7 +359,7 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
                     log::info!(target: "edgedb::server::upgrade",
                         "Version {} is up to date {}, skipping instances: {}",
                         version.title(), old_ver, instances_str);
-                    return Ok(());
+                    return Ok(rv);
                 }
             }
         }
@@ -381,6 +382,7 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
         }
 
         log::info!(target: "edgedb::server::upgrade", "Upgrading the package");
+        rv = true;
         method.install(&install::Settings {
             method: method.name(),
             distribution: new,
@@ -411,7 +413,7 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
         }
     }
     print_errors(errors)?;
-    Ok(())
+    Ok(rv)
 }
 
 fn print_errors(errors: Vec<String>) -> anyhow::Result<()> {
@@ -534,7 +536,7 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
 
 fn do_instance_upgrade(method: &dyn Method,
     inst: InstanceRef, version_query: &Option<VersionQuery>, options: &Upgrade)
-    -> anyhow::Result<()>
+    -> anyhow::Result<bool>
 {
     let version_query = if let Some(q) = version_query {
         q
@@ -557,14 +559,14 @@ fn do_instance_upgrade(method: &dyn Method,
                  Use `edgedb instance upgrade --local-minor` (without \
                  instance name) to upgrade minor versions.",
                  old.map_or_else(|| old_major.title(), |v| v.num()));
-            return Ok(());
+            return Ok(false);
         }
         if let Some(old_ver) = &old {
             if old_ver >= &new.version() {
                 log::info!(target: "edgedb::server::upgrade",
                     "Version {} is up to date {}, skipping instance: {}",
                     version_query, old_ver, inst.name());
-                return Ok(());
+                return Ok(false);
             }
         }
     }
@@ -609,7 +611,7 @@ fn do_instance_upgrade(method: &dyn Method,
         Err(e) => return Err(e)?,
     }
 
-    Ok(())
+    Ok(true)
 }
 
 pub fn revert(instance: &dyn Instance, metadata: &Metadata)

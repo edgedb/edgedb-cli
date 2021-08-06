@@ -322,7 +322,7 @@ impl<'os> Method for PackageMethod<'os, Centos> {
         linux::get_instance(self, name)
     }
     fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
-        -> anyhow::Result<()>
+        -> anyhow::Result<bool>
     {
         unix::upgrade(todo, options, self)
     }

@@ -104,7 +104,7 @@ pub trait Method: fmt::Debug + Send + Sync {
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()>;
     fn bootstrap(&self, settings: &create::Settings) -> anyhow::Result<()>;
     fn upgrade(&self, todo: &upgrade::ToDo, options: &Upgrade)
-        -> anyhow::Result<()>;
+        -> anyhow::Result<bool>;
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>;
     fn get_instance<'x>(&'x self, name: &str)
         -> anyhow::Result<InstanceRef<'x>>;
