@@ -171,7 +171,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
         let new_inst = inst.method().get_instance(&instance_name)?;
         let version = new_inst.get_version()?;
         if modify_toml(&config_path, &version)? {
-            println!("Remember to commit it to the version control.");
+            println!("Remember to commit it to version control.");
         }
         if upgraded {
             println!("Instance upgraded to {}",

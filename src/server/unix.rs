@@ -166,7 +166,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
                 foreground: false,
             })?;
             init_credentials(&settings, &inst, cert)?;
-            println!("Bootstrap complete. Server is up and running now.");
+            println!("Bootstrap complete! Server is now up and running.");
             if !settings.suppress_messages {
                 println!("To connect run:\n  edgedb -I {}",
                          settings.name.escape_default());
@@ -182,7 +182,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
             init_credentials(&settings, &inst, cert)?;
             drop(child);
             if settings.start_conf == StartConf::Manual && res.is_ok() {
-                println!("Bootstrap complete. To start the server run:\n  \
+                println!("Bootstrap complete! To start the server run:\n  \
                           edgedb instance start {}",
                           settings.name.escape_default());
             }

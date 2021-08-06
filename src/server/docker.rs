@@ -756,7 +756,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         ).map_err(|e| {
             eprintln!("edgedb error: failed to restore {:?}: {}",
                       inst.name(), e);
-            eprintln!("To undo run:\n  edgedb instance revert {:?}",
+            eprintln!("To undo, run:\n  edgedb instance revert {:?}",
                       inst.name());
             ExitCode::new(1).into()
         })
@@ -1104,7 +1104,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             start_conf: settings.start_conf,
         })?;
         if !settings.suppress_messages {
-            println!("To connect run:\n  edgedb -I {}",
+            println!("To connect, run:\n  edgedb -I {}",
                      settings.name.escape_default());
         }
 

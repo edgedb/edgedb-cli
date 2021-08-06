@@ -209,13 +209,13 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                     for input in proposal.required_user_input {
                         eprintln!("Input required: {}", input.prompt);
                     }
-                    anyhow::bail!("cannot apply migration without user input");
+                    anyhow::bail!("Cannot apply migration without user input");
                 }
                 for statement in proposal.statements {
                     execute(cli, &statement.text).await?;
                 }
             } else {
-                eprintln!("Server is about to apply the following migration:");
+                eprintln!("EdgeDB is about to apply the following migration:");
                 for statement in proposal.statements {
                     for line in statement.text.lines() {
                         eprintln!("    {}", line);
@@ -223,12 +223,12 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                 }
                 eprintln!("But confidence is {} (minimum is {})",
                     proposal.confidence, SAFE_CONFIDENCE);
-                anyhow::bail!("Server cannot make decision. Please run in \
+                anyhow::bail!("EdgeDB cannot make decision. Please run in \
                     interactive mode to confirm changes, \
                     or use `--allow-unsafe`");
             }
         } else {
-            anyhow::bail!("Server could not figure out \
+            anyhow::bail!("EdgeDB could not resolve \
                 migration automatically. Please run in \
                 interactive mode to confirm changes, \
                 or use `--allow-unsafe`");
@@ -352,7 +352,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                             break 'migration descr;
                         }
                         Quit => {
-                            eprintln!("Migration aborted no results are saved.");
+                            eprintln!("Migration aborted; no results are saved.");
                             return Err(ExitCode::new(0))?;
                         }
                     }
@@ -392,7 +392,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                 format!("DECLARE SAVEPOINT migration_{}", save_point)
             ).await?;
         } else {
-            anyhow::bail!("Server could not figure out \
+            anyhow::bail!("EdgeDB could not resolve \
                 migration with your answers. \
                 Please retry with different answers");
         }
