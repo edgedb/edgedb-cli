@@ -34,66 +34,66 @@ pub trait PropagateArgs {
     fn propagate_args(&self, dest: &mut AnyMap, matches: &clap::ArgMatches);
 }
 
+const CONN_OPTIONS_GROUP: &str =
+    "CONNECTION OPTIONS (`edgedb --help-connect` to see the full list)";
+
 #[derive(EdbClap, Clone, Debug)]
+#[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
 pub struct ConnectionOptions {
+    /// Local instance name created with `edgedb instance create` to connect to
+    /// (overrides host and port)
+    #[clap(short='I', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub instance: Option<String>,
+
     /// DSN for EdgeDB to connect to (overrides all other options
     /// except password)
-    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     pub dsn: Option<String>,
 
     /// Host of the EdgeDB instance
-    #[clap(short='H', long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(short='H', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(value_hint=ValueHint::Hostname)]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub host: Option<String>,
 
     /// Port to connect to EdgeDB
-    #[clap(short='P', long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(short='P', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub port: Option<u16>,
 
     /// User name of the EdgeDB user
-    #[clap(short='u', long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(short='u', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub user: Option<String>,
 
     /// Database name to connect to
-    #[clap(short='d', long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(short='d', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete database
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub database: Option<String>,
 
-    /// Connect to a passwordless unix socket with superuser
-    /// privileges by default. (DEPRECATED)
-    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
-    #[clap(setting=clap::ArgSettings::Hidden)]
-    pub admin: bool,
-
     /// Ask for password on the terminal (TTY)
-    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub password: bool,
 
     /// Don't ask for password
-    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub no_password: bool,
 
     /// Read the password from stdin rather than TTY (useful for scripts)
-    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub password_from_stdin: bool,
-
-    /// In case EdgeDB connection can't be established, retry up to
-    /// WAIT_TIME (e.g. '30s').
-    #[clap(long, name="WAIT_TIME", help_heading=Some("CONNECTION OPTIONS"),
-                parse(try_from_str=humantime::parse_duration))]
-    pub wait_until_available: Option<Duration>,
-
-    /// In case EdgeDB doesn't respond for a TIMEOUT, fail
-    /// (or retry if `--wait-until-available` is also specified). Default '10s'.
-    #[clap(long, name="TIMEOUT", help_heading=Some("CONNECTION OPTIONS"),
-           parse(try_from_str=humantime::parse_duration))]
-    pub connect_timeout: Option<Duration>,
 
     /// Certificate to match server against
     ///
     /// This might either be full self-signed server certificate or certificate
     /// authority (CA) certificate that server certificate is signed with.
-    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub tls_ca_file: Option<PathBuf>,
 
 
@@ -104,7 +104,8 @@ pub struct ConnectionOptions {
     ///
     /// By default it's enabled when no specific certificate is present
     /// (via `--tls-ca-file` or in credentials JSON file)
-    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub tls_verify_hostname: bool,
 
     /// Do not verify hostname of the server
@@ -113,21 +114,35 @@ pub struct ConnectionOptions {
     /// certificate must be present and match certificate specified with
     /// `--tls-ca-file` or credentials file or signed by one of the root
     /// certificate authorities.
-    #[clap(long, help_heading=Some("CONNECTION OPTIONS"))]
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
     pub no_tls_verify_hostname: bool,
 
-    /// Local instance name created with `edgedb instance create` to connect to
-    /// (overrides host and port)
-    #[clap(short='I', long, help_heading=Some("CONNECTION OPTIONS"))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    /// In case EdgeDB connection can't be established, retry up to
+    /// WAIT_TIME (e.g. '30s').
+    #[clap(long, name="WAIT_TIME", help_heading=Some(CONN_OPTIONS_GROUP),
+                parse(try_from_str=humantime::parse_duration))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
+    pub wait_until_available: Option<Duration>,
+
+    /// Connect to a passwordless unix socket with superuser
+    /// privileges by default.
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
+    pub admin: bool,
+
+    /// In case EdgeDB doesn't respond for a TIMEOUT, fail
+    /// (or retry if `--wait-until-available` is also specified). Default '10s'.
+    #[clap(long, name="TIMEOUT", help_heading=Some(CONN_OPTIONS_GROUP),
+           parse(try_from_str=humantime::parse_duration))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
+    pub connect_timeout: Option<Duration>,
 }
 
 #[derive(EdbClap, Debug)]
 #[edb(main)]
 #[clap(setting=clap::AppSettings::DisableVersionFlag)]
 pub struct RawOptions {
-
     #[clap(long)]
     #[cfg_attr(not(feature="dev_mode"),
         clap(setting=clap::ArgSettings::Hidden))]
@@ -142,6 +157,10 @@ pub struct RawOptions {
     #[cfg_attr(not(feature="dev_mode"),
         clap(setting=clap::ArgSettings::Hidden))]
     pub debug_print_codecs: bool,
+
+    /// Print all connection options for REPL and subcommands
+    #[clap(long)]
+    pub help_connect: bool,
 
     /// Tab-separated output of the queries
     #[clap(short='t', long, overrides_with="json",
@@ -288,18 +307,49 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
     return buf;
 }
 
-fn update_help(mut app: clap::App) -> clap::App {
+fn update_main_help(mut app: clap::App) -> clap::App {
     let sub_cmd = make_subcommand_help::<RawOptions>();
     let mut help = Vec::with_capacity(2048);
-    app = app.name("edgedb");
+
     app.write_help(&mut help).unwrap();
 
     let help = String::from_utf8(help).unwrap();
     let subcmd_index = help.find("SUBCOMMANDS:").unwrap();
     let mut help = help[..subcmd_index].replacen("edgedb", "EdgeDB CLI", 1);
     help.push_str(&sub_cmd);
+
     let help = std::str::from_utf8(Vec::leak(help.into())).unwrap();
     return app.override_help(help);
+}
+
+fn print_full_connection_options() {
+    let app = <ConnectionOptions as clap::IntoApp>::into_app();
+
+    let mut new_app = clap::App::new("edgedb-connect")
+                      .setting(clap::AppSettings::DeriveDisplayOrder);
+
+    for arg in app.get_arguments() {
+        let arg_name = arg.get_name();
+        if arg_name == "help" || arg_name == "version" || arg_name == "admin" {
+            continue
+        }
+        let new_arg = arg.clone().unset_setting(clap::ArgSettings::Hidden);
+        new_app = new_app.arg(new_arg);
+    }
+
+    let mut help = Vec::with_capacity(2048);
+
+    // "Long help" has more whitespace and is much more readable
+    // for the many options we have in the connection group.
+    new_app.write_long_help(&mut help).unwrap();
+
+    let help = String::from_utf8(help).unwrap();
+    let subcmd_index = help.find(CONN_OPTIONS_GROUP).unwrap();
+    let slice_from = subcmd_index + CONN_OPTIONS_GROUP.len() + 2;
+    let help = &help[slice_from..];
+
+    println!("CONNECTION OPTIONS (the full list):\n");
+    println!("{}", help);
 }
 
 fn get_matches(app: clap::App) -> clap::ArgMatches {
@@ -381,17 +431,21 @@ fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
         env::args_os().skip(skip)
     ).collect();
     let app = <RawOptions as clap::IntoApp>::into_app();
-    let app = update_help(app);
     Some(app.get_matches_from(new_args))
 }
 
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
-        let app = <RawOptions as clap::IntoApp>::into_app();
-        let app = update_help(app);
+        let app = <RawOptions as clap::IntoApp>::into_app().name("edgedb");
+        let app = update_main_help(app);
         let matches = get_matches(app);
         let tmp: RawOptions = <RawOptions as clap::FromArgMatches>
             ::from_arg_matches(&matches);
+
+        if tmp.help_connect {
+            print_full_connection_options();
+            return Err(ExitCode::new(0).into());
+        }
 
         if tmp.print_version {
             println!("EdgeDB CLI {}", clap::crate_version!());
