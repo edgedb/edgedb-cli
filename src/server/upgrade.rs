@@ -95,7 +95,14 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
         if !project_dirs.is_empty() {
             destroy::print_instance_in_use_warning(name, &project_dirs);
             let current_project = project::project_dir_opt(None)?;
-            eprintln!("To continue with the upgrade, run:");
+            if options.force {
+                eprintln!(
+                    "To update the project{} after the instance upgrade, run:",
+                    if project_dirs.len() > 1 { "s" } else { "" }
+                );
+            } else {
+                eprintln!("To continue with the upgrade, run:");
+            }
             for pd in project_dirs {
                 let pd = destroy::read_project_real_path(&pd)?;
                 eprintln!(
