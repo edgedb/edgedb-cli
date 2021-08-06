@@ -301,7 +301,7 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
                 if subcmd.hidden {
                     continue;
                 }
-                writeln!(&mut buf, "    {:24} {}",
+                writeln!(&mut buf, "    {:28} {}",
                     format!("{} {}", cmd.name, subcmd.name),
                     sdescr.help_title,
                 ).unwrap();
@@ -309,7 +309,7 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
             buf.push('\n');
             empty_line = true;
         } else {
-            writeln!(&mut buf, "    {:24} {}",
+            writeln!(&mut buf, "    {:28} {}",
                 cmd.name, cdescr.help_title).unwrap();
             empty_line = false;
         }
