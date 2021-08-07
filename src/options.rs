@@ -26,6 +26,9 @@ use crate::server;
 
 pub mod describe;
 
+const MAX_TERM_WIDTH: usize = 90;
+const MIN_TERM_WIDTH: usize = 50;
+
 static CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
     to specify connection parameters. See `--help` for details";
@@ -34,9 +37,9 @@ const CONN_OPTIONS_GROUP: &str =
     "CONNECTION OPTIONS (`edgedb --help-connect` to see the full list)";
 
 const EDGEDB_ABOUT: &str = "\
-    Use the `edgedb` command-line tool to spin up local instances,\n\
-    manage EdgeDB projects, create and apply migrations, and more.\n\
-    \n\
+    Use the `edgedb` command-line tool to spin up local instances, \
+    manage EdgeDB projects, create and apply migrations, and more. \
+    \n\n\
     Running `edgedb` without a subcommand opens an interactive shell.";
 
 pub trait PropagateArgs {
@@ -281,6 +284,36 @@ fn say_option_is_deprecated(option_name: &str, suggestion: &str) {
 fn make_subcommand_help<T: describe::Describe>() -> String {
     use std::fmt::Write;
 
+    let width = term_width();
+
+    // When the terminal is wider than 82 characters clap aligns
+    // the flags description text to the right of the flag name,
+    // when it is narrower than 82, the description goes below
+    // the option name.  We want to align the subcommand description
+    // with the option description, hence there's some hand-tuning
+    // of the padding here.
+    let padding: usize = if width > 82 { 28 } else { 24 };
+
+    let extra_padding: usize = 4 + 1;
+    let details_width: usize = width - padding - extra_padding;
+
+    let wrap = |text: &str| {
+        if text.len() <= details_width {
+            return text.to_string();
+        }
+
+        let text = textwrap::fill(text, details_width);
+        let mut lines = text.lines();
+        let mut new_lines = vec![lines.nth(0).unwrap().to_string()];
+        for line in lines {
+            new_lines.push(
+                format!("    {:padding$} {}", " ", line, padding=padding)
+            );
+        }
+
+        new_lines.join("\n")
+    };
+
     let mut buf = String::with_capacity(4096);
 
     write!(&mut buf, "SUBCOMMANDS:\n").unwrap();
@@ -301,16 +334,19 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
                 if subcmd.hidden {
                     continue;
                 }
-                writeln!(&mut buf, "    {:28} {}",
+                writeln!(&mut buf, "    {:padding$} {}",
                     format!("{} {}", cmd.name, subcmd.name),
-                    sdescr.help_title,
+                    wrap(sdescr.help_title),
+                    padding=padding
                 ).unwrap();
             }
             buf.push('\n');
             empty_line = true;
         } else {
-            writeln!(&mut buf, "    {:28} {}",
-                cmd.name, cdescr.help_title).unwrap();
+            writeln!(&mut buf, "    {:padding$} {}",
+                cmd.name, wrap(cdescr.help_title),
+                padding=padding
+            ).unwrap();
             empty_line = false;
         }
     }
@@ -338,7 +374,8 @@ fn print_full_connection_options() {
     let app = <ConnectionOptions as clap::IntoApp>::into_app();
 
     let mut new_app = clap::App::new("edgedb-connect")
-                      .setting(clap::AppSettings::DeriveDisplayOrder);
+                      .setting(clap::AppSettings::DeriveDisplayOrder)
+                      .term_width(term_width());
 
     for arg in app.get_arguments() {
         let arg_name = arg.get_name();
@@ -446,11 +483,27 @@ fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
     Some(app.get_matches_from(new_args))
 }
 
+fn term_width() -> usize {
+    use std::cmp;
+
+    // clap::App::max_term_width() works poorly in conjunction
+    // with  clap::App::term_width(); it appears that one call
+    // disables the effect of the other. Therefore we want to
+    // calculate the acceptable term width ourselves and use
+    // that to configure clap and to render subcommands help.
+
+    cmp::max(
+        cmp::min(textwrap::termwidth(), MAX_TERM_WIDTH),
+        MIN_TERM_WIDTH
+    )
+}
+
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
         let app = <RawOptions as clap::IntoApp>::into_app()
                   .name("edgedb")
-                  .about(EDGEDB_ABOUT);
+                  .about(EDGEDB_ABOUT)
+                  .term_width(term_width());
         let app = update_main_help(app);
         let matches = get_matches(app);
         let tmp: RawOptions = <RawOptions as clap::FromArgMatches>
