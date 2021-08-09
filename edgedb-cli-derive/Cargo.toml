@@ -6,10 +6,10 @@ authors = ["EdgeDB Inc. <hello@edgedb.com>"]
 edition = "2018"
 
 [dependencies]
+edgedb-cli-md = { path="../edgedb-cli-md" }
 clap = { git="https://github.com/clap-rs/clap" }
 clap_generate = { git="https://github.com/clap-rs/clap" }
 termimad = "0.10.2"
-minimad = "0.7.0"
 syn = {version="1.0.72", features=["extra-traits"]}
 quote = "1.0.9"
 proc-macro2 = "1.0.19"

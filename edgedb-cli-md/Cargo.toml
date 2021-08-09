@@ -1,0 +1,11 @@
+[package]
+name = "edgedb-cli-md"
+license = "MIT/Apache-2.0"
+version = "0.3.0"
+authors = ["EdgeDB Inc. <hello@edgedb.com>"]
+edition = "2018"
+
+[dependencies]
+termimad = "0.10.2"
+minimad = "0.7.0"
+crossterm = "0.19.0"

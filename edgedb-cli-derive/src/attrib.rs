@@ -8,6 +8,7 @@ use syn::parse::{Parse, Parser, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Paren;
 
+use edgedb_cli_md as mdstyle;
 use crate::kw;
 
 
@@ -590,49 +591,18 @@ impl Markdown {
         };
         parser.parse2(attr.tokens.clone()).unwrap_or_abort();
     }
-    pub fn markdown_text(&self) -> String {
-        let text = self.source.value();
-        let mut min_indent = text.len();
-        for line in text.lines() {
-            let stripped = line.trim_start();
-            if stripped.is_empty() {
-                continue;
-            }
-            let indent = line.len() - stripped.len();
-            if indent < min_indent {
-                min_indent = indent;
-            }
-        }
-        if min_indent == 0 {
-            return text;
-        }
-        let mut buf = String::with_capacity(text.len());
-        for line in text.lines() {
-            if line.len() > min_indent {
-                buf.push_str(&line[min_indent..]);
-            }
-            buf.push('\n');
-        }
-        return buf;
-    }
     pub fn clap_text(&self) -> syn::LitStr {
-        let markdown = self.markdown_text();
-        let text = parse_markdown(&markdown);
-        let skin = termimad::MadSkin::default();
-        let fmt = termimad::FmtText::from_text(
-            &skin,
-            text,
-            None,
-        );
-        syn::LitStr::new(&fmt.to_string(), self.source.span())
+        let text = self.source.value();
+        syn::LitStr::new(&mdstyle::format_markdown(&text), self.source.span())
     }
     pub fn formatted_title(&self) -> syn::LitStr {
-        let markdown = self.markdown_text();
-        let mut text = parse_markdown(&markdown);
+        let text = self.source.value();
+        let text = mdstyle::prepare_markdown(&text);
+        let mut text = mdstyle::parse_markdown(&text);
         if !text.lines.is_empty() {
             text.lines.drain(1..);
         }
-        let skin = termimad::MadSkin::default();
+        let skin = mdstyle::make_skin();
         let fmt = termimad::FmtText::from_text(
             &skin,
             text,
@@ -717,48 +687,4 @@ impl CliParse {
         use ParserKind::*;
         !matches!(self.kind, FromOccurrences | FromFlag)
     }
-}
-
-fn parse_markdown(text: &str) -> minimad::Text {
-    use minimad::{Text, Composite};
-    use minimad::Line::*;
-    use minimad::CompositeStyle::*;
-
-    let lines = Text::from(&text[..]).lines;
-    let mut text = Text { lines: Vec::with_capacity(lines.len()) };
-    for line in lines.into_iter() {
-        if let Normal(Composite { style, compounds: cmps }) = line {
-            if cmps.len() == 0  {
-                text.lines.push(
-                    Normal(Composite { style, compounds: cmps })
-                );
-                continue;
-            }
-            match (style, text.lines.last_mut()) {
-                (_, Some(&mut Normal(Composite { ref compounds , ..})))
-                    if compounds.len() == 0
-                => {
-                    text.lines.push(
-                        Normal(Composite { style, compounds: cmps })
-                    );
-                }
-                | (Paragraph, Some(&mut Normal(Composite {
-                    style: Paragraph, ref mut compounds })))
-                | (Paragraph, Some(&mut Normal(Composite {
-                    style: ListItem, ref mut compounds })))
-                | (Quote, Some(&mut Normal(Composite {
-                    style: Quote, ref mut compounds })))
-                => {
-                    compounds.push(minimad::Compound::raw_str(" "));
-                    compounds.extend(cmps);
-                }
-                _ => {
-                    text.lines.push(
-                        Normal(Composite { style, compounds: cmps })
-                    );
-                }
-            }
-        }
-    }
-    return text;
 }
