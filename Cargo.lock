@@ -1033,6 +1033,7 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote 1.0.9",
+ "regex",
  "syn 1.0.73",
  "termimad",
  "trybuild",

@@ -616,29 +616,43 @@ impl Markdown {
         return buf;
     }
     pub fn clap_text(&self) -> syn::LitStr {
-        let markdown = self.markdown_text();
-        let text = parse_markdown(&markdown);
-        let skin = termimad::MadSkin::default();
-        let fmt = termimad::FmtText::from_text(
-            &skin,
-            text,
-            None,
-        );
-        syn::LitStr::new(&fmt.to_string(), self.source.span())
+        use regex::*;
+
+        let text = self.markdown_text();
+
+        // Normalize `\n\n` (trailing with more `\n` or whitespace) to `\n\n`.
+        // This keeps paragraphs displayed as they would be if were rendered
+        // with markdown.
+        // Replace `\n` with ` ` to let clap wrap text.
+        let re = Regex::new(r"(?x)
+            (?P<nl>
+                \n\n\s*
+            )
+            | (?P<s>
+                [\s^\n]*\n\s*
+            )
+        ").unwrap();
+        let text = &re.replace_all(&text.trim(), |c: &Captures| {
+            if let Some(_) = c.name("nl") {
+                "\n\n"
+            } else {
+                " "
+            }
+        }).to_string();
+        syn::LitStr::new(text, self.source.span())
     }
     pub fn formatted_title(&self) -> syn::LitStr {
-        let markdown = self.markdown_text();
-        let mut text = parse_markdown(&markdown);
-        if !text.lines.is_empty() {
-            text.lines.drain(1..);
+        let text = self.markdown_text();
+
+        let mut title = "";
+        for line in text.lines() {
+            let stripped = line.trim_start();
+            if !stripped.is_empty() {
+                title = stripped;
+                break;
+            }
         }
-        let skin = termimad::MadSkin::default();
-        let fmt = termimad::FmtText::from_text(
-            &skin,
-            text,
-            None,
-        );
-        syn::LitStr::new(fmt.to_string().trim(), self.source.span())
+        syn::LitStr::new(title, self.source.span())
     }
 }
 
@@ -719,6 +733,7 @@ impl CliParse {
     }
 }
 
+#[allow(dead_code)]
 fn parse_markdown(text: &str) -> minimad::Text {
     use minimad::{Text, Composite};
     use minimad::Line::*;
