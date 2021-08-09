@@ -2,13 +2,13 @@ use std::collections::BTreeSet;
 use std::borrow::Cow;
 use std::env;
 use std::ffi::OsString;
-use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use async_std::task;
 use fn_error_context::context;
+use fs_err as fs;
 use linked_hash_map::LinkedHashMap;
 use rand::{thread_rng, Rng};
 
@@ -266,23 +266,27 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
             choose the `Local (docker)` installation method.");
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
-    let (dir, base_dir) = match &init.project_dir {
-        Some(dir) => (Some(dir.clone()), dir.clone()),
+    match &init.project_dir {
+        Some(dir) => {
+            let dir = fs::canonicalize(&dir)?;
+            if dir.join("edgedb.toml").exists() {
+                init_existing(init, &dir)?;
+            } else {
+                init_new(init, &dir)?;
+            }
+        }
         None => {
             let base_dir = env::current_dir()
                 .context("failed to get current directory")?;
-            (search_dir(&base_dir)?, base_dir)
+            if let Some(dir) = search_dir(&base_dir)? {
+                let dir = fs::canonicalize(&dir)?;
+                init_existing(init, &dir)?;
+            } else {
+                let dir = fs::canonicalize(&base_dir)?;
+                init_new(init, &dir)?;
+            }
         }
     };
-    if let Some(dir) = dir {
-        let dir = fs::canonicalize(&dir)
-            .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
-        init_existing(init, &dir)?;
-    } else {
-        let dir = fs::canonicalize(&base_dir)
-            .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
-        init_new(init, &dir)?;
-    }
     Ok(())
 }
 
