@@ -13,6 +13,8 @@ use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
+use edgedb_cli_md as mdstyle;
+
 use crate::cli;
 use crate::cli::options::CliCommand;
 use crate::commands::parser::Common;
@@ -500,9 +502,10 @@ fn term_width() -> usize {
 
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
+        let about = mdstyle::format_markdown(&EDGEDB_ABOUT);
         let app = <RawOptions as clap::IntoApp>::into_app()
                   .name("edgedb")
-                  .about(EDGEDB_ABOUT)
+                  .about(about.as_str())
                   .term_width(term_width());
         let app = update_main_help(app);
         let matches = get_matches(app);

@@ -79,6 +79,7 @@ toml = "0.5.8"
 termimad = "0.10.2"
 minimad = "0.7.0"
 edgedb-cli-derive = { path="edgedb-cli-derive" }
+edgedb-cli-md = { path="edgedb-cli-md" }
 fs-err = "2.6.0"
 pem = "0.8"
 rustls = {version="0.19.1", features=["dangerous_configuration"]}
