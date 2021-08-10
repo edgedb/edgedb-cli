@@ -234,10 +234,22 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
             );
             let val = editor.readline("> ")?;
             if matches!(val.as_ref(), "?" | "h" | "help") {
+                const HELP: &str = "h or ?";
+                let pad = (&self.choices)
+                            .iter()
+                            .map(|x| x.input.join(" or ").len())
+                            .max()
+                            .unwrap_or(0);
+                let pad = std::cmp::max(pad, HELP.len());
+
                 for choice in &self.choices {
-                    println!("{} - {}", choice.input.join(" or "), choice.help)
+                    println!(
+                        "{:pad$} - {}",
+                        choice.input.join(" or "), choice.help,
+                        pad=pad
+                    )
                 }
-                println!("h or ? - print help");
+                println!("{:pad$} - {}", HELP, "print help", pad=pad);
                 continue;
             }
             for choice in &self.choices {
