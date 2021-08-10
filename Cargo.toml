@@ -45,6 +45,7 @@ prettytable-rs = {version="0.8.0", default-features=false}
 tempfile = "3.1.0"
 codespan-reporting = "0.11"
 termcolor = "1.1.0"
+crossterm = "0.19.0"
 async-listen = "0.2.0"
 sha1 = "0.6.0"
 hex = "0.4.3"
@@ -79,7 +80,6 @@ toml = "0.5.8"
 termimad = "0.10.2"
 minimad = "0.7.0"
 edgedb-cli-derive = { path="edgedb-cli-derive" }
-edgedb-cli-md = { path="edgedb-cli-md" }
 fs-err = "2.6.0"
 pem = "0.8"
 rustls = {version="0.19.1", features=["dangerous_configuration"]}

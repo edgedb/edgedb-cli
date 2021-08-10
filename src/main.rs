@@ -24,6 +24,7 @@ mod highlight;
 mod hint;
 mod interactive;
 mod log_levels;
+mod markdown;
 mod migrations;
 mod non_interactive;
 mod options;

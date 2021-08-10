@@ -8,7 +8,6 @@ use syn::parse::{Parse, Parser, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Paren;
 
-use edgedb_cli_md as mdstyle;
 use crate::kw;
 
 
@@ -590,25 +589,6 @@ impl Markdown {
             Ok(())
         };
         parser.parse2(attr.tokens.clone()).unwrap_or_abort();
-    }
-    pub fn clap_text(&self) -> syn::LitStr {
-        let text = self.source.value();
-        syn::LitStr::new(&mdstyle::format_markdown(&text), self.source.span())
-    }
-    pub fn formatted_title(&self) -> syn::LitStr {
-        let text = self.source.value();
-        let text = mdstyle::prepare_markdown(&text);
-        let mut text = mdstyle::parse_markdown(&text);
-        if !text.lines.is_empty() {
-            text.lines.drain(1..);
-        }
-        let skin = mdstyle::make_skin();
-        let fmt = termimad::FmtText::from_text(
-            &skin,
-            text,
-            None,
-        );
-        syn::LitStr::new(fmt.to_string().trim(), self.source.span())
     }
 }
 

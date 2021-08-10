@@ -948,10 +948,10 @@ dependencies = [
  "codespan-reporting",
  "colorful",
  "combine",
+ "crossterm",
  "dirs 3.0.2",
  "downcast-rs",
  "edgedb-cli-derive",
- "edgedb-cli-md",
  "edgedb-client",
  "edgedb-derive",
  "edgedb-protocol",
@@ -1029,7 +1029,6 @@ version = "0.3.0"
 dependencies = [
  "clap",
  "clap_generate",
- "edgedb-cli-md",
  "heck",
  "linked-hash-map",
  "proc-macro-error",
@@ -1038,15 +1037,6 @@ dependencies = [
  "syn 1.0.73",
  "termimad",
  "trybuild",
-]
-
-[[package]]
-name = "edgedb-cli-md"
-version = "0.3.0"
-dependencies = [
- "crossterm",
- "minimad",
- "termimad",
 ]
 
 [[package]]

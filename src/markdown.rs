@@ -24,6 +24,10 @@ pub fn prepare_markdown(text: &str) -> String {
 }
 
 pub fn make_skin() -> termimad::MadSkin {
+    if !atty::is(atty::Stream::Stdout) {
+        return termimad::MadSkin::no_style();
+    }
+
     use crossterm::style::{Color, Attribute};
     let mut skin = termimad::MadSkin::default();
     skin.bold.set_fg(Color::Reset);
@@ -88,4 +92,19 @@ pub fn format_markdown(text: &str) -> String {
         None,
     );
     fmt.to_string()
+}
+
+pub fn format_title(text: &str) -> String {
+    let text = prepare_markdown(&text);
+    let mut text = parse_markdown(&text);
+    if !text.lines.is_empty() {
+        text.lines.drain(1..);
+    }
+    let skin = make_skin();
+    let fmt = termimad::FmtText::from_text(
+        &skin,
+        text,
+        None,
+    );
+    fmt.to_string().trim().to_string()
 }

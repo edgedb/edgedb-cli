@@ -13,8 +13,6 @@ use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 
-use edgedb_cli_md as mdstyle;
-
 use crate::cli;
 use crate::cli::options::CliCommand;
 use crate::commands::parser::Common;
@@ -25,6 +23,7 @@ use crate::hint::HintExt;
 use crate::project;
 use crate::repl::OutputFormat;
 use crate::server;
+use crate::markdown;
 
 pub mod describe;
 
@@ -37,12 +36,6 @@ static CONNECTION_ARG_HINT: &str = "\
 
 const CONN_OPTIONS_GROUP: &str =
     "CONNECTION OPTIONS (`edgedb --help-connect` to see the full list)";
-
-const EDGEDB_ABOUT: &str = "\
-    Use the `edgedb` command-line tool to spin up local instances, \
-    manage EdgeDB projects, create and apply migrations, and more. \
-    \n\n\
-    Running `edgedb` without a subcommand opens an interactive shell.";
 
 pub trait PropagateArgs {
     fn propagate_args(&self, dest: &mut AnyMap, matches: &clap::ArgMatches);
@@ -150,6 +143,10 @@ pub struct ConnectionOptions {
     pub connect_timeout: Option<Duration>,
 }
 
+/// Use the `edgedb` command-line tool to spin up local instances,
+/// manage EdgeDB projects, create and apply migrations, and more.
+///
+/// Running `edgedb` without a subcommand opens an interactive shell.
 #[derive(EdbClap, Debug)]
 #[edb(main)]
 #[clap(setting=clap::AppSettings::DisableVersionFlag)]
@@ -338,7 +335,7 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
                 }
                 writeln!(&mut buf, "    {:padding$} {}",
                     format!("{} {}", cmd.name, subcmd.name),
-                    wrap(sdescr.help_title),
+                    wrap(&markdown::format_title(sdescr.help_title)),
                     padding=padding
                 ).unwrap();
             }
@@ -346,7 +343,7 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
             empty_line = true;
         } else {
             writeln!(&mut buf, "    {:padding$} {}",
-                cmd.name, wrap(cdescr.help_title),
+                cmd.name, wrap(&markdown::format_title(cdescr.help_title)),
                 padding=padding
             ).unwrap();
             empty_line = false;
@@ -502,10 +499,8 @@ fn term_width() -> usize {
 
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
-        let about = mdstyle::format_markdown(&EDGEDB_ABOUT);
         let app = <RawOptions as clap::IntoApp>::into_app()
                   .name("edgedb")
-                  .about(about.as_str())
                   .term_width(term_width());
         let app = update_main_help(app);
         let matches = get_matches(app);
