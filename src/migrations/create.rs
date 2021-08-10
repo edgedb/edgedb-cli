@@ -30,6 +30,7 @@ use crate::migrations::print_error::print_migration_error;
 use crate::migrations::prompt;
 use crate::migrations::source_map::{Builder, SourceMap};
 use crate::platform::tmp_file_name;
+use crate::question;
 
 const SAFE_CONFIDENCE: f64 = 0.99999;
 
@@ -40,6 +41,7 @@ pub enum SourceName {
     File(PathBuf),
 }
 
+#[derive(Clone, Debug)]
 pub enum Choice {
     Yes,
     No,
@@ -110,46 +112,25 @@ async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
     Ok(data)
 }
 
-async fn choice(prompt: &str) -> anyhow::Result<Choice> {
+fn choice(prompt: &str) -> anyhow::Result<Choice> {
     use Choice::*;
 
-    const HELP: &str = r###"
-y - confirm the prompt, use the DDL statements
-n - reject the prompt
-l - list the DDL statements associated with prompt
-c - list already confirmed EdgeQL statements
-b - revert back to previous save point
-s - stop and save changes (splits migration into multiple)
-q - quit without saving changes
-h or ? - print help
-"###;
-
-    let mut input = String::with_capacity(10);
-    loop {
-        println!("{} [y,n,l,c,b,s,q,?]", prompt);
-        input.truncate(0);
-        if io::stdin().read_line(&mut input).await? == 0 {
-            return Ok(Quit);
-        }
-        let val = match &input.trim().to_lowercase()[..] {
-            "y"|"yes" => Yes,
-            "n"|"no" => No,
-            "l"|"list" => List,
-            "c"|"confirmed" => Confirmed,
-            "b"|"back" => Back,
-            "s"|"stop"|"split" => Split,
-            "h"|"?"|"help" => {
-                print!("{}", HELP);
-                continue;
-            }
-            "q"|"quit" => Quit,
-            val => {
-                eprintln!("Error: unknown command {}", val);
-                continue;
-            }
-        };
-        return Ok(val);
-    }
+    let mut q = question::Choice::new(prompt.to_string());
+    q.option(Yes, &["y", "yes"],
+        "confirm the prompt, use the DDL statements");
+    q.option(No, &["n", "no"],
+        "reject the prompt");
+    q.option(List, &["l", "list"],
+        "list the DDL statements associated with prompt");
+    q.option(Confirmed, &["c", "confirmed"],
+        "list already confirmed EdgeQL statements");
+    q.option(Back, &["b", "back"],
+        "revert back to previous save point");
+    q.option(Split, &["s", "split"],
+        "stop and save changes (splits migration into multiple)");
+    q.option(Quit, &["q", "quit"],
+        "quit without saving changes");
+    q.ask()
 }
 
 #[context("could not read schema in {}", ctx.schema_dir.display())]
@@ -292,7 +273,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                     "Apply the DDL statements?"
                 };
                 loop {
-                    match choice(prompt).await? {
+                    match choice(prompt)? {
                         Yes => {
                             match get_user_input(&proposal.required_user_input) {
                                 Ok(data) => input = data,
