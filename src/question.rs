@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::io::{stdin, BufRead};
 
 use rustyline::{Editor, Config};
+use colorful::{Colorful, Color};
 
 use anyhow::Context;
 
@@ -43,6 +44,20 @@ pub fn read_choice() -> anyhow::Result<std::string::String> {
     anyhow::bail!("Unexpected end of input");
 }
 
+fn print_prompt(line: &str) {
+    println!(
+        "{}",
+        line.bold().color(Color::Orange3)
+    );
+}
+
+fn print_error(line: &str) {
+    eprintln!(
+        "{}",
+        line.bold().light_red()
+    );
+}
+
 impl<'a, T: Clone + 'a> Numeric<'a, T> {
     pub fn new<Q: Into<Cow<'a, str>>>(question: Q) -> Self {
         Numeric {
@@ -63,22 +78,26 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
     pub fn ask(&self) -> anyhow::Result<T> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         loop {
-            println!("{}", self.question);
+            print_prompt(&self.question);
             for (idx, (title, _)) in self.options.iter().enumerate() {
-                println!("{}. {}", idx+1, title);
+                print_prompt(
+                    &format!("{}. {}", idx+1, title)
+                );
             }
-            println!("{}", self.suffix);
+            print_prompt(&self.suffix);
             let value = editor.readline("> ")?;
             let choice = match value.parse::<u32>() {
                 Ok(choice) => choice,
                 Err(e) => {
-                    eprintln!("Error reading choice: {}", e);
-                    println!("Please enter a number");
+                    print_error(
+                        &format!("Error reading choice: {}", e)
+                    );
+                    print_prompt("Please enter a number");
                     continue;
                 }
             };
             if choice == 0 || choice as usize > self.options.len() {
-                println!("Please specify a choice from the list above");
+                print_error("Please specify a choice from the list above");
                 continue;
             }
             return Ok(self.options[(choice-1) as usize].1.clone());
@@ -100,9 +119,13 @@ impl<'a> String<'a> {
     }
     pub fn ask(&mut self) -> anyhow::Result<std::string::String> {
         if self.default.is_empty() {
-            println!("{}: ", self.question);
+            print_prompt(
+                &format!("{}: ", self.question)
+            );
         } else {
-            println!("{} [default: {}]: ", self.question, self.default);
+            print_prompt(
+                &format!("{} [default: {}]: ", self.question, self.default)
+            );
         }
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         let initial = self.initial.as_ref().map(|s| &s[..])
@@ -141,13 +164,18 @@ impl<'a> Confirm<'a> {
     pub fn ask(&self) -> anyhow::Result<bool> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         if self.is_dangerous {
-            println!("{} (type `Yes`)", self.question);
+            print_prompt(
+                &format!("{} (type `Yes`)", self.question)
+            );
         } else {
-            println!("{} [{}]", self.question, match self.default {
-                None => "y/n",
-                Some(true) => "Y/n",
-                Some(false) => "y/N",
-            });
+            print_prompt(
+                &format!(
+                    "{} [{}]", self.question, match self.default {
+                        None => "y/n",
+                        Some(true) => "Y/n",
+                        Some(false) => "y/N",
+                })
+            );
         };
         let mut initial = match self.default {
             None => "",
@@ -170,7 +198,7 @@ impl<'a> Confirm<'a> {
                     }
                     _ => {
                         initial = val;
-                        eprintln!("Please answer Y or N");
+                        print_error("Please answer Y or N");
                         continue;
                     }
                 }
@@ -201,7 +229,9 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
             .collect::<Vec<_>>()
             .join(",");
         loop {
-            println!("{} [{}]", self.question, options);
+            print_prompt(
+                &format!("{} [{}]", self.question, options)
+            );
             let val = editor.readline("> ")?;
             if matches!(val.as_ref(), "?" | "h" | "help") {
                 for choice in &self.choices {
@@ -217,8 +247,10 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
                     }
                 }
             }
-            eprintln!("Invalid option {:?}, please use one of: {}",
-                val, options);
+            print_error(
+                &format!("Invalid option {:?}, please use one of: [{}]",
+                         val, options)
+            );
         }
     }
 }
