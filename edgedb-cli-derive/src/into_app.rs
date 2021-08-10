@@ -26,9 +26,9 @@ pub fn structure(s: &types::Struct) -> TokenStream {
     let propagate_args = mk_struct_propagate(&s, &dest, &matches);
 
     let help = s.attrs.help.as_ref().or(s.attrs.doc.as_ref())
-        .map(|text| text.clap_text().value()).unwrap_or_else(String::new);
+        .map(|text| text.source.value().to_string()).unwrap_or_else(String::new);
     let help_title = s.attrs.help.as_ref().or(s.attrs.doc.as_ref())
-        .map(|text| text.formatted_title().value())
+        .map(|text| text.source.value().to_string())
         .unwrap_or_else(String::new);
     let subcmds = if let Some(sub) =
         s.fields.iter().find(|s| s.attrs.subcommand)
@@ -227,9 +227,10 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
     }
 
     if let Some(text) = field.attrs.help.as_ref().or(field.attrs.doc.as_ref()) {
-        let formatted = text.clap_text();
+        let source = &text.source;
         modifiers.extend(quote! {
-            #arg = #arg.about(#formatted);
+            let about = Box::new(crate::markdown::format_markdown(#source));
+            #arg = #arg.about(Box::leak(about).as_str());
         });
     }
     if let Some(name) = field.attrs.name.as_ref() {
@@ -292,6 +293,13 @@ fn mk_struct(s: &types::Struct, app: &syn::Ident,
     for (name, value) in &s.attrs.options {
         output.extend(quote! {
             #app = #app.#name(#value);
+        });
+    }
+    if let Some(doc) = &s.attrs.doc {
+        let source = &doc.source;
+        output.extend(quote! {
+            let about = Box::new(crate::markdown::format_markdown(#source));
+            #app = #app.about(Box::leak(about).as_str());
         });
     }
     let (subcmd_interface, flat_interface) = if inheritance {
@@ -424,9 +432,10 @@ fn mk_subcommand(s: &types::Subcommand, sub: &syn::Ident)
     let mut modifiers = TokenStream::new();
 
     if let Some(text) = s.attrs.about.as_ref().or(s.attrs.doc.as_ref()) {
-        let formatted = text.clap_text();
+        let source = &text.source;
         modifiers.extend(quote! {
-            #sub = #sub.about(#formatted);
+            let about = Box::new(crate::markdown::format_markdown(#source));
+            #sub = #sub.about(Box::leak(about).as_str());
         });
     }
     for (name, value) in &s.attrs.options {
@@ -830,12 +839,12 @@ fn subcmd_to_desc(sub: &types::Subcommand, e: &types::Enum) -> TokenStream {
         });
     let about = sub.attrs.about.as_ref()
         .or(sub.attrs.doc.as_ref())
-        .map(|a| a.clap_text())
+        .map(|a| a.source.clone())
         .map(|v| quote!(Some(#v)))
         .unwrap_or_else(|| quote!(None));
     let title = sub.attrs.about.as_ref()
         .or(sub.attrs.doc.as_ref())
-        .map(|a| a.formatted_title())
+        .map(|a| a.source.value().to_string())
         .map(|v| quote!(Some(#v)))
         .unwrap_or_else(|| quote!(None));
     let hidden = sub.attrs.hidden;
