@@ -214,7 +214,8 @@ fn github_action_install() -> anyhow::Result<()> {
 
             println!("Upgrading");
             Command::new(&edgedb)
-                .arg("server").arg("upgrade").arg("inst1").arg("--force")
+                .arg("instance").arg("upgrade").arg("inst1")
+                .arg("--to-latest").arg("--force")
                 .assert()
                 .success();
 
