@@ -113,7 +113,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
         println!("Install different version");
         Command::new(&edgedb)
-            .arg("server").arg("install").arg("--version=1-alpha6")
+            .arg("server").arg("install").arg("--version=1-beta3")
             .assert()
             .success();
 
@@ -122,12 +122,12 @@ fn github_action_install() -> anyhow::Result<()> {
             .arg("--installed-only").arg("--column=major-version")
             .assert()
             .success()
-            .stdout(predicates::str::contains("1-alpha6"));
+            .stdout(predicates::str::contains("1-beta3"));
 
         if cfg!(target_os="macos") {
             println!("Init first");
             Command::new(&edgedb)
-                .arg("server").arg("init").arg("inst1")
+                .arg("instance").arg("create").arg("inst1")
                 .assert()
                 .success();
 
@@ -141,74 +141,74 @@ fn github_action_install() -> anyhow::Result<()> {
 
             println!("Status");
             Command::new(&edgedb)
-                .arg("server").arg("status").arg("inst1")
+                .arg("instance").arg("status").arg("inst1")
                 .assert()
                 .success();
 
             println!("Restart");
             Command::new(&edgedb)
-                .arg("server").arg("restart").arg("inst1")
+                .arg("instance").arg("restart").arg("inst1")
                 .assert()
                 .success();
 
             println!("Status");
             Command::new(&edgedb)
-                .arg("server").arg("status").arg("inst1")
+                .arg("instance").arg("status").arg("inst1")
                 .assert()
                 .success();
 
             println!("Stop");
             Command::new(&edgedb)
-                .arg("server").arg("stop").arg("inst1")
+                .arg("instance").arg("stop").arg("inst1")
                 .assert()
                 .success();
 
             println!("Status");
             Command::new(&edgedb)
-                .arg("server").arg("status").arg("inst1")
+                .arg("instance").arg("status").arg("inst1")
                 .assert()
                 .code(3);
 
             println!("Init second one");
             Command::new(&edgedb)
-                .arg("server").arg("init").arg("second")
-                    .arg("--version=1-alpha6")
+                .arg("instance").arg("create").arg("second")
+                    .arg("--version=1-beta3")
                 .assert()
                 .success();
 
             println!("Start second");
             Command::new(&edgedb)
-                .arg("server").arg("start").arg("second")
+                .arg("instance").arg("start").arg("second")
                 .assert()
                 .success();
 
             println!("Start first simultaneously to second");
             Command::new(&edgedb)
-                .arg("server").arg("start").arg("inst1")
+                .arg("instance").arg("start").arg("inst1")
                 .assert()
                 .success();
 
             println!("Status second");
             Command::new(&edgedb)
-                .arg("server").arg("status").arg("second")
+                .arg("instance").arg("status").arg("second")
                 .assert()
                 .success();
 
             println!("Logs inst1");
             Command::new(&edgedb)
-                .arg("server").arg("logs").arg("inst1")
+                .arg("instance").arg("logs").arg("inst1")
                 .assert()
                 .success();
 
             println!("Logs second");
             Command::new(&edgedb)
-                .arg("server").arg("logs").arg("second")
+                .arg("instance").arg("logs").arg("second")
                 .assert()
                 .success();
 
             println!("Status first");
             Command::new(&edgedb)
-                .arg("server").arg("status").arg("inst1")
+                .arg("instance").arg("status").arg("inst1")
                 .assert()
                 .success();
 
@@ -229,7 +229,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
             println!("Delete second instance");
             Command::new(&edgedb)
-                .arg("server").arg("destroy").arg("second")
+                .arg("instance").arg("destroy").arg("second")
                 .assert()
                 .success();
 
@@ -237,7 +237,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
         println!("Uninstall the old version");
         Command::new(&edgedb)
-            .arg("server").arg("uninstall").arg("--version=1-alpha6")
+            .arg("server").arg("uninstall").arg("--version=1-beta2")
             .assert()
             .success();
         Command::new(&edgedb)
@@ -245,7 +245,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .arg("--installed-only").arg("--column=major-version")
             .assert()
             .success()
-            .stdout(predicates::str::contains("1-alpha6").not());
+            .stdout(predicates::str::contains("1-beta2").not());
 
         if cfg!(target_os="macos") {
             println!("Execute query after deleting second");
