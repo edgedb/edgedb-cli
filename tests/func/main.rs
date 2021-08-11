@@ -1,9 +1,6 @@
 #[cfg(not(windows))]
 #[macro_use] extern crate pretty_assertions;
 
-use nix::unistd::Pid;
-use nix::sys::signal::{self, Signal};
-
 use std::sync::Mutex;
 use std::convert::TryInto;
 use std::io::{BufReader, BufRead};
@@ -25,6 +22,25 @@ mod configure;
 mod non_interactive;
 #[cfg(not(windows))]
 mod migrations;
+
+#[cfg(not(windows))]
+fn term_process(proc: &mut process::Child) {
+    use nix::unistd::Pid;
+    use nix::sys::signal::{self, Signal};
+
+    if let Err(e) = signal::kill(
+        Pid::from_raw(proc.id() as i32), Signal::SIGTERM
+    ) {
+        eprintln!("could not send SIGTERM to edgedb-server: {:?}", e);
+    };
+}
+
+#[cfg(windows)]
+fn term_process(proc: &mut process::Child) {
+    // This is suboptimal -- ideally we need to close the process
+    // gracefully on Windows too.
+    proc.kill();
+}
 
 // for some reason rexpect doesn't work on macos
 // and also something wrong on musl libc
@@ -200,11 +216,7 @@ impl ServerGuard {
 extern fn stop_processes() {
     let mut items = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
     for item in items.iter_mut() {
-        if let Err(e) = signal::kill(
-            Pid::from_raw(item.process.id() as i32), Signal::SIGTERM
-        ) {
-            eprintln!("could not send SIGTERM to edgedb-server: {:?}", e);
-        };
+        term_process(&mut item.process);
     }
     for item in items.iter_mut() {
         item.process.wait().ok();
