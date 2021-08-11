@@ -208,9 +208,9 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
                 })
            ).expect("paths can be joined"))
         })?;
-        if modified && !no_dir_in_path(&new_bin_dir) {
+        if modified && no_dir_in_path(&new_bin_dir) {
             print_markdown!("\
-                ## The `edgedb` executable is moved!\n\
+                ## The `edgedb` executable has moved!\n\
                 \n\
                 We've updated your environment configuration to have\n\
                 `${dir}` in your `PATH` environment variable. You\n\
@@ -238,9 +238,9 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
                 modified = true;
             }
         }
-        if modified && !no_dir_in_path(&new_bin_dir) {
+        if modified && no_dir_in_path(&new_bin_dir) {
             print_markdown!("\
-                # The EdgeDB command-line tool is now installed!\n\
+                ## The `edgedb` executable has moved!\n\
                 \n\
                 We've updated your shell profile to have ${dir} in your\n\
                 `PATH` environment variable. Next time you open the terminal\n\
@@ -249,7 +249,9 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
                 For this session please run:\n\
                 ```\n\
                     source \"${env_path}\"\n\
-                ```\
+                ```\n\
+                Depending on your shell type you might also need \
+                to run `rehash`.\
                 ",
                 dir=new_bin_dir.display(),
                 env_path=config_dir()?.join("env").display(),
@@ -362,6 +364,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
         }
     }
     remove_dir_all(&base, dry_run)?;
+    print_markdown!("# Directory layout migration successful!");
 
     Ok(())
 }
