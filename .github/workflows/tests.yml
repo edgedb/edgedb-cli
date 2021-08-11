@@ -41,7 +41,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          arguments: --features github_action_install
+          args: --features github_action_install
 
   musl-test:
     runs-on: ${{ matrix.os }}
