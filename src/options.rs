@@ -365,6 +365,12 @@ fn update_main_help(mut app: clap::App) -> clap::App {
     let mut help = help[..subcmd_index].replacen("edgedb", "EdgeDB CLI", 1);
     help.push_str(&sub_cmd);
 
+    help = help.replacen(
+        CONN_OPTIONS_GROUP,
+        &markdown::format_markdown(CONN_OPTIONS_GROUP).trim(),
+        1
+    );
+
     let help = std::str::from_utf8(Vec::leak(help.into())).unwrap();
     return app.override_help(help);
 }
