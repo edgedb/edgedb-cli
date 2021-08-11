@@ -17,6 +17,7 @@ use crate::connect::Connector;
 use crate::credentials;
 use crate::migrations;
 use crate::platform::{tmp_file_path, config_dir, path_bytes, symlink_dir};
+use crate::print;
 use crate::process::ProcessGuard;
 use crate::project::config;
 use crate::project::options::Init;
@@ -665,7 +666,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 }
 
 fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
-    println!("Project initialized.");
+    print::success("Project initialized.");
     if let Some(dir) = dir_option {
         println!("To connect to {}, navigate to {} and run `edgedb`",
             name, dir.display());

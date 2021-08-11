@@ -14,6 +14,7 @@ use fs_err as fs;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::{Uid, get_current_uid, data_dir};
+use crate::print;
 use crate::process::ProcessGuard;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, read_ports, init_credentials, Storage};
@@ -79,8 +80,8 @@ impl Unix {
                     println!("    {}", op.format(true));
                 }
             }
-            println!("Depending on system settings sudo may now ask \
-                      you for your password...");
+            print::prompt("Depending on system settings sudo may now ask \
+                          you for your password...");
             match self.get_sudo_path() {
                 Some(cmd) => ctx.set_elevation_cmd(cmd),
                 None => {
@@ -166,7 +167,9 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
                 foreground: false,
             })?;
             init_credentials(&settings, &inst, cert)?;
-            println!("Bootstrap complete! Server is now up and running.");
+            print::success_msg(
+                "Bootstrap complete", "server is now up and running."
+            );
             if !settings.suppress_messages {
                 println!("To connect run:\n  edgedb -I {}",
                          settings.name.escape_default());
@@ -182,7 +185,8 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
             init_credentials(&settings, &inst, cert)?;
             drop(child);
             if settings.start_conf == StartConf::Manual && res.is_ok() {
-                println!("Bootstrap complete! To start the server run:\n  \
+                print::success("Bootstrap complete.");
+                println!("To start the server run:\n  \
                           edgedb instance start {}",
                           settings.name.escape_default());
             }

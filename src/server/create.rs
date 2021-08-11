@@ -15,6 +15,7 @@ use fn_error_context::context;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::config_dir;
+use crate::print;
 use crate::server::reset_password::{generate_password, write_credentials};
 use crate::server::reset_password::{password_hash};
 use crate::server::detect::{self, VersionQuery};
@@ -281,7 +282,7 @@ pub fn try_bootstrap(method: &dyn Method, settings: &Settings)
         Ok(()) => Ok(true),
         Err(e) => {
             if e.is::<CannotCreateService>() {
-                eprintln!("edgedb error: {:#}", e);
+                print::error_obj(&e);
                 Ok(false)
             } else {
                 log::error!("Bootstrap error, cleaning up...");

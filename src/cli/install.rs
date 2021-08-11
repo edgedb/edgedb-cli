@@ -18,6 +18,7 @@ use prettytable::{Table, Row, Cell};
 use crate::cli::migrate;
 use crate::options::RawOptions;
 use crate::platform::{home_dir, config_dir, get_current_uid, binary_path};
+use crate::print;
 use crate::process;
 use crate::project::init;
 use crate::project::options::Init;
@@ -347,28 +348,10 @@ pub fn main(options: &CliInstall) -> anyhow::Result<()> {
 
 fn customize(settings: &mut Settings) -> anyhow::Result<()> {
     if no_dir_in_path(&settings.installation_path) {
-        loop {
-            print!("Modify PATH variable? (Y/n)");
-
-            stdout().flush()?;
-            match read_choice()?.as_ref() {
-                "y" | "yes" | "" => {
-                    settings.modify_path = true;
-                    break;
-                }
-                "n" | "no" => {
-                    settings.modify_path = false;
-                    break;
-                }
-                choice => {
-                    eprintln!("Invalid choice {:?}. \
-                        Use single letter `y` or `n`.",
-                        choice);
-                }
-            }
-        }
+        let q = question::Confirm::new("Modify PATH variable?");
+        settings.modify_path = q.ask()?;
     } else {
-        println!("No options to customize");
+        print::error("No options to customize.");
     }
     Ok(())
 }
@@ -463,7 +446,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
                         settings.print();
                     }
                     _ => {
-                        eprintln!("Aborting installation");
+                        print::error("Aborting installation.");
                         exit(7);
                     }
                 }

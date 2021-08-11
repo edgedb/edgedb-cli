@@ -4,7 +4,7 @@ use std::io;
 use std::convert::Infallible;
 
 use async_std::stream::{Stream, StreamExt};
-use colorful::Colorful;
+use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
 
 mod native;
@@ -338,4 +338,45 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
     }
     prn.end().unwrap_exc()?;
     Ok(out)
+}
+
+pub fn prompt(line: &str) {
+    println!(
+        "{}",
+        line.bold().color(Color::Orange3),
+    );
+}
+
+pub fn error(line: &str) {
+    eprintln!(
+        "{}",
+        line.bold().light_red(),
+    );
+}
+
+pub fn error_msg(title: &str, msg: &str) {
+    eprintln!(
+        "{}: {}",
+        title.bold().light_red(),
+        msg.bold().white(),
+    );
+}
+
+pub fn error_obj(e: &dyn fmt::Display) {
+    error_msg("edgedb error", &format!("{:#}", e));
+}
+
+pub fn success(line: &str) {
+    println!(
+        "{}",
+        line.bold().light_green(),
+    )
+}
+
+pub fn success_msg(title: &str, msg: &str) {
+    println!(
+        "{}: {}",
+        title.bold().light_green(),
+        msg.bold().white(),
+    )
 }

@@ -2,9 +2,9 @@ use std::borrow::Cow;
 use std::io::{stdin, BufRead};
 
 use rustyline::{Editor, Config};
-use colorful::{Colorful, Color};
-
 use anyhow::Context;
+
+use crate::print;
 
 
 pub struct Numeric<'a, T: Clone + 'a> {
@@ -44,20 +44,6 @@ pub fn read_choice() -> anyhow::Result<std::string::String> {
     anyhow::bail!("Unexpected end of input");
 }
 
-fn print_prompt(line: &str) {
-    println!(
-        "{}",
-        line.bold().color(Color::Orange3)
-    );
-}
-
-fn print_error(line: &str) {
-    eprintln!(
-        "{}",
-        line.bold().light_red()
-    );
-}
-
 impl<'a, T: Clone + 'a> Numeric<'a, T> {
     pub fn new<Q: Into<Cow<'a, str>>>(question: Q) -> Self {
         Numeric {
@@ -78,26 +64,26 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
     pub fn ask(&self) -> anyhow::Result<T> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         loop {
-            print_prompt(&self.question);
+            print::prompt(&self.question);
             for (idx, (title, _)) in self.options.iter().enumerate() {
-                print_prompt(
+                print::prompt(
                     &format!("{}. {}", idx+1, title)
                 );
             }
-            print_prompt(&self.suffix);
+            print::prompt(&self.suffix);
             let value = editor.readline("> ")?;
             let choice = match value.parse::<u32>() {
                 Ok(choice) => choice,
                 Err(e) => {
-                    print_error(
+                    print::error(
                         &format!("Error reading choice: {}", e)
                     );
-                    print_prompt("Please enter a number");
+                    print::prompt("Please enter a number");
                     continue;
                 }
             };
             if choice == 0 || choice as usize > self.options.len() {
-                print_error("Please specify a choice from the list above");
+                print::error("Please specify a choice from the list above");
                 continue;
             }
             return Ok(self.options[(choice-1) as usize].1.clone());
@@ -119,11 +105,11 @@ impl<'a> String<'a> {
     }
     pub fn ask(&mut self) -> anyhow::Result<std::string::String> {
         if self.default.is_empty() {
-            print_prompt(
+            print::prompt(
                 &format!("{}: ", self.question)
             );
         } else {
-            print_prompt(
+            print::prompt(
                 &format!("{} [default: {}]: ", self.question, self.default)
             );
         }
@@ -164,11 +150,11 @@ impl<'a> Confirm<'a> {
     pub fn ask(&self) -> anyhow::Result<bool> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         if self.is_dangerous {
-            print_prompt(
+            print::prompt(
                 &format!("{} (type `Yes`)", self.question)
             );
         } else {
-            print_prompt(
+            print::prompt(
                 &format!(
                     "{} [{}]", self.question, match self.default {
                         None => "y/n",
@@ -198,7 +184,7 @@ impl<'a> Confirm<'a> {
                     }
                     _ => {
                         initial = val;
-                        print_error("Please answer Y or N");
+                        print::error("Please answer Y or N");
                         continue;
                     }
                 }
@@ -229,7 +215,7 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
             .collect::<Vec<_>>()
             .join(",");
         loop {
-            print_prompt(
+            print::prompt(
                 &format!("{} [{}]", self.question, options)
             );
             let val = editor.readline("> ")?;
@@ -259,7 +245,7 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
                     }
                 }
             }
-            print_error(
+            print::error(
                 &format!("Invalid option {:?}, please use one of: [{}]",
                          val, options)
             );

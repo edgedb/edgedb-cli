@@ -4,6 +4,7 @@ use std::fs;
 use anyhow::Context;
 
 use crate::commands::ExitCode;
+use crate::print;
 use crate::server::options::Install;
 use crate::server::detect::{self, VersionQuery};
 use crate::server::methods::InstallMethod;
@@ -94,8 +95,9 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     settings.print();
     println!("Installing EdgeDB {}...", version);
     method.install(&settings)?;
-    println!("\nEdgeDB is now installed. Great!\n\
-        Initialize and start a new database instance with:\n  \
+    println!();
+    print::success("EdgeDB is now installed. Great!");
+    println!("Initialize and start a new database instance with:\n  \
           edgedb instance create{arg} <instance-name>",
           arg=if options.nightly { " --nightly" } else { "" });
     Ok(())
