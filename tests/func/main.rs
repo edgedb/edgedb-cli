@@ -1,6 +1,9 @@
 #[cfg(not(windows))]
 #[macro_use] extern crate pretty_assertions;
 
+use nix::unistd::Pid;
+use nix::sys::signal::{self, Signal};
+
 use std::sync::Mutex;
 use std::convert::TryInto;
 use std::io::{BufReader, BufRead};
@@ -113,6 +116,7 @@ impl ServerGuard {
                                 .expect("valid server data");
                             tx.send((port, runstate_dir, tls_cert_file))
                                 .expect("valid channel");
+                            break;
                         }
                     }
                     Err(e) => {
@@ -196,7 +200,11 @@ impl ServerGuard {
 extern fn stop_processes() {
     let mut items = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
     for item in items.iter_mut() {
-        item.process.kill().ok();
+        if let Err(e) = signal::kill(
+            Pid::from_raw(item.process.id() as i32), Signal::SIGTERM
+        ) {
+            eprintln!("could not send SIGTERM to edgedb-server: {:?}", e);
+        };
     }
     for item in items.iter_mut() {
         item.process.wait().ok();
