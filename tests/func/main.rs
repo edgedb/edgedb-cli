@@ -23,13 +23,20 @@ mod non_interactive;
 #[cfg(not(windows))]
 mod migrations;
 
+// for some reason rexpect doesn't work on macos
+// and also something wrong on musl libc
+#[cfg(all(target_os="linux", not(target_env="musl")))]
+mod interactive;
+
+mod help;
+
 #[cfg(not(windows))]
 fn term_process(proc: &mut process::Child) {
     use nix::unistd::Pid;
     use nix::sys::signal::{self, Signal};
 
     if let Err(e) = signal::kill(
-        Pid::from_raw(proc.id() as i32), Signal::SIGTERM
+        Pid::from_raw(proc.id() as libc::pid_t), Signal::SIGTERM
     ) {
         eprintln!("could not send SIGTERM to edgedb-server: {:?}", e);
     };
@@ -39,16 +46,10 @@ fn term_process(proc: &mut process::Child) {
 fn term_process(proc: &mut process::Child) {
     // This is suboptimal -- ideally we need to close the process
     // gracefully on Windows too.
-    proc.kill();
+    if let Err(e) = proc.kill() {
+        eprintln!("could not kill edgedb-server: {:?}", e);
+    }
 }
-
-// for some reason rexpect doesn't work on macos
-// and also something wrong on musl libc
-#[cfg(all(target_os="linux", not(target_env="musl")))]
-mod interactive;
-
-mod help;
-
 
 pub static SHUTDOWN_INFO: Lazy<Mutex<Vec<ShutdownInfo>>> =
     Lazy::new(|| Mutex::new(Vec::new()));
@@ -211,7 +212,6 @@ impl ServerGuard {
         return cmd
     }
 }
-
 
 extern fn stop_processes() {
     let mut items = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
