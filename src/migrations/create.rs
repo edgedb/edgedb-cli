@@ -126,7 +126,7 @@ fn choice(prompt: &str) -> anyhow::Result<Choice> {
         "list already confirmed EdgeQL statements");
     q.option(Back, &["b", "back"],
         "revert back to previous save point");
-    q.option(Split, &["s", "split"],
+    q.option(Split, &["s", "stop"],
         "stop and save changes (splits migration into multiple)");
     q.option(Quit, &["q", "quit"],
         "quit without saving changes");
