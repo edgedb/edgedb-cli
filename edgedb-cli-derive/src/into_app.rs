@@ -229,8 +229,10 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
     if let Some(text) = field.attrs.help.as_ref().or(field.attrs.doc.as_ref()) {
         let source = &text.source;
         modifiers.extend(quote! {
-            let about = Box::new(crate::markdown::format_markdown(#source));
-            #arg = #arg.about(Box::leak(about).as_str());
+            static ABOUT: ::once_cell::sync::Lazy<String> =
+                ::once_cell::sync::Lazy::new(
+                    || crate::markdown::format_markdown(#source));
+            #arg = #arg.about((&ABOUT).as_str());
         });
     }
     if let Some(name) = field.attrs.name.as_ref() {
@@ -298,8 +300,10 @@ fn mk_struct(s: &types::Struct, app: &syn::Ident,
     if let Some(doc) = &s.attrs.doc {
         let source = &doc.source;
         output.extend(quote! {
-            let about = Box::new(crate::markdown::format_markdown(#source));
-            #app = #app.about(Box::leak(about).as_str());
+            static ABOUT: ::once_cell::sync::Lazy<String> =
+                ::once_cell::sync::Lazy::new(
+                    || crate::markdown::format_markdown(#source));
+            #app = #app.about((&ABOUT).as_str());
         });
     }
     let (subcmd_interface, flat_interface) = if inheritance {
@@ -434,8 +438,12 @@ fn mk_subcommand(s: &types::Subcommand, sub: &syn::Ident)
     if let Some(text) = s.attrs.about.as_ref().or(s.attrs.doc.as_ref()) {
         let source = &text.source;
         modifiers.extend(quote! {
-            let about = Box::new(crate::markdown::format_markdown(#source));
-            #sub = #sub.about(Box::leak(about).as_str());
+            {
+                static ABOUT: ::once_cell::sync::Lazy<String> =
+                    ::once_cell::sync::Lazy::new(
+                        || crate::markdown::format_markdown(#source));
+                #sub = #sub.about((&ABOUT).as_str());
+            }
         });
     }
     for (name, value) in &s.attrs.options {
