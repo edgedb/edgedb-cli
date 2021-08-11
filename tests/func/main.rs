@@ -23,6 +23,25 @@ mod non_interactive;
 #[cfg(not(windows))]
 mod migrations;
 
+#[cfg(not(windows))]
+fn term_process(proc: &mut process::Child) {
+    use nix::unistd::Pid;
+    use nix::sys::signal::{self, Signal};
+
+    if let Err(e) = signal::kill(
+        Pid::from_raw(proc.id() as i32), Signal::SIGTERM
+    ) {
+        eprintln!("could not send SIGTERM to edgedb-server: {:?}", e);
+    };
+}
+
+#[cfg(windows)]
+fn term_process(proc: &mut process::Child) {
+    // This is suboptimal -- ideally we need to close the process
+    // gracefully on Windows too.
+    proc.kill();
+}
+
 // for some reason rexpect doesn't work on macos
 // and also something wrong on musl libc
 #[cfg(all(target_os="linux", not(target_env="musl")))]
@@ -113,6 +132,7 @@ impl ServerGuard {
                                 .expect("valid server data");
                             tx.send((port, runstate_dir, tls_cert_file))
                                 .expect("valid channel");
+                            break;
                         }
                     }
                     Err(e) => {
@@ -196,7 +216,7 @@ impl ServerGuard {
 extern fn stop_processes() {
     let mut items = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
     for item in items.iter_mut() {
-        item.process.kill().ok();
+        term_process(&mut item.process);
     }
     for item in items.iter_mut() {
         item.process.wait().ok();

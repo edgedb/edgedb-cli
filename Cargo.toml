@@ -112,6 +112,7 @@ winreg = "0.8.0"
 
 [target.'cfg(unix)'.dev-dependencies]
 rexpect = {git="https://github.com/tailhook/rexpect", branch="default_terminal_size"}
+nix = "0.22.0"
 
 [target.'cfg(target_env="musl")'.dependencies]
 native-tls = {version="0.2.4", features=["vendored"]}
