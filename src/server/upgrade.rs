@@ -11,6 +11,7 @@ use edgedb_client as client;
 use crate::commands;
 use crate::connect::Connector;
 use crate::hint::HintExt;
+use crate::print_markdown;
 use crate::process::ProcessGuard;
 use crate::project;
 use crate::server::destroy;
@@ -139,7 +140,19 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let mut errors = Vec::new();
     for meth in methods.values() {
         match meth.upgrade(&todo, options) {
-            Ok(_) => {}
+            Ok(_) => {
+                if let ToDo::InstanceUpgrade(name, _version) = &todo {
+                    let new_inst = meth.get_instance(name)?;
+                    println!();
+                    print_markdown!(
+                        "**EdgeDB instance '${name}' was successfully \
+                        upgraded to version ${version}!**",
+                        name=name,
+                        version=new_inst.get_current_version()?.unwrap(),
+                    );
+                    break
+                }
+            }
             Err(e) if e.is::<InstanceNotFound>() => {
                 errors.push((meth.name(), e));
             }
