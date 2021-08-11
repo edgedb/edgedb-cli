@@ -1,6 +1,7 @@
 use std::io;
-use std::process::{Command, Child, exit};
+use std::process::{Command, Child, exit, Stdio};
 use std::time::Duration;
+use std::thread;
 
 use anyhow::Context;
 use serde::de::DeserializeOwned;
@@ -43,14 +44,44 @@ pub fn exists(pid: u32) -> bool {
 }
 
 #[cfg(unix)]
+fn start_monitoring<S>(stream: S) -> thread::JoinHandle<()>
+    where S: std::io::Read + Send + 'static,
+{
+    let out = io::BufReader::new(stream);
+
+    thread::spawn(move || {
+        use std::io::BufRead;
+        use colorful::{Colorful, Color};
+
+        out.lines().for_each(|line| {
+            println!("{}", line.unwrap().color(Color::Grey37));
+        });
+
+        ()
+    })
+}
+
+#[cfg(unix)]
 pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
     use signal::Signal::*;
 
     let trap = signal::trap::Trap::trap(&[SIGINT, SIGTERM, SIGCHLD]);
     log::info!("Running {:?}", cmd);
+
+    let mut cmd = cmd.stdout(Stdio::piped());
+    cmd = cmd.stderr(Stdio::piped());
+
     let mut child = cmd.spawn()
         .with_context(|| format!("process {:?} failed", cmd))?;
     let pid = child.id() as i32;
+
+    let mut stderr_mon: Option<thread::JoinHandle<()>> = None;
+    let mut stdout_mon: Option<thread::JoinHandle<()>> = None;
+    if atty::is(atty::Stream::Stdout) {
+        stderr_mon = Some(start_monitoring(child.stderr.take().unwrap()));
+        stdout_mon = Some(start_monitoring(child.stdout.take().unwrap()));
+    }
+
     let status = 'child: loop {
         for sig in trap {
             match sig {
@@ -70,6 +101,14 @@ pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
         }
         unreachable!();
     };
+
+    if let Some(mon) = stderr_mon {
+        mon.join().unwrap();
+    }
+    if let Some(mon) = stdout_mon {
+        mon.join().unwrap();
+    }
+
     if status.success() {
         return Ok(())
     }
