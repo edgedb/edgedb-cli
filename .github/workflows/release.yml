@@ -340,6 +340,10 @@ jobs:
         ref: master
         path: edgedb-cli/edgedb-pkg
 
+    - name: Determine package version
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
+      id: whichver
+
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
