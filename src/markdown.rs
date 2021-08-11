@@ -1,4 +1,4 @@
-pub fn prepare_markdown(text: &str) -> String {
+fn prepare_markdown(text: &str) -> String {
     let mut min_indent = text.len();
     for line in text.lines() {
         let stripped = line.trim_start();
@@ -23,7 +23,7 @@ pub fn prepare_markdown(text: &str) -> String {
     return buf;
 }
 
-pub fn make_skin() -> termimad::MadSkin {
+fn make_skin() -> termimad::MadSkin {
     if !atty::is(atty::Stream::Stdout) {
         return termimad::MadSkin::no_style();
     }
@@ -31,14 +31,16 @@ pub fn make_skin() -> termimad::MadSkin {
     use crossterm::style::{Color, Attribute};
     let mut skin = termimad::MadSkin::default();
     skin.bold.set_fg(Color::Reset);
+    skin.inline_code.set_fg(Color::Reset);
     skin.inline_code.set_bg(Color::Reset);
     skin.inline_code.add_attr(Attribute::Bold);
+    skin.code_block.set_fg(Color::Reset);
     skin.code_block.set_bg(Color::Reset);
     skin.code_block.add_attr(Attribute::Bold);
     skin
 }
 
-pub fn parse_markdown(text: &str) -> minimad::Text {
+fn parse_markdown(text: &str) -> minimad::Text {
     use minimad::{Text, Composite};
     use minimad::Line::*;
     use minimad::CompositeStyle::*;
