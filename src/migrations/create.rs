@@ -42,7 +42,7 @@ pub enum SourceName {
 }
 
 #[derive(Clone, Debug)]
-pub enum Choice {
+enum Choice {
     Yes,
     No,
     List,
@@ -83,9 +83,20 @@ pub struct CurrentMigration {
     pub proposed: Option<Proposal>,
 }
 
+struct InteractiveMigration<'a> {
+    cli: &'a mut Connection,
+    save_point: usize,
+    operations: Vec<Set<String>>,
+    confirmed: Vec<String>,
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("refused to input data required for placeholder")]
 struct Refused;
+
+#[derive(Debug, thiserror::Error)]
+#[error("split migration")]
+struct SplitMigration;
 
 async fn execute(cli: &mut Connection, text: impl AsRef<str>)
     -> anyhow::Result<()>
@@ -223,161 +234,194 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
     Ok(())
 }
 
+impl InteractiveMigration<'_> {
+    fn new(cli: &mut Connection) -> InteractiveMigration {
+        InteractiveMigration {
+            cli,
+            save_point: 0,
+            operations: vec![Set::new()],
+            confirmed: Vec::new(),
+        }
+    }
+    async fn save_point(&mut self) -> anyhow::Result<()> {
+        execute(self.cli,
+            format!("DECLARE SAVEPOINT migration_{}", self.save_point)
+        ).await
+    }
+    async fn rollback(&mut self) -> anyhow::Result<()> {
+        execute(self.cli, format!(
+            "ROLLBACK TO SAVEPOINT migration_{}", self.save_point)
+        ).await
+    }
+    async fn run(mut self) -> anyhow::Result<CurrentMigration> {
+        self.save_point().await?;
+        loop {
+            let descr = query_row::<CurrentMigration>(self.cli,
+                "DESCRIBE CURRENT MIGRATION AS JSON",
+            ).await?;
+            self.confirmed = descr.confirmed.clone();
+            if descr.complete {
+                return Ok(descr);
+            }
+            if let Some(proposal) = &descr.proposed {
+                match self.process_proposal(proposal).await {
+                    Err(e) if e.is::<SplitMigration>() => return Ok(descr),
+                    Err(e) => return Err(e),
+                    Ok(()) => {}
+                }
+            } else {
+                self.could_not_resolve().await?;
+            }
+        }
+    }
+    async fn process_proposal(&mut self, proposal: &Proposal)
+        -> anyhow::Result<()>
+    {
+        use Choice::*;
+
+        let cur_oper = self.operations.last().unwrap();
+        let already_approved = proposal.prompt_id.as_ref()
+            .map(|op| cur_oper.contains(op))
+            .unwrap_or(false);
+        let input;
+        if already_approved {
+            input = loop {
+                println!("The following extra DDL statements will be applied:");
+                for statement in &proposal.statements {
+                    for line in statement.text.lines() {
+                        println!("    {}", line);
+                    }
+                }
+                println!("(approved as part of an earlier prompt)");
+                match get_user_input(&proposal.required_user_input) {
+                    Ok(data) => break data,
+                    Err(e) if e.is::<Refused>() => {
+                        // TODO(tailhook) ask if we want to rollback or quit
+                        continue;
+                    }
+                    Err(e) => return Err(e.into()),
+                };
+            };
+        } else {
+            let prompt = if let Some(prompt) = &proposal.prompt {
+                prompt
+            } else {
+                println!("The following DDL statements will be applied:");
+                for statement in &proposal.statements {
+                    for line in statement.text.lines() {
+                        println!("    {}", line);
+                    }
+                }
+                "Apply the DDL statements?"
+            };
+            loop {
+                match choice(prompt)? {
+                    Yes => {
+                        match get_user_input(&proposal.required_user_input) {
+                            Ok(data) => input = data,
+                            Err(e) if e.is::<Refused>() => continue,
+                            Err(e) => return Err(e.into()),
+                        };
+                        break;
+                    }
+                    No => {
+                        execute(self.cli,
+                            "ALTER CURRENT MIGRATION REJECT PROPOSED"
+                        ).await?;
+                        self.save_point += 1;
+                        self.save_point().await?;
+                        return Ok(());
+                    }
+                    List => {
+                        println!("The following DDL statements will be applied:");
+                        for statement in &proposal.statements {
+                            for line in statement.text.lines() {
+                                println!("    {}", line);
+                            }
+                        }
+                        continue;
+                    }
+                    Confirmed => {
+                        if self.confirmed.is_empty() {
+                            println!(
+                                "No EdgeQL statements were confirmed yet");
+                        } else {
+                            println!(
+                                "The following EdgeQL statements were confirmed:");
+                            for statement in &self.confirmed {
+                                for line in statement.lines() {
+                                    println!("    {}", line);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    Back => {
+                        if self.save_point == 0 {
+                            eprintln!("Already at latest savepoint");
+                            continue;
+                        }
+                        self.save_point -= 1;
+                        self.rollback().await?;
+                        self.operations.truncate(self.save_point + 1);
+                        return Ok(());
+                    }
+                    Split => {
+                        return Err(SplitMigration.into());
+                    }
+                    Quit => {
+                        eprintln!("Migration aborted; no results are saved.");
+                        return Err(ExitCode::new(0))?;
+                    }
+                }
+            }
+        }
+        for statement in &proposal.statements {
+            let text = substitute_placeholders(&statement.text, &input)?;
+            match execute(self.cli, &text).await {
+                Ok(()) => {}
+                Err(e) => {
+                    match e.downcast::<ErrorResponse>() {
+                        Ok(err) => {
+                            print_query_error(&err, &text, false)?;
+                        }
+                        Err(err) => {
+                            eprintln!("Error applying statement: {:#}",
+                                err);
+                        }
+                    }
+                    eprintln!("Rolling back last operation...");
+                    self.rollback().await?;
+                    return Ok(());
+                }
+            }
+        }
+        if let Some(prompt_id) = &proposal.prompt_id {
+            self.operations.push(
+                self.operations.last().unwrap().insert(prompt_id.clone()).0
+            );
+        } else {
+            self.operations.push(self.operations.last().unwrap().clone());
+        }
+        self.save_point += 1;
+        self.save_point().await?;
+        Ok(())
+    }
+    async fn could_not_resolve(&mut self) -> anyhow::Result<()> {
+        // TODO(tailhook) allow rollback
+        anyhow::bail!("EdgeDB could not resolve \
+            migration with your answers. \
+            Please retry with different answers");
+    }
+}
+
+
 async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
     options: &CreateMigration)
     -> anyhow::Result<()>
 {
-    use Choice::*;
+    let descr = InteractiveMigration::new(cli).run().await?;
 
-    let mut operations = vec![Set::new()];
-    let mut save_point = 0;
-    execute(cli, format!("DECLARE SAVEPOINT migration_{}", save_point)).await?;
-    let descr = 'migration: loop {
-        let descr = query_row::<CurrentMigration>(cli,
-            "DESCRIBE CURRENT MIGRATION AS JSON",
-        ).await?;
-        if descr.complete {
-            break descr;
-        }
-        if let Some(proposal) = &descr.proposed {
-            let cur_oper = operations.last().unwrap();
-            let already_approved = proposal.prompt_id.as_ref()
-                .map(|op| cur_oper.contains(op))
-                .unwrap_or(false);
-            let input;
-            if already_approved {
-                input = loop {
-                    println!("The following extra DDL statements will be applied:");
-                    for statement in &proposal.statements {
-                        for line in statement.text.lines() {
-                            println!("    {}", line);
-                        }
-                    }
-                    println!("(approved as part of an earlier prompt)");
-                    match get_user_input(&proposal.required_user_input) {
-                        Ok(data) => break data,
-                        Err(e) if e.is::<Refused>() => continue,
-                        Err(e) => return Err(e.into()),
-                    };
-                };
-            } else {
-                let prompt = if let Some(prompt) = &proposal.prompt {
-                    prompt
-                } else {
-                    println!("The following DDL statements will be applied:");
-                    for statement in &proposal.statements {
-                        for line in statement.text.lines() {
-                            println!("    {}", line);
-                        }
-                    }
-                    "Apply the DDL statements?"
-                };
-                loop {
-                    match choice(prompt)? {
-                        Yes => {
-                            match get_user_input(&proposal.required_user_input) {
-                                Ok(data) => input = data,
-                                Err(e) if e.is::<Refused>() => continue,
-                                Err(e) => return Err(e.into()),
-                            };
-                            break;
-                        }
-                        No => {
-                            execute(cli,
-                                "ALTER CURRENT MIGRATION REJECT PROPOSED"
-                            ).await?;
-                            save_point += 1;
-                            execute(cli,
-                                format!("DECLARE SAVEPOINT migration_{}",
-                                         save_point)
-                            ).await?;
-                            continue 'migration;
-                        }
-                        List => {
-                            println!("The following DDL statements will be applied:");
-                            for statement in &proposal.statements {
-                                for line in statement.text.lines() {
-                                    println!("    {}", line);
-                                }
-                            }
-                            continue;
-                        }
-                        Confirmed => {
-                            if descr.confirmed.is_empty() {
-                                println!(
-                                    "No EdgeQL statements were confirmed yet");
-                            } else {
-                                println!(
-                                    "The following EdgeQL statements were confirmed:");
-                                for statement in &descr.confirmed {
-                                    for line in statement.lines() {
-                                        println!("    {}", line);
-                                    }
-                                }
-                            }
-                            continue;
-                        }
-                        Back => {
-                            if save_point == 0 {
-                                eprintln!("Already at latest savepoint");
-                                continue;
-                            }
-                            save_point -= 1;
-                            execute(cli, format!(
-                                "ROLLBACK TO SAVEPOINT migration_{}", save_point)
-                            ).await?;
-                            operations.truncate(save_point + 1);
-                            continue 'migration;
-                        }
-                        Split => {
-                            break 'migration descr;
-                        }
-                        Quit => {
-                            eprintln!("Migration aborted; no results are saved.");
-                            return Err(ExitCode::new(0))?;
-                        }
-                    }
-                }
-            }
-            for statement in &proposal.statements {
-                let text = substitute_placeholders(&statement.text, &input)?;
-                match execute(cli, &text).await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        match e.downcast::<ErrorResponse>() {
-                            Ok(err) => {
-                                print_query_error(&err, &text, false)?;
-                            }
-                            Err(err) => {
-                                eprintln!("Error applying statement: {:#}",
-                                    err);
-                            }
-                        }
-                        eprintln!("Rolling back last operation...");
-                        execute(cli, format!(
-                            "ROLLBACK TO SAVEPOINT migration_{}", save_point)
-                        ).await?;
-                        continue 'migration;
-                    }
-                }
-            }
-            if let Some(prompt_id) = &proposal.prompt_id {
-                operations.push(
-                    operations.last().unwrap().insert(prompt_id.clone()).0
-                );
-            } else {
-                operations.push(operations.last().unwrap().clone());
-            }
-            save_point += 1;
-            execute(cli,
-                format!("DECLARE SAVEPOINT migration_{}", save_point)
-            ).await?;
-        } else {
-            anyhow::bail!("EdgeDB could not resolve \
-                migration with your answers. \
-                Please retry with different answers");
-        }
-    };
     if descr.confirmed.is_empty() && !options.allow_empty {
         eprintln!("No schema changes detected.");
         return Err(ExitCode::new(4))?;
