@@ -1,3 +1,5 @@
+use once_cell::sync::Lazy;
+
 fn prepare_markdown(text: &str) -> String {
     let mut min_indent = text.len();
     for line in text.lines() {
@@ -23,12 +25,13 @@ fn prepare_markdown(text: &str) -> String {
     return buf;
 }
 
-fn make_skin() -> termimad::MadSkin {
+static MADSKIN: Lazy<termimad::MadSkin> = Lazy::new(|| {
+    use crossterm::style::{Color, Attribute};
+
     if !atty::is(atty::Stream::Stdout) {
         return termimad::MadSkin::no_style();
     }
 
-    use crossterm::style::{Color, Attribute};
     let mut skin = termimad::MadSkin::default();
     skin.bold.set_fg(Color::Reset);
     skin.inline_code.set_fg(Color::Reset);
@@ -38,7 +41,7 @@ fn make_skin() -> termimad::MadSkin {
     skin.code_block.set_bg(Color::Reset);
     skin.code_block.add_attr(Attribute::Bold);
     skin
-}
+});
 
 fn parse_markdown(text: &str) -> minimad::Text {
     use minimad::{Text, Composite};
@@ -87,9 +90,8 @@ fn parse_markdown(text: &str) -> minimad::Text {
 pub fn format_markdown(text: &str) -> String {
     let text = prepare_markdown(&text);
     let text = parse_markdown(&text);
-    let skin = make_skin();
     let fmt = termimad::FmtText::from_text(
-        &skin,
+        &MADSKIN,
         text,
         None,
     );
@@ -102,9 +104,8 @@ pub fn format_title(text: &str) -> String {
     if !text.lines.is_empty() {
         text.lines.drain(1..);
     }
-    let skin = make_skin();
     let fmt = termimad::FmtText::from_text(
-        &skin,
+        &MADSKIN,
         text,
         None,
     );
