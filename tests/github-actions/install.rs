@@ -113,7 +113,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
         println!("Install different version");
         Command::new(&edgedb)
-            .arg("server").arg("install").arg("--version=1-alpha6")
+            .arg("server").arg("install").arg("--version=1-beta2")
             .assert()
             .success();
 
@@ -122,7 +122,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .arg("--installed-only").arg("--column=major-version")
             .assert()
             .success()
-            .stdout(predicates::str::contains("1-alpha6"));
+            .stdout(predicates::str::contains("1-beta2"));
 
         if cfg!(target_os="macos") {
             println!("Init first");
@@ -172,7 +172,7 @@ fn github_action_install() -> anyhow::Result<()> {
             println!("Init second one");
             Command::new(&edgedb)
                 .arg("server").arg("init").arg("second")
-                    .arg("--version=1-alpha6")
+                    .arg("--version=1-beta2")
                 .assert()
                 .success();
 
@@ -237,7 +237,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
         println!("Uninstall the old version");
         Command::new(&edgedb)
-            .arg("server").arg("uninstall").arg("--version=1-alpha6")
+            .arg("server").arg("uninstall").arg("--version=1-beta2")
             .assert()
             .success();
         Command::new(&edgedb)
@@ -245,7 +245,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .arg("--installed-only").arg("--column=major-version")
             .assert()
             .success()
-            .stdout(predicates::str::contains("1-alpha6").not());
+            .stdout(predicates::str::contains("1-beta2").not());
 
         if cfg!(target_os="macos") {
             println!("Execute query after deleting second");
