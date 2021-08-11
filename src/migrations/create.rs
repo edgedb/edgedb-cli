@@ -24,12 +24,14 @@ use crate::bug;
 use crate::commands::parser::CreateMigration;
 use crate::commands::{Options, ExitCode};
 use crate::error_display::print_query_error;
+use crate::highlight;
 use crate::migrations::context::Context;
 use crate::migrations::migration;
 use crate::migrations::print_error::print_migration_error;
 use crate::migrations::prompt;
 use crate::migrations::source_map::{Builder, SourceMap};
 use crate::platform::tmp_file_name;
+use crate::print::style::Styler;
 use crate::question;
 
 const SAFE_CONFIDENCE: f64 = 0.99999;
@@ -121,6 +123,18 @@ async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
     let data = fs::read_to_string(path).await?;
     validate(&data)?;
     Ok(data)
+}
+
+fn print_statements(statements: impl IntoIterator<Item=impl AsRef<str>>) {
+    let mut buf: String = String::with_capacity(1024);
+    let styler = Styler::dark_256();
+    for statement in statements {
+        buf.truncate(0);
+        highlight::edgeql(&mut buf, statement.as_ref(), &styler);
+        for line in buf.lines() {
+            println!("    {}", line);
+        }
+    }
 }
 
 fn choice(prompt: &str) -> anyhow::Result<Choice> {
@@ -307,11 +321,7 @@ impl InteractiveMigration<'_> {
                 prompt
             } else {
                 println!("The following DDL statements will be applied:");
-                for statement in &proposal.statements {
-                    for line in statement.text.lines() {
-                        println!("    {}", line);
-                    }
-                }
+                print_statements(proposal.statements.iter().map(|s| &s.text));
                 "Apply the DDL statements?"
             };
             loop {
@@ -334,11 +344,9 @@ impl InteractiveMigration<'_> {
                     }
                     List => {
                         println!("The following DDL statements will be applied:");
-                        for statement in &proposal.statements {
-                            for line in statement.text.lines() {
-                                println!("    {}", line);
-                            }
-                        }
+                        print_statements(
+                            proposal.statements.iter().map(|s| &s.text)
+                        );
                         continue;
                     }
                     Confirmed => {
@@ -348,11 +356,7 @@ impl InteractiveMigration<'_> {
                         } else {
                             println!(
                                 "The following EdgeQL statements were confirmed:");
-                            for statement in &self.confirmed {
-                                for line in statement.lines() {
-                                    println!("    {}", line);
-                                }
-                            }
+                            print_statements(&self.confirmed);
                         }
                         continue;
                     }
