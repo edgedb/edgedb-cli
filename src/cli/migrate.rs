@@ -238,6 +238,17 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
                 modified = true;
             }
         }
+
+        let cfg_dir = config_dir()?;
+        let env_file = cfg_dir.join("env");
+
+        fs::create_dir_all(&cfg_dir)
+            .with_context(
+                || format!("failed to create {:?}", cfg_dir))?;
+        fs::write(&env_file, &(new_line + "\n"))
+            .with_context(
+                || format!("failed to write env file {:?}", env_file))?;
+
         if modified && no_dir_in_path(&new_bin_dir) {
             print_markdown!("\
                 ## The `edgedb` executable has moved!\n\
@@ -254,7 +265,7 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
                 to run `rehash`.\
                 ",
                 dir=new_bin_dir.display(),
-                env_path=config_dir()?.join("env").display(),
+                env_path=env_file.display(),
             );
         }
     }
