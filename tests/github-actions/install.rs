@@ -229,7 +229,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
             println!("Delete second instance");
             Command::new(&edgedb)
-                .arg("server").arg("destroy").arg("second")
+                .arg("instance").arg("destroy").arg("second")
                 .assert()
                 .success();
 
