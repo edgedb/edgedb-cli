@@ -3,7 +3,6 @@ use std::io::Write;
 
 use assert_cmd::Command;
 use async_std::prelude::FutureExt;
-use dirs::home_dir;
 use predicates::boolean::PredicateBooleanExt;
 use tokio::sync::oneshot;
 use warp::Filter;
@@ -12,7 +11,7 @@ use warp::filters::path::path;
 use crate::certs::Certs;
 
 const UNIX_INST: &str =
-    "curl --proto '=https' --tlsv1.2 -sSf https://localhost:8443 | sh -s -- -y";
+    "curl -vL --proto '=https' --tlsv1.2 -sSf https://localhost:8443 | sh -xs -- -y";
 
 #[test]
 fn github_action_install() -> anyhow::Result<()> {
@@ -62,6 +61,7 @@ fn github_action_install() -> anyhow::Result<()> {
         tmpfile.write_all(&certs.ca_cert)?;
         Command::new("sh")
             .arg("-c")
+            .arg("-x")
             .arg("-e")
             .arg(UNIX_INST)
             .env("CURL_CA_BUNDLE", tmpfile.path())
