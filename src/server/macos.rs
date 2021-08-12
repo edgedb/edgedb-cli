@@ -752,10 +752,20 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
 
 fn bootout_launchctl_service(name: &str) -> anyhow::Result<()> {
     let unit_name = launchd_name(name);
-    process::Native::new("launchctl", "launchctl", "launchctl")
+    let status =process::Native::new(
+        "remove service", "launchctl", "launchctl")
         .arg("bootout").arg(&unit_name)
-        .run()?;
-    Ok(())
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else if status.code() == Some(36) {
+        // MacOS Catalina has a bug of returning:
+        //   Boot-out failed: 36: Operation now in progress
+        // when process has successfully booted out
+        Ok(())
+    } else {
+        anyhow::bail!("launchctl bootout failed: {}", status)
+    }
 }
 
 fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
