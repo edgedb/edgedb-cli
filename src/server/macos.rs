@@ -750,10 +750,20 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
 
 fn bootout_launchctl_service(name: &str) -> anyhow::Result<()> {
     let unit_name = launchd_name(name);
-    process::run(
-        StdCommand::new("launchctl").arg("bootout").arg(&unit_name),
-    )?;
-    Ok(())
+    let mut cmd = StdCommand::new("launchctl");
+    cmd.arg("bootout").arg(&unit_name);
+    log::info!("Running {:?}", cmd);
+    match cmd.status() {
+        Ok(s) if s.success() => Ok(()),
+
+        // MacOS Catalina has a bug of returning:
+        //   Boot-out failed: 36: Operation now in progress
+        // when process has successfully booted out
+        Ok(s) if s.code() == Some(36) => Ok(()),
+
+        Ok(s) => anyhow::bail!("process {:?} failed: {}", cmd, s),
+        Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd)),
+    }
 }
 
 fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
