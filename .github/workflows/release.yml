@@ -68,6 +68,37 @@ jobs:
         name: builds-debian-buster
         path: artifacts/debian-buster
 
+  build-debian-bullseye:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
+    - name: Determine package version
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
+      id: whichver
+
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
+      env:
+        SRC_REF: "${{ steps.whichver.outputs.branch }}"
+        PKG_VERSION: "${{ steps.whichver.outputs.version }}"
+        PKG_REVISION: "<current-date>"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-debian-bullseye
+        path: artifacts/debian-bullseye
+
   build-ubuntu-xenial:
     runs-on: ubuntu-latest
 
@@ -430,6 +461,31 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+
+  publish-debian-bullseye:
+    needs: [build-debian-bullseye]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-debian-bullseye
+        path: artifacts/debian-bullseye
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-bullseye
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-bullseye@master
+      env:
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
