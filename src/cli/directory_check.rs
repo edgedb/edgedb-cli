@@ -4,6 +4,7 @@ use anyhow::Context;
 
 use crate::commands::ExitCode;
 use crate::platform::home_dir;
+use crate::print;
 use crate::print_markdown;
 
 
@@ -31,14 +32,16 @@ fn _check() -> anyhow::Result<Option<PathBuf>> {
 pub fn check_and_error() -> anyhow::Result<()> {
     match _check().context("failed directory check")? {
         Some(dir) => {
-            print_markdown!("**edgedb error:** \
-                Edgedb CLI has stopped using `${dir}` for storing data \
-                and now uses standard locations of your OS. \n\
-                To upgrade the directory layout, run: \n\
+            print::error_msg("edgedb error", &format!(
+                "Edgedb CLI has stopped using `{dir}` for storing data \
+                and now uses standard locations of your OS.",
+                dir=dir.display()
+            ));
+            print_markdown!("To upgrade the directory layout, run: \n\
                 ```\n\
                 edgedb cli migrate\n\
                 ```
-            ", dir=dir.display());
+            ");
             return Err(ExitCode::new(11).into());
         }
         None => Ok(())
