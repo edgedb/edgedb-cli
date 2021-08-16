@@ -414,8 +414,8 @@ impl InteractiveMigration<'_> {
     async fn could_not_resolve(&mut self) -> anyhow::Result<()> {
         // TODO(tailhook) allow rollback
         anyhow::bail!("EdgeDB could not resolve \
-            migration with your answers. \
-            Please retry with different answers");
+            migration with the provided answers. \
+            Please retry with different answers.");
     }
 }
 
