@@ -279,8 +279,8 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             let new_bin_path = binary_path()?;
             try_move_bin(&exe_path, &new_bin_path)
             .map_err(|e| {
-                eprintln!("Cannot move executable to the new location. \
-                    Try `edgedb cli upgrade` instead");
+                print::error("Cannot move executable to the new location.");
+                eprintln!("  Try `edgedb cli upgrade` instead.");
                 e
             })?;
             update_path(base, &new_bin_path)?;

@@ -1,3 +1,4 @@
+use colorful::Colorful;
 use edgedb_client::client::Connection;
 use edgedb_protocol::value::Value;
 
@@ -6,6 +7,7 @@ use crate::commands::parser::ShowStatus;
 use crate::migrations::context::Context;
 use crate::migrations::create::{execute_start_migration, CurrentMigration};
 use crate::migrations::migration;
+use crate::print;
 
 
 async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
@@ -33,8 +35,8 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
             if changes > 3 {
                 eprintln!("... and {} more changes", changes - 3);
             }
-            eprintln!("Some migrations are missing, \
-                       use `edgedb migration create`");
+            print::error_msg("Error", "Some migrations are missing.");
+            eprintln!("  Use `edgedb migration create`.");
         }
         return Err(ExitCode::new(2).into());
     }
@@ -61,22 +63,29 @@ pub async fn status(cli: &mut Connection, _options: &Options,
                     iter.next(); // skip db_migration itself
                     let first = iter.next().unwrap();  // we know it's not last
                     let count = iter.count() + 1;
-                    eprintln!("Database is at migration {db:?} while sources \
+                    print::error_msg("Error", &format!(
+                        "Database is at migration {db:?} while sources \
                         contain {n} migrations ahead, \
                         starting from {first:?}({first_file})",
                         db=db_migration,
                         n=count,
                         first=first,
-                        first_file=migrations[first].path.display());
+                        first_file=migrations[first].path.display())
+                    );
                 } else {
-                    eprintln!("There is no database revision {} \
-                        in the filesystem. Consider updating sources.",
-                        db_migration);
+                    print::error_msg("Error", &format!(
+                        "There is no database revision {} in the filesystem.",
+                        db_migration)
+                    );
+                    eprintln!("  Consider updating sources.");
                 }
             } else {
-                eprintln!("Database is empty. While there are {} migrations \
-                    on the filesystem. Run `edgedb migrate` to apply",
-                    migrations.len());
+                print::error_msg("Error", &format!(
+                    "Database is empty. While there are {} migrations \
+                    on the filesystem.",
+                    migrations.len())
+                );
+                eprintln!("  Run `edgedb migrate` to apply.");
             }
         }
         return Err(ExitCode::new(3).into());
@@ -86,8 +95,16 @@ pub async fn status(cli: &mut Connection, _options: &Options,
     let abort = cli.execute("ABORT MIGRATION").await.map_err(|e| e.into());
     check.and(abort)?;
     if !status.quiet {
-        eprintln!("Database is up to date. Last migration: {}.",
-            db_migration.as_ref().map(|x| &x[..]).unwrap_or("initial"));
+        eprintln!(
+            "{} Last migration: {}.",
+            "Database is up to date.".bold().light_green(),
+            db_migration
+                .as_ref()
+                .map(|x| &x[..])
+                .unwrap_or("initial")
+                .bold()
+                .white()
+        );
     }
     Ok(())
 }

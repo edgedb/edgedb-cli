@@ -221,7 +221,7 @@ fn toml_set_version(data: &str, version: &str) -> anyhow::Result<Option<String>>
         ).unwrap();
         return Ok(Some(out));
     }
-    eprintln!("No server-version found in `edgedb.toml`.");
+    print::error("No server-version found in `edgedb.toml`.");
     eprintln!("Please ensure that `edgedb.toml` contains:");
     println!("  {}",
         project::init::format_config(version)
@@ -248,8 +248,10 @@ fn print_other_project_warning(
         }
     }
     if !project_dirs.is_empty() {
-        eprintln!("Warning: the instance {} is still used by the following \
-                  projects:", name);
+        print::warn(&format!(
+            "Warning: the instance {} is still used by the following \
+            projects:", name)
+        );
         for pd in &project_dirs {
             eprintln!("  {}", pd.display());
         }

@@ -56,7 +56,7 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
                     println!("{}", serde_json::to_string_pretty(addr)?);
                 }
                 None => {
-                    eprintln!("pgaddr requires EdgeDB to run in DEV mode");
+                    print::error("pgaddr requires EdgeDB to run in DEV mode");
                 }
             }
         }

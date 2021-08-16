@@ -6,6 +6,7 @@ use fn_error_context::context;
 
 use crate::commands::{self, ExitCode};
 use crate::project::init::stash_base;
+use crate::print;
 use crate::server::detect;
 use crate::server::errors::InstanceNotFound;
 use crate::server::options::Destroy;
@@ -46,13 +47,16 @@ pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
 }
 
 pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
-    eprintln!("Instance {:?} is used by the following project{}:",
-              name, if project_dirs.len() > 1 { "s" } else { "" });
+    print::warn(&format!(
+        "Instance {:?} is used by the following project{}:",
+        name,
+        if project_dirs.len() > 1 { "s" } else { "" },
+    ));
     for dir in project_dirs {
         let dest = match read_project_real_path(dir) {
             Ok(path) => path,
             Err(e) => {
-                eprintln!("edgedb error: {}", e);
+                print::error_msg("edgedb error", &format!("{}", e));
                 continue;
             }
         };
@@ -97,7 +101,7 @@ pub fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
         }
     }
     if errors.len() == methods.len() {
-        eprintln!("No instances found:");
+        print::error("No instances found:");
         for (meth, err) in errors {
             eprintln!("  * {}: {:#}", meth.title(), err);
         }

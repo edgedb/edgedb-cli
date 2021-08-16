@@ -33,9 +33,10 @@ pub fn revert(instance: InstanceRef, options: &Revert)
     if !options.ignore_pid_check {
         match status.data_status {
             DataDirectory::Upgrading(Ok(up)) if process::exists(up.pid) => {
-                eprintln!(
-                    "edgedb error: Looks like upgrade is still in progress \
-                    with pid {}", up.pid);
+                print::error_msg("edgedb error", &format!(
+                    "Looks like upgrade is still in progress \
+                    with pid {}", up.pid,
+                ));
                 eprintln!("Run with `--ignore-pid-check` to overrride");
                 return Err(ExitCode::new(3))?;
             }

@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use async_std::fs;
 use async_std::path::Path;
 use async_std::stream::StreamExt;
+use colorful::Colorful;
 use edgedb_client::client::Connection;
 use edgedb_protocol::value::Value;
 use linked_hash_map::LinkedHashMap;
@@ -86,12 +87,12 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         };
         if let Some(db_rev) = db_rev {
             if !migrate.quiet {
+                let msg = "Database is up to date.".bold().light_green();
                 if Some(&db_rev) == db_migration.as_ref() {
-                    eprintln!("Database is up to date. Revision {}",
-                        db_rev);
+                    eprintln!("{} Revision {}", msg, db_rev);
                 } else {
-                    eprintln!("Database is up to date. \
-                        Revision {} is the ancestor of the latest {}",
+                    eprintln!("{} Revision {} is the ancestor of the latest {}",
+                        msg,
                         db_rev,
                         db_migration.as_ref()
                             .map(|x| &x[..]).unwrap_or("initial"),
@@ -119,8 +120,16 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     }
     if migrations.is_empty() {
         if !migrate.quiet {
-            eprintln!("Everything is up to date. Revision {}",
-                db_migration.as_ref().map(|x| &x[..]).unwrap_or("initial"));
+            eprintln!(
+                "{} Revision {}",
+                "Everything is up to date.".bold().light_green(),
+                db_migration
+                    .as_ref()
+                    .map(|x| &x[..])
+                    .unwrap_or("initial")
+                    .bold()
+                    .white()
+            );
         }
         return Ok(());
     }
@@ -131,8 +140,9 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
             .context("error re-reading migration file")?;
         cli.execute(data).await?;
         if !migrate.quiet {
-            eprintln!("Applied {} ({})",
-                migration.data.id,
+            eprintln!("{} {} ({})",
+                "Applied".bold().light_green(),
+                migration.data.id.bold().white(),
                 Path::new(migration.path.file_name().unwrap()).display());
         }
     }

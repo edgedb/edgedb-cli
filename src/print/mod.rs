@@ -380,3 +380,10 @@ pub fn success_msg(title: &str, msg: &str) {
         msg.bold().white(),
     )
 }
+
+pub fn warn(line: &str) {
+    eprintln!(
+        "{}",
+        line.bold().yellow(),
+    );
+}

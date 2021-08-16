@@ -17,6 +17,7 @@ use prettytable::{Table, Row, Cell};
 
 use crate::credentials;
 use crate::format;
+use crate::print;
 use crate::server::create::Storage;
 use crate::server::detect;
 use crate::server::distribution::MajorVersion;
@@ -478,7 +479,7 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
         if json {
             println!("[]");
         } else {
-            eprintln!("No instances found");
+            print::warn("No instances found");
         }
         return Ok(());
     }

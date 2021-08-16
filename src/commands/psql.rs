@@ -4,8 +4,10 @@ use std::ffi::OsString;
 
 use anyhow::Context;
 use edgedb_client::client::Connection;
-use crate::commands::Options;
 use edgedb_client::server_params::PostgresAddress;
+
+use crate::commands::Options;
+use crate::print;
 
 
 pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
@@ -57,7 +59,9 @@ pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
                     path.unwrap_or_else(OsString::new)))?;
         }
         None => {
-            eprintln!("psql requires EdgeDB to run in DEV mode");
+            print::error_msg(
+                "edgedb error", "psql requires EdgeDB to run in DEV mode."
+            );
         }
     }
     Ok(())

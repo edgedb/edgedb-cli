@@ -5,6 +5,7 @@ use std::fs;
 use anyhow::Context;
 
 use crate::commands::ExitCode;
+use crate::print;
 use crate::project::options::Unlink;
 use crate::project::{stash_path};
 use crate::server::destroy;
@@ -55,7 +56,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                              and delete instance {:?}?", inst.trim())
                 );
                 if !q.ask()? {
-                    eprintln!("Canceled");
+                    print::error("Canceled.");
                     return Ok(())
                 }
             }
@@ -80,8 +81,10 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                     eprintln!("Unlinking instance {:?}", name);
                 }
                 Err(e) => {
-                    eprintln!("edgedb error: cannot read instance name: {}",
-                              e);
+                    print::error_msg(
+                        "edgedb error",
+                        &format!("cannot read instance name: {}", e),
+                    );
                     eprintln!("Removing project configuration directory...");
                 }
             };

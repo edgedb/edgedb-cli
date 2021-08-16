@@ -85,8 +85,11 @@ impl Unix {
             match self.get_sudo_path() {
                 Some(cmd) => ctx.set_elevation_cmd(cmd),
                 None => {
-                    eprintln!("`sudo` command not found. \
-                               Cannot elevate privileges needed for \
+                    print::error_msg(
+                        "edgedb error",
+                        "`sudo` command not found.",
+                    );
+                    eprintln!("Cannot elevate privileges needed for \
                                {}. Please run `{}` as root user.",
                                operation_name, hint_cmd);
                     return Err(ExitCode::new(exit_codes::NO_SUDO))?;
@@ -424,7 +427,7 @@ fn print_errors(errors: Vec<String>) -> anyhow::Result<()> {
     if errors.is_empty() {
         return Ok(());
     }
-    eprintln!("Upgrade complete, but cannot start instances:");
+    print::error("Upgrade complete, but cannot start instances:");
     for er in errors {
         eprintln!("  {}", er);
     }
@@ -459,7 +462,10 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
     _reinit_and_restore(
         &instance_dir, inst, new_meta, &upgrade_marker
     ).map_err(|e| {
-        eprintln!("edgedb error: failed to restore {:?}: {}", inst.name(), e);
+        print::error_msg(
+            "edgedb error",
+            &format!("failed to restore {:?}: {}", inst.name(), e),
+        );
         eprintln!("To undo run:\n  edgedb instance revert {:?}", inst.name());
         ExitCode::new(1).into()
     })
@@ -609,7 +615,10 @@ fn do_instance_upgrade(method: &dyn Method,
     match reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta) {
         Ok(()) => {}
         Err(e) if e.is::<CannotStartService>() => {
-            eprintln!("Upgrade complete, but cannot start instance: {:#}", e);
+            print::error_msg(
+                "Upgrade complete, but cannot start instance",
+                &format!("{:#}", e),
+            );
             return Err(ExitCode::new(2))?;
         }
         Err(e) => return Err(e)?,

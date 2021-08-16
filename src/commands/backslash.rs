@@ -12,6 +12,7 @@ use edgedb_protocol::error_response::display_error_verbose;
 
 use crate::commands::Options;
 use crate::repl;
+use crate::print;
 use crate::print::style::Styler;
 use crate::prompt;
 use crate::commands::execute;
@@ -602,11 +603,13 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         }
         Connect(c) => {
             if prompt.in_transaction() {
-                eprintln!("WARNING: Transaction cancelled")
+                print::warn("WARNING: Transaction cancelled.");
             }
             prompt.try_connect(&c.database_name).await
                 .map_err(|e| {
-                    eprintln!("Error: Cannot connect: {:#}", e)
+                    print::error_msg(
+                        "Error", &format!("Cannot connect: {:#}", e)
+                    );
                 })
                 .ok();
             Ok(Skip)
