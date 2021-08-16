@@ -340,50 +340,39 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
     Ok(out)
 }
 
-pub fn prompt(line: &str) {
+pub fn prompt(line: impl fmt::Display) {
     println!(
         "{}",
-        line.bold().color(Color::Orange3),
+        line.to_string().bold().color(Color::Orange3),
     );
 }
 
-pub fn error(line: &str) {
-    eprintln!(
-        "{}",
-        line.bold().light_red(),
-    );
-}
-
-pub fn error_msg(title: &str, msg: &str) {
+pub fn error(line: impl fmt::Display) {
     eprintln!(
         "{}: {}",
-        title.bold().light_red(),
-        msg.bold().white(),
+        "edgedb error".bold().light_red(),
+        line.to_string().bold().white(),
     );
 }
 
-pub fn error_obj(e: &dyn fmt::Display) {
-    error_msg("edgedb error", &format!("{:#}", e));
-}
-
-pub fn success(line: &str) {
+pub fn success(line: impl fmt::Display) {
     println!(
         "{}",
-        line.bold().light_green(),
+        line.to_string().bold().light_green(),
     )
 }
 
-pub fn success_msg(title: &str, msg: &str) {
+pub fn success_msg(title: impl fmt::Display, msg: impl fmt::Display) {
     println!(
         "{}: {}",
-        title.bold().light_green(),
-        msg.bold().white(),
+        title.to_string().bold().light_green(),
+        msg.to_string().bold().white(),
     )
 }
 
-pub fn warn(line: &str) {
+pub fn warn(line: impl fmt::Display) {
     eprintln!(
         "{}",
-        line.bold().yellow(),
+        line.to_string().bold().yellow(),
     );
 }

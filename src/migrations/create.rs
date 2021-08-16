@@ -390,9 +390,10 @@ impl InteractiveMigration<'_> {
                     if e.is::<QueryError>() {
                         print_query_error(&e, &text, false)?;
                     } else {
-                        print::error_msg(
-                            "Error applying statement",
-                            &format!("{:#}", e),
+                        eprintln!(
+                            "{}: {:#}",
+                            "Error applying statement".bold().light_red(),
+                            e.to_string().bold().white(),
                         );
                     }
                     eprintln!("Rolling back last operation...");

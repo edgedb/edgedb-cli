@@ -55,14 +55,11 @@ pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
         }
     }
     if !all {
-        print::error_msg(
-            "edgedb error",
-            "some instances are used. See messages above.",
-        );
+        print::error("some instances are used. See messages above.");
         return Err(ExitCode::new(2))?;
     } else if uninstalled > 0 {
         print::success(
-            &format!("Successfully uninstalled {} versions.", uninstalled)
+            format!("Successfully uninstalled {} versions.", uninstalled)
         );
     } else {
         print::success("Nothing to uninstall.")

@@ -32,7 +32,7 @@ fn _check() -> anyhow::Result<Option<PathBuf>> {
 pub fn check_and_error() -> anyhow::Result<()> {
     match _check().context("failed directory check")? {
         Some(dir) => {
-            print::error_msg("edgedb error", &format!(
+            print::error(format!(
                 "Edgedb CLI has stopped using `{dir}` for storing data \
                 and now uses standard locations of your OS.",
                 dir=dir.display()

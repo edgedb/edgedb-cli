@@ -51,8 +51,7 @@ pub fn optional_docker_check() -> bool {
 
 pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     if optional_docker_check() {
-        print::error_msg(
-            "edgedb error",
+        print::error(
             "`edgedb server install` in a Docker container is not supported.",
         );
         eprintln!("\
@@ -76,7 +75,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
         for old_ver in meth.installed_versions()? {
             if version.distribution_matches(&old_ver) {
                 if &effective_method == meth_kind {
-                    print::error(&format!(
+                    print::error(format!(
                         "EdgeDB {} ({}) is already installed.",
                         old_ver.major_version().title(),
                         old_ver.version(),
@@ -86,7 +85,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
                         upgrade local instances to the latest minor version."
                     );
                 } else {
-                    print::error(&format!(
+                    print::error(format!(
                         "EdgeDB {} is already installed via {}.",
                         old_ver.major_version().title(), meth_kind.option(),
                     ));

@@ -175,10 +175,8 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
     loop {
         let target_name = q.ask()?;
         if !is_valid_name(&target_name) {
-            print::error_msg(
-                "Instance name must be a valid identifier",
-                "(regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)",
-            );
+            print::error("Instance name must be a valid identifier, \
+                         (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
             continue;
         }
         if instances.contains(&target_name) {
@@ -243,10 +241,9 @@ fn ask_version(meth: &dyn Method, options: &Init)
             match meth.get_version(&VersionQuery::Nightly) {
                 Ok(distr) => return Ok(distr),
                 Err(e) => {
-                    print::error_msg(
-                        "Cannot find nightly version",
-                        &format!("{}", e),
-                    );
+                    print::error(format!(
+                        "Cannot find nightly version: {}", e
+                    ));
                     continue;
                 }
             }
@@ -255,7 +252,7 @@ fn ask_version(meth: &dyn Method, options: &Init)
             match meth.get_version(&query) {
                 Ok(distr) => return Ok(distr),
                 Err(e) => {
-                    print::error_msg("Error", &format!("{}", e));
+                    print::error(e);
                     print_versions(meth, "Available versions")?;
                     continue;
                 }
@@ -266,8 +263,7 @@ fn ask_version(meth: &dyn Method, options: &Init)
 
 pub fn init(init: &Init) -> anyhow::Result<()> {
     if optional_docker_check() {
-        print::error_msg(
-            "edgedb error",
+        print::error(
             "`edgedb project init` in a Docker container is not supported.",
         );
         eprintln!("\
@@ -355,11 +351,11 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         let inst = get_instance(&methods, &name)?;
         let inst_ver = inst.get_version()?;
         if !ver_query.matches(inst_ver) {
-            print::warn(&format!(
+            print::warn(format!(
                 "WARNING: existing instance has version {}, \
                 but {} is required by `edgedb.toml`",
-                inst_ver.title(), ver_query)
-            );
+                inst_ver.title(), ver_query
+            ));
         }
         inst
     } else {
@@ -370,9 +366,9 @@ pub fn init_existing(options: &Init, project_dir: &Path)
 
         let distr = meth.get_version(&ver_query)
             .map_err(|e| {
-                print::error_msg("edgedb error", &format!(
-                    "Cannot find EdgeDB version {}: {}", ver_query, e)
-                );
+                print::error(format!(
+                    "Cannot find EdgeDB version {}: {}", ver_query, e
+                ));
                 eprintln!("  Hint: try a different installation method \
                     or remove `server-version` from `edgedb.toml` to \
                     install the latest stable version.");
@@ -718,7 +714,7 @@ async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
         match conn_params.connect().await {
             Ok(conn) => break conn,
             Err(e) if ask_for_running => {
-                print::error_msg("edgedb error", &format!("{}", e));
+                print::error(e);
                 let mut q = question::Numeric::new(
                     format!(
                         "Cannot connect to an instance {:?}. What to do?",
@@ -743,10 +739,7 @@ async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
                     {
                         Ok(()) => continue,
                         Err(e) => {
-                            print::error_msg(
-                                "edgedb error",
-                                &format!("{}", e)
-                            );
+                            print::error(e);
                             continue;
                         }
                     }

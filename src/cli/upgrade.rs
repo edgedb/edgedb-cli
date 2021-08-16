@@ -171,7 +171,7 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     if !options.quiet {
         print::success_msg(
             "Upgraded to version",
-            &format!("{} (revision {})", pkg.version, pkg.revision),
+            format!("{} (revision {})", pkg.version, pkg.revision),
         );
     }
     Ok(())

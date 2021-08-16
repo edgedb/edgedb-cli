@@ -755,9 +755,8 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         self._reinit_and_restore(
             &inst, port, &volume, new_image, dump_path, &upgrade_container,
         ).map_err(|e| {
-            print::error_msg(
-                "edgedb error",
-                &format!("failed to restore {:?}: {}", inst.name(), e),
+            print::error(
+                format!("failed to restore {:?}: {}", inst.name(), e),
             );
             eprintln!("To undo, run:\n  edgedb instance revert {:?}",
                       inst.name());

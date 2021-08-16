@@ -67,16 +67,16 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
             print::prompt(&self.question);
             for (idx, (title, _)) in self.options.iter().enumerate() {
                 print::prompt(
-                    &format!("{}. {}", idx+1, title)
+                    format!("{}. {}", idx+1, title)
                 );
             }
-            print::prompt(&self.suffix);
+            print::prompt(self.suffix);
             let value = editor.readline("> ")?;
             let choice = match value.parse::<u32>() {
                 Ok(choice) => choice,
                 Err(e) => {
                     print::error(
-                        &format!("Error reading choice: {}", e)
+                        format!("Error reading choice: {}", e)
                     );
                     print::prompt("Please enter a number");
                     continue;
@@ -106,11 +106,11 @@ impl<'a> String<'a> {
     pub fn ask(&mut self) -> anyhow::Result<std::string::String> {
         if self.default.is_empty() {
             print::prompt(
-                &format!("{}: ", self.question)
+                format!("{}: ", self.question)
             );
         } else {
             print::prompt(
-                &format!("{} [default: {}]: ", self.question, self.default)
+                format!("{} [default: {}]: ", self.question, self.default)
             );
         }
         let mut editor = Editor::<()>::with_config(Config::builder().build());
@@ -151,11 +151,11 @@ impl<'a> Confirm<'a> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         if self.is_dangerous {
             print::prompt(
-                &format!("{} (type `Yes`)", self.question)
+                format!("{} (type `Yes`)", self.question)
             );
         } else {
             print::prompt(
-                &format!(
+                format!(
                     "{} [{}]", self.question, match self.default {
                         None => "y/n",
                         Some(true) => "Y/n",
@@ -216,7 +216,7 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
             .join(",");
         loop {
             print::prompt(
-                &format!("{} [{}]", self.question, options)
+                format!("{} [{}]", self.question, options)
             );
             let val = editor.readline("> ")?;
             if matches!(val.as_ref(), "?" | "h" | "help") {
@@ -246,7 +246,7 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
                 }
             }
             print::error(
-                &format!("Invalid option {:?}, please use one of: [{}]",
+                format!("Invalid option {:?}, please use one of: [{}]",
                          val, options)
             );
         }

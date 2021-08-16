@@ -15,6 +15,7 @@ use crate::server::options::ResetPassword;
 use crate::server::detect;
 use crate::server::control;
 use crate::platform::tmp_file_name;
+use thiserror::private::PathAsDisplay;
 
 const PASSWORD_LENGTH: usize = 24;
 const PASSWORD_CHARS: &[u8] = b"0123456789\
@@ -96,7 +97,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
         if save {
             print::success_msg(
                 "Password was successfully changed and saved to",
-                &credentials_file.display().to_string(),
+                credentials_file.as_display(),
             );
         } else {
             print::success("Password was successfully changed.");

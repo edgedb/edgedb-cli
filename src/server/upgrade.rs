@@ -149,9 +149,9 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
                     let new_inst = meth.get_instance(name)?;
                     let version = new_inst.get_current_version()?.unwrap();
                     print::success_msg(
-                        &format!("Successfully upgraded EdgeDB instance \
+                        format!("Successfully upgraded EdgeDB instance \
                                       '{}' to version", name),
-                        &format!("{}", version)
+                        version,
                     );
                     break
                 }

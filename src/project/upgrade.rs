@@ -104,7 +104,7 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
             let new_inst = inst.method().get_instance(&instance_name)?;
             print::success_msg(
                 "Successfully upgraded to version",
-                &format!("{}", new_inst.get_current_version()?.unwrap())
+                format!("{}", new_inst.get_current_version()?.unwrap())
             );
             if !inst.get_version()?.is_nightly() {
                 print_other_project_warning(
@@ -179,7 +179,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
         if upgraded {
             print::success_msg(
                 "Successfully upgraded to version",
-                &format!("{}", new_inst.get_current_version()?.unwrap())
+                format!("{}", new_inst.get_current_version()?.unwrap())
             );
             print_other_project_warning(instance_name, &root, version)?;
         } else {
@@ -239,7 +239,7 @@ fn print_other_project_warning(
         let real_pd = match destroy::read_project_real_path(&pd) {
             Ok(path) => path,
             Err(e) => {
-                print::error_obj(&e);
+                print::error(e);
                 continue;
             }
         };
@@ -248,10 +248,10 @@ fn print_other_project_warning(
         }
     }
     if !project_dirs.is_empty() {
-        print::warn(&format!(
+        print::warn(format!(
             "Warning: the instance {} is still used by the following \
-            projects:", name)
-        );
+            projects:", name
+        ));
         for pd in &project_dirs {
             eprintln!("  {}", pd.display());
         }

@@ -89,7 +89,7 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                 );
                 if self.trust_tls_cert {
                     if !self.quiet {
-                        print::warn(&format!(
+                        print::warn(format!(
                             "Trusting unknown server certificate: {:?}",
                             fingerprint,
                         ));
@@ -230,7 +230,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     if cred_path.exists() {
         if cmd.overwrite {
             if !cmd.quiet {
-                print::warn(&format!("Overwriting {}", cred_path.display()));
+                print::warn(format!("Overwriting {}", cred_path.display()));
             }
         } else if cmd.non_interactive {
             anyhow::bail!("File {} exists; abort.", cred_path.display());

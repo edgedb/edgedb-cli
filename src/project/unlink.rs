@@ -81,10 +81,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                     eprintln!("Unlinking instance {:?}", name);
                 }
                 Err(e) => {
-                    print::error_msg(
-                        "edgedb error",
-                        &format!("cannot read instance name: {}", e),
-                    );
+                    print::error(format!("Cannot read instance name: {}", e));
                     eprintln!("Removing project configuration directory...");
                 }
             };

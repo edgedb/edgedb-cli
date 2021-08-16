@@ -35,7 +35,7 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
             if changes > 3 {
                 eprintln!("... and {} more changes", changes - 3);
             }
-            print::error_msg("Error", "Some migrations are missing.");
+            print::error("Some migrations are missing.");
             eprintln!("  Use `edgedb migration create`.");
         }
         return Err(ExitCode::new(2).into());
@@ -63,28 +63,28 @@ pub async fn status(cli: &mut Connection, _options: &Options,
                     iter.next(); // skip db_migration itself
                     let first = iter.next().unwrap();  // we know it's not last
                     let count = iter.count() + 1;
-                    print::error_msg("Error", &format!(
+                    print::error(format!(
                         "Database is at migration {db:?} while sources \
                         contain {n} migrations ahead, \
                         starting from {first:?}({first_file})",
                         db=db_migration,
                         n=count,
                         first=first,
-                        first_file=migrations[first].path.display())
-                    );
+                        first_file=migrations[first].path.display()
+                    ));
                 } else {
-                    print::error_msg("Error", &format!(
+                    print::error(format!(
                         "There is no database revision {} in the filesystem.",
-                        db_migration)
-                    );
+                        db_migration,
+                    ));
                     eprintln!("  Consider updating sources.");
                 }
             } else {
-                print::error_msg("Error", &format!(
+                print::error(format!(
                     "Database is empty. While there are {} migrations \
                     on the filesystem.",
-                    migrations.len())
-                );
+                    migrations.len(),
+                ));
                 eprintln!("  Run `edgedb migrate` to apply.");
             }
         }

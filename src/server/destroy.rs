@@ -47,7 +47,7 @@ pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
 }
 
 pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
-    print::warn(&format!(
+    print::warn(format!(
         "Instance {:?} is used by the following project{}:",
         name,
         if project_dirs.len() > 1 { "s" } else { "" },
@@ -56,7 +56,7 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
         let dest = match read_project_real_path(dir) {
             Ok(path) => path,
             Err(e) => {
-                print::error_msg("edgedb error", &format!("{}", e));
+                print::error(e);
                 continue;
             }
         };

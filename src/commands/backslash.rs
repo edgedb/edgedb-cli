@@ -607,9 +607,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             }
             prompt.try_connect(&c.database_name).await
                 .map_err(|e| {
-                    print::error_msg(
-                        "Error", &format!("Cannot connect: {:#}", e)
-                    );
+                    print::error(format!("Cannot connect: {:#}", e));
                 })
                 .ok();
             Ok(Skip)

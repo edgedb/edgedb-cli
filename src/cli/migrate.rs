@@ -364,7 +364,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             base,
         ));
         if !q.ask()? {
-            print::error_msg("edgedb error", "Cancelled by user.");
+            print::error("Cancelled by user.");
             print_markdown!("\
                 When all files are backed up, run either of:\n\
                 ```\n\

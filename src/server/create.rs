@@ -282,7 +282,7 @@ pub fn try_bootstrap(method: &dyn Method, settings: &Settings)
         Ok(()) => Ok(true),
         Err(e) => {
             if e.is::<CannotCreateService>() {
-                print::error_obj(&e);
+                print::error(e);
                 Ok(false)
             } else {
                 log::error!("Bootstrap error, cleaning up...");

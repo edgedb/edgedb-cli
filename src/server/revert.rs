@@ -33,7 +33,7 @@ pub fn revert(instance: InstanceRef, options: &Revert)
     if !options.ignore_pid_check {
         match status.data_status {
             DataDirectory::Upgrading(Ok(up)) if process::exists(up.pid) => {
-                print::error_msg("edgedb error", &format!(
+                print::error(format!(
                     "Looks like upgrade is still in progress \
                     with pid {}", up.pid,
                 ));
