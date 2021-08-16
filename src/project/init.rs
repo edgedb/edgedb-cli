@@ -162,10 +162,11 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
         name
     };
     if options.non_interactive {
-        if instances.contains(&default_name) {
+        let exists = instances.contains(&default_name);
+        if exists {
             log::warn!("Instance {:?} already exists", default_name);
         }
-        return Ok((default_name, false))
+        return Ok((default_name, exists))
     }
     let mut q = question::String::new(
         "Specify the name of EdgeDB instance to use with this project"
