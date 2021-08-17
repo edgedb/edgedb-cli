@@ -390,11 +390,16 @@ impl InteractiveMigration<'_> {
                     if e.is::<QueryError>() {
                         print_query_error(&e, &text, false)?;
                     } else {
-                        eprintln!(
-                            "{}: {:#}",
-                            "Error applying statement".bold().light_red(),
-                            e.to_string().bold().white(),
-                        );
+                        if print::use_color() {
+                            eprintln!(
+                                "{}: {:#}",
+                                "Error applying statement"
+                                    .bold().light_red(),
+                                e.to_string().bold().white(),
+                            );
+                        } else {
+                            eprintln!("Error applying statement: {:#}", e);
+                        }
                     }
                     eprintln!("Rolling back last operation...");
                     self.rollback().await?;
@@ -479,12 +484,16 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
     drop(file);
     fs::rename(&tmp_file, &filepath).await?;
     if verbose {
-        eprintln!(
-            "{}: {}, id: {}",
-            "Created".bold().light_green(),
-            filepath.display().to_string().bold().white(),
-            id
-        );
+        if print::use_color() {
+            eprintln!(
+                "{} {}, id: {}",
+                "Created".bold().light_green(),
+                filepath.display().to_string().bold().white(),
+                id,
+            );
+        } else {
+            eprintln!("Created {}, id: {}", filepath.display(), id);
+        }
     }
     Ok(())
 }

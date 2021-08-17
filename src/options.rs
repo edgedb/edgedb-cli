@@ -20,6 +20,7 @@ use crate::commands::ExitCode;
 use crate::connect::Connector;
 use crate::credentials::get_connector;
 use crate::hint::HintExt;
+use crate::print;
 use crate::project;
 use crate::repl::OutputFormat;
 use crate::server;
@@ -270,8 +271,12 @@ pub struct Options {
 pub struct ProjectNotFound(#[source] pub anyhow::Error);
 
 fn say_option_is_deprecated(option_name: &str, suggestion: &str) {
-    let error = "warning:".bold().light_yellow();
-    let instead = suggestion.green();
+    let mut error = "warning:".to_string();
+    let mut instead = suggestion.to_string();
+    if print::use_color() {
+        error = format!("{}", error.bold().light_yellow());
+        instead = format!("{}", instead.green());
+    }
     eprintln!("\
         {error} The '{opt}' option is deprecated.\n\
         \n         \
@@ -471,8 +476,12 @@ fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
         }
         _ => return None,
     };
-    let error = "warning:".bold().light_yellow();
-    let instead = format!("edgedb {}", new_name).green();
+    let mut error = "warning:".to_string();
+    let mut instead = format!("edgedb {}", new_name).to_string();
+    if print::use_color() {
+        error = format!("{}", error.bold().light_yellow());
+        instead = format!("{}", instead.green());
+    }
     eprintln!("\
         {error} The '{cmd}' subcommand was renamed.\n\
         \n         \
@@ -565,12 +574,16 @@ impl Options {
         let mut no_cli_update_check = tmp.no_cli_update_check;
         if tmp.no_version_check {
             no_cli_update_check = true;
+            let mut error = "warning:".to_string();
+            if print::use_color() {
+                error = format!("{}", error.bold().light_yellow());
+            }
             eprintln!("\
                 {error} The '--no-version-check' option was renamed.\n\
                 \n         \
                     Use '--no-cli-update-check' instead.\
                 \n\
-            ", error="warning:".bold().light_yellow());
+            ", error=error);
         }
 
         Ok(Options {

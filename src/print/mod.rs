@@ -1,3 +1,4 @@
+use std::env;
 use std::error::Error;
 use std::fmt;
 use std::io;
@@ -340,39 +341,67 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
     Ok(out)
 }
 
+pub fn use_color() -> bool {
+    let val = env::var_os("EDGEDB_USE_COLOR").map(|v| v.to_ascii_lowercase());
+    match val.as_ref().map(|v| v.to_str()) {
+        Some(Some("n"|"no"|"f"|"false"|"0")) => false,
+        _ => true,
+    }
+}
+
 pub fn prompt(line: impl fmt::Display) {
-    println!(
-        "{}",
-        line.to_string().bold().color(Color::Orange3),
-    );
+    if use_color() {
+        println!(
+            "{}",
+            line.to_string().bold().color(Color::Orange3),
+        );
+    } else {
+        println!("{}", line);
+    }
 }
 
 pub fn error(line: impl fmt::Display) {
-    eprintln!(
-        "{}: {}",
-        "edgedb error".bold().light_red(),
-        line.to_string().bold().white(),
-    );
+    if use_color() {
+        eprintln!(
+            "{}: {}",
+            "edgedb error".bold().light_red(),
+            line.to_string().bold().white(),
+        );
+    } else {
+        eprintln!("edgedb error: {}", line);
+    }
 }
 
 pub fn success(line: impl fmt::Display) {
-    println!(
-        "{}",
-        line.to_string().bold().light_green(),
-    )
+    if use_color() {
+        println!(
+            "{}",
+            line.to_string().bold().light_green(),
+        );
+    } else {
+        println!("{}", line);
+    }
 }
 
 pub fn success_msg(title: impl fmt::Display, msg: impl fmt::Display) {
-    println!(
-        "{}: {}",
-        title.to_string().bold().light_green(),
-        msg.to_string().bold().white(),
-    )
+    if use_color() {
+        println!(
+            "{}: {}",
+            title.to_string().bold().light_green(),
+            msg.to_string().bold().white(),
+        );
+    } else {
+        println!("{}: {}", title, msg);
+    }
 }
 
 pub fn warn(line: impl fmt::Display) {
-    eprintln!(
-        "{}",
-        line.to_string().bold().yellow(),
-    );
+    if use_color() {
+        eprintln!(
+            "{}",
+            line.to_string().bold().yellow(),
+        );
+    } else {
+        eprintln!("{}", line);
+    }
 }

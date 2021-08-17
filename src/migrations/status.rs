@@ -95,16 +95,26 @@ pub async fn status(cli: &mut Connection, _options: &Options,
     let abort = cli.execute("ABORT MIGRATION").await.map_err(|e| e.into());
     check.and(abort)?;
     if !status.quiet {
-        eprintln!(
-            "{} Last migration: {}.",
-            "Database is up to date.".bold().light_green(),
-            db_migration
-                .as_ref()
-                .map(|x| &x[..])
-                .unwrap_or("initial")
-                .bold()
-                .white()
-        );
+        if print::use_color() {
+            eprintln!(
+                "{} Last migration: {}.",
+                "Database is up to date.".bold().light_green(),
+                db_migration
+                    .as_ref()
+                    .map(|x| &x[..])
+                    .unwrap_or("initial")
+                    .bold()
+                    .white(),
+            );
+        } else {
+            eprintln!(
+                "Database is up to date. Last migration: {}.",
+                db_migration
+                    .as_ref()
+                    .map(|x| &x[..])
+                    .unwrap_or("initial"),
+            );
+        }
     }
     Ok(())
 }
