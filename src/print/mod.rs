@@ -4,7 +4,6 @@ use std::io;
 use std::convert::Infallible;
 
 use async_std::stream::{Stream, StreamExt};
-use bytes::Bytes;
 use colorful::Colorful;
 use snafu::{Snafu, ResultExt, AsErrorSource};
 
@@ -101,13 +100,13 @@ impl Config {
     }
 }
 
-pub fn completion(res: &Bytes) {
+pub fn completion<B: AsRef<[u8]>>(res: B) {
     if atty::is(atty::Stream::Stderr) {
         eprintln!("{}",
-            format!("OK: {}", String::from_utf8_lossy(&res[..]))
+            format!("OK: {}", String::from_utf8_lossy(res.as_ref()))
                 .dark_gray().bold());
     } else {
-        eprintln!("OK: {}", String::from_utf8_lossy(&res[..]));
+        eprintln!("OK: {}", String::from_utf8_lossy(res.as_ref()));
     }
 }
 

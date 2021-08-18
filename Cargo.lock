@@ -1042,14 +1042,13 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#a3e4e451261d362ee3b2e34fe052148badc24914"
+source = "git+https://github.com/edgedb/edgedb-rust#b2875525fd66766b5adef9f67c78a588108923ff"
 dependencies = [
- "anyhow",
  "async-std",
  "bytes",
+ "edgedb-errors",
  "edgedb-protocol",
  "futures-util",
- "humantime-serde",
  "log",
  "rand 0.8.4",
  "rustls",
@@ -1058,7 +1057,6 @@ dependencies = [
  "serde",
  "serde_json",
  "snafu",
- "thiserror",
  "tls-api",
  "tls-api-not-tls",
  "tls-api-rustls",
@@ -1071,7 +1069,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#a3e4e451261d362ee3b2e34fe052148badc24914"
+source = "git+https://github.com/edgedb/edgedb-rust#b2875525fd66766b5adef9f67c78a588108923ff"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -1080,13 +1078,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "edgedb-errors"
+version = "0.1.0"
+source = "git+https://github.com/edgedb/edgedb-rust#b2875525fd66766b5adef9f67c78a588108923ff"
+dependencies = [
+ "bytes",
+]
+
+[[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#a3e4e451261d362ee3b2e34fe052148badc24914"
+source = "git+https://github.com/edgedb/edgedb-rust#b2875525fd66766b5adef9f67c78a588108923ff"
 dependencies = [
  "bigdecimal",
  "bytes",
  "chrono",
+ "edgedb-errors",
  "num-bigint",
  "num-traits",
  "snafu",

@@ -7,9 +7,9 @@ use async_std::io;
 use async_std::path::{Path, PathBuf};
 use async_std::stream::StreamExt;
 use edgedb_client::client::Connection;
+use edgedb_client::errors::{Error, QueryError};
 use edgedb_derive::Queryable;
 use edgedb_protocol::queryable::Queryable;
-use edgedb_protocol::server_message::ErrorResponse;
 use edgedb_protocol::value::Value;
 use edgeql_parser::hash::Hasher;
 use edgeql_parser::expr;
@@ -101,7 +101,7 @@ struct Refused;
 struct SplitMigration;
 
 async fn execute(cli: &mut Connection, text: impl AsRef<str>)
-    -> anyhow::Result<()>
+    -> Result<(), Error>
 {
     let text = text.as_ref();
     log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
@@ -110,7 +110,7 @@ async fn execute(cli: &mut Connection, text: impl AsRef<str>)
 }
 
 async fn query_row<R>(cli: &mut Connection, text: &str)
-    -> anyhow::Result<R>
+    -> Result<R, Error>
     where R: Queryable
 {
     let text = text.as_ref();
@@ -188,13 +188,11 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
     let (text, source_map) = gen_start_migration(&ctx).await?;
     match execute(cli, text).await {
         Ok(_) => Ok(()),
-        Err(e) => match e.downcast::<ErrorResponse>() {
-            Ok(e) => {
-                print_migration_error(&e, &source_map)?;
-                anyhow::bail!("cannot proceed until .esdl files are fixed");
-            }
-            Err(e) => Err(e)?,
+        Err(e) if e.is::<QueryError>() => {
+            print_migration_error(&e, &source_map)?;
+            anyhow::bail!("cannot proceed until .esdl files are fixed");
         }
+        Err(e) => Err(e)?,
     }
 }
 
@@ -257,12 +255,12 @@ impl InteractiveMigration<'_> {
             confirmed: Vec::new(),
         }
     }
-    async fn save_point(&mut self) -> anyhow::Result<()> {
+    async fn save_point(&mut self) -> Result<(), Error> {
         execute(self.cli,
             format!("DECLARE SAVEPOINT migration_{}", self.save_point)
         ).await
     }
-    async fn rollback(&mut self) -> anyhow::Result<()> {
+    async fn rollback(&mut self) -> Result<(), Error> {
         execute(self.cli, format!(
             "ROLLBACK TO SAVEPOINT migration_{}", self.save_point)
         ).await
@@ -385,14 +383,10 @@ impl InteractiveMigration<'_> {
             match execute(self.cli, &text).await {
                 Ok(()) => {}
                 Err(e) => {
-                    match e.downcast::<ErrorResponse>() {
-                        Ok(err) => {
-                            print_query_error(&err, &text, false)?;
-                        }
-                        Err(err) => {
-                            eprintln!("Error applying statement: {:#}",
-                                err);
-                        }
+                    if e.is::<QueryError>() {
+                        print_query_error(&e, &text, false)?;
+                    } else {
+                        eprintln!("Error applying statement: {:#}", e);
                     }
                     eprintln!("Rolling back last operation...");
                     self.rollback().await?;
@@ -513,7 +507,7 @@ pub async fn create(cli: &mut Connection, _options: &Options,
         }
         run_interactive(&ctx, cli, migrations.len() as u64 + 1, &create).await
     };
-    let abort = cli.execute("ABORT MIGRATION").await;
+    let abort = cli.execute("ABORT MIGRATION").await.map_err(|e| e.into());
     exec.and(abort)?;
     Ok(())
 }

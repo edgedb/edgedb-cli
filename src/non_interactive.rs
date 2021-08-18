@@ -14,7 +14,6 @@ use crate::options::Options;
 use crate::options::Query;
 use crate::repl::OutputFormat;
 use crate::print::{self, PrintError};
-use edgedb_client::reader::ReadError;
 use crate::statement::{ReadStatement, EndOfFile};
 use edgedb_client::client::Connection;
 use edgedb_client::errors::NoResultExpected;
@@ -109,13 +108,12 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options)
                 conn.query_dynamic(stmt, &Value::empty_tuple()).await
             {
                 Ok(items) => items,
-                Err(e) => match e.downcast::<NoResultExpected>() {
-                    Ok(e) => {
-                        print::completion(&e.completion_message);
-                        return Ok(());
-                    }
-                    Err(e) => Err(e)?,
-                },
+                Err(e) if e.is::<NoResultExpected>() => {
+                    print::completion(e.initial_message()
+                        .unwrap_or("UNKNOWN").as_bytes());
+                    return Ok(());
+                }
+                Err(e) => return Err(e)?,
             };
             while let Some(row) = items.next().await.transpose()? {
                 let mut text = tab_separated::format_row(&row)?;
@@ -129,25 +127,19 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options)
                 conn.query_dynamic(stmt, &Value::empty_tuple()).await
             {
                 Ok(items) => items,
-                Err(e) => match e.downcast::<NoResultExpected>() {
-                    Ok(e) => {
-                        print::completion(&e.completion_message);
-                        return Ok(());
-                    }
-                    Err(e) => Err(e)?,
-                },
+                Err(e) if e.is::<NoResultExpected>() => {
+                    print::completion(e.initial_message()
+                        .unwrap_or("UNKNOWN"));
+                    return Ok(());
+                }
+                Err(e) => return Err(e)?,
             };
             match print::native_to_stdout(items, &cfg).await {
                 Ok(()) => {}
                 Err(e) => {
                     match e {
-                        PrintError::StreamErr {
-                            source: ReadError::RequestError {
-                                ref error, ..
-                            },
-                            ..
-                        } => {
-                            eprintln!("edgedb error: {}", error);
+                        PrintError::StreamErr { source: ref error, ..  } => {
+                            eprintln!("edgedb error: {:#}", error);
                         }
                         _ => eprintln!("edgedb error: {:#}", e),
                     }
@@ -160,13 +152,12 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options)
                 conn.query_json_els(stmt, &Value::empty_tuple()).await
             {
                 Ok(items) => items,
-                Err(e) => match e.downcast::<NoResultExpected>() {
-                    Ok(e) => {
-                        print::completion(&e.completion_message);
-                        return Ok(());
-                    }
-                    Err(e) => Err(e)?,
-                },
+                Err(e) if e.is::<NoResultExpected>() => {
+                    print::completion(e.initial_message()
+                        .unwrap_or("UNKNOWN"));
+                    return Ok(());
+                }
+                Err(e) => return Err(e)?,
             };
             if options.output_format == OutputFormat::JsonLines {
                 while let Some(mut row) = items.next().await.transpose()? {
@@ -190,13 +181,12 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options)
                 conn.query_json(stmt, &Value::empty_tuple()).await
             {
                 Ok(items) => items,
-                Err(e) => match e.downcast::<NoResultExpected>() {
-                    Ok(e) => {
-                        print::completion(&e.completion_message);
-                        return Ok(());
-                    }
-                    Err(e) => Err(e)?,
+                Err(e) if e.is::<NoResultExpected>() => {
+                    print::completion(e.initial_message()
+                        .unwrap_or("UNKNOWN"));
+                    return Ok(());
                 },
+                Err(e) => return Err(e)?,
             };
             while let Some(row) = items.next().await.transpose()? {
                 let items: serde_json::Value = serde_json::from_str(&row)

@@ -10,6 +10,7 @@ use edgedb_protocol::client_message::{ClientMessage, Dump};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
 use edgedb_client::client::Connection;
+use edgedb_client::errors::{Error, ErrorKind, ProtocolOutOfOrderError};
 
 use crate::platform::tmp_file_name;
 use crate::commands::Options;
@@ -114,12 +115,13 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
         }
         ServerMessage::ErrorResponse(err) => {
             seq.err_sync().await.ok();
-            return Err(anyhow::anyhow!(err)
-                .context("Error receiving dump header"));
+            return Err(Into::<Error>::into(err)
+                .context("error receiving dump header")
+                .into());
         }
         _ => {
-            return Err(anyhow::anyhow!(
-                "WARNING: unsolicited message {:?}", msg));
+            return Err(ProtocolOutOfOrderError::with_message(format!(
+                "unsolicited message {:?}", msg)))?;
         }
     }
     loop {
@@ -144,12 +146,13 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
             }
             ServerMessage::ErrorResponse(err) => {
                 seq.err_sync().await.ok();
-                return Err(anyhow::anyhow!(err)
-                    .context("Error receiving dump block"));
+                return Err(Into::<Error>::into(err)
+                    .context("error receiving dump block")
+                    .into());
             }
             _ => {
-                return Err(anyhow::anyhow!(
-                    "WARNING: unsolicited message {:?}", msg));
+                return Err(ProtocolOutOfOrderError::with_message(format!(
+                    "unsolicited message {:?}", msg)))?;
             }
         }
     }
