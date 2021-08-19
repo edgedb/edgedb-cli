@@ -172,7 +172,7 @@ pub struct InputMode {
 
 #[derive(EdbClap, Clone, Debug, Default)]
 pub struct SettingBool {
-    #[clap(possible_values=&["on", "off"][..])]
+    #[clap(possible_values=&["on", "off", "true", "false"][..])]
     pub value: Option<String>,
 }
 
@@ -593,6 +593,8 @@ impl SettingBool {
         match self.value.as_deref() {
             Some("on") => true,
             Some("off") => false,
+            Some("true") => true,
+            Some("false") => false,
             _ => unreachable!("validated by clap"),
         }
     }
