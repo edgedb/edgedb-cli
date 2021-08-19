@@ -93,9 +93,12 @@ impl Config {
         self.colors = Some(value);
         self
     }
-    #[allow(dead_code)]
     pub fn expand_strings(&mut self, value: bool) -> &mut Config {
         self.expand_strings = value;
+        self
+    }
+    pub fn implicit_properties(&mut self, value: bool) -> &mut Config {
+        self.implicit_properties = value;
         self
     }
 }

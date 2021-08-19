@@ -22,40 +22,35 @@ use crate::outputs::tab_separated;
 pub async fn main(q: &Query, options: &Options)
     -> Result<(), anyhow::Error>
 {
-    let mut query_opts = options.clone();
-
     // There's some extra complexity here due to the fact that we
     // have to support now deprecated top-level `--json` and
     // `--tab-separated` flags.
-    query_opts.output_format = if let Some(of) = q.output_format {
+    let fmt = if let Some(of) = q.output_format {
         // If the new `--output-format` option was provided - use it.
         of
     } else {
         // Or else, check what's coming from the `main::main()`
         // entrypoint.
-        if options.output_format == OutputFormat::Default {
+        if let Some(fmt) = options.output_format {
+            fmt
+        } else {
             // Means "native" serialization; for `edgedb query`
             // the default is `json-pretty`.
             OutputFormat::JsonPretty
-        } else {
-            // If it's not Default, it must either be something set
-            // with `--json` or `--tab-separated`, or it could be
-            // the default `JsonLines` which is fine in this context.
-            options.output_format
         }
     };
 
     if let Some(filename) = &q.file {
         if filename == "-" {
-            interpret_stdin(query_opts).await?;
+            interpret_stdin(options, fmt).await?;
         } else {
             let mut file = AsyncFile::open(filename).await?;
-            interpret_file(&mut file, query_opts).await?;
+            interpret_file(&mut file, options, fmt).await?;
         }
     } else if let Some(queries) = &q.queries {
         let mut conn = options.create_connector()?.connect().await?;
         for query in queries {
-            run_query(&mut conn, query, &query_opts).await?;
+            run_query(&mut conn, query, &options, fmt).await?;
         }
     } else {
         print::error("either a --file option or \
@@ -65,13 +60,13 @@ pub async fn main(q: &Query, options: &Options)
     Ok(())
 }
 
-pub async fn interpret_stdin(options: Options)
+pub async fn interpret_stdin(options: &Options, fmt: OutputFormat)
     -> Result<(), anyhow::Error>
 {
-    return interpret_file(&mut stdin(), options).await;
+    return interpret_file(&mut stdin(), options, fmt).await;
 }
 
-async fn interpret_file<T>(file: &mut T, options: Options)
+async fn interpret_file<T>(file: &mut T, options: &Options, fmt: OutputFormat)
     -> Result<(), anyhow::Error>
     where T: AsyncRead + Unpin
 {
@@ -88,12 +83,13 @@ async fn interpret_file<T>(file: &mut T, options: Options)
         if preparser::is_empty(stmt) {
             continue;
         }
-        run_query(&mut conn, &stmt, &options).await?;
+        run_query(&mut conn, &stmt, &options, fmt).await?;
     }
     Ok(())
 }
 
-async fn run_query(conn: &mut Connection, stmt: &str, options: &Options)
+async fn run_query(conn: &mut Connection, stmt: &str, _options: &Options,
+    fmt: OutputFormat)
     -> Result<(), anyhow::Error>
 {
     let mut cfg = print::Config::new();
@@ -102,7 +98,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options)
     }
     cfg.colors(atty::is(atty::Stream::Stdout));
 
-    match options.output_format {
+    match fmt {
         OutputFormat::TabSeparated => {
             let mut items = match
                 conn.query_dynamic(stmt, &Value::empty_tuple()).await
@@ -161,7 +157,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options)
                 }
                 Err(e) => return Err(e)?,
             };
-            if options.output_format == OutputFormat::JsonLines {
+            if fmt == OutputFormat::JsonLines {
                 while let Some(mut row) = items.next().await.transpose()? {
                     // trying to make writes atomic if possible
                     row += "\n";

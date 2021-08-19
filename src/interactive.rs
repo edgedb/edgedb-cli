@@ -23,6 +23,7 @@ use edgedb_protocol::error_response::display_error;
 use edgeql_parser::preparser::{self, full_statement};
 
 use crate::commands::{backslash, ExitCode};
+use crate::config::Config;
 use crate::options::Options;
 use crate::print::{self, PrintError};
 use crate::prompt;
@@ -89,26 +90,32 @@ impl<'a> Iterator for ToDo<'a> {
 }
 
 
-pub fn main(options: Options) -> Result<(), anyhow::Error> {
+pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
     let (control_wr, control_rd) = channel(1);
     let (repl_wr, repl_rd) = channel(1);
     let conn = options.create_connector()?;
+    let limit = cfg.shell.limit.unwrap_or(100);
+    let print = print::Config::new()
+        .max_items(limit)
+        .expand_strings(cfg.shell.expand_strings.unwrap_or(true))
+        .implicit_properties(cfg.shell.implicit_properties.unwrap_or(false))
+        .colors(atty::is(atty::Stream::Stdout))
+        .clone();
     let state = repl::State {
         prompt: repl::PromptRpc {
             control: control_wr,
             data: repl_rd,
         },
-        print: print::Config::new()
-            .max_items(100)
-            .colors(atty::is(atty::Stream::Stdout))
-            .clone(),
-        verbose_errors: false,
+        print,
+        verbose_errors: cfg.shell.verbose_errors.unwrap_or(false),
         last_error: None,
-        implicit_limit: Some(100),
-        output_format: options.output_format,
-        input_mode: repl::InputMode::Emacs,
-        print_stats: repl::PrintStats::Off,
-        history_limit: 10000,
+        implicit_limit: Some(limit),
+        output_format: options.output_format
+            .or(cfg.shell.output_format)
+            .unwrap_or(repl::OutputFormat::Default),
+        input_mode: cfg.shell.input_mode.unwrap_or(repl::InputMode::Emacs),
+        print_stats: cfg.shell.print_stats.unwrap_or(repl::PrintStats::Off),
+        history_limit: cfg.shell.history_size.unwrap_or(10000),
         database: conn.get()?.get_database().into(),
         conn_params: conn,
         last_version: None,
