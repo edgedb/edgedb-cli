@@ -1004,6 +1004,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_path_to_error",
+ "serde_str",
  "sha1",
  "sha2",
  "shell-words",
@@ -2813,6 +2814,14 @@ dependencies = [
  "percent-encoding",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "serde_str"
+version = "1.0.0"
+source = "git+https://github.com/tailhook/serde-str#5310c8df4416ff3192c2c13c14e227f834465b1e"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

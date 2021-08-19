@@ -2,6 +2,7 @@
 #![cfg_attr(windows, allow(unused_imports))]
 #![type_length_limit="8388608"]
 
+use std::default::Default;
 use std::env;
 use std::path::Path;
 use std::process::exit;
@@ -17,6 +18,7 @@ mod cli;
 mod commands;
 mod completion;
 mod connect;
+mod config;
 mod credentials;
 mod error_display;
 mod format;
@@ -95,12 +97,18 @@ fn _main() -> anyhow::Result<()> {
     }
 
     let opt = Options::from_args_and_env()?;
+    let cfg = config::get_config();
 
     let mut builder = env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or("warn")
     );
     log_levels::init(&mut builder, &opt);
     builder.init();
+
+    let cfg = cfg.unwrap_or_else(|e| {
+        log::warn!("Config error: {:#}", e);
+        Default::default()
+    });
 
     log::debug!(target: "edgedb::cli", "Options: {:#?}", opt);
 
@@ -111,9 +119,12 @@ fn _main() -> anyhow::Result<()> {
     } else {
         cli::directory_check::check_and_warn();
         if opt.interactive {
-            interactive::main(opt)
+            interactive::main(opt, cfg)
         } else {
-            task::block_on(non_interactive::interpret_stdin(opt))
+            task::block_on(non_interactive::interpret_stdin(
+                &opt,
+                opt.output_format.unwrap_or(repl::OutputFormat::JsonPretty)
+            ))
         }
     }
 }

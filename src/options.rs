@@ -262,7 +262,7 @@ pub struct Options {
     pub debug_print_frames: bool,
     pub debug_print_descriptors: bool,
     pub debug_print_codecs: bool,
-    pub output_format: OutputFormat,
+    pub output_format: Option<OutputFormat>,
     pub no_cli_update_check: bool,
 }
 
@@ -604,13 +604,11 @@ impl Options {
             debug_print_descriptors: tmp.debug_print_descriptors,
             debug_print_codecs: tmp.debug_print_codecs,
             output_format: if tmp.tab_separated {
-                OutputFormat::TabSeparated
+                Some(OutputFormat::TabSeparated)
             } else if tmp.json {
-                OutputFormat::Json
-            } else if interactive {
-                OutputFormat::Default
+                Some(OutputFormat::Json)
             } else {
-                OutputFormat::JsonPretty
+                None
             },
             no_cli_update_check,
         })
