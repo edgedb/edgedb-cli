@@ -4,10 +4,12 @@
 use std::sync::Mutex;
 use std::convert::TryInto;
 use std::io::{BufReader, BufRead};
+use std::fs;
 use std::sync::mpsc::sync_channel;
 use std::thread::{self, JoinHandle};
 use std::process;
 use std::env;
+use std::path::Path;
 
 use assert_cmd::Command;
 use once_cell::sync::Lazy;
@@ -29,6 +31,10 @@ mod migrations;
 mod interactive;
 
 mod help;
+
+pub struct Config {
+    dir: tempfile::TempDir,
+}
 
 #[cfg(not(windows))]
 fn term_process(proc: &mut process::Child) {
@@ -223,5 +229,20 @@ extern fn stop_processes() {
     for item in items.iter_mut() {
         item.process.wait().ok();
         item.thread.take().expect("not yet joined").join().ok();
+    }
+}
+
+impl Config {
+    pub fn new(data: &str) -> Config {
+        let tmp_dir = tempfile::tempdir().expect("tmpdir");
+        let dir = tmp_dir.path().join("edgedb");
+        fs::create_dir(&dir).expect("mkdir");
+        fs::write(dir.join("cli.toml"), data.as_bytes()).expect("config");
+        Config {
+            dir: tmp_dir,
+        }
+    }
+    pub fn path(&self) -> &Path {
+        self.dir.path()
     }
 }
