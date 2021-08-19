@@ -14,10 +14,13 @@ use anyhow::Context;
 
 #[cfg(target_arch="x86_64")]
 pub const ARCH: &str = "x86_64";
+#[cfg(target_arch="aarch64")]
+pub const ARCH: &str = "aarch64";
 #[cfg(not(any(
     target_arch="x86_64",
+    target_arch="aarch64",
 )))]
-compile_error!("Unsupported architecture, supported: x86_64");
+compile_error!("Unsupported architecture, supported: x86_64, aarch64");
 
 #[derive(Clone, Debug, Default)]
 pub struct Lazy<T>(once_cell::sync::OnceCell<T>);
