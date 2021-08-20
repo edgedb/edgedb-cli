@@ -1,5 +1,8 @@
 use once_cell::sync::Lazy;
 
+use crate::print;
+
+
 fn prepare_markdown(text: &str) -> String {
     let mut min_indent = text.len();
     for line in text.lines() {
@@ -28,7 +31,7 @@ fn prepare_markdown(text: &str) -> String {
 static MADSKIN: Lazy<termimad::MadSkin> = Lazy::new(|| {
     use crossterm::style::{Color, Attribute};
 
-    if !atty::is(atty::Stream::Stdout) {
+    if !print::use_color() {
         return termimad::MadSkin::no_style();
     }
 

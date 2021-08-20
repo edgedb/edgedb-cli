@@ -86,6 +86,7 @@ rustls = {version="0.19.1", features=["dangerous_configuration"]}
 webpki = "0.21.4"
 futures = "0.3.15"
 futures-util = "0.3.15"
+clicolors-control = "1.0.1"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}

@@ -360,6 +360,9 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
 }
 
 fn update_main_help(mut app: clap::App) -> clap::App {
+    if !print::use_color() {
+        app = app.global_setting(clap::AppSettings::ColorNever);
+    }
     let sub_cmd = make_subcommand_help::<RawOptions>();
     let mut help = Vec::with_capacity(2048);
 
@@ -386,6 +389,9 @@ fn print_full_connection_options() {
     let mut new_app = clap::App::new("edgedb-connect")
                       .setting(clap::AppSettings::DeriveDisplayOrder)
                       .term_width(term_width());
+    if !print::use_color() {
+        new_app = new_app.global_setting(clap::AppSettings::ColorNever);
+    }
 
     for arg in app.get_arguments() {
         let arg_name = arg.get_name();
@@ -433,7 +439,7 @@ fn get_matches(app: clap::App) -> clap::ArgMatches {
 
 fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
     let mut args = env::args_os().skip(1);
-    let old_name;
+    let mut old_name;
     let skip;
     let new_name = match args.next() {
         Some(first_cmd) if first_cmd == "server" => match args.next() {
@@ -481,19 +487,23 @@ fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
     if print::use_color() {
         error = format!("{}", error.bold().light_yellow());
         instead = format!("{}", instead.green());
+        old_name = format!("{}", old_name.green());
     }
     eprintln!("\
         {error} The '{cmd}' subcommand was renamed.\n\
         \n         \
             Use '{instead}' instead.\
         \n\
-    ", error=error, cmd=old_name.green(), instead=instead);
+    ", error=error, cmd=old_name, instead=instead);
     let new_args: Vec<OsString> = env::args_os().take(1).chain(
         new_name.split(" ").map(|x| x.into())
     ).chain(
         env::args_os().skip(skip)
     ).collect();
-    let app = <RawOptions as clap::IntoApp>::into_app();
+    let app = <RawOptions as clap::IntoApp>::into_app()
+        .name("edgedb")
+        .term_width(term_width());
+    let app = update_main_help(app);
     Some(app.get_matches_from(new_args))
 }
 

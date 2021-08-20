@@ -167,7 +167,7 @@ impl ServerGuard {
         cmd.arg("--admin");
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
-        cmd.env("EDGEDB_USE_COLOR", "0");
+        cmd.env("CLICOLOR", "0");
         return cmd
     }
 
@@ -198,7 +198,7 @@ impl ServerGuard {
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--tls-ca-file").arg(&self.tls_cert_file);
         cmd.env("EDGEDB_HOST", &self.runstate_dir);
-        cmd.env("EDGEDB_USE_COLOR", "0");
+        cmd.env("CLICOLOR", "0");
         f(&mut cmd);
         return spawn_command(cmd, Some(10000)).expect("start interactive");
     }

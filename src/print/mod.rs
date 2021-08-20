@@ -1,4 +1,3 @@
-use std::env;
 use std::error::Error;
 use std::fmt;
 use std::io;
@@ -102,7 +101,7 @@ impl Config {
 }
 
 pub fn completion<B: AsRef<[u8]>>(res: B) {
-    if atty::is(atty::Stream::Stderr) {
+    if use_color() {
         eprintln!("{}",
             format!("OK: {}", String::from_utf8_lossy(res.as_ref()))
                 .dark_gray().bold());
@@ -342,11 +341,7 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
 }
 
 pub fn use_color() -> bool {
-    let val = env::var_os("EDGEDB_USE_COLOR").map(|v| v.to_ascii_lowercase());
-    match val.as_ref().map(|v| v.to_str()) {
-        Some(Some("n"|"no"|"f"|"false"|"0")) => false,
-        _ => true,
-    }
+    clicolors_control::colors_enabled()
 }
 
 pub fn prompt(line: impl fmt::Display) {
