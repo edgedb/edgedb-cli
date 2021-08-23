@@ -19,13 +19,13 @@ use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
 use edgedb_protocol::client_message::{Execute};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
+use edgedb_protocol::error_response::display_error;
 use edgeql_parser::preparser::{self, full_statement};
 
 use crate::commands::{backslash, ExitCode};
 use crate::options::Options;
 use crate::print::{self, PrintError};
 use crate::prompt;
-use edgedb_client::reader::ReadError;
 use crate::repl;
 use crate::variables::input_variables;
 use crate::error_display::print_query_error;
@@ -281,6 +281,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 break;
             }
             ServerMessage::ErrorResponse(err) => {
+                let err = err.into();
                 print_query_error(&err, statement, state.verbose_errors)?;
                 state.last_error = Some(err.into());
                 seq.err_sync().await?;
@@ -313,7 +314,8 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 break data_desc;
             }
             ServerMessage::ErrorResponse(err) => {
-                eprintln!("{}", err.display(state.verbose_errors));
+                let err = err.into();
+                eprintln!("{}", display_error(&err, state.verbose_errors));
                 state.last_error = Some(err.into());
                 seq.err_sync().await?;
                 return Err(QueryError)?;
@@ -429,11 +431,10 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                 Err(e) => {
                     match e {
                         PrintError::StreamErr {
-                            source: ReadError::RequestError {
-                                ref error, ..},
+                            source: ref error,
                             ..
                         } => {
-                            eprintln!("{}", error);
+                            eprintln!("{:#}", error);
                         }
                         _ => eprintln!("{:#?}", e),
                     }

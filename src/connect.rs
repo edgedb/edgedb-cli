@@ -6,6 +6,7 @@ use async_std::prelude::FutureExt;
 use rustls::ServerCertVerifier;
 
 use edgedb_client::Builder;
+use edgedb_client::errors::Error;
 use edgedb_client::client::Connection;
 
 use crate::hint::ArcError;
@@ -26,9 +27,9 @@ impl Connector {
     }
     pub async fn connect(&self) -> Result<Connection, anyhow::Error> {
         let params = self.params.as_ref().map_err(Clone::clone)?;
-        return params.connect()
+        Ok(params.connect()
             .race(self.print_warning(params))
-            .await
+            .await?)
     }
 
     pub async fn connect_with_cert_verifier(
@@ -37,11 +38,11 @@ impl Connector {
         let params = self.params.as_ref().map_err(Clone::clone)?;
         params.connect_with_cert_verifier(verifier)
             .race(self.print_warning(params))
-            .await
+            .await.map_err(Into::into)
     }
 
     async fn print_warning(&self, params: &Builder)
-        -> Result<Connection, anyhow::Error>
+        -> Result<Connection, Error>
     {
         timeout(Duration::new(1, 0), pending::<()>()).await.ok();
         eprintln!("Connecting to an EdgeDB instance at {}...",

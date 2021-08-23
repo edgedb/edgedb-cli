@@ -14,11 +14,13 @@ use async_std::prelude::{FutureExt, StreamExt};
 use bytes::{Bytes, BytesMut, BufMut};
 use fn_error_context::context;
 
-use edgeql_parser::helpers::quote_name;
+use edgedb_client::errors::{DuplicateDatabaseDefinitionError, SchemaError};
+use edgedb_client::errors::{Error, ErrorKind};
+use edgedb_client::errors::{ProtocolOutOfOrderError};
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
-use edgedb_protocol ::server_message::{ErrorResponse};
+use edgeql_parser::helpers::quote_name;
 use edgeql_parser::preparser::{is_empty};
 
 use crate::commands::Options;
@@ -30,8 +32,6 @@ use crate::statement::{ReadStatement, EndOfFile};
 type Input = Box<dyn Read + Unpin + Send>;
 
 const MAX_SUPPORTED_DUMP_VER: i64 = 1;
-const SCHEMA_ERROR: u32 = 0x_04_04_00_00;
-const DUPLICATE_DATABASE_DEFINITION_ERROR: u32 = 0x_04_05_02_05;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PacketType {
@@ -173,12 +173,13 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
             }
             ServerMessage::ErrorResponse(err) => {
                 seq.err_sync().await.ok();
-                return Err(anyhow::anyhow!(err)
-                    .context("Error initiating restore protocol"));
+                return Err(Into::<Error>::into(err)
+                    .context("error initiating restore protocol")
+                    .into());
             }
             _ => {
-                return Err(anyhow::anyhow!(
-                    "WARNING: unsolicited message {:?}", msg));
+                return Err(ProtocolOutOfOrderError::with_message(format!(
+                    "unsolicited message {:?}", msg)))?;
             }
         }
     }
@@ -236,11 +237,11 @@ async fn wait_response(reader: &mut Reader<'_>, start: Instant)
                 break;
             }
             ServerMessage::ErrorResponse(err) => {
-                return Err(anyhow::anyhow!(err));
+                return Err(Into::<Error>::into(err))?;
             }
             _ => {
-                return Err(anyhow::anyhow!(
-                    "WARNING: unsolicited message {:?}", msg));
+                return Err(ProtocolOutOfOrderError::with_message(format!(
+                    "unsolicited message {:?}", msg)))?;
             }
         }
     }
@@ -301,16 +302,12 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
         let db_error = match cli.execute(create_db).await {
             Ok(_) => None,
             Err(e) => {
-                let silent = if let Some(e) = e.downcast_ref::<ErrorResponse>() {
-                    e.code == DUPLICATE_DATABASE_DEFINITION_ERROR ||
-                    e.code == SCHEMA_ERROR  // <= 1.0alpha7
-                } else {
-                    false
-                };
+                let silent = e.is::<DuplicateDatabaseDefinitionError>() ||
+                    e.is::<SchemaError>(); // <= 1.0alpha7
                 if silent {
                     Some(e)
                 } else {
-                    anyhow::bail!("Error creating database: {}", e);
+                    anyhow::bail!("Error creating database: {:#}", e);
                 }
             }
         };

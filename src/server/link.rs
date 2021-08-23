@@ -179,7 +179,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                                 builder.get_user().escape_default())))
                     .context("error reading password")?;
             } else {
-                return Err(e);
+                return Err(e.into());
             }
 
             let mut builder = builder.clone();
@@ -201,7 +201,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 verifier.clone()
             ).await?;
         } else {
-            return Err(e);
+            return Err(e.into());
         }
     }
     if let Some(cert) = &*verifier.cert_out.lock().unwrap() {

@@ -3,10 +3,12 @@ use std::collections::{BTreeSet, BTreeMap};
 
 use anyhow;
 use clap::{self, FromArgMatches};
-use edgedb_protocol::server_message::ErrorResponse;
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
 use regex::Regex;
+
+use edgedb_client::errors::Error;
+use edgedb_protocol::error_response::display_error_verbose;
 
 use crate::commands::Options;
 use crate::repl;
@@ -611,10 +613,9 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         }
         LastError => {
             if let Some(ref err) = prompt.last_error {
-                if let Some(ref err) = err.downcast_ref::<ErrorResponse>() {
-                    println!("{}", err.display_verbose());
-                } else {
-                    println!("{:#?}", err);
+                match err.downcast_ref::<Error>() {
+                    Some(e) => println!("{}", display_error_verbose(e)),
+                    None => println!("{:#}", err),
                 }
             } else {
                 eprintln!("== there is no previous error ==");
