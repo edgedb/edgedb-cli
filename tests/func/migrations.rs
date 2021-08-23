@@ -18,7 +18,8 @@ r###"Detected differences between the database schema and the schema source, in 
     CREATE TYPE default::Type1 {
         CREATE PROPERTY field1 -> std::str;
     };
-Some migrations are missing, use `edgedb migration create`
+edgedb error: Some migrations are missing.
+  Use `edgedb migration create`.
 "###));
     Ok(())
 }
@@ -37,8 +38,9 @@ fn initial() -> anyhow::Result<()> {
         .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(3)
-        .stderr(ends_with("Database is empty. While there are 1 migrations \
-            on the filesystem. Run `edgedb migrate` to apply\n"));
+        .stderr(ends_with(
+            "edgedb error: Database is empty. While there are 1 migrations \
+            on the filesystem.\n  Run `edgedb migrate` to apply.\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
         .arg("migration").arg("create")
@@ -173,8 +175,9 @@ fn modified1() -> anyhow::Result<()> {
         .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(3)
-        .stderr(ends_with("Database is empty. While there are 1 migrations \
-            on the filesystem. Run `edgedb migrate` to apply\n"));
+        .stderr(ends_with(
+            "edgedb error: Database is empty. While there are 1 migrations \
+            on the filesystem.\n  Run `edgedb migrate` to apply.\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("migration").arg("create")
@@ -203,7 +206,8 @@ r###"Detected differences between the database schema and the schema source, in 
     CREATE TYPE default::Type2 {
         CREATE PROPERTY field2 -> std::str;
     };
-Some migrations are missing, use `edgedb migration create`
+edgedb error: Some migrations are missing.
+  Use `edgedb migration create`.
 "###));
     SERVER.admin_cmd()
         .arg("--database=modified1")

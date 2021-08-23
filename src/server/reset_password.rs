@@ -10,6 +10,7 @@ use fn_error_context::context;
 use rand::{Rng, SeedableRng};
 
 use crate::credentials;
+use crate::print;
 use crate::server::options::ResetPassword;
 use crate::server::detect;
 use crate::server::control;
@@ -71,7 +72,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
                 Some(&format!("Confirm password for '{}': ",
                               user.escape_default())))?;
             if password != confirm {
-                eprintln!("Passwords don't match");
+                print::error("Passwords don't match");
             } else {
                 break password;
             }
@@ -93,10 +94,12 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     }
     if !options.quiet {
         if save {
-            eprintln!("Password was successfully changed and saved to \
-                {}", credentials_file.display());
+            print::success_msg(
+                "Password was successfully changed and saved to",
+                credentials_file.display(),
+            );
         } else {
-            eprintln!("Password was successfully changed.");
+            print::success("Password was successfully changed.");
         }
     }
     Ok(())

@@ -58,8 +58,8 @@ pub async fn main(q: &Query, options: &Options)
             run_query(&mut conn, query, &query_opts).await?;
         }
     } else {
-        eprintln!("error: either a --file option or \
-                  a <queries> positional argument is required.");
+        print::error("either a --file option or \
+                     a <queries> positional argument is required.");
     }
 
     Ok(())
@@ -139,9 +139,11 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options)
                 Err(e) => {
                     match e {
                         PrintError::StreamErr { source: ref error, ..  } => {
-                            eprintln!("edgedb error: {:#}", error);
+                            print::error(error);
                         }
-                        _ => eprintln!("edgedb error: {:#}", e),
+                        _ => {
+                            print::error(e);
+                        },
                     }
                     return Ok(());
                 }

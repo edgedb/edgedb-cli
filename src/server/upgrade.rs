@@ -11,7 +11,7 @@ use edgedb_client as client;
 use crate::commands;
 use crate::connect::Connector;
 use crate::hint::HintExt;
-use crate::print_markdown;
+use crate::print;
 use crate::process::ProcessGuard;
 use crate::project;
 use crate::server::destroy;
@@ -138,17 +138,20 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
     let mut errors = Vec::new();
+    let mut any_upgraded = false;
     for meth in methods.values() {
         match meth.upgrade(&todo, options) {
-            Ok(_) => {
+            Ok(upgraded) => {
+                if upgraded {
+                    any_upgraded = true;
+                }
                 if let ToDo::InstanceUpgrade(name, _version) = &todo {
                     let new_inst = meth.get_instance(name)?;
-                    println!();
-                    print_markdown!(
-                        "**EdgeDB instance '${name}' was successfully \
-                        upgraded to version ${version}!**",
-                        name=name,
-                        version=new_inst.get_current_version()?.unwrap(),
+                    let version = new_inst.get_current_version()?.unwrap();
+                    print::success_msg(
+                        format!("Successfully upgraded EdgeDB instance \
+                                      '{}' to version", name),
+                        version,
                     );
                     break
                 }
@@ -160,12 +163,22 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
         }
     }
     if errors.len() == methods.len() {
-        eprintln!("No instances found:");
+        print::error("No instances found:");
         for (meth, err) in errors {
             eprintln!("  * {}: {:#}", meth.title(), err);
         }
         Err(commands::ExitCode::new(1).into())
     } else {
+        match (any_upgraded, &todo) {
+            (false, _) => {
+                print::success("Already up to date.")
+            }
+            (true, ToDo::MinorUpgrade) => {
+                print::success("Successfully upgraded minor versions of \
+                               local EdgeDB instances.");
+            }
+            _ => {}
+        }
         Ok(())
     }
 }

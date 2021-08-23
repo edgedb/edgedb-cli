@@ -15,6 +15,7 @@ use fn_error_context::context;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::config_dir;
+use crate::print;
 use crate::server::reset_password::{generate_password, write_credentials};
 use crate::server::reset_password::{password_hash};
 use crate::server::detect::{self, VersionQuery};
@@ -263,9 +264,9 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
             }
         }
         if !try_bootstrap(method.as_ref(), &settings)? {
-            eprintln!("Bootstrapping complete, \
-                but there was an error creating the service. \
-                You can start it manually via: \n  \
+            print::error("Bootstrapping complete, \
+                but there was an error creating the service.");
+            eprintln!("You can start it manually via: \n  \
                 edgedb instance start --foreground {}",
                 settings.name.escape_default());
             return Err(ExitCode::new(2))?;
@@ -281,7 +282,7 @@ pub fn try_bootstrap(method: &dyn Method, settings: &Settings)
         Ok(()) => Ok(true),
         Err(e) => {
             if e.is::<CannotCreateService>() {
-                eprintln!("edgedb error: {:#}", e);
+                print::error(e);
                 Ok(false)
             } else {
                 log::error!("Bootstrap error, cleaning up...");

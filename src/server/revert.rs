@@ -1,8 +1,8 @@
-use std::io::{self, BufRead};
-
 use crate::commands::ExitCode;
 use crate::format;
+use crate::print;
 use crate::process;
+use crate::question;
 use crate::server::options::Revert;
 use crate::server::os_trait::InstanceRef;
 use crate::server::status::{BackupStatus, DataDirectory};
@@ -33,9 +33,10 @@ pub fn revert(instance: InstanceRef, options: &Revert)
     if !options.ignore_pid_check {
         match status.data_status {
             DataDirectory::Upgrading(Ok(up)) if process::exists(up.pid) => {
-                eprintln!(
-                    "edgedb error: Looks like upgrade is still in progress \
-                    with pid {}", up.pid);
+                print::error(format!(
+                    "Looks like upgrade is still in progress \
+                    with pid {}", up.pid,
+                ));
                 eprintln!("Run with `--ignore-pid-check` to overrride");
                 return Err(ExitCode::new(3))?;
             }
@@ -50,17 +51,13 @@ pub fn revert(instance: InstanceRef, options: &Revert)
         println!();
         println!("Currently stored data will be LOST \
                   and overwritten by the backup.");
-        println!("Do you really want to revert? (type `Yes`)");
-        if let Some(Ok(val)) = io::BufReader::new(io::stdin()).lines().next() {
-            if val != "Yes" {
-                eprintln!("Canceled ({:?} != \"Yes\")", val);
-                return Err(ExitCode::new(2))?;
-            }
-        } else {
-            eprintln!("Canceled");
+        let q = question::Confirm::new("Do you really want to revert?");
+        if !q.ask()? {
+            print::error("Canceled.");
             return Err(ExitCode::new(1))?;
         }
     }
     instance.revert(&data_info)?;
+    print::success("Reverted successfully.");
     Ok(())
 }

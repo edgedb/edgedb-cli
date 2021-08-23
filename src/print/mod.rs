@@ -4,7 +4,7 @@ use std::io;
 use std::convert::Infallible;
 
 use async_std::stream::{Stream, StreamExt};
-use colorful::Colorful;
+use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
 
 mod native;
@@ -101,7 +101,7 @@ impl Config {
 }
 
 pub fn completion<B: AsRef<[u8]>>(res: B) {
-    if atty::is(atty::Stream::Stderr) {
+    if use_color() {
         eprintln!("{}",
             format!("OK: {}", String::from_utf8_lossy(res.as_ref()))
                 .dark_gray().bold());
@@ -338,4 +338,65 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
     }
     prn.end().unwrap_exc()?;
     Ok(out)
+}
+
+pub fn use_color() -> bool {
+    clicolors_control::colors_enabled()
+}
+
+pub fn prompt(line: impl fmt::Display) {
+    if use_color() {
+        println!(
+            "{}",
+            line.to_string().bold().color(Color::Orange3),
+        );
+    } else {
+        println!("{}", line);
+    }
+}
+
+pub fn error(line: impl fmt::Display) {
+    if use_color() {
+        eprintln!(
+            "{}: {}",
+            "edgedb error".bold().light_red(),
+            line.to_string().bold().white(),
+        );
+    } else {
+        eprintln!("edgedb error: {}", line);
+    }
+}
+
+pub fn success(line: impl fmt::Display) {
+    if use_color() {
+        println!(
+            "{}",
+            line.to_string().bold().light_green(),
+        );
+    } else {
+        println!("{}", line);
+    }
+}
+
+pub fn success_msg(title: impl fmt::Display, msg: impl fmt::Display) {
+    if use_color() {
+        println!(
+            "{}: {}",
+            title.to_string().bold().light_green(),
+            msg.to_string().bold().white(),
+        );
+    } else {
+        println!("{}: {}", title, msg);
+    }
+}
+
+pub fn warn(line: impl fmt::Display) {
+    if use_color() {
+        eprintln!(
+            "{}",
+            line.to_string().bold().yellow(),
+        );
+    } else {
+        eprintln!("{}", line);
+    }
 }

@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use async_std::fs;
 use async_std::path::Path;
 use async_std::stream::StreamExt;
+use colorful::Colorful;
 use edgedb_client::client::Connection;
 use edgedb_protocol::value::Value;
 use linked_hash_map::LinkedHashMap;
@@ -11,6 +12,7 @@ use crate::commands::ExitCode;
 use crate::commands::parser::Migrate;
 use crate::migrations::context::Context;
 use crate::migrations::migration::{self, MigrationFile};
+use crate::print;
 
 
 fn skip_revisions(migrations: &mut LinkedHashMap<String, MigrationFile>,
@@ -86,12 +88,15 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         };
         if let Some(db_rev) = db_rev {
             if !migrate.quiet {
+                let mut msg = "Database is up to date.".to_string();
+                if print::use_color() {
+                    msg = format!("{}", msg.bold().light_green());
+                }
                 if Some(&db_rev) == db_migration.as_ref() {
-                    eprintln!("Database is up to date. Revision {}",
-                        db_rev);
+                    eprintln!("{} Revision {}", msg, db_rev);
                 } else {
-                    eprintln!("Database is up to date. \
-                        Revision {} is the ancestor of the latest {}",
+                    eprintln!("{} Revision {} is the ancestor of the latest {}",
+                        msg,
                         db_rev,
                         db_migration.as_ref()
                             .map(|x| &x[..]).unwrap_or("initial"),
@@ -119,8 +124,26 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     }
     if migrations.is_empty() {
         if !migrate.quiet {
-            eprintln!("Everything is up to date. Revision {}",
-                db_migration.as_ref().map(|x| &x[..]).unwrap_or("initial"));
+            if print::use_color() {
+                eprintln!(
+                    "{} Revision {}",
+                    "Everything is up to date.".bold().light_green(),
+                    db_migration
+                        .as_ref()
+                        .map(|x| &x[..])
+                        .unwrap_or("initial")
+                        .bold()
+                        .white(),
+                );
+            } else {
+                eprintln!(
+                    "Everything is up to date. Revision {}",
+                    db_migration
+                        .as_ref()
+                        .map(|x| &x[..])
+                        .unwrap_or("initial"),
+                );
+            }
         }
         return Ok(());
     }
@@ -131,9 +154,20 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
             .context("error re-reading migration file")?;
         cli.execute(data).await?;
         if !migrate.quiet {
-            eprintln!("Applied {} ({})",
-                migration.data.id,
-                Path::new(migration.path.file_name().unwrap()).display());
+            if print::use_color() {
+                eprintln!(
+                    "{} {} ({})",
+                    "Applied".bold().light_green(),
+                    migration.data.id.bold().white(),
+                    Path::new(migration.path.file_name().unwrap()).display(),
+                );
+            } else {
+                eprintln!(
+                    "Applied {} ({})",
+                    migration.data.id,
+                    Path::new(migration.path.file_name().unwrap()).display(),
+                );
+            }
         }
     }
     cli.execute("COMMIT").await?;

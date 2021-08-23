@@ -17,6 +17,7 @@ use crate::connect::Connector;
 use crate::credentials;
 use crate::migrations;
 use crate::platform::{tmp_file_path, config_dir, path_bytes, symlink_dir};
+use crate::print;
 use crate::process::ProcessGuard;
 use crate::project::config;
 use crate::project::options::Init;
@@ -174,8 +175,8 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
     loop {
         let target_name = q.ask()?;
         if !is_valid_name(&target_name) {
-            eprintln!("Instance name must be a valid identifier, \
-                       (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
+            print::error("Instance name must be a valid identifier, \
+                         (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
             continue;
         }
         if instances.contains(&target_name) {
@@ -240,7 +241,9 @@ fn ask_version(meth: &dyn Method, options: &Init)
             match meth.get_version(&VersionQuery::Nightly) {
                 Ok(distr) => return Ok(distr),
                 Err(e) => {
-                    eprintln!("Cannot find nightly version: {}", e);
+                    print::error(format!(
+                        "Cannot find nightly version: {}", e
+                    ));
                     continue;
                 }
             }
@@ -249,7 +252,7 @@ fn ask_version(meth: &dyn Method, options: &Init)
             match meth.get_version(&query) {
                 Ok(distr) => return Ok(distr),
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    print::error(e);
                     print_versions(meth, "Available versions")?;
                     continue;
                 }
@@ -260,8 +263,10 @@ fn ask_version(meth: &dyn Method, options: &Init)
 
 pub fn init(init: &Init) -> anyhow::Result<()> {
     if optional_docker_check() {
-        eprintln!("edgedb error: \
-            `edgedb project init` in a Docker container is not supported.\n\
+        print::error(
+            "`edgedb project init` in a Docker container is not supported.",
+        );
+        eprintln!("\
             To init a project run the command on the host system instead and \
             choose the `Local (docker)` installation method.");
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
@@ -346,9 +351,11 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         let inst = get_instance(&methods, &name)?;
         let inst_ver = inst.get_version()?;
         if !ver_query.matches(inst_ver) {
-            eprintln!("WARNING: existing instance has version {}, \
+            print::warn(format!(
+                "WARNING: existing instance has version {}, \
                 but {} is required by `edgedb.toml`",
-                inst_ver.title(), ver_query);
+                inst_ver.title(), ver_query
+            ));
         }
         inst
     } else {
@@ -359,8 +366,9 @@ pub fn init_existing(options: &Init, project_dir: &Path)
 
         let distr = meth.get_version(&ver_query)
             .map_err(|e| {
-                eprintln!("edgedb error: \
-                    Cannot find EdgeDB version {}: {}", ver_query, e);
+                print::error(format!(
+                    "Cannot find EdgeDB version {}: {}", ver_query, e
+                ));
                 eprintln!("  Hint: try a different installation method \
                     or remove `server-version` from `edgedb.toml` to \
                     install the latest stable version.");
@@ -425,9 +433,9 @@ pub fn init_existing(options: &Init, project_dir: &Path)
 
     if err_manual {
         run_and_migrate(&inst)?;
-        eprintln!("Bootstrapping complete, \
-            but there was an error creating the service. \
-            You can start it manually via: \n  \
+        print::error("Bootstrapping complete, \
+            but there was an error creating the service.");
+        eprintln!("You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
         return Err(ExitCode::new(2))?;
@@ -650,9 +658,9 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
     if err_manual {
         run_and_migrate(&inst)?;
-        eprintln!("Bootstrapping complete, \
-            but there was an error creating the service. \
-            You can start it manually via: \n  \
+        print::error("Bootstrapping complete, \
+            but there was an error creating the service.");
+        eprintln!("You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
         return Err(ExitCode::new(2))?;
@@ -665,7 +673,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 }
 
 fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
-    println!("Project initialized.");
+    print::success("Project initialized.");
     if let Some(dir) = dir_option {
         println!("To connect to {}, navigate to {} and run `edgedb`",
             name, dir.display());
@@ -706,7 +714,7 @@ async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
         match conn_params.connect().await {
             Ok(conn) => break conn,
             Err(e) if ask_for_running => {
-                eprintln!("edgedb error: {}", e);
+                print::error(e);
                 let mut q = question::Numeric::new(
                     format!(
                         "Cannot connect to an instance {:?}. What to do?",
@@ -731,7 +739,7 @@ async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
                     {
                         Ok(()) => continue,
                         Err(e) => {
-                            eprintln!("edgedb error: {}", e);
+                            print::error(e);
                             continue;
                         }
                     }
@@ -741,8 +749,8 @@ async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
                     }
                     Retry => continue,
                     Skip => {
-                        eprintln!("Skipping migrations. \
-                            Once service is running, \
+                        print::warn("Skipping migrations.");
+                        eprintln!("Once service is running, \
                             you can apply migrations by running:\n  \
                               edgedb migrate");
                         return Ok(());

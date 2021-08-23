@@ -11,6 +11,7 @@ use crate::cli::install::{get_rc_files, no_dir_in_path};
 use crate::credentials;
 use crate::platform::binary_path;
 use crate::platform::{home_dir, tmp_file_path, symlink_dir, config_dir};
+use crate::print;
 use crate::project;
 use crate::question;
 use crate::print_markdown;
@@ -209,8 +210,8 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
            ).expect("paths can be joined"))
         })?;
         if modified && no_dir_in_path(&new_bin_dir) {
+            print::success("The `edgedb` executable has moved!");
             print_markdown!("\
-                ## The `edgedb` executable has moved!\n\
                 \n\
                 We've updated your environment configuration to have\n\
                 `${dir}` in your `PATH` environment variable. You\n\
@@ -250,8 +251,8 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
                 || format!("failed to write env file {:?}", env_file))?;
 
         if modified && no_dir_in_path(&new_bin_dir) {
+            print::success("The `edgedb` executable has moved!");
             print_markdown!("\
-                ## The `edgedb` executable has moved!\n\
                 \n\
                 We've updated your shell profile to have ${dir} in your\n\
                 `PATH` environment variable. Next time you open the terminal\n\
@@ -278,8 +279,8 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             let new_bin_path = binary_path()?;
             try_move_bin(&exe_path, &new_bin_path)
             .map_err(|e| {
-                eprintln!("Cannot move executable to the new location. \
-                    Try `edgedb cli upgrade` instead");
+                print::error("Cannot move executable to the new location.");
+                eprintln!("  Try `edgedb cli upgrade` instead.");
                 e
             })?;
             update_path(base, &new_bin_path)?;
@@ -363,7 +364,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             base,
         ));
         if !q.ask()? {
-            eprintln!("edgedb error: Cancelled by user");
+            print::error("Cancelled by user.");
             print_markdown!("\
                 When all files are backed up, run either of:\n\
                 ```\n\
@@ -375,7 +376,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
         }
     }
     remove_dir_all(&base, dry_run)?;
-    print_markdown!("# Directory layout migration successful!");
+    print::success("Directory layout migration successful!");
 
     Ok(())
 }

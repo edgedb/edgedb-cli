@@ -14,6 +14,7 @@ use fs_err as fs;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::{Uid, get_current_uid, data_dir};
+use crate::print;
 use crate::process::ProcessGuard;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, read_ports, init_credentials, Storage};
@@ -79,13 +80,13 @@ impl Unix {
                     println!("    {}", op.format(true));
                 }
             }
-            println!("Depending on system settings sudo may now ask \
-                      you for your password...");
+            print::prompt("Depending on system settings sudo may now ask \
+                          you for your password...");
             match self.get_sudo_path() {
                 Some(cmd) => ctx.set_elevation_cmd(cmd),
                 None => {
-                    eprintln!("`sudo` command not found. \
-                               Cannot elevate privileges needed for \
+                    print::error("`sudo` command not found.");
+                    eprintln!("Cannot elevate privileges needed for \
                                {}. Please run `{}` as root user.",
                                operation_name, hint_cmd);
                     return Err(ExitCode::new(exit_codes::NO_SUDO))?;
@@ -166,7 +167,9 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
                 foreground: false,
             })?;
             init_credentials(&settings, &inst, cert)?;
-            println!("Bootstrap complete! Server is now up and running.");
+            print::success_msg(
+                "Bootstrap complete", "server is now up and running."
+            );
             if !settings.suppress_messages {
                 println!("To connect run:\n  edgedb -I {}",
                          settings.name.escape_default());
@@ -182,7 +185,8 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
             init_credentials(&settings, &inst, cert)?;
             drop(child);
             if settings.start_conf == StartConf::Manual && res.is_ok() {
-                println!("Bootstrap complete! To start the server run:\n  \
+                print::success("Bootstrap complete.");
+                println!("To start the server run:\n  \
                           edgedb instance start {}",
                           settings.name.escape_default());
             }
@@ -420,7 +424,7 @@ fn print_errors(errors: Vec<String>) -> anyhow::Result<()> {
     if errors.is_empty() {
         return Ok(());
     }
-    eprintln!("Upgrade complete, but cannot start instances:");
+    print::error("Upgrade complete, but cannot start instances:");
     for er in errors {
         eprintln!("  {}", er);
     }
@@ -455,7 +459,7 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
     _reinit_and_restore(
         &instance_dir, inst, new_meta, &upgrade_marker
     ).map_err(|e| {
-        eprintln!("edgedb error: failed to restore {:?}: {}", inst.name(), e);
+        print::error(format!("failed to restore {:?}: {}", inst.name(), e));
         eprintln!("To undo run:\n  edgedb instance revert {:?}", inst.name());
         ExitCode::new(1).into()
     })
@@ -605,7 +609,9 @@ fn do_instance_upgrade(method: &dyn Method,
     match reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta) {
         Ok(()) => {}
         Err(e) if e.is::<CannotStartService>() => {
-            eprintln!("Upgrade complete, but cannot start instance: {:#}", e);
+            print::error(format!(
+                "Upgrade complete, but cannot start instance: {:#}", e
+            ));
             return Err(ExitCode::new(2))?;
         }
         Err(e) => return Err(e)?,

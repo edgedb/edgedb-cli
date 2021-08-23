@@ -560,6 +560,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "clicolors-control"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "90082ee5dcdd64dc4e9e0d37fbf3ee325419e39c0092191e0393df65518f741e"
+dependencies = [
+ "atty",
+ "lazy_static",
+ "libc",
+ "winapi",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -945,6 +957,7 @@ dependencies = [
  "chrono",
  "clap",
  "clap_generate",
+ "clicolors-control",
  "codespan-reporting",
  "colorful",
  "combine",

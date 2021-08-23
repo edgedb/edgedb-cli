@@ -13,6 +13,7 @@ use url::Url;
 
 use crate::async_util::timeout;
 use crate::platform::{home_dir, binary_path};
+use crate::print;
 use crate::process;
 use crate::server::package::RepositoryInfo;
 use crate::server::remote;
@@ -140,6 +141,9 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
         pkg.version <= Version(env!("CARGO_PKG_VERSION").into())
     {
         log::info!("Version is the same. No update needed.");
+        if !options.quiet {
+            print::success("Already up to date.");
+        }
         return Ok(());
     }
 
@@ -165,8 +169,10 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
         .arg("cli").arg("install").arg("--upgrade"))?;
     fs::remove_file(&tmp_path).ok();
     if !options.quiet {
-        println!("Upgraded to version {} (revision {})",
-            pkg.version, pkg.revision);
+        print::success_msg(
+            "Upgraded to version",
+            format!("{} (revision {})", pkg.version, pkg.revision),
+        );
     }
     Ok(())
 }

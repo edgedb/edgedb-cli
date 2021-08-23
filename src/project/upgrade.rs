@@ -5,6 +5,7 @@ use anyhow::Context;
 
 use crate::commands::ExitCode;
 use crate::platform::tmp_file_path;
+use crate::print;
 use crate::project::config::{self, SrcConfig};
 use crate::project::options::Upgrade;
 use crate::project::{self, project_dir, stash_path};
@@ -74,13 +75,14 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
                         should_upgrade = true;
                     }
                 } else {
+                    print::success("Major version is already up to date.");
                     println!("A new minor version is available: {}",
                              new_version.version());
                     println!("  Run `edgedb instance upgrade --local-minor` \
                              to update.");
                 }
             } else {
-                println!("Instance is up to date.")
+                print::success("Already up to date.")
             }
         }
     }
@@ -100,15 +102,17 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
             })?;
         if upgraded {
             let new_inst = inst.method().get_instance(&instance_name)?;
-            println!("Instance upgraded to {}",
-                     new_inst.get_current_version()?.unwrap());
+            print::success_msg(
+                "Successfully upgraded to version",
+                format!("{}", new_inst.get_current_version()?.unwrap())
+            );
             if !inst.get_version()?.is_nightly() {
                 print_other_project_warning(
                     instance_name, &root, &to_version
                 )?;
             }
         } else {
-            println!("Instance is up to date.")
+            print::success("Already up to date.")
         }
     }
     Ok(())
@@ -142,12 +146,11 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
             distr.major_version().clone()
         };
         if modify_toml(&config_path, &version)? {
-            println!("Config updated successfully. \
-            Run `edgedb project init` to initialize an instance.")
+            print::success("Config updated successfully.");
         } else {
-            println!("Config is up to date. \
-            Run `edgedb project init` to initialize an instance.")
+            print::success("Config is up to date.");
         }
+        println!("Run `edgedb project init` to initialize an instance.");
     } else {
         let os = detect::current_os()?;
         let methods = os.all_methods()?;
@@ -174,11 +177,13 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
             println!("Remember to commit it to version control.");
         }
         if upgraded {
-            println!("Instance upgraded to {}",
-                     new_inst.get_current_version()?.unwrap());
+            print::success_msg(
+                "Successfully upgraded to version",
+                format!("{}", new_inst.get_current_version()?.unwrap())
+            );
             print_other_project_warning(instance_name, &root, version)?;
         } else {
-            println!("Instance is up to date.")
+            print::success("Already up to date.")
         }
     };
     Ok(())
@@ -216,7 +221,7 @@ fn toml_set_version(data: &str, version: &str) -> anyhow::Result<Option<String>>
         ).unwrap();
         return Ok(Some(out));
     }
-    eprintln!("No server-version found in `edgedb.toml`.");
+    print::error("No server-version found in `edgedb.toml`.");
     eprintln!("Please ensure that `edgedb.toml` contains:");
     println!("  {}",
         project::init::format_config(version)
@@ -234,7 +239,7 @@ fn print_other_project_warning(
         let real_pd = match destroy::read_project_real_path(&pd) {
             Ok(path) => path,
             Err(e) => {
-                eprintln!("edgedb error: {}", e);
+                print::error(e);
                 continue;
             }
         };
@@ -243,8 +248,10 @@ fn print_other_project_warning(
         }
     }
     if !project_dirs.is_empty() {
-        eprintln!("Warning: the instance {} is still used by the following \
-                  projects:", name);
+        print::warn(format!(
+            "Warning: the instance {} is still used by the following \
+            projects:", name
+        ));
         for pd in &project_dirs {
             eprintln!("  {}", pd.display());
         }

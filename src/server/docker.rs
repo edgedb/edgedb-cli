@@ -18,6 +18,7 @@ use crate::credentials::{self, get_connector};
 use crate::process;
 
 use crate::commands::ExitCode;
+use crate::print;
 use crate::server::create::{self as create_mod, read_ports, Storage};
 use crate::server::create::{bootstrap_script, save_credentials};
 use crate::server::detect::Lazy;
@@ -754,8 +755,9 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         self._reinit_and_restore(
             &inst, port, &volume, new_image, dump_path, &upgrade_container,
         ).map_err(|e| {
-            eprintln!("edgedb error: failed to restore {:?}: {}",
-                      inst.name(), e);
+            print::error(
+                format!("failed to restore {:?}: {}", inst.name(), e),
+            );
             eprintln!("To undo, run:\n  edgedb instance revert {:?}",
                       inst.name());
             ExitCode::new(1).into()

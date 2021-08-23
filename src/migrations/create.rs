@@ -6,6 +6,7 @@ use async_std::io::prelude::WriteExt;
 use async_std::io;
 use async_std::path::{Path, PathBuf};
 use async_std::stream::StreamExt;
+use colorful::Colorful;
 use edgedb_client::client::Connection;
 use edgedb_client::errors::{Error, QueryError};
 use edgedb_derive::Queryable;
@@ -31,6 +32,7 @@ use crate::migrations::print_error::print_migration_error;
 use crate::migrations::prompt;
 use crate::migrations::source_map::{Builder, SourceMap};
 use crate::platform::tmp_file_name;
+use crate::print;
 use crate::print::style::Styler;
 use crate::question;
 
@@ -239,7 +241,7 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
         }
     };
     if descr.confirmed.is_empty() && !options.allow_empty {
-        eprintln!("No schema changes detected.");
+        print::warn("No schema changes detected.");
         return Err(ExitCode::new(4))?;
     }
     write_migration(ctx, &descr, index, false).await?;
@@ -372,7 +374,9 @@ impl InteractiveMigration<'_> {
                         return Err(SplitMigration.into());
                     }
                     Quit => {
-                        eprintln!("Migration aborted; no results are saved.");
+                        print::error(
+                            "Migration aborted; no results are saved."
+                        );
                         return Err(ExitCode::new(0))?;
                     }
                 }
@@ -386,7 +390,16 @@ impl InteractiveMigration<'_> {
                     if e.is::<QueryError>() {
                         print_query_error(&e, &text, false)?;
                     } else {
-                        eprintln!("Error applying statement: {:#}", e);
+                        if print::use_color() {
+                            eprintln!(
+                                "{}: {:#}",
+                                "Error applying statement"
+                                    .bold().light_red(),
+                                e.to_string().bold().white(),
+                            );
+                        } else {
+                            eprintln!("Error applying statement: {:#}", e);
+                        }
                     }
                     eprintln!("Rolling back last operation...");
                     self.rollback().await?;
@@ -421,7 +434,7 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
     let descr = InteractiveMigration::new(cli).run().await?;
 
     if descr.confirmed.is_empty() && !options.allow_empty {
-        eprintln!("No schema changes detected.");
+        print::warn("No schema changes detected.");
         return Err(ExitCode::new(4))?;
     }
     write_migration(ctx, &descr, index, true).await?;
@@ -471,7 +484,16 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
     drop(file);
     fs::rename(&tmp_file, &filepath).await?;
     if verbose {
-        eprintln!("Created {}, id: {}", filepath.display(), id);
+        if print::use_color() {
+            eprintln!(
+                "{} {}, id: {}",
+                "Created".bold().light_green(),
+                filepath.display().to_string().bold().white(),
+                id,
+            );
+        } else {
+            eprintln!("Created {}, id: {}", filepath.display(), id);
+        }
     }
     Ok(())
 }

@@ -3,6 +3,7 @@ use std::sync::{Mutex, Arc};
 
 use anyhow::Context;
 use async_std::task;
+use colorful::Colorful;
 use edgedb_client::{verify_server_cert, Builder};
 use edgedb_client::errors::PasswordRequired;
 use pem;
@@ -15,6 +16,7 @@ use crate::connect::Connector;
 use crate::hint::HintedError;
 use crate::options::{Options, ConnectionOptions};
 use crate::options::{conn_params, load_tls_options, ProjectNotFound};
+use crate::print;
 use crate::{question, credentials};
 use crate::server::reset_password::write_credentials;
 use crate::server::options::Link;
@@ -87,10 +89,10 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                 );
                 if self.trust_tls_cert {
                     if !self.quiet {
-                        eprintln!(
+                        print::warn(format!(
                             "Trusting unknown server certificate: {:?}",
                             fingerprint,
-                        );
+                        ));
                     }
                 } else if self.non_interactive {
                     return Err(e);
@@ -228,7 +230,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     if cred_path.exists() {
         if cmd.overwrite {
             if !cmd.quiet {
-                eprintln!("Overwriting {}", cred_path.display());
+                print::warn(format!("Overwriting {}", cred_path.display()));
             }
         } else if cmd.non_interactive {
             anyhow::bail!("File {} exists; abort.", cred_path.display());
@@ -245,10 +247,15 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
 
     write_credentials(&cred_path, &creds)?;
     if !cmd.quiet {
+        let mut msg = "Successfully linked to remote instance.".to_string();
+        if print::use_color() {
+            msg = format!("{}", msg.bold().light_green());
+        }
         eprintln!(
-            "Successfully linked to remote instance. To connect run:\
+            "{} To connect run:\
             \n  edgedb -I {}",
-            instance_name,
+            msg,
+            instance_name.escape_default(),
         );
     }
     Ok(())
