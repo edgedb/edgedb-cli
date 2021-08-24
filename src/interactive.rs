@@ -24,6 +24,7 @@ use edgeql_parser::preparser::{self, full_statement};
 
 use crate::commands::{backslash, ExitCode};
 use crate::config::Config;
+use crate::echo;
 use crate::options::Options;
 use crate::print::{self, PrintError};
 use crate::prompt;
@@ -31,6 +32,7 @@ use crate::repl;
 use crate::variables::input_variables;
 use crate::error_display::print_query_error;
 use crate::outputs::tab_separated;
+use crate::print::Highlight;
 
 
 const QUERY_OPT_IMPLICIT_LIMIT: u16 = 0xFF01;
@@ -122,23 +124,27 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         connection: None,
         initial_text: "".into(),
     };
-    let handle = task::spawn(_main(options, state));
+    let handle = task::spawn(_main(options, state, cfg));
     prompt::main(repl_wr, control_rd)?;
     task::block_on(handle)?;
     Ok(())
 }
 
-pub async fn _main(options: Options, mut state: repl::State)
+pub async fn _main(options: Options, mut state: repl::State, cfg: Config)
     -> anyhow::Result<()>
 {
     let mut conn = state.conn_params.connect().await?;
     let fetched_version = conn.get_version().await?;
-    println!("{} {} (repl {})",
-        "EdgeDB".light_gray(),
-        fetched_version[..].light_gray(),
-        env!("CARGO_PKG_VERSION"));
+    echo!("EdgeDB".light_gray(), fetched_version[..].light_gray(),
+        format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade());
     state.last_version = Some(fetched_version);
-    println!("{}", r#"Type \help for help, \quit to quit."#.light_gray());
+    if let Some(config_path) = &cfg.file_name {
+        echo!(
+            format_args!("Applied {} configuration file",
+                config_path.display(),
+            ).fade());
+    }
+    echo!(r#"Type \help for help, \quit to quit."#.light_gray());
     state.set_history_limit(state.history_limit).await?;
     state.connection = Some(conn);
     match _interactive_main(&options, &mut state).await {

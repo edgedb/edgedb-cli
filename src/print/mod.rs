@@ -7,6 +7,7 @@ use async_std::stream::{Stream, StreamExt};
 use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
 
+mod color;
 mod native;
 mod json;
 mod buffer;
@@ -17,6 +18,7 @@ pub mod style;
 
 pub(in crate::print) use native::FormatExt;
 pub(in crate::print) use formatter::Formatter;
+pub use color::Highlight;
 use formatter::ColorfulExt;
 use buffer::{Exception, WrapErr, UnwrapExc, Delim};
 use stream::Output;
