@@ -164,6 +164,13 @@ impl VersionQuery {
     pub fn distribution_matches(&self, distr: &DistributionRef) -> bool {
         self.matches(distr.major_version())
     }
+    pub fn install_option(&self) -> String {
+        match self {
+            VersionQuery::Nightly => "--nightly".into(),
+            VersionQuery::Stable(None) => "".into(),
+            VersionQuery::Stable(Some(ver)) => format!("--version={}", ver),
+        }
+    }
 }
 
 impl fmt::Display for VersionQuery {
