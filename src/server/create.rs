@@ -13,6 +13,7 @@ use prettytable::{Table, Row, Cell};
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
+use crate::hint::HintExt;
 use crate::credentials;
 use crate::platform::config_dir;
 use crate::print;
@@ -160,22 +161,30 @@ pub fn find_distribution<'x>(current_os: &'x dyn CurrentOs,
 {
     if let Some(ref meth) = method_opt {
         let method = current_os.make_method(meth, &avail_methods)?;
-        let mut max_ver = None::<DistributionRef>;
-        for distr in method.installed_versions()? {
-            if let Some(ref mut max_ver) = max_ver {
-                if (max_ver.major_version(), max_ver.version()) <
-                    (distr.major_version(), max_ver.version()) {
-                    *max_ver = distr;
-                }
-            } else {
-                max_ver = Some(distr);
-            }
-        }
-        if let Some(ver) = max_ver {
-            Ok((ver, meth.clone(), method))
+        if version_query.is_nightly() || version_query.is_specific() {
+            let distr = method.get_version(&version_query)
+                .with_hint(|| format!("Try: edgedb server install {} {}",
+                                      meth.option(),
+                                      version_query.install_option()))?;
+            Ok((distr, meth.clone(), method))
         } else {
-            anyhow::bail!("Cannot find any installed version. Run: \n  \
-                edgedb server install {}", meth.option());
+            let mut max_ver = None::<DistributionRef>;
+            for distr in method.installed_versions()? {
+                if let Some(ref mut max_ver) = max_ver {
+                    if (max_ver.major_version(), max_ver.version()) <
+                        (distr.major_version(), max_ver.version()) {
+                        *max_ver = distr;
+                    }
+                } else {
+                    max_ver = Some(distr);
+                }
+            }
+            if let Some(ver) = max_ver {
+                Ok((ver, meth.clone(), method))
+            } else {
+                anyhow::bail!("Cannot find any installed version. Run: \n  \
+                    edgedb server install {}", meth.option());
+            }
         }
     } else if version_query.is_nightly() || version_query.is_specific() {
         let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
