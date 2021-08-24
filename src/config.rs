@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use fn_error_context::context;
 
@@ -10,6 +10,8 @@ use crate::repl;
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 #[serde(rename_all="kebab-case")]
 pub struct Config {
+    #[serde(skip, default)]
+    pub file_name: Option<PathBuf>,
     pub shell: ShellConfig,
 }
 
@@ -47,6 +49,7 @@ pub fn get_config() -> anyhow::Result<Config> {
 fn read_config(path: impl AsRef<Path>) -> anyhow::Result<Config> {
     let text = fs::read_to_string(&path)?;
     let mut toml = toml::de::Deserializer::new(&text);
-    let val: Config = serde_path_to_error::deserialize(&mut toml)?;
+    let mut val: Config = serde_path_to_error::deserialize(&mut toml)?;
+    val.file_name = Some(path.as_ref().to_path_buf());
     Ok(val)
 }
