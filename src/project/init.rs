@@ -164,7 +164,7 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
     if options.non_interactive {
         let exists = instances.contains(&default_name);
         if exists {
-            log::warn!("Instance {:?} already exists", default_name);
+            log::warn!("Linking project to the existing tnstance {:?}", default_name);
         }
         return Ok((default_name, exists))
     }
