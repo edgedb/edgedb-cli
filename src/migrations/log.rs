@@ -3,7 +3,6 @@ use std::collections::{BTreeSet, BTreeMap};
 use async_std::prelude::StreamExt;
 use edgedb_client::client::Connection;
 use edgedb_derive::Queryable;
-use edgedb_protocol::value::Value;
 
 use crate::commands::Options;
 use crate::commands::parser::MigrationLog;
@@ -63,9 +62,9 @@ pub async fn log_db(cli: &mut Connection, _common: &Options,
     options: &MigrationLog)
     -> Result<(), anyhow::Error>
 {
-    let mut items = cli.query::<Migration>(r###"
+    let mut items = cli.query::<Migration, _>(r###"
             SELECT schema::Migration {name, parent_names := .parents.name }
-        "###, &Value::empty_tuple()).await?;
+        "###, &()).await?;
     let mut migrations = Vec::new();
     while let Some(item) = items.next().await.transpose()? {
         migrations.push(item);

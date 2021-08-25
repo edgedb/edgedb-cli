@@ -8,7 +8,6 @@ use async_std::io::{self, Write, prelude::WriteExt};
 
 use edgedb_protocol::client_message::{ClientMessage, Dump};
 use edgedb_protocol::server_message::ServerMessage;
-use edgedb_protocol::value::Value;
 use edgedb_client::client::Connection;
 use edgedb_client::errors::{Error, ErrorKind, ProtocolOutOfOrderError};
 
@@ -163,7 +162,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
 async fn get_text(cli: &mut Connection, query: &str)
     -> Result<String, anyhow::Error>
 {
-    let mut response = cli.query(query, &Value::empty_tuple()).await?;
+    let mut response = cli.query(query, &()).await?;
     let text = loop {
         if let Some(text) = response.next().await.transpose()? {
             break text;

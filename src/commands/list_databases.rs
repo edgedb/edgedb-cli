@@ -1,7 +1,6 @@
 use async_std::prelude::StreamExt;
 use async_std::stream::from_iter;
 
-use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use crate::commands::list;
 use crate::server::version::Version;
@@ -15,12 +14,12 @@ pub async fn get_databases(cli: &mut Connection)
     let mut items = if Version(server_ver) < Version("1.0-alpha.6") {
         cli.query(
             "SELECT (SELECT sys::Database FILTER .name != 'edgedb0').name",
-            &Value::empty_tuple(),
+            &(),
         ).await?
     } else {
         cli.query(
             "SELECT (SELECT sys::Database FILTER NOT .builtin).name",
-            &Value::empty_tuple(),
+            &(),
         ).await?
     };
     let mut databases: Vec<String> = Vec::new();

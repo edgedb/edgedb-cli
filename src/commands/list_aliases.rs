@@ -56,7 +56,7 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         {filter}
         ORDER BY .name;
     "###, filter=filter);
-    let mut items = cli.query::<Alias>(&query, &pat).await?;
+    let mut items = cli.query::<Alias, _>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);

@@ -19,7 +19,6 @@ use edgedb_client::errors::{Error, ErrorKind};
 use edgedb_client::errors::{ProtocolOutOfOrderError};
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
 use edgedb_protocol::server_message::ServerMessage;
-use edgedb_protocol::value::Value;
 use edgeql_parser::helpers::quote_name;
 use edgeql_parser::preparser::{is_empty};
 
@@ -86,7 +85,7 @@ async fn read_packet(input: &mut Input, expected: PacketType)
 
 #[context("error checking if DB is empty")]
 async fn is_non_empty_db(cli: &mut Connection) -> Result<bool, anyhow::Error> {
-    let mut query = cli.query::<i64>(r###"SELECT
+    let mut query = cli.query::<i64, _>(r###"SELECT
             count(
                 schema::Module
                 FILTER NOT .builtin AND NOT .name = "default"
@@ -94,7 +93,7 @@ async fn is_non_empty_db(cli: &mut Connection) -> Result<bool, anyhow::Error> {
                 schema::Object
                 FILTER .name LIKE "default::%"
             )
-        "###, &Value::empty_tuple()).await?;
+        "###, &()).await?;
     let mut non_empty = false;
     while let Some(num) = query.next().await.transpose()? {
         if num > 0 {

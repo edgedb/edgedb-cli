@@ -32,7 +32,7 @@ fn skip_revisions(migrations: &mut LinkedHashMap<String, MigrationFile>,
 async fn check_revision_in_db(cli: &mut Connection, prefix: &str)
     -> Result<Option<String>, anyhow::Error>
 {
-    let mut items = cli.query::<String>(r###"
+    let mut items = cli.query::<String, _>(r###"
         SELECT name := schema::Migration.name
         FILTER name LIKE <str>$0
         "###, &Value::Tuple(vec![
@@ -62,7 +62,7 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
             SELECT name := Last.name
-        "###, &Value::empty_tuple()).await?;
+        "###, &()).await?;
 
     let target_rev = if let Some(prefix) = &migrate.to_revision {
         let db_rev = check_revision_in_db(cli, prefix).await?;
