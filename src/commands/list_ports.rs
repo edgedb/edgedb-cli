@@ -3,7 +3,6 @@ use async_std::prelude::StreamExt;
 use prettytable::{Table, Row, Cell};
 
 use edgedb_derive::Queryable;
-use edgedb_protocol::value::Value;
 use crate::commands::Options;
 use edgedb_client::client::Connection;
 use crate::table;
@@ -23,7 +22,7 @@ struct PortRow {
 pub async fn list_ports<'x>(cli: &mut Connection, options: &Options)
     -> Result<(), anyhow::Error>
 {
-    let mut items = cli.query::<PortRow>(r###"
+    let mut items = cli.query::<PortRow, _>(r###"
         SELECT cfg::Port {
             addresses := to_str(array_agg(.address), ', '),
             concurrency,
@@ -32,7 +31,7 @@ pub async fn list_ports<'x>(cli: &mut Connection, options: &Options)
             protocol,
             user,
         }
-    "###, &Value::empty_tuple()).await?;
+    "###, &()).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);

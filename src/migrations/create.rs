@@ -11,7 +11,6 @@ use edgedb_client::client::Connection;
 use edgedb_client::errors::{Error, QueryError};
 use edgedb_derive::Queryable;
 use edgedb_protocol::queryable::Queryable;
-use edgedb_protocol::value::Value;
 use edgeql_parser::hash::Hasher;
 use edgeql_parser::expr;
 use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
@@ -117,7 +116,7 @@ async fn query_row<R>(cli: &mut Connection, text: &str)
 {
     let text = text.as_ref();
     log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
-    cli.query_row(text, &Value::empty_tuple()).await
+    cli.query_row(text, &()).await
 }
 
 #[context("could not read schema file {}", path.display())]

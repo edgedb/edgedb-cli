@@ -13,9 +13,9 @@ use crate::print;
 async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
     -> Result<(), anyhow::Error>
 {
-    let data = cli.query_row::<CurrentMigration>(
+    let data = cli.query_row::<CurrentMigration, _>(
         "DESCRIBE CURRENT MIGRATION AS JSON",
-        &Value::empty_tuple(),
+        &(),
     ).await?;
     if !data.confirmed.is_empty() || !data.complete {
         if !status.quiet {

@@ -13,13 +13,15 @@ use async_ctrlc::CtrlC;
 use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
 
+use edgedb_client::errors::{ErrorKind, ClientEncodingError};
 use edgedb_protocol::client_message::ClientMessage;
-use edgedb_protocol::client_message::{Prepare, IoFormat, Cardinality};
 use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
 use edgedb_protocol::client_message::{Execute};
+use edgedb_protocol::client_message::{Prepare, IoFormat, Cardinality};
+use edgedb_protocol::error_response::display_error;
+use edgedb_protocol::query_arg::{Encoder, QueryArgs};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
-use edgedb_protocol::error_response::display_error;
 use edgeql_parser::preparser::{self, full_statement};
 
 use crate::commands::{backslash, ExitCode};
@@ -355,8 +357,8 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
     if options.debug_print_codecs {
         println!("Codec {:#?}", codec);
     }
-    let incodec = indesc.build_codec()?;
     if options.debug_print_codecs {
+        let incodec = indesc.build_codec()?;
         println!("Input Codec {:#?}", incodec);
     }
 
@@ -373,7 +375,10 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
 
     let start_execute = Instant::now();
     let mut arguments = BytesMut::with_capacity(8);
-    incodec.encode(&mut arguments, &input)?;
+    input.encode(&mut Encoder::new(
+        &indesc.as_query_arg_context(),
+        &mut arguments,
+    )).map_err(ClientEncodingError::with_source)?;
 
     seq.send_messages(&[
         ClientMessage::Execute(Execute {

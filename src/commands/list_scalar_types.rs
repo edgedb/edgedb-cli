@@ -55,7 +55,7 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
         ORDER BY .name;
     "###, filter=filter);
 
-    let mut items = cli.query::<ScalarType>(&query, &pat).await?;
+    let mut items = cli.query::<ScalarType, _>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let term_width = term_size::dimensions_stdout()
             .map(|(w, _h)| w).unwrap_or(80);

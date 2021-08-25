@@ -8,7 +8,6 @@ use async_std::fs::{File as AsyncFile};
 
 use bytes::BytesMut;
 use edgeql_parser::preparser;
-use edgedb_protocol::value::Value;
 
 use crate::options::Options;
 use crate::options::Query;
@@ -100,9 +99,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, _options: &Options,
 
     match fmt {
         OutputFormat::TabSeparated => {
-            let mut items = match
-                conn.query_dynamic(stmt, &Value::empty_tuple()).await
-            {
+            let mut items = match conn.query_dynamic(stmt, &()).await {
                 Ok(items) => items,
                 Err(e) if e.is::<NoResultExpected>() => {
                     print::completion(e.initial_message()
@@ -119,9 +116,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, _options: &Options,
             }
         }
         OutputFormat::Default => {
-            let items = match
-                conn.query_dynamic(stmt, &Value::empty_tuple()).await
-            {
+            let items = match conn.query_dynamic(stmt, &()).await {
                 Ok(items) => items,
                 Err(e) if e.is::<NoResultExpected>() => {
                     print::completion(e.initial_message()
@@ -146,9 +141,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, _options: &Options,
             }
         }
         OutputFormat::JsonPretty | OutputFormat::JsonLines => {
-            let mut items = match
-                conn.query_json_els(stmt, &Value::empty_tuple()).await
-            {
+            let mut items = match conn.query_json_els(stmt, &()).await {
                 Ok(items) => items,
                 Err(e) if e.is::<NoResultExpected>() => {
                     print::completion(e.initial_message()
@@ -175,9 +168,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, _options: &Options,
             }
         }
         OutputFormat::Json => {
-            let mut items = match
-                conn.query_json(stmt, &Value::empty_tuple()).await
-            {
+            let mut items = match conn.query_json(stmt, &()).await {
                 Ok(items) => items,
                 Err(e) if e.is::<NoResultExpected>() => {
                     print::completion(e.initial_message()

@@ -44,7 +44,7 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
         ORDER BY .name;
     "###, filter=filter.join(") AND ("));
 
-    let mut items = cli.query::<TypeRow>(&query, &pat).await?;
+    let mut items = cli.query::<TypeRow, _>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let term_width = term_size::dimensions_stdout()
             .map(|(w, _h)| w).unwrap_or(80);

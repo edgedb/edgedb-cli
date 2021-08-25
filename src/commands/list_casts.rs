@@ -45,7 +45,7 @@ pub async fn list_casts<'x>(cli: &mut Connection, options: &Options,
         {filter}
         ORDER BY .kind THEN .from_type.name THEN .to_type.name;
     "###, filter=filter);
-    let mut items = cli.query::<Cast>(&query, &pat).await?;
+    let mut items = cli.query::<Cast, _>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);

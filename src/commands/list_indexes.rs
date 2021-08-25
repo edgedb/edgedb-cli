@@ -69,7 +69,7 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         {filter}
         ORDER BY .subject_name;
     "###, filter=filter);
-    let mut items = cli.query::<Index>(&query, &pat).await?;
+    let mut items = cli.query::<Index, _>(&query, &pat).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
