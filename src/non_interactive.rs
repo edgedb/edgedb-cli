@@ -7,16 +7,17 @@ use async_std::io::prelude::WriteExt;
 use async_std::fs::{File as AsyncFile};
 
 use bytes::BytesMut;
+use edgedb_client::client::Connection;
+use edgedb_client::errors::NoResultExpected;
+use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
 
 use crate::options::Options;
 use crate::options::Query;
-use crate::repl::OutputFormat;
-use crate::print::{self, PrintError};
-use crate::statement::{ReadStatement, EndOfFile};
-use edgedb_client::client::Connection;
-use edgedb_client::errors::NoResultExpected;
 use crate::outputs::tab_separated;
+use crate::print::{self, PrintError};
+use crate::repl::OutputFormat;
+use crate::statement::{ReadStatement, EndOfFile};
 
 pub async fn main(q: &Query, options: &Options)
     -> Result<(), anyhow::Error>
@@ -99,7 +100,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, _options: &Options,
 
     match fmt {
         OutputFormat::TabSeparated => {
-            let mut items = match conn.query_dynamic(stmt, &()).await {
+            let mut items = match conn.query::<Value, _>(stmt, &()).await {
                 Ok(items) => items,
                 Err(e) if e.is::<NoResultExpected>() => {
                     print::completion(e.initial_message()
@@ -116,7 +117,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, _options: &Options,
             }
         }
         OutputFormat::Default => {
-            let items = match conn.query_dynamic(stmt, &()).await {
+            let items = match conn.query::<Value, _>(stmt, &()).await {
                 Ok(items) => items,
                 Err(e) if e.is::<NoResultExpected>() => {
                     print::completion(e.initial_message()
