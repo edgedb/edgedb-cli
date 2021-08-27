@@ -22,6 +22,7 @@ use edgeql_parser::preparser::full_statement;
 use edgedb_protocol::value::Value;
 use crate::commands::backslash;
 use crate::completion;
+use crate::print::Highlight;
 use crate::print::style::Styler;
 use crate::highlight;
 use crate::prompt::variable::VariableInput;
@@ -37,6 +38,7 @@ pub enum Control {
     ParameterInput {
         name: String,
         var_type: Arc<dyn VariableInput>,
+        optional: bool,
         initial: String,
     },
     ShowHistory,
@@ -288,12 +290,16 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
             Ok(Control::EdgeqlInput { prompt, initial }) => {
                 edgeql_input(&prompt, &mut editor, &data, &initial)?;
             }
-            Ok(Control::ParameterInput { name, var_type, initial })
+            Ok(Control::ParameterInput { name, var_type, optional, initial })
             => {
                 let mut initial = initial;
                 let prompt = format!(
-                    "Parameter <{}>${}: ",
-                    &var_type.type_name(), &name);
+                    "Parameter <{}>${}{}: ",
+                    &var_type.type_name(), &name,
+                    if optional {
+                        " (Ctrl+D for empty set `{}`)".fade().to_string()
+                    } else { String::new() },
+                );
                 let mut editor = var_editor(&config, &var_type);
                 let (text, value) = loop {
                     let text = match
@@ -301,8 +307,14 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                     {
                         Ok(text) => text,
                         Err(ReadlineError::Eof) => {
-                            task::block_on(data.send(Input::Eof))?;
-                            continue 'outer;
+                            if optional {
+                                task::block_on(data.send(Input::Eof))?;
+                                continue 'outer;
+                            } else {
+                                println!("Optional values are not supported \
+                                    for this parameter. Use Ctrl+C to quit.");
+                                continue;
+                            }
                         }
                         Err(ReadlineError::Interrupted) => {
                             task::block_on(data.send(Input::Interrupt))?;

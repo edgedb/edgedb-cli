@@ -66,13 +66,15 @@ pub struct State {
 
 impl PromptRpc {
     pub async fn variable_input(&mut self,
-        name: &str, var_type: Arc<dyn VariableInput>, initial: &str)
+        name: &str, var_type: Arc<dyn VariableInput>, optional: bool,
+        initial: &str)
         -> anyhow::Result<prompt::Input>
     {
         self.control.send(
                 prompt::Control::ParameterInput {
                     name: name.to_owned(),
                     var_type,
+                    optional,
                     initial: initial.to_owned(),
                 }
             ).await

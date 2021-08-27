@@ -21,22 +21,36 @@ pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
         return Ok(Value::Tuple(Vec::new()));
     }
     match desc.root() {
-        Descriptor::Tuple(tuple) => {
+        Descriptor::Tuple(tuple) if desc.proto().is_at_most(0, 11) => {
             let mut val = Vec::with_capacity(tuple.element_types.len());
             for (idx, el) in tuple.element_types.iter().enumerate() {
-                val.push(input_item(&format!("{}", idx),
-                    desc.get(*el)?, desc, state).await?);
+                val.push(input_item(
+                    &format!("{}", idx), desc.get(*el)?, desc, state, false,
+                ).await?.expect("no optional"));
             }
             return Ok(Value::Tuple(val));
         }
-        Descriptor::NamedTuple(tuple) => {
+        Descriptor::NamedTuple(tuple) if desc.proto().is_at_most(0, 11) => {
             let mut fields = Vec::with_capacity(tuple.elements.len());
             let shape = tuple.elements[..].into();
             for el in tuple.elements.iter() {
-                fields.push(input_item(&el.name,
-                    desc.get(el.type_pos)?, desc, state).await?);
+                fields.push(input_item(
+                    &el.name, desc.get(el.type_pos)?, desc, state, false
+                ).await?.expect("no optional"));
             }
             return Ok(Value::NamedTuple { shape, fields });
+        }
+        Descriptor::ObjectShape(obj) if desc.proto().is_at_least(0, 12) => {
+            let mut fields = Vec::with_capacity(obj.elements.len());
+            let shape = obj.elements[..].into();
+            for el in obj.elements.iter() {
+                let optional = el.cardinality
+                    .map(|c| c.is_optional()).unwrap_or(false);
+                fields.push(input_item(
+                    &el.name, desc.get(el.type_pos)?, desc, state, optional,
+                ).await?);
+            }
+            return Ok(Value::Object { shape, fields });
         }
         root => {
             return Err(anyhow::anyhow!(
@@ -46,8 +60,8 @@ pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
 }
 
 async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
-    state: &mut repl::PromptRpc)
-    -> Result<Value, anyhow::Error>
+    state: &mut repl::PromptRpc, optional: bool)
+    -> Result<Option<Value>, anyhow::Error>
 {
     match item {
         Descriptor::Scalar(s) => {
@@ -73,11 +87,13 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
                         "Unimplemented input type {}", s.id))
             };
 
-            let val = match state.variable_input(name, var_type, "").await? {
-                | prompt::Input::Value(val) => val,
+            let val = match
+                state.variable_input(name, var_type, optional, "").await?
+            {
+                | prompt::Input::Value(val) => Some(val),
                 | prompt::Input::Text(_) => unreachable!(),
-                | prompt::Input::Interrupt
-                | prompt::Input::Eof => Err(Canceled)?,
+                | prompt::Input::Interrupt => Err(Canceled)?,
+                | prompt::Input::Eof => None,
             };
             Ok(val)
         }
