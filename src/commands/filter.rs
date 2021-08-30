@@ -1,17 +1,25 @@
-use edgedb_protocol::value::Value;
+use std::borrow::Cow;
 
-pub fn pattern_to_value(pattern: &Option<String>, case_sensitive: bool)
-    -> Value
+
+use edgedb_client::client::Connection;
+use edgedb_client::reader::QueryResponse;
+use edgedb_client::errors::Error;
+use edgedb_protocol::QueryResult;
+
+
+pub async fn query<'x, R>(cli: &'x mut Connection, query: &str,
+    pattern: &Option<String>, case_sensitive: bool)
+    -> Result<QueryResponse<'x, R>, Error>
+    where R: QueryResult
 {
-    match pattern {
-        Some(pattern) => {
-            let pattern = if case_sensitive {
-                pattern.clone()
-            } else {
-                String::from("(?i)") + pattern
-            };
-            Value::Tuple(vec![Value::Str(pattern)])
-        }
-        None => Value::Tuple(Vec::new()),
+    if let Some(pat) = pattern {
+        let pat = if case_sensitive {
+            Cow::Borrowed(pat)
+        } else {
+            Cow::Owned(String::from("(?i)") + pat)
+        };
+        cli.query(&query, &(&pat[..],)).await
+    } else {
+        cli.query(&query, &()).await
     }
 }

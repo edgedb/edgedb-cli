@@ -20,7 +20,6 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
     pattern: &Option<String>, system: bool, case_sensitive: bool)
     -> Result<(), anyhow::Error>
 {
-    let pat = filter::pattern_to_value(pattern, case_sensitive);
     let mut filter = Vec::with_capacity(3);
     filter.push("NOT .is_compound_type AND NOT .is_from_alias");
     if !system {
@@ -44,7 +43,8 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
         ORDER BY .name;
     "###, filter=filter.join(") AND ("));
 
-    let mut items = cli.query::<TypeRow, _>(&query, &pat).await?;
+    let mut items = filter::query::<TypeRow>(cli,
+        &query, pattern, case_sensitive).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let term_width = term_size::dimensions_stdout()
             .map(|(w, _h)| w).unwrap_or(80);

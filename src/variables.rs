@@ -17,11 +17,12 @@ pub struct Canceled;
 pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
     -> Result<Value, anyhow::Error>
 {
+    // only for protocol < 0.12
     if desc.is_empty_tuple() {
         return Ok(Value::Tuple(Vec::new()));
     }
     match desc.root() {
-        Descriptor::Tuple(tuple) if desc.proto().is_at_most(0, 11) => {
+        Some(Descriptor::Tuple(tuple)) if desc.proto().is_at_most(0, 11) => {
             let mut val = Vec::with_capacity(tuple.element_types.len());
             for (idx, el) in tuple.element_types.iter().enumerate() {
                 val.push(input_item(
@@ -30,7 +31,8 @@ pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
             }
             return Ok(Value::Tuple(val));
         }
-        Descriptor::NamedTuple(tuple) if desc.proto().is_at_most(0, 11) => {
+        Some(Descriptor::NamedTuple(tuple)) if desc.proto().is_at_most(0, 11)
+        => {
             let mut fields = Vec::with_capacity(tuple.elements.len());
             let shape = tuple.elements[..].into();
             for el in tuple.elements.iter() {
@@ -40,7 +42,8 @@ pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
             }
             return Ok(Value::NamedTuple { shape, fields });
         }
-        Descriptor::ObjectShape(obj) if desc.proto().is_at_least(0, 12) => {
+        Some(Descriptor::ObjectShape(obj)) if desc.proto().is_at_least(0, 12)
+        => {
             let mut fields = Vec::with_capacity(obj.elements.len());
             let shape = obj.elements[..].into();
             for el in obj.elements.iter() {
@@ -52,9 +55,13 @@ pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
             }
             return Ok(Value::Object { shape, fields });
         }
-        root => {
+        Some(root) => {
             return Err(anyhow::anyhow!(
                 "Unknown input type descriptor: {:?}", root));
+        }
+        // Since protocol 0.12
+        None => {
+            return Ok(Value::Nothing);
         }
     }
 }
