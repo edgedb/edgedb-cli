@@ -368,7 +368,7 @@ pub fn error(line: impl fmt::Display) {
             format!("{:#}", line).bold().white(),
         );
     } else {
-        eprintln!("edgedb error: {}", line);
+        eprintln!("edgedb error: {:#}", line);
     }
 }
 
