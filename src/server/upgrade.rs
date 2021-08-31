@@ -82,10 +82,9 @@ fn interpret_options(options: &Upgrade) -> anyhow::Result<ToDo> {
         Ok(ToDo::InstanceUpgrade(name.into(), nver))
     } else {
         Err(anyhow::anyhow!("No upgrade operation specified."))
-            .hint("Use one of `--to-latest`, `--to-version` or \
-                      `--to-nightly` to upgrade a specific instance, or use \
-                      `--local-minor` to upgrade the minor version of all \
-                      local instances.")?
+            .hint("Use `--local-minor` to upgrade the minor version of all \
+                   local instances, or specify name of the instance \
+                   to upgrade.")?
     }
 }
 
