@@ -7,16 +7,19 @@ use async_std::io::prelude::WriteExt;
 use async_std::fs::{File as AsyncFile};
 
 use bytes::BytesMut;
-use edgeql_parser::preparser;
 
-use crate::options::Options;
-use crate::options::Query;
-use crate::repl::OutputFormat;
-use crate::print::{self, PrintError};
-use crate::statement::{ReadStatement, EndOfFile};
 use edgedb_client::client::Connection;
 use edgedb_client::errors::NoResultExpected;
+use edgeql_parser::preparser;
+
+use crate::commands::ExitCode;
+use crate::error_display::print_query_error;
+use crate::options::Options;
+use crate::options::Query;
 use crate::outputs::tab_separated;
+use crate::print::{self, PrintError};
+use crate::repl::OutputFormat;
+use crate::statement::{ReadStatement, EndOfFile};
 
 pub async fn main(q: &Query, options: &Options)
     -> Result<(), anyhow::Error>
@@ -87,7 +90,23 @@ async fn interpret_file<T>(file: &mut T, options: &Options, fmt: OutputFormat)
     Ok(())
 }
 
-async fn run_query(conn: &mut Connection, stmt: &str, _options: &Options,
+async fn run_query(conn: &mut Connection, stmt: &str, options: &Options,
+    fmt: OutputFormat)
+    -> Result<(), anyhow::Error>
+{
+    _run_query(conn, stmt, options, fmt).await.map_err(|err| {
+        if let Some(err) = err.downcast_ref::<edgedb_client::errors::Error>() {
+            match print_query_error(&err, stmt, false) {
+                Ok(()) => ExitCode::new(1).into(),
+                Err(e) => e,
+            }
+        } else {
+            err
+        }
+    })
+}
+
+async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
     fmt: OutputFormat)
     -> Result<(), anyhow::Error>
 {

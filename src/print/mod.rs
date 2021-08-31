@@ -369,7 +369,13 @@ pub fn err_marker() -> impl fmt::Display {
 }
 
 pub fn error(line: impl fmt::Display) {
-    eecho!(err_marker(), line.emphasize());
+    let text = format!("{:#}", line);
+    if text.len() > 60 {
+        eecho!(err_marker(), text);
+    } else {
+        // Emphasise only short lines. Long lines with bold look ugly.
+        eecho!(err_marker(), text.emphasize());
+    }
 }
 
 pub fn edgedb_error(err: &edgedb_client::errors::Error, verbose: bool) {
