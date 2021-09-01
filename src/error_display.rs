@@ -11,7 +11,8 @@ use edgedb_protocol::error_response::FIELD_POSITION_START;
 use edgedb_protocol::error_response::FIELD_POSITION_END;
 use edgedb_protocol::error_response::{FIELD_HINT, FIELD_DETAILS};
 use edgedb_protocol::error_response::FIELD_SERVER_TRACEBACK;
-use edgedb_protocol::error_response::display_error;
+
+use crate::print;
 
 
 pub fn print_query_error(err: &Error, query: &str, verbose: bool)
@@ -26,7 +27,7 @@ pub fn print_query_error(err: &Error, query: &str, verbose: bool)
     let (pstart, pend) = match (pstart, pend) {
         (Some(s), Some(e)) => (s, e),
         _ => {
-            eprintln!("{}", display_error(err, verbose));
+            print::edgedb_error(&err, verbose);
             return Ok(());
         }
     };

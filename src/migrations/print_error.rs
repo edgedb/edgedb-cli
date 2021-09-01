@@ -12,10 +12,10 @@ use edgedb_client::errors::{Error, InternalServerError};
 use edgedb_protocol::error_response::FIELD_POSITION_END;
 use edgedb_protocol::error_response::FIELD_POSITION_START;
 use edgedb_protocol::error_response::{FIELD_HINT, FIELD_DETAILS};
-use edgedb_protocol::error_response::display_error;
 use edgeql_parser::tokenizer::TokenStream;
 use edgedb_protocol::error_response::FIELD_SERVER_TRACEBACK;
 
+use crate::print;
 use crate::migrations::source_map::SourceMap;
 use crate::migrations::create::SourceName;
 
@@ -61,7 +61,7 @@ pub fn print_migration_error(err: &Error, source_map: &SourceMap<SourceName>)
         match get_error_info(err, source_map) {
             Some(pair) => pair,
             None => {
-                eprintln!("{}", display_error(err, false));
+                print::edgedb_error(err, false);
                 return Ok(());
             }
         };

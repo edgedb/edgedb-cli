@@ -7,6 +7,10 @@ use async_std::stream::{Stream, StreamExt};
 use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
 
+use edgedb_protocol::error_response::display_error;
+
+use crate::eecho;
+
 mod color;
 mod native;
 mod json;
@@ -360,16 +364,23 @@ pub fn prompt(line: impl fmt::Display) {
     }
 }
 
+pub fn err_marker() -> impl fmt::Display {
+    "edgedb error:".err_marker()
+}
+
 pub fn error(line: impl fmt::Display) {
-    if use_color() {
-        eprintln!(
-            "{}: {}",
-            "edgedb error".bold().light_red(),
-            format!("{:#}", line).bold().white(),
-        );
+    let text = format!("{:#}", line);
+    if text.len() > 60 {
+        eecho!(err_marker(), text);
     } else {
-        eprintln!("edgedb error: {}", line);
+        // Emphasise only short lines. Long lines with bold look ugly.
+        eecho!(err_marker(), text.emphasize());
     }
+}
+
+pub fn edgedb_error(err: &edgedb_client::errors::Error, verbose: bool) {
+    // Note: not using `error()` as display_error has markup inside
+    eecho!(err_marker(), display_error(err, verbose));
 }
 
 pub fn success(line: impl fmt::Display) {

@@ -13,6 +13,7 @@ use crate::commands::parser::Migrate;
 use crate::migrations::context::Context;
 use crate::migrations::migration::{self, MigrationFile};
 use crate::print;
+use crate::error_display::print_query_error;
 
 
 fn skip_revisions(migrations: &mut LinkedHashMap<String, MigrationFile>,
@@ -152,7 +153,12 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     for (_, migration) in migrations {
         let data = fs::read_to_string(&migration.path).await
             .context("error re-reading migration file")?;
-        cli.execute(data).await?;
+        cli.execute(&data).await.map_err(|err| {
+            match print_query_error(&err, &data, false) {
+                Ok(()) => ExitCode::new(1).into(),
+                Err(err) => err,
+            }
+        })?;
         if !migrate.quiet {
             if print::use_color() {
                 eprintln!(

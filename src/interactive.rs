@@ -18,7 +18,6 @@ use edgedb_protocol::client_message::ClientMessage;
 use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
 use edgedb_protocol::client_message::{Execute};
 use edgedb_protocol::client_message::{Prepare, IoFormat, Cardinality};
-use edgedb_protocol::error_response::display_error;
 use edgedb_protocol::query_arg::{Encoder, QueryArgs};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
@@ -330,7 +329,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
             }
             ServerMessage::ErrorResponse(err) => {
                 let err = err.into();
-                eprintln!("{}", display_error(&err, state.verbose_errors));
+                print_query_error(&err, statement, state.verbose_errors)?;
                 state.last_error = Some(err.into());
                 seq.err_sync().await?;
                 return Err(QueryError)?;
@@ -598,7 +597,7 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                 } else if err.is::<CleanShutdown>() {
                     return Err(err)?;
                 } else if !err.is::<QueryError>() {
-                    eprintln!("Error: {:#}", err);
+                    print::error(err);
                 }
                 // Don't continue next statements on error
                 break;
