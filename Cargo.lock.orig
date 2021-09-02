@@ -953,7 +953,6 @@ dependencies = [
  "base32",
  "base64 0.13.0",
  "bigdecimal",
- "blake2b_simd",
  "bytes",
  "chrono",
  "clap",
@@ -1057,7 +1056,11 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.1.0"
+<<<<<<< HEAD
 source = "git+https://github.com/edgedb/edgedb-rust#d3f80b0e77a416949040cce70a5d92453c83d42e"
+=======
+source = "git+https://github.com/edgedb/edgedb-rust#b3aa9f170e62b34357a86a7721b2590ebc98461d"
+>>>>>>> f4975d7 (Cleanup of error reporting)
 dependencies = [
  "async-std",
  "bytes",
@@ -1084,7 +1087,11 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
+<<<<<<< HEAD
 source = "git+https://github.com/edgedb/edgedb-rust#d3f80b0e77a416949040cce70a5d92453c83d42e"
+=======
+source = "git+https://github.com/edgedb/edgedb-rust#b3aa9f170e62b34357a86a7721b2590ebc98461d"
+>>>>>>> f4975d7 (Cleanup of error reporting)
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -1095,7 +1102,11 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.1.0"
+<<<<<<< HEAD
 source = "git+https://github.com/edgedb/edgedb-rust#d3f80b0e77a416949040cce70a5d92453c83d42e"
+=======
+source = "git+https://github.com/edgedb/edgedb-rust#b3aa9f170e62b34357a86a7721b2590ebc98461d"
+>>>>>>> f4975d7 (Cleanup of error reporting)
 dependencies = [
  "bytes",
 ]
@@ -1103,7 +1114,11 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
+<<<<<<< HEAD
 source = "git+https://github.com/edgedb/edgedb-rust#d3f80b0e77a416949040cce70a5d92453c83d42e"
+=======
+source = "git+https://github.com/edgedb/edgedb-rust#b3aa9f170e62b34357a86a7721b2590ebc98461d"
+>>>>>>> f4975d7 (Cleanup of error reporting)
 dependencies = [
  "bigdecimal",
  "bytes",

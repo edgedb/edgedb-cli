@@ -41,7 +41,12 @@ impl CurrentOs for Debian {
     fn get_available_methods(&self)
         -> Result<InstallationMethods, anyhow::Error>
     {
-        self.common.get_available_methods()
+        self.common.get_available_methods(false)
+    }
+    fn refresh_available_methods(&self)
+        -> Result<InstallationMethods, anyhow::Error>
+    {
+        self.common.get_available_methods(true)
     }
     fn detect_all(&self) -> serde_json::Value {
         self.unix.detect_all();

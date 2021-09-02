@@ -23,7 +23,10 @@ pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
     fn get_type_name(&self) -> &'static str {
         type_name::<Self>()
     }
-    fn get_available_methods(&self) -> anyhow::Result<InstallationMethods>;
+    fn get_available_methods(&self) -> anyhow::Result<InstallationMethods> {
+        return self.refresh_available_methods()
+    }
+    fn refresh_available_methods(&self) -> anyhow::Result<InstallationMethods>;
     fn detect_all(&self) -> serde_json::Value;
     fn make_method<'x>(&'x self, method: &InstallMethod,
         methods: &InstallationMethods)

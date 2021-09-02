@@ -145,28 +145,46 @@ impl Centos {
         ));
         Ok(operations)
     }
-}
-
-impl CurrentOs for Centos {
-    fn get_available_methods(&self)
+    fn available_methods(&self, refresh: bool)
         -> Result<InstallationMethods, anyhow::Error>
     {
-        let version_supported = self.get_repo(false)?
-            .map(|repo| repo.packages.iter().any(|p| {
-                (p.basename == "edgedb" || p.basename == "edgedb-server")
-                && p.architecture == ARCH
-            }))
-            .unwrap_or(false);
+        let distro_version = self.release.to_string();
+        let version_supported = unix::cache_package_support(
+            "CentOS", &distro_version, ARCH, refresh,
+            || {
+                let found = self.get_repo(false)?
+                    .map(|repo| repo.packages.iter().any(|p| {
+                        (p.basename == "edgedb" ||
+                         p.basename == "edgedb-server")
+                        && p.architecture == ARCH
+                    }))
+                    .unwrap_or(false);
+                Ok(found)
+            },
+        )?;
         Ok(InstallationMethods {
             package: PackageCandidate {
                 supported: version_supported,
                 distro_name: "CentOS".into(),
-                distro_version: self.release.to_string(),
+                distro_version,
                 distro_supported: true,
                 version_supported,
             },
             docker: DockerCandidate::detect()?,
         })
+    }
+}
+
+impl CurrentOs for Centos {
+    fn refresh_available_methods(&self)
+        -> Result<InstallationMethods, anyhow::Error>
+    {
+        self.available_methods(true)
+    }
+    fn get_available_methods(&self)
+        -> Result<InstallationMethods, anyhow::Error>
+    {
+        self.available_methods(false)
     }
     fn detect_all(&self) -> serde_json::Value {
         self.unix.detect_all();

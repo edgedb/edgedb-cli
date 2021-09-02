@@ -61,7 +61,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     let current_os = detect::current_os()?;
-    let avail_methods = current_os.get_available_methods()?;
+    let avail_methods = current_os.refresh_available_methods()?;
     let methods = avail_methods.instantiate_all(&*current_os, false)?;
     let effective_method = options.method.clone()
         .unwrap_or(InstallMethod::Package);

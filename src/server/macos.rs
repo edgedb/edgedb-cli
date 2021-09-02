@@ -67,25 +67,12 @@ pub struct LocalInstance<'a> {
 
 
 impl CurrentOs for Macos {
-    fn get_available_methods(&self)
-        -> Result<InstallationMethods, anyhow::Error>
+    fn refresh_available_methods(&self) -> anyhow::Result<InstallationMethods>
     {
-        let version_supported = self.get_repo(false)?
-            .map(|repo| repo.packages.iter().any(|p| {
-                (p.basename == "edgedb" || p.basename == "edgedb-server")
-                && p.architecture == ARCH
-            }))
-            .unwrap_or(false);
-        Ok(InstallationMethods {
-            package: PackageCandidate {
-                supported: version_supported,
-                distro_name: "MacOS".into(),
-                distro_version: "".into(), // TODO(tailhook)
-                distro_supported: true,
-                version_supported,
-            },
-            docker: DockerCandidate::detect()?,
-        })
+        self.available_methods(true)
+    }
+    fn get_available_methods(&self) -> anyhow::Result<InstallationMethods> {
+        self.available_methods(false)
     }
     fn detect_all(&self) -> serde_json::Value {
         self.unix.detect_all();
@@ -142,6 +129,33 @@ impl Macos {
                 }))
             }).map(|opt| opt.as_ref())
         }
+    }
+    fn available_methods(&self, refresh: bool)
+        -> Result<InstallationMethods, anyhow::Error>
+    {
+        let version_supported = unix::cache_package_support(
+            "MacOS", "", ARCH, refresh,
+            || {
+                let found = self.get_repo(false)?
+                    .map(|repo| repo.packages.iter().any(|p| {
+                        (p.basename == "edgedb" ||
+                         p.basename == "edgedb-server")
+                        && p.architecture == ARCH
+                    }))
+                    .unwrap_or(false);
+                Ok(found)
+            },
+        )?;
+        Ok(InstallationMethods {
+            package: PackageCandidate {
+                supported: version_supported,
+                distro_name: "MacOS".into(),
+                distro_version: "".into(), // TODO(tailhook)
+                distro_supported: true,
+                version_supported,
+            },
+            docker: DockerCandidate::detect()?,
+        })
     }
 }
 

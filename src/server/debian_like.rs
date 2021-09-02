@@ -9,13 +9,14 @@ use async_std::task;
 use serde::Serialize;
 
 use crate::server::detect::{Lazy, ARCH};
+use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
+use crate::server::methods::InstallationMethods;
 use crate::server::package::{RepositoryInfo, PackageCandidate, Package};
 use crate::server::remote;
-use crate::server::methods::InstallationMethods;
+use crate::server::unix;
 use crate::server::version::Version;
-use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 
 
 #[derive(Debug, Serialize)]
@@ -83,15 +84,22 @@ impl Debian {
                 .collect()
             }).unwrap_or_else(Vec::new))
     }
-    pub fn get_available_methods(&self)
+    pub fn get_available_methods(&self, refresh: bool)
         -> Result<InstallationMethods, anyhow::Error>
     {
-        let version_supported = self.get_repo(false)?
-            .map(|repo| repo.packages.iter().any(|p| {
-                (p.basename == "edgedb" || p.basename == "edgedb-server")
-                && p.architecture == ARCH
-            }))
-            .unwrap_or(false);
+        let version_supported = unix::cache_package_support(
+            &self.distro, &self.codename, ARCH, refresh,
+            || {
+                let found = self.get_repo(false)?
+                    .map(|repo| repo.packages.iter().any(|p| {
+                        (p.basename == "edgedb" ||
+                         p.basename == "edgedb-server")
+                        && p.architecture == ARCH
+                    }))
+                    .unwrap_or(false);
+                Ok(found)
+            },
+        )?;
         Ok(InstallationMethods {
             package: PackageCandidate {
                 supported: version_supported,

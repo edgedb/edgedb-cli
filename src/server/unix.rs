@@ -6,6 +6,7 @@ use std::time::SystemTime;
 
 use anyhow::Context;
 use async_std::task;
+use blake2b_simd::Params as Blake2b;
 use serde::Serialize;
 use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
@@ -13,7 +14,7 @@ use fs_err as fs;
 
 use crate::commands::ExitCode;
 use crate::credentials;
-use crate::platform::{Uid, get_current_uid, data_dir};
+use crate::platform::{Uid, get_current_uid, data_dir, cache_dir};
 use crate::print;
 use crate::process::ProcessGuard;
 use crate::server::control::read_metadata;
@@ -657,4 +658,67 @@ pub fn revert(instance: &dyn Instance, metadata: &Metadata)
         }).ok();
     }
     Ok(())
+}
+
+#[context("failed to write {:?}", path.as_ref())]
+fn write_cache(path: impl AsRef<Path>, value: bool) -> anyhow::Result<()> {
+    if let Some(parent) = path.as_ref().parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&path, if value { &b"true\n"[..] } else { &b"false\n"[..] })?;
+    Ok(())
+}
+
+pub fn cache_package_support<F>(distro: &str, version: &str, arch: &str,
+    refresh: bool, update: F)
+    -> anyhow::Result<bool>
+    where F: FnOnce() -> anyhow::Result<bool>
+{
+    let hash = Blake2b::new().hash_length(4).to_state()
+        .update(distro.as_bytes())
+        .update(&[0])
+        .update(version.as_bytes())
+        .update(&[0])
+        .update(arch.as_bytes())
+        .finalize()
+        .to_hex();
+    let cache_name = format!("{}_{}_{}_{}.txt",
+        distro.replace(|c: char| !c.is_ascii_alphanumeric(), ""),
+        version.replace(|c: char| !c.is_ascii_alphanumeric(), ""),
+        arch,
+        hash,
+    );
+    let cache_path = cache_dir()?.join("support").join(cache_name);
+    let cached_value = if cache_path.exists() {
+        match fs::read_to_string(&cache_path) {
+            Ok(data) => {
+                let data = data.trim();
+                match data.trim() {
+                    "true" => Some(true),
+                    "false" => Some(false),
+                    _ => None,
+                }
+            }
+            Err(e) => {
+                log::info!("Could not read cache: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    if let Some(value) = cached_value {
+        log::info!("Read cached value for {} {} {}: {:?}",
+            distro, version, arch, value);
+        if !refresh {
+            return Ok(value);
+        }
+    }
+    let value = update()?;
+    if Some(value) != cached_value {
+        write_cache(cache_path, value).unwrap_or_else(|e| {
+            log::warn!("Cannot write cache: {}", e);
+        });
+    }
+    Ok(value)
 }

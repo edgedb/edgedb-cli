@@ -343,7 +343,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     };
 
     let os = detect::current_os()?;
-    let avail_methods = os.get_available_methods()?;
+    let avail_methods = os.refresh_available_methods()?;
     let methods = avail_methods.instantiate_all(&*os, true)?;
     let (name, exists) = ask_name(&methods, project_dir, options)?;
 
