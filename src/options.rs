@@ -32,7 +32,8 @@ const MAX_TERM_WIDTH: usize = 90;
 const MIN_TERM_WIDTH: usize = 50;
 
 static CONNECTION_ARG_HINT: &str = "\
-    Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
+    Run `edgedb project init`, or `edgedb project link`, \
+    or use any of `-H`, `-P`, `-I` arguments \
     to specify connection parameters. See `--help` for details";
 
 const CONN_OPTIONS_GROUP: &str =

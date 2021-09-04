@@ -2,6 +2,7 @@ use crate::project::options::{ProjectCommand, Command};
 
 use crate::project::info;
 use crate::project::init;
+use crate::project::link;
 use crate::project::unlink;
 use crate::project::upgrade;
 
@@ -13,5 +14,6 @@ pub fn main(cmd: &ProjectCommand) -> anyhow::Result<()> {
         Unlink(c) => unlink::unlink(c),
         Info(c) => info::info(c),
         Upgrade(c) => upgrade::upgrade(c),
+        Link(c) => link::link(c),
     }
 }

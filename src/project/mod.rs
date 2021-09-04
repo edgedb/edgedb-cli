@@ -9,12 +9,13 @@ pub mod options;
 mod config;
 mod info;
 mod main;
+mod link;
 mod unlink;
 mod upgrade;
 pub mod init;
 
 pub use main::main;
-pub use init::{stash_path, stash_base};
+pub use init::{stash_path, stash_base, write_stash_dir};
 pub use unlink::unlink;
 
 #[allow(unused)]  // TODO(tailhook) will be used in `project info`

@@ -494,7 +494,7 @@ fn stash_name(path: &Path) -> anyhow::Result<OsString> {
 }
 
 #[context("error writing project dir {:?}", dir)]
-fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
+pub fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
     -> anyhow::Result<()>
 {
     let tmp = tmp_file_path(&dir);

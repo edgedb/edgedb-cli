@@ -18,6 +18,8 @@ pub struct ProjectCommand {
 pub enum Command {
     /// Initialize a new or existing project
     Init(Init),
+    /// Link existing server instance with current project
+    Link(Link),
     /// Clean-up the project configuration
     Unlink(Unlink),
     /// Get various metadata about the project
@@ -77,6 +79,22 @@ pub struct Unlink {
     /// `edgedb instance destroy`.
     #[clap(long, short='D')]
     pub destroy_server_instance: bool,
+
+    #[clap(long)]
+    pub non_interactive: bool,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Link {
+    /// Specifies a project root directory explicitly.
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    /// Specifies the EdgeDB server instance to be associated with the project.
+    /// If not present, the name will be interactively asked.
+    #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]
+    pub name: Option<String>,
 
     #[clap(long)]
     pub non_interactive: bool,
