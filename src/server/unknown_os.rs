@@ -12,7 +12,7 @@ pub struct Unknown {
 
 
 impl CurrentOs for Unknown {
-    fn get_available_methods(&self)
+    fn refresh_available_methods(&self)
         -> Result<InstallationMethods, anyhow::Error>
     {
         Ok(InstallationMethods {
