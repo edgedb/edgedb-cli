@@ -22,7 +22,6 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
     verbose: bool)
     -> Result<(), anyhow::Error>
 {
-    let pat = filter::pattern_to_value(pattern, case_sensitive);
     let mut filters = Vec::with_capacity(3);
     if !system {
         filters.push(
@@ -69,7 +68,8 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         {filter}
         ORDER BY .subject_name;
     "###, filter=filter);
-    let mut items = cli.query::<Index, _>(&query, &pat).await?;
+    let mut items = filter::query::<Index>(cli,
+        &query, &pattern, case_sensitive).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);

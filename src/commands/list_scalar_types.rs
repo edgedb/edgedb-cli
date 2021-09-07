@@ -21,7 +21,6 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
     pattern: &Option<String>, system: bool, case_sensitive: bool)
     -> Result<(), anyhow::Error>
 {
-    let pat = filter::pattern_to_value(pattern, case_sensitive);
     let filter = match (pattern, system) {
         (None, true) => "FILTER NOT .is_from_alias",
         (None, false) => {
@@ -55,7 +54,8 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
         ORDER BY .name;
     "###, filter=filter);
 
-    let mut items = cli.query::<ScalarType, _>(&query, &pat).await?;
+    let mut items = filter::query::<ScalarType>(cli,
+        &query, &pattern, case_sensitive).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let term_width = term_size::dimensions_stdout()
             .map(|(w, _h)| w).unwrap_or(80);

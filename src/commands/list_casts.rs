@@ -22,7 +22,6 @@ pub async fn list_casts<'x>(cli: &mut Connection, options: &Options,
     pattern: &Option<String>, case_sensitive: bool)
     -> Result<(), anyhow::Error>
 {
-    let pat = filter::pattern_to_value(pattern, case_sensitive);
     let filter = if pattern.is_some() {
         r#"FILTER
             re_test(<str>$0, .from_type_name)
@@ -45,7 +44,8 @@ pub async fn list_casts<'x>(cli: &mut Connection, options: &Options,
         {filter}
         ORDER BY .kind THEN .from_type.name THEN .to_type.name;
     "###, filter=filter);
-    let mut items = cli.query::<Cast, _>(&query, &pat).await?;
+    let mut items = filter::query::<Cast>(cli,
+        &query, &pattern, case_sensitive).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);

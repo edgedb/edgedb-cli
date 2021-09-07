@@ -1,6 +1,5 @@
 use colorful::Colorful;
 use edgedb_client::client::Connection;
-use edgedb_protocol::value::Value;
 
 use crate::commands::{Options, ExitCode};
 use crate::commands::parser::ShowStatus;
@@ -53,7 +52,7 @@ pub async fn status(cli: &mut Connection, _options: &Options,
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
             SELECT name := Last.name
-        "###, &Value::empty_tuple()).await?;
+        "###, &()).await?;
     if db_migration.as_ref() != migrations.keys().last() {
         if !status.quiet {
             if let Some(db_migration) = &db_migration {

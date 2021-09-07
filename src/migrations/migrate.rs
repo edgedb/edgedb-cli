@@ -4,7 +4,6 @@ use async_std::path::Path;
 use async_std::stream::StreamExt;
 use colorful::Colorful;
 use edgedb_client::client::Connection;
-use edgedb_protocol::value::Value;
 use linked_hash_map::LinkedHashMap;
 
 use crate::commands::Options;
@@ -36,9 +35,9 @@ async fn check_revision_in_db(cli: &mut Connection, prefix: &str)
     let mut items = cli.query::<String, _>(r###"
         SELECT name := schema::Migration.name
         FILTER name LIKE <str>$0
-        "###, &Value::Tuple(vec![
-            Value::Str(format!("{}%", prefix))
-        ])).await?;
+        "###,
+        &(format!("{}%", prefix),),
+    ).await?;
     let mut all_similar = Vec::new();
     while let Some(name) = items.next().await.transpose()? {
         all_similar.push(name);

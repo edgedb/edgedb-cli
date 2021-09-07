@@ -22,7 +22,6 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
     verbose: bool)
     -> Result<(), anyhow::Error>
 {
-    let pat = filter::pattern_to_value(pattern, case_sensitive);
     let filter = match (pattern, system) {
         (None, true) => "FILTER .is_from_alias",
         (None, false) => {
@@ -56,7 +55,8 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         {filter}
         ORDER BY .name;
     "###, filter=filter);
-    let mut items = cli.query::<Alias, _>(&query, &pat).await?;
+    let mut items = filter::query::<Alias>(cli,
+        &query, &pattern, case_sensitive).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
