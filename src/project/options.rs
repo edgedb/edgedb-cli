@@ -52,6 +52,11 @@ pub struct Init {
     #[clap(long)]
     pub server_version: Option<Version<String>>,
 
+    /// Specifies whether the existing EdgeDB server instance
+    /// should be linked with the project
+    #[clap(long)]
+    pub link: bool,
+
     /// Specifies the EdgeDB server instance to be associated with the project
     #[clap(long, validator(instance_name_opt))]
     pub server_instance: Option<String>,
