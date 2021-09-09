@@ -275,14 +275,6 @@ fn ask_existing_instance_name(methods: &Methods, options: &Init) -> anyhow::Resu
         .map(|inst| inst.name().to_string())
         .collect::<BTreeSet<_>>();
 
-    if let Some(name) = &options.server_instance {
-        if instances.contains(name) {
-            return Ok(name.clone());
-        }
-
-        print::error(format!("Instance {:?} doesn't exist", name));
-    }
-
     if options.non_interactive {
         anyhow::bail!("Existing instance name should be specified \
                        with `--server-instance` argument when linking project \
@@ -394,7 +386,11 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         .get_available_methods()?
         .instantiate_all(&*os, true)?;
 
-    let name = ask_existing_instance_name(&methods, options)?;
+    let name = if let Some(name) = &options.server_instance {
+        name.clone()
+    } else {
+        ask_existing_instance_name(&methods, options)?
+    };
 
     let instance = get_instance(&methods, &name)?;
     let version = instance.get_version()?;
