@@ -322,6 +322,12 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
                     init_existing(init, &dir)?;
                 }
             } else {
+                if init.link {
+                    anyhow::bail!("`edgedb.toml` was not found, unable to link an EdgeDB instance \
+                                   with uninitialized project, to initialize a new project run command \
+                                   without `--link` flag")
+                }
+
                 init_new(init, &dir)?;
             }
         }
@@ -336,6 +342,12 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
                     init_existing(init, &dir)?;
                 }
             } else {
+                if init.link {
+                    anyhow::bail!("`edgedb.toml` was not found, unable to link an EdgeDB instance \
+                                   with uninitialized project, to initialize a new project run command \
+                                   without `--link` flag")
+                }
+
                 let dir = fs::canonicalize(&base_dir)?;
                 init_new(init, &dir)?;
             }
