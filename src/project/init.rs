@@ -405,6 +405,8 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
     write_stash_dir(&stash_dir, &project_dir, &name)?;
 
+    task::block_on(migrate(&instance, !options.non_interactive))?;
+
     print::success("Project linked");
     if let Some(dir) = &options.project_dir {
         println!(
