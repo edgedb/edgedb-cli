@@ -264,7 +264,7 @@ fn ask_version(meth: &dyn Method, options: &Init)
     }
 }
 
-fn ask_existing_instance_name(methods: &Methods, options: &Init) -> anyhow::Result<String> {
+fn ask_existing_instance_name(methods: &Methods) -> anyhow::Result<String> {
     let instances = methods
         .values()
         .map(|m| m.all_instances())
@@ -274,12 +274,6 @@ fn ask_existing_instance_name(methods: &Methods, options: &Init) -> anyhow::Resu
         .flatten()
         .map(|inst| inst.name().to_string())
         .collect::<BTreeSet<_>>();
-
-    if options.non_interactive {
-        anyhow::bail!("Existing instance name should be specified \
-                       with `--server-instance` argument when linking project \
-                       in non-interactive mode")
-    }
 
     let mut q =
         question::String::new("Specify the name of EdgeDB instance to link with this project");
@@ -388,8 +382,12 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
     let name = if let Some(name) = &options.server_instance {
         name.clone()
+    } else if options.non_interactive {
+        anyhow::bail!("Existing instance name should be specified \
+                       with `--server-instance` argument when linking project \
+                       in non-interactive mode")
     } else {
-        ask_existing_instance_name(&methods, options)?
+        ask_existing_instance_name(&methods)?
     };
 
     let instance = get_instance(&methods, &name)?;
