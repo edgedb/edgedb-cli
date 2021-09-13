@@ -164,8 +164,11 @@ fn ask_name(methods: &Methods, dir: &Path, options: &Init)
     };
     if options.non_interactive {
         if instances.contains(&default_name) {
-            log::warn!("Instance {:?} already exists", default_name);
+            anyhow::bail!(format!("Instance {:?} already exists, \
+                           to link project with it pass `--link` flag explicitly",
+                           default_name))
         }
+
         return Ok((default_name, false))
     }
     let mut q = question::String::new(
@@ -261,6 +264,30 @@ fn ask_version(meth: &dyn Method, options: &Init)
     }
 }
 
+fn ask_existing_instance_name(methods: &Methods) -> anyhow::Result<String> {
+    let instances = methods
+        .values()
+        .map(|m| m.all_instances())
+        .collect::<Result<Vec<_>, _>>()
+        .context("failed to enumerate existing instances")?
+        .into_iter()
+        .flatten()
+        .map(|inst| inst.name().to_string())
+        .collect::<BTreeSet<_>>();
+
+    let mut q =
+        question::String::new("Specify the name of EdgeDB instance to link with this project");
+    loop {
+        let target_name = q.ask()?;
+
+        if instances.contains(&target_name) {
+            return Ok(target_name);
+        } else {
+            print::error(format!("Instance {:?} doesn't exist", target_name));
+        }
+    }
+}
+
 pub fn init(init: &Init) -> anyhow::Result<()> {
     if optional_docker_check() {
         print::error(
@@ -275,8 +302,18 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
         Some(dir) => {
             let dir = fs::canonicalize(&dir)?;
             if dir.join("edgedb.toml").exists() {
-                init_existing(init, &dir)?;
+                if init.link {
+                    link(init, &dir)?;
+                } else {
+                    init_existing(init, &dir)?;
+                }
             } else {
+                if init.link {
+                    anyhow::bail!("`edgedb.toml` was not found, unable to link an EdgeDB instance \
+                                   with uninitialized project, to initialize a new project run command \
+                                   without `--link` flag")
+                }
+
                 init_new(init, &dir)?;
             }
         }
@@ -285,8 +322,18 @@ pub fn init(init: &Init) -> anyhow::Result<()> {
                 .context("failed to get current directory")?;
             if let Some(dir) = search_dir(&base_dir)? {
                 let dir = fs::canonicalize(&dir)?;
-                init_existing(init, &dir)?;
+                if init.link {
+                    link(init, &dir)?;
+                } else {
+                    init_existing(init, &dir)?;
+                }
             } else {
+                if init.link {
+                    anyhow::bail!("`edgedb.toml` was not found, unable to link an EdgeDB instance \
+                                   with uninitialized project, to initialize a new project run command \
+                                   without `--link` flag")
+                }
+
                 let dir = fs::canonicalize(&base_dir)?;
                 init_new(init, &dir)?;
             }
@@ -309,6 +356,66 @@ fn write_config(path: &Path, version: &MajorVersion) -> anyhow::Result<()> {
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, text)?;
     fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
+    println!("Found `edgedb.toml` in `{}`", project_dir.display());
+    println!("Linking project...");
+
+    let stash_dir = stash_path(project_dir)?;
+    if stash_dir.exists() {
+        anyhow::bail!("Project is already linked");
+    }
+
+    let config_path = project_dir.join("edgedb.toml");
+    let config = config::read(&config_path)?;
+    let ver_query = match config.edgedb.server_version {
+        None => VersionQuery::Stable(None),
+        Some(ver) => ver.to_query(),
+    };
+
+    let os = detect::current_os()?;
+    let methods = os
+        .get_available_methods()?
+        .instantiate_all(&*os, true)?;
+
+    let name = if let Some(name) = &options.server_instance {
+        name.clone()
+    } else if options.non_interactive {
+        anyhow::bail!("Existing instance name should be specified \
+                       with `--server-instance` argument when linking project \
+                       in non-interactive mode")
+    } else {
+        ask_existing_instance_name(&methods)?
+    };
+
+    let instance = get_instance(&methods, &name)?;
+    let version = instance.get_version()?;
+    if !ver_query.matches(version) {
+        print::warn(format!(
+            "WARNING: existing instance has version {}, \
+                but {} is required by `edgedb.toml`",
+            version.title(),
+            ver_query
+        ));
+    }
+
+    write_stash_dir(&stash_dir, &project_dir, &name)?;
+
+    task::block_on(migrate(&instance, !options.non_interactive))?;
+
+    print::success("Project linked");
+    if let Some(dir) = &options.project_dir {
+        println!(
+            "To connect to {}, navigate to {} and run `edgedb`",
+            name,
+            dir.display()
+        );
+    } else {
+        println!("To connect to {}, run `edgedb`", name);
+    }
+
     Ok(())
 }
 

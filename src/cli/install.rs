@@ -405,6 +405,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             server_instance: None,
             server_install_method: None,
             non_interactive: false,
+            link: false,
         };
         let dir = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
