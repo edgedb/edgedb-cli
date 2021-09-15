@@ -1,30 +1,30 @@
 use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::time::Duration;
 
 use anyhow::Context;
 use anymap::AnyMap;
+use async_std::task;
 use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
-use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
+use edgedb_client::Builder;
+use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind};
 use fs_err as fs;
 
-use crate::cli;
 use crate::cli::options::CliCommand;
-use crate::commands::parser::Common;
+use crate::cli;
 use crate::commands::ExitCode;
+use crate::commands::parser::Common;
 use crate::connect::Connector;
-use crate::credentials::get_connector;
 use crate::hint::HintExt;
+use crate::markdown;
 use crate::print;
 use crate::project;
 use crate::repl::OutputFormat;
 use crate::server;
-use crate::markdown;
 
 pub mod describe;
 
@@ -55,6 +55,10 @@ pub struct ConnectionOptions {
     /// except password)
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     pub dsn: Option<String>,
+
+    /// Path to JSON file to read credentials from
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    pub credentials_file: Option<PathBuf>,
 
     /// Host of the EdgeDB instance
     #[clap(short='H', long, help_heading=Some(CONN_OPTIONS_GROUP))]
@@ -615,179 +619,72 @@ impl Options {
     }
 
     pub fn create_connector(&self) -> anyhow::Result<Connector> {
-        let conn = &self.conn_options;
-        let mut conn_params = Connector::new(conn_params(conn));
-        let password = if conn.password_from_stdin {
-            let password = rpassword::read_password()
-                .expect("password cannot be read");
-            Some(password)
-        } else if conn.no_password {
-            None
-        } else if conn.password {
-            let user = conn_params.get()?.get_user();
-            Some(rpassword::read_password_from_tty(
-                Some(&format!("Password for '{}': ",
-                              user.escape_default())))
-                .context("error reading password")?)
-        } else {
-            get_env("EDGEDB_PASSWORD")?
-        };
-        conn_params.modify(|params| {
-            password.map(|password| params.password(password));
-            conn.wait_until_available
-                .map(|w| params.wait_until_available(w));
-            conn.connect_timeout.map(|t| params.connect_timeout(t));
-        });
-        Ok(conn_params)
+        Ok(Connector::new(conn_params(&self.conn_options)))
     }
 }
 
-fn is_env(name: &str) -> bool {
-    env::var_os(name).map(|v| !v.is_empty()).unwrap_or(false)
-}
-
-fn get_env(name: &str) -> anyhow::Result<Option<String>> {
-    match env::var(name) {
-        Ok(v) if v.is_empty() => Ok(None),
-        Ok(v) => Ok(Some(v)),
-        Err(env::VarError::NotPresent) => Ok(None),
-        Err(e) => {
-            Err(e).with_context(|| {
-                format!("Cannot decode environment variable {:?}", name)
-            })
-        }
-    }
-}
-
-fn env_fallback<T: FromStr>(value: Option<T>, name: &str)
-    -> anyhow::Result<Option<T>>
-    where <T as FromStr>::Err: std::error::Error + Send + Sync + 'static
+fn set_password(builder: &mut Builder, options: &ConnectionOptions)
+    -> anyhow::Result<()>
 {
-    match value {
-        Some(value) => Ok(Some(value)),
-        None => match get_env(name) {
-            Ok(Some(value)) => {
-                Ok(Some(value.parse().with_context(|| {
-                    format!("Cannot parse environment variable {:?}", name)
-                })?))
-            }
-            Ok(None) => Ok(None),
-            Err(e) => Err(e),
-        },
-    }
-}
-
-fn parse_port_env() -> anyhow::Result<(Option<String>, Option<u16>)> {
-    match get_env("EDGEDB_PORT") {
-        Ok(Some(value)) => if let Some(value) = value.strip_prefix("tcp://") {
-            // #389: `docker run --link=edgedb edgedb/edgedb-cli` will set env
-            // `EDGEDB_PORT` to `tcp://<host>:<port>` - we take it as default.
-            if let Some((host, port)) = value.split_once(":") {
-                let port = port.parse().with_context(|| {
-                    format!("Cannot parse port in Docker URI: EDGEDB_PORT")
-                })?;
-                Ok((Some(host.into()), Some(port)))
-            } else {
-                anyhow::bail!("Port not found in Docker URI: EDGEDB_PORT");
-            }
-        } else {
-            let port = value.parse().with_context(|| {
-                format!("Cannot parse environment variable: EDGEDB_PORT")
-            })?;
-            Ok((None, Some(port)))
-        }
-        Ok(None) => Ok((None, None)),
-        Err(e) => Err(e),
-    }
+    let password = if options.password_from_stdin {
+        rpassword::read_password()
+            .expect("password cannot be read")
+    } else if options.no_password {
+        return Ok(());
+    } else if options.password {
+        let user = builder.get_user();
+        rpassword::read_password_from_tty(
+            Some(&format!("Password for '{}': ", user.escape_default()))
+        ).context("error reading password")?
+    } else {
+        return Ok(())
+    };
+    builder.password(password);
+    Ok(())
 }
 
 pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
-    let instance = if let Some(dsn) = &tmp.dsn {
-        return Ok(Builder::from_dsn(dsn)?);
-    } else if let Some(inst) = get_env("EDGEDB_INSTANCE")? {
-        if inst.starts_with("edgedb://") {
-            return Ok(Builder::from_dsn(&inst)?);
-        } else {
-            Some(inst)
-        }
-    } else if tmp.instance.is_some() ||
-            tmp.host.is_some() || tmp.port.is_some() ||
-            is_env("EDGEDB_HOST") ||
-            is_env("EDGEDB_PORT")
-    {
-        tmp.instance.clone()
+    let mut bld = Builder::uninitialized();
+    if let Some(dsn) = &tmp.dsn {
+        bld.dsn(dsn)?;
+        bld.read_extra_env_vars()?;
+    } else if let Some(instance) = &tmp.instance {
+        task::block_on(bld.read_instance(instance))?;
+        bld.read_extra_env_vars()?;
+    } else if let Some(file_path) = &tmp.credentials_file {
+        task::block_on(bld.read_credentials(file_path))?;
+        bld.read_extra_env_vars()?;
     } else {
-        let dir = env::current_dir()
-            .context("cannot determine current dir")
-            .hint(CONNECTION_ARG_HINT)?;
-        let config_dir = project::project_dir_opt(Some(&dir))
-            .map_err(|e| ProjectNotFound(e).into())
-            .hint(CONNECTION_ARG_HINT)?
-            .ok_or_else(|| {
-                anyhow::anyhow!("no `edgedb.toml` found \
-                    and no connection options are specified")
-            })
-            .map_err(|e| ProjectNotFound(e).into())
-            .hint(CONNECTION_ARG_HINT)?;
-        let dir = project::stash_path(&config_dir)?;
-        Some(
-            fs::read_to_string(dir.join("instance-name"))
-            .context("error reading project settings")
-            .hint(CONNECTION_ARG_HINT)?
-        )
+        bld = task::block_on(Builder::from_env())?;
     };
-
-    let admin = tmp.admin;
-    let user = env_fallback(tmp.user.clone(), "EDGEDB_USER")?;
-    let (host, port) = if tmp.port.is_none() {
-        parse_port_env()?
-    } else if tmp.host.is_none() {
-        // It's okay if we fail to extract host from the EDGEDB_PORT Docker URI
-        // because we will try EDGEDB_HOST later (we have tmp.port already)
-        match parse_port_env() {
-            Ok((host, _)) => (host, tmp.port),
-            Err(_) => (None, tmp.port),
-        }
-    } else {
-        (None, tmp.port)
-    };
-    let host = env_fallback(tmp.host.clone(), "EDGEDB_HOST")?.or(host);
-    let database = env_fallback(tmp.database.clone(), "EDGEDB_DATABASE")?;
-
-    let mut conn_params = Builder::new();
-    if let Some(name) = &instance {
-        conn_params = get_connector(name)?;
-        user.map(|user| conn_params.user(user));
-        database.map(|database| conn_params.database(database));
-    } else {
-        user.as_ref().map(|user| conn_params.user(user));
-        database.as_ref().map(|db| conn_params.database(db));
-        let host = host.unwrap_or_else(|| String::from("localhost"));
-        let port = port.unwrap_or(5656);
-        let unix_host = host.contains("/");
-        if admin || unix_host {
-            let prefix = if unix_host {
-                &host
-            } else {
-                "/var/run/edgedb"
-            };
-            let path = if prefix.contains(".s.EDGEDB") {
-                // it's the full path
-                prefix.into()
-            } else {
-                if admin {
-                    format!("{}/.s.EDGEDB.admin.{}", prefix, port)
-                } else {
-                    format!("{}/.s.EDGEDB.{}", prefix, port)
-                }
-            };
-            conn_params.unix_addr(path);
-        } else {
-            conn_params.tcp_addr(host, port);
-            load_tls_options(tmp, &mut conn_params)?;
-        }
+    if tmp.admin {
+        bld.admin(true);
     }
-    Ok(conn_params)
+    if let Some(host) = &tmp.host {
+        bld.host(host);
+    }
+    if let Some(port) = tmp.port {
+        bld.port(port);
+    }
+    if let Some(user) = &tmp.user {
+        bld.user(user);
+    }
+    if let Some(database) = &tmp.database {
+        bld.database(database);
+    }
+    if let Some(val) = tmp.wait_until_available {
+        bld.wait_until_available(val);
+    }
+    if let Some(val) = tmp.connect_timeout {
+        bld.connect_timeout(val);
+    }
+    set_password(&mut bld, tmp)?;
+    if !bld.is_initialized() {
+        return Err(anyhow::anyhow!(ClientNoCredentialsError::with_message(
+            "no `edgedb.toml` found and no connection options are specified")))
+            .hint(CONNECTION_ARG_HINT)?;
+    }
+    Ok(bld)
 }
 
 pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)

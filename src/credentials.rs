@@ -11,7 +11,9 @@ use crate::server::reset_password::write_credentials;
 
 
 pub fn get_connector(name: &str) -> anyhow::Result<Builder> {
-    task::block_on(Builder::read_credentials(path(name)?)).map_err(Into::into)
+    let mut builder = Builder::uninitialized();
+    task::block_on(builder.read_credentials(path(name)?))?;
+    Ok(builder)
 }
 
 pub fn base_dir() -> anyhow::Result<PathBuf> {

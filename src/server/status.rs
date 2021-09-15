@@ -286,21 +286,15 @@ impl RemoteStatus {
     }
 
     pub async fn probe(mut self, path: PathBuf) -> Self {
-        let builder = match Builder::read_credentials(&path).await {
-            Ok(builder) => builder,
-            Err(e) => {
-                self.status = RemoteStatusService::Error(format!("{}", e));
-                return self;
-            }
+        let mut builder = Builder::uninitialized();
+        if let Err(e) = builder.read_credentials(&path).await {
+            self.status = RemoteStatusService::Error(format!("{}", e));
+            return self;
         };
         self.user = Some(builder.get_user().into());
         self.database = Some(builder.get_database().into());
-        if let Some((host, port)) = builder.get_addr().get_tcp_addr() {
-            self.host = Some(host.clone());
-            self.port = Some(*port);
-        } else if let Some(addr) = builder.get_addr().get_unix_addr() {
-            self.host = Some(addr.display().to_string());
-        }
+        self.host = Some(builder.get_host().into());
+        self.port = Some(builder.get_port());
         match future::timeout(
             REMOTE_STATUS_TIMEOUT, async {
                 Ok::<String, anyhow::Error>(

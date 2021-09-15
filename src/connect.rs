@@ -46,7 +46,7 @@ impl Connector {
     {
         timeout(Duration::new(1, 0), pending::<()>()).await.ok();
         eprintln!("Connecting to an EdgeDB instance at {}...",
-            params.get_addr());
+            params.display_addr());
         pending().await
     }
     pub fn get(&self) -> anyhow::Result<&Builder, ArcError> {
