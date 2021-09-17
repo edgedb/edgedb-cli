@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fs;
 use std::sync::{Mutex, Arc};
 
@@ -125,7 +126,7 @@ impl ServerCertVerifier for InteractiveCertVerifier {
     }
 }
 
-fn gen_default_instance_name(input: &dyn ToString) -> String {
+fn gen_default_instance_name(input: impl fmt::Display) -> String {
     let input = input.to_string();
     input.strip_suffix(":5656").unwrap_or(&input).chars().map(|x| match x {
         'A'..='Z' => x,
@@ -144,7 +145,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         Ok(builder) => builder,
         Err(e) => if let Some(he) = e.downcast_ref::<HintedError>() {
             if he.error.is::<ProjectNotFound>() {
-                let mut builder = Builder::new();
+                let mut builder = Builder::uninitialized();
                 load_tls_options(&opts.conn_options, &mut builder)?;
                 builder
             } else {
@@ -213,7 +214,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let (cred_path, instance_name) = match &cmd.name {
         Some(name) => (credentials::path(name)?, name.clone()),
         None => {
-            let default = gen_default_instance_name(builder.get_addr());
+            let default = gen_default_instance_name(builder.display_addr());
             if cmd.non_interactive {
                 if !cmd.quiet {
                     eprintln!("Using generated instance name: {}", &default);
@@ -271,14 +272,16 @@ fn prompt_conn_params(
             "--password and --non-interactive are mutually exclusive."
         )
     }
-    let (host, port) = builder.get_addr().get_tcp_addr().ok_or_else(|| {
-        anyhow::anyhow!("Cannot link to a UNIX domain socket.")
-    })?;
-    let (mut host, mut port) = (host.clone(), *port);
+    if builder.get_unix_path().is_some() {
+        anyhow::bail!("Cannot link to a UNIX domain socket.")
+    };
+    let mut host = builder.get_host().to_string();
+    let mut port = builder.get_port();
     if options.host.is_none() && host == "127.0.0.1" {
         // Workaround for the `edgedb instance link`
         // https://github.com/briansmith/webpki/issues/54
-        builder.tcp_addr("localhost", port);
+        builder.host("localhost");
+        builder.port(port);
         host = "localhost".into();
     }
 
@@ -287,7 +290,7 @@ fn prompt_conn_params(
             eprintln!(
                 "Authenticating to edgedb://{}@{}/{}",
                 builder.get_user(),
-                builder.get_addr(),
+                builder.display_addr(),
                 builder.get_database(),
             );
         }
@@ -304,7 +307,8 @@ fn prompt_conn_params(
                 .parse()?
         }
         if options.host.is_none() || options.port.is_none() {
-            builder.tcp_addr(host, port);
+            builder.host(host);
+            builder.port(port);
         }
         if options.user.is_none() {
             builder.user(

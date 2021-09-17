@@ -118,10 +118,10 @@ impl Instance for LocalInstance<'_> {
                 .join(format!(".s.EDGEDB{}.{}",
                     if admin { ".admin" } else { "" },
                     self.get_meta()?.port));
-            let mut conn_params = client::Builder::new();
+            let mut conn_params = client::Builder::uninitialized();
             conn_params.user("edgedb");
             conn_params.database("edgedb");
-            conn_params.unix_addr(socket);
+            conn_params.host(socket.to_str().context("bad runtime dir")?);
             Ok(conn_params)
         } else {
             get_connector(self.name())
