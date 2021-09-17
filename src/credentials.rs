@@ -1,12 +1,18 @@
+use std::io;
 use std::path::PathBuf;
+use std::collections::BTreeSet;
+
 use fs_err as fs;
 
+use anyhow::Context;
 use async_std::task;
+
 use edgedb_client::Builder;
 use edgedb_client::credentials::Credentials;
 
 use crate::platform::config_dir;
 use crate::server::reset_password::write_credentials;
+use crate::server::is_valid_name;
 
 
 
@@ -22,6 +28,27 @@ pub fn base_dir() -> anyhow::Result<PathBuf> {
 
 pub fn path(name: &str) -> anyhow::Result<PathBuf> {
     Ok(base_dir()?.join(format!("{}.json", name)))
+}
+
+pub fn all_instance_names() -> anyhow::Result<BTreeSet<String>> {
+    let mut result = BTreeSet::new();
+    let dir = base_dir()?;
+    let dir_entries = match fs::read_dir(&dir) {
+        Ok(d) => d,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(result),
+        Err(e) => return Err(e).context(format!("error reading {:?}", dir)),
+    };
+    for item in dir_entries {
+        let item = item?;
+        if let Ok(filename) = item.file_name().into_string() {
+            if let Some(name) = filename.strip_suffix(".json") {
+                if is_valid_name(name) {
+                    result.insert(name.into());
+                }
+            }
+        }
+    }
+    Ok(result)
 }
 
 pub fn add_certificate(instance_name: &str, certificate: &str)

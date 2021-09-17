@@ -270,10 +270,6 @@ pub struct Options {
     pub no_cli_update_check: bool,
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("error searching for `edgedb.toml`")]
-pub struct ProjectNotFound(#[source] pub anyhow::Error);
-
 fn say_option_is_deprecated(option_name: &str, suggestion: &str) {
     let mut error = "warning:".to_string();
     let mut instead = suggestion.to_string();

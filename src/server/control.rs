@@ -13,6 +13,7 @@ use crate::server::methods::Methods;
 use crate::server::revert;
 use crate::server::status;
 use crate::server::os_trait::{InstanceRef};
+use crate::server::errors::InstanceNotFound;
 
 
 #[context("failed to read metadata {}/metadata.json", dir.display())]
@@ -29,12 +30,20 @@ pub fn get_instance<'x>(methods: &'x Methods, name: &str)
         match meth.get_instance(name) {
             Ok(inst) => return Ok(inst),
             Err(e) => {
-                errors.push(format!("  {}: {:#}", meth_name.short_name(), e));
+                errors.push((meth_name.short_name(), e));
             }
         }
     }
-    anyhow::bail!("Cannot find instance {:?}:\n{}", name,
-        errors.join("\n"))
+    let err = anyhow::anyhow!("Cannot find instance {:?}:\n{}",
+        name,
+        errors.iter().map(|(n, e)| format!("  {}: {:#}", n, e))
+            .collect::<Vec<_>>().join("\n")
+    );
+    if errors.iter().all(|(_, e)| e.is::<InstanceNotFound>()) {
+        return Err(InstanceNotFound(err).into());
+    } else {
+        return Err(err);
+    }
 }
 
 pub fn instance_command(cmd: &InstanceCommand) -> anyhow::Result<()> {
