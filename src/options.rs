@@ -623,7 +623,7 @@ impl Options {
     }
 }
 
-fn set_password(builder: &mut Builder, options: &ConnectionOptions)
+fn set_password(options: &ConnectionOptions, builder: &mut Builder)
     -> anyhow::Result<()>
 {
     let password = if options.password_from_stdin {
@@ -678,7 +678,8 @@ pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     if let Some(val) = tmp.connect_timeout {
         bld.connect_timeout(val);
     }
-    set_password(&mut bld, tmp)?;
+    set_password(tmp, &mut bld)?;
+    load_tls_options(tmp, &mut bld)?;
     if !bld.is_initialized() {
         return Err(anyhow::anyhow!(ClientNoCredentialsError::with_message(
             "no `edgedb.toml` found and no connection options are specified")))
