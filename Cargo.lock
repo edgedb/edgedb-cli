@@ -1057,7 +1057,7 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#92922b9c98646295e44186407b1557204592cb3b"
+source = "git+https://github.com/edgedb/edgedb-rust#67c735e6a4869cae1ec4498c84a090c5041744cd"
 dependencies = [
  "async-std",
  "bytes",
@@ -1086,7 +1086,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#92922b9c98646295e44186407b1557204592cb3b"
+source = "git+https://github.com/edgedb/edgedb-rust#67c735e6a4869cae1ec4498c84a090c5041744cd"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -1097,7 +1097,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#92922b9c98646295e44186407b1557204592cb3b"
+source = "git+https://github.com/edgedb/edgedb-rust#67c735e6a4869cae1ec4498c84a090c5041744cd"
 dependencies = [
  "bytes",
 ]
@@ -1105,7 +1105,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#92922b9c98646295e44186407b1557204592cb3b"
+source = "git+https://github.com/edgedb/edgedb-rust#67c735e6a4869cae1ec4498c84a090c5041744cd"
 dependencies = [
  "bigdecimal",
  "bytes",
