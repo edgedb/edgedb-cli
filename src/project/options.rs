@@ -67,6 +67,15 @@ pub struct Init {
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub server_install_method: Option<InstallMethod>,
 
+
+    /// Skip running migrations
+    ///
+    /// There are two main use cases for this option:
+    /// 1. With `--link` option to connect to a datastore with existing data
+    /// 2. To initialize a new instance but then restore dump to it
+    #[clap(long)]
+    pub no_migrations: bool,
+
     /// Run in non-interactive mode (accepting all defaults)
     #[clap(long)]
     pub non_interactive: bool,
