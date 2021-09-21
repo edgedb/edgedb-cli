@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::borrow::Cow;
 use std::env;
 use std::ffi::OsString;
@@ -11,6 +10,9 @@ use fn_error_context::context;
 use fs_err as fs;
 use linked_hash_map::LinkedHashMap;
 use rand::{thread_rng, Rng};
+
+use edgedb_client::client::Connection;
+use edgedb_client::Builder;
 
 use crate::commands::ExitCode;
 use crate::connect::Connector;
@@ -26,6 +28,7 @@ use crate::server::control::get_instance;
 use crate::server::create::{self, try_bootstrap, allocate_port};
 use crate::server::detect::{self, VersionQuery};
 use crate::server::distribution::{DistributionRef, MajorVersion};
+use crate::server::errors::InstanceNotFound;
 use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::is_valid_name;
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
@@ -47,6 +50,58 @@ const UNIX_DOCKER_HELP: &str = "\
     Please install Docker by following the instructions at \
     https://docs.docker.com/get-docker/\
 \n";
+
+struct InstInfo<'a> {
+    name: String,
+    instance: Option<InstanceRef<'a>>,
+}
+
+impl InstInfo<'_> {
+    pub fn probe<'x>(methods: &'x Methods, name: &str)
+        -> anyhow::Result<InstInfo<'x>>
+    {
+        match get_instance(methods, name) {
+            Ok(inst) => Ok(InstInfo {
+                name: name.into(),
+                instance: Some(inst),
+            }),
+            Err(e) if e.is::<InstanceNotFound>() => Ok(InstInfo {
+                name: name.into(),
+                instance: None,
+            }),
+            Err(e) => return Err(e),
+        }
+    }
+    pub async fn get_builder(&self) -> anyhow::Result<Builder> {
+        let mut builder = Builder::uninitialized();
+        builder.read_instance(&self.name).await?;
+        Ok(builder)
+    }
+    pub async fn get_connection(&self) -> anyhow::Result<Connection> {
+        Ok(self.get_builder().await?.connect().await?)
+    }
+    pub fn get_version(&self) -> anyhow::Result<MajorVersion> {
+        task::block_on(async {
+            let mut conn = self.get_connection().await?;
+            let (nightly, ver) = conn.query_row::<(bool, String), _>(r###"
+                WITH v := sys::get_version()
+                SELECT (
+                    contains("dev", v.local),
+                    to_str(v.major) ++ (
+                        "-" ++ <str>v.stage ++ to_str(v.stage_no)
+                        if v.stage != <sys::VersionStage>'final'
+                        else ""
+                    )
+                )
+            "###, &()).await?;
+            if nightly {
+                Ok(MajorVersion::Nightly)
+            } else {
+                Ok(MajorVersion::Stable(Version(ver)))
+            }
+        })
+    }
+}
 
 pub fn search_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
     let mut path = base;
@@ -128,16 +183,10 @@ fn ask_method(available: &InstallationMethods, options: &Init)
     q.ask()
 }
 
-fn ask_name(methods: &Methods, dir: &Path, options: &Init)
+fn ask_name(_methods: &Methods, dir: &Path, options: &Init)
     -> anyhow::Result<(String, bool)>
 {
-    let instances = methods.values()
-        .map(|m| m.all_instances())
-        .collect::<Result<Vec<_>, _>>()
-        .context("failed to enumerate existing instances")?
-        .into_iter().flatten()
-        .map(|inst| inst.name().to_string())
-        .collect::<BTreeSet<_>>();
+    let instances = credentials::all_instance_names()?;
     let default_name = if let Some(name) = &options.server_instance {
         name.clone()
     } else {
@@ -264,16 +313,8 @@ fn ask_version(meth: &dyn Method, options: &Init)
     }
 }
 
-fn ask_existing_instance_name(methods: &Methods) -> anyhow::Result<String> {
-    let instances = methods
-        .values()
-        .map(|m| m.all_instances())
-        .collect::<Result<Vec<_>, _>>()
-        .context("failed to enumerate existing instances")?
-        .into_iter()
-        .flatten()
-        .map(|inst| inst.name().to_string())
-        .collect::<BTreeSet<_>>();
+fn ask_existing_instance_name(_methods: &Methods) -> anyhow::Result<String> {
+    let instances = credentials::all_instance_names()?;
 
     let mut q =
         question::String::new("Specify the name of EdgeDB instance to link with this project");
@@ -390,20 +431,24 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         ask_existing_instance_name(&methods)?
     };
 
-    let instance = get_instance(&methods, &name)?;
-    let version = instance.get_version()?;
-    if !ver_query.matches(version) {
-        print::warn(format!(
-            "WARNING: existing instance has version {}, \
+    let inst = InstInfo::probe(&methods, &name)?;
+    match inst.get_version() {
+        Ok(inst_ver) if ver_query.matches(&inst_ver) => {}
+        Ok(inst_ver) => {
+            print::warn(format!(
+                "WARNING: existing instance has version {}, \
                 but {} is required by `edgedb.toml`",
-            version.title(),
-            ver_query
-        ));
+                inst_ver.title(), ver_query
+            ));
+        }
+        Err(e) => {
+            log::warn!("Could not check instance's version: {:#}", e);
+        }
     }
 
     write_stash_dir(&stash_dir, &project_dir, &name)?;
 
-    task::block_on(migrate(&instance, !options.non_interactive))?;
+    task::block_on(migrate(&inst, !options.non_interactive))?;
 
     print::success("Project linked");
     if let Some(dir) = &options.project_dir {
@@ -455,14 +500,19 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     let (name, exists) = ask_name(&methods, project_dir, options)?;
 
     let inst = if exists {
-        let inst = get_instance(&methods, &name)?;
-        let inst_ver = inst.get_version()?;
-        if !ver_query.matches(inst_ver) {
-            print::warn(format!(
-                "WARNING: existing instance has version {}, \
-                but {} is required by `edgedb.toml`",
-                inst_ver.title(), ver_query
-            ));
+        let inst = InstInfo::probe(&methods, &name)?;
+        match inst.get_version() {
+            Ok(inst_ver) if ver_query.matches(&inst_ver) => {}
+            Ok(inst_ver) => {
+                print::warn(format!(
+                    "WARNING: existing instance has version {}, \
+                    but {} is required by `edgedb.toml`",
+                    inst_ver.title(), ver_query
+                ));
+            }
+            Err(e) => {
+                log::warn!("Could not check instance's version: {:#}", e);
+            }
         }
         inst
     } else {
@@ -532,8 +582,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         if !try_bootstrap(meth, &settings)? {
             err_manual = true;
         }
-
-        meth.get_instance(&name)?
+        InstInfo::probe(&methods, &name)?
     };
 
     write_stash_dir(&stash_dir, project_dir, &name)?;
@@ -693,9 +742,9 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let (name, exists) = ask_name(&methods, project_dir, options)?;
 
     let inst = if exists {
-        let inst = get_instance(&methods, &name)?;
+        let inst = InstInfo::probe(&methods, &name)?;
 
-        write_config(&config_path, inst.get_version()?)?;
+        write_config(&config_path, &inst.get_version()?)?;
         if !schema_files {
             write_default(&schema_dir)?;
         }
@@ -758,7 +807,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             err_manual = true;
         }
 
-        meth.get_instance(&name)?
+        InstInfo::probe(&methods, &name)?
     };
 
     write_stash_dir(&stash_dir, project_dir, &name)?;
@@ -789,17 +838,19 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
     }
 }
 
-fn run_and_migrate(inst: &InstanceRef) -> anyhow::Result<()> {
+fn run_and_migrate(info: &InstInfo) -> anyhow::Result<()> {
+    let inst = info.instance.as_ref()
+        .context("remote instance is not running, cannot run migrations")?;
     let mut cmd = inst.get_command()?;
     log::info!("Running server manually: {:?}", cmd);
     let child = ProcessGuard::run(&mut cmd)
         .with_context(|| format!("error running server {:?}", cmd))?;
-    task::block_on(migrate(&inst, false))?;
+    task::block_on(migrate(info, false))?;
     drop(child);
     Ok(())
 }
 
-async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
+async fn migrate(inst: &InstInfo<'_>, ask_for_running: bool)
     -> anyhow::Result<()>
 {
     use crate::commands::Options;
@@ -815,17 +866,16 @@ async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
     }
 
     println!("Applying migrations...");
-    let conn_params = inst.get_connector(false)?;
 
     let mut conn = loop {
-        match conn_params.connect().await {
+        match inst.get_connection().await {
             Ok(conn) => break conn,
-            Err(e) if ask_for_running => {
+            Err(e) if ask_for_running && inst.instance.is_some() => {
                 print::error(e);
                 let mut q = question::Numeric::new(
                     format!(
                         "Cannot connect to an instance {:?}. What to do?",
-                        inst.name(),
+                        inst.name,
                     )
                 );
                 q.option("Start the service (if possible).",
@@ -839,8 +889,8 @@ async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
                     Skip);
                 match q.ask()? {
                     Service => match
-                        inst.start(&Start {
-                            name: inst.name().into(),
+                        inst.instance.as_ref().unwrap().start(&Start {
+                            name: inst.name.clone(),
                             foreground: false,
                         })
                     {
@@ -873,7 +923,7 @@ async fn migrate(inst: &InstanceRef<'_>, ask_for_running: bool)
         &Options {
             command_line: true,
             styler: None,
-            conn_params: Connector::new(Ok(conn_params)),
+            conn_params: Connector::new(Ok(inst.get_builder().await?)),
         },
         &Migrate {
             cfg: MigrationConfig {

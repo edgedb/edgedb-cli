@@ -5,18 +5,19 @@ use std::sync::{Mutex, Arc};
 use anyhow::Context;
 use async_std::task;
 use colorful::Colorful;
-use edgedb_client::{verify_server_cert, Builder};
-use edgedb_client::errors::PasswordRequired;
 use pem;
 use ring::digest;
 use rustls;
 use rustls::{RootCertStore, ServerCertVerifier, ServerCertVerified, TLSError};
 use webpki::DNSNameRef;
 
+use edgedb_client::{verify_server_cert, Builder};
+use edgedb_client::errors::{Error, PasswordRequired, ClientNoCredentialsError};
+
 use crate::connect::Connector;
 use crate::hint::HintedError;
 use crate::options::{Options, ConnectionOptions};
-use crate::options::{conn_params, load_tls_options, ProjectNotFound};
+use crate::options::{conn_params, load_tls_options};
 use crate::print;
 use crate::{question, credentials};
 use crate::server::reset_password::write_credentials;
@@ -140,18 +141,25 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     task::block_on(async_link(cmd, opts))
 }
 
+fn is_no_credentials_error(mut e: &anyhow::Error) -> bool {
+    if let Some(he) = e.downcast_ref::<HintedError>() {
+        e = &he.error;
+    }
+    if let Some(e) = e.downcast_ref::<Error>() {
+        return e.is::<ClientNoCredentialsError>();
+    }
+    return false;
+}
+
 async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let mut builder = match conn_params(&opts.conn_options) {
         Ok(builder) => builder,
-        Err(e) => if let Some(he) = e.downcast_ref::<HintedError>() {
-            if he.error.is::<ProjectNotFound>() {
-                let mut builder = Builder::uninitialized();
-                load_tls_options(&opts.conn_options, &mut builder)?;
-                builder
-            } else {
-                return Err(e);
-            }
-        } else {
+        Err(e) if is_no_credentials_error(&e) => {
+            let mut builder = Builder::uninitialized();
+            load_tls_options(&opts.conn_options, &mut builder)?;
+            builder
+        }
+        Err(e) => {
             return Err(e);
         }
     };
