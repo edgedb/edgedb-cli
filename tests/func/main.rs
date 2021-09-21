@@ -171,8 +171,8 @@ impl ServerGuard {
         let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
         cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
+        cmd.arg("--host").arg(&self.runstate_dir);
         cmd.arg("--port").arg(self.port.to_string());
-        cmd.env("EDGEDB_HOST", &self.runstate_dir);
         cmd.env("CLICOLOR", "0");
         return cmd
     }
@@ -186,8 +186,8 @@ impl ServerGuard {
             .expect("binary found");
         cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
+        cmd.arg("--host").arg(&self.runstate_dir);
         cmd.arg("--port").arg(self.port.to_string());
-        cmd.env("EDGEDB_HOST", &self.runstate_dir);
         return spawn_command(cmd, Some(10000)).expect("start interactive");
     }
     #[cfg(not(windows))]
@@ -201,9 +201,9 @@ impl ServerGuard {
             .expect("binary found");
         cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
+        cmd.arg("--host").arg(&self.runstate_dir);
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--tls-ca-file").arg(&self.tls_cert_file);
-        cmd.env("EDGEDB_HOST", &self.runstate_dir);
         cmd.env("CLICOLOR", "0");
         f(&mut cmd);
         return spawn_command(cmd, Some(10000)).expect("start interactive");
@@ -213,10 +213,10 @@ impl ServerGuard {
         let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
         cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
+        cmd.arg("--host").arg(&self.runstate_dir);
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--database").arg(database_name);
         cmd.arg("--tls-ca-file").arg(&self.tls_cert_file);
-        cmd.env("EDGEDB_HOST", &self.runstate_dir);
         return cmd
     }
 }
