@@ -54,21 +54,25 @@ pub struct ConnectionOptions {
     /// DSN for EdgeDB to connect to (overrides all other options
     /// except password)
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(conflicts_with_all=&["instance"])]
     pub dsn: Option<String>,
 
     /// Path to JSON file to read credentials from
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(conflicts_with_all=&["dsn", "instance"])]
     pub credentials_file: Option<PathBuf>,
 
     /// Host of the EdgeDB instance
     #[clap(short='H', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(value_hint=ValueHint::Hostname)]
     #[clap(setting=clap::ArgSettings::Hidden)]
+    #[clap(conflicts_with_all=&["dsn", "credentials_file", "instance"])]
     pub host: Option<String>,
 
     /// Port to connect to EdgeDB
     #[clap(short='P', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(setting=clap::ArgSettings::Hidden)]
+    #[clap(conflicts_with_all=&["dsn", "credentials_file", "instance"])]
     pub port: Option<u16>,
 
     /// User name of the EdgeDB user
@@ -641,7 +645,10 @@ fn set_password(options: &ConnectionOptions, builder: &mut Builder)
 
 pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     let mut bld = Builder::uninitialized();
-    if let Some(dsn) = &tmp.dsn {
+    if tmp.host.is_some() || tmp.port.is_some() {
+        bld.host_port(tmp.host.clone(), tmp.port);
+        bld.read_extra_env_vars()?;
+    } else if let Some(dsn) = &tmp.dsn {
         bld.dsn(dsn)?;
         bld.read_extra_env_vars()?;
     } else if let Some(instance) = &tmp.instance {
@@ -655,12 +662,6 @@ pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     };
     if tmp.admin {
         bld.admin(true);
-    }
-    if let Some(host) = &tmp.host {
-        bld.host(host);
-    }
-    if let Some(port) = tmp.port {
-        bld.port(port);
     }
     if let Some(user) = &tmp.user {
         bld.user(user);

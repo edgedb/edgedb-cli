@@ -539,14 +539,14 @@ impl<'a> Instance for LocalInstance<'a> {
     }
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
         if admin {
-            let socket = self.socket_dir()?
-                .join(format!(".s.EDGEDB{}.{}",
-                    if admin { ".admin" } else { "" },
-                    self.get_meta()?.port));
             let mut conn_params = client::Builder::uninitialized();
+            conn_params.host_port(
+                Some(self.socket_dir()?.to_str().context("bad runtime dir")?),
+                Some(self.get_meta()?.port),
+            );
+            conn_params.admin(admin);
             conn_params.user("edgedb");
             conn_params.database("edgedb");
-            conn_params.host(socket.to_str().context("bad runtime dir")?);
             Ok(conn_params)
         } else {
             get_connector(self.name())

@@ -155,9 +155,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let mut builder = match conn_params(&opts.conn_options) {
         Ok(builder) => builder,
         Err(e) if is_no_credentials_error(&e) => {
-            let mut builder = Builder::uninitialized();
-            load_tls_options(&opts.conn_options, &mut builder)?;
-            builder
+            Builder::uninitialized()
         }
         Err(e) => {
             return Err(e);
@@ -165,6 +163,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     };
 
     prompt_conn_params(&opts.conn_options, &mut builder, cmd)?;
+    load_tls_options(&opts.conn_options, &mut builder)?;
 
     let mut creds = builder.as_credentials()?;
     let mut verifier = Arc::new(
@@ -285,13 +284,6 @@ fn prompt_conn_params(
     };
     let mut host = builder.get_host().to_string();
     let mut port = builder.get_port();
-    if options.host.is_none() && host == "127.0.0.1" {
-        // Workaround for the `edgedb instance link`
-        // https://github.com/briansmith/webpki/issues/54
-        builder.host("localhost");
-        builder.port(port);
-        host = "localhost".into();
-    }
 
     if link.non_interactive {
         if !link.quiet {
@@ -315,17 +307,20 @@ fn prompt_conn_params(
                 .parse()?
         }
         if options.host.is_none() || options.port.is_none() {
-            builder.host(host);
-            builder.port(port);
+            builder.host_port(Some(host), Some(port));
         }
-        if options.user.is_none() {
+        if let Some(user) = &options.user {
+            builder.user(user);
+        } else {
             builder.user(
                 question::String::new("Specify the database user")
                     .default(builder.get_user())
                     .ask()?
             );
         }
-        if options.database.is_none() {
+        if let Some(database) = &options.database {
+            builder.database(database);
+        } else {
             builder.database(
                 question::String::new("Specify the database name")
                     .default(builder.get_database())
