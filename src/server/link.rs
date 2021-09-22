@@ -15,7 +15,7 @@ use edgedb_client::{verify_server_cert, Builder};
 use edgedb_client::errors::{Error, PasswordRequired, ClientNoCredentialsError};
 
 use crate::connect::Connector;
-use crate::hint::HintedError;
+use crate::hint::{HintedError, HintExt};
 use crate::options::{Options, ConnectionOptions};
 use crate::options::{conn_params, load_tls_options};
 use crate::print;
@@ -286,6 +286,12 @@ fn prompt_conn_params(
     let mut port = builder.get_port();
 
     if link.non_interactive {
+        if !builder.is_initialized() {
+            return Err(anyhow::anyhow!("no connection options are specified"))
+                .hint("Remove `--non-interactive` option or specify \
+                      `--host=localhost` and/or `--port=5656`. \
+                      See `edgedb --help-connect` for details")?;
+        }
         if !link.quiet {
             eprintln!(
                 "Authenticating to edgedb://{}@{}/{}",
