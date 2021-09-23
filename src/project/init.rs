@@ -448,7 +448,9 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
     write_stash_dir(&stash_dir, &project_dir, &name)?;
 
-    task::block_on(migrate(&inst, !options.non_interactive))?;
+    if !options.no_migrations {
+        task::block_on(migrate(&inst, !options.non_interactive))?;
+    }
 
     print::success("Project linked");
     if let Some(dir) = &options.project_dir {
@@ -588,7 +590,9 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     write_stash_dir(&stash_dir, project_dir, &name)?;
 
     if err_manual {
-        run_and_migrate(&inst)?;
+        if !options.no_migrations {
+            run_and_migrate(&inst)?;
+        }
         print::error("Bootstrapping complete, \
             but there was an error creating the service.");
         eprintln!("You can start it manually via: \n  \
@@ -596,7 +600,10 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             name.escape_default());
         return Err(ExitCode::new(2))?;
     } else {
-        task::block_on(migrate(&inst, exists && !options.non_interactive))?;
+        if !options.no_migrations {
+            task::block_on(migrate(&inst,
+                                   exists && !options.non_interactive))?;
+        }
         print_initialized(&name, &options.project_dir);
     }
 
@@ -813,7 +820,9 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     write_stash_dir(&stash_dir, project_dir, &name)?;
 
     if err_manual {
-        run_and_migrate(&inst)?;
+        if !options.no_migrations {
+            run_and_migrate(&inst)?;
+        }
         print::error("Bootstrapping complete, \
             but there was an error creating the service.");
         eprintln!("You can start it manually via: \n  \
@@ -821,7 +830,10 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             name.escape_default());
         return Err(ExitCode::new(2))?;
     } else {
-        task::block_on(migrate(&inst, exists && !options.non_interactive))?;
+        if !options.no_migrations {
+            task::block_on(migrate(&inst,
+                                   exists && !options.non_interactive))?;
+        }
         print_initialized(&name, &options.project_dir);
     }
 
