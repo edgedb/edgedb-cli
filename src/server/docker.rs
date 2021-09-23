@@ -1,3 +1,4 @@
+use std::env;
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs;
@@ -780,7 +781,12 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         cmd.arg("--rm");
         cmd.arg("--user=999:999");
         if cert_generated {
-            cmd.arg("-e").arg("EDGEDB_HIDE_GENERATED_CERT=1");
+            cmd.arg("--env").arg("EDGEDB_HIDE_GENERATED_CERT=1");
+        }
+        if env::var_os("EDGEDB_SERVER_LOG_LEVEL").is_some() {
+            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL");
+        } else {
+            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL=warn");
         }
         cmd.arg(format!("--publish={0}:{0}", port));
         cmd.arg("--mount");
@@ -793,7 +799,6 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 SET password := {password};
             }};
         "###, role=tmp_role, password=quote_string(&tmp_password)));
-        cmd.arg("--log-level=warn");
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir");
         cmd.arg(format!("/var/lib/edgedb/data/{}", inst.name()));
@@ -829,13 +834,17 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         }
 
         let mut cmd = DockerRun::new(&inst.method.cli);
+        if env::var_os("EDGEDB_SERVER_LOG_LEVEL").is_some() {
+            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL");
+        } else {
+            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL=warn");
+        }
         cmd.arg("--user=999:999");
         cmd.arg(format!("--publish={0}:{0}", port));
         cmd.arg("--mount")
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
         cmd.arg(new_image.tag.as_image_name());
         cmd.arg("edgedb-server");
-        cmd.arg("--log-level=warn");
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", inst.name()));
@@ -1045,7 +1054,12 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--rm");
         cmd.arg("--user=999:999");
         if cert_generated {
-            cmd.arg("-e").arg("EDGEDB_HIDE_GENERATED_CERT=1");
+            cmd.arg("--env").arg("EDGEDB_HIDE_GENERATED_CERT=1");
+        }
+        if env::var_os("EDGEDB_SERVER_LOG_LEVEL").is_some() {
+            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL");
+        } else {
+            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL=warn");
         }
         cmd.arg("--mount")
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
@@ -1054,7 +1068,6 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--bootstrap-only");
         cmd.arg("--bootstrap-command")
             .arg(bootstrap_script(settings, &password));
-        cmd.arg("--log-level=warn");
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));

@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, BTreeMap};
+use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 use std::str;
@@ -120,7 +121,8 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
         linux::get_server_path(Some(&pkg.slot))
     });
     cmd.arg("--bootstrap-only");
-    cmd.arg("--log-level=warn");
+    cmd.env("EDGEDB_SERVER_LOG_LEVEL",
+        env::var_os("EDGEDB_SERVER_LOG_LEVEL").unwrap_or("warn".into()));
     cmd.arg("--data-dir").arg(&dir);
 
     let cert_generated = pkg.major_version > MajorVersion::Stable(
