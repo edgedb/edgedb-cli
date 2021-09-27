@@ -24,6 +24,8 @@ mod configure;
 mod non_interactive;
 #[cfg(not(windows))]
 mod migrations;
+#[cfg(not(windows))]
+mod instance_link;
 
 // for some reason rexpect doesn't work on macos
 // and also something wrong on musl libc
@@ -82,7 +84,7 @@ pub struct ShutdownInfo {
 }
 
 pub struct ServerGuard {
-    port: u16,
+    pub port: u16,
     runstate_dir: String,
     tls_cert_file: String,
 }
@@ -97,6 +99,7 @@ impl ServerGuard {
             "edgedb-server".to_string()
         };
         let mut cmd = Command::new(&bin_name);
+        cmd.env("EDGEDB_SERVER_INSECURE_DEV_MODE", "1");
         cmd.arg("--temp-dir");
         cmd.arg("--testmode");
         cmd.arg("--echo-runtime-info");
@@ -173,6 +176,13 @@ impl ServerGuard {
         cmd.arg("--admin");
         cmd.arg("--host").arg(&self.runstate_dir);
         cmd.arg("--port").arg(self.port.to_string());
+        cmd.env("CLICOLOR", "0");
+        return cmd
+    }
+
+    pub fn raw_cmd(&self) -> Command {
+        let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
+        cmd.arg("--no-cli-update-check");
         cmd.env("CLICOLOR", "0");
         return cmd
     }
