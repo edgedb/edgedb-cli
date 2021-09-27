@@ -86,7 +86,7 @@ impl InstInfo<'_> {
             let (nightly, ver) = conn.query_row::<(bool, String), _>(r###"
                 WITH v := sys::get_version()
                 SELECT (
-                    contains("dev", v.local),
+                    any(contains(array_unpack(v.local), "dev")),
                     to_str(v.major) ++ (
                         "-" ++ <str>v.stage ++ to_str(v.stage_no)
                         if v.stage != <sys::VersionStage>'final'
