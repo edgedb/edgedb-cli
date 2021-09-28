@@ -156,6 +156,8 @@ pub enum Setting {
     Limit(Limit),
     /// Set output format.
     OutputFormat(OutputFormat),
+    /// Display typenames in default output mode
+    DisplayTypenames(SettingBool),
     /// Stop escaping newlines in quoted strings
     ExpandStrings(SettingBool),
     /// Set number of entries retained in history

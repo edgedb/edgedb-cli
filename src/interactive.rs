@@ -116,6 +116,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         output_format: options.output_format
             .or(cfg.shell.output_format)
             .unwrap_or(repl::OutputFormat::Default),
+        display_typenames: cfg.shell.display_typenames.unwrap_or(true),
         input_mode: cfg.shell.input_mode.unwrap_or(repl::InputMode::Emacs),
         print_stats: cfg.shell.print_stats.unwrap_or(repl::PrintStats::Off),
         history_limit: cfg.shell.history_size.unwrap_or(10000),
@@ -266,7 +267,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
     }
     let cli = state.connection.as_mut().expect("connection established");
 
-    if cli.protocol().supports_inline_typenames() {
+    if state.display_typenames && cli.protocol().supports_inline_typenames() {
         headers.insert(QUERY_OPT_INLINE_TYPENAMES,
                        Bytes::from_static(b"true"));
     }

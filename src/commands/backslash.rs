@@ -504,6 +504,9 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
         OutputFormat(_) => {
             prompt.output_format.as_str().into()
         }
+        DisplayTypenames(_) => {
+            bool_str(prompt.display_typenames).into()
+        }
         ExpandStrings(_) => {
             bool_str(prompt.print.expand_strings).into()
         }
@@ -591,6 +594,9 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                 }
                 OutputFormat(c) => {
                     prompt.output_format = c.value.expect("only writes here");
+                }
+                DisplayTypenames(b) => {
+                    prompt.display_typenames = b.unwrap_value();
                 }
                 ExpandStrings(b) => {
                     prompt.print.expand_strings = b.unwrap_value();

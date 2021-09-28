@@ -30,6 +30,8 @@ pub struct ShellConfig {
     pub limit: Option<usize>,
     #[serde(with="serde_str::opt", default)]
     pub output_format: Option<repl::OutputFormat>,
+    #[serde(default)]
+    pub display_typenames: Option<bool>,
     #[serde(with="serde_str::opt", default)]
     pub print_stats: Option<repl::PrintStats>,
     #[serde(default)]

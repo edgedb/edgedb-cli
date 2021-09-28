@@ -55,6 +55,7 @@ pub struct State {
     pub implicit_limit: Option<usize>,
     pub input_mode: InputMode,
     pub output_format: OutputFormat,
+    pub display_typenames: bool,
     pub print_stats: PrintStats,
     pub history_limit: usize,
     pub conn_params: Connector,
