@@ -667,6 +667,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         cmd.env("EDGEDB_SERVER_INSTANCE_NAME", options.name);
         cmd.arg("--env").arg("EDGEDB_SERVER_INSTANCE_NAME");
         cmd.arg("--env").arg("EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS=1");
+        cmd.arg("--env").arg("EDGEDB_SERVER_DOCKER_LOG_LEVEL=warning");
         cmd.arg(options.image.tag.as_image_name());
         cmd.arg("edgedb-server");
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
@@ -788,6 +789,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         } else {
             cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL=warn");
         }
+        cmd.arg("--env").arg("EDGEDB_SERVER_DOCKER_LOG_LEVEL=warning");
         cmd.arg(format!("--publish={0}:{0}", port));
         cmd.arg("--mount");
         cmd.arg(format!("source={},target=/var/lib/edgedb/data", volume));
@@ -839,6 +841,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         } else {
             cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL=warn");
         }
+        cmd.arg("--env").arg("EDGEDB_SERVER_DOCKER_LOG_LEVEL=warning");
         cmd.arg("--user=999:999");
         cmd.arg(format!("--publish={0}:{0}", port));
         cmd.arg("--mount")
@@ -1061,6 +1064,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         } else {
             cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL=warn");
         }
+        cmd.arg("--env").arg("EDGEDB_SERVER_DOCKER_LOG_LEVEL=warning");
         cmd.arg("--mount")
            .arg(format!("source={},target=/var/lib/edgedb/data", volume));
         cmd.arg(image.tag.as_image_name());
