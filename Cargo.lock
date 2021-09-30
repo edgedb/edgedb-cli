@@ -326,9 +326,9 @@ checksum = "e91831deabf0d6d7ec49552e489aed63b7456a7a3c46cff62adad428110b0af0"
 
 [[package]]
 name = "async-trait"
-version = "0.1.50"
+version = "0.1.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b98e84bbb4cbcdd97da190ba0c58a1bb0de2c1fdf67d159e192ed766aeca722"
+checksum = "44318e776df68115a881de9a8fd1b9e53368d7a4a5ce4cc48517da3393233a5e"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -1057,11 +1057,13 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#446ccd8640f8b99325791a4bddc14d7e7c7bd433"
+source = "git+https://github.com/edgedb/edgedb-rust#4c402aeb2cf1402572f7f9f4ae7857201e2fa7c6"
 dependencies = [
  "async-std",
+ "async-trait",
  "bytes",
  "dirs 3.0.2",
+ "edgedb-derive",
  "edgedb-errors",
  "edgedb-protocol",
  "futures-util",
@@ -1086,7 +1088,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#446ccd8640f8b99325791a4bddc14d7e7c7bd433"
+source = "git+https://github.com/edgedb/edgedb-rust#4c402aeb2cf1402572f7f9f4ae7857201e2fa7c6"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -1097,7 +1099,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#446ccd8640f8b99325791a4bddc14d7e7c7bd433"
+source = "git+https://github.com/edgedb/edgedb-rust#4c402aeb2cf1402572f7f9f4ae7857201e2fa7c6"
 dependencies = [
  "bytes",
 ]
@@ -1105,7 +1107,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#446ccd8640f8b99325791a4bddc14d7e7c7bd433"
+source = "git+https://github.com/edgedb/edgedb-rust#4c402aeb2cf1402572f7f9f4ae7857201e2fa7c6"
 dependencies = [
  "bigdecimal",
  "bytes",

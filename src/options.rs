@@ -649,7 +649,7 @@ pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
         bld.host_port(tmp.host.clone(), tmp.port);
         bld.read_extra_env_vars()?;
     } else if let Some(dsn) = &tmp.dsn {
-        bld.dsn(dsn)?;
+        task::block_on(bld.read_dsn(dsn))?;
         bld.read_extra_env_vars()?;
     } else if let Some(instance) = &tmp.instance {
         task::block_on(bld.read_instance(instance))?;
