@@ -11,7 +11,7 @@ use rustls;
 use rustls::{RootCertStore, ServerCertVerifier, ServerCertVerified, TLSError};
 use webpki::DNSNameRef;
 
-use edgedb_client::{verify_server_cert, Builder};
+use edgedb_client::{tls::verify_server_cert, Builder};
 use edgedb_client::errors::{Error, PasswordRequired, ClientNoCredentialsError};
 
 use crate::connect::Connector;
