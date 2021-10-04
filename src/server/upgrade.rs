@@ -140,10 +140,8 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let mut any_upgraded = false;
     for meth in methods.values() {
         match meth.upgrade(&todo, options) {
-            Ok(upgraded) => {
-                if upgraded {
-                    any_upgraded = true;
-                }
+            Ok(upgraded) if upgraded => {
+                any_upgraded = true;
                 if let ToDo::InstanceUpgrade(name, _version) = &todo {
                     let new_inst = meth.get_instance(name)?;
                     let version = new_inst.get_current_version()?.unwrap();
@@ -155,6 +153,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
                     break
                 }
             }
+            Ok(_) => {}
             Err(e) if e.is::<InstanceNotFound>() => {
                 errors.push((meth.name(), e));
             }
