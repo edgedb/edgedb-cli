@@ -25,6 +25,7 @@ mod format;
 mod highlight;
 mod hint;
 mod interactive;
+mod interrupt;
 mod log_levels;
 mod markdown;
 mod migrations;
@@ -86,6 +87,7 @@ fn _main() -> anyhow::Result<()> {
     // to ease bug reporting and troubleshooting.
     // TODO: consider removing this once EdgeDB reaches 1.0 stable.
     env::set_var("RUST_BACKTRACE", "1");
+    interrupt::init_signals();
 
     if let Some(arg0) = std::env::args_os().next() {
         if let Some(exe_name) = Path::new(&arg0).file_name() {
