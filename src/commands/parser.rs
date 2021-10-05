@@ -72,23 +72,23 @@ pub struct List {
 pub enum ListCmd {
     /// Display list of aliases defined in the schema
     Aliases(ListAliases),
+    /// Display list of casts defined in the schema
+    Casts(ListCasts),
     /// Display list of databases in the EdgeDB instance
     Databases,
+    /// Display list of indexes defined in the schema
+    Indexes(ListIndexes),
+    /// Display list of modules defined in the schema
+    Modules(ListModules),
     /// List ports exposed by EdgeDB. Works on EdgeDB <= 1-alpha7
     #[edb(hidden)]
     Ports,
-    /// Display list of casts defined in the schema
-    Casts(ListCasts),
-    /// Display list of indexes defined in the schema
-    Indexes(ListIndexes),
+    /// Display list of roles in the EdgeDB instance
+    Roles(ListRoles),
     /// Display list of scalar types defined in the schema
     Scalars(ListTypes),
     /// Display list of object types defined in the schema
     Types(ListTypes),
-    /// Display list of roles in the EdgeDB instance
-    Roles(ListRoles),
-    /// Display list of modules defined in the schema
-    Modules(ListModules),
 }
 
 #[derive(EdbClap, Clone, Debug)]
