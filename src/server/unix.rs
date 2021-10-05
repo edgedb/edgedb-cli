@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::env;
 use std::path::{Path, PathBuf};
-use std::process::{self, Command};
+use std::process;
 use std::str;
 use std::time::SystemTime;
 
@@ -18,6 +18,7 @@ use crate::credentials;
 use crate::platform::{Uid, get_current_uid, data_dir, cache_dir};
 use crate::print;
 use crate::process::ProcessGuard;
+use crate::proc;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, read_ports, init_credentials, Storage};
 use crate::server::detect::{VersionQuery, Lazy};
@@ -115,11 +116,13 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
 
     let pkg = settings.distribution.downcast_ref::<Package>()
         .context("invalid unix package")?;
-    let mut cmd = Command::new(if cfg!(target_os="macos") {
+    let server_path = if cfg!(target_os="macos") {
         macos::get_server_path(&pkg.slot)
     } else {
         linux::get_server_path(Some(&pkg.slot))
-    });
+    };
+    let mut cmd = proc::Native::new("bootstrap", "edgedb", server_path);
+    //let mut cmd = Command::new(server_path);
     cmd.arg("--bootstrap-only");
     cmd.env("EDGEDB_SERVER_LOG_LEVEL",
         env::var_os("EDGEDB_SERVER_LOG_LEVEL").unwrap_or("warn".into()));
@@ -131,13 +134,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
     if cert_generated {
         cmd.arg("--generate-self-signed-cert");
     }
-
-    log::debug!("Running bootstrap {:?}", cmd);
-    match cmd.status() {
-        Ok(s) if s.success() => {}
-        Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
-        Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
-    }
+    cmd.run()?;
 
     let metapath = dir.join("metadata.json");
     let metadata = settings.metadata();

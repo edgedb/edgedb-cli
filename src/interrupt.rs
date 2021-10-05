@@ -4,13 +4,15 @@ use std::process;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use std::task::{Poll, Context};
+use std::thread;
 
 use arc_swap::ArcSwapOption;
 use futures_util::task::AtomicWaker;
 use backtrace::Backtrace;
 
 
-static CUR_CTRLC: ArcSwapOption<CtrlCState> = ArcSwapOption::const_empty();
+static CUR_CTRLC: ArcSwapOption<SignalState> = ArcSwapOption::const_empty();
+static CUR_TERM: ArcSwapOption<SignalState> = ArcSwapOption::const_empty();
 
 
 #[derive(Debug, thiserror::Error)]
@@ -25,7 +27,11 @@ pub struct CtrlC {
     event: Arc<Event>,
 }
 
-pub struct CtrlCState {
+pub struct Term {
+    event: Arc<Event>,
+}
+
+pub struct SignalState {
     backtrace: Backtrace,
     event: Arc<Event>,
 }
@@ -56,12 +62,18 @@ impl Event {
     }
 }
 
-fn exit_on_signal() {
+pub fn exit_on_sigint() -> ! {
     log::warn!("Exiting due to interrupt");
-    process::exit(143); // 128 + SIGINT signal convention
+    process::exit(130); // 128 + SIGINT signal convention
+}
+
+pub fn exit_on_sigterm() -> ! {
+    log::warn!("Exiting due to TERM or HUP signal");
+    process::exit(143); // 128 + SIGTERM signal convention
 }
 
 pub fn init_signals() {
+    #[cfg(windows)]
     ctrlc::set_handler(move || {
         if let Some(state) = CUR_CTRLC.load_full() {
             state.event.set();
@@ -69,19 +81,38 @@ pub fn init_signals() {
             exit_on_signal();
         }
     }).expect("Ctrl+C handler can be set");
-}
+    #[cfg(unix)]
+    thread::spawn(|| {
+        use signal_hook::iterator::Signals;
+        use signal_hook::consts::signal::{SIGINT, SIGHUP, SIGTERM};
 
-fn clear_ctrl_c() {
-    let old = CUR_CTRLC.swap(None::<Arc<_>>).expect("CtrlC set");
-    if old.event.is_set() {
-        exit_on_signal();
-    }
+        let mut signals = Signals::new(&[SIGINT, SIGHUP, SIGTERM])
+            .expect("signals initialized");
+        for signal in signals.into_iter() {
+            match signal {
+                SIGINT => {
+                    if let Some(state) = CUR_CTRLC.load_full()  {
+                        state.event.set();
+                    } else {
+                        exit_on_sigint();
+                    }
+                }
+                _ => {
+                    if let Some(state) = CUR_TERM.load_full()  {
+                        state.event.set();
+                    } else {
+                        exit_on_sigterm();
+                    }
+                }
+            }
+        }
+    });
 }
 
 impl CtrlC {
     pub fn new() -> CtrlC {
         let event = Arc::new(Event::new());
-        let new = Arc::new(CtrlCState {
+        let new = Arc::new(SignalState {
             backtrace: Backtrace::new(),
             event: event.clone(),
         });
@@ -92,6 +123,9 @@ impl CtrlC {
         };
         CtrlC { event }
     }
+    pub fn has_occurred(&self) -> bool {
+        self.event.is_set()
+    }
     pub async fn wait_result<T>(&self) -> anyhow::Result<T> {
         self.event.wait().await;
         Err(InterruptError.into())
@@ -101,9 +135,44 @@ impl CtrlC {
     }
 }
 
+impl Term {
+    pub fn new() -> Term {
+        let event = Arc::new(Event::new());
+        let new = Arc::new(SignalState {
+            backtrace: Backtrace::new(),
+            event: event.clone(),
+        });
+        let old = CUR_TERM.compare_and_swap(&None::<Arc<_>>, Some(new));
+        if let Some(state) = &*old {
+            panic!("Second Term created simutlaneously.\n\n\
+                Previous was created at:\n{:?}", state.backtrace);
+        };
+        Term { event }
+    }
+    pub async fn wait_result<T>(&self) -> anyhow::Result<T> {
+        self.event.wait().await;
+        Err(TermError.into())
+    }
+    pub async fn wait(&self) {
+        self.event.wait().await;
+    }
+}
+
 impl Drop for CtrlC {
     fn drop(&mut self) {
-        clear_ctrl_c();
+        let old = CUR_CTRLC.swap(None::<Arc<_>>).expect("CtrlC set");
+        if old.event.is_set() {
+            exit_on_sigint();
+        }
+    }
+}
+
+impl Drop for Term {
+    fn drop(&mut self) {
+        let old = CUR_TERM.swap(None::<Arc<_>>).expect("Term set");
+        if old.event.is_set() {
+            exit_on_sigterm();
+        }
     }
 }
 

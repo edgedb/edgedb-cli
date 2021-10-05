@@ -110,6 +110,7 @@ github_nightly = []
 
 [target.'cfg(unix)'.dependencies]
 signal = "0.7.0"
+signal-hook = {version="0.3.10", features=["iterator"]}
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.8"
