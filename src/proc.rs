@@ -67,7 +67,7 @@ impl Native {
         let status = 'child: loop {
             for sig in trap {
                 match sig {
-                    SIGTERM|SIGHUP => {
+                    SIGTERM => {
                         log::warn!("Got {:?} signal. Propagating...",
                                    sig);
                         if unsafe { libc::kill(pid, sig as libc::c_int) } != 0 {
@@ -76,9 +76,14 @@ impl Native {
                         }
                         terminated = true;
                     }
+                    SIGHUP => {
+                        log::warn!("Got {:?} signal.  Waiting for \
+                            the {} process to exit.", self.description, sig);
+                        terminated = true;
+                    }
                     SIGINT => {
                         log::warn!("Interrupted. Waiting for \
-                            child process to exit.");
+                            the {} process to exit.", self.description);
                         interrupted = true;
                     }
                     _ => {}
