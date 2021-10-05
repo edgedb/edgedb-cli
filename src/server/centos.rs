@@ -95,11 +95,87 @@ impl Centos {
             }).map(|opt| opt.as_ref())
         }
     }
+    fn get_installed_versions(
+        &self, pkg_name: &str
+    ) -> anyhow::Result<Vec<DistributionRef>> {
+        let mut cmd = StdCommand::new("yum");
+        cmd.arg("--showduplicates");
+        cmd.arg("list").arg("installed");
+        cmd.arg(pkg_name);
+        let out = cmd.output()
+            .context("cannot get installed packages")?;
+        if out.status.code() == Some(1) {
+            if str::from_utf8(&out.stderr)
+                .map(|x| x.contains("No matching Packages to list"))
+                .unwrap_or(false)
+            {
+                return Ok(Vec::new());
+            }
+            anyhow::bail!("cannot get installed packages: {:?} {}",
+                    cmd, out.status);
+        } else if !out.status.success() {
+            anyhow::bail!("cannot get installed packages: {:?} {}",
+                    cmd, out.status);
+        }
+        let mut lines = out.stdout.split(|&b| b == b'\n');
+        for line in &mut lines {
+            if line == b"Installed Packages" {
+                break;
+            }
+        }
+        let mut result = Vec::new();
+        for line in lines {
+            let mut it = match str::from_utf8(line) {
+                Ok(line) => line.split_whitespace(),
+                Err(_) => continue,
+            };
+            let (pkg, ver) = match (it.next(), it.next()) {
+                (Some(name), Some(ver)) => (name, ver),
+                _ => continue,
+            };
+            let nightly = pkg.contains("-dev");
+            let (pkg_name, arch) = split_on(pkg, '.');
+            if arch != ARCH {
+                continue;
+            }
+            let (_pkg_name, major_version) =
+                if pkg_name.starts_with("edgedb-server-") {
+                    ("edgedb-server", &pkg_name["edgedb-server-".len()..])
+                } else {
+                    ("edgedb", &pkg_name["edgedb-".len()..])
+                };
+
+            if major_version.chars().next()
+                .map(|x| !x.is_digit(10)).unwrap_or(true)
+            {
+                continue;
+            }
+            result.push(Package {
+                major_version: if nightly {
+                    MajorVersion::Nightly
+                } else {
+                    MajorVersion::Stable(Version(major_version.to_owned()))
+                },
+                version: Version(ver.to_owned()),
+                slot: major_version.to_owned(),
+            }.into_ref());
+        }
+        Ok(result)
+    }
     fn install_operations(&self, settings: &install::Settings)
         -> anyhow::Result<Vec<Operation>>
     {
         let pkg = settings.distribution.downcast_ref::<Package>()
             .context("invalid centos package")?;
+        if let Ok(versions) = self.get_installed_versions(
+            &format!("edgedb-server-{}", pkg.slot)
+        ) {
+            for version in versions {
+                if version.version().eq(pkg.version()) {
+                    return Ok(Vec::new());
+                }
+            }
+        }
         let mut operations = Vec::new();
         let nightly = settings.distribution.major_version().is_nightly();
         let repo_data = repo_data(nightly);
@@ -251,69 +327,7 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         Ok(self.installed.get_or_try_init(|| {
-            let mut cmd = StdCommand::new("yum");
-            cmd.arg("--showduplicates");
-            cmd.arg("list").arg("installed");
-            cmd.arg("edgedb-*");
-            let out = cmd.output()
-                .context("cannot get installed packages")?;
-            if out.status.code() == Some(1) {
-                if str::from_utf8(&out.stderr)
-                    .map(|x| x.contains("No matching Packages to list"))
-                    .unwrap_or(false)
-                {
-                    return Ok(Vec::new());
-                }
-                anyhow::bail!("cannot get installed packages: {:?} {}",
-                    cmd, out.status);
-            } else if !out.status.success() {
-                anyhow::bail!("cannot get installed packages: {:?} {}",
-                    cmd, out.status);
-            }
-            let mut lines = out.stdout.split(|&b| b == b'\n');
-            for line in &mut lines {
-                if line == b"Installed Packages" {
-                    break;
-                }
-            }
-            let mut result = Vec::new();
-            for line in lines {
-                let mut it = match str::from_utf8(line) {
-                    Ok(line) => line.split_whitespace(),
-                    Err(_) => continue,
-                };
-                let (pkg, ver) = match (it.next(), it.next()) {
-                    (Some(name), Some(ver)) => (name, ver),
-                    _ => continue,
-                };
-                let nightly = pkg.contains("-dev");
-                let (pkg_name, arch) = split_on(pkg, '.');
-                if arch != ARCH {
-                    continue;
-                }
-                let (_pkg_name, major_version) =
-                    if pkg_name.starts_with("edgedb-server-") {
-                        ("edgedb-server", &pkg_name["edgedb-server-".len()..])
-                    } else {
-                        ("edgedb", &pkg_name["edgedb-".len()..])
-                    };
-
-                if major_version.chars().next()
-                   .map(|x| !x.is_digit(10)).unwrap_or(true)
-                {
-                    continue;
-                }
-                result.push(Package {
-                    major_version: if nightly {
-                        MajorVersion::Nightly
-                    } else {
-                        MajorVersion::Stable(Version(major_version.to_owned()))
-                    },
-                    version: Version(ver.to_owned()),
-                    slot: major_version.to_owned(),
-                }.into_ref());
-            }
-            Ok(result)
+            self.os.get_installed_versions("edgedb-*")
         })?.clone())
     }
     fn detect_all(&self) -> serde_json::Value {

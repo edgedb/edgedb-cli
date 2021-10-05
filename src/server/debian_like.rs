@@ -116,6 +116,11 @@ impl Debian {
     {
         let pkg = settings.distribution.downcast_ref::<Package>()
             .context("invalid debian package")?;
+        if let Ok(Some(_)) = get_installed_version(
+            &format!("edgedb-server-{}", pkg.slot)
+        ) {
+            return Ok(Vec::new());
+        }
         let key = task::block_on(remote::get_string(install::KEY_FILE_URL))
             .context("downloading key file")?;
         let mut operations = Vec::new();
@@ -196,6 +201,33 @@ impl Debian {
     }
 }
 
+fn get_installed_version(pkg_name: &str) -> anyhow::Result<Option<String>> {
+    let mut cmd = StdCommand::new("apt-cache");
+    cmd.arg("policy");
+    cmd.arg(pkg_name);
+    let out = cmd.output()
+        .context("cannot get installed packages")?;
+    if !out.status.success() {
+        anyhow::bail!("cannot get installed packages: {:?} {}",
+                cmd, out.status);
+    }
+    for line in out.stdout.split(|&b| b == b'\n') {
+        let line = match str::from_utf8(line).ok() {
+            Some(line) => line.trim(),
+            None => continue,
+        };
+        if line.starts_with("Installed:") {
+            let ver = line["Installed:".len()..].trim();
+            if ver == "(none)" {
+                break;
+            } else {
+                return Ok(Some(ver.into()));
+            }
+        }
+    }
+    Ok(None)
+}
+
 pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
     let mut cmd = StdCommand::new("apt-cache");
     cmd.arg("search");
@@ -219,42 +251,22 @@ pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
             continue
         }
 
-        let mut cmd = StdCommand::new("apt-cache");
-        cmd.arg("policy");
-        cmd.arg(pkg_name);
-        let out = cmd.output()
-            .context("cannot get installed packages")?;
-        if !out.status.success() {
-            anyhow::bail!("cannot get installed packages: {:?} {}",
-                cmd, out.status);
-        }
-        for line in out.stdout.split(|&b| b == b'\n') {
-            let line = match str::from_utf8(line).ok() {
-                Some(line) => line.trim(),
-                None => continue,
-            };
-            if line.starts_with("Installed:") {
-                let ver = line["Installed:".len()..].trim();
-                if ver == "(none)" {
-                    break;
-                }
-                let (_pkg_name, major_version) =
-                    if pkg_name.starts_with("edgedb-server-") {
-                        ("edgedb-server", &pkg_name["edgedb-server-".len()..])
-                    } else {
-                        ("edgedb", &pkg_name["edgedb-".len()..])
-                    };
-                result.push(Package {
-                    slot: major_version.to_owned(),
-                    version: Version(ver.to_owned()),
-                    major_version: if ver.contains(".dev") {
-                        MajorVersion::Nightly
-                    } else {
-                        MajorVersion::Stable(Version(major_version.into()))
-                    },
-                }.into_ref());
-                break;
-            }
+        if let Some(ver) = get_installed_version(pkg_name)? {
+            let (_pkg_name, major_version) =
+                if pkg_name.starts_with("edgedb-server-") {
+                    ("edgedb-server", &pkg_name["edgedb-server-".len()..])
+                } else {
+                    ("edgedb", &pkg_name["edgedb-".len()..])
+                };
+            result.push(Package {
+                slot: major_version.to_owned(),
+                version: Version(ver.to_owned()),
+                major_version: if ver.contains(".dev") {
+                    MajorVersion::Nightly
+                } else {
+                    MajorVersion::Stable(Version(major_version.into()))
+                },
+            }.into_ref());
         }
     }
     Ok(result)

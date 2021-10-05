@@ -908,6 +908,21 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     {
         let image = settings.distribution.downcast_ref::<Image>()
             .context("invalid distribution for Docker")?;
+        if let Ok(tag) = process::get_text(
+            Command::new(&self.cli)
+            .arg("inspect")
+            .arg("--format")
+            .arg("{{index .RepoDigests 0}}")
+            .arg(image.tag.as_image_name())
+        ) {
+            if let Some(tag) = Tag::from_pair(
+                image.major_version.as_str(), &tag
+            ) {
+                if image.tag.eq(&tag) {
+                    return Ok(())
+                }
+            }
+        }
         process::run(Command::new(&self.cli)
             .arg("image")
             .arg("pull")

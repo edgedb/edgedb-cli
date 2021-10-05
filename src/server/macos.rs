@@ -157,6 +157,26 @@ impl Macos {
             docker: DockerCandidate::detect()?,
         })
     }
+    fn get_installed_version(
+        &self, pkg_name: &str
+    ) -> anyhow::Result<Option<String>> {
+        let mut cmd = StdCommand::new("pkgutil");
+        cmd.arg("--pkg-info").arg(pkg_name);
+        let out = cmd.output()
+            .context("cannot get package version")?;
+        if !out.status.success() {
+            anyhow::bail!("cannot get package version: {:?} {}",
+                        cmd, out.status);
+        }
+        let lines = out.stdout.split(|&b| b == b'\n')
+            .filter_map(|line| str::from_utf8(line).ok());
+        for line in lines {
+            if line.starts_with("version:") {
+                return Ok(Some(line["version:".len()..].trim().into()));
+            }
+        }
+        Ok(None)
+    }
 }
 
 impl<'os> Method for PackageMethod<'os, Macos> {
@@ -168,6 +188,13 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     {
         let pkg = settings.distribution.downcast_ref::<Package>()
             .context("invalid macos package")?;
+        if let Ok(Some(version)) = self.os.get_installed_version(
+            &package_name(pkg)
+        ) {
+            if pkg.version.as_ref().starts_with(&version) {
+                return Ok(());
+            }
+        }
         let tmpdir = tempfile::tempdir()?;
         let package_name = format!("edgedb-server-{}_{}.pkg",
             pkg.slot, pkg.version.as_ref().replace("-", "_"));
@@ -256,24 +283,10 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                 }
                 let major = &line["com.edgedb.edgedb-server-".len()..].trim();
 
-                let mut cmd = StdCommand::new("pkgutil");
-                cmd.arg("--pkg-info").arg(line.trim());
-                let out = cmd.output()
-                    .context("cannot get package version")?;
-                if !out.status.success() {
-                    anyhow::bail!("cannot get package version: {:?} {}",
-                        cmd, out.status);
-                }
-                let lines = out.stdout.split(|&b| b == b'\n')
-                    .filter_map(|line| str::from_utf8(line).ok());
-                let mut version = None;
-                for line in lines {
-                    if line.starts_with("version:") {
-                        version = Some(line["version:".len()..].trim());
-                        break;
-                    }
-                }
-                let version = if let Some(version) = version {
+                let version = if let Some(
+                    version
+                ) = self.os.get_installed_version(line.trim())? {
+                    println!("version: {}", version);
                     version
                 } else {
                     log::info!("Cannot get version of {:?}", line);
