@@ -2,7 +2,6 @@ use std::future::Future;
 use std::pin::Pin;
 use std::process;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use std::task::{Poll, Context};
 use std::thread;
 
@@ -11,33 +10,34 @@ use futures_util::task::AtomicWaker;
 use backtrace::Backtrace;
 
 
-static CUR_CTRLC: ArcSwapOption<SignalState> = ArcSwapOption::const_empty();
-static CUR_TERM: ArcSwapOption<SignalState> = ArcSwapOption::const_empty();
+static CUR_INTERRUPT: ArcSwapOption<SignalState> = ArcSwapOption::const_empty();
 
-
-#[derive(Debug, thiserror::Error)]
-#[error("interrupted with Ctrl+C")]
-pub struct InterruptError;
-
-#[derive(Debug, thiserror::Error)]
-#[error("termination signal received")]
-pub struct TermError;
-
-pub struct CtrlC {
-    event: Arc<Event>,
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Signal {
+    Interrupt,
+    Term,
+    Hup,
 }
 
-pub struct Term {
+type SigMask = u8;
+
+#[derive(Debug, thiserror::Error)]
+#[error("interrupted")]
+pub struct InterruptError(pub Signal);
+
+pub struct Interrupt {
     event: Arc<Event>,
 }
 
 pub struct SignalState {
     backtrace: Backtrace,
     event: Arc<Event>,
+    signals: SigMask,
 }
 
 struct Event {
-    value: AtomicBool,
+    first: crossbeam_utils::atomic::AtomicCell<Option<Signal>>,
+    last: crossbeam_utils::atomic::AtomicCell<Option<Signal>>,
     waker: AtomicWaker,
 }
 
@@ -46,15 +46,14 @@ struct EventWait<'a>(&'a Event);
 impl Event {
     fn new() -> Self {
         Event {
-            value: AtomicBool::new(false),
+            first: crossbeam_utils::atomic::AtomicCell::new(None),
+            last: crossbeam_utils::atomic::AtomicCell::new(None),
             waker: AtomicWaker::new(),
         }
     }
-    fn is_set(&self) -> bool {
-        self.value.load(Relaxed)
-    }
-    fn set(&self) {
-        self.value.store(true, Relaxed);
+    fn set(&self, sig: Signal) {
+        self.first.compare_exchange(None, Some(sig)).ok();
+        self.last.store(Some(sig));
         self.waker.wake()
     }
     fn wait(&self) -> EventWait {
@@ -62,25 +61,39 @@ impl Event {
     }
 }
 
-pub fn exit_on_sigint() -> ! {
-    log::warn!("Exiting due to interrupt");
-    process::exit(130); // 128 + SIGINT signal convention
+#[cfg(unix)]
+pub fn exit_on(signal: Signal) -> ! {
+    let id = signal.to_unix();
+    if signal == Signal::Interrupt {
+        log::warn!("Exiting due to interrupt");
+    } else {
+        log::warn!("Exiting on signal {}",
+            signal_hook::low_level::signal_name(id).unwrap_or("<unknown>"));
+    }
+    process::exit(128 + id);
 }
 
-pub fn exit_on_sigterm() -> ! {
-    log::warn!("Exiting due to TERM or HUP signal");
-    process::exit(143); // 128 + SIGTERM signal convention
+#[cfg(windows)]
+pub fn exit_on(_signal: Signal) -> ! {
+    _win_exit_on_interrupt();
+}
+
+#[allow(dead_code)]
+fn _win_exit_on_interrupt() -> ! {
+    log::warn!("Exiting due to interrupt");
+    process::exit(128 + 2);
 }
 
 pub fn init_signals() {
     #[cfg(windows)]
     ctrlc::set_handler(move || {
-        if let Some(state) = CUR_CTRLC.load_full() {
-            state.event.set();
+        if let Some(state) = CUR_INTERRUPT.load_full() {
+            state.event.set(Signal::Interupt);
         } else {
-            exit_on_signal();
+            exit_on(Signal::Interrupt);
         }
     }).expect("Ctrl+C handler can be set");
+
     #[cfg(unix)]
     thread::spawn(|| {
         use signal_hook::iterator::Signals;
@@ -89,19 +102,13 @@ pub fn init_signals() {
         let mut signals = Signals::new(&[SIGINT, SIGHUP, SIGTERM])
             .expect("signals initialized");
         for signal in signals.into_iter() {
-            match signal {
-                SIGINT => {
-                    if let Some(state) = CUR_CTRLC.load_full()  {
-                        state.event.set();
+            if let Some(state) = CUR_INTERRUPT.load_full()  {
+                if let Some(sig) = Signal::from_unix(signal) {
+                    if sig.as_bit() & state.signals != 0 {
+                        state.event.set(Signal::from_unix(signal)
+                            .expect("known signal"));
                     } else {
-                        exit_on_sigint();
-                    }
-                }
-                _ => {
-                    if let Some(state) = CUR_TERM.load_full()  {
-                        state.event.set();
-                    } else {
-                        exit_on_sigterm();
+                        exit_on(sig);
                     }
                 }
             }
@@ -109,89 +116,101 @@ pub fn init_signals() {
     });
 }
 
-impl CtrlC {
-    pub fn new() -> CtrlC {
+impl Interrupt {
+    pub fn ctrl_c() -> Interrupt {
+        Interrupt::new(Signal::Interrupt.as_bit())
+    }
+    pub fn term() -> Interrupt {
+        Interrupt::new(Signal::all_bits())
+    }
+    fn new(signals: SigMask) -> Interrupt {
         let event = Arc::new(Event::new());
         let new = Arc::new(SignalState {
             backtrace: Backtrace::new(),
             event: event.clone(),
+            signals,
         });
-        let old = CUR_CTRLC.compare_and_swap(&None::<Arc<_>>, Some(new));
+        let old = CUR_INTERRUPT.compare_and_swap(&None::<Arc<_>>, Some(new));
         if let Some(state) = &*old {
-            panic!("Second CtrlC created simutlaneously.\n\n\
+            panic!("Second Interrupt created simutlaneously.\n\n\
                 Previous was created at:\n{:?}", state.backtrace);
         };
-        CtrlC { event }
-    }
-    pub fn has_occurred(&self) -> bool {
-        self.event.is_set()
+        Interrupt { event }
     }
     pub async fn wait_result<T>(&self) -> anyhow::Result<T> {
-        self.event.wait().await;
-        Err(InterruptError.into())
+        Err(InterruptError(self.event.wait().await).into())
     }
-    pub async fn wait(&self) {
-        self.event.wait().await;
+    pub async fn wait(&self) -> Signal {
+        self.event.wait().await
     }
-}
-
-impl Term {
-    pub fn new() -> Term {
-        let event = Arc::new(Event::new());
-        let new = Arc::new(SignalState {
-            backtrace: Backtrace::new(),
-            event: event.clone(),
-        });
-        let old = CUR_TERM.compare_and_swap(&None::<Arc<_>>, Some(new));
-        if let Some(state) = &*old {
-            panic!("Second Term created simutlaneously.\n\n\
-                Previous was created at:\n{:?}", state.backtrace);
-        };
-        Term { event }
-    }
-    pub async fn wait_result<T>(&self) -> anyhow::Result<T> {
-        self.event.wait().await;
-        Err(TermError.into())
-    }
-    pub async fn wait(&self) {
-        self.event.wait().await;
-    }
-}
-
-impl Drop for CtrlC {
-    fn drop(&mut self) {
-        let old = CUR_CTRLC.swap(None::<Arc<_>>).expect("CtrlC set");
-        if old.event.is_set() {
-            exit_on_sigint();
+    pub fn exit_if_occurred(&self) {
+        if let Some(sig) = self.event.first.load() {
+            exit_on(sig);
         }
     }
 }
 
-impl Drop for Term {
+impl Drop for Interrupt {
     fn drop(&mut self) {
-        let old = CUR_TERM.swap(None::<Arc<_>>).expect("Term set");
-        if old.event.is_set() {
-            exit_on_sigterm();
+        let old = CUR_INTERRUPT.swap(None::<Arc<_>>).expect("Interrupt set");
+        if let Some(sig) = old.event.last.load() {
+            exit_on(sig);
         }
     }
 }
 
 impl Future for EventWait<'_> {
-    type Output = ();
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+    type Output = Signal;
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Signal> {
         // quick check to avoid registration if already done.
-        if self.0.value.load(Relaxed) {
-            return Poll::Ready(());
+        if let Some(sig) = self.0.last.swap(None) {
+            return Poll::Ready(sig);
         }
 
         self.0.waker.register(cx.waker());
 
         // Need to check condition **after** `register` to avoid a race
         // condition that would result in lost notifications.
-        if self.0.value.load(Relaxed) {
-            Poll::Ready(())
+        if let Some(sig) = self.0.last.swap(None) {
+            Poll::Ready(sig)
         } else {
             Poll::Pending
+        }
+    }
+}
+
+impl Signal {
+    fn all_bits() -> SigMask {
+        return 0b111;
+    }
+    fn as_bit(&self) -> SigMask {
+        match self {
+            Signal::Interrupt => 0b001,
+            Signal::Term      => 0b010,
+            Signal::Hup       => 0b100,
+        }
+    }
+}
+
+#[cfg(unix)]
+impl Signal {
+    fn to_unix(&self) -> i32 {
+        use signal_hook::consts::signal::*;
+
+        match self {
+            Signal::Interrupt => SIGINT,
+            Signal::Term => SIGTERM,
+            Signal::Hup => SIGHUP,
+        }
+    }
+    fn from_unix(sig: i32) -> Option<Self> {
+        use signal_hook::consts::signal::*;
+
+        match sig {
+             SIGINT => Some(Signal::Interrupt),
+             SIGTERM => Some(Signal::Term),
+             SIGHUP => Some(Signal::Hup),
+             _ => None,
         }
     }
 }

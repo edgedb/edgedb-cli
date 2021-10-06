@@ -26,7 +26,7 @@ use crate::commands::{backslash, ExitCode};
 use crate::config::Config;
 use crate::echo;
 use crate::error_display::print_query_error;
-use crate::interrupt::{CtrlC, InterruptError};
+use crate::interrupt::{Interrupt, InterruptError};
 use crate::options::Options;
 use crate::outputs::tab_separated;
 use crate::print::Highlight;
@@ -550,7 +550,7 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
 async fn _interactive_main(options: &Options, state: &mut repl::State)
     -> Result<(), anyhow::Error>
 {
-    let ctrlc = CtrlC::new();
+    let ctrlc = Interrupt::ctrl_c();
     loop {
         state.ensure_connection()
             .race(ctrlc.wait_result())
@@ -559,7 +559,7 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
         let inp = match state.edgeql_input(&cur_initial).await? {
             prompt::Input::Eof => {
                 state.terminate()
-                    .race(ctrlc.wait())
+                    .race(async { ctrlc.wait().await; })
                     .await;
                 return Err(CleanShutdown)?;
             }
