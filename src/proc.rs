@@ -1,13 +1,15 @@
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::future::pending;
-use std::io;
 use std::path::Path;
 
 use anyhow::Context;
-use async_process::Command;
-use async_std::prelude::FutureExt;
+use async_process::{Command, Stdio};
+use async_std::io::prelude::{BufReadExt};
+use async_std::io::{self, Read, BufReader, WriteExt};
+use async_std::prelude::{FutureExt, StreamExt};
 use async_std::task;
+use colorful::{Colorful, Color};
 
 use crate::interrupt;
 
@@ -59,14 +61,34 @@ impl Native {
     async fn _run(&mut self) -> anyhow::Result<()> {
         let term = interrupt::Interrupt::term();
         log::info!("Running {}: {:?}", self.description, self.command);
-        let mut child = self.command.spawn()
-            .with_context(|| format!(
-                "{} failed to start (command-line: {:?})",
-                self.description, self.command))?;
-        let pid = child.id();
-        let child_result = child.status()
-            .race(async { process_loop(pid, &term, &self.description).await })
-            .await;
+        let child_result = if clicolors_control::colors_enabled() {
+            self.command.stdout(Stdio::piped());
+            self.command.stderr(Stdio::piped());
+            let mut child = self.command.spawn()
+                .with_context(|| format!(
+                    "{} failed to start (command-line: {:?})",
+                    self.description, self.command))?;
+            let pid = child.id();
+            let out = child.stdout.take().unwrap();
+            let err = child.stderr.take().unwrap();
+            child.status()
+                .race(async { stdout_loop(&self.marker, out).await })
+                .race(async { stdout_loop(&self.marker, err).await })
+                .race(async {
+                    process_loop(pid, &term, &self.description).await
+                })
+                .await
+        } else {
+            let mut child = self.command.spawn()
+                .with_context(|| format!(
+                    "{} failed to start (command-line: {:?})",
+                    self.description, self.command))?;
+            let pid = child.id();
+            child.status()
+                .race(async {
+                    process_loop(pid, &term, &self.description).await
+                }).await
+        };
         term.exit_if_occurred();
         let status = child_result.with_context(|| format!(
                 "failed to run {} (command-line: {:?})",
@@ -119,6 +141,19 @@ async fn process_loop(pid: u32, intr: &interrupt::Interrupt, descr: &str)
     timeout(Duration::from_secs(10), pending::<()>()).await.ok();
     log::warn!("Process {} did not stop in 10 seconds, forcing...", descr);
     unsafe { libc::kill(pid as i32, SIGKILL) };
+    pending::<()>().await;
+    unreachable!();
+}
+
+async fn stdout_loop(marker: &str, pipe: impl Read+Unpin) -> ! {
+    let buf = BufReader::new(pipe);
+    let mut lines = buf.lines();
+    while let Some(Ok(line)) = lines.next().await {
+        io::stderr().write_all(
+            format!("[{}] {}\n", marker, line).color(Color::Grey37)
+            .to_string().as_bytes()
+        ).await.ok();
+    }
     pending::<()>().await;
     unreachable!();
 }
