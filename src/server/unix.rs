@@ -484,12 +484,15 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
         .parent().expect("instance path can't be root")
         .join(format!("{}.dump", inst.name()));
 
-    cmd.background_for(
-        upgrade::restore_instance(inst, &dump_path, inst.get_connector(true)?)
-    )?;
-    log::info!(target: "edgedb::server::upgrade",
-        "Restarting instance {:?} to apply changes from `restore --all`",
-        &inst.name());
+    cmd.background_for(async {
+        upgrade::restore_instance(
+            inst, &dump_path, inst.get_connector(true)?
+        ).await?;
+        log::info!(target: "edgedb::server::upgrade",
+            "Restarting instance {:?} to apply changes from `restore --all`",
+            &inst.name());
+        Ok(())
+    })?;
 
     let metapath = instance_dir.join("metadata.json");
     write_metadata(&metapath, &new_meta)?;

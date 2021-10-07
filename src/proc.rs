@@ -1,10 +1,12 @@
 use std::borrow::Cow;
-use std::ffi::OsStr;
+use std::collections::BTreeMap;
+use std::env;
+use std::ffi::{OsStr, OsString};
 use std::future::{Future, pending};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use async_process::{Command, Stdio};
+use async_process::{Command, Stdio, ExitStatus, Output};
 use async_std::io::prelude::{BufReadExt};
 use async_std::io::{self, Read, BufReader, WriteExt};
 use async_std::prelude::{FutureExt, StreamExt};
@@ -19,6 +21,11 @@ pub struct Native {
     marker: Cow<'static, str>,
     description: Cow<'static, str>,
     capture: bool,
+}
+
+enum EnvVal {
+    Propagate,
+    Value(OsString),
 }
 
 impl Native {
@@ -72,6 +79,9 @@ impl Native {
     pub fn feed(&mut self, data: impl AsRef<[u8]>) -> anyhow::Result<()> {
         task::block_on(self._feed(data.as_ref()))
     }
+    pub fn status(&mut self) -> anyhow::Result<ExitStatus> {
+        task::block_on(self._status())
+    }
 
     async fn _run(&mut self) -> anyhow::Result<()> {
         let term = interrupt::Interrupt::term();
@@ -115,6 +125,28 @@ impl Native {
             anyhow::bail!("{} failed: {} (command-line: {:?})",
                           self.description, status, self.command);
         }
+    }
+
+    async fn _status(&mut self) -> anyhow::Result<ExitStatus> {
+        let term = interrupt::Interrupt::term();
+        log::info!("Running {}: {:?}", self.description, self.command);
+        self.command.stdout(Stdio::null());
+        self.command.stderr(Stdio::null());
+        let mut child = self.command.spawn()
+            .with_context(|| format!(
+                "{} failed to start (command-line: {:?})",
+                self.description, self.command))?;
+        let pid = child.id();
+        let child_result = child.status()
+            .race(async {
+                process_loop(pid, &term, &self.description).await
+            }).await;
+        term.exit_if_occurred();
+        let status = child_result.with_context(|| format!(
+                "failed to get status of {} (command-line: {:?})",
+                self.description, self.command))?;
+        log::debug!("Result of {}: {}", self.description, status);
+        Ok(status)
     }
 
     async fn _background<T>(&mut self,
@@ -213,6 +245,97 @@ impl Native {
             anyhow::bail!("{} failed: {} (command-line: {:?})",
                           self.description, status, self.command);
         }
+    }
+}
+
+pub struct Docker {
+    docker_cmd: PathBuf,
+    description: Cow<'static, str>,
+    env: BTreeMap<OsString, EnvVal>,
+    mounts: Vec<String>,
+    arguments: Vec<OsString>,
+    set_user: bool,
+    expose_ports: Vec<u16>,
+    image: Cow<'static, str>,
+    cmd: Cow<'static, str>,
+}
+
+impl Docker {
+    pub fn new(description: impl Into<Cow<'static, str>>,
+        docker_cmd: impl AsRef<Path>,
+        image: impl Into<Cow<'static, str>>,
+        cmd: impl Into<Cow<'static, str>>)
+        -> Docker
+    {
+        Docker {
+            docker_cmd: docker_cmd.as_ref().into(),
+            description: description.into(),
+            env: BTreeMap::new(),
+            mounts: Vec::new(),
+            arguments: Vec::new(),
+            set_user: true,
+            expose_ports: Vec::new(),
+            image: image.into(),
+            cmd: cmd.into(),
+        }
+    }
+    pub fn env(&mut self, name: impl Into<OsString>,
+        value: impl Into<OsString>)
+        -> &mut Self
+    {
+        self.env.insert(name.into(), EnvVal::Value(value.into()));
+        self
+    }
+    pub fn env_default(&mut self,
+        name: impl AsRef<OsStr> + Into<OsString>,
+        default: impl Into<OsString>)
+        -> &mut Self
+    {
+        if env::var_os(name.as_ref()).is_some() {
+            self.env.insert(name.into(), EnvVal::Propagate);
+        } else {
+            self.env.insert(name.into(), EnvVal::Value(default.into()));
+        }
+        self
+    }
+    pub fn expose_port(&mut self, port: u16) -> &mut Self {
+        self.expose_ports.push(port);
+        self
+    }
+    pub fn as_root(&mut self) -> &mut Self {
+        self.set_user = false;
+        self
+    }
+    pub fn mount(&mut self, source: impl AsRef<str>, target: impl AsRef<str>)
+        -> &mut Self
+    {
+        assert!(!source.as_ref().contains(","));
+        assert!(!target.as_ref().contains(","));
+        self.mounts.push(format!("source={},target={}",
+            source.as_ref(), target.as_ref()));
+        self
+    }
+    pub fn arg(&mut self, val: impl Into<OsString>) -> &mut Self {
+        self.arguments.push(val.into());
+        self
+    }
+    pub fn feed(&self, data: impl AsRef<[u8]>) -> anyhow::Result<()> {
+        todo!();
+    }
+    pub fn run(&mut self) -> anyhow::Result<()> {
+        todo!();
+    }
+    pub fn get_stdout_text(&mut self) -> anyhow::Result<String> {
+        todo!();
+    }
+    pub fn get_output(&mut self) -> anyhow::Result<Output> {
+        todo!();
+    }
+    pub fn background_for<T>(&mut self,
+        f: impl Future<Output=anyhow::Result<T>>)
+        -> anyhow::Result<T>
+    {
+        todo!();
     }
 }
 
