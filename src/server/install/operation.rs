@@ -1,11 +1,9 @@
 use std::collections::BTreeMap;
-use std::process::{Command as StdCommand, Stdio, ExitStatus};
 use std::ffi::OsString;
 use std::fs;
-use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use anyhow::Context as ContextExt;
+use crate::proc;
 
 
 #[derive(Debug)]
@@ -33,9 +31,10 @@ pub struct Context {
 }
 
 impl Command {
-    fn to_std(&self, sudo_cmd: &Option<PathBuf>) -> StdCommand {
+    fn to_native(&self, sudo_cmd: &Option<PathBuf>) -> proc::Native {
+        let name = self.cmd.file_name().unwrap().to_str().unwrap().to_string();
         let mut cmd = if let Some(sudo_cmd) = sudo_cmd {
-            let mut cmd = StdCommand::new(sudo_cmd);
+            let mut cmd = proc::Native::new(name.clone(), name, sudo_cmd);
             for (k, v) in &self.environ {
                 let mut arg = k.clone();
                 arg.push("=");
@@ -45,7 +44,7 @@ impl Command {
             cmd.arg(&self.cmd);
             cmd
         } else {
-            let mut cmd = StdCommand::new(&self.cmd);
+            let mut cmd = proc::Native::new(name.clone(), name, &self.cmd);
             for (k, v) in &self.environ {
                 cmd.env(k, v);
             }
@@ -94,16 +93,6 @@ impl Command {
     {
         self.environ.insert(key.into(), arg.into());
         self
-    }
-}
-
-fn cmd_result(status: Result<ExitStatus, io::Error>, cmd: StdCommand)
-    -> Result<(), anyhow::Error>
-{
-    match status {
-        Ok(s) if s.success() => Ok(()),
-        Ok(s) => Err(anyhow::anyhow!("Command {:?} {}", cmd, s)),
-        Err(e) => Err(e).context(format!("Command {:?} error", cmd)),
     }
 }
 
@@ -159,33 +148,21 @@ impl Operation {
         }
         buf
     }
-    pub fn perform(&self, ctx: &Context)
-        -> Result<(), anyhow::Error>
-    {
+    pub fn perform(&self, ctx: &Context) -> anyhow::Result<()> {
         use Operation::*;
 
         match self {
             FeedPrivilegedCmd {cmd, input} => {
-                let mut os_cmd = cmd.to_std(&ctx.sudo_cmd);
-                os_cmd.stdin(Stdio::piped());
-                let mut child = os_cmd.spawn()
-                    .with_context(|| format!("Command {:?} error", os_cmd))?;
-                child.stdin.as_mut().unwrap().write_all(input)
-                    .with_context(|| format!("Command {:?} error", os_cmd))?;
-                log::info!("Executing {:?}", os_cmd);
-                cmd_result(child.wait(), os_cmd)
+                cmd.to_native(&ctx.sudo_cmd).feed(input)
             }
             PrivilegedCmd(cmd) => {
-                let mut os_cmd = cmd.to_std(&ctx.sudo_cmd);
-                log::info!("Executing {:?}", os_cmd);
-                cmd_result(os_cmd.status(), os_cmd)
+                cmd.to_native(&ctx.sudo_cmd).run()
             }
             WritePrivilegedFile { path, data } => {
-                if ctx.sudo_cmd.is_some() {
-                    FeedPrivilegedCmd {
-                        cmd: Command::new("tee").arg(path),
-                        input: data.clone(),
-                    }.perform(ctx)
+                if let Some(sudo) = &ctx.sudo_cmd {
+                    proc::Native::new("tee", "tee", sudo)
+                        .arg("tee").arg(path)
+                        .feed(data)
                 } else {
                     log::info!("Writing {:?}", path);
                     let tmpname = tmp_filename(path);

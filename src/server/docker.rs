@@ -16,6 +16,7 @@ use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
 use crate::credentials::{self, get_connector};
+use crate::proc;
 use crate::process;
 
 use crate::commands::ExitCode;
@@ -1113,7 +1114,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             None
         };
 
-        save_credentials(&settings, &password, cert)?;
+        task::block_on(save_credentials(&settings, &password, cert))?;
         drop(password);
 
         self.create(&Create {
@@ -1468,7 +1469,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             get_connector(self.name())
         }
     }
-    fn get_command(&self) -> anyhow::Result<Command> {
+    fn get_command(&self) -> anyhow::Result<proc::Native> {
         anyhow::bail!("no get_command is supported for docker instances");
     }
     fn upgrade<'x>(&'x self, meta: &Metadata)

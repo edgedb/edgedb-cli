@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
 
-use anyhow::Context;
 use async_std::task;
 use fn_error_context::context;
 use serde::{Serialize, Deserialize};
@@ -12,7 +11,6 @@ use crate::commands;
 use crate::connect::Connector;
 use crate::hint::HintExt;
 use crate::print;
-use crate::process::ProcessGuard;
 use crate::project;
 use crate::server::destroy;
 use crate::server::detect::{self, VersionQuery};
@@ -262,14 +260,9 @@ pub fn dump_and_stop(inst: &dyn Instance, path: &Path) -> anyhow::Result<()> {
         log::warn!("Error starting service: {:#}. Trying to start manually.",
             err);
         let mut cmd = inst.get_command()?;
-        log::info!("Running server manually: {:?}", cmd);
-        let child = ProcessGuard::run(&mut cmd)
-            .with_context(|| format!("error running server {:?}", cmd))?;
-        task::block_on(
-            dump_instance(inst, &path, inst.get_connector(false)?))?;
-        log::info!(target: "edgedb::server::upgrade",
-            "Stopping the instance before executable upgrade");
-        drop(child);
+        cmd.background_for(
+            dump_instance(inst, &path, inst.get_connector(false)?)
+        )?;
     } else {
         task::block_on(
             dump_instance(inst, &path, inst.get_connector(false)?))?;

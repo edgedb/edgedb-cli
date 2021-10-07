@@ -1,15 +1,9 @@
 use std::io;
-use std::process::{Command, Child, exit};
-use std::time::Duration;
+use std::process::{Command, exit};
 
 use anyhow::Context;
 use serde::de::DeserializeOwned;
-use wait_timeout::ChildExt;
 
-
-pub struct ProcessGuard {
-    child: Child,
-}
 
 #[cfg(not(unix))]
 pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
@@ -122,44 +116,5 @@ pub fn get_json_or_stderr<T: DeserializeOwned>(cmd: &mut Command)
                 })?))
         }
         Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd))?,
-    }
-}
-
-impl ProcessGuard {
-    pub fn run(cmd: &mut Command) -> anyhow::Result<ProcessGuard> {
-        Ok(ProcessGuard {
-            child: cmd.spawn()?,
-        })
-    }
-}
-
-impl Drop for ProcessGuard {
-    fn drop(&mut self) {
-         #[cfg(unix)] {
-             let pid = self.child.id() as i32;
-             if unsafe { libc::kill(pid, libc::SIGTERM) } != 0 {
-                 log::error!("error stopping command: {}",
-                     io::Error::last_os_error());
-             }
-         }
-         if cfg!(not(unix)) {
-             self.child.kill().map_err(|e| {
-                 log::error!("error stopping command: {}", e);
-             }).ok();
-         }
-         match self.child.wait_timeout(Duration::from_secs(10)) {
-             Ok(None) => {
-                 self.child.kill().map_err(|e| {
-                     log::warn!("error stopping command: {}", e);
-                 }).ok();
-                 self.child.wait().map_err(|e| {
-                     log::error!("error waiting for stopped command: {}", e);
-                 }).ok();
-             }
-             Ok(Some(_)) => {}
-             Err(e) => {
-                 log::error!("error stopping command: {}", e);
-             }
-         }
     }
 }

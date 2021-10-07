@@ -58,6 +58,6 @@ pub fn add_certificate(instance_name: &str, certificate: &str)
     let data = fs::read(&cred_path)?;
     let mut creds: Credentials = serde_json::from_slice(&data)?;
     creds.tls_cert_data = Some(certificate.into());
-    write_credentials(&cred_path, &creds)?;
+    task::block_on(write_credentials(&cred_path, &creds))?;
     Ok(())
 }

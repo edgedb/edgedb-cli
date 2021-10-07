@@ -10,6 +10,7 @@ use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
 use crate::platform::{get_current_uid, data_dir};
+use crate::proc;
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::detect::Lazy;
@@ -89,27 +90,30 @@ impl Instance for LocalInstance<'_> {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            process::run(&mut self.get_command()?)?;
+            self.get_command()?.no_capture().run()?;
         } else {
-            process::run(Command::new("systemctl")
+            proc::Native::new("systemctl", "systemctl", "systemctl")
                 .arg("--user")
                 .arg("start")
-                .arg(format!("edgedb-server@{}", self.name)))?;
+                .arg(format!("edgedb-server@{}", self.name))
+                .run()?;
         }
         Ok(())
     }
     fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
-        process::run(Command::new("systemctl")
+        proc::Native::new("systemctl", "systemctl", "systemctl")
             .arg("--user")
             .arg("stop")
-            .arg(format!("edgedb-server@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name))
+            .run()?;
         Ok(())
     }
     fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
-        process::run(Command::new("systemctl")
+        proc::Native::new("systemctl", "systemctl", "systemctl")
             .arg("--user")
             .arg("restart")
-            .arg(format!("edgedb-server@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name))
+            .run()?;
         Ok(())
     }
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
@@ -148,9 +152,10 @@ impl Instance for LocalInstance<'_> {
             .unwrap_or(false);
         unix::status(&self.name, &self.path, service_exists, service)
     }
-    fn get_command(&self) -> anyhow::Result<Command> {
+    fn get_command(&self) -> anyhow::Result<proc::Native> {
         let socket_dir = self.socket_dir()?;
-        let mut cmd = Command::new(get_server_path(Some(self.get_slot()?)));
+        let mut cmd = proc::Native::new("server", "edgedb",
+            get_server_path(Some(self.get_slot()?)));
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
         cmd.arg("--runstate-dir").arg(&socket_dir);
@@ -178,7 +183,8 @@ impl Instance for LocalInstance<'_> {
         unix::revert(self, metadata)
     }
     fn logs(&self, logs: &Logs) -> anyhow::Result<()> {
-        let mut cmd = Command::new("journalctl");
+        let mut cmd = proc::Native::new(
+            "journalctl", "journalctl", "journalctl");
         cmd.arg("--user-unit").arg(unit_name(&self.name));
         if let Some(n) = logs.tail  {
             cmd.arg(format!("--lines={}", n));
@@ -186,7 +192,7 @@ impl Instance for LocalInstance<'_> {
         if logs.follow {
             cmd.arg("--follow");
         }
-        process::run(&mut cmd)
+        cmd.no_capture().run()
     }
 }
 
@@ -345,14 +351,16 @@ pub fn create_systemd_service(name: &str, meta: &Metadata)
     let unit_name = unit_name(name);
     let unit_path = unit_dir.join(&unit_name);
     fs::write(&unit_path, systemd_unit(name, meta)?)?;
-    process::run(Command::new("systemctl")
+    proc::Native::new("systemctl", "systemctl", "systemctl")
         .arg("--user")
-        .arg("daemon-reload"))?;
+        .arg("daemon-reload")
+        .run()?;
     if meta.start_conf == StartConf::Auto {
-        process::run(Command::new("systemctl")
+        proc::Native::new("systemctl", "systemctl", "systemctl")
             .arg("--user")
             .arg("enable")
-            .arg(&unit_name))?;
+            .arg(&unit_name)
+            .run()?;
     }
     Ok(())
 }

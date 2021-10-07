@@ -253,7 +253,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     }
 
-    write_credentials(&cred_path, &creds)?;
+    task::block_on(write_credentials(&cred_path, &creds))?;
     if !cmd.quiet {
         let mut msg = "Successfully linked to remote instance.".to_string();
         if print::use_color() {

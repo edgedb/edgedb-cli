@@ -4,6 +4,7 @@ use std::default::Default;
 use std::num::NonZeroU32;
 
 use anyhow::Context;
+use async_std::task;
 use base64::display::Base64Display;
 use edgedb_client::credentials::Credentials;
 use fn_error_context::context;
@@ -36,13 +37,15 @@ fn read_credentials(path: &Path) -> anyhow::Result<Credentials> {
 }
 
 #[context("cannot write credentials file {}", path.display())]
-pub fn write_credentials(path: &Path, credentials: &Credentials)
+pub async fn write_credentials(path: &Path, credentials: &Credentials)
     -> anyhow::Result<()>
 {
-    fs::create_dir_all(path.parent().unwrap())?;
+    use async_std::fs;
+
+    fs::create_dir_all(path.parent().unwrap()).await?;
     let tmp_path = path.with_file_name(tmp_file_name(path));
-    fs::write(&tmp_path, serde_json::to_vec_pretty(&credentials)?)?;
-    fs::rename(&tmp_path, path)?;
+    fs::write(&tmp_path, serde_json::to_vec_pretty(&credentials)?).await?;
+    fs::rename(&tmp_path, path).await?;
     Ok(())
 }
 
@@ -90,7 +93,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
         let mut creds = credentials.unwrap_or_else(Default::default);
         creds.user = user.into();
         creds.password = Some(password);
-        write_credentials(&credentials_file, &creds)?;
+        task::block_on(write_credentials(&credentials_file, &creds))?;
     }
     if !options.quiet {
         if save {

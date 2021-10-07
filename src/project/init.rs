@@ -20,7 +20,6 @@ use crate::credentials;
 use crate::migrations;
 use crate::platform::{tmp_file_path, config_dir, path_bytes, symlink_dir};
 use crate::print;
-use crate::process::ProcessGuard;
 use crate::project::config;
 use crate::project::options::Init;
 use crate::question;
@@ -854,11 +853,7 @@ fn run_and_migrate(info: &InstInfo) -> anyhow::Result<()> {
     let inst = info.instance.as_ref()
         .context("remote instance is not running, cannot run migrations")?;
     let mut cmd = inst.get_command()?;
-    log::info!("Running server manually: {:?}", cmd);
-    let child = ProcessGuard::run(&mut cmd)
-        .with_context(|| format!("error running server {:?}", cmd))?;
-    task::block_on(migrate(info, false))?;
-    drop(child);
+    cmd.background_for(migrate(info, false))?;
     Ok(())
 }
 

@@ -15,6 +15,7 @@ use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
 use crate::platform::{get_current_uid, home_dir, cache_dir, data_dir};
+use crate::proc;
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, Storage};
@@ -453,16 +454,16 @@ impl<'a> Instance for LocalInstance<'a> {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            process::run(&mut self.get_command()?)?;
+            self.get_command()?.no_capture().run()?;
         } else if self.get_start_conf()? == StartConf::Auto ||
                 is_service_loaded(&self.name) {
             // For auto-starting services, we assume they are already loaded.
             // If the server is already running, kickstart won't do anything;
             // or else it will try to (re-)start the server.
             let lname = self.launchd_name();
-            process::run(
-                StdCommand::new("launchctl").arg("kickstart").arg(&lname)
-            )?;
+            proc::Native::new("launchctl", "launchctl", "launchctl")
+                .arg("kickstart").arg(&lname)
+                .run()?;
         } else {
             bootstrap_launchctl_service(&self.name, self.get_meta()?)?;
         }
@@ -479,20 +480,22 @@ impl<'a> Instance for LocalInstance<'a> {
                         if time::Instant::now() > deadline {
                             log::warn!(target: "edgedb::server::stop",
                                        "Timing out; send SIGKILL now.");
-                            process::run(StdCommand::new("launchctl")
+                            proc::Native::new("launchctl", "launchctl",
+                                "launchctl")
                                 .arg("kill")
                                 .arg("SIGKILL")
                                 .arg(&lname)
-                            )?;
+                                .run()?;
                             break;
                         }
                         thread::sleep(time::Duration::from_secs_f32(0.3));
                     } else {
-                        process::run(StdCommand::new("launchctl")
+                        proc::Native::new("launchctl", "launchctl",
+                            "launchctl")
                             .arg("kill")
                             .arg("SIGTERM")
                             .arg(&lname)
-                        )?;
+                            .run()?;
                         signal_sent = true;
                     }
                 },
@@ -514,11 +517,12 @@ impl<'a> Instance for LocalInstance<'a> {
             // Only use kickstart -k to restart the service if it's loaded
             // already, or it will fail with an error. We assume the service is
             // loaded for auto-starting services.
-            process::run(&mut StdCommand::new("launchctl")
+            proc::Native::new("launchctl", "launchctl",
+                "launchctl")
                 .arg("kickstart")
                 .arg("-k")
                 .arg(self.launchd_name())
-            )?;
+                .run()?;
         } else {
             bootstrap_launchctl_service(&self.name, self.get_meta()?)?;
         }
@@ -552,9 +556,10 @@ impl<'a> Instance for LocalInstance<'a> {
             get_connector(self.name())
         }
     }
-    fn get_command(&self) -> anyhow::Result<StdCommand> {
+    fn get_command(&self) -> anyhow::Result<proc::Native> {
         let socket_dir = self.socket_dir()?;
-        let mut cmd = StdCommand::new(get_server_path(&self.get_slot()?));
+        let mut cmd = proc::Native::new("server", "edgedb",
+            get_server_path(&self.get_slot()?));
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
         cmd.arg("--runstate-dir").arg(&socket_dir);
@@ -582,7 +587,7 @@ impl<'a> Instance for LocalInstance<'a> {
         unix::revert(self, metadata)
     }
     fn logs(&self, options: &Logs) -> anyhow::Result<()> {
-        let mut cmd = StdCommand::new("tail");
+        let mut cmd = proc::Native::new("log", "tail", "tail");
         if let Some(n) = options.tail {
             cmd.arg("-n").arg(n.to_string());
         }
@@ -590,7 +595,7 @@ impl<'a> Instance for LocalInstance<'a> {
             cmd.arg("-F");
         }
         cmd.arg(log_file(&self.name)?);
-        process::run(&mut cmd)
+        cmd.no_capture().run()
     }
 }
 
@@ -750,9 +755,9 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
 
 fn bootout_launchctl_service(name: &str) -> anyhow::Result<()> {
     let unit_name = launchd_name(name);
-    process::run(
-        StdCommand::new("launchctl").arg("bootout").arg(&unit_name),
-    )?;
+    proc::Native::new("launchctl", "launchctl", "launchctl")
+        .arg("bootout").arg(&unit_name)
+        .run()?;
     Ok(())
 }
 
@@ -780,14 +785,14 @@ fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
     // plist file from launchd if the service is configured as manual start.
     // Actually it is necessary to clear the disabled status even for manually-
     // starting services, because manual start won't work on disabled services.
-    process::run(
-        StdCommand::new("launchctl").arg("enable").arg(&unit_name),
-    )?;
-    process::run(StdCommand::new("launchctl")
+    proc::Native::new("launchctl", "launchctl", "launchctl")
+        .arg("enable").arg(&unit_name)
+        .run()?;
+    proc::Native::new("launchctl", "launchctl", "launchctl")
         .arg("bootstrap")
         .arg(get_domain_target())
         .arg(plist_path)
-    )?;
+        .run()?;
 
     Ok(())
 }

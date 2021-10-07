@@ -17,7 +17,6 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::{Uid, get_current_uid, data_dir, cache_dir};
 use crate::print;
-use crate::process::ProcessGuard;
 use crate::proc;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, read_ports, init_credentials, Storage};
@@ -166,7 +165,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
                 name: settings.name.clone(),
                 foreground: false,
             })?;
-            init_credentials(&settings, &inst, cert)?;
+            task::block_on(init_credentials(&settings, &inst, cert))?;
             print::success_msg(
                 "Bootstrap complete", "server is now up and running."
             );
@@ -178,12 +177,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
         _ => {
             let inst = method.get_instance(&settings.name)?;
             let mut cmd = inst.get_command()?;
-            log::debug!("Running server: {:?}", cmd);
-            let child = ProcessGuard::run(&mut cmd)
-                .with_context(||
-                    format!("error running server {:?}", cmd))?;
-            init_credentials(&settings, &inst, cert)?;
-            drop(child);
+            cmd.background_for(init_credentials(&settings, &inst, cert))?;
             if settings.start_conf == StartConf::Manual && res.is_ok() {
                 print::success("Bootstrap complete.");
                 println!("To start the server run:\n  \
@@ -486,20 +480,16 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
         cmd.arg("--generate-self-signed-cert");
     }
 
-    log::debug!("Running server: {:?}", cmd);
-    let child = ProcessGuard::run(&mut cmd)
-        .with_context(|| format!("error running server {:?}", cmd))?;
-
     let dump_path = storage_dir(inst.name())?
         .parent().expect("instance path can't be root")
         .join(format!("{}.dump", inst.name()));
-    task::block_on(
+
+    cmd.background_for(
         upgrade::restore_instance(inst, &dump_path, inst.get_connector(true)?)
     )?;
     log::info!(target: "edgedb::server::upgrade",
         "Restarting instance {:?} to apply changes from `restore --all`",
         &inst.name());
-    drop(child);
 
     let metapath = instance_dir.join("metadata.json");
     write_metadata(&metapath, &new_meta)?;

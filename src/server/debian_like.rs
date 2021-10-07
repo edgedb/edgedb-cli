@@ -132,6 +132,8 @@ impl Debian {
         operations.push(Operation::FeedPrivilegedCmd {
             input: key.into(),
             cmd: Command::new("apt-key")
+                // this supresses "output should not be parsed" warning
+                .env("APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE", "1")
                 .arg("add")
                 .arg("-"),
         });

@@ -1,11 +1,11 @@
 use std::any::type_name;
 use std::cmp::Ordering;
 use std::fmt;
-use std::process::Command;
 
 use async_std::task;
 use edgedb_client as client;
 
+use crate::proc;
 use crate::server::create::{self, Storage};
 use crate::server::detect::{VersionQuery};
 use crate::server::distribution::{MajorVersion, DistributionRef};
@@ -59,7 +59,7 @@ pub trait Instance: fmt::Debug {
     fn logs(&self, logs: &Logs) -> anyhow::Result<()>;
     fn service_status(&self) -> anyhow::Result<()>;
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder>;
-    fn get_command(&self) -> anyhow::Result<Command>;
+    fn get_command(&self) -> anyhow::Result<proc::Native>;
     fn upgrade(&self, meta: &Metadata) -> anyhow::Result<InstanceRef<'_>>;
     fn revert(&self, metadata: &Metadata)
         -> anyhow::Result<()>;
@@ -208,7 +208,7 @@ impl InstanceRef<'_> {
     {
         self.0.get_connector(admin)
     }
-    pub fn get_command(&self) -> anyhow::Result<Command> {
+    pub fn get_command(&self) -> anyhow::Result<proc::Native> {
         self.0.get_command()
     }
     pub fn service_status(&self) -> anyhow::Result<()> {

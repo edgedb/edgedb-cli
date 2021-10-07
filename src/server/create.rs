@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::Context;
-use async_std::task;
 use edgeql_parser::helpers::{quote_string, quote_name};
 use prettytable::{Table, Row, Cell};
 use fn_error_context::context;
@@ -338,7 +337,7 @@ pub fn bootstrap_script(settings: &Settings, password: &str) -> String {
     return output;
 }
 
-pub fn save_credentials(settings: &Settings, password: &str,
+pub async fn save_credentials(settings: &Settings, password: &str,
     certificate: Option<&str>)
     -> anyhow::Result<()>
 {
@@ -348,11 +347,11 @@ pub fn save_credentials(settings: &Settings, password: &str,
     creds.database = Some(settings.database.clone());
     creds.password = Some(password.into());
     creds.tls_cert_data = certificate.map(|s| s.into());
-    write_credentials(&settings.credentials, &creds)?;
+    write_credentials(&settings.credentials, &creds).await?;
     Ok(())
 }
 
-pub fn init_credentials(settings: &Settings, inst: &InstanceRef,
+pub async fn init_credentials(settings: &Settings, inst: &InstanceRef<'_>,
     certificate: Option<&str>)
     -> anyhow::Result<()>
 {
@@ -360,13 +359,11 @@ pub fn init_credentials(settings: &Settings, inst: &InstanceRef,
 
     let mut conn_params = inst.get_connector(true)?;
     conn_params.wait_until_available(Duration::from_secs(30));
-    task::block_on(async {
-        let mut cli = conn_params.connect().await?;
-        cli.execute(&bootstrap_script(settings, &password)).await?;
-        Ok::<(), anyhow::Error>(())
-    })?;
 
-    save_credentials(settings, &password, certificate)?;
+    let mut cli = conn_params.connect().await?;
+    cli.execute(&bootstrap_script(settings, &password)).await?;
+
+    save_credentials(settings, &password, certificate).await?;
     Ok(())
 }
 
