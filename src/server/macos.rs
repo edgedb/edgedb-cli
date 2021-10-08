@@ -454,7 +454,7 @@ impl<'a> Instance for LocalInstance<'a> {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            self.get_command()?.no_capture().run()?;
+            self.get_command()?.no_proxy().run()?;
         } else if self.get_start_conf()? == StartConf::Auto ||
                 is_service_loaded(&self.name) {
             // For auto-starting services, we assume they are already loaded.
@@ -595,7 +595,7 @@ impl<'a> Instance for LocalInstance<'a> {
             cmd.arg("-F");
         }
         cmd.arg(log_file(&self.name)?);
-        cmd.no_capture().run()
+        cmd.no_proxy().run()
     }
 }
 

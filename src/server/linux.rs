@@ -90,7 +90,7 @@ impl Instance for LocalInstance<'_> {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            self.get_command()?.no_capture().run()?;
+            self.get_command()?.no_proxy().run()?;
         } else {
             proc::Native::new("systemctl", "systemctl", "systemctl")
                 .arg("--user")
@@ -192,7 +192,7 @@ impl Instance for LocalInstance<'_> {
         if logs.follow {
             cmd.arg("--follow");
         }
-        cmd.no_capture().run()
+        cmd.no_proxy().run()
     }
 }
 

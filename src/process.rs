@@ -1,19 +1,8 @@
-use std::io;
 use std::process::{Command, exit};
 
 use anyhow::Context;
 use serde::de::DeserializeOwned;
 
-
-#[cfg(not(unix))]
-pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
-    log::info!("Running {:?}", cmd);
-    match cmd.status() {
-        Ok(s) if s.success() => Ok(()),
-        Ok(s) => anyhow::bail!("process {:?} failed: {}", cmd, s),
-        Err(e) => Err(e).with_context(|| format!("error running {:?}", cmd)),
-    }
-}
 
 #[cfg(unix)]
 pub fn exists(pid: u32) -> bool {
@@ -34,40 +23,6 @@ pub fn exists(pid: u32) -> bool {
     }
     unsafe { CloseHandle(handle) };
     return true;
-}
-
-#[cfg(unix)]
-pub fn run(cmd: &mut Command) -> anyhow::Result<()> {
-    use signal::Signal::*;
-
-    let trap = signal::trap::Trap::trap(&[SIGINT, SIGTERM, SIGCHLD]);
-    log::info!("Running {:?}", cmd);
-    let mut child = cmd.spawn()
-        .with_context(|| format!("process {:?} failed", cmd))?;
-    let pid = child.id() as i32;
-    let status = 'child: loop {
-        for sig in trap {
-            match sig {
-                SIGINT|SIGTERM => {
-                    log::info!("Interrupted by {:?}. Propagating signal",
-                               sig);
-                    if unsafe { libc::kill(pid, sig as libc::c_int) } != 0 {
-                        log::debug!("Error signalling process: {}",
-                            io::Error::last_os_error());
-                    }
-                }
-                _ => {}
-            }
-            if let Some(status) = child.try_wait()? {
-                break 'child status;
-            }
-        }
-        unreachable!();
-    };
-    if status.success() {
-        return Ok(())
-    }
-    anyhow::bail!("process {:?} failed: {}", cmd, status);
 }
 
 pub fn run_or_stderr(cmd: &mut Command) -> anyhow::Result<Result<(), String>> {

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Child};
+use std::process::Command;
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
 
 use anyhow::Context;
@@ -163,39 +163,6 @@ pub struct DockerInstance<'a, O: CurrentOs + ?Sized> {
     container: Lazy<Option<Container>>,
     metadata: Lazy<Metadata>,
 }
-
-
-pub struct DockerGuard {
-    docker_cmd: PathBuf,
-    name: String,
-    child: Child,
-}
-
-impl Drop for DockerGuard {
-    fn drop(&mut self) {
-        match self.child.try_wait() {
-            Ok(Some(status)) => {
-                log::info!("Container status: {:}", status);
-            }
-            Ok(None) => {
-                process::run(Command::new(&self.docker_cmd)
-                    .arg("stop")
-                    .arg(&self.name))
-                    .map_err(|e| {
-                        log::warn!("Error stopping container {:?}: {:#}",
-                                   self.name, e);
-                    }).ok();
-                 self.child.wait().map_err(|e| {
-                     log::error!("Error waiting for stopped container: {}", e);
-                 }).ok();
-            }
-            Err(e) => {
-                log::info!("Container errored: {:}", e);
-            }
-        }
-    }
-}
-
 
 fn timestamp() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
@@ -1303,7 +1270,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
                 .arg("--attach")
                 .arg("--interactive")
                 .arg(self.container_name())
-                .no_capture().run()?;
+                .no_proxy().run()?;
         } else {
             proc::Native::new("container start", "docker", &self.method.cli)
                 .arg("container")
@@ -1341,14 +1308,14 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         if options.follow {
             cmd.arg("--follow");
         }
-        cmd.no_capture().run()
+        cmd.no_proxy().run()
     }
     fn service_status(&self) -> anyhow::Result<()> {
         proc::Native::new("container inspect", "docker", &self.method.cli)
             .arg("container")
             .arg("inspect")
             .arg(self.container_name())
-            .no_capture().run()?;
+            .no_proxy().run()?;
         Ok(())
     }
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
