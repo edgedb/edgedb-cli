@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anyhow::Context;
 use dirs::home_dir;
@@ -11,7 +10,6 @@ use serde::Serialize;
 use crate::credentials::{self, get_connector};
 use crate::platform::{get_current_uid, data_dir};
 use crate::proc;
-use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::detect::Lazy;
 use crate::server::distribution::{MajorVersion};
@@ -132,10 +130,11 @@ impl Instance for LocalInstance<'_> {
         }
     }
     fn service_status(&self) -> anyhow::Result<()> {
-        process::exit_from(Command::new("systemctl")
+        proc::Native::new("service status", "systemctl", "systemctl")
             .arg("--user")
             .arg("status")
-            .arg(format!("edgedb-server@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name))
+            .run_and_exit()?;
         Ok(())
     }
     fn name(&self) -> &str {
@@ -368,13 +367,13 @@ pub fn create_systemd_service(name: &str, meta: &Metadata)
 pub fn systemd_status(name: &str, system: bool) -> Service {
     use Service::*;
 
-    let mut cmd = Command::new("systemctl");
+    let mut cmd = proc::Native::new("systemctl", "systemctl", "systemctl");
     if !system {
         cmd.arg("--user");
     }
     cmd.arg("show");
     cmd.arg(format!("edgedb-server@{}", name));
-    let txt = match process::get_text(&mut cmd) {
+    let txt = match cmd.get_stdout_text() {
         Ok(txt) => txt,
         Err(e) => {
             return Service::Inactive {
@@ -466,28 +465,35 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     log::info!(target: "edgedb::server::destroy",
         "Stopping service {}", svc_name);
     let mut not_found_error = None;
-    let mut cmd = Command::new("systemctl");
+    let mut cmd = proc::Native::new("stop service", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("stop");
     cmd.arg(&svc_name);
-    match process::run_or_stderr(&mut cmd)? {
+    match cmd.run_or_stderr()? {
         Ok(()) => found = true,
         Err(e) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
-        Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
+        Err(e) => Err(anyhow::anyhow!(
+            "Error running systemctl (command-line: {:?}): {}",
+            cmd.command_line(), e,
+        ))?,
     }
 
-    let mut cmd = Command::new("systemctl");
+    let mut cmd = proc::Native::new(
+        "disable service", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("disable");
     cmd.arg(&svc_name);
-    match process::run_or_stderr(&mut cmd)? {
+    match cmd.run_or_stderr()? {
         Ok(()) => found = true,
         Err(e) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
-        Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
+        Err(e) => Err(anyhow::anyhow!(
+            "Error running systemctl (command-line: {:?}): {}",
+            cmd.command_line(), e,
+        ))?,
     }
 
     let svc_path = systemd_service_path(name, system)?;

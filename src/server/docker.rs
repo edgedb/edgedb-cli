@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
 
 use anyhow::Context;
@@ -15,7 +14,6 @@ use serde::{Serialize, Deserialize};
 
 use crate::credentials::{self, get_connector};
 use crate::proc;
-use crate::process;
 
 use crate::commands::ExitCode;
 use crate::print;
@@ -346,11 +344,12 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
     pub fn inspect_container(&self, name: &str)
         -> anyhow::Result<Option<Container>>
     {
-        let mut cmd = Command::new(&self.cli);
+        let mut cmd = proc::Native::new(
+            "container inspect", "docker", &self.cli);
         cmd.arg("container");
         cmd.arg("inspect");
         cmd.arg(name);
-        match process::get_json_or_stderr::<Vec<_>>(&mut cmd)? {
+        match cmd.get_json_or_stderr::<Vec<_>>()? {
             Ok(containers) => Ok(containers.into_iter().next()),
             Err(e) => {
                 if e.contains("No such container") {
@@ -365,11 +364,12 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
     pub fn inspect_volume(&self, name: &str)
         -> anyhow::Result<Option<DockerVolume>>
     {
-        let mut cmd = Command::new(&self.cli);
+        let mut cmd = proc::Native::new(
+            "volume inspect", "docker", &self.cli);
         cmd.arg("volume");
         cmd.arg("inspect");
         cmd.arg(name);
-        match process::get_json_or_stderr::<Vec<_>>(&mut cmd)? {
+        match cmd.get_json_or_stderr::<Vec<_>>()? {
             Ok(imgs) => {
                 Ok(imgs.into_iter().next())
             }
@@ -493,13 +493,14 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         -> anyhow::Result<Vec<DockerInstance<'x, O>>>
          where Self: 'os
     {
-        let output = process::get_text(Command::new(&self.cli)
+        let output = proc::Native::new("volume list", "docker", &self.cli)
             .arg("volume")
             .arg("list")
             .arg("--filter")
             .arg(format!("label=com.edgedb.metadata.user={}",
                           whoami::username()))
-            .arg("--format").arg("{{.Name}}"))?;
+            .arg("--format").arg("{{.Name}}")
+            .get_stdout_text()?;
         let mut result = Vec::new();
         for volume in output.lines() {
             if let Some(name) = volume.strip_prefix("edgedb_") {
@@ -594,19 +595,21 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         Ok(())
     }
     fn delete_container(&self, name: &str) -> anyhow::Result<bool> {
-        match process::run_or_stderr(Command::new(&self.cli)
+        match proc::Native::new("container stop", "docker", &self.cli)
             .arg("container")
             .arg("stop")
-            .arg(name))?
+            .arg(name)
+            .run_or_stderr()?
         {
             Ok(_) => {}
             Err(text) if text.contains("No such container") => return Ok(false),
             Err(text) => anyhow::bail!("docker error: {}", text),
         }
-        match process::run_or_stderr(Command::new(&self.cli)
+        match proc::Native::new("container remove", "docker", &self.cli)
             .arg("container")
             .arg("rm")
-            .arg(name))?
+            .arg(name)
+            .run_or_stderr()?
         {
             Ok(_) => {}
             Err(text) if text.contains("No such container") => return Ok(false),
@@ -794,10 +797,11 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn uninstall(&self, distr: &DistributionRef) -> anyhow::Result<()> {
         let image = distr.downcast_ref::<Image>()
             .context("invalid distribution for Docker")?;
-        match process::run_or_stderr(Command::new(&self.cli)
+        match proc::Native::new("image remove", "docker", &self.cli)
             .arg("image")
             .arg("rm")
-            .arg(image.tag.as_image_name()))?
+            .arg(image.tag.as_image_name())
+            .run_or_stderr()?
         {
             Ok(_) => {}
             Err(text) if text.contains("No such image") => {},
@@ -842,12 +846,13 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         Ok(self._get_version(query)?.into_ref())
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
-        let data = process::get_text(Command::new(&self.cli)
+        let data = proc::Native::new("image list", "docker", &self.cli)
             .arg("image")
             .arg("list")
             .arg("--no-trunc")
             .arg("--format")
-            .arg("{{.Repository}} {{.Tag}} {{.Digest}}"))?;
+            .arg("{{.Repository}} {{.Tag}} {{.Digest}}")
+            .get_stdout_text()?;
         let mut result = Vec::new();
         for line in data.lines() {
             let mut words = line.split_whitespace();
@@ -911,11 +916,12 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .context("invalid unix package")?;
         let user = whoami::username();
         let md = serde_json::to_string(&settings.metadata())?;
-        process::get_text(Command::new(&self.cli)
+        proc::Native::new("volume create", "docker", &self.cli)
             .arg("volume")
             .arg("create")
             .arg(volume)
-            .arg(format!("--label=com.edgedb.metadata.user={}", user)))?;
+            .arg(format!("--label=com.edgedb.metadata.user={}", user))
+            .run()?;
 
         self.docker_run("chown", image.tag.as_image_name(), "sh")
             .mount(volume, "/mnt")
@@ -992,13 +998,14 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>
          where Self: 'os
     {
-        let output = process::get_text(Command::new(&self.cli)
+        let output = proc::Native::new("volume list", "docker", &self.cli)
             .arg("volume")
             .arg("list")
             .arg("--filter")
             .arg(format!("label=com.edgedb.metadata.user={}",
                           whoami::username()))
-            .arg("--format").arg("{{.Name}}"))?;
+            .arg("--format").arg("{{.Name}}")
+            .get_stdout_text()?;
         let mut result = Vec::new();
         for volume in output.lines() {
             if let Some(name) = volume.strip_prefix("edgedb_") {
@@ -1045,10 +1052,11 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 "Removed container {:?}", up_container);
             found = true;
         }
-        match process::run_or_stderr(Command::new(&self.cli)
+        match proc::Native::new("volume remove", "docker", &self.cli)
             .arg("volume")
             .arg("remove")
-            .arg(&container_name))?
+            .arg(&container_name)
+            .run_or_stderr()?
         {
             Ok(_) => {
                 log::info!(target: "edgedb::server::destroy",

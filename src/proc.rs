@@ -2,8 +2,10 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::env;
 use std::ffi::{OsStr, OsString};
+use std::fmt;
 use std::future::{Future, pending};
 use std::path::{Path, PathBuf};
+use std::process::exit;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
@@ -13,6 +15,7 @@ use async_std::io::{self, Read, ReadExt, BufReader, WriteExt};
 use async_std::prelude::{FutureExt, StreamExt};
 use async_std::task;
 use colorful::{Colorful, Color};
+use serde::de::DeserializeOwned;
 
 use crate::interrupt;
 
@@ -47,6 +50,27 @@ enum EnvVal {
     Value(OsString),
 }
 
+#[cfg(unix)]
+pub fn exists(pid: u32) -> bool {
+    unsafe { libc::kill(pid as i32, 0) == 0 }
+}
+
+#[cfg(windows)]
+pub fn exists(pid: u32) -> bool {
+    use std::ptr::null_mut;
+    use winapi::um::processthreadsapi::{OpenProcess};
+    use winapi::um::winnt::{PROCESS_QUERY_INFORMATION};
+    use winapi::um::handleapi::CloseHandle;
+
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, pid) };
+    if handle == null_mut() {
+        // MSDN doesn't describe what is proper error here :(
+        return false;
+    }
+    unsafe { CloseHandle(handle) };
+    return true;
+}
+
 impl Native {
     pub fn new(description: impl Into<Cow<'static, str>>,
         marker: impl Into<Cow<'static, str>>,
@@ -76,6 +100,10 @@ impl Native {
         self
     }
 
+    pub fn command_line(&self) -> impl fmt::Debug + '_ {
+        &self.command
+    }
+
     pub fn run(&mut self) -> anyhow::Result<()> {
         let output = task::block_on(self._run(false, false))?;
         if output.status.success() {
@@ -84,6 +112,49 @@ impl Native {
         } else {
             anyhow::bail!("{} failed: {} (command-line: {:?})",
                           self.description, output.status, self.command);
+        }
+    }
+    pub fn run_and_exit(&mut self) -> anyhow::Result<()> {
+        let output = task::block_on(self._run(false, false))?;
+        if let Some(code) = output.status.code() {
+            exit(code);
+        } else {
+            anyhow::bail!("process {} (command-line: {:?}) failed: {}",
+                self.description, self.command, output.status)
+        }
+    }
+    pub fn run_or_stderr(&mut self) -> anyhow::Result<Result<(), String>> {
+        let output = task::block_on(self._run(false, true))?;
+        if output.status.success() {
+            Ok(Ok(()))
+        } else {
+            let data = String::from_utf8(output.stderr)
+            .with_context(|| format!(
+                "cannot decode error output of {} (command-line: {:?})",
+                self.description, self.command,
+            ))?;
+            Ok(Err(data))
+        }
+    }
+    pub fn get_json_or_stderr<T>(&mut self)
+        -> anyhow::Result<Result<T, String>>
+        where T: DeserializeOwned,
+    {
+        let output = task::block_on(self._run(true, true))?;
+        if output.status.success() {
+            let value = serde_json::from_slice(&output.stdout[..])
+                .with_context(|| format!(
+                    "cannot decode output of {} (command-line: {:?})",
+                    self.description, self.command,
+                ))?;
+            Ok(Ok(value))
+        } else {
+            let data = String::from_utf8(output.stderr)
+            .with_context(|| format!(
+                "cannot decode error output of {} (command-line: {:?})",
+                self.description, self.command,
+            ))?;
+            Ok(Err(data))
         }
     }
     pub fn get_stdout_text(&mut self) -> anyhow::Result<String> {

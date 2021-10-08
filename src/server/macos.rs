@@ -4,7 +4,6 @@ use std::str;
 use std::thread;
 use std::time;
 use std::path::{Path, PathBuf};
-use std::process::{Command as StdCommand};
 
 use anyhow::Context;
 use async_std::task;
@@ -16,7 +15,6 @@ use serde::Serialize;
 use crate::credentials::{self, get_connector};
 use crate::platform::{get_current_uid, home_dir, cache_dir, data_dir};
 use crate::proc;
-use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, Storage};
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
@@ -238,15 +236,16 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         Ok(self.installed.get_or_try_init(|| {
-            let mut cmd = StdCommand::new("pkgutil");
+            let mut cmd = proc::Native::new(
+                "package list", "pkgutil", "pkgutil");
             cmd.arg(r"--pkgs=com.edgedb.edgedb-server-\d.*");
-            let out = cmd.output()
+            let out = cmd.get_output()
                 .context("cannot get installed packages")?;
             if out.status.code() == Some(1) {
                 return Ok(Vec::new());
             } else if !out.status.success() {
-                anyhow::bail!("cannot get installed packages: {:?} {}",
-                    cmd, out.status);
+                anyhow::bail!("cannot list installed packages {:?}: {}",
+                    cmd.command_line(), out.status);
             }
             let mut result = Vec::new();
             let lines = out.stdout.split(|&b| b == b'\n')
@@ -257,18 +256,13 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                 }
                 let major = &line["com.edgedb.edgedb-server-".len()..].trim();
 
-                let mut cmd = StdCommand::new("pkgutil");
+                let mut cmd = proc::Native::new(
+                    "package info", "pkgutil", "pkgutil");
                 cmd.arg("--pkg-info").arg(line.trim());
-                let out = cmd.output()
+                let out = cmd.get_stdout_text()
                     .context("cannot get package version")?;
-                if !out.status.success() {
-                    anyhow::bail!("cannot get package version: {:?} {}",
-                        cmd, out.status);
-                }
-                let lines = out.stdout.split(|&b| b == b'\n')
-                    .filter_map(|line| str::from_utf8(line).ok());
                 let mut version = None;
-                for line in lines {
+                for line in out.lines() {
                     if line.starts_with("version:") {
                         version = Some(line["version:".len()..].trim());
                         break;
@@ -480,8 +474,8 @@ impl<'a> Instance for LocalInstance<'a> {
                         if time::Instant::now() > deadline {
                             log::warn!(target: "edgedb::server::stop",
                                        "Timing out; send SIGKILL now.");
-                            proc::Native::new("launchctl", "launchctl",
-                                "launchctl")
+                            proc::Native::new(
+                                "stop service", "launchctl", "launchctl")
                                 .arg("kill")
                                 .arg("SIGKILL")
                                 .arg(&lname)
@@ -490,8 +484,8 @@ impl<'a> Instance for LocalInstance<'a> {
                         }
                         thread::sleep(time::Duration::from_secs_f32(0.3));
                     } else {
-                        proc::Native::new("launchctl", "launchctl",
-                            "launchctl")
+                        proc::Native::new(
+                            "stop service", "launchctl", "launchctl")
                             .arg("kill")
                             .arg("SIGTERM")
                             .arg(&lname)
@@ -530,9 +524,10 @@ impl<'a> Instance for LocalInstance<'a> {
     }
     fn service_status(&self) -> anyhow::Result<()> {
         if is_service_loaded(&self.name) {
-            process::exit_from(&mut StdCommand::new("launchctl")
+            proc::Native::new("launchctl", "launchctl", "launchctl")
                 .arg("print")
-                .arg(self.launchd_name()))?;
+                .arg(self.launchd_name())
+                .run_and_exit()?;
         } else {
             // launchctl print will fail if the service is not loaded, let's
             // just give a more understandable error here.
@@ -699,7 +694,9 @@ pub fn launchctl_status(name: &str, _system: bool, cache: &StatusCache)
 {
     use Service::*;
     let list = cache.launchctl_list.get_or_init(|| {
-        process::get_text(&mut StdCommand::new("launchctl").arg("list"))
+        proc::Native::new("service list", "launchctl", "launchctl")
+            .arg("list")
+            .get_stdout_text()
     });
     let txt = match list {
         Ok(txt) => txt,
@@ -848,11 +845,11 @@ fn launchd_name(name: &str) -> String {
 #[context("cannot scan package paths of edgedb-server-{}", pkg.slot)]
 fn get_package_paths(pkg: &Package) -> anyhow::Result<Vec<PathBuf>> {
     let root = PathBuf::from("/");
-    let paths: BTreeSet<_> = process::get_text(
-        &mut StdCommand::new("pkgutil")
-            .arg("--files")
-            .arg(package_name(pkg))
-        )?
+    let paths: BTreeSet<_> = proc::Native::new(
+            "package paths", "pkgutil", "pkgutil")
+        .arg("--files")
+        .arg(package_name(pkg))
+        .get_stdout_text()?
         .lines()
         .map(|p| root.join(p))
         .collect();
