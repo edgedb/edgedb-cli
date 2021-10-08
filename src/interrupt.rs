@@ -88,7 +88,7 @@ pub fn init_signals() {
     #[cfg(windows)]
     ctrlc::set_handler(move || {
         if let Some(state) = CUR_INTERRUPT.load_full() {
-            state.event.set(Signal::Interupt);
+            state.event.set(Signal::Interrupt);
         } else {
             exit_on(Signal::Interrupt);
         }
