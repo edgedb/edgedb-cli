@@ -1,7 +1,6 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::env;
 use std::path::{Path, PathBuf};
-use std::process;
 use std::str;
 use std::time::SystemTime;
 
@@ -17,7 +16,7 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::{Uid, get_current_uid, data_dir, cache_dir};
 use crate::print;
-use crate::proc;
+use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, read_ports, init_credentials, Storage};
 use crate::server::detect::{VersionQuery, Lazy};
@@ -120,7 +119,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
     } else {
         linux::get_server_path(Some(&pkg.slot))
     };
-    let mut cmd = proc::Native::new("bootstrap", "edgedb", server_path);
+    let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
     //let mut cmd = Command::new(server_path);
     cmd.arg("--bootstrap-only");
     cmd.env("EDGEDB_SERVER_LOG_LEVEL",
@@ -596,7 +595,7 @@ fn do_instance_upgrade(method: &dyn Method,
         source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
         target: new_version,
         started: SystemTime::now(),
-        pid: process::id(),
+        pid: std::process::id(),
     };
     let inst = inst.upgrade(&new_meta)?;
     match reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta) {

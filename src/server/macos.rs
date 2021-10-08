@@ -14,7 +14,7 @@ use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
 use crate::platform::{get_current_uid, home_dir, cache_dir, data_dir};
-use crate::proc;
+use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, Storage};
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
@@ -236,7 +236,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         Ok(self.installed.get_or_try_init(|| {
-            let mut cmd = proc::Native::new(
+            let mut cmd = process::Native::new(
                 "package list", "pkgutil", "pkgutil");
             cmd.arg(r"--pkgs=com.edgedb.edgedb-server-\d.*");
             let out = cmd.get_output()
@@ -256,7 +256,7 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                 }
                 let major = &line["com.edgedb.edgedb-server-".len()..].trim();
 
-                let mut cmd = proc::Native::new(
+                let mut cmd = process::Native::new(
                     "package info", "pkgutil", "pkgutil");
                 cmd.arg("--pkg-info").arg(line.trim());
                 let out = cmd.get_stdout_text()
@@ -455,7 +455,7 @@ impl<'a> Instance for LocalInstance<'a> {
             // If the server is already running, kickstart won't do anything;
             // or else it will try to (re-)start the server.
             let lname = self.launchd_name();
-            proc::Native::new("launchctl", "launchctl", "launchctl")
+            process::Native::new("launchctl", "launchctl", "launchctl")
                 .arg("kickstart").arg(&lname)
                 .run()?;
         } else {
@@ -474,7 +474,7 @@ impl<'a> Instance for LocalInstance<'a> {
                         if time::Instant::now() > deadline {
                             log::warn!(target: "edgedb::server::stop",
                                        "Timing out; send SIGKILL now.");
-                            proc::Native::new(
+                            process::Native::new(
                                 "stop service", "launchctl", "launchctl")
                                 .arg("kill")
                                 .arg("SIGKILL")
@@ -484,7 +484,7 @@ impl<'a> Instance for LocalInstance<'a> {
                         }
                         thread::sleep(time::Duration::from_secs_f32(0.3));
                     } else {
-                        proc::Native::new(
+                        process::Native::new(
                             "stop service", "launchctl", "launchctl")
                             .arg("kill")
                             .arg("SIGTERM")
@@ -511,7 +511,7 @@ impl<'a> Instance for LocalInstance<'a> {
             // Only use kickstart -k to restart the service if it's loaded
             // already, or it will fail with an error. We assume the service is
             // loaded for auto-starting services.
-            proc::Native::new("launchctl", "launchctl",
+            process::Native::new("launchctl", "launchctl",
                 "launchctl")
                 .arg("kickstart")
                 .arg("-k")
@@ -524,7 +524,7 @@ impl<'a> Instance for LocalInstance<'a> {
     }
     fn service_status(&self) -> anyhow::Result<()> {
         if is_service_loaded(&self.name) {
-            proc::Native::new("launchctl", "launchctl", "launchctl")
+            process::Native::new("launchctl", "launchctl", "launchctl")
                 .arg("print")
                 .arg(self.launchd_name())
                 .run_and_exit()?;
@@ -551,9 +551,9 @@ impl<'a> Instance for LocalInstance<'a> {
             get_connector(self.name())
         }
     }
-    fn get_command(&self) -> anyhow::Result<proc::Native> {
+    fn get_command(&self) -> anyhow::Result<process::Native> {
         let socket_dir = self.socket_dir()?;
-        let mut cmd = proc::Native::new("server", "edgedb",
+        let mut cmd = process::Native::new("server", "edgedb",
             get_server_path(&self.get_slot()?));
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
@@ -582,7 +582,7 @@ impl<'a> Instance for LocalInstance<'a> {
         unix::revert(self, metadata)
     }
     fn logs(&self, options: &Logs) -> anyhow::Result<()> {
-        let mut cmd = proc::Native::new("log", "tail", "tail");
+        let mut cmd = process::Native::new("log", "tail", "tail");
         if let Some(n) = options.tail {
             cmd.arg("-n").arg(n.to_string());
         }
@@ -694,7 +694,7 @@ pub fn launchctl_status(name: &str, _system: bool, cache: &StatusCache)
 {
     use Service::*;
     let list = cache.launchctl_list.get_or_init(|| {
-        proc::Native::new("service list", "launchctl", "launchctl")
+        process::Native::new("service list", "launchctl", "launchctl")
             .arg("list")
             .get_stdout_text()
     });
@@ -752,7 +752,7 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
 
 fn bootout_launchctl_service(name: &str) -> anyhow::Result<()> {
     let unit_name = launchd_name(name);
-    proc::Native::new("launchctl", "launchctl", "launchctl")
+    process::Native::new("launchctl", "launchctl", "launchctl")
         .arg("bootout").arg(&unit_name)
         .run()?;
     Ok(())
@@ -782,10 +782,10 @@ fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
     // plist file from launchd if the service is configured as manual start.
     // Actually it is necessary to clear the disabled status even for manually-
     // starting services, because manual start won't work on disabled services.
-    proc::Native::new("launchctl", "launchctl", "launchctl")
+    process::Native::new("launchctl", "launchctl", "launchctl")
         .arg("enable").arg(&unit_name)
         .run()?;
-    proc::Native::new("launchctl", "launchctl", "launchctl")
+    process::Native::new("launchctl", "launchctl", "launchctl")
         .arg("bootstrap")
         .arg(get_domain_target())
         .arg(plist_path)
@@ -845,7 +845,7 @@ fn launchd_name(name: &str) -> String {
 #[context("cannot scan package paths of edgedb-server-{}", pkg.slot)]
 fn get_package_paths(pkg: &Package) -> anyhow::Result<Vec<PathBuf>> {
     let root = PathBuf::from("/");
-    let paths: BTreeSet<_> = proc::Native::new(
+    let paths: BTreeSet<_> = process::Native::new(
             "package paths", "pkgutil", "pkgutil")
         .arg("--files")
         .arg(package_name(pkg))

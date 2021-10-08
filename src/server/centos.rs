@@ -6,7 +6,7 @@ use async_std::task;
 use anyhow::Context;
 use serde::Serialize;
 
-use crate::proc;
+use crate::process;
 use crate::server::create::{self, Storage};
 use crate::server::detect::VersionQuery;
 use crate::server::detect::{Lazy, ARCH};
@@ -251,7 +251,7 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         Ok(self.installed.get_or_try_init(|| {
-            let mut cmd = proc::Native::new("list packages", "yum", "yum");
+            let mut cmd = process::Native::new("list packages", "yum", "yum");
             cmd.arg("--showduplicates");
             cmd.arg("list").arg("installed");
             cmd.arg("edgedb-*");

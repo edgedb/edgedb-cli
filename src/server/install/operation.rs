@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::proc;
+use crate::process;
 
 
 #[derive(Debug)]
@@ -31,10 +31,10 @@ pub struct Context {
 }
 
 impl Command {
-    fn to_native(&self, sudo_cmd: &Option<PathBuf>) -> proc::Native {
+    fn to_native(&self, sudo_cmd: &Option<PathBuf>) -> process::Native {
         let name = self.cmd.file_name().unwrap().to_str().unwrap().to_string();
         let mut cmd = if let Some(sudo_cmd) = sudo_cmd {
-            let mut cmd = proc::Native::new(name.clone(), name, sudo_cmd);
+            let mut cmd = process::Native::new(name.clone(), name, sudo_cmd);
             for (k, v) in &self.environ {
                 let mut arg = k.clone();
                 arg.push("=");
@@ -44,7 +44,7 @@ impl Command {
             cmd.arg(&self.cmd);
             cmd
         } else {
-            let mut cmd = proc::Native::new(name.clone(), name, &self.cmd);
+            let mut cmd = process::Native::new(name.clone(), name, &self.cmd);
             for (k, v) in &self.environ {
                 cmd.env(k, v);
             }
@@ -160,7 +160,7 @@ impl Operation {
             }
             WritePrivilegedFile { path, data } => {
                 if let Some(sudo) = &ctx.sudo_cmd {
-                    proc::Native::new("tee", "tee", sudo)
+                    process::Native::new("tee", "tee", sudo)
                         .arg("tee").arg(path)
                         .feed(data)
                 } else {

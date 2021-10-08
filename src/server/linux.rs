@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
 use crate::platform::{get_current_uid, data_dir};
-use crate::proc;
+use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::detect::Lazy;
 use crate::server::distribution::{MajorVersion};
@@ -90,7 +90,7 @@ impl Instance for LocalInstance<'_> {
         if options.foreground {
             self.get_command()?.no_proxy().run()?;
         } else {
-            proc::Native::new("systemctl", "systemctl", "systemctl")
+            process::Native::new("service start", "systemctl", "systemctl")
                 .arg("--user")
                 .arg("start")
                 .arg(format!("edgedb-server@{}", self.name))
@@ -99,7 +99,7 @@ impl Instance for LocalInstance<'_> {
         Ok(())
     }
     fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
-        proc::Native::new("systemctl", "systemctl", "systemctl")
+        process::Native::new("service stop", "systemctl", "systemctl")
             .arg("--user")
             .arg("stop")
             .arg(format!("edgedb-server@{}", self.name))
@@ -107,7 +107,7 @@ impl Instance for LocalInstance<'_> {
         Ok(())
     }
     fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
-        proc::Native::new("systemctl", "systemctl", "systemctl")
+        process::Native::new("service restart", "systemctl", "systemctl")
             .arg("--user")
             .arg("restart")
             .arg(format!("edgedb-server@{}", self.name))
@@ -130,7 +130,7 @@ impl Instance for LocalInstance<'_> {
         }
     }
     fn service_status(&self) -> anyhow::Result<()> {
-        proc::Native::new("service status", "systemctl", "systemctl")
+        process::Native::new("service status", "systemctl", "systemctl")
             .arg("--user")
             .arg("status")
             .arg(format!("edgedb-server@{}", self.name))
@@ -151,9 +151,9 @@ impl Instance for LocalInstance<'_> {
             .unwrap_or(false);
         unix::status(&self.name, &self.path, service_exists, service)
     }
-    fn get_command(&self) -> anyhow::Result<proc::Native> {
+    fn get_command(&self) -> anyhow::Result<process::Native> {
         let socket_dir = self.socket_dir()?;
-        let mut cmd = proc::Native::new("server", "edgedb",
+        let mut cmd = process::Native::new("server", "edgedb",
             get_server_path(Some(self.get_slot()?)));
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
@@ -182,8 +182,8 @@ impl Instance for LocalInstance<'_> {
         unix::revert(self, metadata)
     }
     fn logs(&self, logs: &Logs) -> anyhow::Result<()> {
-        let mut cmd = proc::Native::new(
-            "journalctl", "journalctl", "journalctl");
+        let mut cmd = process::Native::new(
+            "logs", "journalctl", "journalctl");
         cmd.arg("--user-unit").arg(unit_name(&self.name));
         if let Some(n) = logs.tail  {
             cmd.arg(format!("--lines={}", n));
@@ -350,12 +350,12 @@ pub fn create_systemd_service(name: &str, meta: &Metadata)
     let unit_name = unit_name(name);
     let unit_path = unit_dir.join(&unit_name);
     fs::write(&unit_path, systemd_unit(name, meta)?)?;
-    proc::Native::new("systemctl", "systemctl", "systemctl")
+    process::Native::new("systemctl", "systemctl", "systemctl")
         .arg("--user")
         .arg("daemon-reload")
         .run()?;
     if meta.start_conf == StartConf::Auto {
-        proc::Native::new("systemctl", "systemctl", "systemctl")
+        process::Native::new("systemctl", "systemctl", "systemctl")
             .arg("--user")
             .arg("enable")
             .arg(&unit_name)
@@ -367,7 +367,7 @@ pub fn create_systemd_service(name: &str, meta: &Metadata)
 pub fn systemd_status(name: &str, system: bool) -> Service {
     use Service::*;
 
-    let mut cmd = proc::Native::new("systemctl", "systemctl", "systemctl");
+    let mut cmd = process::Native::new("systemctl", "systemctl", "systemctl");
     if !system {
         cmd.arg("--user");
     }
@@ -465,7 +465,8 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     log::info!(target: "edgedb::server::destroy",
         "Stopping service {}", svc_name);
     let mut not_found_error = None;
-    let mut cmd = proc::Native::new("stop service", "systemctl", "systemctl");
+    let mut cmd = process::Native::new(
+        "stop service", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("stop");
     cmd.arg(&svc_name);
@@ -480,7 +481,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
         ))?,
     }
 
-    let mut cmd = proc::Native::new(
+    let mut cmd = process::Native::new(
         "disable service", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("disable");

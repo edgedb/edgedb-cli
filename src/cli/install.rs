@@ -19,7 +19,7 @@ use crate::cli::migrate;
 use crate::options::RawOptions;
 use crate::platform::{home_dir, config_dir, get_current_uid, binary_path};
 use crate::print;
-use crate::proc;
+use crate::process;
 use crate::project::init;
 use crate::project::options::Init;
 use crate::question::{self, read_choice};
@@ -241,7 +241,7 @@ fn print_post_install_message(settings: &Settings,
         ");
     }
     if is_zsh() {
-        let fpath = proc::Native::new("zsh", "zsh",
+        let fpath = process::Native::new("zsh", "zsh",
             env::var("SHELL").unwrap_or_else(|_| "zsh".into()))
             .arg("-ic")
             .arg("echo $fpath")

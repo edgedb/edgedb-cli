@@ -7,7 +7,7 @@ use anyhow::Context;
 use async_std::task;
 use serde::Serialize;
 
-use crate::proc;
+use crate::process;
 use crate::server::detect::{Lazy, ARCH};
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
@@ -199,7 +199,8 @@ impl Debian {
 }
 
 pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
-    let mut cmd = proc::Native::new("list packages", "apt-cache", "apt-cache");
+    let mut cmd = process::Native::new(
+        "list packages", "apt-cache", "apt-cache");
     cmd.arg("search");
     cmd.arg("^edgedb(-server)?-[0-9]");
     let listing = cmd.get_stdout_text()?;
@@ -213,7 +214,7 @@ pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
             continue
         }
 
-        let mut cmd = proc::Native::new(
+        let mut cmd = process::Native::new(
             "package info", "apt-cache", "apt-cache");
         cmd.arg("policy");
         cmd.arg(pkg_name);

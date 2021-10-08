@@ -13,7 +13,7 @@ use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
 use crate::credentials::{self, get_connector};
-use crate::proc;
+use crate::process;
 
 use crate::commands::ExitCode;
 use crate::print;
@@ -219,7 +219,7 @@ impl DockerCandidate {
     pub fn detect() -> anyhow::Result<DockerCandidate> {
         let cli = which::which("docker").ok();
         let docker_info_worked = cli.as_ref().map(|cli| {
-            proc::Native::new("docker info", "docker", cli)
+            process::Native::new("docker info", "docker", cli)
                 .arg("info")
                 .status()
                 .map_err(|e| {
@@ -309,9 +309,9 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
     fn docker_run(&self, description: &'static str,
         image: impl Into<Cow<'static, str>>,
         cmd: impl Into<Cow<'static, str>>)
-        -> proc::Docker
+        -> process::Docker
     {
-        proc::Docker::new(description, &self.cli, image, cmd)
+        process::Docker::new(description, &self.cli, image, cmd)
     }
     fn get_tags(&self) -> anyhow::Result<&[Tag]> {
         self.tags.get_or_try_init(|| {
@@ -344,7 +344,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
     pub fn inspect_container(&self, name: &str)
         -> anyhow::Result<Option<Container>>
     {
-        let mut cmd = proc::Native::new(
+        let mut cmd = process::Native::new(
             "container inspect", "docker", &self.cli);
         cmd.arg("container");
         cmd.arg("inspect");
@@ -364,7 +364,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
     pub fn inspect_volume(&self, name: &str)
         -> anyhow::Result<Option<DockerVolume>>
     {
-        let mut cmd = proc::Native::new(
+        let mut cmd = process::Native::new(
             "volume inspect", "docker", &self.cli);
         cmd.arg("volume");
         cmd.arg("inspect");
@@ -493,7 +493,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         -> anyhow::Result<Vec<DockerInstance<'x, O>>>
          where Self: 'os
     {
-        let output = proc::Native::new("volume list", "docker", &self.cli)
+        let output = process::Native::new("volume list", "docker", &self.cli)
             .arg("volume")
             .arg("list")
             .arg("--filter")
@@ -545,7 +545,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         }
     }
     fn create(&self, options: &Create) -> anyhow::Result<()> {
-        let mut cmd = proc::Native::new("container", "docker", &self.cli);
+        let mut cmd = process::Native::new("container", "docker", &self.cli);
         cmd.arg("container");
         match options.start_conf {
             StartConf::Auto => {
@@ -595,7 +595,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         Ok(())
     }
     fn delete_container(&self, name: &str) -> anyhow::Result<bool> {
-        match proc::Native::new("container stop", "docker", &self.cli)
+        match process::Native::new("container stop", "docker", &self.cli)
             .arg("container")
             .arg("stop")
             .arg(name)
@@ -605,7 +605,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             Err(text) if text.contains("No such container") => return Ok(false),
             Err(text) => anyhow::bail!("docker error: {}", text),
         }
-        match proc::Native::new("container remove", "docker", &self.cli)
+        match process::Native::new("container remove", "docker", &self.cli)
             .arg("container")
             .arg("rm")
             .arg(name)
@@ -630,7 +630,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             anyhow::bail!("upgrade is already in progress");
         }
 
-        proc::Native::new("marker container", "docker", &inst.method.cli)
+        process::Native::new("marker container", "docker", &inst.method.cli)
             .arg("container")
             .arg("create")
             .arg("--name").arg(&upgrade_container)
@@ -768,7 +768,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         inst.delete()?;
         method.create(&create)?;
 
-        proc::Native::new("container rm", "docker", &inst.method.cli)
+        process::Native::new("container rm", "docker", &inst.method.cli)
             .arg("container")
             .arg("rm")
             .arg(&upgrade_container)
@@ -787,7 +787,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     {
         let image = settings.distribution.downcast_ref::<Image>()
             .context("invalid distribution for Docker")?;
-        proc::Native::new("image pull", "docker", &self.cli)
+        process::Native::new("image pull", "docker", &self.cli)
             .arg("image")
             .arg("pull")
             .arg(image.tag.as_image_name())
@@ -797,7 +797,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn uninstall(&self, distr: &DistributionRef) -> anyhow::Result<()> {
         let image = distr.downcast_ref::<Image>()
             .context("invalid distribution for Docker")?;
-        match proc::Native::new("image remove", "docker", &self.cli)
+        match process::Native::new("image remove", "docker", &self.cli)
             .arg("image")
             .arg("rm")
             .arg(image.tag.as_image_name())
@@ -846,7 +846,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         Ok(self._get_version(query)?.into_ref())
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
-        let data = proc::Native::new("image list", "docker", &self.cli)
+        let data = process::Native::new("image list", "docker", &self.cli)
             .arg("image")
             .arg("list")
             .arg("--no-trunc")
@@ -895,7 +895,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
         match storage {
             Storage::DockerVolume(name) => {
-                proc::Native::new("volume remove", "none", &self.cli)
+                process::Native::new("volume remove", "none", &self.cli)
                     .arg("volume")
                     .arg("remove")
                     .arg(name)
@@ -916,7 +916,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .context("invalid unix package")?;
         let user = whoami::username();
         let md = serde_json::to_string(&settings.metadata())?;
-        proc::Native::new("volume create", "docker", &self.cli)
+        process::Native::new("volume create", "docker", &self.cli)
             .arg("volume")
             .arg("create")
             .arg(volume)
@@ -998,7 +998,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>
          where Self: 'os
     {
-        let output = proc::Native::new("volume list", "docker", &self.cli)
+        let output = process::Native::new("volume list", "docker", &self.cli)
             .arg("volume")
             .arg("list")
             .arg("--filter")
@@ -1052,7 +1052,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 "Removed container {:?}", up_container);
             found = true;
         }
-        match proc::Native::new("volume remove", "docker", &self.cli)
+        match process::Native::new("volume remove", "docker", &self.cli)
             .arg("volume")
             .arg("remove")
             .arg(&container_name)
@@ -1272,7 +1272,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            proc::Native::new("container start", "docker", &self.method.cli)
+            process::Native::new("container start", "docker", &self.method.cli)
                 .arg("container")
                 .arg("start")
                 .arg("--attach")
@@ -1280,7 +1280,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
                 .arg(self.container_name())
                 .no_proxy().run()?;
         } else {
-            proc::Native::new("container start", "docker", &self.method.cli)
+            process::Native::new("container start", "docker", &self.method.cli)
                 .arg("container")
                 .arg("start")
                 .arg(self.container_name())
@@ -1289,7 +1289,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         Ok(())
     }
     fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
-        proc::Native::new("container stop", "docker", &self.method.cli)
+        process::Native::new("container stop", "docker", &self.method.cli)
             .arg("container")
             .arg("stop")
             .arg(self.container_name())
@@ -1297,7 +1297,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         Ok(())
     }
     fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
-        proc::Native::new("container restart", "docker", &self.method.cli)
+        process::Native::new("container restart", "docker", &self.method.cli)
             .arg("container")
             .arg("restart")
             .arg(self.container_name())
@@ -1305,7 +1305,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         Ok(())
     }
     fn logs(&self, options: &Logs) -> anyhow::Result<()> {
-        let mut cmd = proc::Native::new(
+        let mut cmd = process::Native::new(
             "container logs", "docker", &self.method.cli);
         cmd.arg("container");
         cmd.arg("logs");
@@ -1319,7 +1319,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         cmd.no_proxy().run()
     }
     fn service_status(&self) -> anyhow::Result<()> {
-        proc::Native::new("container inspect", "docker", &self.method.cli)
+        process::Native::new("container inspect", "docker", &self.method.cli)
             .arg("container")
             .arg("inspect")
             .arg(self.container_name())
@@ -1333,7 +1333,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             get_connector(self.name())
         }
     }
-    fn get_command(&self) -> anyhow::Result<proc::Native> {
+    fn get_command(&self) -> anyhow::Result<process::Native> {
         anyhow::bail!("no get_command is supported for docker instances");
     }
     fn upgrade<'x>(&'x self, meta: &Metadata)

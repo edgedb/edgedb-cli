@@ -13,7 +13,7 @@ use url::Url;
 use crate::async_util::timeout;
 use crate::platform::{home_dir, binary_path};
 use crate::print;
-use crate::proc;
+use crate::process;
 use crate::server::package::RepositoryInfo;
 use crate::server::remote;
 use crate::server::version::Version;
@@ -164,7 +164,7 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     } else {
         anyhow::bail!("unknown OS");
     }
-    proc::Native::new("upgrade", "cli", &tmp_path)
+    process::Native::new("upgrade", "cli", &tmp_path)
         .arg("cli").arg("install").arg("--upgrade")
         .run()?;
     fs::remove_file(&tmp_path).ok();

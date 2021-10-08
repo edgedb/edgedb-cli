@@ -1,7 +1,7 @@
 use crate::commands::ExitCode;
 use crate::format;
 use crate::print;
-use crate::proc;
+use crate::process;
 use crate::question;
 use crate::server::options::Revert;
 use crate::server::os_trait::InstanceRef;
@@ -32,7 +32,7 @@ pub fn revert(instance: InstanceRef, options: &Revert)
         format::done_before(backup_info.timestamp));
     if !options.ignore_pid_check {
         match status.data_status {
-            DataDirectory::Upgrading(Ok(up)) if proc::exists(up.pid) => {
+            DataDirectory::Upgrading(Ok(up)) if process::exists(up.pid) => {
                 print::error(format!(
                     "Looks like upgrade is still in progress \
                     with pid {}", up.pid,
