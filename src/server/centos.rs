@@ -1,22 +1,22 @@
 use std::fs;
 use std::io;
-use std::process::Command as StdCommand;
 use std::str;
 
 use async_std::task;
 use anyhow::Context;
 use serde::Serialize;
 
+use crate::proc;
 use crate::server::create::{self, Storage};
-use crate::server::detect::{Lazy, ARCH};
 use crate::server::detect::VersionQuery;
+use crate::server::detect::{Lazy, ARCH};
 use crate::server::distribution::{DistributionRef, MajorVersion, Distribution};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::linux;
 use crate::server::methods::{InstallationMethods, InstallMethod};
-use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
 use crate::server::options::{Upgrade, Destroy};
+use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
 use crate::server::package::{RepositoryInfo, PackageCandidate};
 use crate::server::package::{self, PackageMethod, Package};
 use crate::server::remote;
@@ -251,12 +251,11 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         Ok(self.installed.get_or_try_init(|| {
-            let mut cmd = StdCommand::new("yum");
+            let mut cmd = proc::Native::new("list packages", "yum", "yum");
             cmd.arg("--showduplicates");
             cmd.arg("list").arg("installed");
             cmd.arg("edgedb-*");
-            let out = cmd.output()
-                .context("cannot get installed packages")?;
+            let out = cmd.get_output()?;
             if out.status.code() == Some(1) {
                 if str::from_utf8(&out.stderr)
                     .map(|x| x.contains("No matching Packages to list"))
@@ -264,11 +263,13 @@ impl<'os> Method for PackageMethod<'os, Centos> {
                 {
                     return Ok(Vec::new());
                 }
-                anyhow::bail!("cannot get installed packages: {:?} {}",
-                    cmd, out.status);
+                anyhow::bail!("cannot get installed packages \
+                    (command-line: {:?}): {}",
+                    cmd.command_line(), out.status);
             } else if !out.status.success() {
-                anyhow::bail!("cannot get installed packages: {:?} {}",
-                    cmd, out.status);
+                anyhow::bail!("cannot get installed packages \
+                    (command-line: {:?}): {}",
+                    cmd.command_line(), out.status);
             }
             let mut lines = out.stdout.split(|&b| b == b'\n');
             for line in &mut lines {
