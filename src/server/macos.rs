@@ -4,7 +4,6 @@ use std::str;
 use std::thread;
 use std::time;
 use std::path::{Path, PathBuf};
-use std::process::{Command as StdCommand};
 
 use anyhow::Context;
 use async_std::task;
@@ -237,15 +236,16 @@ impl<'os> Method for PackageMethod<'os, Macos> {
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
         Ok(self.installed.get_or_try_init(|| {
-            let mut cmd = StdCommand::new("pkgutil");
+            let mut cmd = process::Native::new(
+                "package list", "pkgutil", "pkgutil");
             cmd.arg(r"--pkgs=com.edgedb.edgedb-server-\d.*");
-            let out = cmd.output()
+            let out = cmd.get_output()
                 .context("cannot get installed packages")?;
             if out.status.code() == Some(1) {
                 return Ok(Vec::new());
             } else if !out.status.success() {
-                anyhow::bail!("cannot get installed packages: {:?} {}",
-                    cmd, out.status);
+                anyhow::bail!("cannot list installed packages {:?}: {}",
+                    cmd.command_line(), out.status);
             }
             let mut result = Vec::new();
             let lines = out.stdout.split(|&b| b == b'\n')
@@ -256,18 +256,13 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                 }
                 let major = &line["com.edgedb.edgedb-server-".len()..].trim();
 
-                let mut cmd = StdCommand::new("pkgutil");
+                let mut cmd = process::Native::new(
+                    "package info", "pkgutil", "pkgutil");
                 cmd.arg("--pkg-info").arg(line.trim());
-                let out = cmd.output()
+                let out = cmd.get_stdout_text()
                     .context("cannot get package version")?;
-                if !out.status.success() {
-                    anyhow::bail!("cannot get package version: {:?} {}",
-                        cmd, out.status);
-                }
-                let lines = out.stdout.split(|&b| b == b'\n')
-                    .filter_map(|line| str::from_utf8(line).ok());
                 let mut version = None;
-                for line in lines {
+                for line in out.lines() {
                     if line.starts_with("version:") {
                         version = Some(line["version:".len()..].trim());
                         break;
@@ -453,16 +448,16 @@ impl<'a> Instance for LocalInstance<'a> {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            process::run(&mut self.get_command()?)?;
+            self.get_command()?.no_proxy().run()?;
         } else if self.get_start_conf()? == StartConf::Auto ||
                 is_service_loaded(&self.name) {
             // For auto-starting services, we assume they are already loaded.
             // If the server is already running, kickstart won't do anything;
             // or else it will try to (re-)start the server.
             let lname = self.launchd_name();
-            process::run(
-                StdCommand::new("launchctl").arg("kickstart").arg(&lname)
-            )?;
+            process::Native::new("launchctl", "launchctl", "launchctl")
+                .arg("kickstart").arg(&lname)
+                .run()?;
         } else {
             bootstrap_launchctl_service(&self.name, self.get_meta()?)?;
         }
@@ -479,20 +474,22 @@ impl<'a> Instance for LocalInstance<'a> {
                         if time::Instant::now() > deadline {
                             log::warn!(target: "edgedb::server::stop",
                                        "Timing out; send SIGKILL now.");
-                            process::run(StdCommand::new("launchctl")
+                            process::Native::new(
+                                "stop service", "launchctl", "launchctl")
                                 .arg("kill")
                                 .arg("SIGKILL")
                                 .arg(&lname)
-                            )?;
+                                .run()?;
                             break;
                         }
                         thread::sleep(time::Duration::from_secs_f32(0.3));
                     } else {
-                        process::run(StdCommand::new("launchctl")
+                        process::Native::new(
+                            "stop service", "launchctl", "launchctl")
                             .arg("kill")
                             .arg("SIGTERM")
                             .arg(&lname)
-                        )?;
+                            .run()?;
                         signal_sent = true;
                     }
                 },
@@ -514,11 +511,12 @@ impl<'a> Instance for LocalInstance<'a> {
             // Only use kickstart -k to restart the service if it's loaded
             // already, or it will fail with an error. We assume the service is
             // loaded for auto-starting services.
-            process::run(&mut StdCommand::new("launchctl")
+            process::Native::new("launchctl", "launchctl",
+                "launchctl")
                 .arg("kickstart")
                 .arg("-k")
                 .arg(self.launchd_name())
-            )?;
+                .run()?;
         } else {
             bootstrap_launchctl_service(&self.name, self.get_meta()?)?;
         }
@@ -526,9 +524,10 @@ impl<'a> Instance for LocalInstance<'a> {
     }
     fn service_status(&self) -> anyhow::Result<()> {
         if is_service_loaded(&self.name) {
-            process::exit_from(&mut StdCommand::new("launchctl")
+            process::Native::new("launchctl", "launchctl", "launchctl")
                 .arg("print")
-                .arg(self.launchd_name()))?;
+                .arg(self.launchd_name())
+                .run_and_exit()?;
         } else {
             // launchctl print will fail if the service is not loaded, let's
             // just give a more understandable error here.
@@ -552,9 +551,10 @@ impl<'a> Instance for LocalInstance<'a> {
             get_connector(self.name())
         }
     }
-    fn get_command(&self) -> anyhow::Result<StdCommand> {
+    fn get_command(&self) -> anyhow::Result<process::Native> {
         let socket_dir = self.socket_dir()?;
-        let mut cmd = StdCommand::new(get_server_path(&self.get_slot()?));
+        let mut cmd = process::Native::new("server", "edgedb",
+            get_server_path(&self.get_slot()?));
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
         cmd.arg("--runstate-dir").arg(&socket_dir);
@@ -582,7 +582,7 @@ impl<'a> Instance for LocalInstance<'a> {
         unix::revert(self, metadata)
     }
     fn logs(&self, options: &Logs) -> anyhow::Result<()> {
-        let mut cmd = StdCommand::new("tail");
+        let mut cmd = process::Native::new("log", "tail", "tail");
         if let Some(n) = options.tail {
             cmd.arg("-n").arg(n.to_string());
         }
@@ -590,7 +590,7 @@ impl<'a> Instance for LocalInstance<'a> {
             cmd.arg("-F");
         }
         cmd.arg(log_file(&self.name)?);
-        process::run(&mut cmd)
+        cmd.no_proxy().run()
     }
 }
 
@@ -694,7 +694,9 @@ pub fn launchctl_status(name: &str, _system: bool, cache: &StatusCache)
 {
     use Service::*;
     let list = cache.launchctl_list.get_or_init(|| {
-        process::get_text(&mut StdCommand::new("launchctl").arg("list"))
+        process::Native::new("service list", "launchctl", "launchctl")
+            .arg("list")
+            .get_stdout_text()
     });
     let txt = match list {
         Ok(txt) => txt,
@@ -750,9 +752,9 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
 
 fn bootout_launchctl_service(name: &str) -> anyhow::Result<()> {
     let unit_name = launchd_name(name);
-    process::run(
-        StdCommand::new("launchctl").arg("bootout").arg(&unit_name),
-    )?;
+    process::Native::new("launchctl", "launchctl", "launchctl")
+        .arg("bootout").arg(&unit_name)
+        .run()?;
     Ok(())
 }
 
@@ -780,14 +782,14 @@ fn bootstrap_launchctl_service(name: &str, meta: &Metadata)
     // plist file from launchd if the service is configured as manual start.
     // Actually it is necessary to clear the disabled status even for manually-
     // starting services, because manual start won't work on disabled services.
-    process::run(
-        StdCommand::new("launchctl").arg("enable").arg(&unit_name),
-    )?;
-    process::run(StdCommand::new("launchctl")
+    process::Native::new("launchctl", "launchctl", "launchctl")
+        .arg("enable").arg(&unit_name)
+        .run()?;
+    process::Native::new("launchctl", "launchctl", "launchctl")
         .arg("bootstrap")
         .arg(get_domain_target())
         .arg(plist_path)
-    )?;
+        .run()?;
 
     Ok(())
 }
@@ -843,11 +845,11 @@ fn launchd_name(name: &str) -> String {
 #[context("cannot scan package paths of edgedb-server-{}", pkg.slot)]
 fn get_package_paths(pkg: &Package) -> anyhow::Result<Vec<PathBuf>> {
     let root = PathBuf::from("/");
-    let paths: BTreeSet<_> = process::get_text(
-        &mut StdCommand::new("pkgutil")
-            .arg("--files")
-            .arg(package_name(pkg))
-        )?
+    let paths: BTreeSet<_> = process::Native::new(
+            "package paths", "pkgutil", "pkgutil")
+        .arg("--files")
+        .arg(package_name(pkg))
+        .get_stdout_text()?
         .lines()
         .map(|p| root.join(p))
         .collect();

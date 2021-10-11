@@ -62,7 +62,6 @@ which = {version="4", default-features=false}
 linked-hash-map = {version="0.5.3", features=["serde_impl"]}
 term = "0.7"
 libc = "0.2.68"
-async-ctrlc = {version="1.2.0", features=["stream"]}
 urlencoding = "1.1.1"
 fn-error-context = "0.1.1"
 combine = "4.2.1"
@@ -89,6 +88,11 @@ webpki = "0.21.4"
 futures = "0.3.15"
 futures-util = "0.3.15"
 clicolors-control = "1.0.1"
+backtrace = "0.3.61"
+arc-swap = "1.4.0"
+ctrlc = "3.2.0"
+async-process = "1.2.0"
+crossbeam-utils = "0.8.5"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
@@ -108,6 +112,7 @@ github_nightly = []
 
 [target.'cfg(unix)'.dependencies]
 signal = "0.7.0"
+signal-hook = {version="0.3.10", features=["iterator"]}
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.8"

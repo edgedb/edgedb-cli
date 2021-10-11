@@ -9,7 +9,6 @@ use async_std::prelude::{StreamExt, FutureExt};
 use async_std::io::stdout;
 use async_std::io::prelude::WriteExt;
 use async_std::channel::{bounded as channel};
-use async_ctrlc::CtrlC;
 use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
 
@@ -26,14 +25,15 @@ use edgeql_parser::preparser::{self, full_statement};
 use crate::commands::{backslash, ExitCode};
 use crate::config::Config;
 use crate::echo;
+use crate::error_display::print_query_error;
+use crate::interrupt::{Interrupt, InterruptError};
 use crate::options::Options;
+use crate::outputs::tab_separated;
+use crate::print::Highlight;
 use crate::print::{self, PrintError};
 use crate::prompt;
 use crate::repl;
 use crate::variables::input_variables;
-use crate::error_display::print_query_error;
-use crate::outputs::tab_separated;
-use crate::print::Highlight;
 
 
 const QUERY_OPT_IMPLICIT_LIMIT: u16 = 0xFF01;
@@ -42,10 +42,6 @@ const QUERY_OPT_INLINE_TYPENAMES: u16 = 0xFF02;
 #[derive(Debug, thiserror::Error)]
 #[error("Shutting down on user request")]
 pub struct CleanShutdown;
-
-#[derive(Debug, thiserror::Error)]
-#[error("Interrupted")]
-pub struct Interrupted;
 
 #[derive(Debug, thiserror::Error)]
 #[error("QueryError")]
@@ -554,16 +550,16 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
 async fn _interactive_main(options: &Options, state: &mut repl::State)
     -> Result<(), anyhow::Error>
 {
-    let mut ctrlc = CtrlC::new()?;
+    let ctrlc = Interrupt::ctrl_c();
     loop {
         state.ensure_connection()
-            .race(async { ctrlc.next().await; Err(Interrupted)? })
+            .race(ctrlc.wait_result())
             .await?;
         let cur_initial = replace(&mut state.initial_text, String::new());
         let inp = match state.edgeql_input(&cur_initial).await? {
             prompt::Input::Eof => {
                 state.terminate()
-                    .race(async { ctrlc.next().await; })
+                    .race(async { ctrlc.wait().await; })
                     .await;
                 return Err(CleanShutdown)?;
             }
@@ -577,23 +573,23 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             let result = match item {
                 ToDoItem::Backslash(text) => {
                     execute_backslash(state, text)
-                        .race(async { ctrlc.next().await; Err(Interrupted)?})
+                        .race(ctrlc.wait_result())
                         .await
                 }
                 ToDoItem::Query(statement) => {
                     state.soft_reconnect()
-                        .race(async { ctrlc.next().await; Err(Interrupted)?})
+                        .race(ctrlc.wait_result())
                         .await?;
                     execute_query(options, state, statement)
-                        .race(async { ctrlc.next().await; Err(Interrupted)?})
+                        .race(ctrlc.wait_result())
                         .await
                 }
             };
             if let Err(err) = result {
-                if err.is::<Interrupted>() {
+                if err.is::<InterruptError>() {
                     eprintln!("Interrupted.");
                     state.reconnect()
-                        .race(async { ctrlc.next().await; Err(Interrupted)? })
+                        .race(ctrlc.wait_result())
                         .await?;
                 } else if err.is::<CleanShutdown>() {
                     return Err(err)?;

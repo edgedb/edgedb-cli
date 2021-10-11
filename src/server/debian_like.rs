@@ -2,12 +2,12 @@ use std::env;
 use std::fs;
 use std::io;
 use std::str;
-use std::process::Command as StdCommand;
 
 use anyhow::Context;
 use async_std::task;
 use serde::Serialize;
 
+use crate::process;
 use crate::server::detect::{Lazy, ARCH};
 use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
 use crate::server::docker::DockerCandidate;
@@ -132,6 +132,8 @@ impl Debian {
         operations.push(Operation::FeedPrivilegedCmd {
             input: key.into(),
             cmd: Command::new("apt-key")
+                // this supresses "output should not be parsed" warning
+                .env("APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE", "1")
                 .arg("add")
                 .arg("-"),
         });
@@ -197,21 +199,14 @@ impl Debian {
 }
 
 pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
-    let mut cmd = StdCommand::new("apt-cache");
+    let mut cmd = process::Native::new(
+        "list packages", "apt-cache", "apt-cache");
     cmd.arg("search");
     cmd.arg("^edgedb(-server)?-[0-9]");
-    let out = cmd.output()
-        .context("cannot get installed packages")?;
-    if !out.status.success() {
-        anyhow::bail!("cannot get installed packages: {:?} {}",
-            cmd, out.status);
-    }
+    let listing = cmd.get_stdout_text()?;
     let mut result = Vec::new();
-    for line in out.stdout.split(|&b| b == b'\n') {
-        let pkg_name = match
-            str::from_utf8(line).ok()
-            .and_then(|l| l.split_whitespace().next())
-        {
+    for line in listing.lines() {
+        let pkg_name = match line.split_whitespace().next() {
             Some(pkg_name) => pkg_name,
             None => continue,
         };
@@ -219,20 +214,13 @@ pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
             continue
         }
 
-        let mut cmd = StdCommand::new("apt-cache");
+        let mut cmd = process::Native::new(
+            "package info", "apt-cache", "apt-cache");
         cmd.arg("policy");
         cmd.arg(pkg_name);
-        let out = cmd.output()
-            .context("cannot get installed packages")?;
-        if !out.status.success() {
-            anyhow::bail!("cannot get installed packages: {:?} {}",
-                cmd, out.status);
-        }
-        for line in out.stdout.split(|&b| b == b'\n') {
-            let line = match str::from_utf8(line).ok() {
-                Some(line) => line.trim(),
-                None => continue,
-            };
+        let info = cmd.get_stdout_text()?;
+        for line in info.lines() {
+            let line = line.trim();
             if line.starts_with("Installed:") {
                 let ver = line["Installed:".len()..].trim();
                 if ver == "(none)" {

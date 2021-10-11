@@ -5,7 +5,7 @@ use std::env;
 use std::fs;
 use std::io::{Write, stdout, BufWriter};
 use std::path::{PathBuf, Path};
-use std::process::{Command, exit};
+use std::process::{exit};
 use std::str::FromStr;
 
 use anyhow::Context;
@@ -241,11 +241,12 @@ fn print_post_install_message(settings: &Settings,
         ");
     }
     if is_zsh() {
-        let fpath = process::get_text(
-            Command::new(env::var("SHELL").unwrap_or_else(|_| "zsh".into()))
+        let fpath = process::Native::new("zsh", "zsh",
+            env::var("SHELL").unwrap_or_else(|_| "zsh".into()))
             .arg("-ic")
             .arg("echo $fpath")
-        ).ok();
+            .get_stdout_text()
+            .ok();
         let func_dir = home_dir().ok().map(|p| p.join(".zfunc"));
         let func_dir = func_dir.as_ref().and_then(|p| p.to_str());
         if let Some((fpath, func_dir)) = fpath.zip(func_dir) {

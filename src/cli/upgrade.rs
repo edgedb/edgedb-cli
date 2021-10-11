@@ -1,4 +1,3 @@
-use std::process::Command;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -165,8 +164,9 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     } else {
         anyhow::bail!("unknown OS");
     }
-    process::run(Command::new(&tmp_path)
-        .arg("cli").arg("install").arg("--upgrade"))?;
+    process::Native::new("upgrade", "cli", &tmp_path)
+        .arg("cli").arg("install").arg("--upgrade")
+        .run()?;
     fs::remove_file(&tmp_path).ok();
     if !options.quiet {
         print::success_msg(

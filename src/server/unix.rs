@@ -1,7 +1,6 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::env;
 use std::path::{Path, PathBuf};
-use std::process::{self, Command};
 use std::str;
 use std::time::SystemTime;
 
@@ -17,7 +16,7 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::{Uid, get_current_uid, data_dir, cache_dir};
 use crate::print;
-use crate::process::ProcessGuard;
+use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, read_ports, init_credentials, Storage};
 use crate::server::detect::{VersionQuery, Lazy};
@@ -115,11 +114,13 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
 
     let pkg = settings.distribution.downcast_ref::<Package>()
         .context("invalid unix package")?;
-    let mut cmd = Command::new(if cfg!(target_os="macos") {
+    let server_path = if cfg!(target_os="macos") {
         macos::get_server_path(&pkg.slot)
     } else {
         linux::get_server_path(Some(&pkg.slot))
-    });
+    };
+    let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
+    //let mut cmd = Command::new(server_path);
     cmd.arg("--bootstrap-only");
     cmd.env("EDGEDB_SERVER_LOG_LEVEL",
         env::var_os("EDGEDB_SERVER_LOG_LEVEL").unwrap_or("warn".into()));
@@ -131,13 +132,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
     if cert_generated {
         cmd.arg("--generate-self-signed-cert");
     }
-
-    log::debug!("Running bootstrap {:?}", cmd);
-    match cmd.status() {
-        Ok(s) if s.success() => {}
-        Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
-        Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
-    }
+    cmd.run()?;
 
     let metapath = dir.join("metadata.json");
     let metadata = settings.metadata();
@@ -169,7 +164,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
                 name: settings.name.clone(),
                 foreground: false,
             })?;
-            init_credentials(&settings, &inst, cert)?;
+            task::block_on(init_credentials(&settings, &inst, cert))?;
             print::success_msg(
                 "Bootstrap complete", "server is now up and running."
             );
@@ -181,12 +176,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
         _ => {
             let inst = method.get_instance(&settings.name)?;
             let mut cmd = inst.get_command()?;
-            log::debug!("Running server: {:?}", cmd);
-            let child = ProcessGuard::run(&mut cmd)
-                .with_context(||
-                    format!("error running server {:?}", cmd))?;
-            init_credentials(&settings, &inst, cert)?;
-            drop(child);
+            cmd.background_for(init_credentials(&settings, &inst, cert))?;
             if settings.start_conf == StartConf::Manual && res.is_ok() {
                 print::success("Bootstrap complete.");
                 println!("To start the server run:\n  \
@@ -489,20 +479,19 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
         cmd.arg("--generate-self-signed-cert");
     }
 
-    log::debug!("Running server: {:?}", cmd);
-    let child = ProcessGuard::run(&mut cmd)
-        .with_context(|| format!("error running server {:?}", cmd))?;
-
     let dump_path = storage_dir(inst.name())?
         .parent().expect("instance path can't be root")
         .join(format!("{}.dump", inst.name()));
-    task::block_on(
-        upgrade::restore_instance(inst, &dump_path, inst.get_connector(true)?)
-    )?;
-    log::info!(target: "edgedb::server::upgrade",
-        "Restarting instance {:?} to apply changes from `restore --all`",
-        &inst.name());
-    drop(child);
+
+    cmd.background_for(async {
+        upgrade::restore_instance(
+            inst, &dump_path, inst.get_connector(true)?
+        ).await?;
+        log::info!(target: "edgedb::server::upgrade",
+            "Restarting instance {:?} to apply changes from `restore --all`",
+            &inst.name());
+        Ok(())
+    })?;
 
     let metapath = instance_dir.join("metadata.json");
     write_metadata(&metapath, &new_meta)?;
@@ -606,7 +595,7 @@ fn do_instance_upgrade(method: &dyn Method,
         source: old.cloned().unwrap_or_else(|| Version("unknown".into())),
         target: new_version,
         started: SystemTime::now(),
-        pid: process::id(),
+        pid: std::process::id(),
     };
     let inst = inst.upgrade(&new_meta)?;
     match reinit_and_restore(inst.as_ref(), &new_meta, &upgrade_meta) {

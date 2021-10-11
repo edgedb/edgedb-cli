@@ -1,10 +1,7 @@
-use std::env;
-use std::ffi::OsStr;
+use std::borrow::Cow;
 use std::fmt;
 use std::fs;
-use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Child, Stdio};
 use std::time::{SystemTime, Duration, UNIX_EPOCH};
 
 use anyhow::Context;
@@ -165,100 +162,6 @@ pub struct DockerInstance<'a, O: CurrentOs + ?Sized> {
     metadata: Lazy<Metadata>,
 }
 
-pub struct DockerRun {
-    docker_cmd: PathBuf,
-    name: String,
-    command: Command,
-}
-
-pub struct DockerGuard {
-    docker_cmd: PathBuf,
-    name: String,
-    child: Child,
-}
-
-impl fmt::Debug for DockerRun {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&self.command, f)
-    }
-}
-
-impl DockerRun {
-    fn interactive(docker_cmd: impl AsRef<Path>) -> DockerRun {
-        let mut cmd = DockerRun::new(docker_cmd);
-        cmd.arg("-i");
-        cmd.command.stdin(Stdio::piped());
-        cmd
-    }
-    fn new(docker_cmd: impl AsRef<Path>) -> DockerRun {
-        let name = format!("edgedb_{}_{}", std::process::id(), timestamp());
-        let mut command = Command::new(docker_cmd.as_ref());
-        command.arg("run");
-        command.arg("--rm");
-        command.arg("--name").arg(&name);
-        DockerRun {
-            docker_cmd: docker_cmd.as_ref().to_path_buf(),
-            name,
-            command,
-        }
-    }
-    fn arg(&mut self, arg: impl AsRef<OsStr>) -> &mut DockerRun {
-        self.command.arg(arg);
-        self
-    }
-    fn run(&mut self) -> anyhow::Result<DockerGuard> {
-        Ok(DockerGuard {
-            docker_cmd: self.docker_cmd.clone(),
-            name: self.name.clone(),
-            child: self.command.spawn()?,
-        })
-    }
-}
-
-impl DockerGuard {
-    fn feed(&mut self, text: &str) -> Result<(), io::Error> {
-        self.child.stdin.as_mut().expect("stdin is piped")
-            .write_all(text.as_bytes())
-    }
-    fn feed_eof(&mut self) {
-        self.child.stdin.take();
-    }
-    fn wait(&mut self) -> anyhow::Result<()> {
-        match self.child.wait() {
-            Ok(s) if s.success() => Ok(()),
-            Ok(s) => anyhow::bail!("docker command failed: {}", s),
-            Err(e) => Err(e)
-                .with_context(|| format!("error running docker command")),
-        }
-    }
-}
-
-impl Drop for DockerGuard {
-    fn drop(&mut self) {
-        match self.child.try_wait() {
-            Ok(Some(status)) => {
-                log::info!("Container status: {:}", status);
-            }
-            Ok(None) => {
-                process::run(Command::new(&self.docker_cmd)
-                    .arg("stop")
-                    .arg(&self.name))
-                    .map_err(|e| {
-                        log::warn!("Error stopping container {:?}: {:#}",
-                                   self.name, e);
-                    }).ok();
-                 self.child.wait().map_err(|e| {
-                     log::error!("Error waiting for stopped container: {}", e);
-                 }).ok();
-            }
-            Err(e) => {
-                log::info!("Container errored: {:}", e);
-            }
-        }
-    }
-}
-
-
 fn timestamp() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
 }
@@ -316,21 +219,19 @@ impl DockerCandidate {
     pub fn detect() -> anyhow::Result<DockerCandidate> {
         let cli = which::which("docker").ok();
         let docker_info_worked = cli.as_ref().map(|cli| {
-            Command::new(cli)
-            .arg("info")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map_err(|e| {
-                log::info!("Error running docker CLI: {}", e);
-            })
-            .map(|s| {
-                if s.success() {
-                    log::info!("Error running docker CLI: {}", s);
-                }
-                s.success()
-            })
-            .unwrap_or(false)
+            process::Native::new("docker info", "docker", cli)
+                .arg("info")
+                .status()
+                .map_err(|e| {
+                    log::info!("Error running docker CLI: {}", e);
+                })
+                .map(|s| {
+                    if !s.success() {
+                        log::info!("Error running docker CLI: {}", s);
+                    }
+                    s.success()
+                })
+                .unwrap_or(false)
         }).unwrap_or(false);
         let supported = cli.is_some() && docker_info_worked;
         Ok(DockerCandidate {
@@ -405,6 +306,13 @@ impl Tag {
 }
 
 impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
+    fn docker_run(&self, description: &'static str,
+        image: impl Into<Cow<'static, str>>,
+        cmd: impl Into<Cow<'static, str>>)
+        -> process::Docker
+    {
+        process::Docker::new(description, &self.cli, image, cmd)
+    }
     fn get_tags(&self) -> anyhow::Result<&[Tag]> {
         self.tags.get_or_try_init(|| {
             task::block_on(async {
@@ -436,11 +344,12 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
     pub fn inspect_container(&self, name: &str)
         -> anyhow::Result<Option<Container>>
     {
-        let mut cmd = Command::new(&self.cli);
+        let mut cmd = process::Native::new(
+            "container inspect", "docker", &self.cli);
         cmd.arg("container");
         cmd.arg("inspect");
         cmd.arg(name);
-        match process::get_json_or_stderr::<Vec<_>>(&mut cmd)? {
+        match cmd.get_json_or_stderr::<Vec<_>>()? {
             Ok(containers) => Ok(containers.into_iter().next()),
             Err(e) => {
                 if e.contains("No such container") {
@@ -455,11 +364,12 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
     pub fn inspect_volume(&self, name: &str)
         -> anyhow::Result<Option<DockerVolume>>
     {
-        let mut cmd = Command::new(&self.cli);
+        let mut cmd = process::Native::new(
+            "volume inspect", "docker", &self.cli);
         cmd.arg("volume");
         cmd.arg("inspect");
         cmd.arg(name);
-        match process::get_json_or_stderr::<Vec<_>>(&mut cmd)? {
+        match cmd.get_json_or_stderr::<Vec<_>>()? {
             Ok(imgs) => {
                 Ok(imgs.into_iter().next())
             }
@@ -583,13 +493,14 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         -> anyhow::Result<Vec<DockerInstance<'x, O>>>
          where Self: 'os
     {
-        let output = process::get_text(Command::new(&self.cli)
+        let output = process::Native::new("volume list", "docker", &self.cli)
             .arg("volume")
             .arg("list")
             .arg("--filter")
             .arg(format!("label=com.edgedb.metadata.user={}",
                           whoami::username()))
-            .arg("--format").arg("{{.Name}}"))?;
+            .arg("--format").arg("{{.Name}}")
+            .get_stdout_text()?;
         let mut result = Vec::new();
         for volume in output.lines() {
             if let Some(name) = volume.strip_prefix("edgedb_") {
@@ -634,7 +545,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         }
     }
     fn create(&self, options: &Create) -> anyhow::Result<()> {
-        let mut cmd = Command::new(&self.cli);
+        let mut cmd = process::Native::new("container", "docker", &self.cli);
         cmd.arg("container");
         match options.start_conf {
             StartConf::Auto => {
@@ -675,36 +586,36 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             .arg(format!("/var/lib/edgedb/data/{}", options.name));
         cmd.arg("--port").arg(options.port.to_string());
         cmd.arg("--bind-address=0.0.0.0");
-        process::run(&mut cmd).with_context(|| {
+        cmd.run().with_context(|| {
             match options.start_conf {
-                StartConf::Auto => {
-                    format!("error starting server {:?}", cmd)
-                }
-                StartConf::Manual => {
-                    format!("error creating container {:?}", cmd)
-                }
+                StartConf::Auto => "starting server",
+                StartConf::Manual => "creating container",
             }
         })?;
         Ok(())
     }
     fn delete_container(&self, name: &str) -> anyhow::Result<bool> {
-        match process::run_or_stderr(Command::new(&self.cli)
+        match process::Native::new("container stop", "docker", &self.cli)
             .arg("container")
             .arg("stop")
-            .arg(name))?
+            .arg(name)
+            .run_or_stderr()?
         {
             Ok(_) => {}
-            Err(text) if text.contains("No such container") => return Ok(false),
-            Err(text) => anyhow::bail!("docker error: {}", text),
+            Err((_, text)) if text.contains("No such container")
+                => return Ok(false),
+            Err((s, text)) => anyhow::bail!("docker error: {}, {}", s, text),
         }
-        match process::run_or_stderr(Command::new(&self.cli)
+        match process::Native::new("container remove", "docker", &self.cli)
             .arg("container")
             .arg("rm")
-            .arg(name))?
+            .arg(name)
+            .run_or_stderr()?
         {
             Ok(_) => {}
-            Err(text) if text.contains("No such container") => return Ok(false),
-            Err(text) => anyhow::bail!("docker error: {}", text),
+            Err((_, text)) if text.contains("No such container")
+                => return Ok(false),
+            Err((s, text)) => anyhow::bail!("docker error: {}: {}", s, text),
         }
         Ok(true)
     }
@@ -720,8 +631,8 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         if self.inspect_container(&upgrade_container)?.is_some() {
             anyhow::bail!("upgrade is already in progress");
         }
-        process::run(
-            Command::new(&inst.method.cli)
+
+        process::Native::new("marker container", "docker", &inst.method.cli)
             .arg("container")
             .arg("create")
             .arg("--name").arg(&upgrade_container)
@@ -729,18 +640,10 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 serde_json::to_string(&meta).unwrap()))
             .arg("busybox")
             .arg("true")
-        )?;
+            .run()?;
 
-        process::run(
-            Command::new(&inst.method.cli)
-            .arg("container")
-            .arg("run")
-            .arg("--rm")
-            .arg("--user=999:999")
-            .arg("--mount")
-                .arg(format!("source={},target=/mnt", volume))
-            .arg("busybox")
-            .arg("sh")
+        inst.method.docker_run("meta backup", "busybox", "sh")
+            .mount(&volume, "/mnt")
             .arg("-ec")
             .arg(format!(r###"
                     rm -rf /mnt/{name}.backup
@@ -753,7 +656,8 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                         timestamp: SystemTime::now(),
                     })?),
             ))
-        )?;
+            .run()?;
+
         self._reinit_and_restore(
             &inst, port, &volume, new_image, dump_path, &upgrade_container,
         ).map_err(|e| {
@@ -777,24 +681,15 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let cert_generated = new_image.major_version > MajorVersion::Stable(
             Version("1-beta2".into())
         );
-        let mut cmd = Command::new(&inst.method.cli);
-        cmd.arg("run");
-        cmd.arg("--rm");
-        cmd.arg("--user=999:999");
+        let mut cmd = self.docker_run("bootstrap",
+            new_image.tag.as_image_name(), "edgedb-server");
         if cert_generated {
-            cmd.arg("--env").arg("EDGEDB_HIDE_GENERATED_CERT=1");
+            cmd.env("EDGEDB_HIDE_GENERATED_CERT", "1");
         }
-        if env::var_os("EDGEDB_SERVER_LOG_LEVEL").is_some() {
-            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL");
-        } else {
-            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL=warn");
-        }
-        cmd.arg("--env").arg("EDGEDB_SERVER_DOCKER_LOG_LEVEL=warning");
-        cmd.arg(format!("--publish={0}:{0}", port));
-        cmd.arg("--mount");
-        cmd.arg(format!("source={},target=/var/lib/edgedb/data", volume));
-        cmd.arg(new_image.tag.as_image_name());
-        cmd.arg("edgedb-server");
+        cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
+        cmd.env_default("EDGEDB_SERVER_DOCKER_LOG_LEVEL", "warning");
+        cmd.expose_port(port);
+        cmd.mount(volume, "/var/lib/edgedb/data");
         cmd.arg("--bootstrap-command");
         cmd.arg(format!(r###"
             CREATE SUPERUSER ROLE {role} {{
@@ -808,19 +703,16 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         if cert_generated {
             cmd.arg("--generate-self-signed-cert");
         }
-
-        process::run(&mut cmd)?;
+        cmd.run()?;
 
         if cert_generated {
-            let output = process::get_text(Command::new(&self.cli)
-                .arg("run")
-                .arg("--rm")
-                .arg("--mount").arg(format!("source={},target=/mnt", volume))
-                .arg(new_image.tag.as_image_name())
-                .arg("sh")
+            let image = new_image.tag.as_image_name();
+            let output = self.docker_run("read cert", image, "sh")
+                .as_root()
+                .mount(volume, "/mnt")
                 .arg("-c")
                 .arg(format!("cat /mnt/{}/edbtlscert.pem", inst.name()))
-            )?;
+                .get_stdout_text()?;
 
             let cert_data = output.find("-----BEGIN CERTIFICATE-----")
                 .zip(find_end(&output, "-----END CERTIFICATE-----"))
@@ -835,48 +727,38 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             }
         }
 
-        let mut cmd = DockerRun::new(&inst.method.cli);
-        if env::var_os("EDGEDB_SERVER_LOG_LEVEL").is_some() {
-            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL");
-        } else {
-            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL=warn");
-        }
-        cmd.arg("--env").arg("EDGEDB_SERVER_DOCKER_LOG_LEVEL=warning");
-        cmd.arg("--user=999:999");
-        cmd.arg(format!("--publish={0}:{0}", port));
-        cmd.arg("--mount")
-           .arg(format!("source={},target=/var/lib/edgedb/data", volume));
-        cmd.arg(new_image.tag.as_image_name());
-        cmd.arg("edgedb-server");
+        let mut cmd = inst.method.docker_run("server",
+            new_image.tag.as_image_name(), "edgedb-server");
+        cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
+        cmd.env_default("EDGEDB_SERVER_DOCKER_LOG_LEVEL", "warning");
+        cmd.expose_port(port);
+        cmd.mount(volume, "/var/lib/edgedb/data");
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", inst.name()));
         cmd.arg("--port").arg(port.to_string());
         cmd.arg("--bind-address=0.0.0.0");
-        log::debug!("Running server: {:?}", cmd);
-        let child = cmd.run()
-            .with_context(|| format!("error running server {:?}", cmd))?;
+        cmd.background_for(async {
+            let mut params = inst.get_connector(false)?;
+            params.user(&tmp_role);
+            params.password(&tmp_password);
+            params.database("edgedb");
+            upgrade::restore_instance(inst, &dump_path, params.clone()).await?;
 
-        let mut params = inst.get_connector(false)?;
-        params.user(&tmp_role);
-        params.password(&tmp_password);
-        params.database("edgedb");
-        task::block_on(
-            upgrade::restore_instance(inst, &dump_path, params.clone())
-        )?;
-        let mut conn_params = inst.get_connector(false)?;
-        conn_params.wait_until_available(Duration::from_secs(30));
-        task::block_on(async {
+            let mut conn_params = inst.get_connector(false)?;
+            conn_params.wait_until_available(Duration::from_secs(30));
             let mut cli = conn_params.connect().await?;
             cli.execute(&format!(r###"
                 DROP ROLE {};
             "###, role=tmp_role)).await?;
-            Ok::<(), anyhow::Error>(())
+
+            log::info!(target: "edgedb::server::upgrade",
+                "Restarting instance {:?} to apply changes \
+                from `restore --all`",
+                &inst.name());
+
+            Ok(())
         })?;
-        log::info!(target: "edgedb::server::upgrade",
-            "Restarting instance {:?} to apply changes from `restore --all`",
-            &inst.name());
-        drop(child);
 
         let method = inst.method;
         let create = Create {
@@ -888,12 +770,11 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         inst.delete()?;
         method.create(&create)?;
 
-        process::run(
-            Command::new(&inst.method.cli)
+        process::Native::new("container rm", "docker", &inst.method.cli)
             .arg("container")
             .arg("rm")
             .arg(&upgrade_container)
-        )?;
+            .run()?;
 
         Ok(())
     }
@@ -908,23 +789,25 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     {
         let image = settings.distribution.downcast_ref::<Image>()
             .context("invalid distribution for Docker")?;
-        process::run(Command::new(&self.cli)
+        process::Native::new("image pull", "docker", &self.cli)
             .arg("image")
             .arg("pull")
-            .arg(image.tag.as_image_name()))?;
+            .arg(image.tag.as_image_name())
+            .run()?;
         Ok(())
     }
     fn uninstall(&self, distr: &DistributionRef) -> anyhow::Result<()> {
         let image = distr.downcast_ref::<Image>()
             .context("invalid distribution for Docker")?;
-        match process::run_or_stderr(Command::new(&self.cli)
+        match process::Native::new("image remove", "docker", &self.cli)
             .arg("image")
             .arg("rm")
-            .arg(image.tag.as_image_name()))?
+            .arg(image.tag.as_image_name())
+            .run_or_stderr()?
         {
             Ok(_) => {}
-            Err(text) if text.contains("No such image") => {},
-            Err(text) => anyhow::bail!("docker error: {}", text),
+            Err((_, text)) if text.contains("No such image") => {},
+            Err((s, text)) => anyhow::bail!("docker error: {}: {}", s, text),
         }
         Ok(())
     }
@@ -965,12 +848,13 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         Ok(self._get_version(query)?.into_ref())
     }
     fn installed_versions(&self) -> anyhow::Result<Vec<DistributionRef>> {
-        let data = process::get_text(Command::new(&self.cli)
+        let data = process::Native::new("image list", "docker", &self.cli)
             .arg("image")
             .arg("list")
             .arg("--no-trunc")
             .arg("--format")
-            .arg("{{.Repository}} {{.Tag}} {{.Digest}}"))?;
+            .arg("{{.Repository}} {{.Tag}} {{.Digest}}")
+            .get_stdout_text()?;
         let mut result = Vec::new();
         for line in data.lines() {
             let mut words = line.split_whitespace();
@@ -1013,10 +897,11 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn clean_storage(&self, storage: &Storage) -> anyhow::Result<()> {
         match storage {
             Storage::DockerVolume(name) => {
-                process::run(Command::new(&self.cli)
+                process::Native::new("volume remove", "none", &self.cli)
                     .arg("volume")
-                    .arg("rm")
-                    .arg(name))?;
+                    .arg("remove")
+                    .arg(name)
+                    .run()?;
                 Ok(())
             }
             _ => unix::clean_storage(storage),
@@ -1033,42 +918,32 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .context("invalid unix package")?;
         let user = whoami::username();
         let md = serde_json::to_string(&settings.metadata())?;
-        process::get_text(Command::new(&self.cli)
+        process::Native::new("volume create", "docker", &self.cli)
             .arg("volume")
             .arg("create")
             .arg(volume)
-            .arg(format!("--label=com.edgedb.metadata.user={}", user)))?;
+            .arg(format!("--label=com.edgedb.metadata.user={}", user))
+            .run()?;
 
-        process::run(Command::new(&self.cli)
-            .arg("run")
-            .arg("--rm")
-            .arg("--mount").arg(format!("source={},target=/mnt", volume))
-            .arg(image.tag.as_image_name())
-            .arg("sh")
+        self.docker_run("chown", image.tag.as_image_name(), "sh")
+            .mount(volume, "/mnt")
+            .as_root()
             .arg("-c")
-            .arg(format!("chown -R 999:999 /mnt")))?;
+            .arg(format!("chown -R 999:999 /mnt"))
+            .run()?;
 
         let cert_generated = image.major_version > MajorVersion::Stable(
             Version("1-beta2".into())
         );
         let password = generate_password();
-        let mut cmd = Command::new(&self.cli);
-        cmd.arg("run");
-        cmd.arg("--rm");
-        cmd.arg("--user=999:999");
+        let mut cmd = self.docker_run("server",
+            image.tag.as_image_name(), "edgedb-server");
         if cert_generated {
-            cmd.arg("--env").arg("EDGEDB_HIDE_GENERATED_CERT=1");
+            cmd.env("EDGEDB_HIDE_GENERATED_CERT", "1");
         }
-        if env::var_os("EDGEDB_SERVER_LOG_LEVEL").is_some() {
-            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL");
-        } else {
-            cmd.arg("--env").arg("EDGEDB_SERVER_LOG_LEVEL=warn");
-        }
-        cmd.arg("--env").arg("EDGEDB_SERVER_DOCKER_LOG_LEVEL=warning");
-        cmd.arg("--mount")
-           .arg(format!("source={},target=/var/lib/edgedb/data", volume));
-        cmd.arg(image.tag.as_image_name());
-        cmd.arg("edgedb-server");
+        cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
+        cmd.env_default("EDGEDB_SERVER_DOCKER_LOG_LEVEL", "warning");
+        cmd.mount(volume, "/var/lib/edgedb/data");
         cmd.arg("--bootstrap-only");
         cmd.arg("--bootstrap-command")
             .arg(bootstrap_script(settings, &password));
@@ -1078,20 +953,12 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         if cert_generated {
             cmd.arg("--generate-self-signed-cert");
         }
+        cmd.run()?;
 
-        log::debug!("Running bootstrap {:?}", cmd);
-        match cmd.status() {
-            Ok(s) if s.success() => {}
-            Ok(s) => anyhow::bail!("Command {:?} {}", cmd, s),
-            Err(e) => Err(e).context(format!("Failed running {:?}", cmd))?,
-        }
-
-        let output = process::get_text(Command::new(&self.cli)
-            .arg("run")
-            .arg("--rm")
-            .arg("--mount").arg(format!("source={},target=/mnt", volume))
-            .arg(image.tag.as_image_name())
-            .arg("sh")
+        let output = self.docker_run("write metadata",
+                image.tag.as_image_name(), "sh")
+            .as_root()
+            .mount(volume, "/mnt")
             .arg("-c")
             .arg(format!(r###"
                     echo {metadata} > /mnt/{name}/metadata.json
@@ -1102,7 +969,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 cert_cmd=if cert_generated {
                     format!("cat /mnt/{}/edbtlscert.pem", settings.name)
                 } else { "".into() }
-            )))?;
+            ))
+            .get_stdout_text()?;
 
         let cert = if cert_generated {
             let (cstart, cend) = output.find("-----BEGIN CERTIFICATE-----")
@@ -1113,7 +981,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             None
         };
 
-        save_credentials(&settings, &password, cert)?;
+        task::block_on(save_credentials(&settings, &password, cert))?;
         drop(password);
 
         self.create(&Create {
@@ -1132,13 +1000,14 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
     fn all_instances<'x>(&'x self) -> anyhow::Result<Vec<InstanceRef<'x>>>
          where Self: 'os
     {
-        let output = process::get_text(Command::new(&self.cli)
+        let output = process::Native::new("volume list", "docker", &self.cli)
             .arg("volume")
             .arg("list")
             .arg("--filter")
             .arg(format!("label=com.edgedb.metadata.user={}",
                           whoami::username()))
-            .arg("--format").arg("{{.Name}}"))?;
+            .arg("--format").arg("{{.Name}}")
+            .get_stdout_text()?;
         let mut result = Vec::new();
         for volume in output.lines() {
             if let Some(name) = volume.strip_prefix("edgedb_") {
@@ -1185,18 +1054,19 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 "Removed container {:?}", up_container);
             found = true;
         }
-        match process::run_or_stderr(Command::new(&self.cli)
+        match process::Native::new("volume remove", "docker", &self.cli)
             .arg("volume")
             .arg("remove")
-            .arg(&container_name))?
+            .arg(&container_name)
+            .run_or_stderr()?
         {
             Ok(_) => {
                 log::info!(target: "edgedb::server::destroy",
                     "Removed volume {:?}", container_name);
                 found = true;
             }
-            Err(text) if text.contains("No such volume") => {},
-            Err(text) => anyhow::bail!("docker error: {}", text),
+            Err((_, text)) if text.contains("No such volume") => {},
+            Err((s, text)) => anyhow::bail!("docker error: {}: {}", s,  text),
         }
         let credentials = credentials::path(&options.name)?;
         if credentials.exists() {
@@ -1227,16 +1097,12 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
     }
     fn get_backup(&self) -> anyhow::Result<BackupStatus> {
         let volume_name = self.volume_name();
-        let mut cmd = Command::new(&self.method.cli);
-        cmd.arg("run");
-        cmd.arg("--rm");
-        cmd.arg("--mount").arg(format!("source={},target=/mnt", volume_name));
-        cmd.arg("busybox");
-        cmd.arg("cat");
+        let mut cmd = self.method.docker_run("get metadata", "busybox", "cat");
+        cmd.as_root(); // TODO(tailhook) is needed?
+        cmd.mount(volume_name, "/mnt");
         cmd.arg(format!("/mnt/{}.backup/backup.json", self.name));
         cmd.arg(format!("/mnt/{}.backup/metadata.json", self.name));
-        let out = cmd.output()
-            .with_context(|| format!("error running {:?}", cmd))?;
+        let out = cmd.get_output()?;
         if out.status.success() {
             let mut items = serde_json::Deserializer::from_slice(&out.stdout)
                 .into_iter::<serde_json::Value>();
@@ -1250,9 +1116,7 @@ impl<O: CurrentOs + ?Sized> DockerInstance<'_, O> {
             })
         } else {
             let stderr = String::from_utf8(out.stderr)
-                .with_context(|| {
-                    format!("can decode error output of {:?}", cmd)
-                })?;
+                .context("can decode error output of docker")?;
             if stderr.contains("No such file or directory") {
                 return Ok(BackupStatus::Absent);
             }
@@ -1295,14 +1159,11 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     fn get_meta(&self) -> anyhow::Result<&Metadata> {
         self.metadata.get_or_try_init(|| {
             let volume_name = self.volume_name();
-            let data = process::get_text(Command::new(&self.method.cli)
-                .arg("run")
-                .arg("--rm")
-                .arg("--mount")
-                    .arg(format!("source={},target=/mnt", volume_name))
-                .arg("busybox")
-                .arg("cat")
-                .arg(format!("/mnt/{}/metadata.json", self.name)))?;
+            let data = self.method.docker_run("get metadata", "busybox", "cat")
+                .as_root()  // TODO(tailhook) is needed?
+                .mount(volume_name, "/mnt")
+                .arg(format!("/mnt/{}/metadata.json", self.name))
+                .get_stdout_text()?;
             Ok(serde_json::from_str(&data)?)
         })
     }
@@ -1413,36 +1274,41 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            process::run(Command::new(&self.method.cli)
+            process::Native::new("container start", "docker", &self.method.cli)
                 .arg("container")
                 .arg("start")
                 .arg("--attach")
                 .arg("--interactive")
-                .arg(self.container_name()))?;
+                .arg(self.container_name())
+                .no_proxy().run()?;
         } else {
-            process::run(Command::new(&self.method.cli)
+            process::Native::new("container start", "docker", &self.method.cli)
                 .arg("container")
                 .arg("start")
-                .arg(self.container_name()))?;
+                .arg(self.container_name())
+                .run()?;
         }
         Ok(())
     }
     fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
-        process::run(Command::new(&self.method.cli)
+        process::Native::new("container stop", "docker", &self.method.cli)
             .arg("container")
             .arg("stop")
-            .arg(self.container_name()))?;
+            .arg(self.container_name())
+            .run()?;
         Ok(())
     }
     fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
-        process::run(Command::new(&self.method.cli)
+        process::Native::new("container restart", "docker", &self.method.cli)
             .arg("container")
             .arg("restart")
-            .arg(self.container_name()))?;
+            .arg(self.container_name())
+            .run()?;
         Ok(())
     }
     fn logs(&self, options: &Logs) -> anyhow::Result<()> {
-        let mut cmd = Command::new(&self.method.cli);
+        let mut cmd = process::Native::new(
+            "container logs", "docker", &self.method.cli);
         cmd.arg("container");
         cmd.arg("logs");
         cmd.arg(self.container_name());
@@ -1452,13 +1318,14 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         if options.follow {
             cmd.arg("--follow");
         }
-        process::run(&mut cmd)
+        cmd.no_proxy().run()
     }
     fn service_status(&self) -> anyhow::Result<()> {
-        process::run(Command::new(&self.method.cli)
+        process::Native::new("container inspect", "docker", &self.method.cli)
             .arg("container")
             .arg("inspect")
-            .arg(self.container_name()))?;
+            .arg(self.container_name())
+            .no_proxy().run()?;
         Ok(())
     }
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
@@ -1468,7 +1335,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             get_connector(self.name())
         }
     }
-    fn get_command(&self) -> anyhow::Result<Command> {
+    fn get_command(&self) -> anyhow::Result<process::Native> {
         anyhow::bail!("no get_command is supported for docker instances");
     }
     fn upgrade<'x>(&'x self, meta: &Metadata)
@@ -1502,16 +1369,8 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         };
 
         self.stop(&Stop { name: name.into() })?;
-        process::run(
-            Command::new(&self.method.cli)
-            .arg("container")
-            .arg("run")
-            .arg("--rm")
-            .arg("--user=999:999")
-            .arg("--mount")
-                .arg(format!("source={},target=/mnt", volume))
-            .arg("busybox")
-            .arg("sh")
+        self.method.docker_run("clean metadata", "busybox", "sh")
+            .mount(volume, "/mnt")
             .arg("-ec")
             .arg(format!(r###"
                     rm -rf /mnt/{name}
@@ -1520,7 +1379,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
                 "###,
                 name=name,
             ))
-        )?;
+            .run()?;
 
         self.delete()?;
         self.method.create(&create)?;
@@ -1535,24 +1394,18 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
         let container = self.get_container()?;
         let container = container.as_ref()
             .context("No server container found. Please start the server")?;
-        let mut child = DockerRun::interactive(&self.method.cli)
-            .arg("--user=999:999")
-            .arg("--mount")
-            .arg(format!("source={},target=/mnt", self.volume_name()))
-            .arg(&container.Image)
-            .arg("edgedb")
+        self.method.docker_run("reset cli", container.Image.clone(), "edgedb")
+            .mount(self.volume_name(), "/mnt")
             .arg("--admin")
             .arg("--host").arg("/mnt/run")
             .arg("--port").arg(self.get_port()?.to_string())
-            .run()?;
-        child.feed(&format!(r###"
-            ALTER ROLE {name} {{
-                SET password := {password};
-            }};"###,
-            name=quote_name(&user),
-            password=quote_string(&password)))?;
-        child.feed_eof();
-        child.wait()?;
+            .feed(&format!(r###"
+                ALTER ROLE {name} {{
+                    SET password := {password};
+                }};"###,
+                name=quote_name(&user),
+                password=quote_string(&password))
+            )?;
         Ok(())
     }
 }

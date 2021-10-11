@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use anyhow::Context;
 use dirs::home_dir;
@@ -89,27 +88,30 @@ impl Instance for LocalInstance<'_> {
     }
     fn start(&self, options: &Start) -> anyhow::Result<()> {
         if options.foreground {
-            process::run(&mut self.get_command()?)?;
+            self.get_command()?.no_proxy().run()?;
         } else {
-            process::run(Command::new("systemctl")
+            process::Native::new("service start", "systemctl", "systemctl")
                 .arg("--user")
                 .arg("start")
-                .arg(format!("edgedb-server@{}", self.name)))?;
+                .arg(format!("edgedb-server@{}", self.name))
+                .run()?;
         }
         Ok(())
     }
     fn stop(&self, _options: &Stop) -> anyhow::Result<()> {
-        process::run(Command::new("systemctl")
+        process::Native::new("service stop", "systemctl", "systemctl")
             .arg("--user")
             .arg("stop")
-            .arg(format!("edgedb-server@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name))
+            .run()?;
         Ok(())
     }
     fn restart(&self, _options: &Restart) -> anyhow::Result<()> {
-        process::run(Command::new("systemctl")
+        process::Native::new("service restart", "systemctl", "systemctl")
             .arg("--user")
             .arg("restart")
-            .arg(format!("edgedb-server@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name))
+            .run()?;
         Ok(())
     }
     fn get_connector(&self, admin: bool) -> anyhow::Result<client::Builder> {
@@ -128,10 +130,11 @@ impl Instance for LocalInstance<'_> {
         }
     }
     fn service_status(&self) -> anyhow::Result<()> {
-        process::exit_from(Command::new("systemctl")
+        process::Native::new("service status", "systemctl", "systemctl")
             .arg("--user")
             .arg("status")
-            .arg(format!("edgedb-server@{}", self.name)))?;
+            .arg(format!("edgedb-server@{}", self.name))
+            .run_and_exit()?;
         Ok(())
     }
     fn name(&self) -> &str {
@@ -148,9 +151,10 @@ impl Instance for LocalInstance<'_> {
             .unwrap_or(false);
         unix::status(&self.name, &self.path, service_exists, service)
     }
-    fn get_command(&self) -> anyhow::Result<Command> {
+    fn get_command(&self) -> anyhow::Result<process::Native> {
         let socket_dir = self.socket_dir()?;
-        let mut cmd = Command::new(get_server_path(Some(self.get_slot()?)));
+        let mut cmd = process::Native::new("server", "edgedb",
+            get_server_path(Some(self.get_slot()?)));
         cmd.arg("--port").arg(self.get_meta()?.port.to_string());
         cmd.arg("--data-dir").arg(&self.path);
         cmd.arg("--runstate-dir").arg(&socket_dir);
@@ -178,7 +182,8 @@ impl Instance for LocalInstance<'_> {
         unix::revert(self, metadata)
     }
     fn logs(&self, logs: &Logs) -> anyhow::Result<()> {
-        let mut cmd = Command::new("journalctl");
+        let mut cmd = process::Native::new(
+            "logs", "journalctl", "journalctl");
         cmd.arg("--user-unit").arg(unit_name(&self.name));
         if let Some(n) = logs.tail  {
             cmd.arg(format!("--lines={}", n));
@@ -186,7 +191,7 @@ impl Instance for LocalInstance<'_> {
         if logs.follow {
             cmd.arg("--follow");
         }
-        process::run(&mut cmd)
+        cmd.no_proxy().run()
     }
 }
 
@@ -345,14 +350,16 @@ pub fn create_systemd_service(name: &str, meta: &Metadata)
     let unit_name = unit_name(name);
     let unit_path = unit_dir.join(&unit_name);
     fs::write(&unit_path, systemd_unit(name, meta)?)?;
-    process::run(Command::new("systemctl")
+    process::Native::new("systemctl", "systemctl", "systemctl")
         .arg("--user")
-        .arg("daemon-reload"))?;
+        .arg("daemon-reload")
+        .run()?;
     if meta.start_conf == StartConf::Auto {
-        process::run(Command::new("systemctl")
+        process::Native::new("systemctl", "systemctl", "systemctl")
             .arg("--user")
             .arg("enable")
-            .arg(&unit_name))?;
+            .arg(&unit_name)
+            .run()?;
     }
     Ok(())
 }
@@ -360,13 +367,13 @@ pub fn create_systemd_service(name: &str, meta: &Metadata)
 pub fn systemd_status(name: &str, system: bool) -> Service {
     use Service::*;
 
-    let mut cmd = Command::new("systemctl");
+    let mut cmd = process::Native::new("systemctl", "systemctl", "systemctl");
     if !system {
         cmd.arg("--user");
     }
     cmd.arg("show");
     cmd.arg(format!("edgedb-server@{}", name));
-    let txt = match process::get_text(&mut cmd) {
+    let txt = match cmd.get_stdout_text() {
         Ok(txt) => txt,
         Err(e) => {
             return Service::Inactive {
@@ -458,28 +465,38 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     log::info!(target: "edgedb::server::destroy",
         "Stopping service {}", svc_name);
     let mut not_found_error = None;
-    let mut cmd = Command::new("systemctl");
+    let mut cmd = process::Native::new(
+        "stop service", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("stop");
     cmd.arg(&svc_name);
-    match process::run_or_stderr(&mut cmd)? {
+    match cmd.run_or_stderr()? {
         Ok(()) => found = true,
-        Err(e) if systemd_is_not_found_error(&e) => {
+        Err((_, e)) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
-        Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
+        Err((s, e)) => {
+            log::warn!(
+                "Error running systemctl (command-line: {:?}): {}: {}",
+                cmd.command_line(), s, e);
+        }
     }
 
-    let mut cmd = Command::new("systemctl");
+    let mut cmd = process::Native::new(
+        "disable service", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("disable");
     cmd.arg(&svc_name);
-    match process::run_or_stderr(&mut cmd)? {
+    match cmd.run_or_stderr()? {
         Ok(()) => found = true,
-        Err(e) if systemd_is_not_found_error(&e) => {
+        Err((_, e)) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
-        Err(e) => Err(anyhow::anyhow!("Error running {:?}: {}", cmd, e))?,
+        Err((s, e)) => {
+            log::warn!(
+                "Error running systemctl (command-line: {:?}): {}: {}",
+                cmd.command_line(), s, e);
+        }
     }
 
     let svc_path = systemd_service_path(name, system)?;
