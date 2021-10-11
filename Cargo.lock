@@ -999,7 +999,7 @@ dependencies = [
  "rexpect",
  "ring",
  "rpassword",
- "rustls",
+ "rustls 0.19.1 (git+https://github.com/edgedb/rustls?rev=480345e)",
  "rustyline",
  "scram",
  "serde",
@@ -1067,7 +1067,7 @@ dependencies = [
  "futures-util",
  "log",
  "rand 0.8.4",
- "rustls",
+ "rustls 0.19.1 (git+https://github.com/edgedb/rustls?rev=480345e)",
  "rustls-native-certs",
  "scram",
  "serde",
@@ -1463,9 +1463,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.3"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "825343c4eef0b63f541f8903f395dc5beb362a979b5799a84062527ef1e37726"
+checksum = "6c06815895acec637cd6ed6e9662c935b866d20a106f8361892893a7d9234964"
 dependencies = [
  "bytes",
  "fnv",
@@ -2631,6 +2631,18 @@ dependencies = [
 [[package]]
 name = "rustls"
 version = "0.19.1"
+source = "git+https://github.com/edgedb/rustls?rev=3c390ef#3c390ef7c459cc1ef2504bd9d1fefdcb7eea1c20"
+dependencies = [
+ "base64 0.13.0",
+ "log",
+ "ring",
+ "sct",
+ "webpki",
+]
+
+[[package]]
+name = "rustls"
+version = "0.19.1"
 source = "git+https://github.com/edgedb/rustls?rev=480345e#480345e83a0da65500951da2407b981aacc94dde"
 dependencies = [
  "base64 0.13.0",
@@ -2647,7 +2659,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a07b7c1885bd8ed3831c289b7870b13ef46fe0e856d288c30d9cc17d75a2092"
 dependencies = [
  "openssl-probe",
- "rustls",
+ "rustls 0.19.1 (git+https://github.com/edgedb/rustls?rev=480345e)",
  "schannel",
  "security-framework",
 ]
@@ -3379,7 +3391,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bea74df3455c1bfdb1f3470e216ccf3d54f4019571b6526f6acca492f33b737"
 dependencies = [
  "async-std",
- "rustls",
+ "rustls 0.19.1 (git+https://github.com/edgedb/rustls?rev=480345e)",
  "tls-api",
  "tls-api-test",
  "webpki",
@@ -3421,10 +3433,9 @@ dependencies = [
 [[package]]
 name = "tokio-rustls"
 version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc6844de72e57df1980054b38be3a9f4702aba4858be64dd700181a8a6d0e1b6"
+source = "git+https://github.com/fantix/tls?rev=dc80b2f#dc80b2f44339abcdb8fd92670f90f5db25790f99"
 dependencies = [
- "rustls",
+ "rustls 0.19.1 (git+https://github.com/edgedb/rustls?rev=3c390ef)",
  "tokio",
  "webpki",
 ]
@@ -3488,6 +3499,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9ff14f98b1a4b289c6248a023c1c2fa1491062964e9fed67ab29c4e4da4a052"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "tracing-futures"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
+dependencies = [
+ "pin-project",
+ "tracing",
 ]
 
 [[package]]
@@ -3736,9 +3757,8 @@ dependencies = [
 
 [[package]]
 name = "warp"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "332d47745e9a0c38636dbd454729b147d16bd1ed08ae67b3ab281c4506771054"
+version = "0.3.0"
+source = "git+https://github.com/fantix/warp?rev=dab7759#dab7759edbc3c12d00c14af1ca71a088d6ef7d5b"
 dependencies = [
  "bytes",
  "futures",
@@ -3760,6 +3780,7 @@ dependencies = [
  "tokio-util",
  "tower-service",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
