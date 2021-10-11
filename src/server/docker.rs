@@ -602,8 +602,9 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             .run_or_stderr()?
         {
             Ok(_) => {}
-            Err(text) if text.contains("No such container") => return Ok(false),
-            Err(text) => anyhow::bail!("docker error: {}", text),
+            Err((_, text)) if text.contains("No such container")
+                => return Ok(false),
+            Err((s, text)) => anyhow::bail!("docker error: {}, {}", s, text),
         }
         match process::Native::new("container remove", "docker", &self.cli)
             .arg("container")
@@ -612,8 +613,9 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             .run_or_stderr()?
         {
             Ok(_) => {}
-            Err(text) if text.contains("No such container") => return Ok(false),
-            Err(text) => anyhow::bail!("docker error: {}", text),
+            Err((_, text)) if text.contains("No such container")
+                => return Ok(false),
+            Err((s, text)) => anyhow::bail!("docker error: {}: {}", s, text),
         }
         Ok(true)
     }
@@ -804,8 +806,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .run_or_stderr()?
         {
             Ok(_) => {}
-            Err(text) if text.contains("No such image") => {},
-            Err(text) => anyhow::bail!("docker error: {}", text),
+            Err((_, text)) if text.contains("No such image") => {},
+            Err((s, text)) => anyhow::bail!("docker error: {}: {}", s, text),
         }
         Ok(())
     }
@@ -1063,8 +1065,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                     "Removed volume {:?}", container_name);
                 found = true;
             }
-            Err(text) if text.contains("No such volume") => {},
-            Err(text) => anyhow::bail!("docker error: {}", text),
+            Err((_, text)) if text.contains("No such volume") => {},
+            Err((s, text)) => anyhow::bail!("docker error: {}: {}", s,  text),
         }
         let credentials = credentials::path(&options.name)?;
         if credentials.exists() {

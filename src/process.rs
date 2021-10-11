@@ -107,7 +107,6 @@ impl Native {
     pub fn run(&mut self) -> anyhow::Result<()> {
         let output = task::block_on(self._run(false, false))?;
         if output.status.success() {
-            log::debug!("Result of {}: {}", self.description, output.status);
             Ok(())
         } else {
             anyhow::bail!("{} failed: {} (command-line: {:?})",
@@ -123,7 +122,9 @@ impl Native {
                 self.description, self.command, output.status)
         }
     }
-    pub fn run_or_stderr(&mut self) -> anyhow::Result<Result<(), String>> {
+    pub fn run_or_stderr(&mut self)
+        -> anyhow::Result<Result<(), (ExitStatus, String)>>
+    {
         let output = task::block_on(self._run(false, true))?;
         if output.status.success() {
             Ok(Ok(()))
@@ -133,7 +134,7 @@ impl Native {
                 "cannot decode error output of {} (command-line: {:?})",
                 self.description, self.command,
             ))?;
-            Ok(Err(data))
+            Ok(Err((output.status, data)))
         }
     }
     pub fn get_json_or_stderr<T>(&mut self)
@@ -160,7 +161,6 @@ impl Native {
     pub fn get_stdout_text(&mut self) -> anyhow::Result<String> {
         let output = task::block_on(self._run(true, false))?;
         if output.status.success() {
-            log::debug!("Result of {}: {}", self.description, output.status);
             let text = String::from_utf8(output.stdout)
                 .with_context(|| format!(
                     "{} produced invalid utf-8 (command-line: {:?})",
@@ -219,6 +219,7 @@ impl Native {
         let status = child_result.with_context(|| format!(
                 "failed to get status of {} (command-line: {:?})",
                 self.description, self.command))?;
+        log::debug!("Result of {}: {}", self.description, status);
         Ok(Output { status, stdout, stderr })
     }
 
@@ -294,8 +295,8 @@ impl Native {
         let status = child_result.with_context(|| format!(
                 "failed to get status of {} (command-line: {:?})",
                 self.description, self.command))?;
+        log::debug!("Result of {}: {}", self.description, status);
         if status.success() {
-            log::debug!("Result of {}: {}", self.description, status);
             Ok(())
         } else {
             anyhow::bail!("{} failed: {} (command-line: {:?})",
@@ -388,6 +389,8 @@ impl Native {
                     "failed to wait for {} (command-line: {:?})",
                     self.description, self.command))
                 .and_then(|status| {
+                    log::debug!("Result of {} (background): {}",
+                        self.description, status);
                     anyhow::bail!(
                         "{} exited prematurely: {} (command-line: {:?})",
                         self.description, status, self.command);
@@ -396,28 +399,35 @@ impl Native {
             Ok(result) => {
                 log::debug!("Stopping {}", self.description);
                 if self.try_stop_process().await.is_ok() {
-                    child.status().await.with_context(|| format!(
+                    let status = child.status().await.with_context(|| format!(
                         "failed to get status of {} (command-line: {:?})",
                         self.description, self.command))?;
+                    log::debug!("Result of {} (background): {}",
+                        self.description, status);
                 } else {
                     if cfg!(windows) {
                         if let Err(e) = child.kill() {
                             log::error!("Error stopping {}: {}",
                                 self.description, e);
                         }
-                        child.status().await.with_context(|| format!(
+                        let status = child.status().await
+                            .with_context(|| format!(
                             "failed to get status of {} (command-line: {:?})",
                             self.description, self.command))?;
+                        log::debug!("Result of {} (background): {}",
+                            self.description, status);
                     }
                     #[cfg(unix)] {
                         let pid = child.id();
-                        child.status()
+                        let status = child.status()
                             .race(kill_child(pid, &self.description))
                             .await
                             .with_context(|| format!(
                                 "failed to get status of {} \
                                 (command-line: {:?})",
                                 self.description, self.command))?;
+                        log::debug!("Result of {} (background): {}",
+                            self.description, status);
                     }
                     #[cfg(not(any(windows, unix)))]
                     compile_error!("unknown platform");
@@ -615,5 +625,6 @@ async fn wait_forever() -> ! {
     pending::<()>().await;
     unreachable!();
 }
+
 
 

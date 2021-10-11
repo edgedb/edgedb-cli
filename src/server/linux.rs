@@ -472,13 +472,14 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     cmd.arg(&svc_name);
     match cmd.run_or_stderr()? {
         Ok(()) => found = true,
-        Err(e) if systemd_is_not_found_error(&e) => {
+        Err((_, e)) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
-        Err(e) => Err(anyhow::anyhow!(
-            "Error running systemctl (command-line: {:?}): {}",
-            cmd.command_line(), e,
-        ))?,
+        Err((s, e)) => {
+            log::warn!(
+                "Error running systemctl (command-line: {:?}): {}: {}",
+                cmd.command_line(), s, e);
+        }
     }
 
     let mut cmd = process::Native::new(
@@ -488,13 +489,14 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     cmd.arg(&svc_name);
     match cmd.run_or_stderr()? {
         Ok(()) => found = true,
-        Err(e) if systemd_is_not_found_error(&e) => {
+        Err((_, e)) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
-        Err(e) => Err(anyhow::anyhow!(
-            "Error running systemctl (command-line: {:?}): {}",
-            cmd.command_line(), e,
-        ))?,
+        Err((s, e)) => {
+            log::warn!(
+                "Error running systemctl (command-line: {:?}): {}: {}",
+                cmd.command_line(), s, e);
+        }
     }
 
     let svc_path = systemd_service_path(name, system)?;
