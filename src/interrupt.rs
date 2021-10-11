@@ -126,14 +126,16 @@ impl Interrupt {
     fn new(signals: SigMask) -> Interrupt {
         let event = Arc::new(Event::new());
         let new = Arc::new(SignalState {
-            backtrace: Backtrace::new(),
+            backtrace: Backtrace::new_unresolved(),
             event: event.clone(),
             signals,
         });
         let old = CUR_INTERRUPT.compare_and_swap(&None::<Arc<_>>, Some(new));
         if let Some(state) = &*old {
+            let mut old_bt = state.backtrace.clone();
+            old_bt.resolve();
             panic!("Second Interrupt created simutlaneously.\n\n\
-                Previous was created at:\n{:?}", state.backtrace);
+                Previous was created at:\n{:?}", old_bt);
         };
         Interrupt { event }
     }
