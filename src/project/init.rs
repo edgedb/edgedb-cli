@@ -602,10 +602,15 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         }
     } else {
         if !options.no_migrations {
-            task::block_on(migrate(&inst,
-                                   exists && !options.non_interactive))?;
+            if options.server_start_conf == StartConf::Manual {
+                run_and_migrate(&inst)?;
+            } else {
+                task::block_on(migrate(&inst,
+                                       exists && !options.non_interactive))?;
+            }
         }
-        print_initialized(&name, &options.project_dir);
+        print_initialized(&name, &options.project_dir,
+            options.server_start_conf);
     }
 
     Ok(())
@@ -834,22 +839,35 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         }
     } else {
         if !options.no_migrations {
-            task::block_on(migrate(&inst,
-                                   exists && !options.non_interactive))?;
+            if options.server_start_conf == StartConf::Manual {
+                run_and_migrate(&inst)?;
+            } else {
+                task::block_on(migrate(&inst,
+                                       exists && !options.non_interactive))?;
+            }
         }
-        print_initialized(&name, &options.project_dir);
+        print_initialized(&name, &options.project_dir,
+            options.server_start_conf);
     }
 
     Ok(())
 }
 
-fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
+fn print_initialized(name: &str, dir_option: &Option<PathBuf>,
+    start_conf: StartConf)
+{
     print::success("Project initialized.");
-    if let Some(dir) = dir_option {
-        println!("To connect to {}, navigate to {} and run `edgedb`",
-            name, dir.display());
+    if start_conf == StartConf::Manual {
+        println!("To start the server run:\n  \
+                  edgedb instance start {}",
+                  name.escape_default());
     } else {
-        println!("To connect to {}, run `edgedb`", name);
+        if let Some(dir) = dir_option {
+            println!("To connect to {}, navigate to {} and run `edgedb`",
+                name, dir.display());
+        } else {
+            println!("To connect to {}, run `edgedb`", name);
+        }
     }
 }
 
