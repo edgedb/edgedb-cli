@@ -575,7 +575,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             user: "edgedb".into(),
             database: "edgedb".into(),
             port: allocate_port(&name)?,
-            start_conf: StartConf::Auto,
+            start_conf: options.server_start_conf,
             suppress_messages: true,
         };
 
@@ -597,7 +597,9 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         eprintln!("You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
-        return Err(ExitCode::new(2))?;
+        if options.server_start_conf != StartConf::Manual {
+            return Err(ExitCode::new(2))?;
+        }
     } else {
         if !options.no_migrations {
             task::block_on(migrate(&inst,
@@ -804,7 +806,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             user: "edgedb".into(),
             database: "edgedb".into(),
             port: allocate_port(&name)?,
-            start_conf: StartConf::Auto,
+            start_conf: options.server_start_conf,
             suppress_messages: true,
         };
 
@@ -827,7 +829,9 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         eprintln!("You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
-        return Err(ExitCode::new(2))?;
+        if options.server_start_conf != StartConf::Manual {
+            return Err(ExitCode::new(2))?;
+        }
     } else {
         if !options.no_migrations {
             task::block_on(migrate(&inst,

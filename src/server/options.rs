@@ -140,6 +140,8 @@ pub struct Create {
     pub method: Option<InstallMethod>,
     #[clap(long)]
     pub port: Option<u16>,
+
+    /// Specifies whether to start EdgeDB automatically
     #[clap(long, default_value="auto",
            possible_values=&["auto", "manual"][..])]
     pub start_conf: StartConf,

@@ -5,7 +5,7 @@ use edgedb_cli_derive::EdbClap;
 
 use crate::server::methods::InstallMethod;
 use crate::server::version::Version;
-use crate::server::options::instance_name_opt;
+use crate::server::options::{instance_name_opt, StartConf};
 
 
 #[derive(EdbClap, Debug, Clone)]
@@ -67,6 +67,10 @@ pub struct Init {
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub server_install_method: Option<InstallMethod>,
 
+    /// Specifies whether to start EdgeDB automatically
+    #[clap(long, default_value="auto",
+           possible_values=&["auto", "manual"][..])]
+    pub server_start_conf: StartConf,
 
     /// Skip running migrations
     ///
