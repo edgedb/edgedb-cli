@@ -201,37 +201,24 @@ impl Debian {
 pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
     let mut cmd = process::Native::new(
         "list packages", "apt-cache", "apt-cache");
-    cmd.arg("search");
-    cmd.arg("^edgedb(-server)?-[0-9]");
+    cmd.arg("policy");
+    cmd.arg("^edgedb-server-[0-9]");
     let listing = cmd.get_stdout_text()?;
     let mut result = Vec::new();
+    let mut current_major_version = None;
     for line in listing.lines() {
-        let pkg_name = match line.split_whitespace().next() {
-            Some(pkg_name) => pkg_name,
-            None => continue,
-        };
-        if !pkg_name.starts_with("edgedb-") {
-            continue
-        }
-
-        let mut cmd = process::Native::new(
-            "package info", "apt-cache", "apt-cache");
-        cmd.arg("policy");
-        cmd.arg(pkg_name);
-        let info = cmd.get_stdout_text()?;
-        for line in info.lines() {
+        if let Some(major_version) = line.strip_prefix("edgedb-server-") {
+            if let Some(major_version) = major_version.strip_suffix(":") {
+                current_major_version = Some(major_version);
+            }
+        } else if let Some(major_version) = current_major_version {
             let line = line.trim();
             if line.starts_with("Installed:") {
                 let ver = line["Installed:".len()..].trim();
                 if ver == "(none)" {
-                    break;
+                    current_major_version = None;
+                    continue;
                 }
-                let (_pkg_name, major_version) =
-                    if pkg_name.starts_with("edgedb-server-") {
-                        ("edgedb-server", &pkg_name["edgedb-server-".len()..])
-                    } else {
-                        ("edgedb", &pkg_name["edgedb-".len()..])
-                    };
                 result.push(Package {
                     slot: major_version.to_owned(),
                     version: Version(ver.to_owned()),
@@ -241,7 +228,7 @@ pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
                         MajorVersion::Stable(Version(major_version.into()))
                     },
                 }.into_ref());
-                break;
+                current_major_version = None;
             }
         }
     }
