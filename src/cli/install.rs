@@ -19,12 +19,12 @@ use crate::cli::migrate;
 use crate::options::RawOptions;
 use crate::platform::{home_dir, config_dir, get_current_uid, binary_path};
 use crate::print;
+use crate::print_markdown;
 use crate::process;
 use crate::project::init;
 use crate::project::options::Init;
 use crate::question::{self, read_choice};
 use crate::table;
-use crate::print_markdown;
 
 
 #[derive(EdbClap, Clone, Debug)]
@@ -408,6 +408,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             non_interactive: false,
             no_migrations: false,
             link: false,
+            server_start_conf: None,
         };
         let dir = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;

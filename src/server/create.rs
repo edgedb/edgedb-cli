@@ -277,7 +277,9 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
             eprintln!("You can start it manually via: \n  \
                 edgedb instance start --foreground {}",
                 settings.name.escape_default());
-            return Err(ExitCode::new(2))?;
+            if options.start_conf != StartConf::Manual {
+                return Err(ExitCode::new(2))?;
+            }
         }
         Ok(())
     }

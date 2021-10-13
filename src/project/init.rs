@@ -501,6 +501,10 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     let (name, exists) = ask_name(&methods, project_dir, options)?;
 
     let inst = if exists {
+        if options.server_start_conf.is_some() {
+            log::warn!("Linking to existing instance. \
+                `--server-start-conf` is ignored.");
+        }
         let inst = InstInfo::probe(&methods, &name)?;
         match inst.get_version() {
             Ok(inst_ver) if ver_query.matches(&inst_ver) => {}
@@ -575,7 +579,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             user: "edgedb".into(),
             database: "edgedb".into(),
             port: allocate_port(&name)?,
-            start_conf: StartConf::Auto,
+            start_conf: options.server_start_conf.unwrap_or(StartConf::Auto),
             suppress_messages: true,
         };
 
@@ -597,13 +601,20 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         eprintln!("You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
-        return Err(ExitCode::new(2))?;
+        if options.server_start_conf != Some(StartConf::Manual) {
+            return Err(ExitCode::new(2))?;
+        }
     } else {
         if !options.no_migrations {
-            task::block_on(migrate(&inst,
-                                   exists && !options.non_interactive))?;
+            if options.server_start_conf == Some(StartConf::Manual) {
+                run_and_migrate(&inst)?;
+            } else {
+                task::block_on(migrate(&inst,
+                                       exists && !options.non_interactive))?;
+            }
         }
-        print_initialized(&name, &options.project_dir);
+        print_initialized(&name, &options.project_dir,
+            options.server_start_conf.unwrap_or(StartConf::Auto));
     }
 
     Ok(())
@@ -748,6 +759,10 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let (name, exists) = ask_name(&methods, project_dir, options)?;
 
     let inst = if exists {
+        if options.server_start_conf.is_some() {
+            log::warn!("Linking to existing instance. \
+                `--server-start-conf` is ignored.");
+        }
         let inst = InstInfo::probe(&methods, &name)?;
 
         write_config(&config_path, &inst.get_version()?)?;
@@ -804,7 +819,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             user: "edgedb".into(),
             database: "edgedb".into(),
             port: allocate_port(&name)?,
-            start_conf: StartConf::Auto,
+            start_conf: options.server_start_conf.unwrap_or(StartConf::Auto),
             suppress_messages: true,
         };
 
@@ -827,25 +842,40 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         eprintln!("You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
-        return Err(ExitCode::new(2))?;
+        if options.server_start_conf != Some(StartConf::Manual) {
+            return Err(ExitCode::new(2))?;
+        }
     } else {
         if !options.no_migrations {
-            task::block_on(migrate(&inst,
-                                   exists && !options.non_interactive))?;
+            if options.server_start_conf == Some(StartConf::Manual) {
+                run_and_migrate(&inst)?;
+            } else {
+                task::block_on(migrate(&inst,
+                                       exists && !options.non_interactive))?;
+            }
         }
-        print_initialized(&name, &options.project_dir);
+        print_initialized(&name, &options.project_dir,
+            options.server_start_conf.unwrap_or(StartConf::Auto));
     }
 
     Ok(())
 }
 
-fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
+fn print_initialized(name: &str, dir_option: &Option<PathBuf>,
+    start_conf: StartConf)
+{
     print::success("Project initialized.");
-    if let Some(dir) = dir_option {
-        println!("To connect to {}, navigate to {} and run `edgedb`",
-            name, dir.display());
+    if start_conf == StartConf::Manual {
+        println!("To start the server run:\n  \
+                  edgedb instance start {}",
+                  name.escape_default());
     } else {
-        println!("To connect to {}, run `edgedb`", name);
+        if let Some(dir) = dir_option {
+            println!("To connect to {}, navigate to {} and run `edgedb`",
+                name, dir.display());
+        } else {
+            println!("To connect to {}, run `edgedb`", name);
+        }
     }
 }
 
