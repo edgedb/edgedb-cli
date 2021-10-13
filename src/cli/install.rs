@@ -24,7 +24,6 @@ use crate::process;
 use crate::project::init;
 use crate::project::options::Init;
 use crate::question::{self, read_choice};
-use crate::server::options::StartConf;
 use crate::table;
 
 
@@ -409,7 +408,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             non_interactive: false,
             no_migrations: false,
             link: false,
-            server_start_conf: StartConf::Auto,
+            server_start_conf: None,
         };
         let dir = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;

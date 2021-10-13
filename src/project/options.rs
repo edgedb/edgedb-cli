@@ -70,7 +70,7 @@ pub struct Init {
     /// Specifies whether to start EdgeDB automatically
     #[clap(long, default_value="auto",
            possible_values=&["auto", "manual"][..])]
-    pub server_start_conf: StartConf,
+    pub server_start_conf: Option<StartConf>,
 
     /// Skip running migrations
     ///

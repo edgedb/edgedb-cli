@@ -501,6 +501,10 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     let (name, exists) = ask_name(&methods, project_dir, options)?;
 
     let inst = if exists {
+        if options.server_start_conf.is_some() {
+            log::warn!("Linking to existing instance. \
+                `--server-start-conf` is ignored.");
+        }
         let inst = InstInfo::probe(&methods, &name)?;
         match inst.get_version() {
             Ok(inst_ver) if ver_query.matches(&inst_ver) => {}
@@ -575,7 +579,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             user: "edgedb".into(),
             database: "edgedb".into(),
             port: allocate_port(&name)?,
-            start_conf: options.server_start_conf,
+            start_conf: options.server_start_conf.unwrap_or(StartConf::Auto),
             suppress_messages: true,
         };
 
@@ -597,12 +601,12 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         eprintln!("You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
-        if options.server_start_conf != StartConf::Manual {
+        if options.server_start_conf != Some(StartConf::Manual) {
             return Err(ExitCode::new(2))?;
         }
     } else {
         if !options.no_migrations {
-            if options.server_start_conf == StartConf::Manual {
+            if options.server_start_conf == Some(StartConf::Manual) {
                 run_and_migrate(&inst)?;
             } else {
                 task::block_on(migrate(&inst,
@@ -610,7 +614,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             }
         }
         print_initialized(&name, &options.project_dir,
-            options.server_start_conf);
+            options.server_start_conf.unwrap_or(StartConf::Auto));
     }
 
     Ok(())
@@ -755,6 +759,10 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let (name, exists) = ask_name(&methods, project_dir, options)?;
 
     let inst = if exists {
+        if options.server_start_conf.is_some() {
+            log::warn!("Linking to existing instance. \
+                `--server-start-conf` is ignored.");
+        }
         let inst = InstInfo::probe(&methods, &name)?;
 
         write_config(&config_path, &inst.get_version()?)?;
@@ -811,7 +819,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             user: "edgedb".into(),
             database: "edgedb".into(),
             port: allocate_port(&name)?,
-            start_conf: options.server_start_conf,
+            start_conf: options.server_start_conf.unwrap_or(StartConf::Auto),
             suppress_messages: true,
         };
 
@@ -834,12 +842,12 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         eprintln!("You can start it manually via: \n  \
             edgedb instance start --foreground {}",
             name.escape_default());
-        if options.server_start_conf != StartConf::Manual {
+        if options.server_start_conf != Some(StartConf::Manual) {
             return Err(ExitCode::new(2))?;
         }
     } else {
         if !options.no_migrations {
-            if options.server_start_conf == StartConf::Manual {
+            if options.server_start_conf == Some(StartConf::Manual) {
                 run_and_migrate(&inst)?;
             } else {
                 task::block_on(migrate(&inst,
@@ -847,7 +855,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             }
         }
         print_initialized(&name, &options.project_dir,
-            options.server_start_conf);
+            options.server_start_conf.unwrap_or(StartConf::Auto));
     }
 
     Ok(())
