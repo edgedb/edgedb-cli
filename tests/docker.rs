@@ -89,7 +89,10 @@ impl Context {
     }
     pub fn add_bin(self) -> anyhow::Result<Self> {
         self.add_file_mode("edgedb",
-            fs::read(env!("CARGO_BIN_EXE_edgedb"))?,
+            fs::read(
+                env::var("EDGEDB_TEST_BIN_EXE")
+                    .unwrap_or(env!("CARGO_BIN_EXE_edgedb").into())
+            )?,
             0o755)
     }
     pub fn build(mut self) -> anyhow::Result<Vec<u8>> {
@@ -144,19 +147,20 @@ pub fn run(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
 pub fn run_docker(tagname: &str, script: &str)
     -> assert_cmd::assert::Assert
 {
-    let script = format!(r###"
-        export EDGEDB_SKIP_DOCKER_CHECK=yes
-        docker ps -q -f 'name=edgedb_test' | xargs -r docker container kill
-        docker system prune --all --force
-        docker volume list -q -f 'name=edgedb_test' | xargs -r docker volume rm
-
-        {script}
-    "###, script=script);
     let path = if let Ok(path) = env::var("DOCKER_VOLUME_PATH") {
         path.to_string()
     } else {
         "/var/run/docker.sock".to_string()
     };
+    let script = format!(r###"
+        export EDGEDB_SKIP_DOCKER_CHECK=yes
+        sudo chmod 777 {path}
+        docker ps -q -f 'name=edgedb_test' | xargs -r docker container kill
+        docker system prune --all --force
+        docker volume list -q -f 'name=edgedb_test' | xargs -r docker volume rm
+
+        {script}
+    "###, path=path, script=script);
     Command::new("docker")
         .arg("run")
         .arg("--rm")
