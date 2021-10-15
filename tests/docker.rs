@@ -89,7 +89,10 @@ impl Context {
     }
     pub fn add_bin(self) -> anyhow::Result<Self> {
         self.add_file_mode("edgedb",
-            fs::read(env!("CARGO_BIN_EXE_edgedb"))?,
+            fs::read(
+                env::var("EDGEDB_TEST_BIN_EXE")
+                    .unwrap_or(env!("CARGO_BIN_EXE_edgedb").into())
+            )?,
             0o755)
     }
     pub fn build(mut self) -> anyhow::Result<Vec<u8>> {
