@@ -179,6 +179,12 @@ fn github_action_install() -> anyhow::Result<()> {
                 .success();
 
             Command::new(&edgedb)
+                .arg("instance").arg("logs").arg("inst1")
+                .assert()
+                .context("log-1-1", "logs of `inst1`")
+                .success();
+
+            Command::new(&edgedb)
                 .arg("instance").arg("status").arg("inst1")
                 .assert()
                 .context("status-1-1", "status `inst1` after restart")
@@ -186,6 +192,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
             Command::new(&edgedb)
                 .arg("instance").arg("stop").arg("inst1")
+                .env("RUST_LOG", "warn,edgedb::process=debug")
                 .assert()
                 .context("stop-1", "stop `inst1`")
                 .success();
@@ -224,7 +231,7 @@ fn github_action_install() -> anyhow::Result<()> {
             Command::new(&edgedb)
                 .arg("instance").arg("logs").arg("inst1")
                 .assert()
-                .context("log-1", "logs of `inst1`")
+                .context("log-1-2", "logs of `inst1`")
                 .success();
 
             Command::new(&edgedb)
