@@ -19,8 +19,8 @@ use crate::process;
 use crate::print::{self, Highlight};
 use crate::server::control::read_metadata;
 use crate::server::create::{self, Storage};
-use crate::server::detect::{ARCH, Lazy, VersionQuery};
-use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
+use crate::server::detect::{ARCH, Lazy};
+use crate::server::distribution::{DistributionRef, Distribution};
 use crate::server::docker::DockerCandidate;
 use crate::server::errors::InstanceNotFound;
 use crate::server::install::{self, Operation, Command};
@@ -35,7 +35,7 @@ use crate::server::remote;
 use crate::server::status::{Service, Status};
 use crate::server::unix;
 use crate::server::upgrade;
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionQuery, VersionSlot, VersionMarker};
 
 
 #[derive(Debug, Serialize)]
@@ -49,7 +49,7 @@ pub struct Macos {
 }
 
 fn package_name(pkg: &Package) -> String {
-    format!("com.edgedb.edgedb-server-{}", pkg.slot)
+    format!("com.edgedb.edgedb-server-{}", pkg.slot.slot_name())
 }
 
 pub struct StatusCache {
@@ -171,9 +171,9 @@ impl<'os> Method for PackageMethod<'os, Macos> {
             .context("invalid macos package")?;
         let tmpdir = tempfile::tempdir()?;
         let package_name = format!("edgedb-server-{}_{}.pkg",
-            pkg.slot, pkg.version.as_ref().replace("-", "_"));
+            pkg.slot.slot_name(), pkg.version.as_ref().replace("-", "_"));
         let pkg_path = tmpdir.path().join(&package_name);
-        let url = if settings.distribution.major_version().is_nightly() {
+        let url = if settings.distribution.version_slot().is_nightly() {
             format!("https://packages.edgedb.com/archive/\
                 macos-{arch}.nightly/{name}",
                 arch=ARCH, name=package_name)
@@ -278,13 +278,12 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                 };
 
                 result.push(Package {
-                    major_version: if version.contains(".dev") {
-                        MajorVersion::Nightly
+                    slot: if version.contains(".dev") {
+                        VersionSlot::Nightly(Version(major.to_string()))
                     } else {
-                        MajorVersion::Stable(Version(major.to_string()))
+                        VersionSlot::Stable(Version(major.to_string()))
                     },
                     version: Version(version.to_string()),
-                    slot: major.to_string(),
                 }.into_ref());
             }
             Ok(result)
@@ -452,7 +451,7 @@ impl<'a> Instance for LocalInstance<'a> {
     fn method(&self) -> &dyn Method {
         self.method
     }
-    fn get_version(&self) -> anyhow::Result<&MajorVersion> {
+    fn get_version(&self) -> anyhow::Result<&VersionMarker> {
         Ok(&self.get_meta()?.version)
     }
     fn get_current_version(&self) -> anyhow::Result<Option<&Version<String>>> {
@@ -635,11 +634,11 @@ impl<'a> Instance for LocalInstance<'a> {
     }
 }
 
-pub fn get_server_path(slot: &str) -> PathBuf {
+pub fn get_server_path(slot: impl AsRef<str>) -> PathBuf {
     Path::new("/Library/Frameworks/EdgeDB.framework/Versions")
-        .join(slot)
+        .join(slot.as_ref())
         .join("lib")
-        .join(&format!("edgedb-server-{}", slot))
+        .join(&format!("edgedb-server-{}", slot.as_ref()))
         .join("bin/edgedb-server")
 }
 
@@ -893,7 +892,8 @@ fn launchd_name(name: &str) -> String {
     format!("{}/edgedb-server-{}", get_domain_target(), name)
 }
 
-#[context("cannot scan package paths of edgedb-server-{}", pkg.slot)]
+#[context("cannot scan package paths of edgedb-server-{}",
+          pkg.slot.slot_name())]
 fn get_package_paths(pkg: &Package) -> anyhow::Result<Vec<PathBuf>> {
     let root = PathBuf::from("/");
     let paths: BTreeSet<_> = process::Native::new(

@@ -20,12 +20,11 @@ use crate::format;
 use crate::print;
 use crate::server::create::Storage;
 use crate::server::detect;
-use crate::server::distribution::MajorVersion;
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
 use crate::server::os_trait::InstanceRef;
 use crate::server::upgrade::{UpgradeMeta, BackupMeta};
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionMarker};
 use crate::table;
 
 
@@ -111,7 +110,7 @@ struct RemoteStatus {
     pub user: Option<String>,
     pub database: Option<String>,
     pub version: Option<String>,
-    pub major_version: Option<MajorVersion>,
+    pub major_version: Option<VersionMarker>,
     pub status: RemoteStatusService,
 }
 
@@ -120,7 +119,7 @@ struct RemoteStatus {
 pub struct JsonStatus<'a> {
     name: &'a str,
     port: Option<u16>,
-    major_version: Option<&'a MajorVersion>,
+    major_version: Option<&'a VersionMarker>,
     status: &'a str,
     method: &'a str,
 }
@@ -305,13 +304,13 @@ impl RemoteStatus {
             Ok(Ok(version)) => {
                 self.status = RemoteStatusService::Running;
                 self.major_version = Some(if version.contains("+dev") {
-                    MajorVersion::Nightly
+                    VersionMarker::Nightly
                 } else if let Some((major_version, _))
                 = version.split_once("+")
                 {
-                    MajorVersion::Stable(Version(major_version.into()))
+                    VersionMarker::Stable(Version(major_version.into()))
                 } else {
-                    MajorVersion::Stable(Version(version.clone()))
+                    VersionMarker::Stable(Version(version.clone()))
                 });
                 self.version = Some(version);
             }
@@ -524,7 +523,7 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
                 Cell::new(&status.port.map(|port| port.to_string())
                     .unwrap_or("?".into())),
                 Cell::new(&status.major_version.as_ref()
-                    .map(|m|m.title()).unwrap_or("?".into())
+                    .map(|m| m.title()).unwrap_or("?".into())
                 ),
                 Cell::new("remote"),
                 Cell::new(status.status.display()),

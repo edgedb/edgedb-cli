@@ -2,7 +2,6 @@ use serde::Serialize;
 
 use crate::server::create::{self, Storage};
 use crate::server::debian_like;
-use crate::server::detect::VersionQuery;
 use crate::server::distribution::DistributionRef;
 use crate::server::install;
 use crate::server::linux;
@@ -12,6 +11,7 @@ use crate::server::options::{Upgrade, Destroy};
 use crate::server::package::{self, PackageMethod};
 use crate::server::unix;
 use crate::server::upgrade;
+use crate::server::version::VersionQuery;
 
 
 #[derive(Debug, Serialize)]

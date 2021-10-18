@@ -4,7 +4,7 @@ use std::path::Path;
 
 use fn_error_context::context;
 
-use crate::server::distribution::MajorVersion;
+use crate::server::version::VersionQuery;
 
 
 #[derive(serde::Deserialize)]
@@ -19,7 +19,7 @@ pub struct SrcConfig {
 #[serde(rename_all="kebab-case")]
 pub struct SrcEdgedb {
     #[serde(default)]
-    pub server_version: Option<toml::Spanned<MajorVersion>>,
+    pub server_version: Option<toml::Spanned<VersionQuery>>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }
@@ -31,7 +31,7 @@ pub struct Config {
 
 #[derive(Debug)]
 pub struct Edgedb {
-    pub server_version: Option<MajorVersion>,
+    pub server_version: Option<VersionQuery>,
 }
 
 fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {

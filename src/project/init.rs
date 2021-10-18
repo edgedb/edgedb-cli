@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::BTreeSet;
 use std::env;
 use std::ffi::OsString;
 use std::io;
@@ -25,15 +26,15 @@ use crate::project::options::Init;
 use crate::question;
 use crate::server::control::get_instance;
 use crate::server::create::{self, try_bootstrap, allocate_port};
-use crate::server::detect::{self, VersionQuery};
-use crate::server::distribution::{DistributionRef, MajorVersion};
+use crate::server::detect;
+use crate::server::distribution::DistributionRef;
 use crate::server::errors::InstanceNotFound;
 use crate::server::install::{self, optional_docker_check, exit_codes};
 use crate::server::is_valid_name;
 use crate::server::methods::{InstallMethod, InstallationMethods, Methods};
 use crate::server::options::{StartConf, Start};
 use crate::server::os_trait::{CurrentOs, Method, InstanceRef};
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionMarker, VersionQuery};
 use crate::table;
 
 const DEFAULT_ESDL: &str = "\
@@ -79,7 +80,7 @@ impl InstInfo<'_> {
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {
         Ok(self.get_builder().await?.connect().await?)
     }
-    pub fn get_version(&self) -> anyhow::Result<MajorVersion> {
+    pub fn get_version(&self) -> anyhow::Result<VersionMarker> {
         task::block_on(async {
             let mut conn = self.get_connection().await?;
             let (nightly, ver) = conn.query_row::<(bool, String), _>(r###"
@@ -94,9 +95,9 @@ impl InstInfo<'_> {
                 )
             "###, &()).await?;
             if nightly {
-                Ok(MajorVersion::Nightly)
+                Ok(VersionMarker::Nightly)
             } else {
-                Ok(MajorVersion::Stable(Version(ver)))
+                Ok(VersionMarker::Stable(Version(ver)))
             }
         })
     }
@@ -246,12 +247,13 @@ fn ask_name(_methods: &Methods, dir: &Path, options: &Init)
 }
 
 fn print_versions(meth: &dyn Method, title: &str) -> anyhow::Result<()> {
-    let mut avail = meth.all_versions(false)?;
-    avail.sort_by(|a, b| b.major_version().cmp(a.major_version()));
+    let avail = meth.all_versions(false)?;
+    let items: BTreeSet<_>;
+    items = avail.iter().flat_map(|p| p.version_slot().as_stable()).collect();
     println!("{}: {}{}",
         title,
-        avail.iter().take(5)
-            .map(|d| d.major_version().as_str().to_string())
+        items.iter().rev().take(5)
+            .map(|v| v.as_ref())
             .collect::<Vec<_>>()
             .join(", "),
         if avail.len() > 5 { " ..." } else { "" },
@@ -281,11 +283,12 @@ fn ask_version(meth: &dyn Method, options: &Init)
     let mut q = question::String::new(
         "Specify the version of EdgeDB to use with this project"
     );
-    q.default(distribution.major_version().as_str());
+    let default = distribution.version_slot().to_marker();
+    q.default(default.as_str());
     loop {
         let value = q.ask()?;
         let value = value.trim();
-        if value == distribution.major_version().as_str() {
+        if value == distribution.version_slot().to_marker().as_str() {
             return Ok(distribution);
         }
         if value == "nightly" {
@@ -390,7 +393,7 @@ pub fn format_config(version: &str) -> String {
 }
 
 #[context("cannot write config `{}`", path.display())]
-fn write_config(path: &Path, version: &MajorVersion) -> anyhow::Result<()> {
+fn write_config(path: &Path, version: &VersionQuery) -> anyhow::Result<()> {
     let text = format_config(version.as_str());
     let tmp = tmp_file_path(path);
     fs::remove_file(&tmp).ok();
@@ -412,7 +415,7 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let config = config::read(&config_path)?;
     let ver_query = match config.edgedb.server_version {
         None => VersionQuery::Stable(None),
-        Some(ver) => ver.to_query(),
+        Some(ver) => ver,
     };
 
     let os = detect::current_os()?;
@@ -432,7 +435,7 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
     let inst = InstInfo::probe(&methods, &name)?;
     match inst.get_version() {
-        Ok(inst_ver) if ver_query.matches(&inst_ver) => {}
+        Ok(inst_ver) if ver_query.marker_matches(&inst_ver) => {}
         Ok(inst_ver) => {
             print::warn(format!(
                 "WARNING: existing instance has version {}, \
@@ -491,7 +494,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     } else {
         match config.edgedb.server_version {
             None => VersionQuery::Stable(None),
-            Some(ver) => ver.to_query(),
+            Some(ver) => ver,
         }
     };
 
@@ -507,7 +510,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         }
         let inst = InstInfo::probe(&methods, &name)?;
         match inst.get_version() {
-            Ok(inst_ver) if ver_query.matches(&inst_ver) => {}
+            Ok(inst_ver) if ver_query.marker_matches(&inst_ver) => {}
             Ok(inst_ver) => {
                 print::warn(format!(
                     "WARNING: existing instance has version {}, \
@@ -549,12 +552,10 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             ("Version", distr.version().as_ref()),
             ("Instance name", &name),
         ]);
-        // TODO(tailhook) this condition doesn't work for nightly
-        if !installed.iter()
-            .any(|x| x.major_version() == distr.major_version())
+        if !installed.iter().any(|x| x.version_slot() == distr.version_slot())
         {
             println!("Installing EdgeDB version {}...",
-                     distr.major_version().title());
+                     distr.version_slot().title());
             meth.install(&install::Settings {
                 method: method.clone(),
                 distribution: distr.clone(),
@@ -562,7 +563,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             })?;
         }
 
-        write_config(&config_path, distr.major_version())?;
+        write_config(&config_path, &distr.version_slot().to_query())?;
         if !schema_files {
             write_default(&schema_dir)?;
         }
@@ -571,7 +572,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             name: name.clone(),
             system: false,
             version: distr.version().clone(),
-            nightly: distr.major_version().is_nightly(),
+            nightly: distr.version_slot().is_nightly(),
             distribution: distr,
             method: method,
             storage: meth.get_storage(false, &name)?,
@@ -765,7 +766,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         }
         let inst = InstInfo::probe(&methods, &name)?;
 
-        write_config(&config_path, &inst.get_version()?)?;
+        write_config(&config_path, &inst.get_version()?.to_query())?;
         if !schema_files {
             write_default(&schema_dir)?;
         }
@@ -791,11 +792,10 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             ("Instance name", &name),
         ]);
 
-        // TODO(tailhook) this condition doesn't work for nightly
-        if !installed.iter()
-            .any(|x| x.major_version() == distr.major_version()) {
+        if !installed.iter().any(|x| x.version_slot() == distr.version_slot())
+        {
             println!("Installing EdgeDB version {}...",
-                     distr.major_version().title());
+                     distr.version_slot().title());
             meth.install(&install::Settings {
                 method: method.clone(),
                 distribution: distr.clone(),
@@ -803,7 +803,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             })?;
         }
 
-        write_config(&config_path, distr.major_version())?;
+        write_config(&config_path, &distr.version_slot().to_query())?;
         if !schema_files {
             write_default(&schema_dir)?;
         }
@@ -811,7 +811,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             name: name.clone(),
             system: false,
             version: distr.version().clone(),
-            nightly: distr.major_version().is_nightly(),
+            nightly: distr.version_slot().is_nightly(),
             distribution: distr,
             method: method,
             storage: meth.get_storage(false, &name)?,

@@ -18,13 +18,13 @@ use crate::platform::config_dir;
 use crate::print;
 use crate::server::reset_password::{generate_password, write_credentials};
 use crate::server::reset_password::{password_hash};
-use crate::server::detect::{self, VersionQuery};
+use crate::server::detect;
 use crate::server::errors::CannotCreateService;
 use crate::server::metadata::Metadata;
 use crate::server::methods::{InstallationMethods, InstallMethod, Methods};
 use crate::server::options::{Create, StartConf};
 use crate::server::os_trait::{Method, CurrentOs, InstanceRef};
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionQuery};
 use crate::server::distribution::DistributionRef;
 use crate::server::package::Package;
 use crate::table;
@@ -133,12 +133,12 @@ fn find_version<F>(methods: &Methods, mut cond: F)
         for distr in method.installed_versions()? {
             if cond(&distr) {
                 if let Some(ref mut max_ver) = max_ver {
-                    if max_ver.major_version() == distr.major_version() {
+                    if max_ver.version_slot() == distr.version_slot() {
                         if max_ver.version() < distr.version() {
                             *max_ver = distr;
                         }
                         ver_methods.insert(meth.clone());
-                    } else if max_ver.major_version() < distr.major_version() {
+                    } else if max_ver.version_slot() < distr.version_slot() {
                         *max_ver = distr;
                         ver_methods.clear();
                         ver_methods.insert(meth.clone());
@@ -169,9 +169,12 @@ pub fn find_distribution<'x>(current_os: &'x dyn CurrentOs,
         } else {
             let mut max_ver = None::<DistributionRef>;
             for distr in method.installed_versions()? {
+                if distr.version_slot().is_nightly() {
+                    continue;
+                }
                 if let Some(ref mut max_ver) = max_ver {
-                    if (max_ver.major_version(), max_ver.version()) <
-                        (distr.major_version(), max_ver.version()) {
+                    if (max_ver.version_slot(), max_ver.version_slot()) <
+                        (distr.version_slot(), max_ver.version_slot()) {
                         *max_ver = distr;
                     }
                 } else {
@@ -203,7 +206,7 @@ pub fn find_distribution<'x>(current_os: &'x dyn CurrentOs,
     } else {
         let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
         if let Some((ver, meth_name)) =
-            find_version(&methods, |p| !p.major_version().is_nightly())?
+            find_version(&methods, |p| !p.version_slot().is_nightly())?
         {
             let meth = methods.remove(&meth_name)
                 .expect("method is recently used");
@@ -372,10 +375,10 @@ pub async fn init_credentials(settings: &Settings, inst: &InstanceRef<'_>,
 impl Settings {
     pub fn metadata(&self) -> Metadata {
         Metadata {
-            version: self.distribution.major_version().clone(),
+            version: self.distribution.version_slot().to_marker(),
             current_version: Some(self.distribution.version().clone()),
             slot: self.distribution.downcast_ref::<Package>()
-                .map(|p| p.slot.clone()),
+                .map(|p| p.slot.slot_name().to_string()),
             method: self.method.clone(),
             port: self.port,
             start_conf: self.start_conf,

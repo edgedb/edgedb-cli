@@ -1,4 +1,3 @@
-use std::fmt;
 use std::collections::BTreeMap;
 
 use once_cell::sync::OnceCell;
@@ -7,7 +6,6 @@ use serde::Serialize;
 use crate::server::version::Version;
 use crate::server::os_trait::CurrentOs;
 use crate::server::methods::{self, InstallMethod};
-use crate::server::distribution::{DistributionRef, MajorVersion};
 
 use anyhow::Context;
 
@@ -24,12 +22,6 @@ compile_error!("Unsupported architecture, supported: x86_64, aarch64");
 
 #[derive(Clone, Debug, Default)]
 pub struct Lazy<T>(once_cell::sync::OnceCell<T>);
-
-#[derive(Debug)]
-pub enum VersionQuery {
-    Stable(Option<Version<String>>),
-    Nightly,
-}
 
 #[derive(Clone, Serialize, Debug)]
 pub struct VersionResult {
@@ -116,73 +108,6 @@ pub fn main(_arg: &crate::server::options::Detect)
     Ok(())
 }
 
-impl VersionQuery {
-    pub fn new(nightly: bool, version: Option<&Version<String>>)
-        -> VersionQuery
-    {
-        if nightly {
-            VersionQuery::Nightly
-        } else {
-            VersionQuery::Stable(version.cloned())
-        }
-    }
-    pub fn is_nightly(&self) -> bool {
-        matches!(self, VersionQuery::Nightly)
-    }
-    pub fn is_specific(&self) -> bool {
-        matches!(self, VersionQuery::Stable(Some(..)))
-    }
-    pub fn to_arg(&self) -> Option<String> {
-        use VersionQuery::*;
-
-        match self {
-            Stable(None) => None,
-            Stable(Some(ver)) => Some(format!("--version={}", ver)),
-            Nightly => Some("--nightly".into()),
-        }
-    }
-    pub fn installed_matches(&self, pkg: &InstalledPackage) -> bool {
-        use VersionQuery::*;
-
-        match self {
-            Nightly => pkg.is_nightly(),
-            Stable(None) => !pkg.is_nightly(),
-            Stable(Some(v)) => &pkg.major_version == v && !pkg.is_nightly(),
-        }
-    }
-    pub fn matches(&self, version: &MajorVersion) -> bool {
-        use VersionQuery as Q;
-        use crate::server::distribution::MajorVersion as V;
-
-        match (self, version) {
-            (Q::Nightly, V::Nightly) => true,
-            (Q::Stable(None), V::Stable(_)) => true,
-            (Q::Stable(Some(q)), V::Stable(v)) if q == v => true,
-            _ => false,
-        }
-    }
-    pub fn distribution_matches(&self, distr: &DistributionRef) -> bool {
-        self.matches(distr.major_version())
-    }
-    pub fn install_option(&self) -> String {
-        match self {
-            VersionQuery::Nightly => "--nightly".into(),
-            VersionQuery::Stable(None) => "".into(),
-            VersionQuery::Stable(Some(ver)) => format!("--version={}", ver),
-        }
-    }
-}
-
-impl fmt::Display for VersionQuery {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use VersionQuery::*;
-        match self {
-            Stable(None) => "stable".fmt(f),
-            Stable(Some(ver)) => ver.fmt(f),
-            Nightly => "nightly".fmt(f),
-        }
-    }
-}
 
 impl InstalledPackage {
     pub fn is_nightly(&self) -> bool {

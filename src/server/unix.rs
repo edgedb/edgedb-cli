@@ -19,8 +19,7 @@ use crate::print;
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::create::{self, read_ports, init_credentials, Storage};
-use crate::server::detect::{VersionQuery, Lazy};
-use crate::server::distribution::MajorVersion;
+use crate::server::detect::Lazy;
 use crate::server::errors::{CannotCreateService, CannotStartService};
 use crate::server::install::{self, exit_codes, Operation, operation};
 use crate::server::is_valid_name;
@@ -34,7 +33,7 @@ use crate::server::package::Package;
 use crate::server::status::{Service, Status, DataDirectory};
 use crate::server::status::{read_upgrade, backup_status, probe_port};
 use crate::server::upgrade;
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionQuery, VersionMarker};
 
 
 #[derive(Debug, Serialize)]
@@ -115,9 +114,9 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
     let pkg = settings.distribution.downcast_ref::<Package>()
         .context("invalid unix package")?;
     let server_path = if cfg!(target_os="macos") {
-        macos::get_server_path(&pkg.slot)
+        macos::get_server_path(pkg.slot.slot_name())
     } else {
-        linux::get_server_path(Some(&pkg.slot))
+        linux::get_server_path(Some(pkg.slot.slot_name()))
     };
     let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
     //let mut cmd = Command::new(server_path);
@@ -126,9 +125,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
         env::var_os("EDGEDB_SERVER_LOG_LEVEL").unwrap_or("warn".into()));
     cmd.arg("--data-dir").arg(&dir);
 
-    let cert_required = pkg.major_version > MajorVersion::Stable(
-        Version("1-beta2".into())
-    );
+    let cert_required = pkg.slot.slot_name() >= &Version("1-beta3");
     if cert_required {
         cmd.arg("--generate-self-signed-cert");
     }
@@ -328,23 +325,22 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
     let mut rv = false;
     let mut by_major = BTreeMap::new();
     for inst in method.all_instances()? {
-        if inst.get_version()?.is_nightly() {
-            continue;
+        if let Some(slot) =  inst.get_version()?.as_stable() {
+            by_major.entry(slot.clone())
+                .or_insert_with(Vec::new)
+                .push(inst);
         }
-        by_major.entry(inst.get_version()?.clone())
-            .or_insert_with(Vec::new)
-            .push(inst);
     }
     let mut errors = Vec::new();
     for (version, mut instances) in by_major {
         let instances_str = instances
             .iter().map(|inst| inst.name()).collect::<Vec<_>>().join(", ");
 
-        let version_query = version.to_query();
+        let version_query = VersionQuery::Stable(Some(version));
         let new = method.get_version(&version_query)
             .context("Unable to determine version")?;
         let old = upgrade::get_installed(&version_query, method)?;
-        let new_major = new.major_version().clone();
+        let new_major = new.version_slot().to_marker();
         let new_version = new.version().clone();
         let slot = new.downcast_ref::<Package>()
             .context("invalid linux package")?
@@ -355,14 +351,14 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
                 if old_ver >= new.version() {
                     log::info!(target: "edgedb::server::upgrade",
                         "Version {} is up to date {}, skipping instances: {}",
-                        version.title(), old_ver, instances_str);
+                        version_query.as_str(), old_ver, instances_str);
                     return Ok(rv);
                 }
             }
         }
 
         log::info!("Upgrading version: {} to {}, instances: {}",
-            version.title(), new.version(), instances_str);
+            version_query.as_str(), new.version(), instances_str);
 
         // Stop instances first.
         //
@@ -389,7 +385,7 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
         for inst in &instances {
             let new_meta = Metadata {
                 version: new_major.clone(),
-                slot: Some(slot.clone()),
+                slot: Some(slot.slot_name().as_ref().into()),
                 current_version: Some(new_version.clone()),
                 method: method.name(),
                 port: inst.get_port()?,
@@ -470,9 +466,10 @@ fn _reinit_and_restore(
 
     let mut cmd = inst.get_command()?;
 
-    let cert_required = new_meta.version > MajorVersion::Stable(
-        Version("1-beta2".into())
-    );
+    let cert_required =
+        new_meta.version.is_nightly() ||
+        matches!(&new_meta.version,
+                 VersionMarker::Stable(v) if v >= &Version("1-beta3"));
     if cert_required {
         cmd.arg("--generate-self-signed-cert");
     }
@@ -556,7 +553,7 @@ fn do_instance_upgrade(method: &dyn Method,
     let new = method.get_version(&version_query)
         .context("Unable to determine version")?;
 
-    let new_major = new.major_version().clone();
+    let new_major = new.version_slot().to_marker();
     let old_major = inst.get_version()?;
     let new_version = new.version().clone();
     if !options.force {
@@ -593,7 +590,7 @@ fn do_instance_upgrade(method: &dyn Method,
         .join(format!("{}.dump", inst.name()));
     let new_meta = Metadata {
         version: new_major,
-        slot: Some(slot),
+        slot: Some(slot.slot_name().as_ref().into()),
         current_version: Some(new_version.clone()),
         method: method.name(),
         port: inst.get_port()?,

@@ -136,9 +136,7 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
         .filter(|pkg| pkg.basename == "edgedb-cli")
         .max_by_key(|pkg| (&pkg.version, &pkg.revision));
     let pkg = max.ok_or_else(|| anyhow::anyhow!("cannot find new version"))?;
-    if !options.force &&
-        pkg.version <= Version(env!("CARGO_PKG_VERSION").into())
-    {
+    if !options.force && pkg.version <= Version(env!("CARGO_PKG_VERSION")) {
         log::info!("Version is the same. No update needed.");
         if !options.quiet {
             print::success("Already up to date.");

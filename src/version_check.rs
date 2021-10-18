@@ -59,7 +59,7 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
         Ok(cache) if cache.expires > SystemTime::now() => {
             log::debug!("Cached version {:?}", cache.version);
             if let Some(ver) = cache.version {
-                if Version(env!("CARGO_PKG_VERSION").into()) < ver {
+                if Version(env!("CARGO_PKG_VERSION")) < ver {
                     newer_warning(&ver);
                 }
             }
@@ -88,7 +88,7 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
         .map(|pkg| &pkg.version)
         .max();
     if let Some(ver) = &max {
-        if Version(env!("CARGO_PKG_VERSION").into()) < **ver {
+        if Version(env!("CARGO_PKG_VERSION")) < **ver {
             newer_warning(&ver);
         }
     }

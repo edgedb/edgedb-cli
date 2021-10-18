@@ -8,9 +8,8 @@ use serde::Serialize;
 
 use crate::process;
 use crate::server::create::{self, Storage};
-use crate::server::detect::VersionQuery;
 use crate::server::detect::{Lazy, ARCH};
-use crate::server::distribution::{DistributionRef, MajorVersion, Distribution};
+use crate::server::distribution::{DistributionRef, Distribution};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::linux;
@@ -22,7 +21,7 @@ use crate::server::package::{self, PackageMethod, Package};
 use crate::server::remote;
 use crate::server::unix;
 use crate::server::upgrade;
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionQuery, VersionSlot};
 
 
 #[derive(Debug, Serialize)]
@@ -101,7 +100,7 @@ impl Centos {
         let pkg = settings.distribution.downcast_ref::<Package>()
             .context("invalid centos package")?;
         let mut operations = Vec::new();
-        let nightly = settings.distribution.major_version().is_nightly();
+        let nightly = settings.distribution.version_slot().is_nightly();
         let repo_data = repo_data(nightly);
         let repo_path = repo_file(nightly);
         let update_list = match fs::read(&repo_path) {
@@ -126,7 +125,7 @@ impl Centos {
             Command::new("yum")
             .arg("-y")
             .arg("install")
-            .arg(format!("edgedb-server-{}", pkg.slot))
+            .arg(format!("edgedb-server-{}", pkg.slot.slot_name()))
             .env("_EDGEDB_INSTALL_SKIP_BOOTSTRAP", "1")
         ));
         Ok(operations)
@@ -141,7 +140,7 @@ impl Centos {
             Command::new("yum")
             .arg("-y")
             .arg("remove")
-            .arg(format!("edgedb-server-{}", pkg.slot))
+            .arg(format!("edgedb-server-{}", pkg.slot.slot_name()))
         ));
         Ok(operations)
     }
@@ -254,7 +253,7 @@ impl<'os> Method for PackageMethod<'os, Centos> {
             let mut cmd = process::Native::new("list packages", "yum", "yum");
             cmd.arg("--showduplicates");
             cmd.arg("list").arg("installed");
-            cmd.arg("edgedb-*");
+            cmd.arg("edgedb-server-*");
             let out = cmd.get_output()?;
             if out.status.code() == Some(1) {
                 if str::from_utf8(&out.stderr)
@@ -279,40 +278,9 @@ impl<'os> Method for PackageMethod<'os, Centos> {
             }
             let mut result = Vec::new();
             for line in lines {
-                let mut it = match str::from_utf8(line) {
-                    Ok(line) => line.split_whitespace(),
-                    Err(_) => continue,
-                };
-                let (pkg, ver) = match (it.next(), it.next()) {
-                    (Some(name), Some(ver)) => (name, ver),
-                    _ => continue,
-                };
-                let nightly = pkg.contains("-dev");
-                let (pkg_name, arch) = split_on(pkg, '.');
-                if arch != ARCH {
-                    continue;
+                if let Some((slot, version)) = parse_yum_list(line) {
+                    result.push(Package { slot, version }.into_ref());
                 }
-                let (_pkg_name, major_version) =
-                    if pkg_name.starts_with("edgedb-server-") {
-                        ("edgedb-server", &pkg_name["edgedb-server-".len()..])
-                    } else {
-                        ("edgedb", &pkg_name["edgedb-".len()..])
-                    };
-
-                if major_version.chars().next()
-                   .map(|x| !x.is_digit(10)).unwrap_or(true)
-                {
-                    continue;
-                }
-                result.push(Package {
-                    major_version: if nightly {
-                        MajorVersion::Nightly
-                    } else {
-                        MajorVersion::Stable(Version(major_version.to_owned()))
-                    },
-                    version: Version(ver.to_owned()),
-                    slot: major_version.to_owned(),
-                }.into_ref());
             }
             Ok(result)
         })?.clone())
@@ -348,4 +316,29 @@ impl<'os> Method for PackageMethod<'os, Centos> {
     fn destroy(&self, options: &Destroy) -> anyhow::Result<()> {
         linux::destroy(options)
     }
+}
+
+fn parse_yum_list(line: &[u8])
+    -> Option<(VersionSlot, Version<String>)>
+{
+    let mut words = str::from_utf8(line).ok()?.split_whitespace();
+    let pkg = words.next()?;
+    let ver = words.next()?;
+    let nightly = pkg.contains("-dev");
+    let (pkg_name, arch) = split_on(pkg, '.');
+    if arch != ARCH {
+        return None;
+    }
+    let slot = pkg_name.strip_prefix("edgedb-server-")?;
+    let first_char = slot.chars().next()?;
+    if !first_char.is_digit(10) {
+        return None;
+    }
+    let slot = Version(slot.into());
+    let slot = if nightly {
+        VersionSlot::Nightly(slot)
+    } else {
+        VersionSlot::Stable(slot)
+    };
+    Some((slot, Version(ver.into())))
 }

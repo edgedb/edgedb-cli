@@ -1,9 +1,10 @@
 use serde::{Serialize, Deserialize};
 
-use crate::server::version::Version;
-use crate::server::detect::{Lazy, VersionQuery};
+use crate::server::detect::Lazy;
+use crate::server::distribution::{Distribution, DistributionRef};
 use crate::server::os_trait::{CurrentOs, PreciseVersion};
-use crate::server::distribution::{Distribution, DistributionRef, MajorVersion};
+use crate::server::version::VersionSlot;
+use crate::server::version::{Version, VersionQuery};
 
 
 #[derive(Debug, Serialize)]
@@ -40,30 +41,28 @@ pub struct PackageInfo {
 
 #[derive(Debug)]
 pub struct Package {
-    pub major_version: MajorVersion,
+    pub slot: VersionSlot,
     pub version: Version<String>,
-    pub slot: String,
 }
 
 impl<'a> Into<DistributionRef> for &'a PackageInfo {
     fn into(self: &'a PackageInfo) -> DistributionRef {
         let slot = self.slot.as_ref().expect("only server packages are supported");
-        let major_version = if self.is_nightly() {
-            MajorVersion::Nightly
+        let slot = if self.is_nightly() {
+            VersionSlot::Nightly(slot.clone())
         } else {
-            MajorVersion::Stable(slot.clone())
+            VersionSlot::Stable(slot.clone())
         };
         Package {
-            major_version,
+            slot,
             version: Version(format!("{}-{}", self.version, self.revision)),
-            slot: slot.as_ref().to_owned(),
         }.into_ref()
     }
 }
 
 impl Distribution for Package {
-    fn major_version(&self) -> &MajorVersion {
-        &self.major_version
+    fn version_slot(&self) -> &VersionSlot {
+        &self.slot
     }
     fn version(&self) -> &Version<String> {
         &self.version
@@ -145,13 +144,12 @@ pub fn find_version(haystack: &RepositoryInfo, ver: &VersionQuery)
     if let Some((target, _)) = max_version {
         let slot = target.slot.as_ref().unwrap().clone();
         Ok(Package {
-            major_version: if ver.is_nightly() {
-                MajorVersion::Nightly
+            slot: if ver.is_nightly() {
+                VersionSlot::Nightly(slot)
             } else {
-                MajorVersion::Stable(slot.clone())
+                VersionSlot::Stable(slot)
             },
             version: Version(format!("{}-{}", target.version, target.revision)),
-            slot: slot.as_ref().to_owned(),
         }.into_ref())
     } else {
         anyhow::bail!("Version {} not found", ver)

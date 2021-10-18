@@ -1,11 +1,11 @@
 use linked_hash_map::LinkedHashMap;
 use prettytable::{Table, Row, Cell};
 
+use crate::server::distribution::DistributionRef;
+use crate::server::methods::InstallMethod;
 use crate::server::options::Install;
 use crate::server::os_trait::{CurrentOs, Method};
-use crate::server::detect::VersionQuery;
-use crate::server::methods::InstallMethod;
-use crate::server::distribution::DistributionRef;
+use crate::server::version::VersionQuery;
 use crate::table;
 
 
@@ -81,8 +81,9 @@ impl Settings {
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Major version"),
-            Cell::new(self.distribution.major_version().title()),
-            Cell::new(&self.distribution.major_version().option()),
+            Cell::new(&self.distribution.version_slot().title().to_string()),
+            Cell::new(&self.distribution.version_slot()
+                      .to_query().install_option()),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Exact version"),

@@ -7,8 +7,7 @@ use edgedb_client as client;
 
 use crate::process;
 use crate::server::create::{self, Storage};
-use crate::server::detect::{VersionQuery};
-use crate::server::distribution::{MajorVersion, DistributionRef};
+use crate::server::distribution::DistributionRef;
 use crate::server::install;
 use crate::server::upgrade;
 use crate::server::metadata::Metadata;
@@ -16,7 +15,7 @@ use crate::server::methods::{InstallationMethods, InstallMethod, Methods};
 use crate::server::options::{Start, Stop, Restart, Logs};
 use crate::server::options::{StartConf, Upgrade, Destroy};
 use crate::server::status::Status;
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionQuery, VersionMarker};
 
 
 pub trait CurrentOs: fmt::Debug + Send + Sync + 'static {
@@ -48,7 +47,7 @@ pub trait Instance: fmt::Debug {
     fn name(&self) -> &str;
     fn method(&self) -> &dyn Method;
     fn get_meta(&self) -> anyhow::Result<&Metadata>;
-    fn get_version(&self) -> anyhow::Result<&MajorVersion>;
+    fn get_version(&self) -> anyhow::Result<&VersionMarker>;
     fn get_current_version(&self) -> anyhow::Result<Option<&Version<String>>>;
     fn get_port(&self) -> anyhow::Result<u16>;
     fn get_start_conf(&self) -> anyhow::Result<StartConf>;
@@ -118,7 +117,7 @@ pub trait Method: fmt::Debug + Send + Sync {
 
 #[derive(Debug, Clone)]
 pub struct PreciseVersion {
-    major: MajorVersion,
+    major: VersionMarker,
     version: Version<String>,
 }
 
@@ -139,20 +138,20 @@ impl PreciseVersion {
         let nightly = revision.contains(".dev");
         PreciseVersion {
             major: if nightly {
-                MajorVersion::Nightly
+                VersionMarker::Nightly
             } else {
-                MajorVersion::Stable(Version(major.into()))
+                VersionMarker::Stable(Version(major.into()))
             },
             version: Version(format!("{}-{}", major, revision)),
         }
     }
     pub fn nightly(full_version: &str) -> PreciseVersion {
         PreciseVersion {
-            major: MajorVersion::Nightly,
+            major: VersionMarker::Nightly,
             version: Version(full_version.into()),
         }
     }
-    pub fn major(&self) -> &MajorVersion {
+    pub fn major(&self) -> &VersionMarker {
         &self.major
     }
     pub fn as_str(&self) -> &str {
@@ -174,7 +173,7 @@ impl InstanceRef<'_> {
     pub fn get_meta(&self) -> anyhow::Result<&Metadata> {
         self.0.get_meta()
     }
-    pub fn get_version(&self) -> anyhow::Result<&MajorVersion> {
+    pub fn get_version(&self) -> anyhow::Result<&VersionMarker> {
         self.0.get_version()
     }
     pub fn get_current_version(&self)

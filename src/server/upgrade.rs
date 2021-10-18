@@ -13,11 +13,11 @@ use crate::hint::HintExt;
 use crate::print;
 use crate::project;
 use crate::server::destroy;
-use crate::server::detect::{self, VersionQuery};
+use crate::server::detect;
 use crate::server::errors::InstanceNotFound;
 use crate::server::options::{Upgrade, Start, Stop};
 use crate::server::os_trait::{Method, Instance};
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionQuery};
 
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -5,10 +5,10 @@ use prettytable::{Table, Cell, Row};
 use linked_hash_map::LinkedHashMap;
 
 use crate::server::detect;
+use crate::server::distribution::{DistributionRef};
 use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::ListVersions;
-use crate::server::version::Version;
-use crate::server::distribution::{MajorVersion, DistributionRef};
+use crate::server::version::{Version, VersionSlot, VersionMarker};
 use crate::table;
 
 
@@ -22,11 +22,11 @@ pub struct VersionInfo {
 #[derive(serde::Serialize)]
 #[serde(rename_all="kebab-case")]
 pub struct JsonVersionInfo<'a> {
-    major_version: &'a MajorVersion,
+    major_version: VersionMarker,
+    slot: &'a str,
     latest_version: &'a Version<String>,
     available_for_methods: Vec<&'a str>,
     installed: LinkedHashMap<&'a str, &'a Version<String>>,
-    option_to_install: String,
 }
 
 
@@ -56,12 +56,12 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
 }
 
 fn installed(methods: &Methods,
-    versions: &mut BTreeMap<MajorVersion, VersionInfo>)
+    versions: &mut BTreeMap<VersionSlot, VersionInfo>)
     -> Result<(), anyhow::Error>
 {
     for (meth, method) in methods {
         for distr in method.installed_versions()? {
-            let entry = versions.entry(distr.major_version().clone())
+            let entry = versions.entry(distr.version_slot().clone())
                 .or_insert_with(|| VersionInfo {
                     available: BTreeSet::new(),
                     installed: BTreeMap::new(),
@@ -74,14 +74,14 @@ fn installed(methods: &Methods,
 }
 
 fn remote(methods: &Methods,
-    versions: &mut BTreeMap<MajorVersion, VersionInfo>)
+    versions: &mut BTreeMap<VersionSlot, VersionInfo>)
     -> anyhow::Result<()>
 {
     for (meth, method) in methods {
         let nightly = method.all_versions(true)?;
         let stable = method.all_versions(false)?;
         for distr in stable.iter().chain(nightly.iter()) {
-            let info = versions.entry(distr.major_version().clone())
+            let info = versions.entry(distr.version_slot().clone())
                 .or_insert_with(|| VersionInfo {
                     available: BTreeSet::new(),
                     installed: BTreeMap::new(),
@@ -112,7 +112,7 @@ fn print_set<V: fmt::Display>(vals: impl IntoIterator<Item=V>, json: bool)
 }
 
 fn print_versions(
-    versions: BTreeMap<MajorVersion, VersionInfo>,
+    versions: BTreeMap<VersionSlot, VersionInfo>,
     options: &ListVersions,
 ) -> anyhow::Result<()> {
     match options.column.as_ref().map(|s| &s[..]) {
@@ -142,13 +142,14 @@ fn print_versions(
     }
 }
 
-fn print_json(versions: BTreeMap<MajorVersion, VersionInfo>)
+fn print_json(versions: BTreeMap<VersionSlot, VersionInfo>)
     -> anyhow::Result<()>
 {
     print!("{}", serde_json::to_string_pretty(&versions
         .iter()
         .map(|(ver, info)| JsonVersionInfo {
-            major_version: ver,
+            major_version: ver.to_marker(),
+            slot: ver.slot_name().as_ref(),
             latest_version: &info.latest,
             available_for_methods: info.available
                 .iter()
@@ -158,14 +159,13 @@ fn print_json(versions: BTreeMap<MajorVersion, VersionInfo>)
                 .iter()
                 .map(|(meth, distr)| (meth.short_name(), distr.version()))
                 .collect::<LinkedHashMap<_, _>>(),
-            option_to_install: ver.option(),
         })
         .collect::<Vec<_>>()
     )?);
     Ok(())
 }
 
-fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>)
+fn print_table(versions: BTreeMap<VersionSlot, VersionInfo>)
     -> anyhow::Result<()>
 {
     let mut table = Table::new();
@@ -175,11 +175,10 @@ fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>)
         table::header_cell("Full Version"),
         table::header_cell("Available"),
         table::header_cell("Installed"),
-        table::header_cell("Param"),
     ]));
     for (ver, info) in &versions {
         table.add_row(Row::new(vec![
-            Cell::new(ver.title()),
+            Cell::new(&ver.title().to_string()),
             Cell::new(info.latest.as_ref())
                 .style_spec(if info.installed.is_empty() {
                     ""
@@ -204,7 +203,6 @@ fn print_table(versions: BTreeMap<MajorVersion, VersionInfo>)
                 })
                 .collect::<Vec<_>>()
                 .join(", ")),
-            Cell::new(&ver.option()),
         ]));
     }
     table.printstd();

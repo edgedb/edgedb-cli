@@ -5,9 +5,10 @@ use anyhow::Context;
 
 use crate::commands::ExitCode;
 use crate::print;
-use crate::server::options::Install;
-use crate::server::detect::{self, VersionQuery};
+use crate::server::detect;
 use crate::server::methods::InstallMethod;
+use crate::server::options::Install;
+use crate::server::version::VersionQuery;
 
 pub mod operation;
 pub mod exit_codes;
@@ -77,7 +78,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
                 if &effective_method == meth_kind {
                     print::error(format!(
                         "EdgeDB {} ({}) is already installed.",
-                        old_ver.major_version().title(),
+                        old_ver.version_slot().title(),
                         old_ver.version(),
                     ));
                     eprintln!(
@@ -87,7 +88,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
                 } else {
                     print::error(format!(
                         "EdgeDB {} is already installed via {}.",
-                        old_ver.major_version().title(), meth_kind.option(),
+                        old_ver.version_slot().title(), meth_kind.option(),
                     ));
                     eprintln!("Please uninstall before installing via {}.",
                         effective_method.option());

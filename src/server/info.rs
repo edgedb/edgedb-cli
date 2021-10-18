@@ -1,13 +1,12 @@
 use prettytable::{Table, Row, Cell};
 
 use crate::server::create::find_distribution;
-use crate::server::detect::{self, VersionQuery};
-use crate::server::distribution::MajorVersion;
+use crate::server::detect;
 use crate::server::linux;
 use crate::server::macos;
 use crate::server::options::Info;
 use crate::server::package::Package;
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionQuery, VersionMarker};
 use crate::table;
 
 
@@ -15,7 +14,7 @@ use crate::table;
 #[serde(rename_all="kebab-case")]
 struct JsonInfo<'a> {
     installation_method: &'a str,
-    major_version: &'a MajorVersion,
+    major_version: &'a VersionMarker,
     version: &'a Version<String>,
     binary_path: Option<&'a str>,
 }
@@ -31,9 +30,9 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         &version_query, &options.method)?;
     let cmd = distr.downcast_ref::<Package>().map(|pkg| {
         if cfg!(target_os="macos") {
-            macos::get_server_path(&pkg.slot)
+            macos::get_server_path(pkg.slot.slot_name())
         } else {
-            linux::get_server_path(Some(&pkg.slot))
+            linux::get_server_path(Some(pkg.slot.slot_name()))
         }
     });
     if options.bin_path {
@@ -55,7 +54,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
     } else if options.json {
         println!("{}", serde_json::to_string_pretty(&JsonInfo {
             installation_method: method.short_name(),
-            major_version: distr.major_version(),
+            major_version: &distr.version_slot().to_marker(),
             version: distr.version(),
             binary_path: cmd.as_ref().and_then(|cmd| cmd.to_str()),
         })?)
@@ -67,7 +66,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Major version"),
-            Cell::new(distr.major_version().title()),
+            Cell::new(&distr.version_slot().title().to_string()),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Exact version"),

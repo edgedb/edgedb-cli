@@ -1,8 +1,8 @@
 use crate::commands::ExitCode;
 use crate::print;
-use crate::server::detect::{self, VersionQuery};
+use crate::server::detect;
 use crate::server::options::Uninstall;
-use crate::server::distribution::MajorVersion;
+use crate::server::version::{VersionQuery, VersionSlot, VersionMarker};
 
 
 pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
@@ -17,17 +17,17 @@ pub fn uninstall(options: &Uninstall) -> Result<(), anyhow::Error> {
             meth.installed_versions()?
         };
         if options.nightly {
-            candidates.retain(|cand| cand.major_version().is_nightly());
+            candidates.retain(|cand| cand.version_slot().is_nightly());
         }
         let instances = meth.all_instances()?;
         for inst in instances {
             let major = inst.get_version()?;
             let exact = inst.get_current_version()?;
             candidates.retain(|cand| {
-                let del = match (cand.major_version(), major) {
-                    (MajorVersion::Nightly, MajorVersion::Nightly)
+                let del = match (cand.version_slot(), major) {
+                    (VersionSlot::Nightly(_), VersionMarker::Nightly)
                     => Some(cand.version()) == exact,
-                    (MajorVersion::Stable(a), MajorVersion::Stable(b))
+                    (VersionSlot::Stable(a), VersionMarker::Stable(b))
                     => a == b,
                     _ => false,
                 };

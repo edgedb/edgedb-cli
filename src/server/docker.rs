@@ -17,25 +17,24 @@ use crate::process;
 
 use crate::commands::ExitCode;
 use crate::print;
-use crate::server::create::{self as create_mod, read_ports, Storage};
 use crate::server::create::{bootstrap_script, save_credentials};
+use crate::server::create::{self as create_mod, read_ports, Storage};
 use crate::server::detect::Lazy;
-use crate::server::detect::VersionQuery;
-use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
+use crate::server::distribution::{DistributionRef, Distribution};
 use crate::server::errors::InstanceNotFound;
 use crate::server::install;
-use crate::server::options::{Start, Stop, Restart, Upgrade, Destroy, Logs};
-use crate::server::options::{StartConf};
 use crate::server::metadata::Metadata;
 use crate::server::methods::InstallMethod;
+use crate::server::options::{Start, Stop, Restart, Upgrade, Destroy, Logs};
+use crate::server::options::{StartConf};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::remote;
-use crate::server::unix;
-use crate::server::upgrade;
-use crate::server::version::Version;
+use crate::server::reset_password::{generate_password};
 use crate::server::status::{Service, Status, DataDirectory, BackupStatus};
 use crate::server::status::{probe_port};
-use crate::server::reset_password::{generate_password};
+use crate::server::unix;
+use crate::server::upgrade;
+use crate::server::version::{Version, VersionSlot, VersionQuery, VersionMarker};
 
 
 #[derive(Debug, Serialize)]
@@ -49,7 +48,7 @@ pub struct DockerCandidate {
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
 pub enum Tag {
     Stable(String, String),
-    Nightly(String),
+    Nightly(String, String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,7 +102,7 @@ pub struct ContainerLabels {
     #[serde(rename="com.edgedb.metadata.port")]
     port: Option<String>,
     #[serde(rename="com.edgedb.metadata.version")]
-    version: Option<MajorVersion>,
+    version: Option<VersionMarker>,
     #[serde(rename="com.edgedb.metadata.current-version")]
     current_version: Option<Version<String>>,
     #[serde(rename="com.edgedb.metadata.start-conf")]
@@ -135,7 +134,7 @@ pub struct DockerMethod<'os, O: CurrentOs + ?Sized> {
 
 #[derive(Debug, Clone)]
 pub struct Image {
-    major_version: MajorVersion,
+    version_slot: VersionSlot,
     version: Version<String>,
     tag: Tag,
 }
@@ -171,26 +170,26 @@ impl Tag {
         match (self, q) {
             (Tag::Stable(_, _), VersionQuery::Stable(None)) => true,
             (Tag::Stable(t, _), VersionQuery::Stable(Some(q))) => t == q.num(),
-            (Tag::Nightly(_), VersionQuery::Nightly) => true,
+            (Tag::Nightly(..), VersionQuery::Nightly) => true,
             _ => false,
         }
     }
     fn full_version(&self) -> Version<String> {
         match self {
             Tag::Stable(v, rev) => Version(format!("{}-{}", v, rev)),
-            Tag::Nightly(v) => Version(v.clone()),
+            Tag::Nightly(slot, cv) => Version(format!("{}_{}", slot, cv)),
         }
     }
     fn into_image(self) -> Image {
         match &self {
             Tag::Stable(v, rev) => Image {
-                major_version: MajorVersion::Stable(Version(v.clone())),
+                version_slot: VersionSlot::Stable(Version(v.clone())),
                 version: Version(format!("{}-{}", v, rev)),
                 tag: self,
             },
-            Tag::Nightly(v) => Image {
-                major_version: MajorVersion::Nightly,
-                version: Version(v.clone()),
+            Tag::Nightly(slot, cv) => Image {
+                version_slot: VersionSlot::Nightly(Version(slot.clone())),
+                version: Version(format!("{}_{}", slot, cv)),
                 tag: self,
             },
         }
@@ -201,14 +200,15 @@ impl Tag {
     pub fn as_image_name(&self) -> String {
         match &self {
             Tag::Stable(v, _) => format!("edgedb/edgedb:{}", v),
-            Tag::Nightly(n) => format!("edgedb/edgedb:nightly_{}", n),
+            Tag::Nightly(slot, cv) =>
+                format!("edgedb/edgedb:nightly_{}_{}", slot, cv),
         }
     }
 }
 
 impl Distribution for Image {
-    fn major_version(&self) -> &MajorVersion {
-        &self.major_version
+    fn version_slot(&self) -> &VersionSlot {
+        &self.version_slot
     }
     fn version(&self) -> &Version<String> {
         &self.version
@@ -331,7 +331,9 @@ impl Tag {
             }
         } else if let Some(version) = name.strip_prefix("nightly_") {
             // example: `nightly_1-beta3-dev202107130000_cv202107130000`
-            return Some(Tag::Nightly(version.into()));
+            let (slot, cv) = version.split_once('_')
+                    .unwrap_or((version, ""));
+            return Some(Tag::Nightly(slot.into(), cv.into()));
         } else {
             // maybe `latest` or something unrelated
             None
@@ -471,7 +473,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
             .context("Unable to determine version")?;
         let old = inst.get_current_version()?;
         let new_version = new.version().clone();
-        let new_major = new.major_version().clone();
+        let new_major = new.version_slot().to_marker();
         let old_major = inst.get_version()?;
 
         if !options.force {
@@ -602,7 +604,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         cmd.arg(format!("--label=com.edgedb.metadata.user={}",
                         whoami::username()));
         cmd.arg(format!("--label=com.edgedb.metadata.version={}",
-                        options.image.major_version.title()));
+                        options.image.version_slot.title()));
         cmd.arg(format!("--label=com.edgedb.metadata.current-version={}",
                         options.image.version));
         cmd.arg(format!("--label=com.edgedb.metadata.port={}",
@@ -712,9 +714,8 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let tmp_role = format!("tmp_upgrade_{}", timestamp());
         let tmp_password = generate_password();
 
-        let cert_required = new_image.major_version > MajorVersion::Stable(
-            Version("1-beta2".into())
-        );
+        let cert_required =
+            new_image.version_slot.slot_name() >= &Version("1-beta3");
         let mut cmd = self.docker_run("bootstrap",
             new_image.tag.as_image_name(), "edgedb-server");
         if cert_required {
@@ -859,10 +860,11 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             Ok(self.get_tags()?.iter().filter_map(|t| {
                 match t {
                     Stable(..) => None,
-                    Nightly(v) => {
+                    Nightly(slot, _) => {
+                        let ver = Version(slot.clone());
                         Some(Image {
-                            major_version: MajorVersion::Nightly,
-                            version: Version(v.clone()),
+                            version_slot: VersionSlot::Nightly(ver.clone()),
+                            version: ver,
                             tag: t.clone(),
                         }.into_ref())
                     }
@@ -872,7 +874,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             Ok(self.get_tags()?.iter().filter_map(|t| {
                 match t {
                     Stable(v, rev) => Some(Image {
-                        major_version: MajorVersion::Stable(Version(v.clone())),
+                        version_slot: VersionSlot::Stable(Version(v.clone())),
                         version: Version(format!("{}-{}", v, rev)),
                         tag: t.clone(),
                     }.into_ref()),
@@ -971,9 +973,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg(format!("chown -R 999:999 /mnt"))
             .run()?;
 
-        let cert_required = image.major_version > MajorVersion::Stable(
-            Version("1-beta2".into())
-        );
+        let cert_required =
+            image.version_slot.slot_name() >= &Version("1-beta2");
         let password = generate_password();
         let mut cmd = self.docker_run("server",
             image.tag.as_image_name(), "edgedb-server");
@@ -1206,7 +1207,7 @@ impl<O: CurrentOs + ?Sized> Instance for DockerInstance<'_, O> {
             Ok(serde_json::from_str(&data)?)
         })
     }
-    fn get_version(&self) -> anyhow::Result<&MajorVersion> {
+    fn get_version(&self) -> anyhow::Result<&VersionMarker> {
         if let Some(ver) = self.get_labels()?
             .and_then(|labels| labels.version.as_ref())
         {

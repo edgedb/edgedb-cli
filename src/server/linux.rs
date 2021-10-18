@@ -12,7 +12,6 @@ use crate::platform::{get_current_uid, data_dir};
 use crate::process;
 use crate::server::control::read_metadata;
 use crate::server::detect::Lazy;
-use crate::server::distribution::{MajorVersion};
 use crate::server::docker::DockerCandidate;
 use crate::server::errors::InstanceNotFound;
 use crate::server::metadata::Metadata;
@@ -21,7 +20,7 @@ use crate::server::options::{StartConf, Start, Stop, Restart, Logs, Destroy};
 use crate::server::os_trait::{CurrentOs, Method, Instance, InstanceRef};
 use crate::server::package::PackageCandidate;
 use crate::server::status::{Service, Status};
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionMarker};
 use crate::server::unix;
 use crate::server::{debian, ubuntu, centos};
 
@@ -66,7 +65,7 @@ impl Instance for LocalInstance<'_> {
     fn get_meta(&self) -> anyhow::Result<&Metadata> {
         self.metadata.get_or_try_init(|| read_metadata(&self.path))
     }
-    fn get_version(&self) -> anyhow::Result<&MajorVersion> {
+    fn get_version(&self) -> anyhow::Result<&VersionMarker> {
         Ok(&self.get_meta()?.version)
     }
     fn get_current_version(&self) -> anyhow::Result<Option<&Version<String>>> {
@@ -276,9 +275,9 @@ pub fn detect_distro() -> Result<Box<dyn CurrentOs>, anyhow::Error> {
     }
 }
 
-pub fn get_server_path(slot: Option<&String>) -> PathBuf {
+pub fn get_server_path(slot: Option<impl AsRef<str>>) -> PathBuf {
     if let Some(slot) = slot {
-        Path::new("/usr/bin").join(format!("edgedb-server-{}", slot))
+        Path::new("/usr/bin").join(format!("edgedb-server-{}", slot.as_ref()))
     } else {
         PathBuf::from("/usr/bin/edgedb-server")
     }

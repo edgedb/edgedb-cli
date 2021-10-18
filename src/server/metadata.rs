@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde::de;
 use serde_json::Value;
 
-use crate::server::version::Version;
-use crate::server::distribution::{MajorVersion};
+use crate::server::version::{Version, VersionMarker};
 use crate::server::methods::InstallMethod;
 use crate::server::options::StartConf;
 
@@ -11,7 +10,7 @@ use crate::server::options::StartConf;
 #[derive(Debug, PartialEq, Serialize, Clone)]
 #[serde(into="MetadataV2")]
 pub struct Metadata {
-    pub version: MajorVersion,
+    pub version: VersionMarker,
     pub slot: Option<String>,
     pub current_version: Option<Version<String>>,
     pub method: InstallMethod,
@@ -22,7 +21,7 @@ pub struct Metadata {
 #[derive(Serialize, Deserialize)]
 pub struct MetadataV2 {
     format: u16,
-    version: MajorVersion,
+    version: VersionMarker,
     #[serde(default, skip_serializing_if="Option::is_none")]
     current_version: Option<Version<String>>,
     #[serde(default, skip_serializing_if="Option::is_none")]
@@ -77,9 +76,9 @@ impl From<MetadataV1> for Metadata {
         Metadata {
             slot: Some(m.version.as_ref().into()),
             version: if m.nightly {
-                MajorVersion::Nightly
+                VersionMarker::Nightly
             } else {
-                MajorVersion::Stable(m.version)
+                VersionMarker::Stable(m.version)
             },
             current_version: None,
             method: m.method,
@@ -119,8 +118,7 @@ impl From<Metadata> for MetadataV2 {
 #[cfg(test)]
 mod test {
     use super::Metadata;
-    use crate::server::version::Version;
-    use crate::server::distribution::{MajorVersion};
+    use crate::server::version::{Version, VersionMarker};
     use crate::server::methods::InstallMethod;
     use crate::server::options::StartConf;
 
@@ -130,7 +128,7 @@ mod test {
             {"version":"1-alpha5","method":"Package","port":10700,
              "nightly":false,"start_conf":"Auto"}
         "###).unwrap(), Metadata {
-            version: MajorVersion::Stable(Version("1-alpha5".into())),
+            version: VersionMarker::Stable(Version("1-alpha5".into())),
             current_version: None,
             slot: Some("1-alpha5".into()),
             method: InstallMethod::Package,
@@ -142,7 +140,7 @@ mod test {
             {"version":"1-alpha6","method":"Package","port":10700,
              "nightly":true,"start_conf":"Auto"}
         "###).unwrap(), Metadata {
-            version: MajorVersion::Nightly,
+            version: VersionMarker::Nightly,
             current_version: None,
             slot: Some("1-alpha6".into()),
             method: InstallMethod::Package,
@@ -154,7 +152,7 @@ mod test {
     #[test]
     fn new_metadata() {
         assert_eq!(serde_json::to_string_pretty(&Metadata {
-            version: MajorVersion::Stable(Version("1-alpha5".into())),
+            version: VersionMarker::Stable(Version("1-alpha5".into())),
             current_version: None,
             slot: Some("1-alpha5".into()),
             method: InstallMethod::Package,
@@ -170,7 +168,7 @@ mod test {
 }"###);
 
         assert_eq!(serde_json::to_string_pretty(&Metadata {
-            version: MajorVersion::Nightly,
+            version: VersionMarker::Nightly,
             current_version: Some(Version("1a3.dev.g124bc".into())),
             slot: Some("1-alpha6".into()),
             method: InstallMethod::Package,

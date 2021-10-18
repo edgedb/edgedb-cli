@@ -13,8 +13,8 @@ use crate::question;
 use crate::server;
 use crate::server::control;
 use crate::server::destroy;
-use crate::server::detect::{self, VersionQuery};
-use crate::server::distribution::{MajorVersion};
+use crate::server::detect;
+use crate::server::version::VersionQuery;
 use crate::server::upgrade;
 
 use fn_error_context::context;
@@ -50,22 +50,21 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
     let os = detect::current_os()?;
     let methods = os.all_methods()?;
     let inst = control::get_instance(&methods, &instance_name)?;
-    let mut should_upgrade = inst.get_version()? != &to_version;
+    let mut should_upgrade = inst.get_version()?.to_query() != to_version;
 
     if should_upgrade {
         if !question::Confirm::new(format!(
-            "Do you want to upgrade to {} per edgedb.toml?", to_version.title()
+            "Do you want to upgrade to {} per edgedb.toml?",
+            to_version.as_str(),
         )).ask()? {
             should_upgrade = false;
         }
     } else {
-        let version_query = to_version.to_query();
         let method = inst.method();
-        let new_version = method.get_version(&version_query)
+        let new_version = method.get_version(&to_version)
             .context("Unable to determine version")?;
-        if let Some(old_version) = upgrade::get_installed(
-            &version_query, method
-        )? {
+        if let Some(old_version) = upgrade::get_installed(&to_version, method)?
+        {
             if &old_version < new_version.version() {
                 if to_version.is_nightly() {
                     if question::Confirm::new(format!(
@@ -90,7 +89,7 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
         let upgraded = inst.method().upgrade(
             &upgrade::ToDo::InstanceUpgrade(
                 instance_name.to_string(),
-                Some(to_version.to_query()),
+                Some(to_version.clone()),
             ), &server::options::Upgrade {
                 local_minor: false,
                 to_latest: false,
@@ -124,12 +123,12 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
     let config = config::read(&config_path)?;
 
     let to_version = if let Some(ver) = &options.to_version {
-        Some(MajorVersion::Stable(ver.clone()))
+        Some(VersionQuery::Stable(Some(ver.clone())))
     } else if options.to_nightly {
-        Some(MajorVersion::Nightly)
+        Some(VersionQuery::Nightly)
     } else {
         match config.edgedb.server_version {
-            Some(ver) if ver.is_nightly() => Some(MajorVersion::Nightly),
+            Some(ver) if ver.is_nightly() => Some(VersionQuery::Nightly),
             _ => None,
         }
     };
@@ -143,7 +142,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
             let os = detect::current_os()?;
             let meth = os.any_method()?;
             let distr = meth.get_version(&VersionQuery::Stable(None))?;
-            distr.major_version().clone()
+            distr.version_slot().to_query()
         };
         if modify_toml(&config_path, &version)? {
             print::success("Config updated successfully.");
@@ -160,7 +159,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
         let upgraded = inst.method().upgrade(
             &upgrade::ToDo::InstanceUpgrade(
                 instance_name.to_string(),
-                to_version.map(|x| x.to_query()),
+                to_version,
             ), &server::options::Upgrade {
                 local_minor: false,
                 to_latest: false,
@@ -173,7 +172,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
         // re-read instance to invalidate cache in the object
         let new_inst = inst.method().get_instance(&instance_name)?;
         let version = new_inst.get_version()?;
-        if modify_toml(&config_path, &version)? {
+        if modify_toml(&config_path, &version.to_query())? {
             println!("Remember to commit it to version control.");
         }
         if upgraded {
@@ -181,7 +180,8 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
                 "Successfully upgraded to version",
                 format!("{}", new_inst.get_current_version()?.unwrap())
             );
-            print_other_project_warning(instance_name, &root, version)?;
+            print_other_project_warning(instance_name, &root,
+                                        &version.to_query())?;
         } else {
             print::success("Already up to date.")
         }
@@ -190,10 +190,11 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
 }
 
 #[context("cannot modify `{}`", config.display())]
-fn modify_toml(config: &Path, ver: &MajorVersion) -> anyhow::Result<bool> {
+fn modify_toml(config: &Path, ver: &VersionQuery) -> anyhow::Result<bool> {
     let input = fs::read_to_string(&config)?;
     if let Some(output) = toml_set_version(&input, ver.as_str())? {
-        println!("Setting `server-version = {:?}` in `edgedb.toml`", ver.title());
+        println!("Setting `server-version = {:?}` in `edgedb.toml`",
+                ver.as_str());
         let tmp = tmp_file_path(config);
         fs::remove_file(&tmp).ok();
         fs::write(&tmp, output)?;
@@ -232,7 +233,7 @@ fn toml_set_version(data: &str, version: &str) -> anyhow::Result<Option<String>>
 }
 
 fn print_other_project_warning(
-    name: &str, project_path: &Path, to_version: &MajorVersion
+    name: &str, project_path: &Path, to_version: &VersionQuery
 ) -> anyhow::Result<()> {
     let mut project_dirs = Vec::new();
     for pd in destroy::find_project_dirs(name)? {
@@ -257,10 +258,9 @@ fn print_other_project_warning(
         }
         eprintln!("Run the following commands to update them:");
         let version = match to_version {
-            MajorVersion::Nightly => "--to-nightly".into(),
-            MajorVersion::Stable(version) => {
-                format!("--to-version {}", version)
-            }
+            VersionQuery::Nightly => "--to-nightly".into(),
+            VersionQuery::Stable(Some(v)) => format!("--to-version {}", v),
+            VersionQuery::Stable(None) => "--to-latest".into(),
         };
         let current_project = project::project_dir_opt(None)?;
         for pd in &project_dirs {

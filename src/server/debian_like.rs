@@ -9,14 +9,14 @@ use serde::Serialize;
 
 use crate::process;
 use crate::server::detect::{Lazy, ARCH};
-use crate::server::distribution::{DistributionRef, Distribution, MajorVersion};
+use crate::server::distribution::{DistributionRef, Distribution};
 use crate::server::docker::DockerCandidate;
 use crate::server::install::{self, Operation, Command};
 use crate::server::methods::InstallationMethods;
 use crate::server::package::{RepositoryInfo, PackageCandidate, Package};
 use crate::server::remote;
 use crate::server::unix;
-use crate::server::version::Version;
+use crate::server::version::{Version, VersionSlot};
 
 
 #[derive(Debug, Serialize)]
@@ -137,7 +137,7 @@ impl Debian {
                 .arg("add")
                 .arg("-"),
         });
-        let nightly = settings.distribution.major_version().is_nightly();
+        let nightly = settings.distribution.version_slot().is_nightly();
         let sources_list = sources_list(&self.codename, nightly);
         let list_path = sources_list_path(nightly);
         let update_list = match fs::read(list_path) {
@@ -174,7 +174,7 @@ impl Debian {
             .arg("install")
             .arg("-y")
             // TODO(tailhook) version
-            .arg(format!("edgedb-server-{}", pkg.slot))
+            .arg(format!("edgedb-server-{}", pkg.slot.slot_name()))
             .env("_EDGEDB_INSTALL_SKIP_BOOTSTRAP", "1")
             .env("DEBIAN_FRONTEND",
                 env::var("DEBIAN_FRONTEND")
@@ -192,7 +192,7 @@ impl Debian {
             Command::new("apt-get")
                 .arg("remove")
                 .arg("-y")
-                .arg(format!("edgedb-server-{}", pkg.slot))
+                .arg(format!("edgedb-server-{}", pkg.slot.slot_name()))
         ));
         return Ok(operations);
     }
@@ -205,30 +205,29 @@ pub fn get_installed() -> anyhow::Result<Vec<DistributionRef>> {
     cmd.arg("^edgedb-server-[0-9]");
     let listing = cmd.get_stdout_text()?;
     let mut result = Vec::new();
-    let mut current_major_version = None;
+    let mut current_slot = None;
     for line in listing.lines() {
-        if let Some(major_version) = line.strip_prefix("edgedb-server-") {
-            if let Some(major_version) = major_version.strip_suffix(":") {
-                current_major_version = Some(major_version);
+        if let Some(package_line) = line.strip_prefix("edgedb-server-") {
+            if let Some(slot) = package_line.strip_suffix(":") {
+                current_slot = Some(slot);
             }
-        } else if let Some(major_version) = current_major_version {
+        } else if let Some(slot) = current_slot {
             let line = line.trim();
             if line.starts_with("Installed:") {
                 let ver = line["Installed:".len()..].trim();
                 if ver == "(none)" {
-                    current_major_version = None;
+                    current_slot = None;
                     continue;
                 }
                 result.push(Package {
-                    slot: major_version.to_owned(),
                     version: Version(ver.to_owned()),
-                    major_version: if ver.contains(".dev") {
-                        MajorVersion::Nightly
+                    slot: if ver.contains(".dev") {
+                        VersionSlot::Nightly(Version(slot.into()))
                     } else {
-                        MajorVersion::Stable(Version(major_version.into()))
+                        VersionSlot::Stable(Version(slot.into()))
                     },
                 }.into_ref());
-                current_major_version = None;
+                current_slot = None;
             }
         }
     }
