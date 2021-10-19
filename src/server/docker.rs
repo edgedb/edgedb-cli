@@ -215,6 +215,38 @@ impl Distribution for Image {
     }
 }
 
+#[cfg(target_os="macos")]
+fn platform_supported() -> bool {
+    let mut utsname = libc::utsname {
+        sysname: [0; 256],
+        nodename: [0; 256],
+        release: [0; 256],
+        version: [0; 256],
+        machine: [0; 256],
+    };
+    if unsafe { libc::uname(&mut utsname) } == 1 {
+        log::warn!("Cannot get uname: {}", std::io::Error::last_os_error());
+        return false;
+    }
+    let machine: &[u8] = unsafe { std::mem::transmute(&utsname.machine[..]) };
+    let mend: usize = machine.iter().position(|&b| b == 0).unwrap_or(256);
+    match std::str::from_utf8(&machine[..mend]) {
+        Ok(machine) => {
+            log::debug!("Architecture {:?}", machine);
+            return machine == "x86_64";
+        }
+        Err(e) => {
+            log::warn!("Cannot decode machine from uname: {}", e);
+            return false;
+        }
+    }
+}
+
+#[cfg(any(all(unix, not(target_os="macos")), windows))]
+fn platform_supported() -> bool {
+    true
+}
+
 impl DockerCandidate {
     pub fn detect() -> anyhow::Result<DockerCandidate> {
         let cli = which::which("docker").ok();
@@ -233,10 +265,12 @@ impl DockerCandidate {
                 })
                 .unwrap_or(false)
         }).unwrap_or(false);
-        let supported = cli.is_some() && docker_info_worked;
+        let platform_supported = platform_supported();
+        let supported = platform_supported &&
+            cli.is_some() && docker_info_worked;
         Ok(DockerCandidate {
             supported,
-            platform_supported: cfg!(unix) || cfg!(windows),
+            platform_supported: platform_supported,
             cli,
             docker_info_worked,
         })
