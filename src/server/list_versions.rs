@@ -165,6 +165,10 @@ fn print_json(versions: BTreeMap<VersionSlot, VersionInfo>)
     Ok(())
 }
 
+fn minor_ver(full: &Version<String>) -> &str {
+    full.as_ref().split_once(".cv").map(|(v, _)| v).unwrap_or(full.as_ref())
+}
+
 fn print_table(versions: BTreeMap<VersionSlot, VersionInfo>)
     -> anyhow::Result<()>
 {
@@ -172,14 +176,14 @@ fn print_table(versions: BTreeMap<VersionSlot, VersionInfo>)
     table.set_format(*table::FORMAT);
     table.add_row(Row::new(vec![
         table::header_cell("Major Version"),
-        table::header_cell("Full Version"),
+        table::header_cell("Minor Version"),
         table::header_cell("Available"),
         table::header_cell("Installed"),
     ]));
     for (ver, info) in &versions {
         table.add_row(Row::new(vec![
             Cell::new(&ver.title().to_string()),
-            Cell::new(info.latest.as_ref())
+            Cell::new(minor_ver(&info.latest))
                 .style_spec(if info.installed.is_empty() {
                     ""
                 } else if info.installed.iter()
