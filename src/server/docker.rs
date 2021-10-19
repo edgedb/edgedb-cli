@@ -745,7 +745,10 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 .as_root()
                 .mount(volume, "/mnt")
                 .arg("-c")
-                .arg(format!("cat /mnt/{}/edbtlscert.pem", inst.name()))
+                .arg(format!(r###"
+                    cp /mnt/{name}.backup/*.pem /mnt/{name}/
+                    cat /mnt/{name}/edbtlscert.pem
+                "###, name=inst.name()))
                 .get_stdout_text()?;
 
             let cert_data = output.find("-----BEGIN CERTIFICATE-----")
