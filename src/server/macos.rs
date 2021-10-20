@@ -13,8 +13,10 @@ use once_cell::unsync::OnceCell;
 use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
+use crate::eecho;
 use crate::platform::{get_current_uid, home_dir, cache_dir, data_dir};
 use crate::process;
+use crate::print::{self, Highlight};
 use crate::server::control::read_metadata;
 use crate::server::create::{self, Storage};
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
@@ -401,6 +403,43 @@ impl LocalInstance<'_> {
     fn socket_dir(&self) -> anyhow::Result<PathBuf> {
         Ok(runtime_dir(&self.name)?)
     }
+    fn wait_started(&self) -> anyhow::Result<()> {
+        use Service::*;
+
+        let cut_off = time::SystemTime::now() + time::Duration::from_secs(30);
+        loop {
+            let service = launchctl_status(&self.name, false,
+                                           &StatusCache::new());
+            match service {
+                Inactive {..} => {
+                    thread::sleep(time::Duration::from_millis(30));
+                    if time::SystemTime::now() > cut_off {
+                        print::error("EdgeDB did not start for 30 seconds");
+                        break;
+                    }
+                    continue;
+                }
+                Running {..} => {
+                    return Ok(());
+                }
+                Failed { exit_code: Some(code) } => {
+                    eecho!(print::err_marker(),
+                        "EdgeDB failed".emphasize(), "with exit code", code);
+                }
+                Failed { exit_code: None } => {
+                    eecho!(print::err_marker(), "EdgeDB failed".emphasize());
+                }
+            }
+        }
+        println!("--- Last 10 log lines ---");
+        let mut cmd = process::Native::new("log", "tail", "tail");
+        cmd.arg("-n").arg("10");
+        cmd.arg(log_file(&self.name)?);
+        cmd.no_proxy().run()
+            .map_err(|e| log::warn!("Cannot show log: {}", e)).ok();
+        println!("--- End of log ---");
+        anyhow::bail!("Failed to start EdgeDB");
+    }
 }
 
 impl<'a> Instance for LocalInstance<'a> {
@@ -458,6 +497,7 @@ impl<'a> Instance for LocalInstance<'a> {
             process::Native::new("launchctl", "launchctl", "launchctl")
                 .arg("kickstart").arg(&lname)
                 .run()?;
+            self.wait_started()?;
         } else {
             bootstrap_launchctl_service(&self.name, self.get_meta()?)?;
         }
@@ -517,6 +557,7 @@ impl<'a> Instance for LocalInstance<'a> {
                 .arg("-k")
                 .arg(self.launchd_name())
                 .run()?;
+            self.wait_started()?;
         } else {
             bootstrap_launchctl_service(&self.name, self.get_meta()?)?;
         }
