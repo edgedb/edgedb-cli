@@ -111,6 +111,8 @@ pub fn init_signals() {
                         exit_on(sig);
                     }
                 }
+            } else if let Some(sig) = Signal::from_unix(signal) {
+                exit_on(sig);
             }
         }
     });
