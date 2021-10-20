@@ -746,7 +746,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 .mount(volume, "/mnt")
                 .arg("-c")
                 .arg(format!(r###"
-                    cp /mnt/{name}.backup/*.pem /mnt/{name}/
+                    cp /mnt/{name}.backup/*.pem /mnt/{name}/ || \
                     cat /mnt/{name}/edbtlscert.pem
                 "###, name=inst.name()))
                 .get_stdout_text()?;
