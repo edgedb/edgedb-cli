@@ -367,6 +367,7 @@ pub enum ListParameter {
 
     /// Insert an application port with the specicified protocol
     #[clap(name="Port")]
+    #[edb(hidden)]
     Port(PortParameter),
 }
 
@@ -412,6 +413,14 @@ pub enum ValueParameter {
     ///
     /// Corresponds to the PostgreSQL configuration parameter of the same name
     EffectiveIoConcurrency(ConfigStr),
+
+    /// Sets the timeout for how long client connections can stay
+    /// inactive before being forcefully closed by the server. The default
+    /// is 60 seconds. Set it to ``0`` to disable the mechanism.
+    ///
+    /// Note that the actual time an idle connection can live can be up to
+    /// two times longer than the specified timeout.
+    ClientIdleTimeout(ConfigI32),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -423,6 +432,7 @@ pub enum ConfigParameter {
     ListenPort,
     /// Remove all the application ports
     #[clap(name="Port")]
+    #[edb(hidden)]
     Port,
     /// Clear authentication table (only admin socket can be used to connect)
     #[clap(name="Auth")]
@@ -437,6 +447,8 @@ pub enum ConfigParameter {
     DefaultStatisticsTarget,
     /// Reset postgres configuration parameter of the same name
     EffectiveIoConcurrency,
+    /// Reset client idle timeout
+    ClientIdleTimeout,
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -452,6 +464,11 @@ pub struct ListenPort {
 #[derive(EdbClap, Clone, Debug)]
 pub struct ConfigStr {
     pub value: String,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct ConfigI32 {
+    pub value: i32,
 }
 
 #[derive(EdbClap, Clone, Debug)]
