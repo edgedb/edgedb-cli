@@ -367,6 +367,7 @@ pub enum ListParameter {
 
     /// Insert an application port with the specicified protocol
     #[clap(name="Port")]
+    #[edb(hidden)]
     Port(PortParameter),
 }
 
