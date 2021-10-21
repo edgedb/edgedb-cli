@@ -89,6 +89,7 @@ fn configure_all_parameters() {
         .skip_while(|line| line != &"SUBCOMMANDS:")
         .skip(1)
         .filter(|line| line.len() > 4)
+        .filter(|line| !line[4..].starts_with("    "))
         .map(|line| line[..min(33, line.len())].trim())
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
