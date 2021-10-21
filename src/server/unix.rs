@@ -126,10 +126,10 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
         env::var_os("EDGEDB_SERVER_LOG_LEVEL").unwrap_or("warn".into()));
     cmd.arg("--data-dir").arg(&dir);
 
-    let cert_generated = pkg.major_version > MajorVersion::Stable(
+    let cert_required = pkg.major_version > MajorVersion::Stable(
         Version("1-beta2".into())
     );
-    if cert_generated {
+    if cert_required {
         cmd.arg("--generate-self-signed-cert");
     }
     cmd.run()?;
@@ -138,7 +138,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
     let metadata = settings.metadata();
     write_metadata(&metapath, &metadata)?;
 
-    let cert_data = if cert_generated {
+    let cert_data = if cert_required {
         match fs::read(dir.join("edbtlscert.pem")) {
             Ok(data) => Some(data),
             Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
@@ -470,10 +470,10 @@ fn _reinit_and_restore(
 
     let mut cmd = inst.get_command()?;
 
-    let cert_generated = new_meta.version > MajorVersion::Stable(
+    let cert_required = new_meta.version > MajorVersion::Stable(
         Version("1-beta2".into())
     );
-    if cert_generated {
+    if cert_required {
         cmd.arg("--generate-self-signed-cert");
     }
 
@@ -494,7 +494,7 @@ fn _reinit_and_restore(
     let metapath = instance_dir.join("metadata.json");
     write_metadata(&metapath, &new_meta)?;
 
-    if cert_generated {
+    if cert_required {
         if backup_dir.join("edbtlscert.pem").exists() &&
             backup_dir.join("edbprivkey.pem").exists()
         {

@@ -712,12 +712,12 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let tmp_role = format!("tmp_upgrade_{}", timestamp());
         let tmp_password = generate_password();
 
-        let cert_generated = new_image.major_version > MajorVersion::Stable(
+        let cert_required = new_image.major_version > MajorVersion::Stable(
             Version("1-beta2".into())
         );
         let mut cmd = self.docker_run("bootstrap",
             new_image.tag.as_image_name(), "edgedb-server");
-        if cert_generated {
+        if cert_required {
             cmd.env("EDGEDB_HIDE_GENERATED_CERT", "1");
         }
         cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
@@ -734,12 +734,12 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         cmd.arg("--data-dir");
         cmd.arg(format!("/var/lib/edgedb/data/{}", inst.name()));
         cmd.arg("--bootstrap-only");
-        if cert_generated {
+        if cert_required {
             cmd.arg("--generate-self-signed-cert");
         }
         cmd.run()?;
 
-        if cert_generated {
+        if cert_required {
             let image = new_image.tag.as_image_name();
             let output = self.docker_run("read cert", image, "sh")
                 .as_root()
@@ -751,6 +751,8 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 "###, name=inst.name()))
                 .get_stdout_text()?;
 
+            // If the certificates existed before the upgrade, the command
+            // above won't output anything and we will skip updating below.
             let cert_data = output.find("-----BEGIN CERTIFICATE-----")
                 .zip(find_end(&output, "-----END CERTIFICATE-----"))
                 .map(|(start, end)| &output[start..end]);
@@ -969,13 +971,13 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
             .arg(format!("chown -R 999:999 /mnt"))
             .run()?;
 
-        let cert_generated = image.major_version > MajorVersion::Stable(
+        let cert_required = image.major_version > MajorVersion::Stable(
             Version("1-beta2".into())
         );
         let password = generate_password();
         let mut cmd = self.docker_run("server",
             image.tag.as_image_name(), "edgedb-server");
-        if cert_generated {
+        if cert_required {
             cmd.env("EDGEDB_HIDE_GENERATED_CERT", "1");
         }
         cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
@@ -987,7 +989,7 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         cmd.arg("--runstate-dir").arg("/var/lib/edgedb/data/run");
         cmd.arg("--data-dir")
            .arg(format!("/var/lib/edgedb/data/{}", settings.name));
-        if cert_generated {
+        if cert_required {
             cmd.arg("--generate-self-signed-cert");
         }
         cmd.run()?;
@@ -1003,13 +1005,13 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
                 "###,
                 name=settings.name,
                 metadata=shell_words::quote(&md),
-                cert_cmd=if cert_generated {
+                cert_cmd=if cert_required {
                     format!("cat /mnt/{}/edbtlscert.pem", settings.name)
                 } else { "".into() }
             ))
             .get_stdout_text()?;
 
-        let cert = if cert_generated {
+        let cert = if cert_required {
             let (cstart, cend) = output.find("-----BEGIN CERTIFICATE-----")
                 .zip(find_end(&output, "-----END CERTIFICATE-----"))
                 .context("Error generating certificate")?;
