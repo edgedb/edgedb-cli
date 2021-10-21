@@ -2,7 +2,7 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
 use edgedb_client::client::Connection;
-use crate::commands::parser::{Configure, ConfigStr, ConfigU32};
+use crate::commands::parser::{Configure, ConfigStr, ConfigI32};
 use crate::commands::parser::{AuthParameter, PortParameter};
 
 
@@ -16,7 +16,7 @@ async fn set_string(cli: &mut Connection, name: &str, value: &ConfigStr)
     Ok(())
 }
 
-async fn set_u32(cli: &mut Connection, name: &str, value: &ConfigU32)
+async fn set_i32(cli: &mut Connection, name: &str, value: &ConfigI32)
     -> Result<(), anyhow::Error>
 {
     print::completion(&cli.execute(
@@ -115,7 +115,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
             set_string(cli, "effective_io_concurrency", param).await
         }
         C::Set(Set { parameter: S::ClientIdleTimeout(param) }) => {
-            set_u32(cli, "client_idle_timeout", param).await
+            set_i32(cli, "client_idle_timeout", param).await
         }
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
@@ -129,6 +129,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 C::EffectiveCacheSize => "effective_cache_size",
                 C::DefaultStatisticsTarget => "default_statistics_target",
                 C::EffectiveIoConcurrency => "effective_io_concurrency",
+                C::ClientIdleTimeout => "client_idle_timeout",
             };
             print::completion(&cli.execute(
                 &format!("CONFIGURE SYSTEM RESET {}", name)
