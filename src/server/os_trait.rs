@@ -37,9 +37,15 @@ impl dyn CurrentOs {
         let avail = self.get_available_methods()?;
         avail.instantiate_all(self, true)
     }
-    pub fn any_method<'x>(&'x self) -> anyhow::Result<Box<dyn Method + 'x>> {
+    pub fn first_method<'x>(&'x self) -> anyhow::Result<Box<dyn Method + 'x>> {
         let avail = self.get_available_methods()?;
-        avail.instantiate_any(self)
+        avail.instantiate_first(self)
+    }
+    pub fn single_method<'x>(&'x self, method: &InstallMethod)
+        -> anyhow::Result<Box<dyn Method + 'x>>
+    {
+        let avail = self.get_available_methods()?;
+        self.make_method(method, &avail)
     }
 }
 

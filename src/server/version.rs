@@ -295,6 +295,13 @@ impl VersionQuery {
             VersionQuery::Nightly => "nightly",
         }
     }
+    pub fn title(&self) -> impl fmt::Display + '_ {
+        match self {
+            VersionQuery::Stable(Some(ver)) => ver.as_ref(),
+            VersionQuery::Stable(None) => "latest",
+            VersionQuery::Nightly => "nightly",
+        }
+    }
 }
 
 impl fmt::Display for VersionQuery {

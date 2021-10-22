@@ -9,7 +9,6 @@ use async_std::task;
 use edgedb_client as client;
 use edgeql_parser::helpers::{quote_string, quote_name};
 use fn_error_context::context;
-use linked_hash_map::LinkedHashMap;
 use serde::{Serialize, Deserialize};
 
 use crate::credentials::{self, get_connector};
@@ -498,7 +497,6 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         self.install(&install::Settings {
             method: self.name(),
             distribution: new.clone().into_ref(),
-            extra: LinkedHashMap::new(),
         })?;
 
         if !old_major.is_nightly() && &new_major == old_major {

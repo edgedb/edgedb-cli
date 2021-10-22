@@ -9,7 +9,6 @@ use anyhow::Context;
 use async_std::task;
 use fn_error_context::context;
 use fs_err as fs;
-use linked_hash_map::LinkedHashMap;
 use rand::{thread_rng, Rng};
 
 use edgedb_client::client::Connection;
@@ -419,9 +418,8 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     };
 
     let os = detect::current_os()?;
-    let methods = os
-        .get_available_methods()?
-        .instantiate_all(&*os, true)?;
+    let avail_methods = os.get_available_methods()?;
+    let methods = avail_methods.instantiate_all(&*os, true)?;
 
     let name = if let Some(name) = &options.server_instance {
         name.clone()
@@ -524,6 +522,9 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         }
         inst
     } else {
+        if methods.is_empty() {
+            anyhow::bail!(avail_methods.format_error());
+        }
         let method = ask_method(&avail_methods, options)?;
         let meth = assert_method(&method, &*os, &methods, &avail_methods)?;
 
@@ -559,7 +560,6 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             meth.install(&install::Settings {
                 method: method.clone(),
                 distribution: distr.clone(),
-                extra: LinkedHashMap::new(),
             })?;
         }
 
@@ -757,6 +757,9 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
     let os = detect::current_os()?;
     let avail_methods = os.get_available_methods()?;
     let methods = avail_methods.instantiate_all(&*os, true)?;
+    if methods.is_empty() {
+        anyhow::bail!(avail_methods.format_error());
+    }
     let (name, exists) = ask_name(&methods, project_dir, options)?;
 
     let inst = if exists {
@@ -773,6 +776,9 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 
         inst
     } else {
+        if methods.is_empty() {
+            anyhow::bail!(avail_methods.format_error());
+        }
         let method = ask_method(&avail_methods, options)?;
         let meth = assert_method(&method, &*os, &methods, &avail_methods)?;
 
@@ -799,7 +805,6 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
             meth.install(&install::Settings {
                 method: method.clone(),
                 distribution: distr.clone(),
-                extra: LinkedHashMap::new(),
             })?;
         }
 

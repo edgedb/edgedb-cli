@@ -8,7 +8,6 @@ use anyhow::Context;
 use async_std::task;
 use blake2b_simd::Params as Blake2b;
 use serde::Serialize;
-use linked_hash_map::LinkedHashMap;
 use fn_error_context::context;
 use fs_err as fs;
 
@@ -379,7 +378,6 @@ fn do_minor_upgrade(method: &dyn Method, options: &Upgrade)
         method.install(&install::Settings {
             method: method.name(),
             distribution: new,
-            extra: LinkedHashMap::new(),
         })?;
 
         for inst in &instances {
@@ -582,7 +580,6 @@ fn do_instance_upgrade(method: &dyn Method,
     method.install(&install::Settings {
         method: method.name(),
         distribution: new,
-        extra: LinkedHashMap::new(),
     })?;
 
     let dump_path = storage_dir(inst.name())?

@@ -140,7 +140,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
             ver
         } else {
             let os = detect::current_os()?;
-            let meth = os.any_method()?;
+            let meth = os.first_method()?;
             let distr = meth.get_version(&VersionQuery::Stable(None))?;
             distr.version_slot().to_query()
         };

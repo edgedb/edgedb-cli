@@ -253,7 +253,7 @@ pub fn install_twice_test(dockerfile: &str, tagname: &str, nightly: bool)
                 echo --- DONE --- 1>&2
                 RUST_LOG=info edgedb server install {arg}
             "###, arg=if nightly { "--nightly" } else {""})
-        ).code(51)
+        ).success()
         .stderr(predicates::str::contains("--- DONE ---"))
         .stderr(predicates::function::function(|data: &str| {
             let tail = &data[data.find("--- DONE ---").unwrap()..];

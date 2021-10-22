@@ -49,7 +49,7 @@ impl InstallationMethods {
         }
         Ok(methods)
     }
-    pub fn instantiate_any<'x>(&self, os: &'x dyn CurrentOs)
+    pub fn instantiate_first<'x>(&self, os: &'x dyn CurrentOs)
         -> anyhow::Result<Box<dyn Method + 'x>>
     {
         use InstallMethod::*;
