@@ -126,10 +126,10 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
         env::var_os("EDGEDB_SERVER_LOG_LEVEL").unwrap_or("warn".into()));
     cmd.arg("--data-dir").arg(&dir);
 
-    let cert_generated = pkg.major_version > MajorVersion::Stable(
+    let cert_required = pkg.major_version > MajorVersion::Stable(
         Version("1-beta2".into())
     );
-    if cert_generated {
+    if cert_required {
         cmd.arg("--generate-self-signed-cert");
     }
     cmd.run()?;
@@ -138,7 +138,7 @@ pub fn bootstrap(method: &dyn Method, settings: &create::Settings)
     let metadata = settings.metadata();
     write_metadata(&metapath, &metadata)?;
 
-    let cert_data = if cert_generated {
+    let cert_data = if cert_required {
         match fs::read(dir.join("edbtlscert.pem")) {
             Ok(data) => Some(data),
             Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
@@ -450,7 +450,7 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
             timestamp: SystemTime::now(),
         })?;
     _reinit_and_restore(
-        &instance_dir, inst, new_meta, &upgrade_marker
+        &instance_dir, &backup, inst, new_meta, &upgrade_marker
     ).map_err(|e| {
         print::error(format!("failed to restore {:?}: {}", inst.name(), e));
         eprintln!("To undo run:\n  edgedb instance revert {:?}", inst.name());
@@ -458,10 +458,10 @@ fn reinit_and_restore(inst: &dyn Instance, new_meta: &Metadata,
     })
 }
 
-fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
-    new_meta: &Metadata, upgrade_marker: &Path)
-    -> anyhow::Result<()>
-{
+fn _reinit_and_restore(
+    instance_dir: &Path, backup_dir: &Path, inst: &dyn Instance,
+    new_meta: &Metadata, upgrade_marker: &Path
+) -> anyhow::Result<()> {
 
     fs::create_dir_all(&instance_dir)
         .with_context(|| {
@@ -470,12 +470,10 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
 
     let mut cmd = inst.get_command()?;
 
-    let cert_generated = if instance_dir.join("edbtlscert.pem").exists() {
-        false
-    } else {
-        new_meta.version > MajorVersion::Stable(Version("1-beta2".into()))
-    };
-    if cert_generated {
+    let cert_required = new_meta.version > MajorVersion::Stable(
+        Version("1-beta2".into())
+    );
+    if cert_required {
         cmd.arg("--generate-self-signed-cert");
     }
 
@@ -496,17 +494,30 @@ fn _reinit_and_restore(instance_dir: &Path, inst: &dyn Instance,
     let metapath = instance_dir.join("metadata.json");
     write_metadata(&metapath, &new_meta)?;
 
-    if cert_generated {
-        let cert_data = match fs::read(instance_dir.join("edbtlscert.pem")) {
-            Ok(data) => data,
-            Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
-        };
-        let cert = match str::from_utf8(&cert_data) {
-            Ok(cert) => cert,
-            Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
-        };
-        if let Err(e) = credentials::add_certificate(inst.name(), &cert) {
-            log::warn!("Could not update credentials file: {:#}", e);
+    if cert_required {
+        if backup_dir.join("edbtlscert.pem").exists() &&
+            backup_dir.join("edbprivkey.pem").exists()
+        {
+            fs::copy(
+                backup_dir.join("edbtlscert.pem"),
+                instance_dir.join("edbtlscert.pem")
+            )?;
+            fs::copy(
+                backup_dir.join("edbprivkey.pem"),
+                instance_dir.join("edbprivkey.pem")
+            )?;
+        } else {
+            let cert_data = match fs::read(instance_dir.join("edbtlscert.pem")) {
+                Ok(data) => data,
+                Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
+            };
+            let cert = match str::from_utf8(&cert_data) {
+                Ok(cert) => cert,
+                Err(e) => anyhow::bail!("Cannot read certificate: {:#}", e),
+            };
+            if let Err(e) = credentials::add_certificate(inst.name(), &cert) {
+                log::warn!("Could not update credentials file: {:#}", e);
+            }
         }
     }
 
