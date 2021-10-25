@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
@@ -26,6 +26,9 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
+<% endif %>
+<% if tgt.platform_libc %>
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
 <% endif %>
 
     - uses: actions/upload-artifact@v1

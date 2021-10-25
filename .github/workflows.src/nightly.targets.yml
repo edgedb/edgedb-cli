@@ -35,6 +35,7 @@ targets:
         - name: linux-x86_64
           platform: linux
           platform_version: x86_64
+          platform_libc: musl
           family: generic
 
     macos:
