@@ -611,7 +611,10 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                         options.start_conf));
         cmd.env("EDGEDB_SERVER_INSTANCE_NAME", options.name);
         cmd.arg("--env").arg("EDGEDB_SERVER_INSTANCE_NAME");
-        cmd.arg("--env").arg("EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS=1");
+        cmd.arg("--env")
+            // deprecated
+            .arg("EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS=1");
+        cmd.arg("--env").arg("EDGEDB_SERVER_HTTP_CLIENT_SECURITY=optional");
         cmd.arg("--env").arg("EDGEDB_SERVER_DOCKER_LOG_LEVEL=warning");
         cmd.arg(options.image.tag.as_image_name());
         cmd.arg("edgedb-server");
@@ -718,7 +721,8 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         let mut cmd = self.docker_run("bootstrap",
             new_image.tag.as_image_name(), "edgedb-server");
         if cert_required {
-            cmd.env("EDGEDB_HIDE_GENERATED_CERT", "1");
+            cmd.env("EDGEDB_HIDE_GENERATED_CERT", "1"); // deprecated
+            cmd.env("EDGEDB_DOCKER_SHOW_GENERATED_CERT", "never");
         }
         cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
         cmd.env_default("EDGEDB_SERVER_DOCKER_LOG_LEVEL", "warning");
@@ -978,7 +982,8 @@ impl<'os, O: CurrentOs + ?Sized> Method for DockerMethod<'os, O> {
         let mut cmd = self.docker_run("server",
             image.tag.as_image_name(), "edgedb-server");
         if cert_required {
-            cmd.env("EDGEDB_HIDE_GENERATED_CERT", "1");
+            cmd.env("EDGEDB_HIDE_GENERATED_CERT", "1"); // deprecated
+            cmd.env("EDGEDB_DOCKER_SHOW_GENERATED_CERT", "never");
         }
         cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
         cmd.env_default("EDGEDB_SERVER_DOCKER_LOG_LEVEL", "warning");

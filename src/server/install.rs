@@ -32,25 +32,34 @@ fn docker_check() -> anyhow::Result<bool> {
     return Ok(false)
 }
 
-pub fn optional_docker_check() -> bool {
+pub fn optional_docker_check() -> anyhow::Result<bool> {
     if cfg!(target_os="linux") {
-        let do_docker_check = env::var_os("EDGEDB_SKIP_DOCKER_CHECK")
-            .map(|x| x.is_empty()).unwrap_or(true);
-        if do_docker_check {
-            return docker_check()
-                .map_err(|e| {
-                    log::warn!(
-                        "Failed to check if running within a container: {:#}",
-                        e,
-                    )
-                }).unwrap_or(false);
-        }
+        match env::var("EDGEDB_INSTALL_IN_DOCKER").as_ref().map(|x| &x[..]) {
+            Ok("forbid") | Ok("default") | Err(env::VarError::NotPresent) => {
+                return Ok(docker_check()
+                    .map_err(|e| {
+                        log::warn!("Failed to check if running within \
+                                   a container: {:#}", e)
+                    }).unwrap_or(false));
+            }
+            Ok("allow") => return Ok(false),
+            Ok(value) => {
+                anyhow::bail!("Invalid value of \
+                    EDGEDB_INSTALL_IN_DOCKER: {:?}. \
+                    Options: allow, forbid, default.", value);
+            }
+            Err(env::VarError::NotUnicode(value)) => {
+                anyhow::bail!("Invalid value of \
+                    EDGEDB_INSTALL_IN_DOCKER: {:?}. \
+                    Options: allow, forbid, default.", value);
+            }
+        };
     }
-    return false;
+    return Ok(false);
 }
 
 pub fn install(options: &Install) -> Result<(), anyhow::Error> {
-    if optional_docker_check() {
+    if optional_docker_check()? {
         print::error(
             "`edgedb server install` in a Docker container is not supported.",
         );

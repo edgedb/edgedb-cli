@@ -99,7 +99,8 @@ impl ServerGuard {
             "edgedb-server".to_string()
         };
         let mut cmd = Command::new(&bin_name);
-        cmd.env("EDGEDB_SERVER_INSECURE_DEV_MODE", "1");
+        cmd.env("EDGEDB_SERVER_INSECURE_DEV_MODE", "1"); // deprecated
+        cmd.env("EDGEDB_SERVER_SECURITY", "insecure_dev_mode");
         cmd.arg("--temp-dir");
         cmd.arg("--testmode");
         cmd.arg("--echo-runtime-info");

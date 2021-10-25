@@ -190,7 +190,6 @@ impl<'os> Method for PackageMethod<'os, Macos> {
                 Command::new("installer")
                 .arg("-package").arg(pkg_path)
                 .arg("-target").arg("/")
-                .env("_EDGEDB_INSTALL_SKIP_BOOTSTRAP", "1")
             )
         ];
 
@@ -601,6 +600,7 @@ impl<'a> Instance for LocalInstance<'a> {
         cmd.arg("--runstate-dir").arg(&socket_dir);
         cmd.env("EDGEDB_SERVER_INSTANCE_NAME", self.name());
         cmd.env("EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS", "1");
+        cmd.env("EDGEDB_SERVER_HTTP_CLIENT_SECURITY", "optional");
         Ok(cmd)
     }
     fn upgrade(&self, meta: &Metadata)
@@ -691,6 +691,8 @@ fn plist_data(name: &str, meta: &Metadata)
         <string>{instance_name}</string>
         <key>EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS</key>
         <string>1</string>
+        <key>EDGEDB_SERVER_HTTP_CLIENT_SECURITY</key>
+        <string>optional</string>
     </dict>
 
     <key>StandardOutPath</key>

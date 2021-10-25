@@ -329,7 +329,7 @@ fn ask_existing_instance_name(_methods: &Methods) -> anyhow::Result<String> {
 }
 
 pub fn init(init: &Init) -> anyhow::Result<()> {
-    if optional_docker_check() {
+    if optional_docker_check()? {
         print::error(
             "`edgedb project init` in a Docker container is not supported.",
         );
