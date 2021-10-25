@@ -1,5 +1,4 @@
 use std::env;
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -421,96 +420,6 @@ fn print_full_connection_options() {
     println!("{}", help);
 }
 
-fn get_matches(app: clap::App) -> clap::ArgMatches {
-    use clap::ErrorKind::*;
-
-    match app.try_get_matches() {
-        Ok(matches) => matches,
-        Err(e) => {
-            match e.kind {
-                UnknownArgument | InvalidSubcommand => {
-                    let mismatch_cmd = &e.info[0][..];
-                    match get_deprecated_matches(mismatch_cmd) {
-                        Some(matches) => matches,
-                        None => e.exit(),
-                    }
-                }
-                _ => e.exit(),
-            }
-        }
-    }
-}
-
-fn get_deprecated_matches(mismatch_cmd: &str) -> Option<clap::ArgMatches> {
-    let mut args = env::args_os().skip(1);
-    let mut old_name;
-    let skip;
-    let new_name = match args.next() {
-        Some(first_cmd) if first_cmd == "server" => match args.next() {
-            Some(second_cmd) if second_cmd == mismatch_cmd => {
-                old_name = format!("server {}", mismatch_cmd);
-                skip = 3;
-                match mismatch_cmd {
-                    "init" => "instance create",
-                    "status" => "instance status",
-                    "start" => "instance start",
-                    "stop" => "instance stop",
-                    "restart" => "instance restart",
-                    "destroy" => "instance destroy",
-                    "logs" => "instance logs",
-                    "upgrade" => "instance upgrade",
-                    _ => return None,
-                }
-            }
-            _ => return None,
-        }
-        Some(first_cmd) if first_cmd == mismatch_cmd => {
-            old_name = mismatch_cmd.into();
-            skip = 2;
-            match mismatch_cmd {
-                "create-database" => "database create",
-                "create-migration" => "migration create",
-                "list-aliases" => "list aliases",
-                "list-casts" => "list casts",
-                "list-databases" => "list databases",
-                "list-indexes" => "list indexes",
-                "list-modules" => "list modules",
-                "list-object-types" => "list types",
-                "list-scalar-types" => "list scalars",
-                "list-roles" => "list roles",
-                "migration-log" => "migration log",
-                "self-upgrade" => "cli upgrade",
-                "show-status" => "migration status",
-                _ => return None,
-            }
-        }
-        _ => return None,
-    };
-    let mut error = "warning:".to_string();
-    let mut instead = format!("edgedb {}", new_name).to_string();
-    if print::use_color() {
-        error = format!("{}", error.bold().light_yellow());
-        instead = format!("{}", instead.green());
-        old_name = format!("{}", old_name.green());
-    }
-    eprintln!("\
-        {error} The '{cmd}' subcommand was renamed.\n\
-        \n         \
-            Use '{instead}' instead.\
-        \n\
-    ", error=error, cmd=old_name, instead=instead);
-    let new_args: Vec<OsString> = env::args_os().take(1).chain(
-        new_name.split(" ").map(|x| x.into())
-    ).chain(
-        env::args_os().skip(skip)
-    ).collect();
-    let app = <RawOptions as clap::IntoApp>::into_app()
-        .name("edgedb")
-        .term_width(term_width());
-    let app = update_main_help(app);
-    Some(app.get_matches_from(new_args))
-}
-
 fn term_width() -> usize {
     use std::cmp;
 
@@ -532,7 +441,7 @@ impl Options {
                   .name("edgedb")
                   .term_width(term_width());
         let app = update_main_help(app);
-        let matches = get_matches(app);
+        let matches = app.get_matches();
         let tmp: RawOptions = <RawOptions as clap::FromArgMatches>
             ::from_arg_matches(&matches);
 

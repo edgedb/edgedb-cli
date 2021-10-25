@@ -80,9 +80,6 @@ pub enum ListCmd {
     Indexes(ListIndexes),
     /// Display list of modules defined in the schema
     Modules(ListModules),
-    /// List ports exposed by EdgeDB. Works on EdgeDB <= 1-alpha7
-    #[edb(hidden)]
-    Ports,
     /// Display list of roles in the EdgeDB instance
     Roles(ListRoles),
     /// Display list of scalar types defined in the schema
@@ -364,11 +361,6 @@ pub enum ListParameter {
     /// Insert a client authentication rule
     #[clap(name="Auth")]
     Auth(AuthParameter),
-
-    /// Insert an application port with the specicified protocol
-    #[clap(name="Port")]
-    #[edb(hidden)]
-    Port(PortParameter),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -430,10 +422,6 @@ pub enum ConfigParameter {
     ListenAddresses,
     /// Reset port to 5656
     ListenPort,
-    /// Remove all the application ports
-    #[clap(name="Port")]
-    #[edb(hidden)]
-    Port,
     /// Clear authentication table (only admin socket can be used to connect)
     #[clap(name="Auth")]
     Auth,
@@ -492,36 +480,6 @@ pub struct AuthParameter {
     /// An optional comment for the authentication rule.
     #[clap(long)]
     pub comment: Option<String>,
-}
-
-#[derive(EdbClap, Clone, Debug)]
-pub struct PortParameter {
-
-    /// The TCP/IP address(es) for the application port.
-    #[clap(long="address")]
-    pub addresses: Vec<String>,
-
-    /// The TCP port for the application port.
-    #[clap(long)]
-    pub port: u16,
-
-    /// The protocol for the application port. Valid values are:
-    /// 'graphql+http' and 'edgeql+http'.
-    #[clap(long)]
-    pub protocol: String,
-
-    /// The name of the database the application port is attached to.
-    #[clap(long)]
-    pub database: String,
-
-    /// The name of the database role the application port is attached to.
-    #[clap(long)]
-    pub user: String,
-
-    /// The maximum number of backend connections available for this
-    /// application port.
-    #[clap(long)]
-    pub concurrency: i64,
 }
 
 #[derive(EdbClap, Clone, Debug)]

@@ -3,7 +3,7 @@ use crate::commands::Options;
 use crate::print;
 use edgedb_client::client::Connection;
 use crate::commands::parser::{Configure, ConfigStr, ConfigI32};
-use crate::commands::parser::{AuthParameter, PortParameter};
+use crate::commands::parser::{AuthParameter};
 
 
 async fn set_string(cli: &mut Connection, name: &str, value: &ConfigStr)
@@ -60,31 +60,6 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
             )).await?);
             Ok(())
         }
-        C::Insert(Ins { parameter: I::Port(param) }) => {
-            let PortParameter {
-                addresses, port, protocol,
-                database, user, concurrency,
-            } = param;
-            print::completion(&cli.execute(&format!(r###"
-                    CONFIGURE SYSTEM INSERT Port {{
-                        address := {{ {addresses} }},
-                        port := {port},
-                        protocol := {protocol},
-                        database := {database},
-                        user := {user},
-                        concurrency := {concurrency},
-                    }}
-                "###,
-                addresses=addresses.iter().map(|x| quote_string(x))
-                    .collect::<Vec<_>>().join(", "),
-                port=port,
-                concurrency=concurrency,
-                protocol=quote_string(protocol),
-                database=quote_string(database),
-                user=quote_string(user),
-            )).await?);
-            Ok(())
-        }
         C::Set(Set { parameter: S::ListenAddresses(param) }) => {
             print::completion(&cli.execute(
                 &format!("CONFIGURE SYSTEM SET listen_addresses := {{{}}}",
@@ -122,7 +97,6 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
             let name = match parameter {
                 C::ListenAddresses => "listen_addresses",
                 C::ListenPort => "listen_port",
-                C::Port => "Port",
                 C::Auth => "Auth",
                 C::SharedBuffers => "shared_buffers",
                 C::QueryWorkMem => "query_work_mem",
