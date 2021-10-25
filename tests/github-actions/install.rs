@@ -179,6 +179,13 @@ fn github_action_install() -> anyhow::Result<()> {
                 .success();
 
             Command::new(&edgedb)
+                .arg("--admin").arg("--instance").arg("inst1")
+                .arg("query").arg("SELECT 1")
+                .assert()
+                .context("query-1", "query `inst1` after restart")
+                .success();
+
+            Command::new(&edgedb)
                 .arg("instance").arg("logs").arg("inst1")
                 .assert()
                 .context("log-1-1", "logs of `inst1`")
