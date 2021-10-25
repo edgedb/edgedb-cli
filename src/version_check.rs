@@ -108,22 +108,36 @@ fn cache_dir() -> anyhow::Result<PathBuf> {
     Ok(dir)
 }
 
-pub fn check(no_version_check_opt: bool) {
+pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
     if no_version_check_opt {
         log::debug!("Skipping version check due to --no-cli-update-check");
-        return;
+        return Ok(());
     }
-    if env::var_os("EDGEDB_NO_VERSION_CHECK")
-        .map(|x| !x.is_empty()).unwrap_or(false)
-    {
-        log::debug!("Skipping version check due to EDGEDB_NO_VERSION_CHECK");
-        return;
+    match env::var("EDGEDB_RUN_VERSION_CHECK").as_ref().map(|x| &x[..]) {
+        Ok("never") => {
+            log::debug!(
+                "Skipping version check due to \
+                EDGEDB_RUN_VERSION_CHECK=never");
+            return Ok(());
+        }
+        Ok("cached") | Ok("default") => {}
+        Ok(value) => {
+            anyhow::bail!("unexpected value of EDGEDB_RUN_VERSION_CHECK: {:?} \
+                           Options: never, cached, default.",
+                          value);
+        }
+        Err(env::VarError::NotPresent) => {}
+        Err(env::VarError::NotUnicode(value)) => {
+            anyhow::bail!("unexpected value of EDGEDB_RUN_VERSION_CHECK: {:?} \
+                           Options: never, cached, default.",
+                          value);
+        }
     }
     let dir = match cache_dir() {
         Ok(dir) => dir,
         Err(e) => {
             log::debug!("Version check ignored: {}", e);
-            return;
+            return Ok(());
         }
     };
     match _check(&dir) {
@@ -132,4 +146,5 @@ pub fn check(no_version_check_opt: bool) {
             log::warn!("Cannot check for updates: {}", e);
         }
     }
+    Ok(())
 }

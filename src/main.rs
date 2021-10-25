@@ -114,7 +114,7 @@ fn _main() -> anyhow::Result<()> {
 
     log::debug!(target: "edgedb::cli", "Options: {:#?}", opt);
 
-    version_check::check(opt.no_cli_update_check);
+    version_check::check(opt.no_cli_update_check)?;
 
     if opt.subcommand.is_some() {
         commands::cli::main(opt)
