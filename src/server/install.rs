@@ -64,6 +64,7 @@ pub fn install(options: &Install) -> Result<(), anyhow::Error> {
     let os = detect::current_os()?;
     let effective_method = options.method.clone()
         .unwrap_or(InstallMethod::Package);
+    // TODO(tailhook) hint other methods on error
     let method = os.single_method(&effective_method)?;
     let version = VersionQuery::new(options.nightly, options.version.as_ref());
     let distribution = method.get_version(&version)?;

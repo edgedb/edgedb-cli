@@ -63,6 +63,7 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
         let method = inst.method();
         let new_version = method.get_version(&to_version)
             .context("Unable to determine version")?;
+        // TODO(tailhook) get rid of get_installed
         if let Some(old_version) = upgrade::get_installed(&to_version, method)?
         {
             if &old_version < new_version.version() {

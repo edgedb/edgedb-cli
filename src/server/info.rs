@@ -1,6 +1,6 @@
 use prettytable::{Table, Row, Cell};
 
-use crate::server::create::find_distribution;
+use anyhow::Context;
 use crate::server::detect;
 use crate::server::linux;
 use crate::server::macos;
@@ -19,15 +19,29 @@ struct JsonInfo<'a> {
     binary_path: Option<&'a str>,
 }
 
-
 pub fn info(options: &Info) -> anyhow::Result<()> {
+    let current_os = detect::current_os()?;
+
+    let filter = options.latest || options.nightly
+        || options.version.is_some() || options.method.is_some();
+    if !filter {
+        log::warn!("`server info` without filter is deprecated. \
+                    Assuming --latest");
+    }
     let version_query = VersionQuery::new(
         options.nightly, options.version.as_ref());
-    let current_os = detect::current_os()?;
-    let avail_methods = current_os.get_available_methods()?;
-    let (distr, method, _) = find_distribution(
-        &*current_os, &avail_methods,
-        &version_query, &options.method)?;
+    let method = if let Some(meth) = &options.method {
+        current_os.single_method(meth)?
+    } else {
+        current_os.first_method()?
+    };
+    let distr = method.installed_versions()?.into_iter()
+        .filter(|p| version_query.matches(p.version_slot()))
+        .max_by(|a, b| a.version_slot().cmp(b.version_slot()))
+        .with_context(|| format!("cannot find distribution for your \
+                                  criteria. Try `edgedb server install` \
+                                  with the same parameters"))?;
+
     let cmd = distr.downcast_ref::<Package>().map(|pkg| {
         if cfg!(target_os="macos") {
             macos::get_server_path(pkg.slot.slot_name())
@@ -49,11 +63,11 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
             }
         } else {
             anyhow::bail!("cannot print binary path for {} installation",
-                method.option());
+                method.name().option());
         }
     } else if options.json {
         println!("{}", serde_json::to_string_pretty(&JsonInfo {
-            installation_method: method.short_name(),
+            installation_method: method.name().short_name(),
             major_version: &distr.version_slot().to_marker(),
             version: distr.version(),
             binary_path: cmd.as_ref().and_then(|cmd| cmd.to_str()),
@@ -62,7 +76,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         let mut table = Table::new();
         table.add_row(Row::new(vec![
             Cell::new("Installation method"),
-            Cell::new(method.title()),
+            Cell::new(method.name().title()),
         ]));
         table.add_row(Row::new(vec![
             Cell::new("Major version"),

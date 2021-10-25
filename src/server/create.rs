@@ -12,18 +12,18 @@ use prettytable::{Table, Row, Cell};
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
-use crate::hint::HintExt;
 use crate::credentials;
 use crate::platform::config_dir;
 use crate::print;
+use crate::server::control;
 use crate::server::reset_password::{generate_password, write_credentials};
 use crate::server::reset_password::{password_hash};
 use crate::server::detect;
-use crate::server::errors::CannotCreateService;
+use crate::server::errors::{CannotCreateService, InstanceNotFound};
 use crate::server::metadata::Metadata;
-use crate::server::methods::{InstallationMethods, InstallMethod, Methods};
+use crate::server::methods::{InstallMethod, Methods};
 use crate::server::options::{Create, StartConf};
-use crate::server::os_trait::{Method, CurrentOs, InstanceRef};
+use crate::server::os_trait::{Method, InstanceRef};
 use crate::server::version::{Version, VersionQuery};
 use crate::server::distribution::DistributionRef;
 use crate::server::package::Package;
@@ -123,99 +123,20 @@ pub fn allocate_port(name: &str) -> anyhow::Result<u16> {
     Ok(port)
 }
 
-fn find_version<F>(methods: &Methods, mut cond: F)
-    -> anyhow::Result<Option<(DistributionRef, InstallMethod)>>
-    where F: FnMut(&DistributionRef) -> bool
+fn verify_no_instance_exists(methods: &Methods, name: &str)
+    -> anyhow::Result<()>
 {
-    let mut max_ver = None::<DistributionRef>;
-    let mut ver_methods = BTreeSet::new();
-    for (meth, method) in methods {
-        for distr in method.installed_versions()? {
-            if cond(&distr) {
-                if let Some(ref mut max_ver) = max_ver {
-                    if max_ver.version_slot() == distr.version_slot() {
-                        if max_ver.version() < distr.version() {
-                            *max_ver = distr;
-                        }
-                        ver_methods.insert(meth.clone());
-                    } else if max_ver.version_slot() < distr.version_slot() {
-                        *max_ver = distr;
-                        ver_methods.clear();
-                        ver_methods.insert(meth.clone());
-                    }
-                } else {
-                    max_ver = Some(distr);
-                    ver_methods.insert(meth.clone());
-                }
-            }
+    match control::get_instance(&methods, &name) {
+        Ok(_) => {
+            anyhow::bail!("Instance {0} already exists. \
+                Use different instance name or \
+                run `edgedb instance destroy {0}` first.",
+                name);
         }
-    }
-    Ok(max_ver.map(|distr| (distr, ver_methods.into_iter().next().unwrap())))
-}
-
-pub fn find_distribution<'x>(current_os: &'x dyn CurrentOs,
-    avail_methods: &'x InstallationMethods,
-    version_query: &VersionQuery, method_opt: &Option<InstallMethod>)
-    -> anyhow::Result<(DistributionRef, InstallMethod, Box<dyn Method + 'x>)>
-{
-    if let Some(ref meth) = method_opt {
-        let method = current_os.make_method(meth, &avail_methods)?;
-        if version_query.is_nightly() || version_query.is_specific() {
-            let distr = method.get_version(&version_query)
-                .with_hint(|| format!("Try: edgedb server install {} {}",
-                                      meth.option(),
-                                      version_query.install_option()))?;
-            Ok((distr, meth.clone(), method))
-        } else {
-            let mut max_ver = None::<DistributionRef>;
-            for distr in method.installed_versions()? {
-                if distr.version_slot().is_nightly() {
-                    continue;
-                }
-                if let Some(ref mut max_ver) = max_ver {
-                    if (max_ver.version_slot(), max_ver.version_slot()) <
-                        (distr.version_slot(), max_ver.version_slot()) {
-                        *max_ver = distr;
-                    }
-                } else {
-                    max_ver = Some(distr);
-                }
-            }
-            if let Some(ver) = max_ver {
-                Ok((ver, meth.clone(), method))
-            } else {
-                anyhow::bail!("Cannot find any installed version. Run: \n  \
-                    edgedb server install {}", meth.option());
-            }
-        }
-    } else if version_query.is_nightly() || version_query.is_specific() {
-        let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
-        if let Some((ver, meth_name)) =
-            find_version(&methods, |p| version_query.distribution_matches(p))?
-        {
-            let meth = methods.remove(&meth_name)
-                .expect("method is recently used");
-            Ok((ver, meth_name, meth))
-        } else {
-            anyhow::bail!("Cannot find version {} installed. Run: \n  \
-                edgedb server install {}",
-                version_query,
-                version_query.to_arg().unwrap_or_else(String::new));
-        }
-
-    } else {
-        let mut methods = avail_methods.instantiate_all(&*current_os, true)?;
-        if let Some((ver, meth_name)) =
-            find_version(&methods, |p| !p.version_slot().is_nightly())?
-        {
-            let meth = methods.remove(&meth_name)
-                .expect("method is recently used");
-            Ok((ver, meth_name, meth))
-        } else {
-            anyhow::bail!("Cannot find any installed version \
-                (note: nightly versions are skipped unless `--nightly` \
-                is used).\nRun: \n  \
-                edgedb server install");
+        Err(e) if e.is::<InstanceNotFound>() => Ok(()),
+        Err(e) => {
+            log::warn!("Cannot enumerate exiting instances: {:#}", e);
+            Ok(())
         }
     }
 }
@@ -225,16 +146,26 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         options.nightly, options.version.as_ref());
     let current_os = detect::current_os()?;
     let avail_methods = current_os.get_available_methods()?;
-    let (distr, meth_name, method) = find_distribution(
-        &*current_os, &avail_methods,
-        &version_query, &options.method)?;
+
+    let methods = avail_methods.instantiate_all(&*current_os, true)?;
+    verify_no_instance_exists(&methods, &options.name)?;
+
+    let eff_method = options.method.clone()
+        .unwrap_or(InstallMethod::Package);
+    // TODO(tailhook) hint other methods on error
+    let method = {methods}.remove(&eff_method).ok_or(())
+        // remake method to throw correct error
+        .or_else(|()| current_os.make_method(&eff_method, &avail_methods))?;
+
+    let distr = method.get_version(&version_query)?;
+
     let credentials_path = credentials::path(&options.name)?;
-    if credentials_path.exists() && !options.overwrite {
+    if credentials_path.exists() {
         anyhow::bail!("Credential file {} already exists. \
             This may mean that instance is already initialized, \
             or the name is taken as a link to a remote instance. \
             Use different instance name or \
-            run `edgedb instance destroy {}` first",
+            run `edgedb instance destroy {}` first.",
             credentials_path.display(), options.name);
     }
     let port = allocate_port(&options.name)?;
@@ -244,7 +175,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         version: distr.version().clone(),
         distribution: distr,
         nightly: version_query.is_nightly(),
-        method: meth_name,
+        method: eff_method,
         storage: method.get_storage(options.system, &options.name)?,
         credentials: credentials_path,
         user: options.default_user.clone(),
@@ -260,26 +191,18 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         anyhow::bail!("System instances are not implemented yet"); // TODO
     } else {
         if method.storage_exists(&settings.storage)? {
-            if options.overwrite {
-                method.clean_storage(&settings.storage)
-                    .with_context(|| {
-                        format!("can't clean previous storage directory {}",
-                                settings.storage.display())
-                    })?;
-            } else {
-                anyhow::bail!("Storage {} already exists. \
-                    This may mean that instance is already \
-                    initialized. Otherwise rerun with \
-                    `--overwrite` flag.",
-                    settings.storage.display());
-            }
+            anyhow::bail!("Storage {} already exists. \
+                This may mean that instance is already \
+                initialized. Use different instance name or \
+                run `edgedb instance destroy {}` first.",
+                settings.storage.display(), settings.name);
         }
         if !try_bootstrap(method.as_ref(), &settings)? {
             print::error("Bootstrapping complete, \
                 but there was an error creating the service.");
             eprintln!("You can start it manually via: \n  \
                 edgedb instance start --foreground {}",
-                settings.name.escape_default());
+                settings.name);
             if options.start_conf != StartConf::Manual {
                 return Err(ExitCode::new(2))?;
             }

@@ -155,11 +155,6 @@ pub struct Create {
     #[clap(long, default_value="edgedb")]
     pub default_user: String,
 
-    /// Overwrite data directory and credential file if any of these exist.
-    /// This is mainly useful for recovering from interrupted initializations.
-    #[clap(long)]
-    pub overwrite: bool,
-
     /// Do not create a user and database named after current unix user
     #[clap(long, setting=ArgSettings::Hidden)]
     pub inhibit_user_creation: bool,
@@ -412,6 +407,8 @@ pub struct Info {
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
     pub version: Option<Version<String>>,
+    #[clap(long, conflicts_with_all=&["nightly", "version"][..])]
+    pub latest: bool,
     #[clap(long, possible_values=&["package", "docker"][..])]
     pub method: Option<InstallMethod>,
 }
