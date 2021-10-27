@@ -1,5 +1,4 @@
 pub mod options;
-mod main;
 mod metadata;
 pub mod methods;
 pub mod detect;
@@ -28,17 +27,15 @@ pub mod control;
 pub mod create;
 pub mod destroy;
 pub mod errors;
-mod info;
+pub mod info;
 pub mod install;
 pub mod link;
-mod list_versions;
+pub mod list_versions;
 pub mod reset_password;
-mod revert;
-mod status;
-mod uninstall;
+pub mod revert;
+pub mod status;
+pub mod uninstall;
 pub mod upgrade;
-
-pub use main::{main, instance_main};
 
 
 pub fn is_valid_name(name: &str) -> bool {

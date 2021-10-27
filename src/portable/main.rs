@@ -1,4 +1,7 @@
 use crate::options::Options;
+
+use crate::portable::list_versions;
+
 use crate::server::options::{ServerCommand, Command};
 use crate::server::options::{ServerInstanceCommand, InstanceCommand};
 
@@ -9,14 +12,13 @@ use crate::server::detect;
 use crate::server::info;
 use crate::server::install;
 use crate::server::link;
-use crate::server::list_versions;
 use crate::server::reset_password;
 use crate::server::status;
 use crate::server::uninstall;
 use crate::server::upgrade;
 
 
-pub fn main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
+pub fn server_main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
     use Command::*;
 
     match &cmd.subcommand {

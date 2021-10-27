@@ -114,6 +114,9 @@ pub struct ListVersions {
     /// Output in JSON format
     #[clap(long)]
     pub json: bool,
+
+    /// Show versions of docker and package installations
+    pub deprecated_install_methods: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
