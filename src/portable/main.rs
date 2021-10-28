@@ -1,5 +1,6 @@
 use crate::options::Options;
 
+use crate::portable::install;
 use crate::portable::list_versions;
 
 use crate::server::options::{ServerCommand, Command};
@@ -10,7 +11,6 @@ use crate::server::create;
 use crate::server::destroy;
 use crate::server::detect;
 use crate::server::info;
-use crate::server::install;
 use crate::server::link;
 use crate::server::reset_password;
 use crate::server::status;

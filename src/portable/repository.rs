@@ -140,3 +140,14 @@ pub fn get_server_packages(channel: Channel)
         .collect();
     Ok(packages)
 }
+
+pub fn get_server_package(channel: Channel, query: &Option<ver::Query>)
+    -> anyhow::Result<Option<PackageInfo>>
+{
+    let query = query.as_ref();
+    let pkg = get_server_packages(channel)?.into_iter()
+        .filter(|pkg| query.map(|q| q.matches(&pkg.version)).unwrap_or(true))
+        .max_by_key(|pkg| pkg.version.specific());
+    Ok(pkg)
+}
+
