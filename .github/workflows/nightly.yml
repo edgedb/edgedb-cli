@@ -293,7 +293,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: stable
+        toolchain: nightly
         default: true
 
     - name: Set up Python
