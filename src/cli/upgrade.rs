@@ -111,8 +111,10 @@ async fn download(url: &str, path: &Path, quiet: bool) -> anyhow::Result<()> {
     bar.set_style(
         ProgressStyle::default_bar()
         .template(
-            "[{elapsed_precise}] {wide_bar} \
-            {bytes:>7}/{total_bytes:7} | ETA: {eta}"));
+            "{elapsed_precise} [{bar}] \
+            {bytes:>7.dim}/{total_bytes:7} \
+            {binary_bytes_per_sec:.dim} | ETA: {eta}")
+        .progress_chars("=> "));
     let mut buf = [0u8; 16384];
     loop {
         let bytes = body.read(&mut buf).await?;

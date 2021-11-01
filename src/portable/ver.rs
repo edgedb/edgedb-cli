@@ -1,3 +1,4 @@
+use std::fmt;
 use std::str::FromStr;
 use std::cmp::Ordering;
 
@@ -162,6 +163,26 @@ impl Query {
             (M::Rc(_), Q::Beta(_)) => true,
             (M::Rc(v), Q::Rc(q)) => v >= q,
             (_, _) => false,
+        }
+    }
+}
+
+impl fmt::Display for Build {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Display for Specific {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.major.fmt(f)?;
+        f.write_str(".")?;
+        match self.minor {
+            MinorVersion::Minor(m) => m.fmt(f),
+            MinorVersion::Alpha(v) => write!(f, "0-alpha.{}", v),
+            MinorVersion::Beta(v) => write!(f, "0-beta.{}", v),
+            MinorVersion::Rc(v) => write!(f, "0-rc.{}", v),
+            MinorVersion::Dev(v) => write!(f, "0-dev.{}", v),
         }
     }
 }
