@@ -1,6 +1,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf, Component};
+use std::time::SystemTime;
 
 use anyhow::Context;
 use async_std::task;
@@ -14,7 +15,7 @@ use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Channel, PackageInfo, download};
 use crate::portable::repository::{get_server_package};
 use crate::portable::ver;
-use crate::print;
+use crate::print::{self, eecho, Highlight};
 use crate::server::options::Install;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -23,8 +24,25 @@ pub struct InstallInfo {
     package_url: url::Url,
     #[serde(with="serde_str")]
     package_hash: blake3::Hash,
+    #[serde(with="serde_millis")]
+    installed_at: SystemTime,
 }
 
+#[context("metadata error for {:?}", dir)]
+fn check_metadata(dir: &Path, pkg_info: &PackageInfo)
+    -> anyhow::Result<InstallInfo>
+{
+    let file = io::BufReader::new(fs::File::open(dir.join("metadata.json"))?);
+    let data: InstallInfo = serde_json::from_reader(file)?;
+    if data.version != pkg_info.version {
+        log::warn!("Remote package has version of {},
+                    installed package version: {}",
+                    pkg_info.version, data.version);
+    }
+    log::info!("Package {} was installed at {}, location: {:?}",
+               data.version, humantime::format_rfc3339(data.installed_at), dir);
+    Ok(data)
+}
 
 #[context("failed to download {}", pkg_info)]
 fn download_package(pkg_info: &PackageInfo)
@@ -159,20 +177,28 @@ pub fn install(options: &Install) -> anyhow::Result<()> {
     let pkg_info = get_server_package(channel, &ver_query)?
         .context("no package matching your criteria found")?;
 
-    println!("Downloading package...");
-    let (cache_path, pkg_hash) = download_package(&pkg_info)?;
     let ver_name = pkg_info.version.specific().to_string();
     let target_dir = platform::portable_dir()?.join(&ver_name);
+    if target_dir.exists() {
+        let meta = check_metadata(&target_dir, &pkg_info)?;
+        eecho!("Version", meta.version.emphasize(), " is already installed");
+        return Ok(());
+    }
+
+    eecho!("Downloading package...");
+    let (cache_path, pkg_hash) = download_package(&pkg_info)?;
     let tmp_target = platform::tmp_file_path(&target_dir);
     unpack_package(&cache_path, &tmp_target)?;
     write_meta(&tmp_target.join("metadata.json"), &InstallInfo {
-        version: pkg_info.version,
+        version: pkg_info.version.clone(),
         package_url: pkg_info.package_url,
         package_hash: pkg_hash,
+        installed_at: SystemTime::now(),
     })?;
     fs::rename(&tmp_target, &target_dir).with_context(
         || format!("cannot rename {:?} -> {:?}", tmp_target, target_dir))?;
     unlink_cache(&cache_path);
+    eecho!("Successfully installed", pkg_info.version.emphasize());
 
     Ok(())
 }

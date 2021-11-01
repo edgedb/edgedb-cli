@@ -9,7 +9,7 @@ use snafu::{Snafu, ResultExt, AsErrorSource};
 
 use edgedb_protocol::error_response::display_error;
 
-use crate::eecho;
+pub use crate::{echo, eecho};
 
 mod color;
 mod native;
