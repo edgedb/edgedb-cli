@@ -13,18 +13,36 @@ use crate::portable::exit_codes;
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Channel, PackageInfo, download};
 use crate::portable::repository::{get_server_package};
+use crate::portable::ver;
 use crate::print;
 use crate::server::options::Install;
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct InstallInfo {
+    version: ver::Build,
+    package_url: url::Url,
+    #[serde(with="serde_str")]
+    package_hash: blake3::Hash,
+}
+
 
 #[context("failed to download {}", pkg_info)]
-fn download_package(pkg_info: &PackageInfo) -> anyhow::Result<PathBuf> {
+fn download_package(pkg_info: &PackageInfo)
+    -> anyhow::Result<(PathBuf, blake3::Hash)>
+{
     let cache_dir = platform::cache_dir()?;
     let download_dir = cache_dir.join("downloads");
     fs::create_dir_all(&download_dir)?;
     let cache_path = download_dir.join(pkg_info.cache_file_name());
-    task::block_on(download(&cache_path, &pkg_info.package_url))?;
-    Ok(cache_path)
+    let hash = task::block_on(download(&cache_path, &pkg_info.package_url))?;
+    Ok((cache_path, hash))
+}
+
+#[context("cannot write metadata {:?}", path)]
+fn write_meta(path: &Path, data: &InstallInfo) -> anyhow::Result<()> {
+    let file = io::BufWriter::new(fs::File::create(path)?);
+    serde_json::to_writer_pretty(file, data)?;
+    Ok(())
 }
 
 fn build_path(base: &Path, path: &Path) -> anyhow::Result<Option<PathBuf>> {
@@ -141,13 +159,20 @@ pub fn install(options: &Install) -> anyhow::Result<()> {
     let pkg_info = get_server_package(channel, &ver_query)?
         .context("no package matching your criteria found")?;
 
-    let cache_path = download_package(&pkg_info)?;
+    println!("Downloading package...");
+    let (cache_path, pkg_hash) = download_package(&pkg_info)?;
     let ver_name = pkg_info.version.specific().to_string();
     let target_dir = platform::portable_dir()?.join(&ver_name);
     let tmp_target = platform::tmp_file_path(&target_dir);
     unpack_package(&cache_path, &tmp_target)?;
+    write_meta(&tmp_target.join("metadata.json"), &InstallInfo {
+        version: pkg_info.version,
+        package_url: pkg_info.package_url,
+        package_hash: pkg_hash,
+    })?;
     fs::rename(&tmp_target, &target_dir).with_context(
         || format!("cannot rename {:?} -> {:?}", tmp_target, target_dir))?;
     unlink_cache(&cache_path);
+
     Ok(())
 }

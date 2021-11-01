@@ -199,7 +199,7 @@ pub fn get_server_package(channel: Channel, query: &Option<ver::Query>)
 
 #[context("failed to download file at URL: {}", url)]
 pub async fn download(dest: impl AsRef<Path>, url: &Url)
-    -> Result<(), anyhow::Error>
+    -> Result<blake3::Hash, anyhow::Error>
 {
     let dest = dest.as_ref();
     log::info!("Downloading {} -> {}", url, dest.display());
@@ -219,6 +219,7 @@ pub async fn download(dest: impl AsRef<Path>, url: &Url)
             {bytes:>7.dim}/{total_bytes:7} \
             {binary_bytes_per_sec:.dim} | ETA: {eta}")
         .progress_chars("=> "));
+    let mut hasher = blake3::Hasher::new();
     let mut buf = [0u8; 16384];
     loop {
         let bytes = body.read(&mut buf).await?;
@@ -226,11 +227,12 @@ pub async fn download(dest: impl AsRef<Path>, url: &Url)
             break;
         }
         out.write_all(&buf[..bytes]).await?;
+        hasher.update(&buf[..bytes]);
         bar.inc(bytes as u64);
     }
     bar.finish();
 
-    Ok(())
+    Ok(hasher.finalize())
 }
 
 impl fmt::Display for PackageInfo {

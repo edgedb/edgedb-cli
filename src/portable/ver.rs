@@ -6,7 +6,7 @@ use anyhow::Context;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Build(Box<str>);
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
