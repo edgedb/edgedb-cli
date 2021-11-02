@@ -58,7 +58,11 @@ fn main() {
                 // prevent duplicate error message
                 err = arc.inner();
             }
-            print::error(err);
+            if let Some(e) = err.downcast_ref::<edgedb_client::errors::Error>() {
+                print::edgedb_error(e, true);
+            } else {
+                print::error(err);
+            }
             for item in err.chain() {
                 if let Some(e) = item.downcast_ref::<hint::HintedError>() {
                     eprintln!("  Hint: {}", e.hint
