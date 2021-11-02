@@ -19,7 +19,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 const MAX_ATTEMPTS: u32 = 10;
 pub const USER_AGENT: &str = "edgedb";
 
-#[derive(Debug, PartialEq, Eq)]
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Channel {
     Stable,
     // Prerelease,  // TODO(tailhook)
@@ -29,6 +30,11 @@ pub enum Channel {
 #[derive(Debug, Clone)]
 pub enum PackageType {
     TarZst,
+}
+
+pub struct Query {
+    channel: Channel,
+    version: Option<ver::Filter>,
 }
 
 #[derive(serde::Deserialize, Debug, Clone)]
@@ -187,12 +193,12 @@ pub fn get_server_packages(channel: Channel)
     Ok(packages)
 }
 
-pub fn get_server_package(channel: Channel, query: &Option<ver::Query>)
+pub fn get_server_package(query: &Query)
     -> anyhow::Result<Option<PackageInfo>>
 {
-    let query = query.as_ref();
-    let pkg = get_server_packages(channel)?.into_iter()
-        .filter(|pkg| query.map(|q| q.matches(&pkg.version)).unwrap_or(true))
+    let filter = query.version.as_ref();
+    let pkg = get_server_packages(query.channel)?.into_iter()
+        .filter(|pkg| filter.map(|q| q.matches(&pkg.version)).unwrap_or(true))
         .max_by_key(|pkg| pkg.version.specific());
     Ok(pkg)
 }
@@ -238,5 +244,22 @@ pub async fn download(dest: impl AsRef<Path>, url: &Url)
 impl fmt::Display for PackageInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "edgdb-server@{}", self.version)
+    }
+}
+
+impl Query {
+    pub fn from_options(nightly: bool,
+        version: &Option<crate::server::version::Version<String>>)
+        -> anyhow::Result<Query>
+    {
+        let channel = if nightly {
+            Channel::Nightly
+        } else {
+            Channel::Stable
+        };
+        let version = version.as_ref().map(|x| x.num().parse())
+            .transpose().context("Unexpected --version")?;
+
+        Ok(Query { channel, version })
     }
 }

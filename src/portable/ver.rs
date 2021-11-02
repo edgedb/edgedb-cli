@@ -26,13 +26,13 @@ pub enum MinorVersion {
 
 /// Version stored in config and in various `--version=` args
 #[derive(Clone, Debug, PartialEq)]
-pub struct Query {
+pub struct Filter {
     major: u32,
-    minor: Option<QueryMinor>,
+    minor: Option<FilterMinor>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum QueryMinor {
+pub enum FilterMinor {
     Alpha(u32),
     Beta(u32),
     Rc(u32),
@@ -101,23 +101,23 @@ impl FromStr for Specific {
     }
 }
 
-impl FromStr for Query {
+impl FromStr for Filter {
     type Err = anyhow::Error;
-    fn from_str(value: &str) -> anyhow::Result<Query> {
+    fn from_str(value: &str) -> anyhow::Result<Filter> {
         let m = QUERY.captures(value)
             .context("unsupported version format. Examples: \
                      `1.15`, `7`, `3.0-rc.1`")?;
         let major = m.get(1).unwrap().as_str().parse()?;
         let g3 = m.get(3).map(|m| m.as_str().parse()).transpose()?;
         let minor = match m.get(2).map(|m| m.as_str()) {
-            Some("alpha") => g3.map(QueryMinor::Alpha),
-            Some("beta") => g3.map(QueryMinor::Beta),
-            Some("rc") => g3.map(QueryMinor::Rc),
+            Some("alpha") => g3.map(FilterMinor::Alpha),
+            Some("beta") => g3.map(FilterMinor::Beta),
+            Some("rc") => g3.map(FilterMinor::Rc),
             Some(_) => unreachable!(),
             None => m.get(4).map(|m| m.as_str().parse()).transpose()?
-                    .map(QueryMinor::Minor),
+                    .map(FilterMinor::Minor),
         };
-        Ok(Query { major, minor })
+        Ok(Filter { major, minor })
     }
 }
 
@@ -132,10 +132,10 @@ impl Build {
     }
 }
 
-impl Query {
+impl Filter {
     pub fn matches(&self, bld: &Build) -> bool {
         use MinorVersion as M;
-        use QueryMinor as Q;
+        use FilterMinor as Q;
 
         let spec = bld.specific();
         if spec.major != self.major {

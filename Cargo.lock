@@ -294,6 +294,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-process"
+version = "1.2.0"
+source = "git+https://github.com/smol-rs/async-process#c8bdbc1de62858ae0b5834cd50691e6a66995afd"
+dependencies = [
+ "async-io",
+ "blocking",
+ "cfg-if 1.0.0",
+ "event-listener",
+ "futures-lite",
+ "libc",
+ "once_cell",
+ "signal-hook 0.3.10",
+ "winapi",
+]
+
+[[package]]
 name = "async-std"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -304,7 +320,7 @@ dependencies = [
  "async-global-executor",
  "async-io",
  "async-lock",
- "async-process",
+ "async-process 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "crossbeam-utils",
  "futures-channel",
  "futures-core",
@@ -984,7 +1000,7 @@ dependencies = [
  "arc-swap",
  "assert_cmd",
  "async-listen",
- "async-process",
+ "async-process 1.2.0 (git+https://github.com/smol-rs/async-process)",
  "async-std",
  "atty",
  "backtrace",

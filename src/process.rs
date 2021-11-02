@@ -99,6 +99,16 @@ impl Native {
         self.command.env(key, val);
         self
     }
+    pub fn env_default(&mut self,
+        name: impl AsRef<OsStr> + Into<OsString>,
+        default: impl Into<OsString>)
+        -> &mut Self
+    {
+        if env::var_os(name.as_ref()).is_none() {
+            self.command.env(name.into(), default.into());
+        } // otherwise it's normally propagated
+        self
+    }
 
     pub fn command_line(&self) -> impl fmt::Debug + '_ {
         &self.command

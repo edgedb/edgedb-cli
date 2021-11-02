@@ -12,13 +12,13 @@ use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
 use crate::portable::platform::optional_docker_check;
-use crate::portable::repository::{Channel, PackageInfo, download};
-use crate::portable::repository::{get_server_package};
+use crate::portable::repository::{PackageInfo, Query};
+use crate::portable::repository::{get_server_package, download};
 use crate::portable::ver;
 use crate::print::{self, eecho, Highlight};
 use crate::server::options::Install;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct InstallInfo {
     version: ver::Build,
     package_url: url::Url,
@@ -32,7 +32,8 @@ pub struct InstallInfo {
 fn check_metadata(dir: &Path, pkg_info: &PackageInfo)
     -> anyhow::Result<InstallInfo>
 {
-    let file = io::BufReader::new(fs::File::open(dir.join("metadata.json"))?);
+    let file = fs::File::open(dir.join("install_info.json"))?;
+    let file = io::BufReader::new(file);
     let data: InstallInfo = serde_json::from_reader(file)?;
     if data.version != pkg_info.version {
         log::warn!("Remote package has version of {},
@@ -161,44 +162,49 @@ pub fn install(options: &Install) -> anyhow::Result<()> {
         print::error(
             "`edgedb server install` in a Docker container is not supported.",
         );
-        eprintln!("\
-            To obtain a Docker image with EdgeDB server installed, \
-            run the following on the host system instead:\n  \
-            edgedb server install --method=docker");
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
-    let channel = if options.nightly {
-        Channel::Nightly
-    } else {
-        Channel::Stable
-    };
-    let ver_query = options.version.as_ref().map(|x| x.num().parse())
-        .transpose().context("Unexpected --version")?;
-    let pkg_info = get_server_package(channel, &ver_query)?
+    let query = Query::from_options(options.nightly, &options.version)?;
+    version(&query)?;
+    Ok(())
+}
+
+pub fn version(query: &Query) -> anyhow::Result<InstallInfo> {
+    let pkg_info = get_server_package(&query)?
         .context("no package matching your criteria found")?;
 
     let ver_name = pkg_info.version.specific().to_string();
     let target_dir = platform::portable_dir()?.join(&ver_name);
     if target_dir.exists() {
         let meta = check_metadata(&target_dir, &pkg_info)?;
-        eecho!("Version", meta.version.emphasize(), " is already installed");
-        return Ok(());
+        eecho!("Version", meta.version.emphasize(), "is already installed");
+        return Ok(meta);
     }
 
     eecho!("Downloading package...");
     let (cache_path, pkg_hash) = download_package(&pkg_info)?;
     let tmp_target = platform::tmp_file_path(&target_dir);
     unpack_package(&cache_path, &tmp_target)?;
-    write_meta(&tmp_target.join("metadata.json"), &InstallInfo {
+    let info = InstallInfo {
         version: pkg_info.version.clone(),
         package_url: pkg_info.package_url,
         package_hash: pkg_hash,
         installed_at: SystemTime::now(),
-    })?;
+    };
+    write_meta(&tmp_target.join("install_info.json"), &info)?;
     fs::rename(&tmp_target, &target_dir).with_context(
         || format!("cannot rename {:?} -> {:?}", tmp_target, target_dir))?;
     unlink_cache(&cache_path);
     eecho!("Successfully installed", pkg_info.version.emphasize());
 
-    Ok(())
+    Ok(info)
+}
+
+impl InstallInfo {
+    pub fn server_path(&self) -> anyhow::Result<PathBuf> {
+        Ok(platform::portable_dir()?
+            .join(self.version.specific().to_string())
+            .join("bin")
+            .join("edgedb-server"))
+    }
 }
