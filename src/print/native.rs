@@ -107,6 +107,8 @@ impl FormatExt for Value {
             V::BigInt(v) => prn.const_number(format_bigint(v.into())),
             V::Decimal(v) => prn.const_number(format_decimal(v.into())),
             V::Bool(v) => prn.const_bool(v),
+            V::ConfigMemory(t)
+            => prn.typed("cfg::memory", t.to_string()),
             V::Datetime(t) => prn.typed("datetime", format!("{:?}", t)),
             V::LocalDatetime(t)
             => prn.typed("cal::local_datetime", format!("{:?}", t)),
