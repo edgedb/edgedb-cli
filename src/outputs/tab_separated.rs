@@ -31,6 +31,7 @@ fn value_to_string(v: &Value) -> Result<String, anyhow::Error> {
         Json(v) => Ok(v.to_string()),
         Enum(v) => Ok(v.to_string()),
         Duration(v) => Ok(v.to_string()),
+        ConfigMemory(v) => Ok(v.to_string()),
         RelativeDuration(v) => Ok(v.to_string()),
         | Datetime(_) // TODO(tailhook)
         | BigInt(_) // TODO(tailhook)
