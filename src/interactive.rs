@@ -24,6 +24,7 @@ use edgeql_parser::preparser::{self, full_statement};
 
 use crate::commands::{backslash, ExitCode};
 use crate::config::Config;
+use crate::credentials;
 use crate::echo;
 use crate::error_display::print_query_error;
 use crate::interrupt::{Interrupt, InterruptError};
@@ -100,6 +101,8 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         .implicit_properties(cfg.shell.implicit_properties.unwrap_or(false))
         .colors(atty::is(atty::Stream::Stdout))
         .clone();
+    let builder = conn.get()?;
+    credentials::maybe_update_credentials_file(builder, true)?;
     let state = repl::State {
         prompt: repl::PromptRpc {
             control: control_wr,
@@ -116,7 +119,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         input_mode: cfg.shell.input_mode.unwrap_or(repl::InputMode::Emacs),
         print_stats: cfg.shell.print_stats.unwrap_or(repl::PrintStats::Off),
         history_limit: cfg.shell.history_size.unwrap_or(10000),
-        database: conn.get()?.get_database().into(),
+        database: builder.get_database().into(),
         conn_params: conn,
         last_version: None,
         connection: None,
