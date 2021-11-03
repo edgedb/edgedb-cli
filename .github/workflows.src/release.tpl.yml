@@ -21,7 +21,7 @@ jobs:
       id: whichver
 
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
       env:
         SRC_REF: "${{ steps.whichver.outputs.branch }}"
         PKG_VERSION: "${{ steps.whichver.outputs.version }}"
@@ -32,6 +32,9 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
+<% endif %>
+<% if tgt.platform_libc %>
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
 <% endif %>
 
     - uses: actions/upload-artifact@v1
@@ -131,7 +134,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: stable
+        toolchain: nightly
         default: true
 
     - name: Set up Python

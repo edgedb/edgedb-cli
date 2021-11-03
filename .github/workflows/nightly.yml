@@ -26,6 +26,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+
     - uses: actions/upload-artifact@v1
       with:
         name: builds-debian-stretch
@@ -44,6 +45,7 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
+
 
 
     - uses: actions/upload-artifact@v1
@@ -66,6 +68,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+
     - uses: actions/upload-artifact@v1
       with:
         name: builds-debian-bullseye
@@ -84,6 +87,7 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
+
 
 
     - uses: actions/upload-artifact@v1
@@ -106,6 +110,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+
     - uses: actions/upload-artifact@v1
       with:
         name: builds-ubuntu-bionic
@@ -124,6 +129,7 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
+
 
 
     - uses: actions/upload-artifact@v1
@@ -146,6 +152,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+
     - uses: actions/upload-artifact@v1
       with:
         name: builds-centos-7
@@ -166,6 +173,7 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
 
+
     - uses: actions/upload-artifact@v1
       with:
         name: builds-centos-8
@@ -176,7 +184,7 @@ jobs:
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
       env:
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
@@ -186,6 +194,9 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
 
         BUILD_GENERIC: true
+
+
+        PKG_PLATFORM_LIBC: "musl"
 
 
     - uses: actions/upload-artifact@v1
@@ -282,7 +293,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: stable
+        toolchain: nightly
         default: true
 
     - name: Set up Python
