@@ -520,6 +520,9 @@ fn _reinit_and_restore(
             }
         }
     }
+    credentials::maybe_update_credentials_file(
+        &inst.get_connector(false)?, false
+    )?;
 
     let res = create_user_service(inst.name(), &new_meta)
         .map_err(CannotStartService);

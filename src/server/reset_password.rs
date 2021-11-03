@@ -51,7 +51,7 @@ pub async fn write_credentials(path: &Path, credentials: &Credentials)
 
 pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     let credentials_file = credentials::path(&options.name)?;
-    let (credentials, save, user) = if credentials_file.exists() {
+    let (creds, save, user) = if credentials_file.exists() {
         let creds = read_credentials(&credentials_file)?;
         let user = options.user.clone().unwrap_or_else(|| creds.user.clone());
         if options.no_save_credentials {
@@ -86,14 +86,17 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
 
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
-    control::get_instance(&methods, &options.name)
-        .and_then(|inst| inst.reset_password(&user, &password))
+    let inst = control::get_instance(&methods, &options.name)
         .with_context(|| format!("cannot find instance {:?}", options.name))?;
+    inst.reset_password(&user, &password)?;
     if save {
-        let mut creds = credentials.unwrap_or_else(Default::default);
+        let mut creds = creds.unwrap_or_else(Default::default);
         creds.user = user.into();
         creds.password = Some(password);
         task::block_on(write_credentials(&credentials_file, &creds))?;
+        credentials::maybe_update_credentials_file(
+            &inst.get_connector(false)?, false
+        )?;
     }
     if !options.quiet {
         if save {
