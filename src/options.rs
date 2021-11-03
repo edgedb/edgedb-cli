@@ -11,6 +11,7 @@ use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
 use edgedb_client::Builder;
 use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind};
+use edgedb_client::credentials::TlsSecurity;
 use fs_err as fs;
 
 use crate::cli::options::CliCommand;
@@ -129,6 +130,10 @@ pub struct ConnectionOptions {
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(setting=clap::ArgSettings::Hidden)]
     pub no_tls_verify_hostname: bool,
+
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(setting=clap::ArgSettings::Hidden)]
+    tls_security: Option<String>,
 
     /// In case EdgeDB connection can't be established, retry up to
     /// WAIT_TIME (e.g. '30s').
@@ -601,11 +606,49 @@ pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
         let data = fs::read_to_string(cert_file)?;
         builder.pem_certificates(&data)?;
     }
+    if options.no_tls_verify_hostname && options.tls_verify_hostname {
+        anyhow::bail!(
+            "--tls-verify-hostname and --no-tls-verify-hostname are \
+             mutually exclusive."
+        )
+    }
+    let mut security = match options.tls_security.as_deref() {
+        None => None,
+        Some("insecure") => Some(TlsSecurity::Insecure),
+        Some("no_host_verification") => Some(TlsSecurity::NoHostVerification),
+        Some("strict") => Some(TlsSecurity::Strict),
+        Some("default") => Some(TlsSecurity::Default),
+        Some(_) => anyhow::bail!(
+            "Unsupported TLS security, options: \
+             `default`, `strict`, `no_host_verification`, `insecure`"
+        ),
+    };
     if options.no_tls_verify_hostname {
-        builder.verify_hostname(false);
+        if let Some(s) = security {
+            if s != TlsSecurity::NoHostVerification {
+                anyhow::bail!(
+                    "Cannot set --no-tls-verify-hostname while \
+                     --tls-security is also set"
+                );
+            }
+        } else {
+            security = Some(TlsSecurity::NoHostVerification);
+        }
     }
     if options.tls_verify_hostname {
-        builder.verify_hostname(true);
+        if let Some(s) = security {
+            if s != TlsSecurity::Strict {
+                anyhow::bail!(
+                    "Cannot set --tls-verify-hostname while \
+                     --tls-security is also set"
+                );
+            }
+        } else {
+            security = Some(TlsSecurity::Strict);
+        }
+    }
+    if let Some(s) = security {
+        builder.tls_security(s);
     }
     Ok(())
 }
