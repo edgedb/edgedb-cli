@@ -451,6 +451,8 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         task::block_on(migrate(&inst, !options.non_interactive))?;
     }
 
+    maybe_ask_update_credentials_file(options, &inst)?;
+
     print::success("Project linked");
     if let Some(dir) = &options.project_dir {
         println!(
@@ -519,6 +521,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
                 log::warn!("Could not check instance's version: {:#}", e);
             }
         }
+        maybe_ask_update_credentials_file(options, &inst)?;
         inst
     } else {
         let method = ask_method(&avail_methods, options)?;
@@ -769,6 +772,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         if !schema_files {
             write_default(&schema_dir)?;
         }
+        maybe_ask_update_credentials_file(options, &inst)?;
 
         inst
     } else {
@@ -969,6 +973,16 @@ async fn migrate(inst: &InstInfo<'_>, ask_for_running: bool)
             quiet: false,
             to_revision: None,
         }).await?;
+    Ok(())
+}
+
+fn maybe_ask_update_credentials_file(
+    options: &Init, inst: &InstInfo
+) -> anyhow::Result<()> {
+    if !options.non_interactive {
+        let builder = task::block_on(inst.get_builder())?;
+        credentials::maybe_update_credentials_file(&builder, true)?;
+    }
     Ok(())
 }
 

@@ -1077,7 +1077,7 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.2.0"
-source = "git+https://github.com/edgedb/edgedb-rust#9f912ad8eae26fcb91ade76692344e88d9fe4559"
+source = "git+https://github.com/fantix/edgedb-rust?branch=get_instance_name_for_creds_update#e78f6560c5ff0c04421791c30b73bc39ac820f9b"
 dependencies = [
  "async-std",
  "async-trait",
@@ -1108,7 +1108,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.2.0"
-source = "git+https://github.com/edgedb/edgedb-rust#9f912ad8eae26fcb91ade76692344e88d9fe4559"
+source = "git+https://github.com/fantix/edgedb-rust?branch=get_instance_name_for_creds_update#e78f6560c5ff0c04421791c30b73bc39ac820f9b"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -1119,7 +1119,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb-rust#9f912ad8eae26fcb91ade76692344e88d9fe4559"
+source = "git+https://github.com/fantix/edgedb-rust?branch=get_instance_name_for_creds_update#e78f6560c5ff0c04421791c30b73bc39ac820f9b"
 dependencies = [
  "bytes",
 ]
@@ -1127,7 +1127,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.2.0"
-source = "git+https://github.com/edgedb/edgedb-rust#9f912ad8eae26fcb91ade76692344e88d9fe4559"
+source = "git+https://github.com/fantix/edgedb-rust?branch=get_instance_name_for_creds_update#e78f6560c5ff0c04421791c30b73bc39ac820f9b"
 dependencies = [
  "bigdecimal",
  "bytes",

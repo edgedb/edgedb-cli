@@ -11,6 +11,7 @@ use edgedb_client::Builder;
 use edgedb_client::credentials::Credentials;
 
 use crate::platform::config_dir;
+use crate::question;
 use crate::server::reset_password::write_credentials;
 use crate::server::is_valid_name;
 
@@ -18,7 +19,7 @@ use crate::server::is_valid_name;
 
 pub fn get_connector(name: &str) -> anyhow::Result<Builder> {
     let mut builder = Builder::uninitialized();
-    task::block_on(builder.read_credentials(path(name)?))?;
+    task::block_on(builder.read_instance(name))?;
     Ok(builder)
 }
 
@@ -59,5 +60,23 @@ pub fn add_certificate(instance_name: &str, certificate: &str)
     let mut creds: Credentials = serde_json::from_slice(&data)?;
     creds.tls_cert_data = Some(certificate.into());
     task::block_on(write_credentials(&cred_path, &creds))?;
+    Ok(())
+}
+
+pub fn maybe_update_credentials_file(
+    builder: &Builder, ask: bool
+) -> anyhow::Result<()> {
+    if let Some(instance_name) = builder.get_instance_name_for_creds_update() {
+        let creds_path = path(instance_name)?;
+        if !ask || question::Confirm::new(format!(
+            "The format of the instance credential file at {} is outdated, \
+             update now?",
+            creds_path.display(),
+        )).ask()? {
+            task::block_on(write_credentials(
+                &creds_path, &builder.as_credentials()?
+            ))?;
+        }
+    }
     Ok(())
 }

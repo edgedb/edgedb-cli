@@ -769,6 +769,9 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
                 }
             }
         }
+        credentials::maybe_update_credentials_file(
+            &inst.get_connector(false)?, false
+        )?;
 
         let mut cmd = inst.method.docker_run("server",
             new_image.tag.as_image_name(), "edgedb-server");
