@@ -13,6 +13,7 @@ use webpki::DNSNameRef;
 
 use edgedb_client::{tls::verify_server_cert, Builder};
 use edgedb_client::errors::{Error, PasswordRequired, ClientNoCredentialsError};
+use edgedb_client::credentials::TlsSecurity;
 
 use crate::connect::Connector;
 use crate::hint::{HintedError, HintExt};
@@ -25,7 +26,7 @@ use crate::server::options::Link;
 
 struct InteractiveCertVerifier {
     cert_out: Mutex<Option<String>>,
-    verify_hostname: Option<bool>,
+    tls_security: TlsSecurity,
     system_ca_only: bool,
     non_interactive: bool,
     quiet: bool,
@@ -33,20 +34,11 @@ struct InteractiveCertVerifier {
 }
 
 impl InteractiveCertVerifier {
-    fn new(
-        non_interactive: bool,
-        quiet: bool,
-        verify_hostname: Option<bool>,
-        system_ca_only: bool,
-        trust_tls_cert: bool,
-    ) -> Self {
-        Self {
-            cert_out: Mutex::new(None),
-            verify_hostname,
-            system_ca_only,
-            non_interactive,
-            quiet,
-            trust_tls_cert,
+    fn verify_hostname(&self, default: bool) -> bool {
+        match self.tls_security {
+            TlsSecurity::Default => default,
+            TlsSecurity::Strict => true,
+            _ => false,
         }
     }
 }
@@ -58,10 +50,13 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                           dns_name: DNSNameRef,
                           _ocsp_response: &[u8],
     ) -> Result<ServerCertVerified, TLSError> {
+        if let TlsSecurity::Insecure = self.tls_security {
+            return Ok(ServerCertVerified::assertion());
+        }
         let untrusted_index = presented_certs.len() - 1;
         match verify_server_cert(roots, presented_certs) {
             Ok(cert) => {
-                if self.verify_hostname.unwrap_or(self.system_ca_only) {
+                if self.verify_hostname(self.system_ca_only) {
                     cert.verify_is_valid_for_dns_name(dns_name)
                         .map_err(TLSError::WebPKIError)?;
                 }
@@ -79,7 +74,7 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                 roots.add(&presented_certs[untrusted_index])
                     .map_err(TLSError::WebPKIError)?;
                 let cert = verify_server_cert(&roots, presented_certs)?;
-                if self.verify_hostname.unwrap_or(false) {
+                if self.verify_hostname(false) {
                     cert.verify_is_valid_for_dns_name(dns_name)
                         .map_err(TLSError::WebPKIError)?;
                 }
@@ -167,13 +162,14 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
 
     let mut creds = builder.as_credentials()?;
     let mut verifier = Arc::new(
-        InteractiveCertVerifier::new(
-            cmd.non_interactive,
-            cmd.quiet,
-            creds.tls_verify_hostname,
-            creds.tls_cert_data.is_none(),
-            cmd.trust_tls_cert,
-        )
+        InteractiveCertVerifier {
+            cert_out: Mutex::new(None),
+            tls_security: creds.tls_security,
+            system_ca_only: creds.tls_cert_data.is_none(),
+            non_interactive: cmd.non_interactive,
+            quiet: cmd.quiet,
+            trust_tls_cert: cmd.trust_tls_cert,
+        }
     );
     if let Err(e) = builder.connect_with_cert_verifier(
         verifier.clone()
@@ -199,13 +195,14 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             }
             creds = builder.as_credentials()?;
             verifier = Arc::new(
-                InteractiveCertVerifier::new(
-                    true,
-                    false,
-                    creds.tls_verify_hostname,
-                    creds.tls_cert_data.is_none(),
-                    true,
-                )
+                InteractiveCertVerifier {
+                    cert_out: Mutex::new(None),
+                    tls_security: creds.tls_security,
+                    system_ca_only: creds.tls_cert_data.is_none(),
+                    non_interactive: true,
+                    quiet: false,
+                    trust_tls_cert: true,
+                }
             );
             Connector::new(Ok(builder)).connect_with_cert_verifier(
                 verifier.clone()
