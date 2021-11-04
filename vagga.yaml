@@ -66,6 +66,18 @@ commands:
     volumes:
       /var/docker.sock: !BindRW /volumes/docker.sock
 
+  test-portable: !Command
+    description: Run portable package tests in docker
+    container: ubuntu
+    run:
+    - cargo
+    - test
+    - --test=docker_portable_wrapper
+    environ:
+      DOCKER_HOST: unix:///var/docker.sock
+    volumes:
+      /var/docker.sock: !BindRW /volumes/docker.sock
+
   test-gh: !Command
     description: Run github action tests
     container: ubuntu

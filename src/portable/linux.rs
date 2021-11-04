@@ -49,6 +49,11 @@ pub fn create_service(name: &str, info: &InstanceInfo, paths: &Paths)
             .arg("enable")
             .arg(&unit_name)
             .run()?;
+        process::Native::new("systemctl", "systemctl", "systemctl")
+            .arg("--user")
+            .arg("start")
+            .arg(&unit_name)
+            .run()?;
     }
     Ok(())
 }
