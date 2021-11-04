@@ -5,8 +5,7 @@ set -Exeo pipefail
 if [[ "${OS_NAME}" == macos* ]]; then
     wget https://packages.edgedb.com/dist/macos-x86_64/edgedb-server-${SLOT}_latest.pkg \
         -O edgedb.pkg -nv
-    sudo env _EDGEDB_INSTALL_SKIP_BOOTSTRAP=1 installer \
-        -dumplog -verbose -pkg "$(pwd)/edgedb.pkg" -target /
+    sudo installer -dumplog -verbose -pkg "$(pwd)/edgedb.pkg" -target /
     rm edgedb.pkg
 
     # EdgeDB installer adds paths to /etc/paths.d,
@@ -28,6 +27,5 @@ elif [[ "${OS_NAME}" == ubuntu* ]]; then
         | sudo tee /etc/apt/sources.list.d/edgedb.list
 
     sudo apt-get update
-    sudo env _EDGEDB_INSTALL_SKIP_BOOTSTRAP=1 \
-        apt-get install edgedb-${SLOT}
+    sudo apt-get install edgedb-${SLOT}
 fi
