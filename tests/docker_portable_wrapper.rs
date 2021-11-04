@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature="test_docker_wrapper"), allow(dead_code))]
+
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::fs;
@@ -28,6 +30,7 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
     let tests = std::process::Command::new("cargo")
         .arg("build")
         .arg("--tests")
+        .arg("--features=docker_test_wrapper,portable_tests")
         .arg("--message-format=json")
         .output().unwrap();
     let mut executables: HashMap<String, PathBuf> = HashMap::new();
@@ -40,6 +43,7 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
         };
         executables.insert(art.target.name.clone(), art.executable.into());
     }
+    assert!(executables.len() > 0);
 
     let mut context = docker::Context::new();
     context = context.add_file("Dockerfile", dockerfile()).unwrap();
@@ -86,6 +90,8 @@ fn dockerfile() -> String {
         ADD ./tests /tests
     "###)
 }
+
+#[cfg(feature="docker_test_wrapper")]
 #[test_case("portable_smoke")]
 fn run_test(name: &'static str) {
     let file_name = TEST_EXECUTABLES.get(name).unwrap()

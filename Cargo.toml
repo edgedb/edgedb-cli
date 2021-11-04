@@ -112,6 +112,8 @@ warp = {git="https://github.com/fantix/warp", rev = "dab7759", default-features=
 dev_mode = []
 github_action_install = []
 github_nightly = []
+portable_tests = []
+docker_test_wrapper = []
 
 [target.'cfg(unix)'.dependencies]
 signal = "0.7.0"
