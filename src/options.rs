@@ -117,9 +117,10 @@ pub struct ConnectionOptions {
     ///
     /// By default it's enabled when no specific certificate is present
     /// (via `--tls-ca-file` or in credentials JSON file)
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(long)]
     #[clap(setting=clap::ArgSettings::Hidden)]
-    pub tls_verify_hostname: bool,
+    #[clap(conflicts_with_all=&["no_tls_verify_hostname"])]
+    pub tls_verify_hostname: bool, // deprecated for tls_security
 
     /// Do not verify hostname of the server
     ///
@@ -127,12 +128,34 @@ pub struct ConnectionOptions {
     /// certificate must be present and match certificate specified with
     /// `--tls-ca-file` or credentials file or signed by one of the root
     /// certificate authorities.
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(long)]
     #[clap(setting=clap::ArgSettings::Hidden)]
-    pub no_tls_verify_hostname: bool,
+    #[clap(conflicts_with_all=&["tls_verify_hostname"])]
+    pub no_tls_verify_hostname: bool, // deprecated for tls_security
 
+    /// Specify the client-side TLS security mode.
+    ///
+    /// `insecure`:
+    /// Do not verify server certificate at all, only use encryption.
+    ///
+    /// `no_host_verification`:
+    /// This allows using any certificate for any hostname. However,
+    /// certificate must be present and match certificate specified with
+    /// `--tls-ca-file` or credentials file or signed by one of the root
+    /// certificate authorities.
+    ///
+    /// `strict`:
+    /// Verify the server certificate and check the hostname.
+    /// It's useful when certificate authority (CA) is used for handling
+    /// certificate and usually not used for self-signed certificates.
+    ///
+    /// `default`:
+    /// By default it's "strict" when no specific certificate is present
+    /// (via `--tls-ca-file` or in credentials JSON file), or
+    /// "no_host_verification" otherwise.
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(setting=clap::ArgSettings::Hidden)]
+    #[clap(value_name="insecure | no_host_verification | strict | default")]
     tls_security: Option<String>,
 
     /// In case EdgeDB connection can't be established, retry up to
@@ -605,12 +628,6 @@ pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
     if let Some(cert_file) = &options.tls_ca_file {
         let data = fs::read_to_string(cert_file)?;
         builder.pem_certificates(&data)?;
-    }
-    if options.no_tls_verify_hostname && options.tls_verify_hostname {
-        anyhow::bail!(
-            "--tls-verify-hostname and --no-tls-verify-hostname are \
-             mutually exclusive."
-        )
     }
     let mut security = match options.tls_security.as_deref() {
         None => None,
