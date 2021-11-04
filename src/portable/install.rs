@@ -12,7 +12,7 @@ use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
 use crate::portable::platform::optional_docker_check;
-use crate::portable::repository::{PackageInfo, Query};
+use crate::portable::repository::{PackageInfo, PackageHash, Query};
 use crate::portable::repository::{get_server_package, download};
 use crate::portable::ver;
 use crate::print::{self, eecho, Highlight};
@@ -22,8 +22,7 @@ use crate::server::options::Install;
 pub struct InstallInfo {
     version: ver::Build,
     package_url: url::Url,
-    #[serde(with="serde_str")]
-    package_hash: blake3::Hash,
+    package_hash: PackageHash,
     #[serde(with="serde_millis")]
     installed_at: SystemTime,
 }
@@ -47,14 +46,24 @@ fn check_metadata(dir: &Path, pkg_info: &PackageInfo)
 
 #[context("failed to download {}", pkg_info)]
 fn download_package(pkg_info: &PackageInfo)
-    -> anyhow::Result<(PathBuf, blake3::Hash)>
+    -> anyhow::Result<PathBuf>
 {
     let cache_dir = platform::cache_dir()?;
     let download_dir = cache_dir.join("downloads");
     fs::create_dir_all(&download_dir)?;
     let cache_path = download_dir.join(pkg_info.cache_file_name());
-    let hash = task::block_on(download(&cache_path, &pkg_info.package_url))?;
-    Ok((cache_path, hash))
+    let hash = task::block_on(download(&cache_path, &pkg_info.url))?;
+    match &pkg_info.hash {
+        PackageHash::Blake2b(hex) => {
+            if hash.to_hex()[..] != hex[..] {
+                anyhow::bail!("hash mismatch {} != {}", hash.to_hex(), hex);
+            }
+        }
+        PackageHash::Unknown(val) => {
+            log::warn!("Cannot verify hash, unknown hash format {:?}", val);
+        }
+    }
+    Ok(cache_path)
 }
 
 #[context("cannot write metadata {:?}", path)]
@@ -182,13 +191,13 @@ pub fn version(query: &Query) -> anyhow::Result<InstallInfo> {
     }
 
     eecho!("Downloading package...");
-    let (cache_path, pkg_hash) = download_package(&pkg_info)?;
+    let cache_path = download_package(&pkg_info)?;
     let tmp_target = platform::tmp_file_path(&target_dir);
     unpack_package(&cache_path, &tmp_target)?;
     let info = InstallInfo {
         version: pkg_info.version.clone(),
-        package_url: pkg_info.package_url,
-        package_hash: pkg_hash,
+        package_url: pkg_info.url,
+        package_hash: pkg_info.hash,
         installed_at: SystemTime::now(),
     };
     write_meta(&tmp_target.join("install_info.json"), &info)?;

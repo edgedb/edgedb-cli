@@ -1,7 +1,7 @@
+use std::cmp::min;
 use std::env;
 use std::fmt;
 use std::iter;
-use std::str::FromStr;
 use std::time::Duration;
 
 use crate::portable::platform;
@@ -15,6 +15,7 @@ use async_std::task;
 use fn_error_context::context;
 use url::Url;
 use indicatif::{ProgressBar, ProgressStyle};
+use serde::{ser, de, Serialize, Deserialize};
 
 const MAX_ATTEMPTS: u32 = 10;
 pub const USER_AGENT: &str = "edgedb";
@@ -37,23 +38,47 @@ pub struct Query {
     version: Option<ver::Filter>,
 }
 
-#[derive(serde::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct RepositoryData {
     pub packages: Vec<PackageData>,
 }
 
-#[derive(serde::Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone)]
+pub struct InstallRef {
+    #[serde(rename="ref")]
+    path: String,
+    #[serde(rename="type")]
+    kind: String,
+    encoding: Option<String>,
+    verification: Verification,
+}
+
+#[derive(Deserialize, Debug, Clone)]
 pub struct PackageData {
     pub basename: String,
     pub version: String,
-    pub installref: String,
+    pub installrefs: Vec<InstallRef>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Verification {
+    size: u64,
+    blake2b: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct PackageInfo {
     pub version: ver::Build,
-    pub package_url: Url,
-    pub package_type: PackageType,
+    pub url: Url,
+    pub size: u64,
+    pub hash: PackageHash,
+    pub kind: PackageType,
+}
+
+#[derive(Debug, Clone)]
+pub enum PackageHash {
+    Blake2b(Box<str>),
+    Unknown(Box<str>),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -66,16 +91,6 @@ pub struct HttpError(surf::Error);
 pub struct HttpFailure(surf::Response);
 
 
-impl FromStr for PackageType {
-    type Err = anyhow::Error;
-    fn from_str(s: &str) -> anyhow::Result<PackageType> {
-        if s.ends_with(".tar.zst") {
-            return Ok(PackageType::TarZst);
-        }
-        anyhow::bail!("Only .tar.zst packages supported");
-    }
-}
-
 impl PackageType {
     fn as_ext(&self) -> &str {
         match self {
@@ -87,9 +102,9 @@ impl PackageType {
 impl PackageInfo {
     pub fn cache_file_name(&self) -> String {
         // TODO(tailhook) use package hash when that is available
-        let hash = blake3::hash(self.package_url.as_str().as_bytes());
+        let hash = self.hash.short();
         format!("edgedb-server_{}_{:7}{}",
-                self.version, hash, self.package_type.as_ext())
+                self.version, hash, self.kind.as_ext())
     }
 }
 
@@ -163,6 +178,37 @@ pub async fn get_json<T>(url: &Url) -> Result<T, anyhow::Error>
     Ok(serde_path_to_error::deserialize(jd)?)
 }
 
+fn filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
+    let result = _filter_package(pkg_root, pkg);
+    if result.is_none() {
+        log::info!("Skipping package {:?}", pkg);
+    }
+    return result;
+}
+fn _filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
+    let iref = pkg.installrefs.iter()
+        .filter(|r| (
+                r.kind == "application/x-tar" &&
+                r.encoding.as_ref().map(|x| &x[..]) == Some("zstd") &&
+                r.verification.blake2b.as_ref()
+                    .map(valid_hash).unwrap_or(false)
+        ))
+        .next()?;
+    Some(PackageInfo {
+        version: pkg.version.parse().ok()?,
+        url: pkg_root.join(&iref.path).ok()?,
+        hash: PackageHash::Blake2b(
+            iref.verification.blake2b.as_ref()?[..].into()),
+        kind: PackageType::TarZst,
+        size: iref.verification.size,
+    })
+}
+
+fn valid_hash(val: &String) -> bool {
+    val.len() == 128 &&
+        hex::decode(val).map(|x| x.len() == 64).unwrap_or(false)
+}
+
 pub fn get_server_packages(channel: Channel)
     -> anyhow::Result<Vec<PackageInfo>>
 {
@@ -179,16 +225,9 @@ pub fn get_server_packages(channel: Channel)
         Nightly => format!("/archive/.jsonindexes/{}.nightly.json", plat),
     })?;
     let data: RepositoryData = task::block_on(get_json(&url))?;
-    let packages = data.packages.into_iter()
+    let packages = data.packages.iter()
         .filter(|pkg| pkg.basename == "edgedb-server")
-        .filter_map(|pkg| {
-            Some(PackageInfo {
-                // TODO(tailhook) probably warning on invalid ver/ref
-                version: pkg.version.parse().ok()?,
-                package_url: pkg_root.join(&pkg.installref).ok()?,
-                package_type: pkg.installref.parse().ok()?,
-            })
-        })
+        .filter_map(|p| filter_package(&pkg_root, p))
         .collect();
     Ok(packages)
 }
@@ -205,7 +244,7 @@ pub fn get_server_package(query: &Query)
 
 #[context("failed to download file at URL: {}", url)]
 pub async fn download(dest: impl AsRef<Path>, url: &Url)
-    -> Result<blake3::Hash, anyhow::Error>
+    -> Result<blake2b_simd::Hash, anyhow::Error>
 {
     let dest = dest.as_ref();
     log::info!("Downloading {} -> {}", url, dest.display());
@@ -225,7 +264,7 @@ pub async fn download(dest: impl AsRef<Path>, url: &Url)
             {bytes:>7.dim}/{total_bytes:7} \
             {binary_bytes_per_sec:.dim} | ETA: {eta}")
         .progress_chars("=> "));
-    let mut hasher = blake3::Hasher::new();
+    let mut hasher = blake2b_simd::State::new();
     let mut buf = [0u8; 16384];
     loop {
         let bytes = body.read(&mut buf).await?;
@@ -247,6 +286,28 @@ impl fmt::Display for PackageInfo {
     }
 }
 
+impl PackageHash {
+    fn short(&self) -> &str {
+        match self {
+            PackageHash::Blake2b(val) => &val[..7],
+            PackageHash::Unknown(val) => {
+                let start = val.find(":")
+                    .unwrap_or(val.len().saturating_sub(7));
+                &val[start..min(7, val.len() - start)]
+            }
+        }
+    }
+}
+
+impl fmt::Display for PackageHash {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PackageHash::Blake2b(val) => write!(f, "blake2b:{}", val),
+            PackageHash::Unknown(val) => write!(f, "{}", val),
+        }
+    }
+}
+
 impl Query {
     pub fn from_options(nightly: bool,
         version: &Option<crate::server::version::Version<String>>)
@@ -261,5 +322,29 @@ impl Query {
             .transpose().context("Unexpected --version")?;
 
         Ok(Query { channel, version })
+    }
+}
+
+impl Serialize for PackageHash {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for PackageHash {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: de::Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+        if let Some(hash) = s.strip_prefix("blake2b:") {
+            if hash.len() != 64 {
+                return Err(de::Error::custom("invalid blake2b hash length"));
+            }
+            return Ok(PackageHash::Blake2b(hash.into()));
+        }
+        return Ok(PackageHash::Unknown(s.into()));
     }
 }

@@ -296,7 +296,7 @@ dependencies = [
 [[package]]
 name = "async-process"
 version = "1.2.0"
-source = "git+https://github.com/smol-rs/async-process#c8bdbc1de62858ae0b5834cd50691e6a66995afd"
+source = "git+https://github.com/smol-rs/async-process?rev=c8bdbc1#c8bdbc1de62858ae0b5834cd50691e6a66995afd"
 dependencies = [
  "async-io",
  "blocking",
@@ -1000,7 +1000,7 @@ dependencies = [
  "arc-swap",
  "assert_cmd",
  "async-listen",
- "async-process 1.2.0 (git+https://github.com/smol-rs/async-process)",
+ "async-process 1.2.0 (git+https://github.com/smol-rs/async-process?rev=c8bdbc1)",
  "async-std",
  "atty",
  "backtrace",
@@ -1596,6 +1596,9 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "hkdf"

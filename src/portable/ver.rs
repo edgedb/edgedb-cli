@@ -54,27 +54,11 @@ static QUERY: Lazy<Regex> = Lazy::new(|| {
         .unwrap()
 });
 
-// TODO(tailhook) remove me after json is fixed
-fn fixup_build(value: &str) -> Option<Build> {
-    static MINOR: Lazy<Regex> = Lazy::new(
-        || Regex::new(r"^\d+\.\d+").unwrap());
-    static DEV: Lazy<Regex> = Lazy::new(
-        || Regex::new(r"\.dev\d+").unwrap());
-    static HASH: Lazy<Regex> = Lazy::new(
-        || Regex::new(r"\.g[a-f0-9]{7}").unwrap());
-
-    let minor = MINOR.find(value)?.as_str();
-    let dev = &DEV.find(value)?.as_str()[4..];
-    let hash = &HASH.find(value)?.as_str()[2..];
-    Some(format!("{}-dev.{}+{}", minor, dev, hash).parse().unwrap())
-}
-
 impl FromStr for Build {
     type Err = anyhow::Error;
     fn from_str(value: &str) -> anyhow::Result<Build> {
         if !BUILD.is_match(value) {
-            return fixup_build(value)
-                .context("unsupported build version format").into();
+            anyhow::bail!("unsupported build version format");
         }
         Ok(Build(value.into()))
     }
