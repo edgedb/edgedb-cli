@@ -2,7 +2,7 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
 use edgedb_client::client::Connection;
-use crate::commands::parser::{Configure, ConfigStr, ConfigI32};
+use crate::commands::parser::{Configure, ConfigStr};
 use crate::commands::parser::{AuthParameter};
 
 
@@ -16,11 +16,12 @@ async fn set_string(cli: &mut Connection, name: &str, value: &ConfigStr)
     Ok(())
 }
 
-async fn set_i32(cli: &mut Connection, name: &str, value: &ConfigI32)
+async fn set_duration(cli: &mut Connection, name: &str, value: &ConfigStr)
     -> Result<(), anyhow::Error>
 {
     print::completion(&cli.execute(
-        &format!("CONFIGURE SYSTEM SET {} := {}", name, value.value)
+        &format!("CONFIGURE SYSTEM SET {} := <duration>{}",
+            name, quote_string(&value.value))
     ).await?);
     Ok(())
 }
@@ -89,8 +90,14 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
         C::Set(Set { parameter: S::EffectiveIoConcurrency(param) }) => {
             set_string(cli, "effective_io_concurrency", param).await
         }
-        C::Set(Set { parameter: S::ClientIdleTimeout(param) }) => {
-            set_i32(cli, "client_idle_timeout", param).await
+        C::Set(Set { parameter: S::SessionIdleTimeout(param) }) => {
+            set_duration(cli, "session_idle_timeout", param).await
+        }
+        C::Set(Set { parameter: S::SessionIdleTransactionTimeout(param) }) => {
+            set_duration(cli, "session_idle_transaction_timeout", param).await
+        }
+        C::Set(Set { parameter: S::QueryExecutionTimeout(param) }) => {
+            set_duration(cli, "query_execution_timeout", param).await
         }
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
@@ -103,7 +110,10 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 C::EffectiveCacheSize => "effective_cache_size",
                 C::DefaultStatisticsTarget => "default_statistics_target",
                 C::EffectiveIoConcurrency => "effective_io_concurrency",
-                C::ClientIdleTimeout => "client_idle_timeout",
+                C::SessionIdleTimeout => "session_idle_timeout",
+                C::SessionIdleTransactionTimeout
+                    => "session_idle_transaction_timeout",
+                C::QueryExecutionTimeout => "query_execution_timeout",
             };
             print::completion(&cli.execute(
                 &format!("CONFIGURE SYSTEM RESET {}", name)
