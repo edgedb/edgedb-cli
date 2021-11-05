@@ -169,7 +169,10 @@ impl State {
             ).await
             .context("cannot send to input thread")?;
         let result = if let Some(conn) = &mut self.connection {
-            self.prompt.data.recv().race(conn.passive_wait()).await
+            let result = self.prompt.data.recv()
+                .race(conn.background_pings()).await;
+            conn.synchronize_ping().await;
+            result
         } else {
             self.prompt.data.recv().await
         };
