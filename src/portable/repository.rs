@@ -340,7 +340,7 @@ impl<'de> Deserialize<'de> for PackageHash {
     {
         let s: String = Deserialize::deserialize(deserializer)?;
         if let Some(hash) = s.strip_prefix("blake2b:") {
-            if hash.len() != 64 {
+            if hash.len() != 128 {
                 return Err(de::Error::custom("invalid blake2b hash length"));
             }
             return Ok(PackageHash::Blake2b(hash.into()));
