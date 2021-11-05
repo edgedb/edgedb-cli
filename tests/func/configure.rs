@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::collections::BTreeSet;
 
 use crate::SERVER;
@@ -36,7 +35,8 @@ fn configure_all_parameters() {
         .skip_while(|line| line != &"SUBCOMMANDS:")
         .skip(1)
         .filter(|line| line.len() > 4)
-        .map(|line| line[..min(33, line.len())].trim())
+        .filter(|line| !line[4..].starts_with("    "))
+        .map(|line| line.split_whitespace().next().unwrap())
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
 
@@ -73,7 +73,8 @@ fn configure_all_parameters() {
         .skip_while(|line| line != &"SUBCOMMANDS:")
         .skip(1)
         .filter(|line| line.len() > 4)
-        .map(|line| line[..min(12, line.len())].trim())
+        .filter(|line| !line[4..].starts_with("    "))
+        .map(|line| line.split_whitespace().next().unwrap())
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
     if !db_object_options.is_subset(&cmd_object_options) {
@@ -90,7 +91,7 @@ fn configure_all_parameters() {
         .skip(1)
         .filter(|line| line.len() > 4)
         .filter(|line| !line[4..].starts_with("    "))
-        .map(|line| line[..min(33, line.len())].trim())
+        .map(|line| line.split_whitespace().next().unwrap())
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
     let db_reset_options = db_object_options.union(&db_simple_options)
