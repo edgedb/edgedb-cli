@@ -127,6 +127,8 @@ fn install() {
         .context("status-1-4", "status of `inst1`")
         .success();
 
+    /*
+    * TODO
     Command::new("edgedb")
         .arg("instance").arg("upgrade").arg("inst1")
         .arg("--to-latest").arg("--force")
@@ -148,7 +150,6 @@ fn install() {
         .success();
 
 
-    /* TODO
     Command::new(&edgedb)
         .arg("server").arg("uninstall").arg("--version=1-beta3")
         .assert()
