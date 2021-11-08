@@ -72,6 +72,12 @@ impl Context {
         self.tar.append(&header, data)?;
         Ok(self)
     }
+    pub fn add_dir(self, path: impl AsRef<Path>, src_path: impl AsRef<Path>)
+        -> anyhow::Result<Self>
+    {
+        self.tar.append_dir(path, src_path)?;
+        Ok(self)
+    }
     pub fn add_file(self, filename: impl AsRef<Path>,
         data: impl AsRef<[u8]>)
         -> anyhow::Result<Self>

@@ -48,6 +48,7 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
     let mut context = docker::Context::new();
     context = context.add_file("Dockerfile", dockerfile()).unwrap();
     context = context.add_bin().unwrap();
+    context = context.add_dir("tests/proj", "tests/proj").unwrap();
     let base = Path::new("tests/");
     for path in executables.values() {
         if path.extension().is_some() {
@@ -93,6 +94,7 @@ fn dockerfile() -> String {
 
 #[cfg(feature="docker_test_wrapper")]
 #[test_case("portable_smoke")]
+#[test_case("portable_project")]
 fn run_test(name: &'static str) {
     let file_name = TEST_EXECUTABLES.get(name).unwrap()
         .file_name().unwrap()
