@@ -220,3 +220,20 @@ fn create_service(name: &str, meta: &InstanceInfo, paths: &Paths)
         anyhow::bail!("creating a service is not supported on the platform");
     }
 }
+
+impl InstanceInfo {
+    pub fn try_read(name: &str) -> anyhow::Result<Option<InstanceInfo>> {
+        let mut path = data_dir()?.join(name);
+        if !path.exists() {
+            return Ok(None)
+        }
+        path.push("instance_info.json");
+        Ok(Some(InstanceInfo::read(&path)?))
+    }
+
+    #[context("error reading instance info: {:?}", path)]
+    fn read(path: &PathBuf) -> anyhow::Result<InstanceInfo> {
+        let f = io::BufReader::new(fs::File::open(path)?);
+        Ok(serde_json::from_reader(f)?)
+    }
+}

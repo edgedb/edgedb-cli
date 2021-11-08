@@ -33,10 +33,14 @@ pub enum PackageType {
     TarZst,
 }
 
+#[derive(Debug, Clone)]
 pub struct Query {
-    channel: Channel,
-    version: Option<ver::Filter>,
+    pub channel: Channel,
+    pub version: Option<ver::Filter>,
 }
+
+#[derive(Debug, Clone)]
+pub struct QueryDisplay<'a>(&'a Query);
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct RepositoryData {
@@ -309,6 +313,9 @@ impl fmt::Display for PackageHash {
 }
 
 impl Query {
+    pub fn display(&self) -> QueryDisplay {
+        QueryDisplay(self)
+    }
     pub fn from_options(nightly: bool,
         version: &Option<crate::server::version::Version<String>>)
         -> anyhow::Result<Query>
@@ -322,6 +329,16 @@ impl Query {
             .transpose().context("Unexpected --version")?;
 
         Ok(Query { channel, version })
+    }
+    pub fn matches(&self, ver: &ver::Build) -> bool {
+        match &self.version {
+            Some(query_ver) => query_ver.matches(ver),
+            None => {
+                Channel::from_version(&ver.specific())
+                    .map(|channel| self.channel == channel)
+                    .unwrap_or(false)
+            }
+        }
     }
 }
 
@@ -348,3 +365,89 @@ impl<'de> Deserialize<'de> for PackageHash {
         return Ok(PackageHash::Unknown(s.into()));
     }
 }
+
+impl<'de> Deserialize<'de> for Query {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: de::Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+        if s == "*" {
+            return Ok(Query {
+                channel: Channel::Stable,
+                version: None,
+            });
+        } else if s == "nightly" {
+            return Ok(Query {
+                channel: Channel::Nightly,
+                version: None,
+            });
+        } else {
+            let ver: ver::Filter = s.parse()
+                .map_err(serde::de::Error::custom)?;
+            return Ok(Query {
+                channel: Channel::from_filter(&ver)
+                    .map_err(serde::de::Error::custom)?,
+                version: Some(ver),
+            });
+        }
+    }
+}
+
+impl Channel {
+    pub fn from_version(ver: &ver::Specific) -> anyhow::Result<Channel> {
+        match ver.minor {
+            ver::MinorVersion::Dev(_) => Ok(Channel::Nightly),
+            ver::MinorVersion::Minor(_) => Ok(Channel::Stable),
+            _ if ver.major == 1 => {
+                // before 1.0 all prereleases go into a stable channel
+                Ok(Channel::Stable)
+            }
+            _ => {
+                anyhow::bail!("prerelease versions > 1.0 \
+                               are no supported yet");
+            }
+        }
+    }
+    pub fn from_filter(ver: &ver::Filter) -> anyhow::Result<Channel> {
+        match ver.minor {
+            None => Ok(Channel::Stable),
+            Some(ver::FilterMinor::Minor(_)) => Ok(Channel::Stable),
+            Some(_) if ver.major == 1 => {
+                // before 1.0 all prereleases go into a stable channel
+                Ok(Channel::Stable)
+            }
+            Some(_) => {
+                anyhow::bail!("prerelease versions > 1.0 \
+                               are no supported yet");
+            }
+        }
+    }
+    pub fn as_str(&self) -> &str {
+        match self {
+            Channel::Nightly => "nightly",
+            Channel::Stable => "stable",
+        }
+    }
+}
+
+impl fmt::Display for QueryDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use ver::FilterMinor::*;
+
+        match &self.0.version {
+            None => self.0.channel.as_str().fmt(f),
+            Some(ver) => {
+                ver.major.fmt(f)?;
+                f.write_str(".")?;
+                match ver.minor {
+                    None => "0".fmt(f),
+                    Some(Minor(m)) => m.fmt(f),
+                    Some(Alpha(v)) => write!(f, "0-alpha.{}", v),
+                    Some(Beta(v)) => write!(f, "0-beta.{}", v),
+                    Some(Rc(v)) => write!(f, "0-rc.{}", v),
+                }
+            }
+        }
+    }
+}
+

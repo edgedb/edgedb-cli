@@ -6,14 +6,12 @@ use anyhow::Context;
 
 pub mod options;
 
-mod config;
-mod info;
-mod main;
-mod unlink;
-mod upgrade;
+pub mod config;
+pub mod info;
+pub mod unlink;
+pub mod upgrade;
 pub mod init;
 
-pub use main::main;
 pub use init::{stash_path, stash_base};
 pub use unlink::unlink;
 

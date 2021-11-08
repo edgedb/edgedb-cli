@@ -11,8 +11,8 @@ pub struct Build(Box<str>);
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Specific {
-    major: u32,
-    minor: MinorVersion,
+    pub major: u32,
+    pub minor: MinorVersion,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,8 +27,8 @@ pub enum MinorVersion {
 /// Version stored in config and in various `--version=` args
 #[derive(Clone, Debug, PartialEq)]
 pub struct Filter {
-    major: u32,
-    minor: Option<FilterMinor>,
+    pub major: u32,
+    pub minor: Option<FilterMinor>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

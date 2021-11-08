@@ -6,7 +6,6 @@ use crate::options::{Options, Command};
 use crate::commands::parser::{Common, MigrationCmd, Migration};
 use crate::commands;
 use crate::migrations;
-use crate::project;
 use crate::portable;
 use crate::print::style::Styler;
 use crate::non_interactive;
@@ -54,7 +53,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::Project(cmd) => {
             directory_check::check_and_error()?;
-            project::main(cmd)
+            portable::project_main(cmd)
         }
         Command::Query(q) => {
             directory_check::check_and_warn();
