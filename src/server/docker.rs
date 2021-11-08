@@ -614,7 +614,7 @@ impl<'os, O: CurrentOs + ?Sized> DockerMethod<'os, O> {
         cmd.arg("--env")
             // deprecated
             .arg("EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS=1");
-        cmd.arg("--env").arg("EDGEDB_SERVER_HTTP_CLIENT_SECURITY=optional");
+        cmd.arg("--env").arg("EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY=optional");
         cmd.arg("--env").arg("EDGEDB_SERVER_DOCKER_LOG_LEVEL=warning");
         cmd.arg(options.image.tag.as_image_name());
         cmd.arg("edgedb-server");
