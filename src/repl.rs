@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
-use async_std::prelude::FutureExt;
 use async_std::channel::{Sender, Receiver, RecvError};
 use colorful::Colorful;
 use edgedb_client::client::Connection;
@@ -98,6 +97,14 @@ impl State {
                 env!("CARGO_PKG_VERSION"));
             self.last_version = Some(fetched_version);
         }
+        if conn.protocol().is_at_least(0, 13) {
+            conn.execute(
+                "CONFIGURE SESSION SET \
+                 session_idle_transaction_timeout := <std::duration>'5m';"
+            ).await.context(
+                "cannot configure session_idle_transaction_timeout"
+            )?;
+        }
         self.database = self.conn_params.get()?.get_database().into();
         self.connection = Some(conn);
         Ok(())
@@ -169,7 +176,7 @@ impl State {
             ).await
             .context("cannot send to input thread")?;
         let result = if let Some(conn) = &mut self.connection {
-            self.prompt.data.recv().race(conn.passive_wait()).await
+            conn.ping_while(self.prompt.data.recv()).await
         } else {
             self.prompt.data.recv().await
         };

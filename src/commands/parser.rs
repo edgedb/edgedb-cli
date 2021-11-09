@@ -406,13 +406,19 @@ pub enum ValueParameter {
     /// Corresponds to the PostgreSQL configuration parameter of the same name
     EffectiveIoConcurrency(ConfigStr),
 
-    /// Sets the timeout for how long client connections can stay
-    /// inactive before being forcefully closed by the server. The default
-    /// is 60 seconds. Set it to ``0`` to disable the mechanism.
-    ///
-    /// Note that the actual time an idle connection can live can be up to
-    /// two times longer than the specified timeout.
-    ClientIdleTimeout(ConfigI32),
+    /// How long client connections can stay inactive before being closed by
+    /// the server. Defaults to `60 seconds`; set to `0s` to disable
+    /// the mechanism.
+    SessionIdleTimeout(ConfigStr),
+
+    /// How long client connections can stay inactive while in a transaction.
+    /// Defaults to `10 seconds`; set to `0s` to disable the
+    /// mechanism.
+    SessionIdleTransactionTimeout(ConfigStr),
+
+    /// How long an individual query can run before being aborted. A value of
+    /// `0s` disables the mechanism; it is disabled by default.
+    QueryExecutionTimeout(ConfigStr),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -435,8 +441,12 @@ pub enum ConfigParameter {
     DefaultStatisticsTarget,
     /// Reset postgres configuration parameter of the same name
     EffectiveIoConcurrency,
-    /// Reset client idle timeout
-    ClientIdleTimeout,
+    /// Reset session idle timeout
+    SessionIdleTimeout,
+    /// Reset session idle transaction timeout
+    SessionIdleTransactionTimeout,
+    /// Reset query execution timeout
+    QueryExecutionTimeout,
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -452,11 +462,6 @@ pub struct ListenPort {
 #[derive(EdbClap, Clone, Debug)]
 pub struct ConfigStr {
     pub value: String,
-}
-
-#[derive(EdbClap, Clone, Debug)]
-pub struct ConfigI32 {
-    pub value: i32,
 }
 
 #[derive(EdbClap, Clone, Debug)]
