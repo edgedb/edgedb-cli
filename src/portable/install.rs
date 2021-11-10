@@ -11,6 +11,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
+use crate::portable::local;
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{PackageInfo, PackageHash, Query};
 use crate::portable::repository::{get_server_package, download};
@@ -20,20 +21,18 @@ use crate::server::options::Install;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct InstallInfo {
-    version: ver::Build,
-    package_url: url::Url,
-    package_hash: PackageHash,
+    pub version: ver::Build,
+    pub package_url: url::Url,
+    pub package_hash: PackageHash,
     #[serde(with="serde_millis")]
-    installed_at: SystemTime,
+    pub installed_at: SystemTime,
 }
 
 #[context("metadata error for {:?}", dir)]
 fn check_metadata(dir: &Path, pkg_info: &PackageInfo)
     -> anyhow::Result<InstallInfo>
 {
-    let file = fs::File::open(dir.join("install_info.json"))?;
-    let file = io::BufReader::new(file);
-    let data: InstallInfo = serde_json::from_reader(file)?;
+    let data = local::read_metadata(dir)?;
     if data.version != pkg_info.version {
         log::warn!("Remote package has version of {},
                     installed package version: {}",
@@ -213,10 +212,10 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
 }
 
 impl InstallInfo {
+    pub fn base_path(&self) -> anyhow::Result<PathBuf> {
+        Ok(platform::portable_dir()?.join(self.version.specific().to_string()))
+    }
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
-        Ok(platform::portable_dir()?
-            .join(self.version.specific().to_string())
-            .join("bin")
-            .join("edgedb-server"))
+        Ok(self.base_path()?.join("bin").join("edgedb-server"))
     }
 }

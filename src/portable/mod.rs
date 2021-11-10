@@ -1,5 +1,6 @@
 mod config;
 mod exit_codes;
+mod local;
 mod main;
 mod platform;
 mod repository;

@@ -20,6 +20,9 @@ use serde::{ser, de, Serialize, Deserialize};
 const MAX_ATTEMPTS: u32 = 10;
 pub const USER_AGENT: &str = "edgedb";
 
+#[derive(thiserror::Error, Debug)]
+#[error("page not found")]
+pub struct NotFound;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Channel {
@@ -28,7 +31,7 @@ pub enum Channel {
     Nightly,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub enum PackageType {
     TarZst,
 }
@@ -70,7 +73,7 @@ pub struct Verification {
     blake2b: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct PackageInfo {
     pub version: ver::Build,
     pub url: Url,
@@ -118,7 +121,7 @@ fn retry_seconds() -> impl Iterator<Item=u64> {
 }
 
 pub async fn get_header(original_url: &Url) -> anyhow::Result<surf::Response> {
-    use surf::StatusCode::{MovedPermanently, PermanentRedirect};
+    use surf::StatusCode::{self, MovedPermanently, PermanentRedirect};
     use surf::StatusCode::{TooManyRequests};
 
     let mut url = original_url.clone();
@@ -161,6 +164,8 @@ pub async fn get_header(original_url: &Url) -> anyhow::Result<surf::Response> {
                            url, res.status(), secs);
                 task::sleep(Duration::from_secs(secs)).await;
             }
+            Ok(res) if res.status() == StatusCode::NotFound
+                => return Err(NotFound.into()),
             Ok(res) => return Err(HttpFailure(res))?,
             Err(e) => return Err(HttpError(e))?,
         }
@@ -228,7 +233,11 @@ pub fn get_server_packages(channel: Channel)
         Stable => format!("/archive/.jsonindexes/{}.json", plat),
         Nightly => format!("/archive/.jsonindexes/{}.nightly.json", plat),
     })?;
-    let data: RepositoryData = task::block_on(get_json(&url))?;
+    let data: RepositoryData = match task::block_on(get_json(&url)) {
+        Ok(data) => data,
+        Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
+        Err(e) => return Err(e),
+    };
     let packages = data.packages.iter()
         .filter(|pkg| pkg.basename == "edgedb-server")
         .filter_map(|p| filter_package(&pkg_root, p))
@@ -440,6 +449,15 @@ impl Serialize for PackageHash {
         S: ser::Serializer,
     {
         serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl Serialize for Channel {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ser::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
     }
 }
 

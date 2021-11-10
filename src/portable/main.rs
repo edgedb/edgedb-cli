@@ -31,7 +31,9 @@ pub fn server_main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
     }
 }
 
-pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options) -> Result<(), anyhow::Error> {
+pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
+    -> Result<(), anyhow::Error>
+{
     use crate::server::options::InstanceCommand::*;
 
     match &cmd.subcommand {

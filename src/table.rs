@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use prettytable::format::{FormatBuilder, LinePosition, LineSeparator};
 use prettytable::format::{Alignment, TableFormat};
-use prettytable::{Table, Row, Cell, Attr};
+pub use prettytable::{Table, Row, Cell, Attr};
 
 
 pub static FORMAT: Lazy<TableFormat> = Lazy::new(|| {
