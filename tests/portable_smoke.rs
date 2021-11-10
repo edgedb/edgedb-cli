@@ -47,7 +47,7 @@ fn install() {
 
     Command::new("edgedb")
         .arg("server").arg("list-versions")
-        .arg("--json").arg("--installed")
+        .arg("--json").arg("--installed-only")
         .assert()
         .context("list-versions-json-installed", "")
         .success();
@@ -161,6 +161,7 @@ fn install() {
         .assert()
         .context("query-1-2", "query `inst1` after upgrade")
         .success();
+    */
 
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("second")
@@ -168,7 +169,7 @@ fn install() {
         .context("destroy-2", "destroy `second` instance")
         .success();
 
-
+    /*
     Command::new(&edgedb)
         .arg("server").arg("uninstall").arg("--version=1-beta3")
         .assert()

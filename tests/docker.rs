@@ -76,7 +76,7 @@ impl Context {
                    src_path: impl AsRef<Path>)
         -> anyhow::Result<Self>
     {
-        self.tar.append_dir(path, src_path)?;
+        self.tar.append_dir_all(path, src_path)?;
         Ok(self)
     }
     pub fn add_file(self, filename: impl AsRef<Path>,

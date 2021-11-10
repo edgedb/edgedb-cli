@@ -8,7 +8,7 @@ use util::*;
 
 #[cfg(feature="portable_tests")]
 #[test]
-fn project_link() {
+fn project_link_and_init() {
     Command::new("edgedb")
         .arg("--version")
         .assert()
@@ -53,5 +53,35 @@ fn project_link() {
         .current_dir("tests/proj/project2")
         .assert()
         .context("query-2", "query of project2")
+        .success();
+
+    Command::new("edgedb")
+        .arg("instance").arg("destroy").arg("project2")
+        .assert()
+        .context("destroy-2-no", "should warn")
+        .code(2);
+
+    Command::new("edgedb")
+        .arg("instance").arg("destroy").arg("inst1")
+        .assert()
+        .context("destroy-1-no", "should warn")
+        .code(2);
+
+    Command::new("edgedb")
+        .arg("instance").arg("destroy").arg("project1")
+        .assert()
+        .context("destroy-1-non-exist", "it's project name, not instance name")
+        .code(1);
+
+    Command::new("edgedb")
+        .arg("instance").arg("destroy").arg("project2").arg("--force")
+        .assert()
+        .context("destroy-2", "should destroy")
+        .success();
+
+    Command::new("edgedb")
+        .arg("instance").arg("destroy").arg("inst1").arg("--force")
+        .assert()
+        .context("destroy-1", "should destroy")
         .success();
 }
