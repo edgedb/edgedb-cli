@@ -97,16 +97,22 @@ impl State {
                 env!("CARGO_PKG_VERSION"));
             self.last_version = Some(fetched_version);
         }
-        if conn.protocol().is_at_least(0, 13) {
-            conn.execute(
-                "CONFIGURE SESSION SET \
-                 session_idle_transaction_timeout := <std::duration>'5m';"
-            ).await.context(
-                "cannot configure session_idle_transaction_timeout"
-            )?;
-        }
+        self.set_idle_transaction_timeout().await?;
         self.database = self.conn_params.get()?.get_database().into();
         self.connection = Some(conn);
+        Ok(())
+    }
+    pub async fn set_idle_transaction_timeout(&mut self) -> anyhow::Result<()> {
+        if let Some(conn) = &mut self.connection {
+            if conn.protocol().is_at_least(0, 13) {
+                conn.execute(
+                    "CONFIGURE SESSION SET \
+                 session_idle_transaction_timeout := <std::duration>'5m';"
+                ).await.context(
+                    "cannot configure session_idle_transaction_timeout"
+                )?;
+            }
+        }
         Ok(())
     }
     pub async fn try_connect(&mut self, database: &str) -> anyhow::Result<()> {

@@ -148,6 +148,7 @@ pub async fn _main(options: Options, mut state: repl::State, cfg: Config)
     echo!(r#"Type \help for help, \quit to quit."#.light_gray());
     state.set_history_limit(state.history_limit).await?;
     state.connection = Some(conn);
+    state.set_idle_transaction_timeout().await?;
     match _interactive_main(&options, &mut state).await {
         Ok(()) => return Ok(()),
         Err(e) => {
