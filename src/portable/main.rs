@@ -3,13 +3,13 @@ use crate::project::options::ProjectCommand;
 use crate::server::options::ServerCommand;
 use crate::server::options::ServerInstanceCommand;
 
-use crate::portable::project;
-use crate::portable::install;
 use crate::portable::create;
+use crate::portable::destroy;
+use crate::portable::install;
 use crate::portable::list_versions;
+use crate::portable::project;
 
 use crate::server::control;
-use crate::server::destroy;
 use crate::server::detect;
 use crate::server::info;
 use crate::server::link;
@@ -46,8 +46,6 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         cmd => control::instance_command(cmd)
     }
 }
-
-
 
 pub fn project_main(cmd: &ProjectCommand) -> anyhow::Result<()> {
     use crate::project::options::Command::*;

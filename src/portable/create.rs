@@ -7,11 +7,11 @@ use async_std::task;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
-use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform::{self, data_dir};
 use crate::portable::exit_codes;
 use crate::portable::install::{self, InstallInfo};
+use crate::portable::local::Paths;
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
 use crate::portable::{windows, linux, macos};
@@ -24,12 +24,6 @@ use crate::server::reset_password::{write_credentials};
 
 use edgedb_client::credentials::Credentials;
 
-
-pub struct Paths {
-    pub credentials: PathBuf,
-    pub data_dir: PathBuf,
-    pub service_files: Vec<PathBuf>,
-}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct InstanceInfo {
@@ -88,38 +82,6 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         }
     }
     Ok(())
-}
-
-impl Paths {
-    pub fn get(name: &str) -> anyhow::Result<Paths> {
-        Ok(Paths {
-            credentials: credentials::path(name)?,
-            data_dir: data_dir()?.join(name),
-            service_files: if cfg!(windows) {
-                windows::service_files(name)?
-            } else if cfg!(target_os="macos") {
-                macos::service_files(name)?
-            } else if cfg!(target_os="linux") {
-                linux::service_files(name)?
-            } else {
-                Vec::new()
-            }
-        })
-    }
-    fn check_exists(&self) -> anyhow::Result<()> {
-        if self.credentials.exists() {
-            anyhow::bail!("Credentials file {:?} exists", self.credentials);
-        }
-        if self.data_dir.exists() {
-            anyhow::bail!("Data directory {:?} exists", self.data_dir);
-        }
-        for path in &self.service_files {
-            if path.exists() {
-                anyhow::bail!("Service file {:?} exists", path);
-            }
-        }
-        Ok(())
-    }
 }
 
 #[context("cannot write metadata {:?}", path)]

@@ -68,7 +68,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                 return Err(ExitCode::new(2))?;
             }
             if options.destroy_server_instance {
-                destroy::do_destroy(&Destroy {
+                destroy::do_destroy(Vec::new(),  &Destroy {
                     name: inst.to_string(),
                     verbose: false,
                     force: true,

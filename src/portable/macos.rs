@@ -3,7 +3,8 @@ use std::path::PathBuf;
 
 use crate::platform::{home_dir, get_current_uid, cache_dir};
 use crate::process;
-use crate::portable::create::{Paths, InstanceInfo};
+use crate::portable::local::{Paths};
+use crate::portable::create::{InstanceInfo};
 use crate::portable::status::Service;
 use crate::server::options::StartConf;
 
@@ -208,3 +209,24 @@ pub fn service_status(name: &str) -> Service {
     }
     Inactive { error: format!("service {:?} not found", svc_name) }
 }
+
+pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
+    if is_service_loaded(&name) {
+        // bootout will fail if the service is not loaded (e.g. manually-
+        // starting services that never started after reboot), also it's
+        // unnecessary to unload the service if it wasn't loaded.
+        log::info!("Unloading service");
+        bootout(&name)?;
+    }
+
+    let mut found = false;
+    let unit_path = plist_path(&name)?;
+    if unit_path.exists() {
+        found = true;
+        log::info!("Removing unit file {}", unit_path.display());
+        fs::remove_file(unit_path)?;
+    }
+    Ok(found)
+}
+
+

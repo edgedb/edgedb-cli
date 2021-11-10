@@ -11,6 +11,7 @@ mod linux;
 mod windows;
 
 mod create;
+mod destroy;
 pub mod project;
 mod install;
 mod list_versions;

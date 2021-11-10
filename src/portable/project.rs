@@ -19,10 +19,10 @@ use crate::credentials;
 use crate::migrations;
 use crate::platform::{tmp_file_path, path_bytes, symlink_dir, config_dir};
 use crate::portable::config;
-use crate::portable::create::InstanceInfo;
-use crate::portable::create;
+use crate::portable::create::{self, InstanceInfo};
 use crate::portable::exit_codes;
 use crate::portable::install;
+use crate::portable::local;
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::ver;
@@ -308,7 +308,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
         port,
         start_conf,
     };
-    let paths = create::Paths::get(&name)?;
+    let paths = local::Paths::get(&name)?;
     create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
 
     let svc_result = create::create_service(&name, &info, &paths);

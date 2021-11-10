@@ -5,9 +5,19 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::platform::portable_dir;
+use crate::credentials;
+use crate::platform::{portable_dir, data_dir};
 use crate::portable::install::InstallInfo;
 use crate::portable::ver;
+use crate::portable::{windows, linux, macos};
+
+
+pub struct Paths {
+    pub credentials: PathBuf,
+    pub data_dir: PathBuf,
+    pub service_files: Vec<PathBuf>,
+}
+
 
 fn opendir<'x>(dir: &'x Path)
     -> anyhow::Result<
@@ -58,4 +68,36 @@ pub fn get_installed() -> anyhow::Result<Vec<InstallInfo>> {
         }
     }
     Ok(installed)
+}
+
+impl Paths {
+    pub fn get(name: &str) -> anyhow::Result<Paths> {
+        Ok(Paths {
+            credentials: credentials::path(name)?,
+            data_dir: data_dir()?.join(name),
+            service_files: if cfg!(windows) {
+                windows::service_files(name)?
+            } else if cfg!(target_os="macos") {
+                macos::service_files(name)?
+            } else if cfg!(target_os="linux") {
+                linux::service_files(name)?
+            } else {
+                Vec::new()
+            }
+        })
+    }
+    pub fn check_exists(&self) -> anyhow::Result<()> {
+        if self.credentials.exists() {
+            anyhow::bail!("Credentials file {:?} exists", self.credentials);
+        }
+        if self.data_dir.exists() {
+            anyhow::bail!("Data directory {:?} exists", self.data_dir);
+        }
+        for path in &self.service_files {
+            if path.exists() {
+                anyhow::bail!("Service file {:?} exists", path);
+            }
+        }
+        Ok(())
+    }
 }

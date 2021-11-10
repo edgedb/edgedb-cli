@@ -5,9 +5,11 @@ use anyhow::Context;
 use fn_error_context::context;
 
 use crate::platform::home_dir;
-use crate::portable::create::{Paths, InstanceInfo};
+use crate::portable::create::{InstanceInfo};
+use crate::portable::local::{Paths};
 use crate::process;
 use crate::server::options::StartConf;
+use crate::server::errors::InstanceNotFound;
 
 
 fn unit_dir() -> anyhow::Result<PathBuf> {
@@ -88,4 +90,57 @@ WantedBy=multi-user.target
         server_path=info.installation.server_path()?.display(),
         port=info.port,
     ))
+}
+
+fn systemd_is_not_found_error(e: &str) -> bool {
+    e.contains("Failed to get D-Bus connection") ||
+    e.contains("Failed to connect to bus") ||
+    e.contains("No such file or directory") ||
+    e.contains(".service not loaded") ||
+    e.contains(".service does not exist")
+}
+
+pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
+    let mut found = false;
+    let svc_name = unit_name(name);
+    log::info!("Stopping service {}", svc_name);
+    let mut not_found_error = None;
+    let mut cmd = process::Native::new(
+        "stop service", "systemctl", "systemctl");
+    cmd.arg("--user");
+    cmd.arg("stop");
+    cmd.arg(&svc_name);
+    match cmd.run_or_stderr()? {
+        Ok(()) => found = true,
+        Err((_, e)) if systemd_is_not_found_error(&e) => {
+            not_found_error = Some(e);
+        }
+        Err((s, e)) => {
+            log::warn!(
+                "Error running systemctl (command-line: {:?}): {}: {}",
+                cmd.command_line(), s, e);
+        }
+    }
+
+    let mut cmd = process::Native::new(
+        "disable service", "systemctl", "systemctl");
+    cmd.arg("--user");
+    cmd.arg("disable");
+    cmd.arg(&svc_name);
+    match cmd.run_or_stderr()? {
+        Ok(()) => found = true,
+        Err((_, e)) if systemd_is_not_found_error(&e) => {
+            not_found_error = Some(e);
+        }
+        Err((s, e)) => {
+            log::warn!(
+                "Error running systemctl (command-line: {:?}): {}: {}",
+                cmd.command_line(), s, e);
+        }
+    }
+    if let Some(e) = not_found_error {
+        return Err(InstanceNotFound(anyhow::anyhow!(
+            "no instance {:?} found: {}", name, e.trim())).into());
+    }
+    Ok(found)
 }

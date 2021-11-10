@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use fn_error_context::context;
 
-use crate::commands::{self, ExitCode};
+use crate::commands;
 use crate::project::init::stash_base;
 use crate::print;
 use crate::server::detect;
@@ -40,10 +40,10 @@ pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
     Ok(res)
 }
 
-#[context("cannot read {:?}", project_dir)]
-pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
-    let bytes = fs::read(&project_dir.join("project-path"))?;
-    Ok(bytes_to_path(&bytes)?.to_path_buf())
+pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
+    print_instance_in_use_warning(name, project_dirs);
+    eprintln!("If you really want to destroy the instance, run:");
+    eprintln!("  edgedb instance destroy {:?} --force", name);
 }
 
 pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
@@ -64,49 +64,34 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
     }
 }
 
-pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
-    print_instance_in_use_warning(name, project_dirs);
-    eprintln!("If you really want to destroy the instance, run:");
-    eprintln!("  edgedb instance destroy {:?} --force", name);
-}
-
-pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
-    let project_dirs = find_project_dirs(&options.name)?;
-    if !options.force && !project_dirs.is_empty() {
-        print_warning(&options.name, &project_dirs);
-        return Err(ExitCode::new(2))?;
-    }
-    do_destroy(options)?;
-    for dir in project_dirs {
-        match read_project_real_path(&dir) {
-            Ok(path) => eprintln!("Unlinking {}", path.display()),
-            Err(_) => eprintln!("Cleaning {}", dir.display()),
-        };
-        fs::remove_dir_all(&dir)?;
-    }
-    Ok(())
-}
-
-pub fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
+pub fn do_destroy(mut errors: Vec<(String, anyhow::Error)>, options: &Destroy)
+    -> anyhow::Result<()>
+{
+    let prev_errors = errors.len();
     let os = detect::current_os()?;
     let methods = os.get_available_methods()?.instantiate_all(&*os, true)?;
-    let mut errors = Vec::new();
     for meth in methods.values() {
         match meth.destroy(options) {
             Ok(()) => {}
             Err(e) if e.is::<InstanceNotFound>() => {
-                errors.push((meth.name(), e));
+                errors.push((meth.name().title().to_string(), e));
             }
             Err(e) => Err(e)?,
         }
     }
-    if errors.len() == methods.len() {
+    if prev_errors > 0 && errors.len() == methods.len() + prev_errors {
         print::error("No instances found:");
         for (meth, err) in errors {
-            eprintln!("  * {}: {:#}", meth.title(), err);
+            eprintln!("  * {}: {:#}", meth, err);
         }
         Err(commands::ExitCode::new(1).into())
     } else {
         Ok(())
     }
+}
+
+#[context("cannot read {:?}", project_dir)]
+pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
+    let bytes = fs::read(&project_dir.join("project-path"))?;
+    Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
