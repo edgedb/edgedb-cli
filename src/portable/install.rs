@@ -181,7 +181,10 @@ pub fn install(options: &Install) -> anyhow::Result<()> {
 pub fn version(query: &Query) -> anyhow::Result<InstallInfo> {
     let pkg_info = get_server_package(&query)?
         .context("no package matching your criteria found")?;
+    package(&pkg_info)
+}
 
+pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     let ver_name = pkg_info.version.specific().to_string();
     let target_dir = platform::portable_dir()?.join(&ver_name);
     if target_dir.exists() {
@@ -196,8 +199,8 @@ pub fn version(query: &Query) -> anyhow::Result<InstallInfo> {
     unpack_package(&cache_path, &tmp_target)?;
     let info = InstallInfo {
         version: pkg_info.version.clone(),
-        package_url: pkg_info.url,
-        package_hash: pkg_info.hash,
+        package_url: pkg_info.url.clone(),
+        package_hash: pkg_info.hash.clone(),
         installed_at: SystemTime::now(),
     };
     write_meta(&tmp_target.join("install_info.json"), &info)?;

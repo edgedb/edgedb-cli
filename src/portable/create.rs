@@ -91,7 +91,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
 }
 
 impl Paths {
-    fn get(name: &str) -> anyhow::Result<Paths> {
+    pub fn get(name: &str) -> anyhow::Result<Paths> {
         Ok(Paths {
             credentials: credentials::path(name)?,
             data_dir: data_dir()?.join(name),
@@ -162,7 +162,8 @@ pub fn bootstrap_script(database: &str, user: &str, password: &str) -> String {
 }
 
 #[context("cannot bootstrap EdgeDB instance")]
-fn bootstrap(paths: &Paths, info: &InstanceInfo, database: &str, user: &str)
+pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
+                 database: &str, user: &str)
     -> anyhow::Result<()>
 {
     let server_path = info.installation.server_path()?;
@@ -178,7 +179,7 @@ fn bootstrap(paths: &Paths, info: &InstanceInfo, database: &str, user: &str)
     let password = generate_password();
     let script = bootstrap_script(database, user, &password);
 
-    eecho!("Bootstrapping EdgeDB...");
+    eecho!("Initializing EdgeDB instance...");
     process::Native::new("bootstrap", "edgedb", server_path)
         .arg("--bootstrap-only")
         .env_default("EDGEDB_SERVER_LOG_LEVEL", "warn")
@@ -207,7 +208,7 @@ fn bootstrap(paths: &Paths, info: &InstanceInfo, database: &str, user: &str)
     Ok(())
 }
 
-fn create_service(name: &str, meta: &InstanceInfo, paths: &Paths)
+pub fn create_service(name: &str, meta: &InstanceInfo, paths: &Paths)
     -> anyhow::Result<()>
 {
     if cfg!(target_os="macos") {

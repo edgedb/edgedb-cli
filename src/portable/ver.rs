@@ -105,6 +105,20 @@ impl FromStr for Filter {
     }
 }
 
+impl fmt::Display for Filter {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use FilterMinor::*;
+
+        match self.minor {
+            None => write!(f, "{}", self.major),
+            Some(Alpha(v)) => write!(f, "{}.0-alpha.{}", self.major, v),
+            Some(Beta(v)) => write!(f, "{}.0-beta.{}", self.major, v),
+            Some(Rc(v)) => write!(f, "{}.0-rc.{}", self.major, v),
+            Some(Minor(v)) => write!(f, "{}.{}", self.major, v),
+        }
+    }
+}
+
 impl Build {
     pub fn specific(&self) -> Specific {
         Specific::from_str(&self.0[..]).expect("build version is valid")

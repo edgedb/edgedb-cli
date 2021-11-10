@@ -313,6 +313,9 @@ impl fmt::Display for PackageHash {
 }
 
 impl Query {
+    pub fn nightly() -> Query {
+        Query { channel: Channel::Nightly, version: None }
+    }
     pub fn display(&self) -> QueryDisplay {
         QueryDisplay(self)
     }
@@ -330,6 +333,86 @@ impl Query {
 
         Ok(Query { channel, version })
     }
+    pub fn from_option(
+        version: &Option<crate::server::version::Version<String>>)
+        -> anyhow::Result<Query>
+    {
+        match version {
+            None => Ok(Query { channel: Channel::Stable, version: None }),
+            Some(ver) if ver.num() == "nightly" => {
+                Ok(Query { channel: Channel::Nightly, version: None })
+            }
+            Some(version) => {
+                let version = version.num().parse()
+                              .context("Unexpected --version")?;
+                let channel = Channel::from_filter(&version)?;
+                Ok(Query { channel, version: Some(version) })
+            }
+        }
+    }
+    pub fn from_filter(ver: &ver::Filter) -> anyhow::Result<Query> {
+        use crate::portable::repository::ver::FilterMinor;
+        match ver.minor {
+            None => Ok(Query {
+                channel: Channel::Stable,
+                version: Some(ver.clone()),
+            }),
+            Some(FilterMinor::Alpha(_)) |
+            Some(FilterMinor::Beta(_)) |
+            Some(FilterMinor::Rc(_))
+            if ver.major == 1 => Ok(Query {
+                channel: Channel::Stable,
+                version: Some(ver.clone()),
+            }),
+            Some(FilterMinor::Alpha(_)) |
+            Some(FilterMinor::Beta(_)) |
+            Some(FilterMinor::Rc(_))
+            => anyhow::bail!("prerelease channel is no supported yet"),
+            Some(FilterMinor::Minor(_)) => Ok(Query {
+                channel: Channel::Stable,
+                version: Some(ver.clone()),
+            }),
+        }
+    }
+    pub fn from_version(ver: &ver::Specific) -> anyhow::Result<Query> {
+        use crate::portable::repository::ver::{MinorVersion, FilterMinor};
+        match ver.minor {
+            MinorVersion::Dev(_) => Ok(Query::nightly()),
+            MinorVersion::Alpha(v) if ver.major == 1 => Ok(Query {
+                channel: Channel::Stable,
+                version: Some(ver::Filter {
+                    major: ver.major,
+                    minor: Some(FilterMinor::Alpha(v)),
+                }),
+            }),
+            MinorVersion::Beta(v) if ver.major == 1 => Ok(Query {
+                channel: Channel::Stable,
+                version: Some(ver::Filter {
+                    major: ver.major,
+                    minor: Some(FilterMinor::Beta(v)),
+                }),
+            }),
+            MinorVersion::Rc(v) if ver.major == 1 => Ok(Query {
+                channel: Channel::Stable,
+                version: Some(ver::Filter {
+                    major: ver.major,
+                    minor: Some(FilterMinor::Rc(v)),
+                }),
+            }),
+            MinorVersion::Minor(v) => Ok(Query {
+                channel: Channel::Stable,
+                version: Some(ver::Filter {
+                    major: ver.major,
+                    minor: Some(FilterMinor::Minor(v)),
+                }),
+            }),
+            MinorVersion::Alpha(_) |
+            MinorVersion::Beta(_) |
+            MinorVersion::Rc(_) => {
+                anyhow::bail!("pre-release channel is not supported yet");
+            }
+        }
+    }
     pub fn matches(&self, ver: &ver::Build) -> bool {
         match &self.version {
             Some(query_ver) => query_ver.matches(ver),
@@ -338,6 +421,15 @@ impl Query {
                     .map(|channel| self.channel == channel)
                     .unwrap_or(false)
             }
+        }
+    }
+    pub fn as_config_value(&self) -> String {
+        if self.channel ==  Channel::Nightly {
+            "nightly".into()
+        } else if let Some(ver) = &self.version {
+            ver.to_string()
+        } else {
+            "*".into()
         }
     }
 }

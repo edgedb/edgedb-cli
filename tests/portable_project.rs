@@ -40,5 +40,18 @@ fn project_link() {
         .context("query-1", "query of project")
         .success();
 
-    assert!(false);
+    // only nightly works so far
+    Command::new("edgedb").arg("project").arg("init")
+        .arg("--server-version=nightly").arg("--non-interactive")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-init", "init project2")
+        .success();
+
+    Command::new("edgedb")
+        .arg("query").arg("SELECT 1")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("query-2", "query of project2")
+        .success();
 }
