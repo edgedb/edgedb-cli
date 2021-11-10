@@ -104,7 +104,7 @@ fn run_test(name: &'static str) {
         export XDG_RUNTIME_DIR=/run/user/1000
         export EDGEDB_INSTALL_IN_DOCKER=allow
 
-        /lib/systemd/systemd --user --log-level=debug &
+        /lib/systemd/systemd --user &
         exec /tests/{file_name}
     "###, file_name=file_name);
 

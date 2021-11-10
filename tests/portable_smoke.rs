@@ -24,14 +24,33 @@ fn install() {
         .context("create-1", "created `inst1`")
         .success();
 
-    /*
     // TODO(tailhook) check output somehow
     Command::new("edgedb")
         .arg("server").arg("list-versions")
         .assert()
         .context("list-versions", "list versions of the server")
         .success();
-    */
+
+    Command::new("edgedb")
+        .arg("server").arg("list-versions")
+        .arg("--installed-only")
+        .assert()
+        .context("list-versions-installed", "")
+        .success();
+
+    Command::new("edgedb")
+        .arg("server").arg("list-versions")
+        .arg("--json")
+        .assert()
+        .context("list-versions-json", "")
+        .success();
+
+    Command::new("edgedb")
+        .arg("server").arg("list-versions")
+        .arg("--json").arg("--installed")
+        .assert()
+        .context("list-versions-json-installed", "")
+        .success();
 
     Command::new("edgedb")
         .arg("instance").arg("logs").arg("inst1")
@@ -170,6 +189,4 @@ fn install() {
         .assert()
         .context("query-1a", "late query of `inst1`")
         .success();
-
-    assert!(false);
 }
