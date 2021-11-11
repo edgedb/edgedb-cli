@@ -93,11 +93,15 @@ pub fn get_installed() -> anyhow::Result<Vec<InstallInfo>> {
     Ok(installed)
 }
 
+pub fn instance_data_dir(name: &str) -> anyhow::Result<PathBuf> {
+    Ok(data_dir()?.join(name))
+}
+
 impl Paths {
     pub fn get(name: &str) -> anyhow::Result<Paths> {
         Ok(Paths {
             credentials: credentials::path(name)?,
-            data_dir: data_dir()?.join(name),
+            data_dir: instance_data_dir(name)?,
             service_files: if cfg!(windows) {
                 windows::service_files(name)?
             } else if cfg!(target_os="macos") {
@@ -128,11 +132,14 @@ impl Paths {
 
 impl InstanceInfo {
     pub fn try_read(name: &str) -> anyhow::Result<Option<InstanceInfo>> {
-        let mut path = data_dir()?.join(name);
+        let mut path = instance_data_dir(name)?;
+        path.push("instance_info.json");
+        // TODO(tailhook) check existence of the directory
+        // and crash on existence of the file.
+        // But this can only be done, once we get rid of old install methods
         if !path.exists() {
             return Ok(None)
         }
-        path.push("instance_info.json");
         Ok(Some(InstanceInfo::read(name, &path)?))
     }
 
@@ -144,7 +151,7 @@ impl InstanceInfo {
         Ok(data)
     }
     pub fn data_dir(&self) -> anyhow::Result<PathBuf> {
-        Ok(data_dir()?.join(&self.name))
+        instance_data_dir(&self.name)
     }
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
         Ok(self.installation.server_path()?)

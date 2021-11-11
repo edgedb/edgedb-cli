@@ -273,6 +273,10 @@ pub struct List {
     /// Output in JSON format
     #[clap(long)]
     pub json: bool,
+
+    /// Show versions of docker and package installations
+    #[clap(long)]
+    pub deprecated_install_methods: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]

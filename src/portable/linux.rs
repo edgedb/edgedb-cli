@@ -6,10 +6,10 @@ use fn_error_context::context;
 
 use crate::platform::{home_dir, get_current_uid};
 use crate::portable::local::{InstanceInfo};
+use crate::portable::status::Service;
 use crate::process;
 use crate::server::errors::InstanceNotFound;
-use crate::server::options::StartConf;
-use crate::server::options::Start;
+use crate::server::options::{StartConf, Start};
 
 
 fn unit_dir() -> anyhow::Result<PathBuf> {
@@ -172,7 +172,7 @@ pub fn start_service(options: &Start, inst: &InstanceInfo)
         process::Native::new("service start", "systemctl", "systemctl")
             .arg("--user")
             .arg("start")
-            .arg(format!("edgedb-server@{}", options.name))
+            .arg(unit_name(&options.name))
             .run()?;
     }
     Ok(())
@@ -182,7 +182,7 @@ pub fn stop_service(inst: &InstanceInfo) -> anyhow::Result<()> {
     process::Native::new("stop service", "systemctl", "systemctl")
         .arg("--user")
         .arg("stop")
-        .arg(format!("edgedb-server@{}", inst.name))
+        .arg(unit_name(&inst.name))
         .run()?;
     Ok(())
 }
@@ -191,7 +191,61 @@ pub fn restart_service(inst: &InstanceInfo) -> anyhow::Result<()> {
     process::Native::new("restart service", "systemctl", "systemctl")
         .arg("--user")
         .arg("restart")
-        .arg(format!("edgedb-server@{}", inst.name))
+        .arg(unit_name(&inst.name))
         .run()?;
     Ok(())
 }
+
+pub fn service_status(inst: &InstanceInfo) -> Service {
+    use Service::*;
+
+    let mut cmd = process::Native::new(
+        "service status", "systemctl", "systemctl");
+    cmd.arg("--user");
+    cmd.arg("show");
+    cmd.arg(unit_name(&inst.name));
+    let txt = match cmd.get_stdout_text() {
+        Ok(txt) => txt,
+        Err(e) => {
+            return Service::Inactive {
+                error: format!("cannot determine service status: {:#}", e),
+            }
+        }
+    };
+    let mut pid = None;
+    let mut exit = None;
+    let mut load_error = None;
+    for line in txt.lines() {
+        if let Some(pid_str) = line.strip_prefix("MainPID=") {
+            pid = pid_str.trim().parse().ok();
+        }
+        if let Some(status_str) = line.strip_prefix("ExecMainStatus=") {
+            exit = status_str.trim().parse().ok();
+        }
+        if let Some(err) = line.strip_prefix("LoadError=") {
+            load_error = Some(err.trim().to_string());
+        }
+    }
+    match pid {
+        None | Some(0) => {
+            if let Some(error) = load_error {
+                Inactive { error }
+            } else {
+                Failed { exit_code: exit }
+            }
+        }
+        Some(pid) => {
+            Running { pid }
+        }
+    }
+}
+
+pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
+    process::Native::new("service status", "systemctl", "systemctl")
+        .arg("--user")
+        .arg("status")
+        .arg(unit_name(&inst.name))
+        .run_and_exit()?;
+    Ok(())
+}
+

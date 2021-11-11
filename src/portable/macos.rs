@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::time;
 use std::thread;
 
+use crate::commands::ExitCode;
 use crate::platform::{home_dir, get_current_uid, cache_dir, data_dir};
 use crate::portable::local::{InstanceInfo};
 use crate::portable::status::Service;
@@ -163,13 +164,17 @@ fn bootout(name: &str) -> anyhow::Result<()> {
 }
 
 pub fn is_service_loaded(name: &str) -> bool {
-    match service_status(name) {
+    match _service_status(name) {
         Service::Inactive {..} => false,
         _ => true,
     }
 }
 
-pub fn service_status(name: &str) -> Service {
+pub fn service_status(instance: &InstanceInfo) -> Service {
+    _service_status(&instance.name)
+}
+
+fn _service_status(name: &str) -> Service {
     use Service::*;
 
     let list = process::Native::new("service list", "launchctl", "launchctl")
@@ -264,7 +269,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
 
     let cut_off = time::SystemTime::now() + time::Duration::from_secs(30);
     loop {
-        let service = service_status(name);
+        let service = _service_status(name);
         match service {
             Inactive {..} => {
                 thread::sleep(time::Duration::from_millis(30));
@@ -301,7 +306,7 @@ pub fn stop_service(inst: &InstanceInfo) -> anyhow::Result<()> {
     let deadline = time::Instant::now() + time::Duration::from_secs(30);
     let lname = launchd_name(&inst.name);
     loop {
-        match service_status(&inst.name) {
+        match _service_status(&inst.name) {
             Service::Running {..} => {
                 if signal_sent {
                     if time::Instant::now() > deadline {
@@ -352,6 +357,21 @@ pub fn restart_service(inst: &InstanceInfo) -> anyhow::Result<()> {
         wait_started(&inst.name)?;
     } else {
         _create_service(inst)?;
+    }
+    Ok(())
+}
+
+pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
+    if is_service_loaded(&inst.name) {
+        process::Native::new("service status", "launchctl", "launchctl")
+            .arg("print")
+            .arg(launchd_name(&inst.name))
+            .run_and_exit()?;
+    } else {
+        // launchctl print will fail if the service is not loaded, let's
+        // just give a more understandable error here.
+        log::error!("Service is not loaded");
+        return Err(ExitCode::new(1).into());
     }
     Ok(())
 }

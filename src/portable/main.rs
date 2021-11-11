@@ -9,12 +9,12 @@ use crate::portable::destroy;
 use crate::portable::install;
 use crate::portable::list_versions;
 use crate::portable::project;
+use crate::portable::status;
 
 use crate::server::detect;
 use crate::server::info;
 use crate::server::link;
 use crate::server::reset_password;
-use crate::server::status;
 use crate::server::uninstall;
 use crate::server::upgrade;
 
@@ -41,7 +41,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Destroy(c) => destroy::destroy(c),
         ResetPassword(c) => reset_password::reset_password(c),
         Link(c) => link::link(c, &options),
-        List(c) => status::print_status_all(c.extended, c.debug, c.json),
+        List(c) => status::list(c),
         Upgrade(c) => upgrade::upgrade(c),
         Start(c) => control::start(c),
         Stop(c) => control::stop(c),
@@ -49,7 +49,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Logs(_) => todo!(),
         Revert(_) => todo!(),
         Unlink(_) => todo!(),
-        Status(_) => todo!(),
+        Status(c) => status::status(c),
     }
 }
 

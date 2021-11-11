@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::portable::local::{InstanceInfo};
+use crate::portable::status::{Service};
 use crate::server::options::Start;
 
 
@@ -27,6 +28,17 @@ pub fn start_service(_options: &Start, _inst: &InstanceInfo)
 pub fn stop_service(_inst: &InstanceInfo) -> anyhow::Result<()> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }
+
 pub fn restart_service(_inst: &InstanceInfo) -> anyhow::Result<()> {
+    anyhow::bail!("running as a service is not supported on Windows yet");
+}
+
+pub fn service_status(_inst: &InstanceInfo) -> Service {
+    Service::Inactive {
+        error: "running as a service is not supported on Windows yet".into(),
+    }
+}
+
+pub fn external_status(_inst: &InstanceInfo) -> anyhow::Result<()> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }

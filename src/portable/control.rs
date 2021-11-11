@@ -4,10 +4,12 @@ use crate::print::{self, eecho};
 use crate::server::options::{Start, Stop, Restart, InstanceCommand};
 
 
-fn fallback(name: &str, cmd: &InstanceCommand) -> anyhow::Result<()> {
+pub fn fallback(name: &str, success_mesage: &str,
+                cmd: &InstanceCommand) -> anyhow::Result<()> {
     eecho!("No instance", name, "found.",
            "Looking for deprecated instances...");
     crate::server::control::instance_command(cmd)?;
+    eprintln!("{}", success_message);
     print::warn("Please upgrade instance to portable installation");
     Ok(())
 }
@@ -26,7 +28,8 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             anyhow::bail!("unsupported platform");
         }
     } else {
-        fallback(&options.name, &InstanceCommand::Start(options.clone()))
+        fallback(&options.name, "Deprecated service started.",
+                 &InstanceCommand::Start(options.clone()))
     }
 }
 
@@ -43,7 +46,8 @@ pub fn stop(options: &Stop) -> anyhow::Result<()> {
             anyhow::bail!("unsupported platform");
         }
     } else {
-        fallback(&options.name, &InstanceCommand::Stop(options.clone()))
+        fallback(&options.name, "Deprecated service stopped.",
+                 &InstanceCommand::Stop(options.clone()))
     }
 }
 
@@ -60,6 +64,7 @@ pub fn restart(options: &Restart) -> anyhow::Result<()> {
             anyhow::bail!("unsupported platform");
         }
     } else {
-        fallback(&options.name, &InstanceCommand::Restart(options.clone()))
+        fallback(&options.name, "Deprecated service restarted.",
+                 &InstanceCommand::Restart(options.clone()))
     }
 }
