@@ -97,9 +97,9 @@ impl State {
                 env!("CARGO_PKG_VERSION"));
             self.last_version = Some(fetched_version);
         }
-        self.set_idle_transaction_timeout().await?;
         self.database = self.conn_params.get()?.get_database().into();
         self.connection = Some(conn);
+        self.set_idle_transaction_timeout().await?;
         Ok(())
     }
     pub async fn set_idle_transaction_timeout(&mut self) -> anyhow::Result<()> {
