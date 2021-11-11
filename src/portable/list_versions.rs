@@ -4,8 +4,7 @@ use std::path::PathBuf;
 use crate::server::options::ListVersions;
 
 use crate::eecho;
-use crate::portable::install::InstallInfo;
-use crate::portable::local;
+use crate::portable::local::{self, InstallInfo};
 use crate::portable::repository::{get_server_packages, Channel, PackageInfo};
 use crate::portable::ver;
 use crate::print::Highlight;

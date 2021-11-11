@@ -1,15 +1,15 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::platform::home_dir;
-use crate::portable::create::{InstanceInfo};
-use crate::portable::local::{Paths};
+use crate::platform::{home_dir, get_current_uid};
+use crate::portable::local::{InstanceInfo};
 use crate::process;
-use crate::server::options::StartConf;
 use crate::server::errors::InstanceNotFound;
+use crate::server::options::StartConf;
+use crate::server::options::Start;
 
 
 fn unit_dir() -> anyhow::Result<PathBuf> {
@@ -29,7 +29,7 @@ pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
 }
 
 
-pub fn create_service(name: &str, info: &InstanceInfo, paths: &Paths)
+pub fn create_service(name: &str, info: &InstanceInfo)
     -> anyhow::Result<()>
 {
     let unit_dir = unit_dir()?;
@@ -37,7 +37,7 @@ pub fn create_service(name: &str, info: &InstanceInfo, paths: &Paths)
         .with_context(|| format!("cannot create directory {:?}", unit_dir))?;
     let unit_name = unit_name(name);
     let unit_path = unit_dir.join(&unit_name);
-    fs::write(&unit_path, systemd_unit(name, info, paths)?)
+    fs::write(&unit_path, systemd_unit(name, info)?)
         .with_context(|| format!("cannot write {:?}", unit_path))?;
     process::Native::new("systemctl", "systemctl", "systemctl")
         .arg("--user")
@@ -61,8 +61,7 @@ pub fn create_service(name: &str, info: &InstanceInfo, paths: &Paths)
 }
 
 #[context("cannot compose service file")]
-pub fn systemd_unit(name: &str, info: &InstanceInfo, paths: &Paths)
-    -> anyhow::Result<String>
+pub fn systemd_unit(name: &str, info: &InstanceInfo) -> anyhow::Result<String>
 {
     Ok(format!(r###"
 [Unit]
@@ -86,8 +85,8 @@ TimeoutSec=0
 WantedBy=multi-user.target
     "###,
         instance_name=name,
-        data_dir=paths.data_dir.display(),
-        server_path=info.installation.server_path()?.display(),
+        data_dir=info.data_dir()?.display(),
+        server_path=info.server_path()?.display(),
         port=info.port,
     ))
 }
@@ -143,4 +142,56 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
             "no instance {:?} found: {}", name, e.trim())).into());
     }
     Ok(found)
+}
+
+pub fn start_service(options: &Start, inst: &InstanceInfo)
+    -> anyhow::Result<()>
+{
+    if options.foreground {
+        let data_dir = inst.data_dir()?;
+        let runtime_dir = dirs::runtime_dir()
+            .map(|r| r.join(format!("edgedb-{}", &inst.name)))
+            .unwrap_or_else(|| {
+                let dir = Path::new("/run/user")
+                    .join(get_current_uid().to_string());
+                if dir.exists() {
+                    dir.join(format!("edgedb-{}", options.name))
+                } else {
+                    data_dir.clone()
+                }
+            });
+        let server_path = inst.server_path()?;
+        process::Native::new("edgedb", "edgedb", server_path)
+            .env_default("EDGEDB_SERVER_LOG_LEVEL", "warn")
+            .arg("--data-dir").arg(data_dir)
+            .arg("--runstate-dir").arg(runtime_dir)
+            .arg("--port").arg(inst.port.to_string())
+            .no_proxy()
+            .run()?;
+    } else {
+        process::Native::new("service start", "systemctl", "systemctl")
+            .arg("--user")
+            .arg("start")
+            .arg(format!("edgedb-server@{}", options.name))
+            .run()?;
+    }
+    Ok(())
+}
+
+pub fn stop_service(inst: &InstanceInfo) -> anyhow::Result<()> {
+    process::Native::new("stop service", "systemctl", "systemctl")
+        .arg("--user")
+        .arg("stop")
+        .arg(format!("edgedb-server@{}", inst.name))
+        .run()?;
+    Ok(())
+}
+
+pub fn restart_service(inst: &InstanceInfo) -> anyhow::Result<()> {
+    process::Native::new("restart service", "systemctl", "systemctl")
+        .arg("--user")
+        .arg("restart")
+        .arg(format!("edgedb-server@{}", inst.name))
+        .run()?;
+    Ok(())
 }

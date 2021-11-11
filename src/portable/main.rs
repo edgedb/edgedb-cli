@@ -3,13 +3,13 @@ use crate::project::options::ProjectCommand;
 use crate::server::options::ServerCommand;
 use crate::server::options::ServerInstanceCommand;
 
+use crate::portable::control;
 use crate::portable::create;
 use crate::portable::destroy;
 use crate::portable::install;
 use crate::portable::list_versions;
 use crate::portable::project;
 
-use crate::server::control;
 use crate::server::detect;
 use crate::server::info;
 use crate::server::link;
@@ -43,7 +43,13 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Link(c) => link::link(c, &options),
         List(c) => status::print_status_all(c.extended, c.debug, c.json),
         Upgrade(c) => upgrade::upgrade(c),
-        cmd => control::instance_command(cmd)
+        Start(c) => control::start(c),
+        Stop(c) => control::stop(c),
+        Restart(c) => control::restart(c),
+        Logs(_) => todo!(),
+        Revert(_) => todo!(),
+        Unlink(_) => todo!(),
+        Status(_) => todo!(),
     }
 }
 

@@ -1,9 +1,9 @@
 #![cfg_attr(not(feature="portable_tests"), allow(dead_code))]
 
-use assert_cmd::Command;
+
 mod util;
 
-use util::*;
+
 
 
 #[cfg(feature="portable_tests")]

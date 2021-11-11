@@ -1,12 +1,14 @@
 use std::fs;
 use std::path::PathBuf;
+use std::time;
+use std::thread;
 
-use crate::platform::{home_dir, get_current_uid, cache_dir};
-use crate::process;
-use crate::portable::local::{Paths};
-use crate::portable::create::{InstanceInfo};
+use crate::platform::{home_dir, get_current_uid, cache_dir, data_dir};
+use crate::portable::local::{InstanceInfo};
 use crate::portable::status::Service;
-use crate::server::options::StartConf;
+use crate::process;
+use crate::print::{self, eecho, Highlight};
+use crate::server::options::{StartConf, Start};
 
 
 fn plist_dir() -> anyhow::Result<PathBuf> {
@@ -33,16 +35,14 @@ pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
     Ok(vec![plist_path(name)?])
 }
 
-pub fn create_service(name: &str, info: &InstanceInfo, paths: &Paths)
-    -> anyhow::Result<()>
-{
+pub fn create_service(name: &str, info: &InstanceInfo) -> anyhow::Result<()> {
     // bootout on upgrade
     if is_service_loaded(name) {
         bootout(name)?;
     }
 
     if info.start_conf == StartConf::Auto {
-        _create_service(name, info, paths)
+        _create_service(info)
     } else {
         Ok(())
     }
@@ -60,9 +60,7 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
     Ok(cache_dir()?.join(format!("logs/{}.log", name)))
 }
 
-fn plist_data(name: &str, info: &InstanceInfo, paths: &Paths)
-    -> anyhow::Result<String>
-{
+fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
     Ok(format!(r###"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
@@ -102,17 +100,17 @@ fn plist_data(name: &str, info: &InstanceInfo, paths: &Paths)
 </plist>
 "###,
         instance_name=name,
-        data_dir=paths.data_dir.display(),
-        server_path=info.installation.server_path()?.display(),
+        data_dir=info.data_dir()?.display(),
+        server_path=info.server_path()?.display(),
         runtime_dir=runtime_dir(&name)?.display(),
         log_path=log_file(&name)?.display(),
         port=info.port,
     ))
 }
 
-fn _create_service(name: &str, info: &InstanceInfo, paths: &Paths)
-    -> anyhow::Result<()>
+fn _create_service(info: &InstanceInfo) -> anyhow::Result<()>
 {
+    let name = &info.name;
     let plist_dir_path;
     let tmpdir;
     if info.start_conf == StartConf::Auto {
@@ -124,7 +122,7 @@ fn _create_service(name: &str, info: &InstanceInfo, paths: &Paths)
     }
     let plist_path = plist_dir_path.join(&plist_name(name));
     let unit_name = launchd_name(name);
-    fs::write(&plist_path, plist_data(name, info, paths)?)?;
+    fs::write(&plist_path, plist_data(name, info)?)?;
     fs::create_dir_all(runtime_base()?)?;
 
     // Clear the disabled status of the unit name, in case the user disabled
@@ -229,4 +227,131 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     Ok(found)
 }
 
+pub fn start_service(options: &Start, inst: &InstanceInfo)
+    -> anyhow::Result<()>
+{
+    if options.foreground {
+        let data_dir = data_dir()?.join(&options.name);
+        let runtime_dir = runtime_dir(&options.name)?;
+        let server_path = inst.server_path()?;
+        process::Native::new("edgedb", "edgedb", server_path)
+            .env_default("EDGEDB_SERVER_LOG_LEVEL", "warn")
+            .arg("--data-dir").arg(data_dir)
+            .arg("--runstate-dir").arg(runtime_dir)
+            .arg("--port").arg(inst.port.to_string())
+            .no_proxy()
+            .run()?;
+    } else {
+        if inst.start_conf == StartConf::Auto || is_service_loaded(&inst.name)
+        {
+            // For auto-starting services, we assume they are already loaded.
+            // If the server is already running, kickstart won't do anything;
+            // or else it will try to (re-)start the server.
+            let lname = launchd_name(&inst.name);
+            process::Native::new("launchctl", "launchctl", "launchctl")
+                .arg("kickstart").arg(&lname)
+                .run()?;
+            wait_started(&inst.name)?;
+        } else {
+            _create_service(inst)?;
+        }
+    }
+    Ok(())
+}
 
+fn wait_started(name: &str) -> anyhow::Result<()> {
+    use Service::*;
+
+    let cut_off = time::SystemTime::now() + time::Duration::from_secs(30);
+    loop {
+        let service = service_status(name);
+        match service {
+            Inactive {..} => {
+                thread::sleep(time::Duration::from_millis(30));
+                if time::SystemTime::now() > cut_off {
+                    print::error("EdgeDB did not start for 30 seconds");
+                    break;
+                }
+                continue;
+            }
+            Running {..} => {
+                return Ok(());
+            }
+            Failed { exit_code: Some(code) } => {
+                eecho!(print::err_marker(),
+                    "EdgeDB failed".emphasize(), "with exit code", code);
+            }
+            Failed { exit_code: None } => {
+                eecho!(print::err_marker(), "EdgeDB failed".emphasize());
+            }
+        }
+    }
+    println!("--- Last 10 log lines ---");
+    let mut cmd = process::Native::new("log", "tail", "tail");
+    cmd.arg("-n").arg("10");
+    cmd.arg(log_file(name)?);
+    cmd.no_proxy().run()
+        .map_err(|e| log::warn!("Cannot show log: {}", e)).ok();
+    println!("--- End of log ---");
+    anyhow::bail!("Failed to start EdgeDB");
+}
+
+pub fn stop_service(inst: &InstanceInfo) -> anyhow::Result<()> {
+    let mut signal_sent = false;
+    let deadline = time::Instant::now() + time::Duration::from_secs(30);
+    let lname = launchd_name(&inst.name);
+    loop {
+        match service_status(&inst.name) {
+            Service::Running {..} => {
+                if signal_sent {
+                    if time::Instant::now() > deadline {
+                        log::warn!("Timing out; send SIGKILL now.");
+                        process::Native::new(
+                            "stop service", "launchctl", "launchctl")
+                            .arg("kill")
+                            .arg("SIGKILL")
+                            .arg(&lname)
+                            .run()?;
+                        break;
+                    }
+                    thread::sleep(time::Duration::from_secs_f32(0.3));
+                } else {
+                    process::Native::new(
+                        "stop service", "launchctl", "launchctl")
+                        .arg("kill")
+                        .arg("SIGTERM")
+                        .arg(&lname)
+                        .run()?;
+                    signal_sent = true;
+                }
+            },
+            Service::Failed {..} => {
+                // Successfully stopped
+                break;
+            },
+            Service::Inactive { error } => {
+                log::info!("{}", error);
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn restart_service(inst: &InstanceInfo) -> anyhow::Result<()> {
+    if inst.start_conf == StartConf::Auto || is_service_loaded(&inst.name) {
+        // Only use kickstart -k to restart the service if it's loaded
+        // already, or it will fail with an error. We assume the service is
+        // loaded for auto-starting services.
+        process::Native::new("launchctl", "launchctl",
+            "launchctl")
+            .arg("kickstart")
+            .arg("-k")
+            .arg(launchd_name(&inst.name))
+            .run()?;
+        wait_started(&inst.name)?;
+    } else {
+        _create_service(inst)?;
+    }
+    Ok(())
+}

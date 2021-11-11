@@ -10,11 +10,12 @@ mod macos;
 mod linux;
 mod windows;
 
+mod control;
 mod create;
 mod destroy;
-pub mod project;
 mod install;
 mod list_versions;
 mod status;
+pub mod project;
 
 pub use main::{instance_main, server_main, project_main};

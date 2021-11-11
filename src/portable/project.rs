@@ -19,10 +19,10 @@ use crate::credentials;
 use crate::migrations;
 use crate::platform::{tmp_file_path, path_bytes, symlink_dir, config_dir};
 use crate::portable::config;
-use crate::portable::create::{self, InstanceInfo};
+use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
-use crate::portable::local;
+use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::ver;
@@ -304,14 +304,15 @@ fn do_init(name: &str, pkg: &PackageInfo,
     let start_conf = options.server_start_conf.unwrap_or(StartConf::Auto);
     let port = allocate_port(name)?;
     let info = InstanceInfo {
+        name: name.into(),
         installation: inst,
         port,
         start_conf,
     };
-    let paths = local::Paths::get(&name)?;
+    let paths = Paths::get(&name)?;
     create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
 
-    let svc_result = create::create_service(&name, &info, &paths);
+    let svc_result = create::create_service(&name, &info);
 
     write_stash_dir(stash_dir, project_dir, &name)?;
 
@@ -449,7 +450,7 @@ pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(stash_base()?.join(hname))
 }
 
-fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
+fn run_and_migrate(_info: &Handle) -> anyhow::Result<()> {
     todo!();
     /*
     let inst = info.instance.as_ref()
@@ -460,7 +461,7 @@ fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
     */
 }
 
-fn start(inst: &Handle) -> anyhow::Result<()> {
+fn start(_inst: &Handle) -> anyhow::Result<()> {
     todo!();
 }
 

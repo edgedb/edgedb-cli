@@ -1,6 +1,6 @@
 use std::fs;
 use std::io;
-use std::path::{Path,PathBuf};
+use std::path::Path;
 
 use anyhow::Context;
 use async_std::task;
@@ -8,10 +8,10 @@ use fn_error_context::context;
 
 use crate::commands::ExitCode;
 use crate::hint::HintExt;
-use crate::platform::{self, data_dir};
+use crate::platform;
 use crate::portable::exit_codes;
-use crate::portable::install::{self, InstallInfo};
-use crate::portable::local::Paths;
+use crate::portable::install;
+use crate::portable::local::{Paths, InstanceInfo};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
 use crate::portable::{windows, linux, macos};
@@ -25,12 +25,6 @@ use crate::server::reset_password::{write_credentials};
 use edgedb_client::credentials::Credentials;
 
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct InstanceInfo {
-    pub installation: InstallInfo,
-    pub port: u16,
-    pub start_conf: StartConf,
-}
 
 
 pub fn create(options: &Create) -> anyhow::Result<()> {
@@ -55,6 +49,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
     let inst = install::version(&query).context("error installing EdgeDB")?;
     let port = allocate_port(&options.name)?;
     let info = InstanceInfo {
+        name: options.name.clone(),
         installation: inst,
         port,
         start_conf: options.start_conf,
@@ -62,7 +57,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
     bootstrap(&paths, &info,
               &options.default_database, &options.default_user)?;
 
-    match (create_service(&options.name, &info, &paths), options.start_conf) {
+    match (create_service(&options.name, &info), options.start_conf) {
         (Ok(()), StartConf::Manual) => {
             eecho!("Instance", options.name.emphasize(), "is ready.");
             eprintln!("You can start it manually via: \n  \
@@ -170,33 +165,15 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     Ok(())
 }
 
-pub fn create_service(name: &str, meta: &InstanceInfo, paths: &Paths)
-    -> anyhow::Result<()>
+pub fn create_service(name: &str, meta: &InstanceInfo) -> anyhow::Result<()>
 {
     if cfg!(target_os="macos") {
-        macos::create_service(&name, &meta, &paths)
+        macos::create_service(&name, &meta)
     } else if cfg!(target_os="linux") {
-        linux::create_service(&name, &meta, &paths)
+        linux::create_service(&name, &meta)
     } else if cfg!(windows) {
-        windows::create_service(&name, &meta, &paths)
+        windows::create_service(&name, &meta)
     } else {
         anyhow::bail!("creating a service is not supported on the platform");
-    }
-}
-
-impl InstanceInfo {
-    pub fn try_read(name: &str) -> anyhow::Result<Option<InstanceInfo>> {
-        let mut path = data_dir()?.join(name);
-        if !path.exists() {
-            return Ok(None)
-        }
-        path.push("instance_info.json");
-        Ok(Some(InstanceInfo::read(&path)?))
-    }
-
-    #[context("error reading instance info: {:?}", path)]
-    fn read(path: &PathBuf) -> anyhow::Result<InstanceInfo> {
-        let f = io::BufReader::new(fs::File::open(path)?);
-        Ok(serde_json::from_reader(f)?)
     }
 }
