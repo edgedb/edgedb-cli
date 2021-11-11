@@ -28,6 +28,8 @@ pub struct ShellConfig {
     pub input_mode: Option<repl::InputMode>,
     #[serde(default)]
     pub limit: Option<usize>,
+    #[serde(default)]
+    pub idle_transaction_timeout: Option<usize>,
     #[serde(with="serde_str::opt", default)]
     pub output_format: Option<repl::OutputFormat>,
     #[serde(default)]

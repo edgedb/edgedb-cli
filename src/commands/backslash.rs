@@ -498,6 +498,13 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
                 "0  # no limit".into()
             }
         }
+         IdleTransactionTimeout(_) => {
+             if let Some(secs) = prompt.idle_transaction_timeout {
+                 secs.to_string().into()
+             } else {
+                 "0  # no timeout".into()
+             }
+         }
         HistorySize(_) => {
             prompt.history_limit.to_string().into()
         }
@@ -587,6 +594,15 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                         prompt.implicit_limit = Some(limit);
                         prompt.print.max_items = Some(limit);
                     }
+                }
+                IdleTransactionTimeout(t) => {
+                    let secs = t.value.expect("only set here");
+                    prompt.idle_transaction_timeout = if secs == 0 {
+                        None
+                    } else {
+                        Some(secs)
+                    };
+                    prompt.set_idle_transaction_timeout().await?;
                 }
                 HistorySize(c) => {
                     let limit = c.value.expect("only set here");

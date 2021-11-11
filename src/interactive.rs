@@ -95,6 +95,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
     let (repl_wr, repl_rd) = channel(1);
     let conn = options.create_connector()?;
     let limit = cfg.shell.limit.unwrap_or(100);
+    let idle_tx_timeout = cfg.shell.idle_transaction_timeout.unwrap_or(300);
     let print = print::Config::new()
         .max_items(limit)
         .expand_strings(cfg.shell.expand_strings.unwrap_or(true))
@@ -112,6 +113,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         verbose_errors: cfg.shell.verbose_errors.unwrap_or(false),
         last_error: None,
         implicit_limit: Some(limit),
+        idle_transaction_timeout: Some(idle_tx_timeout),
         output_format: options.output_format
             .or(cfg.shell.output_format)
             .unwrap_or(repl::OutputFormat::Default),
