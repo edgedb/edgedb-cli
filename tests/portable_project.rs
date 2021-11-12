@@ -17,9 +17,8 @@ fn project_link_and_init() {
         .stdout(predicates::str::contains(
             concat!("EdgeDB CLI ", env!("CARGO_PKG_VERSION"))));
 
-    // only nightly works so far
     Command::new("edgedb")
-        .arg("instance").arg("create").arg("inst1").arg("--nightly")
+        .arg("instance").arg("create").arg("inst1")
         .assert()
         .context("create-1", "created `inst1`")
         .success();
@@ -73,15 +72,38 @@ fn project_link_and_init() {
         .context("destroy-1-non-exist", "it's project name, not instance name")
         .code(1);
 
+    Command::new("edgedb").arg("instance").arg("list")
+        .assert()
+        .context("instance-list-1", "list two instances")
+        .success()
+        .stdout(predicate::str::contains("inst1"));
+        .stdout(predicate::str::contains("project2"));
+
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("project2").arg("--force")
         .assert()
         .context("destroy-2", "should destroy")
         .success();
 
-    Command::new("edgedb")
-        .arg("instance").arg("destroy").arg("inst1").arg("--force")
+    Command::new("edgedb").arg("instance").arg("list")
         .assert()
-        .context("destroy-1", "should destroy")
+        .context("instance-list-2", "list once instance")
+        .success()
+        .stdout(predicate::str::contains("inst1"));
+        .stdout(predicate::str::contains("project2").not());
+
+
+    Command::new("edgedb")
+        .arg("project").arg("unlink").arg("-D")
+        .current_dir("tests/proj/project1")
+        .assert()
+        .context("destroy-1", "should unlink and destroy project")
         .success();
+
+    Command::new("edgedb").arg("instance").arg("list")
+        .assert()
+        .context("instance-list-3", "list no instances")
+        .success()
+        .stdout(predicate::str::contains("inst1").not());
+        .stdout(predicate::str::contains("project2").not());
 }
