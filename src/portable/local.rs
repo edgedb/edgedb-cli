@@ -78,7 +78,11 @@ impl InstallInfo {
 #[context("failed to list installed packages")]
 pub fn get_installed() -> anyhow::Result<Vec<InstallInfo>> {
     let mut installed = Vec::with_capacity(8);
-    for result in list_installed(&portable_dir()?)? {
+    let dir = portable_dir()?;
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+    for result in list_installed(dir)? {
         let (ver, path) = result?;
         match InstallInfo::read(&path) {
             Ok(info) if ver != info.version.specific() => {

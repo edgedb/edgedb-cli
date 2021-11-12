@@ -19,6 +19,12 @@ fn project_link_and_init() {
             concat!("EdgeDB CLI ", env!("CARGO_PKG_VERSION"))));
 
     Command::new("edgedb")
+        .arg("server").arg("list-versions")
+        .assert()
+        .context("list-versions-before", "list with no installed")
+        .success();
+
+    Command::new("edgedb")
         .arg("instance").arg("create").arg("inst1")
         .assert()
         .context("create-1", "created `inst1`")
