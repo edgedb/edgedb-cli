@@ -131,8 +131,9 @@ fn github_action_install() -> anyhow::Result<()> {
             .context("install-2", "check that installation conficts")
             .success();
 
+        // TODO(tailhook) update to old version
         Command::new(&edgedb)
-            .arg("server").arg("install").arg("--version=1-beta3")
+            .arg("server").arg("install").arg("--version=1-rc.2")
             .assert()
             .context("install-old", "older version of edgedb")
             .success();
