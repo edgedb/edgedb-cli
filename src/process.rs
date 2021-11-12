@@ -210,9 +210,9 @@ impl Native {
         let mark = &self.marker;
         let out = child.stdout.take();
         let err = child.stderr.take();
-        let child_result = child.status()
-            .race(stdout_loop(mark, out, capture_out.then(|| &mut stdout)))
-            .race(stdout_loop(mark, err, capture_err.then(|| &mut stderr)))
+        let ((child_result, _), _) = child.status()
+            .join(stdout_loop(mark, out, capture_out.then(|| &mut stdout)))
+            .join(stdout_loop(mark, err, capture_err.then(|| &mut stderr)))
             .race(self.signal_loop(pid, &term))
             .await;
         term.exit_if_occurred();
@@ -260,9 +260,9 @@ impl Native {
         let out = child.stdout.take();
         let err = child.stderr.take();
         let pid = child.id();
-        let result = self.run_and_kill(child, f)
-            .race(stdout_loop(&self.marker, out, None))
-            .race(stdout_loop(&self.marker, err, None))
+        let ((result, _), _) = self.run_and_kill(child, f)
+            .join(stdout_loop(&self.marker, out, None))
+            .join(stdout_loop(&self.marker, err, None))
             .race(self.signal_loop(pid, &term))
             .await;
         term.exit_if_occurred();
@@ -285,10 +285,10 @@ impl Native {
         let inp = child.stdin.take().unwrap();
         let out = child.stdout.take();
         let err = child.stderr.take();
-        let child_result = child.status()
+        let ((child_result, _), _) = child.status()
             .race(feed_data(inp, data))
-            .race(stdout_loop(&self.marker, out, None))
-            .race(stdout_loop(&self.marker, err, None))
+            .join(stdout_loop(&self.marker, out, None))
+            .join(stdout_loop(&self.marker, err, None))
             .race(self.signal_loop(pid, &term))
             .await;
         term.exit_if_occurred();
@@ -564,9 +564,8 @@ impl Docker {
     }
 }
 
-async fn stdout_loop<Never>(marker: &str, pipe: Option<impl Read+Unpin>,
+async fn stdout_loop(marker: &str, pipe: Option<impl Read+Unpin>,
     capture_buffer: Option<&mut Vec<u8>>)
-    -> Never
 {
     match (pipe, capture_buffer) {
         (Some(mut pipe), Some(buffer)) => {
@@ -587,7 +586,6 @@ async fn stdout_loop<Never>(marker: &str, pipe: Option<impl Read+Unpin>,
         (None, Some(_)) => unreachable!(),
         (None, None) => {}
     }
-    wait_forever().await
 }
 
 #[cfg(unix)]
