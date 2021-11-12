@@ -164,17 +164,13 @@ fn bootout(name: &str) -> anyhow::Result<()> {
 }
 
 pub fn is_service_loaded(name: &str) -> bool {
-    match _service_status(name) {
+    match service_status(name) {
         Service::Inactive {..} => false,
         _ => true,
     }
 }
 
-pub fn service_status(instance: &InstanceInfo) -> Service {
-    _service_status(&instance.name)
-}
-
-fn _service_status(name: &str) -> Service {
+pub fn service_status(name: &str) -> Service {
     use Service::*;
 
     let list = process::Native::new("service list", "launchctl", "launchctl")
@@ -269,7 +265,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
 
     let cut_off = time::SystemTime::now() + time::Duration::from_secs(30);
     loop {
-        let service = _service_status(name);
+        let service = service_status(name);
         match service {
             Inactive {..} => {
                 thread::sleep(time::Duration::from_millis(30));
@@ -306,7 +302,7 @@ pub fn stop_service(inst: &InstanceInfo) -> anyhow::Result<()> {
     let deadline = time::Instant::now() + time::Duration::from_secs(30);
     let lname = launchd_name(&inst.name);
     loop {
-        match _service_status(&inst.name) {
+        match service_status(&inst.name) {
             Service::Running {..} => {
                 if signal_sent {
                     if time::Instant::now() > deadline {

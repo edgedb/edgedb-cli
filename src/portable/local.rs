@@ -39,7 +39,7 @@ pub struct InstallInfo {
 }
 
 
-fn opendir<'x>(dir: &'x Path)
+fn list_installed<'x>(dir: &'x Path)
     -> anyhow::Result<
         impl Iterator<Item=anyhow::Result<(ver::Specific, PathBuf)>> + 'x
     >
@@ -78,7 +78,7 @@ impl InstallInfo {
 #[context("failed to list installed packages")]
 pub fn get_installed() -> anyhow::Result<Vec<InstallInfo>> {
     let mut installed = Vec::with_capacity(8);
-    for result in opendir(&portable_dir()?)? {
+    for result in list_installed(&portable_dir()?)? {
         let (ver, path) = result?;
         match InstallInfo::read(&path) {
             Ok(info) if ver != info.version.specific() => {
@@ -140,11 +140,16 @@ impl InstanceInfo {
         if !path.exists() {
             return Ok(None)
         }
-        Ok(Some(InstanceInfo::read(name, &path)?))
+        Ok(Some(InstanceInfo::_read(name, &path)?))
+    }
+
+    pub fn read(name: &str) -> anyhow::Result<InstanceInfo> {
+        InstanceInfo::_read(name,
+            &instance_data_dir(name)?.join("instance_info.json"))
     }
 
     #[context("error reading instance info: {:?}", path)]
-    fn read(name: &str, path: &PathBuf) -> anyhow::Result<InstanceInfo> {
+    fn _read(name: &str, path: &PathBuf) -> anyhow::Result<InstanceInfo> {
         let f = io::BufReader::new(fs::File::open(path)?);
         let mut data: InstanceInfo = serde_json::from_reader(f)?;
         data.name = name.into();

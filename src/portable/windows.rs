@@ -33,7 +33,7 @@ pub fn restart_service(_inst: &InstanceInfo) -> anyhow::Result<()> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }
 
-pub fn service_status(_inst: &InstanceInfo) -> Service {
+pub fn service_status(_inst: &str) -> Service {
     Service::Inactive {
         error: "running as a service is not supported on Windows yet".into(),
     }

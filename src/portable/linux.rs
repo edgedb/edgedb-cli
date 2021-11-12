@@ -196,14 +196,14 @@ pub fn restart_service(inst: &InstanceInfo) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn service_status(inst: &InstanceInfo) -> Service {
+pub fn service_status(name: &str) -> Service {
     use Service::*;
 
     let mut cmd = process::Native::new(
         "service status", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("show");
-    cmd.arg(unit_name(&inst.name));
+    cmd.arg(unit_name(name));
     let txt = match cmd.get_stdout_text() {
         Ok(txt) => txt,
         Err(e) => {

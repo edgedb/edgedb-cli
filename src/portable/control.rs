@@ -4,7 +4,7 @@ use crate::print::{self, eecho};
 use crate::server::options::{Start, Stop, Restart, InstanceCommand};
 
 
-pub fn fallback(name: &str, success_mesage: &str,
+pub fn fallback(name: &str, success_message: &str,
                 cmd: &InstanceCommand) -> anyhow::Result<()> {
     eecho!("No instance", name, "found.",
            "Looking for deprecated instances...");

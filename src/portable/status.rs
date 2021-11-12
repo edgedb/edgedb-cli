@@ -1,9 +1,11 @@
+use std::collections::BTreeSet;
 use std::io;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use std::process::exit;
 
+use anyhow::Context;
 use async_std::task;
 use async_std::net::TcpStream;
 use async_std::io::timeout;
@@ -11,12 +13,15 @@ use async_std::io::timeout;
 use edgedb_client::{Builder, credentials::Credentials};
 
 use crate::credentials;
+use crate::platform::{data_dir};
 use crate::portable::control::fallback;
 use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, eecho, Highlight};
 use crate::server::create::read_ports;
+use crate::server::is_valid_name;
 use crate::server::options::{InstanceCommand, Status, List};
+use crate::table::{self, Table, Row, Cell};
 
 
 #[derive(Debug)]
@@ -108,49 +113,59 @@ fn external_status(options: &Status) -> anyhow::Result<()> {
             anyhow::bail!("unsupported platform");
         }
     } else {
-        fallback(&options.name, &InstanceCommand::Status(options.clone()))
+        fallback(&options.name, "", &InstanceCommand::Status(options.clone()))
     }
+}
+
+fn status_from_meta(name: &str, instance: anyhow::Result<InstanceInfo>)
+    -> FullStatus
+{
+    let service = if cfg!(windows) {
+        windows::service_status(name)
+    } else if cfg!(target_os="macos") {
+        macos::service_status(name)
+    } else if cfg!(target_os="linux") {
+        linux::service_status(name)
+    } else {
+        Service::Inactive { error: "unsupported platform".into() }
+    };
+    let reserved_port = read_ports().ok()
+        .and_then(|map| map.get(name).cloned());
+    let port_status = probe_port(&instance, &reserved_port);
+    let paths = Paths::get(name);
+    let data_dir = instance.as_ref().ok()
+        .and_then(|i| i.data_dir().ok())
+        .or_else(|| paths.as_ref().map(|p| p.data_dir.clone()).ok());
+    let credentials_file_exists = paths.as_ref()
+        .map(|p| p.credentials.exists()).unwrap_or(false);
+    let service_exists = paths.as_ref()
+        .map(|p| {
+            p.service_files.iter().any(|f| f.exists())
+        }).unwrap_or(false);
+    return FullStatus {
+        name: name.into(),
+        service,
+        instance,
+        reserved_port,
+        port_status,
+        data_dir,
+        // data_status // TODO(tailhook)
+        // backup: // TODO(tailhook)
+        credentials_file_exists,
+        service_exists,
+    }
+}
+
+fn instance_status(name: &str) -> FullStatus {
+    let meta = InstanceInfo::read(&name);
+    status_from_meta(name, meta)
 }
 
 fn normal_status(options: &Status) -> anyhow::Result<()> {
     let meta = InstanceInfo::try_read(&options.name)?;
     // TODO(tailhook) provide (some) status even if there is no metadata
     if let Some(meta) = meta {
-        let service = if cfg!(windows) {
-            windows::service_status(&meta)
-        } else if cfg!(target_os="macos") {
-            macos::service_status(&meta)
-        } else if cfg!(target_os="linux") {
-            linux::service_status(&meta)
-        } else {
-            anyhow::bail!("unsupported platform");
-        };
-        let instance = Ok(meta);
-        let reserved_port = read_ports().ok()
-            .and_then(|map| map.get(&options.name).cloned());
-        let port_status = probe_port(&instance, &reserved_port);
-        let paths = Paths::get(&options.name);
-        let data_dir = instance.as_ref().ok()
-            .and_then(|i| i.data_dir().ok())
-            .or_else(|| paths.as_ref().map(|p| p.data_dir.clone()).ok());
-        let credentials_file_exists = paths.as_ref()
-            .map(|p| p.credentials.exists()).unwrap_or(false);
-        let service_exists = paths.as_ref()
-            .map(|p| {
-                p.service_files.iter().any(|f| f.exists())
-            }).unwrap_or(false);
-        let status = FullStatus {
-            name: options.name.clone(),
-            service,
-            instance,
-            reserved_port,
-            port_status,
-            data_dir,
-            // data_status // TODO(tailhook)
-            // backup: // TODO(tailhook)
-            credentials_file_exists,
-            service_exists,
-        };
+        let status = status_from_meta(&options.name, Ok(meta));
         if options.debug {
             println!("{:#?}", status);
             Ok(())
@@ -162,7 +177,9 @@ fn normal_status(options: &Status) -> anyhow::Result<()> {
             status.print_and_exit();
         }
     } else {
-        match fallback(&options.name, &InstanceCommand::Status(options.clone())) {
+        match fallback(&options.name, "Deprecated service found.",
+                       &InstanceCommand::Status(options.clone()))
+        {
             Ok(()) => Ok(()),
             Err(e) if e.is::<crate::server::errors::InstanceNotFound>() => {
                 remote_status(options)
@@ -199,20 +216,23 @@ fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus) {
     }
 }
 
-fn remote_status(options: &Status) -> anyhow::Result<()> {
-    let cred_path = credentials::path(&options.name)?;
+fn _remote_status(name: &str) -> anyhow::Result<RemoteStatus> {
+    let cred_path = credentials::path(&name)?;
     if !cred_path.exists() {
-        anyhow::bail!("No instance {:?} found", options.name);
+        anyhow::bail!("No instance {:?} found", name);
     }
     let file = io::BufReader::new(fs::File::open(cred_path)?);
     let credentials = serde_json::from_reader(file)?;
     let (version, connection) = try_connect(&credentials);
-    let status = RemoteStatus {
-        name: options.name.clone(),
+    return Ok(RemoteStatus {
+        name: name.into(),
         credentials,
         version,
         connection,
-    };
+    })
+}
+fn remote_status(options: &Status) -> anyhow::Result<()> {
+    let status = _remote_status(&options.name)?;
     if options.service {
         println!("Remote instance");
     } else if options.debug {
@@ -233,16 +253,132 @@ fn remote_status(options: &Status) -> anyhow::Result<()> {
     status.exit()
 }
 
+fn list_local<'x>(dir: &'x Path)
+    -> anyhow::Result<
+        impl Iterator<Item=anyhow::Result<(String, PathBuf)>> + 'x
+    >
+{
+    let err_ctx = move || format!("error reading directory {:?}", dir);
+    let dir = fs::read_dir(&dir).with_context(err_ctx)?;
+    Ok(dir.filter_map(move |result| {
+        let entry = match result {
+            Ok(entry) => entry,
+            res => return Some(Err(res.with_context(err_ctx).unwrap_err())),
+        };
+        let fname = entry.file_name();
+        let name_op = fname.to_str().and_then(|x| is_valid_name(x).then(|| x));
+        if let Some(name) = name_op {
+            return Some(Ok((name.into(), entry.path())))
+        } else {
+            log::info!("Skipping directory {:?}", entry.path());
+            return None
+        }
+    }))
+}
+
 pub fn list(options: &List) -> anyhow::Result<()> {
     if options.deprecated_install_methods {
         return crate::server::status::print_status_all(
             options.extended, options.debug, options.json);
     }
-    todo!();
+    let mut visited = BTreeSet::new();
+    let mut local = Vec::new();
+    for pair in list_local(&data_dir()?)? {
+        let (name, path) = pair?;
+        visited.insert(name.clone());
+        if path.join("metadata.json").exists() {
+            log::debug!("Instance {:?} has deprecated install method. \
+                        Skipping.", name);
+        } else {
+            local.push(instance_status(&name));
+        }
+    }
+    let mut remote = Vec::new();
+    for name in credentials::all_instance_names()? {
+        if visited.contains(&name) {
+            continue;
+        }
+        match _remote_status(&name) {
+            Ok(status) => remote.push(status),
+            Err(e) => {
+                log::warn!("Cannot check remote instance {:?}: {:#}", name, e);
+                continue;
+            }
+        }
+    }
+    local.sort_by(|a, b| a.name.cmp(&b.name));
+    remote.sort_by(|a, b| a.name.cmp(&b.name));
+
+    if local.is_empty() && remote.is_empty() {
+        if options.json {
+            println!("[]");
+        } else {
+            print::warn("No instances found");
+        }
+        return Ok(());
+    }
+    if options.debug {
+        for status in local {
+            println!("{:#?}", status);
+        }
+        for status in remote {
+            println!("{:#?}", status);
+        }
+    } else if options.extended {
+        for status in local {
+            status.print_extended();
+        }
+        for status in remote {
+            status.print_extended();
+        }
+    } else if options.json {
+        println!("{}", serde_json::to_string_pretty(
+            &local.iter().map(|status| status.json())
+            .chain(remote.iter().map(|status| status.json()))
+            .collect::<Vec<_>>()
+        )?);
+    } else {
+        print_table(&local, &remote);
+    }
+
     eecho!("Only portable packages shown here, \
         use `--deprecated-install-methods` \
         to show docker and package installations.".fade());
     Ok(())
+}
+
+fn print_table(local: &[FullStatus], remote: &[RemoteStatus]) {
+    let mut table = Table::new();
+    table.set_format(*table::FORMAT);
+    table.set_titles(Row::new(
+        ["Kind", "Name", "Port", "Version", "Status"]
+        .iter().map(|x| table::header_cell(x)).collect()));
+    for status in local {
+        table.add_row(Row::new(vec![
+            Cell::new("local"),
+            Cell::new(&status.name),
+            Cell::new(&status.instance.as_ref()
+                .map(|m| m.port.to_string())
+                .as_deref().unwrap_or("?")),
+            Cell::new(&status.instance.as_ref()
+                .map(|m| m.installation.version.to_string())
+                .as_deref().unwrap_or("?")),
+            Cell::new(status_str(&status.service)),
+        ]));
+    }
+    for status in remote {
+        table.add_row(Row::new(vec![
+            Cell::new("remote"),
+            Cell::new(&status.name),
+            Cell::new(&format!("{}:{}",
+                   status.credentials.host.as_deref().unwrap_or("localhost"),
+                   status.credentials.port)),
+            Cell::new(&status.version.as_ref()
+                .map(|m| m.to_string()).as_deref().unwrap_or("?".into())),
+            Cell::new(status.connection.as_str()),
+        ]));
+    }
+    table.printstd();
 }
 
 pub fn probe_port(inst: &anyhow::Result<InstanceInfo>, reserved: &Option<u16>)
@@ -299,7 +435,7 @@ impl FullStatus {
             false => "NOT FOUND",
         });
         println!("  Credentials: {}", match self.credentials_file_exists {
-            true => "exist",
+            true => "exists",
             false => "NOT FOUND",
         });
 
