@@ -245,6 +245,7 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
         .arg("--user")
         .arg("status")
         .arg(unit_name(&inst.name))
+        .no_proxy()
         .run_and_exit()?;
     Ok(())
 }

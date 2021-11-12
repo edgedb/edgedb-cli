@@ -362,6 +362,7 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
         process::Native::new("service status", "launchctl", "launchctl")
             .arg("print")
             .arg(launchd_name(&inst.name))
+            .no_proxy()
             .run_and_exit()?;
     } else {
         // launchctl print will fail if the service is not loaded, let's
