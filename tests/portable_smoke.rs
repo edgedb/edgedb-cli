@@ -30,6 +30,14 @@ fn install() {
         .context("list-versions", "list versions of the server")
         .success();
 
+    // TODO(tailhook) check output somehow
+    Command::new("edgedb")
+        .arg("server").arg("info").arg("--latest")
+        .assert()
+        .context("server-info", "show info about just installed server")
+        .success();
+
+
     Command::new("edgedb")
         .arg("server").arg("list-versions")
         .arg("--installed-only")

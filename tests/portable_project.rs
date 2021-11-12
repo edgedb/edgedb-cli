@@ -30,7 +30,7 @@ fn project_link_and_init() {
         .assert()
         .context("project-info-no", "not initialied")
         .success()
-        .stderr(predicates::ord::contains("is not initialized"));
+        .stderr(predicates::str::contains("is not initialized"));
 
     Command::new("edgedb")
         .arg("project").arg("init").arg("--link")

@@ -132,7 +132,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
         // TODO(tailhook) update to old version
         Command::new(&edgedb)
-            .arg("server").arg("install").arg("--version=1-rc.2")
+            .arg("server").arg("install").arg("--version=1.0-rc.2")
             .assert()
             .context("install-old", "older version of edgedb")
             .success();
