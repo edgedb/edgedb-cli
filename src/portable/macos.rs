@@ -9,7 +9,7 @@ use crate::portable::local::{InstanceInfo};
 use crate::portable::status::Service;
 use crate::process;
 use crate::print::{self, eecho, Highlight};
-use crate::server::options::{StartConf, Start};
+use crate::server::options::{StartConf, Start, Logs};
 
 
 fn plist_dir() -> anyhow::Result<PathBuf> {
@@ -370,4 +370,16 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
         return Err(ExitCode::new(1).into());
     }
     Ok(())
+}
+
+pub fn logs(options: &Logs) -> anyhow::Result<()> {
+    let mut cmd = process::Native::new("log", "tail", "tail");
+    if let Some(n) = options.tail {
+        cmd.arg("-n").arg(n.to_string());
+    }
+    if options.follow {
+        cmd.arg("-F");
+    }
+    cmd.arg(log_file(&options.name)?);
+    cmd.no_proxy().run()
 }

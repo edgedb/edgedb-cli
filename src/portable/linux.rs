@@ -9,7 +9,7 @@ use crate::portable::local::{InstanceInfo};
 use crate::portable::status::Service;
 use crate::process;
 use crate::server::errors::InstanceNotFound;
-use crate::server::options::{StartConf, Start};
+use crate::server::options::{StartConf, Start, Logs};
 
 
 fn unit_dir() -> anyhow::Result<PathBuf> {
@@ -249,3 +249,15 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn logs(options: &Logs) -> anyhow::Result<()> {
+    let mut cmd = process::Native::new(
+        "logs", "journalctl", "journalctl");
+    cmd.arg("--user-unit").arg(unit_name(&options.name));
+    if let Some(n) = options.tail  {
+        cmd.arg(format!("--lines={}", n));
+    }
+    if options.follow {
+        cmd.arg("--follow");
+    }
+    cmd.no_proxy().run()
+}

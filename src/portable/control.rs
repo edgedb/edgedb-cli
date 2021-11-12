@@ -1,7 +1,7 @@
 use crate::portable::{windows, linux, macos};
 use crate::portable::local::InstanceInfo;
 use crate::print::{self, eecho};
-use crate::server::options::{Start, Stop, Restart, InstanceCommand};
+use crate::server::options::{Start, Stop, Restart, InstanceCommand, Logs};
 
 
 pub fn fallback(name: &str, success_message: &str,
@@ -66,5 +66,17 @@ pub fn restart(options: &Restart) -> anyhow::Result<()> {
     } else {
         fallback(&options.name, "Deprecated service restarted.",
                  &InstanceCommand::Restart(options.clone()))
+    }
+}
+
+pub fn logs(options: &Logs) -> anyhow::Result<()> {
+    if cfg!(windows) {
+        windows::logs(options)
+    } else if cfg!(target_os="macos") {
+        macos::logs(options)
+    } else if cfg!(target_os="linux") {
+        linux::logs(options)
+    } else {
+        anyhow::bail!("unsupported platform");
     }
 }

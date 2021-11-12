@@ -46,7 +46,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Start(c) => control::start(c),
         Stop(c) => control::stop(c),
         Restart(c) => control::restart(c),
-        Logs(_) => todo!(),
+        Logs(c) => control::logs(c),
         Revert(_) => todo!(),
         Unlink(_) => todo!(),
         Status(c) => status::status(c),

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::portable::local::{InstanceInfo};
 use crate::portable::status::{Service};
-use crate::server::options::Start;
+use crate::server::options::{Start, Logs};
 
 
 pub fn service_files(_name: &str) -> anyhow::Result<Vec<PathBuf>> {
@@ -40,5 +40,9 @@ pub fn service_status(_inst: &str) -> Service {
 }
 
 pub fn external_status(_inst: &InstanceInfo) -> anyhow::Result<()> {
+    anyhow::bail!("running as a service is not supported on Windows yet");
+}
+
+pub fn logs(_options: &Logs) -> anyhow::Result<()> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }
