@@ -124,12 +124,12 @@ fn github_action_install() -> anyhow::Result<()> {
             .context("list-versions", "list versions of the server")
             .success();
 
-        // Extra install fails with code 51
+        // Extra install is no-op
         Command::new(&edgedb)
             .arg("server").arg("install")
             .assert()
             .context("install-2", "check that installation conficts")
-            .code(51);
+            .success();
 
         Command::new(&edgedb)
             .arg("server").arg("install").arg("--version=1-beta3")
