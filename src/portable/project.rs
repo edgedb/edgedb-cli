@@ -894,6 +894,12 @@ pub fn project_dir_opt(cli_options: Option<&Path>)
 pub fn info(options: &Info) -> anyhow::Result<()> {
     let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
     let stash_dir = stash_path(&root)?;
+    if !stash_dir.exists() {
+        eecho!(print::err_marker(),
+            "Project is not initialized.".emphasize(),
+            "Run `edgedb project init`.");
+        return Err(ExitCode::new(1).into());
+    }
     let instance_name = fs::read_to_string(stash_dir.join("instance-name"))?;
 
     if options.instance_name {
