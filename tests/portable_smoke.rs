@@ -17,9 +17,8 @@ fn install() {
         .stdout(predicates::str::contains(
             concat!("EdgeDB CLI ", env!("CARGO_PKG_VERSION"))));
 
-    // only nightly so far
     Command::new("edgedb")
-        .arg("instance").arg("create").arg("inst1").arg("--nightly")
+        .arg("instance").arg("create").arg("inst1")
         .assert()
         .context("create-1", "created `inst1`")
         .success();
@@ -108,6 +107,11 @@ fn install() {
             // .arg("--version=1-beta3")  TODO(tailhook)
         .assert()
         .context("create-2", "create `second`")
+        .success();
+
+    Command::new("edgedb").arg("instance").arg("list")
+        .assert()
+        .context("instance-list-1", "list two instances")
         .success();
 
     Command::new("edgedb")
