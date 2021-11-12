@@ -7,13 +7,11 @@ use anyhow::Context;
 pub mod options;
 
 pub mod config;
-pub mod info;
 pub mod upgrade;
 pub mod init;
 
 pub use init::{stash_path, stash_base};
 
-#[allow(unused)]  // TODO(tailhook) will be used in `project info`
 pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<PathBuf> {
     project_dir_opt(cli_option)?
     .ok_or_else(|| {

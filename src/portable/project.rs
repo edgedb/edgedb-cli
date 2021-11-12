@@ -28,7 +28,7 @@ use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::ver;
 use crate::print::{self, eecho, Highlight};
-use crate::project::options::{Init, Unlink};
+use crate::project::options::{Info, Init, Unlink};
 use crate::question;
 use crate::server::create::allocate_port;
 use crate::server::is_valid_name;
@@ -52,6 +52,13 @@ pub enum InstanceKind {
     Remote,
     Portable(InstanceInfo),
     Deprecated,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all="kebab-case")]
+struct JsonInfo<'a> {
+    instance_name: &'a str,
+    root: &'a Path,
 }
 
 
@@ -841,6 +848,70 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
         fs::remove_dir_all(&stash_path)?;
     } else {
         log::warn!("no project directory exists");
+    }
+    Ok(())
+}
+
+
+pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<PathBuf> {
+    project_dir_opt(cli_option)?
+    .ok_or_else(|| {
+        anyhow::anyhow!("no `edgedb.toml` found")
+    })
+}
+
+pub fn project_dir_opt(cli_options: Option<&Path>)
+    -> anyhow::Result<Option<PathBuf>>
+{
+    match cli_options {
+        Some(dir) => {
+            if dir.join("edgedb.toml").exists() {
+                let canon = fs::canonicalize(&dir)
+                    .with_context(|| {
+                        format!("failed to canonicalize dir {:?}", dir)
+                    })?;
+                Ok(Some(canon))
+            } else {
+                anyhow::bail!("no `edgedb.toml` found in {:?}", dir);
+            }
+        }
+        None => {
+            let dir = env::current_dir()
+                .context("failed to get current directory")?;
+            if let Some(ancestor) = search_dir(&dir)? {
+                let canon = fs::canonicalize(&ancestor)
+                    .with_context(|| {
+                        format!("failed to canonicalize dir {:?}", ancestor)
+                    })?;
+                Ok(Some(canon))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+}
+
+pub fn info(options: &Info) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let stash_dir = stash_path(&root)?;
+    let instance_name = fs::read_to_string(stash_dir.join("instance-name"))?;
+
+    if options.instance_name {
+        if options.json {
+            println!("{}", serde_json::to_string(&instance_name)?);
+        } else {
+            println!("{}", instance_name);
+        }
+    } else if options.json {
+        println!("{}", serde_json::to_string_pretty(&JsonInfo {
+            instance_name: &instance_name,
+            root: &root,
+        })?);
+    } else {
+        table::settings(&[
+            ("Instance name", &instance_name),
+            ("Project root", &root.display().to_string()),
+        ]);
     }
     Ok(())
 }
