@@ -245,6 +245,7 @@ fn github_action_install() -> anyhow::Result<()> {
                 .context("status-1-4", "status of `inst1`")
                 .success();
 
+            /*
             Command::new(&edgedb)
                 .arg("instance").arg("upgrade").arg("inst1")
                 .arg("--to-latest").arg("--force")
@@ -259,6 +260,7 @@ fn github_action_install() -> anyhow::Result<()> {
                 .assert()
                 .context("query-1-2", "query `inst1` after upgrade")
                 .success();
+            */
 
             Command::new(&edgedb)
                 .arg("instance").arg("destroy").arg("second")

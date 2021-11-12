@@ -112,7 +112,7 @@ fn project_link_and_init() {
 
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("project2")
-        .arg("--force").arg("--non-interactive")
+        .arg("--force")
         .assert()
         .context("destroy-2", "should destroy")
         .success();
@@ -126,7 +126,7 @@ fn project_link_and_init() {
 
 
     Command::new("edgedb")
-        .arg("project").arg("unlink").arg("-D")
+        .arg("project").arg("unlink").arg("-D").arg("--non-interactive")
         .current_dir("tests/proj/project1")
         .assert()
         .context("destroy-1", "should unlink and destroy project")
