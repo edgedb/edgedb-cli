@@ -143,7 +143,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .assert()
             .context("installed only", "check the version is installed")
             .success()
-            .stdout(predicates::str::contains("1-beta3"));
+            .stdout(predicates::str::contains("1.0-rc.2"));
 
         if cfg!(target_os="macos") {
             Command::new(&edgedb)
@@ -205,7 +205,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
             Command::new(&edgedb)
                 .arg("instance").arg("create").arg("second")
-                    .arg("--version=1-beta3")
+                    .arg("--version=1.0-rc.2")
                 .assert()
                 .context("create-2", "create `second`")
                 .success();
@@ -268,19 +268,6 @@ fn github_action_install() -> anyhow::Result<()> {
                 .success();
 
         }
-
-        Command::new(&edgedb)
-            .arg("server").arg("uninstall").arg("--version=1-beta3")
-            .assert()
-            .context("uninstall-2", "uninstall old version")
-            .success();
-        Command::new(&edgedb)
-            .arg("server").arg("list-versions")
-            .arg("--installed-only").arg("--column=major-version")
-            .assert()
-            .success()
-            .context("list-2", "list after uninstall")
-            .stdout(predicates::str::contains("1-beta2").not());
 
         if cfg!(target_os="macos") {
             Command::new(&edgedb)
