@@ -417,6 +417,8 @@ pub struct Info {
     pub json: bool,
 
     #[clap(long)]
+    pub latest: bool,
+    #[clap(long)]
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
     pub version: Option<Version<String>>,

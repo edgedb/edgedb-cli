@@ -25,8 +25,6 @@ use crate::server::reset_password::{write_credentials};
 use edgedb_client::credentials::Credentials;
 
 
-
-
 pub fn create(options: &Create) -> anyhow::Result<()> {
     if options.method.is_some() {
         return crate::server::create::create(options);

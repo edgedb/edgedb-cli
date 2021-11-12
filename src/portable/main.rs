@@ -3,6 +3,7 @@ use crate::project::options::ProjectCommand;
 use crate::server::options::ServerCommand;
 use crate::server::options::ServerInstanceCommand;
 
+use crate::portable::info;
 use crate::portable::control;
 use crate::portable::create;
 use crate::portable::destroy;
@@ -12,7 +13,6 @@ use crate::portable::project;
 use crate::portable::status;
 
 use crate::server::detect;
-use crate::server::info;
 use crate::server::link;
 use crate::server::reset_password;
 use crate::server::uninstall;

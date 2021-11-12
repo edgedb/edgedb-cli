@@ -13,6 +13,7 @@ mod windows;
 mod control;
 mod create;
 mod destroy;
+mod info;
 mod install;
 mod list_versions;
 mod status;
