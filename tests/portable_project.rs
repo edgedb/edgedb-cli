@@ -25,6 +25,14 @@ fn project_link_and_init() {
         .success();
 
     Command::new("edgedb")
+        .arg("project").arg("info").arg("--instance-name")
+        .current_dir("tests/proj/project1")
+        .assert()
+        .context("project-info-no", "not initialied")
+        .success()
+        .stderr(predicates::ord::contains("is not initialized"));
+
+    Command::new("edgedb")
         .arg("project").arg("init").arg("--link")
         .arg("--server-instance=inst1")
         .arg("--non-interactive")
