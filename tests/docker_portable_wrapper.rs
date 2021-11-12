@@ -90,6 +90,7 @@ fn dockerfile() -> String {
             user1
         ADD ./edgedb /usr/bin/edgedb
         ADD ./tests /tests
+        RUN chown -R user1 /tests/proj
     "###)
 }
 
