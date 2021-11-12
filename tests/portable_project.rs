@@ -111,7 +111,8 @@ fn project_link_and_init() {
         .stdout(predicates::str::contains("project2"));
 
     Command::new("edgedb")
-        .arg("instance").arg("destroy").arg("project2").arg("--force")
+        .arg("instance").arg("destroy").arg("project2")
+        .arg("--force").arg("--non-interactive")
         .assert()
         .context("destroy-2", "should destroy")
         .success();
