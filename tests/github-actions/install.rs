@@ -3,7 +3,6 @@ use std::io::Write;
 
 use assert_cmd::{Command, assert::Assert};
 use async_std::prelude::FutureExt;
-use dirs::home_dir;
 use predicates::boolean::PredicateBooleanExt;
 use tokio::sync::oneshot;
 use warp::Filter;

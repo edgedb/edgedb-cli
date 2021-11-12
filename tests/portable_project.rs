@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature="portable_tests"), allow(dead_code))]
 
 use assert_cmd::Command;
+use predicates::prelude::*;
 
 mod util;
 use util::*;
@@ -33,6 +34,14 @@ fn project_link_and_init() {
         .success();
 
     Command::new("edgedb")
+        .arg("project").arg("info").arg("--instance-name")
+        .current_dir("tests/proj/project1")
+        .assert()
+        .context("project-info", "instance-name == inst1")
+        .success()
+        .stdout(predicates::ord::eq("inst1\n"));
+
+    Command::new("edgedb")
         .arg("query").arg("SELECT 1")
         .current_dir("tests/proj/project1")
         .assert()
@@ -46,6 +55,14 @@ fn project_link_and_init() {
         .assert()
         .context("project-init", "init project2")
         .success();
+
+    Command::new("edgedb")
+        .arg("project").arg("info").arg("--instance-name")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-info", "instance-name == project2")
+        .success()
+        .stdout(predicates::ord::eq("project2\n"));
 
     Command::new("edgedb")
         .arg("query").arg("SELECT 1")
@@ -76,8 +93,8 @@ fn project_link_and_init() {
         .assert()
         .context("instance-list-1", "list two instances")
         .success()
-        .stdout(predicate::str::contains("inst1"));
-        .stdout(predicate::str::contains("project2"));
+        .stdout(predicates::str::contains("inst1"))
+        .stdout(predicates::str::contains("project2"));
 
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("project2").arg("--force")
@@ -89,8 +106,8 @@ fn project_link_and_init() {
         .assert()
         .context("instance-list-2", "list once instance")
         .success()
-        .stdout(predicate::str::contains("inst1"));
-        .stdout(predicate::str::contains("project2").not());
+        .stdout(predicates::str::contains("inst1"))
+        .stdout(predicates::str::contains("project2").not());
 
 
     Command::new("edgedb")
@@ -104,6 +121,6 @@ fn project_link_and_init() {
         .assert()
         .context("instance-list-3", "list no instances")
         .success()
-        .stdout(predicate::str::contains("inst1").not());
-        .stdout(predicate::str::contains("project2").not());
+        .stdout(predicates::str::contains("inst1").not())
+        .stdout(predicates::str::contains("project2").not());
 }
