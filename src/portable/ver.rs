@@ -49,8 +49,12 @@ static SPECIFIC: Lazy<Regex> = Lazy::new(|| {
         .unwrap()
 });
 
-static QUERY: Lazy<Regex> = Lazy::new(|| {
+static FILTER: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"^(\d+)(?:\.0-(alpha|beta|rc)\.(\d+)|\.(\d+))?$"#)
+        .unwrap()
+});
+static OLD_FILTER: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r#"^(\d+)(?:(?:\.0)?-(alpha|beta|rc)\.?(\d+)|\.(\d+))?$"#)
         .unwrap()
 });
 
@@ -88,9 +92,18 @@ impl FromStr for Specific {
 impl FromStr for Filter {
     type Err = anyhow::Error;
     fn from_str(value: &str) -> anyhow::Result<Filter> {
-        let m = QUERY.captures(value)
-            .context("unsupported version format. Examples: \
-                     `1.15`, `7`, `3.0-rc.1`")?;
+        let mut deprecated = false;
+        let m = match FILTER.captures(value) {
+            Some(m) => m,
+            None => match OLD_FILTER.captures(value) {
+                Some(m) => {
+                    deprecated = true;
+                    m
+                }
+                None => anyhow::bail!("unsupported version format. Examples: \
+                     `1.15`, `7`, `3.0-rc.1`"),
+            }
+        };
         let major = m.get(1).unwrap().as_str().parse()?;
         let g3 = m.get(3).map(|m| m.as_str().parse()).transpose()?;
         let minor = match m.get(2).map(|m| m.as_str()) {
@@ -101,7 +114,12 @@ impl FromStr for Filter {
             None => m.get(4).map(|m| m.as_str().parse()).transpose()?
                     .map(FilterMinor::Minor),
         };
-        Ok(Filter { major, minor })
+        let result = Filter { major, minor };
+        if deprecated {
+            log::warn!("Version numbers spelled as {:?} are deprecated. \
+                        Use: {:?}.", value, result.to_string());
+        }
+        Ok(result)
     }
 }
 
