@@ -82,7 +82,7 @@ pub fn get_installed() -> anyhow::Result<Vec<InstallInfo>> {
     if !dir.exists() {
         return Ok(Vec::new());
     }
-    for result in list_installed(dir)? {
+    for result in list_installed(&dir)? {
         let (ver, path) = result?;
         match InstallInfo::read(&path) {
             Ok(info) if ver != info.version.specific() => {
