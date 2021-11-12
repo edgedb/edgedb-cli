@@ -57,12 +57,11 @@ pub fn project_main(cmd: &ProjectCommand) -> anyhow::Result<()> {
     use crate::project::options::Command::*;
 
     use crate::project::info;
-    use crate::project::unlink;
     use crate::project::upgrade;
 
     match &cmd.subcommand {
         Init(c) => project::init(c),
-        Unlink(c) => unlink::unlink(c),
+        Unlink(c) => project::unlink(c),
         Info(c) => info::info(c),
         Upgrade(c) => upgrade::upgrade(c),
     }

@@ -19,6 +19,7 @@ use crate::credentials;
 use crate::migrations;
 use crate::platform::{tmp_file_path, path_bytes, symlink_dir, config_dir};
 use crate::portable::config;
+use crate::portable::destroy;
 use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
@@ -26,8 +27,8 @@ use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::ver;
-use crate::print;
-use crate::project::options::Init;
+use crate::print::{self, eecho, Highlight};
+use crate::project::options::{Init, Unlink};
 use crate::question;
 use crate::server::create::allocate_port;
 use crate::server::is_valid_name;
@@ -771,5 +772,75 @@ fn print_versions(title: &str) -> anyhow::Result<()> {
             .join(", "),
         if avail.len() > 5 { " ..." } else { "" },
     );
+    Ok(())
+}
+
+fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
+    let mut path = base;
+    while let Some(parent) = path.parent() {
+        let canon = fs::canonicalize(&path)
+            .with_context(|| {
+                format!("failed to canonicalize dir {:?}", parent)
+            })?;
+        let stash_dir = stash_path(&canon)?;
+        if stash_dir.exists() || path.join("edgedb.toml").exists() {
+            return Ok(stash_dir)
+        }
+        path = parent;
+    }
+    anyhow::bail!("no project directory found");
+}
+
+pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
+    let stash_path = if let Some(dir) = &options.project_dir {
+        let canon = fs::canonicalize(&dir)
+            .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
+        stash_path(&canon)?
+    } else {
+        let base = env::current_dir()
+            .context("failed to get current directory")?;
+        search_for_unlink(&base)?
+    };
+
+    if stash_path.exists() {
+        if options.destroy_server_instance {
+            let inst = fs::read_to_string(&stash_path.join("instance-name"))
+                .context("failed to read instance name")?;
+            let inst = inst.trim();
+            if !options.non_interactive {
+                let q = question::Confirm::new_dangerous(
+                    format!("Do you really want to unlink \
+                             and delete instance {:?}?", inst.trim())
+                );
+                if !q.ask()? {
+                    print::error("Canceled.");
+                    return Ok(())
+                }
+            }
+            let mut project_dirs = destroy::find_project_dirs(inst)?;
+            if project_dirs.len() > 1 {
+                project_dirs.iter().position(|d| d == &stash_path)
+                    .map(|pos| project_dirs.remove(pos));
+                destroy::print_warning(inst, &project_dirs);
+                return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
+            }
+            if options.destroy_server_instance {
+                destroy::force_by_name(inst)?;
+            }
+        } else {
+            match fs::read_to_string(&stash_path.join("instance-name")) {
+                Ok(name) => {
+                    eecho!("Unlinking instance", name.emphasize());
+                }
+                Err(e) => {
+                    print::error(format!("Cannot read instance name: {}", e));
+                    eprintln!("Removing project configuration directory...");
+                }
+            };
+        }
+        fs::remove_dir_all(&stash_path)?;
+    } else {
+        log::warn!("no project directory exists");
+    }
     Ok(())
 }

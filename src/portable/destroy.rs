@@ -140,7 +140,15 @@ fn destroy_portable(options: &Destroy) -> anyhow::Result<()> {
     }
 }
 
-pub fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
+pub fn force_by_name(name: &str) -> anyhow::Result<()> {
+    do_destroy(&Destroy {
+        name: name.to_string(),
+        verbose: false,
+        force: true,
+    })
+}
+
+fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
     match destroy_portable(options) {
         Ok(()) => {
             crate::server::destroy::do_destroy(Vec::new(), options)?;

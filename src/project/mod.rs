@@ -8,12 +8,10 @@ pub mod options;
 
 pub mod config;
 pub mod info;
-pub mod unlink;
 pub mod upgrade;
 pub mod init;
 
 pub use init::{stash_path, stash_base};
-pub use unlink::unlink;
 
 #[allow(unused)]  // TODO(tailhook) will be used in `project info`
 pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<PathBuf> {

@@ -40,12 +40,6 @@ pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
     Ok(res)
 }
 
-pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
-    print_instance_in_use_warning(name, project_dirs);
-    eprintln!("If you really want to destroy the instance, run:");
-    eprintln!("  edgedb instance destroy {:?} --force", name);
-}
-
 pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
     print::warn(format!(
         "Instance {:?} is used by the following project{}:",
