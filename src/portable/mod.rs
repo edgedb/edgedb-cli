@@ -17,6 +17,7 @@ mod info;
 mod install;
 mod list_versions;
 mod status;
+mod upgrade;
 pub mod project;
 
 pub use main::{instance_main, server_main, project_main};

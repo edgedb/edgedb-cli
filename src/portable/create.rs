@@ -55,7 +55,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
     bootstrap(&paths, &info,
               &options.default_database, &options.default_user)?;
 
-    match (create_service(&options.name, &info), options.start_conf) {
+    match (create_service(&info), options.start_conf) {
         (Ok(()), StartConf::Manual) => {
             eecho!("Instance", options.name.emphasize(), "is ready.");
             eprintln!("You can start it manually via: \n  \
@@ -163,14 +163,14 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     Ok(())
 }
 
-pub fn create_service(name: &str, meta: &InstanceInfo) -> anyhow::Result<()>
+pub fn create_service(meta: &InstanceInfo) -> anyhow::Result<()>
 {
     if cfg!(target_os="macos") {
-        macos::create_service(&name, &meta)
+        macos::create_service(&meta)
     } else if cfg!(target_os="linux") {
-        linux::create_service(&name, &meta)
+        linux::create_service(&meta)
     } else if cfg!(windows) {
-        windows::create_service(&name, &meta)
+        windows::create_service(&meta)
     } else {
         anyhow::bail!("creating a service is not supported on the platform");
     }

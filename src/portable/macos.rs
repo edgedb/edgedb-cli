@@ -36,10 +36,10 @@ pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
     Ok(vec![plist_path(name)?])
 }
 
-pub fn create_service(name: &str, info: &InstanceInfo) -> anyhow::Result<()> {
+pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
     // bootout on upgrade
-    if is_service_loaded(name) {
-        bootout(name)?;
+    if is_service_loaded(&info.name) {
+        bootout(&info.name)?;
     }
 
     if info.start_conf == StartConf::Auto {

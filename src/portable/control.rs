@@ -33,36 +33,44 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
     }
 }
 
+pub fn do_stop(inst: &InstanceInfo) -> anyhow::Result<()> {
+    if cfg!(windows) {
+        windows::stop_service(inst)
+    } else if cfg!(target_os="macos") {
+        macos::stop_service(inst)
+    } else if cfg!(target_os="linux") {
+        linux::stop_service(inst)
+    } else {
+        anyhow::bail!("unsupported platform");
+    }
+}
+
 pub fn stop(options: &Stop) -> anyhow::Result<()> {
     let meta = InstanceInfo::try_read(&options.name)?;
     if let Some(meta) = &meta {
-        if cfg!(windows) {
-            windows::stop_service(meta)
-        } else if cfg!(target_os="macos") {
-            macos::stop_service(meta)
-        } else if cfg!(target_os="linux") {
-            linux::stop_service(meta)
-        } else {
-            anyhow::bail!("unsupported platform");
-        }
+        do_stop(meta)
     } else {
         fallback(&options.name, "Deprecated service stopped.",
                  &InstanceCommand::Stop(options.clone()))
     }
 }
 
+pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
+    if cfg!(windows) {
+        windows::restart_service(inst)
+    } else if cfg!(target_os="macos") {
+        macos::restart_service(inst)
+    } else if cfg!(target_os="linux") {
+        linux::restart_service(inst)
+    } else {
+        anyhow::bail!("unsupported platform");
+    }
+}
+
 pub fn restart(options: &Restart) -> anyhow::Result<()> {
     let meta = InstanceInfo::try_read(&options.name)?;
     if let Some(meta) = &meta {
-        if cfg!(windows) {
-            windows::restart_service(meta)
-        } else if cfg!(target_os="macos") {
-            macos::restart_service(meta)
-        } else if cfg!(target_os="linux") {
-            linux::restart_service(meta)
-        } else {
-            anyhow::bail!("unsupported platform");
-        }
+        do_restart(meta)
     } else {
         fallback(&options.name, "Deprecated service restarted.",
                  &InstanceCommand::Restart(options.clone()))

@@ -29,9 +29,10 @@ pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
 }
 
 
-pub fn create_service(name: &str, info: &InstanceInfo)
+pub fn create_service(info: &InstanceInfo)
     -> anyhow::Result<()>
 {
+    let name = &info.name;
     let unit_dir = unit_dir()?;
     fs::create_dir_all(&unit_dir)
         .with_context(|| format!("cannot create directory {:?}", unit_dir))?;

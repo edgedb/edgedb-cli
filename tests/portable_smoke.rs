@@ -158,11 +158,9 @@ fn install() {
         .context("status-1-4", "status of `inst1`")
         .success();
 
-    /*
-    * TODO
+    // minor upgrade
     Command::new("edgedb")
-        .arg("instance").arg("upgrade").arg("inst1")
-        .arg("--to-latest").arg("--force")
+        .arg("instance").arg("upgrade").arg("inst1").arg("--force")
         .assert()
         .context("upgrade-1", "force upgrade `inst1` to latest")
         .success();
@@ -172,6 +170,22 @@ fn install() {
         .arg("query").arg("SELECT 1")
         .assert()
         .context("query-1-2", "query `inst1` after upgrade")
+        .success();
+
+    /*
+    // major upgrade
+    Command::new("edgedb")
+        .arg("instance").arg("upgrade").arg("inst1")
+        .arg("--to-latest").arg("--force")
+        .assert()
+        .context("upgrade-2", "force upgrade `inst1` to latest")
+        .success();
+
+    Command::new("edgedb")
+        .arg("--admin").arg("--instance").arg("inst1")
+        .arg("query").arg("SELECT 1")
+        .assert()
+        .context("query-1-3", "query `inst1` after 2nd upgrade")
         .success();
     */
 

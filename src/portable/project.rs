@@ -17,7 +17,8 @@ use crate::commands::ExitCode;
 use crate::connect::Connector;
 use crate::credentials;
 use crate::migrations;
-use crate::platform::{tmp_file_path, path_bytes, symlink_dir, config_dir};
+use crate::platform::{tmp_file_path, symlink_dir, config_dir};
+use crate::platform::{path_bytes, bytes_to_path};
 use crate::portable::config;
 use crate::portable::destroy;
 use crate::portable::create;
@@ -320,7 +321,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
     let paths = Paths::get(&name)?;
     create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
 
-    let svc_result = create::create_service(&name, &info);
+    let svc_result = create::create_service(&info);
 
     write_stash_dir(stash_dir, project_dir, &name)?;
 
@@ -824,7 +825,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                     return Ok(())
                 }
             }
-            let mut project_dirs = destroy::find_project_dirs(inst)?;
+            let mut project_dirs = find_project_dirs(inst)?;
             if project_dirs.len() > 1 {
                 project_dirs.iter().position(|d| d == &stash_path)
                     .map(|pos| project_dirs.remove(pos));
@@ -920,4 +921,55 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         ]);
     }
     Ok(())
+}
+
+#[context("could not read project dir {:?}", stash_base())]
+pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
+    let mut res = Vec::new();
+    let dir = match fs::read_dir(stash_base()?) {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Ok(Vec::new());
+        }
+        Err(e) => return Err(e)?,
+    };
+    for item in dir {
+        let entry = item?;
+        let path = entry.path().join("instance-name");
+        let inst = match fs::read_to_string(&path) {
+            Ok(inst) => inst,
+            Err(e) => {
+                log::warn!("Error reading {:?}: {}", path, e);
+                continue;
+            }
+        };
+        if name == inst.trim() {
+            res.push(entry.path());
+        }
+    }
+    Ok(res)
+}
+
+pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
+    print::warn(format!(
+        "Instance {:?} is used by the following project{}:",
+        name,
+        if project_dirs.len() > 1 { "s" } else { "" },
+    ));
+    for dir in project_dirs {
+        let dest = match read_project_real_path(dir) {
+            Ok(path) => path,
+            Err(e) => {
+                print::error(e);
+                continue;
+            }
+        };
+        eprintln!("  {}", dest.display());
+    }
+}
+
+#[context("cannot read {:?}", project_dir)]
+pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
+    let bytes = fs::read(&project_dir.join("project-path"))?;
+    Ok(bytes_to_path(&bytes)?.to_path_buf())
 }

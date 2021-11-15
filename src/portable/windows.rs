@@ -10,7 +10,7 @@ pub fn service_files(_name: &str) -> anyhow::Result<Vec<PathBuf>> {
     Ok(Vec::new())
 }
 
-pub fn create_service(_name: &str, _info: &InstanceInfo) -> anyhow::Result<()>
+pub fn create_service(_info: &InstanceInfo) -> anyhow::Result<()>
 {
     anyhow::bail!("auto-start is not supported on Windows yet");
 }
