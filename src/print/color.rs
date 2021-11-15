@@ -62,10 +62,10 @@ fn theme() -> &'static Theme {
     &*THEME
 }
 
-impl<T: fmt::Display> Highlight for T {
+impl<T: fmt::Display> Highlight for &T {
 }
 
-impl<T: fmt::Display> fmt::Display for Colored<T> {
+impl<T: fmt::Display> fmt::Display for Colored<&T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(style) = self.style {
             write!(f, "\x1B[38;5;{}{}m{}\x1B[0m",

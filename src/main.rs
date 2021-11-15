@@ -33,6 +33,7 @@ mod non_interactive;
 mod options;
 mod outputs;
 mod platform;
+mod portable;
 mod print;
 mod process;
 mod project;

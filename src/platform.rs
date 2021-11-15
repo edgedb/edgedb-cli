@@ -140,3 +140,9 @@ pub fn data_dir() -> anyhow::Result<PathBuf> {
         .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
         .join("edgedb").join("data"))
 }
+
+pub fn portable_dir() -> anyhow::Result<PathBuf> {
+    Ok(dirs::data_dir()
+        .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
+        .join("edgedb").join("portable"))
+}

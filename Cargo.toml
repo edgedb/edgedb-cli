@@ -18,6 +18,7 @@ async-std = {version="1.9", features=[
 ]}
 bytes = "1.0.1"
 blake2b_simd = "0.5.11"
+blake3 = "1.1.0"
 rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb_20210403"}
 #clap = "3.0.0-beta.2"
 clap = { git="https://github.com/clap-rs/clap" }
@@ -41,6 +42,7 @@ serde = "1.0"
 serde_json = "1.0"
 serde_path_to_error = "0.1.3"
 serde_str = {git="https://github.com/tailhook/serde-str"}
+serde_millis = "0.1.1"
 dirs = "3"
 uuid = "0.8.1"
 prettytable-rs = {version="0.8.0", default-features=false}
@@ -50,7 +52,7 @@ termcolor = "1.1.0"
 crossterm = "0.19.0"
 async-listen = "0.2.0"
 sha1 = "0.6.0"
-hex = "0.4.3"
+hex = {version="0.4.3", features=["serde"]}
 textwrap = {version="0.14.2", features=["terminal_size"]}
 log = "0.4.8"
 env_logger = "0.8.2"
@@ -73,7 +75,7 @@ base64 = "0.13"
 ring = "0.16.15"
 shell-words = "1.0.0"
 wait-timeout = "0.2.0"
-indicatif = "0.15.0"
+indicatif = "0.16.2"
 url = "2.1.1"
 immutable-chunkmap = "0.5.9"
 regex = "1.4.5"
@@ -91,15 +93,16 @@ clicolors-control = "1.0.1"
 backtrace = "0.3.61"
 arc-swap = "1.4.0"
 ctrlc = "3.2.0"
-async-process = "1.2.0"
+async-process = { git="https://github.com/smol-rs/async-process", rev="c8bdbc1"}
 crossbeam-utils = "0.8.5"
+tar = "0.4.37"
+zstd = "0.9.0"
 
 [dev-dependencies]
-assert_cmd = "2.0.2"
+assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
 predicates = "1.0.4"
 pretty_assertions = "0.6.1"
 shutdown_hooks = "0.1.0"
-tar = "0.4.26"
 test-case = "1.1.0"
 openssl = "0.10.30"
 tokio = {version="1.1.0", features=["rt-multi-thread"]}
@@ -109,6 +112,8 @@ warp = {git="https://github.com/fantix/warp", rev = "dab7759", default-features=
 dev_mode = []
 github_action_install = []
 github_nightly = []
+portable_tests = []
+docker_test_wrapper = []
 
 [target.'cfg(unix)'.dependencies]
 signal = "0.7.0"

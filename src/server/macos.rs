@@ -13,6 +13,7 @@ use once_cell::unsync::OnceCell;
 use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
+use crate::commands::ExitCode;
 use crate::eecho;
 use crate::platform::{get_current_uid, home_dir, cache_dir, data_dir};
 use crate::process;
@@ -573,6 +574,7 @@ impl<'a> Instance for LocalInstance<'a> {
             // just give a more understandable error here.
             log::error!(target: "edgedb::server::status",
                         "Service is not loaded");
+            return Err(ExitCode::new(1).into());
         }
         Ok(())
     }

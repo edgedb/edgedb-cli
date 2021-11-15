@@ -3,8 +3,6 @@ use std::io::Write;
 
 use assert_cmd::{Command, assert::Assert};
 use async_std::prelude::FutureExt;
-use dirs::home_dir;
-use predicates::boolean::PredicateBooleanExt;
 use tokio::sync::oneshot;
 use warp::Filter;
 use warp::filters::path::path;
@@ -124,15 +122,16 @@ fn github_action_install() -> anyhow::Result<()> {
             .context("list-versions", "list versions of the server")
             .success();
 
-        // Extra install fails with code 51
+        // Extra install is no-op
         Command::new(&edgedb)
             .arg("server").arg("install")
             .assert()
             .context("install-2", "check that installation conficts")
-            .code(51);
+            .success();
 
+        // TODO(tailhook) update to old version
         Command::new(&edgedb)
-            .arg("server").arg("install").arg("--version=1-beta3")
+            .arg("server").arg("install").arg("--version=1.0-rc.2")
             .assert()
             .context("install-old", "older version of edgedb")
             .success();
@@ -143,7 +142,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .assert()
             .context("installed only", "check the version is installed")
             .success()
-            .stdout(predicates::str::contains("1-beta3"));
+            .stdout(predicates::str::contains("1.0-rc.2"));
 
         if cfg!(target_os="macos") {
             Command::new(&edgedb)
@@ -205,7 +204,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
             Command::new(&edgedb)
                 .arg("instance").arg("create").arg("second")
-                    .arg("--version=1-beta3")
+                    .arg("--version=1.0-rc.2")
                 .assert()
                 .context("create-2", "create `second`")
                 .success();
@@ -246,6 +245,7 @@ fn github_action_install() -> anyhow::Result<()> {
                 .context("status-1-4", "status of `inst1`")
                 .success();
 
+            /*
             Command::new(&edgedb)
                 .arg("instance").arg("upgrade").arg("inst1")
                 .arg("--to-latest").arg("--force")
@@ -260,6 +260,7 @@ fn github_action_install() -> anyhow::Result<()> {
                 .assert()
                 .context("query-1-2", "query `inst1` after upgrade")
                 .success();
+            */
 
             Command::new(&edgedb)
                 .arg("instance").arg("destroy").arg("second")
@@ -268,19 +269,6 @@ fn github_action_install() -> anyhow::Result<()> {
                 .success();
 
         }
-
-        Command::new(&edgedb)
-            .arg("server").arg("uninstall").arg("--version=1-beta3")
-            .assert()
-            .context("uninstall-2", "uninstall old version")
-            .success();
-        Command::new(&edgedb)
-            .arg("server").arg("list-versions")
-            .arg("--installed-only").arg("--column=major-version")
-            .assert()
-            .success()
-            .context("list-2", "list after uninstall")
-            .stdout(predicates::str::contains("1-beta2").not());
 
         if cfg!(target_os="macos") {
             Command::new(&edgedb)
