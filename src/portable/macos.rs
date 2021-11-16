@@ -9,7 +9,7 @@ use crate::portable::local::{InstanceInfo};
 use crate::portable::status::Service;
 use crate::process;
 use crate::print::{self, eecho, Highlight};
-use crate::server::options::{StartConf, Start, Logs};
+use crate::server::options::{StartConf, Logs};
 
 
 fn plist_dir() -> anyhow::Result<PathBuf> {
@@ -53,7 +53,7 @@ fn runtime_base() -> anyhow::Result<PathBuf> {
     Ok(cache_dir()?.join("run"))
 }
 
-fn runtime_dir(name: &str) -> anyhow::Result<PathBuf> {
+pub fn runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
     Ok(runtime_base()?.join(name))
 }
 
@@ -75,7 +75,7 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
     <array>
         <string>{server_path}</string>
         <string>--data-dir={data_dir}</string>
-        <string>--runstate-dir={runtime_dir}</string>
+        <string>--runstate-dir={runstate_dir}</string>
         <string>--port={port}</string>
     </array>
 
@@ -103,7 +103,7 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
         instance_name=name,
         data_dir=info.data_dir()?.display(),
         server_path=info.server_path()?.display(),
-        runtime_dir=runtime_dir(&name)?.display(),
+        runstate_dir=runstate_dir(&name)?.display(),
         log_path=log_file(&name)?.display(),
         port=info.port,
     ))
@@ -228,34 +228,31 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     Ok(found)
 }
 
-pub fn start_service(options: &Start, inst: &InstanceInfo)
-    -> anyhow::Result<()>
-{
-    if options.foreground {
-        let data_dir = data_dir()?.join(&options.name);
-        let runtime_dir = runtime_dir(&options.name)?;
-        let server_path = inst.server_path()?;
-        process::Native::new("edgedb", "edgedb", server_path)
-            .env_default("EDGEDB_SERVER_LOG_LEVEL", "warn")
-            .arg("--data-dir").arg(data_dir)
-            .arg("--runstate-dir").arg(runtime_dir)
-            .arg("--port").arg(inst.port.to_string())
-            .no_proxy()
+pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
+    let data_dir = data_dir()?.join(&inst.name);
+    let runstate_dir = runstate_dir(&inst.name)?;
+    let server_path = inst.server_path()?;
+    let mut pro = process::Native::new("edgedb", "edgedb", server_path);
+    pro.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
+    pro.arg("--data-dir").arg(data_dir);
+    pro.arg("--runstate-dir").arg(runstate_dir);
+    pro.arg("--port").arg(inst.port.to_string());
+    Ok(pro)
+}
+
+pub fn start_service(inst: &InstanceInfo) -> anyhow::Result<()> {
+    if inst.start_conf == StartConf::Auto || is_service_loaded(&inst.name)
+    {
+        // For auto-starting services, we assume they are already loaded.
+        // If the server is already running, kickstart won't do anything;
+        // or else it will try to (re-)start the server.
+        let lname = launchd_name(&inst.name);
+        process::Native::new("launchctl", "launchctl", "launchctl")
+            .arg("kickstart").arg(&lname)
             .run()?;
+        wait_started(&inst.name)?;
     } else {
-        if inst.start_conf == StartConf::Auto || is_service_loaded(&inst.name)
-        {
-            // For auto-starting services, we assume they are already loaded.
-            // If the server is already running, kickstart won't do anything;
-            // or else it will try to (re-)start the server.
-            let lname = launchd_name(&inst.name);
-            process::Native::new("launchctl", "launchctl", "launchctl")
-                .arg("kickstart").arg(&lname)
-                .run()?;
-            wait_started(&inst.name)?;
-        } else {
-            _create_service(inst)?;
-        }
+        _create_service(inst)?;
     }
     Ok(())
 }

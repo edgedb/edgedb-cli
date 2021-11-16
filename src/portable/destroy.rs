@@ -1,16 +1,12 @@
-use std::fs;
-
 use std::path::{PathBuf};
 
-
+use fs_err as fs;
 
 use crate::commands::ExitCode;
-
 use crate::portable::exit_codes;
 use crate::portable::local;
 use crate::portable::project::{self};
 use crate::portable::{windows, linux, macos};
-
 use crate::server::errors::InstanceNotFound;
 use crate::server::options::Destroy;
 
@@ -52,6 +48,7 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
 
 fn destroy_portable(options: &Destroy) -> anyhow::Result<()> {
     let paths = local::Paths::get(&options.name)?;
+    log::debug!("Paths {:?}", paths);
     let mut found = false;
     let mut not_found_err = None;
     match stop_and_disable(&options.name) {
@@ -79,6 +76,21 @@ fn destroy_portable(options: &Destroy) -> anyhow::Result<()> {
             log::info!("Removing service file {:?}", path);
             fs::remove_file(path)?;
         }
+    }
+    if paths.backup_dir.exists() {
+        found = true;
+        log::info!("Removing backup directory {:?}", paths.backup_dir);
+        fs::remove_dir_all(&paths.backup_dir)?;
+    }
+    if paths.dump_path.exists() {
+        found = true;
+        log::info!("Removing dump {:?}", paths.dump_path);
+        fs::remove_dir_all(&paths.dump_path)?;
+    }
+    if paths.upgrade_marker.exists() {
+        found = true;
+        log::info!("Removing upgrade marker {:?}", paths.upgrade_marker);
+        fs::remove_file(&paths.upgrade_marker)?;
     }
     if found {
         Ok(())

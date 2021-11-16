@@ -37,6 +37,8 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
             Server::Uninstall(u) if u.verbose => {
                 builder.filter_module(
                     "edgedb::server::uninstall", log::LevelFilter::Info);
+                builder.filter_module(
+                    "edgedb::portable::uninstall", log::LevelFilter::Info);
             }
             _ => {}
         },
@@ -44,10 +46,14 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
             Instance::Destroy(d) if d.verbose => {
                 builder.filter_module(
                     "edgedb::server::destroy", log::LevelFilter::Info);
+                builder.filter_module(
+                    "edgedb::portable::destroy", log::LevelFilter::Info);
             }
             Instance::Upgrade(u) if u.verbose => {
                 builder.filter_module(
                     "edgedb::server::upgrade", log::LevelFilter::Info);
+                builder.filter_module(
+                    "edgedb::portable::upgrade", log::LevelFilter::Info);
             }
             _ => {}
         },
@@ -57,6 +63,10 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
                     "edgedb::server::upgrade", log::LevelFilter::Info);
                 builder.filter_module(
                     "edgedb::project::upgrade", log::LevelFilter::Info);
+                builder.filter_module(
+                    "edgedb::portable::upgrade", log::LevelFilter::Info);
+                builder.filter_module(
+                    "edgedb::portable::project", log::LevelFilter::Info);
             }
             _ => {}
         }

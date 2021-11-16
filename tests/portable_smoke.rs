@@ -172,7 +172,6 @@ fn install() {
         .context("query-1-2", "query `inst1` after upgrade")
         .success();
 
-    /*
     // major upgrade
     Command::new("edgedb")
         .arg("instance").arg("upgrade").arg("inst1")
@@ -187,7 +186,6 @@ fn install() {
         .assert()
         .context("query-1-3", "query `inst1` after 2nd upgrade")
         .success();
-    */
 
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("second")

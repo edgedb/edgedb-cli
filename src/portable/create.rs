@@ -1,6 +1,4 @@
 use std::fs;
-use std::io;
-use std::path::Path;
 
 use anyhow::Context;
 use async_std::task;
@@ -11,7 +9,7 @@ use crate::hint::HintExt;
 use crate::platform;
 use crate::portable::exit_codes;
 use crate::portable::install;
-use crate::portable::local::{Paths, InstanceInfo};
+use crate::portable::local::{Paths, InstanceInfo, write_json};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
 use crate::portable::{windows, linux, macos};
@@ -74,13 +72,6 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
             return Err(ExitCode::new(2))?;
         }
     }
-    Ok(())
-}
-
-#[context("cannot write metadata {:?}", path)]
-fn write_meta(path: &Path, data: &InstanceInfo) -> anyhow::Result<()> {
-    let file = io::BufWriter::new(fs::File::create(path)?);
-    serde_json::to_writer_pretty(file, data)?;
     Ok(())
 }
 
@@ -147,7 +138,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     let cert = fs::read_to_string(&cert_path)
         .with_context(|| format!("cannot read certificate: {:?}", cert_path))?;
 
-    write_meta(&tmp_data.join("instance_info.json"), &info)?;
+    write_json(&tmp_data.join("instance_info.json"), "metadata", &info)?;
     fs::rename(&tmp_data, &paths.data_dir)
         .with_context(|| format!("renaming {:?} -> {:?}",
                                  tmp_data, paths.data_dir))?;

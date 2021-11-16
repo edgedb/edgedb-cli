@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
+use crate::process;
 use crate::portable::local::{InstanceInfo};
 use crate::portable::status::{Service};
-use crate::server::options::{Start, Logs};
+use crate::server::options::{Logs};
 
 
 pub fn service_files(_name: &str) -> anyhow::Result<Vec<PathBuf>> {
@@ -19,9 +20,15 @@ pub fn stop_and_disable(_name: &str) -> anyhow::Result<bool> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }
 
-pub fn start_service(_options: &Start, _inst: &InstanceInfo)
-    -> anyhow::Result<()>
-{
+pub fn runstate_dir(_name: &str) -> anyhow::Result<PathBuf> {
+    anyhow::bail!("running server is not supported on Windows yet");
+}
+
+pub fn server_cmd(_inst: &InstanceInfo) -> anyhow::Result<process::Native> {
+    anyhow::bail!("running server is not supported on Windows yet");
+}
+
+pub fn start_service(_inst: &InstanceInfo) -> anyhow::Result<()> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }
 
