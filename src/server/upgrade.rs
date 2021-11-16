@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
@@ -147,7 +149,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
             Ok(_) => {}
             Err(e) if e.is::<InstanceNotFound>() => {
                 errors.push((meth.name(), e));
-            } 
+            }
             Err(e) => Err(e)?,
         }
     }
