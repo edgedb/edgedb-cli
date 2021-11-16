@@ -620,7 +620,7 @@ impl Handle {
         task::block_on(async {
             let mut conn = self.get_connection().await?;
             let ver = conn.query_row::<String, _>(r###"
-                SELECT sys::get_version_str()
+                SELECT sys::get_version_as_str()
             "###, &()).await?;
             Ok(ver.parse()?)
         })
