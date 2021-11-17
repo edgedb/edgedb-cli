@@ -178,7 +178,7 @@ async fn get_text(cli: &mut Connection, query: &str)
 pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
     -> Result<(), anyhow::Error>
 {
-    let databases = get_databases(cli).await?;
+    let databases: Vec<_> = get_databases(cli).await?;
     let config = get_text(cli, "DESCRIBE SYSTEM CONFIG").await?;
     let roles = get_text(cli, "DESCRIBE ROLES").await?;
 
