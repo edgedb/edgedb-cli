@@ -17,11 +17,12 @@ use crate::commands::ExitCode;
 use crate::connect::Connector;
 use crate::credentials;
 use crate::migrations;
-use crate::platform::{tmp_file_path, symlink_dir, config_dir};
 use crate::platform::{path_bytes, bytes_to_path};
+use crate::platform::{tmp_file_path, symlink_dir, config_dir};
 use crate::portable::config;
-use crate::portable::destroy;
+use crate::portable::control;
 use crate::portable::create;
+use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, Paths};
@@ -459,19 +460,23 @@ pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(stash_base()?.join(hname))
 }
 
-fn run_and_migrate(_info: &Handle) -> anyhow::Result<()> {
-    todo!();
-    /*
-    let inst = info.instance.as_ref()
-        .context("remote instance is not running, cannot run migrations")?;
-    let mut cmd = inst.get_command()?;
-    cmd.background_for(migrate(info, false))?;
-    Ok(())
-    */
+fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
+    if let InstanceKind::Portable(inst) = &info.instance {
+        let mut cmd = control::get_server_cmd(inst)?;
+        cmd.background_for(migrate(info, false))?;
+        Ok(())
+    } else {
+        anyhow::bail!("remote instance is not running, cannot run migrations");
+    }
 }
 
-fn start(_inst: &Handle) -> anyhow::Result<()> {
-    todo!();
+fn start(inst: &Handle) -> anyhow::Result<()> {
+    if let InstanceKind::Portable(inst) = &inst.instance {
+        control::do_start(&inst)?;
+        Ok(())
+    } else {
+        anyhow::bail!("remote instance is not running, cannot run migrations");
+    }
 }
 
 async fn migrate(inst: &Handle, ask_for_running: bool)
