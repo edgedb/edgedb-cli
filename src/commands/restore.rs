@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeSet};
 use std::convert::TryInto;
 use std::ffi::OsString;
 use std::slice;
@@ -14,7 +14,6 @@ use async_std::prelude::{FutureExt, StreamExt};
 use bytes::{Bytes, BytesMut, BufMut};
 use fn_error_context::context;
 
-use edgedb_client::errors::{DuplicateDatabaseDefinitionError, SchemaError};
 use edgedb_client::errors::{Error, ErrorKind};
 use edgedb_client::errors::{ProtocolOutOfOrderError};
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
@@ -23,6 +22,7 @@ use edgeql_parser::helpers::quote_name;
 use edgeql_parser::preparser::{is_empty};
 
 use crate::commands::Options;
+use crate::commands::list_databases;
 use crate::commands::parser::{Restore as RestoreCmd};
 use edgedb_client::client::{Connection, Writer};
 use edgedb_client::reader::Reader;
@@ -287,6 +287,7 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
 
     let mut conn_params = options.conn_params.clone();
     let mut params = params.clone();
+    let existing: BTreeSet<_> = list_databases::get_databases(cli).await?;
 
     let dump_ext = OsString::from("dump");
     let mut dir_list = fs::read_dir(&dir).await?;
@@ -297,36 +298,15 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
         }
         let database = path_to_database_name(&path)?;
         log::debug!("Restoring database {:?}", database);
-        let create_db = format!("CREATE DATABASE {}", quote_name(&database));
-        let db_error = match cli.execute(create_db).await {
-            Ok(_) => None,
-            Err(e) => {
-                let silent = e.is::<DuplicateDatabaseDefinitionError>() ||
-                    e.is::<SchemaError>(); // <= 1.0alpha7
-                if silent {
-                    Some(e)
-                } else {
-                    anyhow::bail!("Error creating database: {:#}", e);
-                }
-            }
-        };
+        if !existing.contains(&database) {
+            let stmt = format!("CREATE DATABASE {}", quote_name(&database));
+            cli.execute(stmt).await
+                .with_context(|| format!("error creating database {:?}",
+                                         database))?;
+        }
         conn_params.modify(|p| { p.database(&database); });
-        let mut db_conn = match conn_params.connect().await  {
-            Ok(conn) => conn,
-            Err(e) => {
-                let err = Err(e)
-                    .with_context(|| format!(
-                        "cannot connect to database {:?}",
-                        database));
-                if let Some(db_error) = db_error {
-                    err.with_context(|| format!(
-                            "cannot create database {:?}: {}",
-                            database, db_error))?
-                } else {
-                    err?
-                }
-            }
-        };
+        let mut db_conn = conn_params.connect().await.with_context(||
+             format!("cannot connect to database {:?}", database))?;
         params.path = path.into();
         restore_db(&mut db_conn, options, &params).await
             .with_context(|| format!("restoring database {:?}", database))?;
