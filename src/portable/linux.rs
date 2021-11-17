@@ -4,12 +4,12 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::platform::{home_dir, get_current_uid};
+use crate::platform::{home_dir, data_dir, get_current_uid};
 use crate::portable::local::{InstanceInfo};
 use crate::portable::status::Service;
 use crate::process;
 use crate::server::errors::InstanceNotFound;
-use crate::server::options::{StartConf, Start, Logs};
+use crate::server::options::{StartConf, Logs};
 
 
 fn unit_dir() -> anyhow::Result<PathBuf> {
@@ -29,9 +29,10 @@ pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
 }
 
 
-pub fn create_service(name: &str, info: &InstanceInfo)
+pub fn create_service(info: &InstanceInfo)
     -> anyhow::Result<()>
 {
+    let name = &info.name;
     let unit_dir = unit_dir()?;
     fs::create_dir_all(&unit_dir)
         .with_context(|| format!("cannot create directory {:?}", unit_dir))?;
@@ -144,37 +145,37 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     Ok(found)
 }
 
-pub fn start_service(options: &Start, inst: &InstanceInfo)
-    -> anyhow::Result<()>
-{
-    if options.foreground {
-        let data_dir = inst.data_dir()?;
-        let runtime_dir = dirs::runtime_dir()
-            .map(|r| r.join(format!("edgedb-{}", &inst.name)))
-            .unwrap_or_else(|| {
-                let dir = Path::new("/run/user")
-                    .join(get_current_uid().to_string());
-                if dir.exists() {
-                    dir.join(format!("edgedb-{}", options.name))
-                } else {
-                    data_dir.clone()
-                }
-            });
-        let server_path = inst.server_path()?;
-        process::Native::new("edgedb", "edgedb", server_path)
-            .env_default("EDGEDB_SERVER_LOG_LEVEL", "warn")
-            .arg("--data-dir").arg(data_dir)
-            .arg("--runstate-dir").arg(runtime_dir)
-            .arg("--port").arg(inst.port.to_string())
-            .no_proxy()
-            .run()?;
+pub fn runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
+    if let Some(dir) = dirs::runtime_dir() {
+        Ok(dir.join(format!("edgedb-{}", name)))
     } else {
-        process::Native::new("service start", "systemctl", "systemctl")
-            .arg("--user")
-            .arg("start")
-            .arg(unit_name(&options.name))
-            .run()?;
+        let dir = Path::new("/run/user")
+            .join(get_current_uid().to_string());
+        if dir.exists() {
+            Ok(dir.join(format!("edgedb-{}", name)))
+        } else {
+            Ok(data_dir()?.join(name).clone())
+        }
     }
+}
+
+pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
+    let data_dir = inst.data_dir()?;
+    let server_path = inst.server_path()?;
+    let mut pro = process::Native::new("edgedb", "edgedb", server_path);
+    pro.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
+    pro.arg("--data-dir").arg(data_dir);
+    pro.arg("--runstate-dir").arg(runstate_dir(&inst.name)?);
+    pro.arg("--port").arg(inst.port.to_string());
+    Ok(pro)
+}
+
+pub fn start_service(inst: &InstanceInfo) -> anyhow::Result<()> {
+    process::Native::new("service start", "systemctl", "systemctl")
+        .arg("--user")
+        .arg("start")
+        .arg(unit_name(&inst.name))
+        .run()?;
     Ok(())
 }
 

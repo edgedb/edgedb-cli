@@ -320,41 +320,22 @@ pub struct Logs {
 }
 
 #[derive(EdbClap, Debug, Clone)]
-#[clap(after_help="\
-There are few modes of operation of this command:
-
-edgedb instance upgrade --local-minor
-  This command upgrades all instances which aren't running
-  nightly EdgeDB to a latest minor version of the server.
-
-edgedb instance upgrade <name> --to-latest|--to-version=<ver>
-  Upgrades specified instance to the latest stable major version of the server,
-  or to the specified major version. This only works for instances that
-  initially aren't running nightly.
-
-edgedb instance upgrade <name> --to-nightly
-  Upgrades specified instance to the latest nightly version of the server.
-")]
 pub struct Upgrade {
-    /// Upgrade all local instances to the latest minor versions
-    #[clap(long)]
-    pub local_minor: bool,
-
-    /// Upgrade specified instance to the latest major version
-    #[clap(long)]
+    /// Upgrade specified instance to the latest version
+    #[clap(long, conflicts_with_all=&["to_nightly", "to_version"])]
     pub to_latest: bool,
 
-    /// Upgrade specified instance to a specified major version
-    #[clap(long)]
+    /// Upgrade specified instance to a specified version
+    #[clap(long, conflicts_with_all=&["to_nightly", "to_latest"])]
     pub to_version: Option<Version<String>>,
 
     /// Upgrade specified instance to a latest nightly version
-    #[clap(long)]
+    #[clap(long, conflicts_with_all=&["to_version", "to_latest"])]
     pub to_nightly: bool,
 
-    /// Only upgrade specified database instance
+    /// Instance to upgrade
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: String,
 
     /// Verbose output
     #[clap(short='v', long)]

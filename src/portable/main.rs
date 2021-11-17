@@ -11,12 +11,12 @@ use crate::portable::install;
 use crate::portable::list_versions;
 use crate::portable::project;
 use crate::portable::status;
+use crate::portable::upgrade;
 
 use crate::server::detect;
 use crate::server::link;
 use crate::server::reset_password;
 use crate::server::uninstall;
-use crate::server::upgrade;
 
 
 pub fn server_main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {

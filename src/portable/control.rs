@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+
+use crate::process;
 use crate::portable::{windows, linux, macos};
 use crate::portable::local::InstanceInfo;
 use crate::print::{self, eecho};
@@ -14,18 +17,49 @@ pub fn fallback(name: &str, success_message: &str,
     Ok(())
 }
 
+pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
+    if cfg!(windows) {
+        windows::start_service(inst)
+    } else if cfg!(target_os="macos") {
+        macos::start_service(inst)
+    } else if cfg!(target_os="linux") {
+        linux::start_service(inst)
+    } else {
+        anyhow::bail!("unsupported platform");
+    }
+}
+
+pub fn get_server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
+    if cfg!(windows) {
+        windows::server_cmd(inst)
+    } else if cfg!(target_os="macos") {
+        macos::server_cmd(inst)
+    } else if cfg!(target_os="linux") {
+        linux::server_cmd(inst)
+    } else {
+        anyhow::bail!("unsupported platform");
+    }
+}
+
+pub fn get_runstate_dir(inst: &InstanceInfo) -> anyhow::Result<PathBuf> {
+    if cfg!(windows) {
+        windows::runstate_dir(&inst.name)
+    } else if cfg!(target_os="macos") {
+        macos::runstate_dir(&inst.name)
+    } else if cfg!(target_os="linux") {
+        linux::runstate_dir(&inst.name)
+    } else {
+        anyhow::bail!("unsupported platform");
+    }
+}
 
 pub fn start(options: &Start) -> anyhow::Result<()> {
     let meta = InstanceInfo::try_read(&options.name)?;
     if let Some(meta) = &meta {
-        if cfg!(windows) {
-            windows::start_service(options, meta)
-        } else if cfg!(target_os="macos") {
-            macos::start_service(options, meta)
-        } else if cfg!(target_os="linux") {
-            linux::start_service(options, meta)
+        if options.foreground {
+            get_server_cmd(meta)?.no_proxy().run()
         } else {
-            anyhow::bail!("unsupported platform");
+            do_start(meta)
         }
     } else {
         fallback(&options.name, "Deprecated service started.",
@@ -33,36 +67,44 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
     }
 }
 
+pub fn do_stop(inst: &InstanceInfo) -> anyhow::Result<()> {
+    if cfg!(windows) {
+        windows::stop_service(inst)
+    } else if cfg!(target_os="macos") {
+        macos::stop_service(inst)
+    } else if cfg!(target_os="linux") {
+        linux::stop_service(inst)
+    } else {
+        anyhow::bail!("unsupported platform");
+    }
+}
+
 pub fn stop(options: &Stop) -> anyhow::Result<()> {
     let meta = InstanceInfo::try_read(&options.name)?;
     if let Some(meta) = &meta {
-        if cfg!(windows) {
-            windows::stop_service(meta)
-        } else if cfg!(target_os="macos") {
-            macos::stop_service(meta)
-        } else if cfg!(target_os="linux") {
-            linux::stop_service(meta)
-        } else {
-            anyhow::bail!("unsupported platform");
-        }
+        do_stop(meta)
     } else {
         fallback(&options.name, "Deprecated service stopped.",
                  &InstanceCommand::Stop(options.clone()))
     }
 }
 
+pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
+    if cfg!(windows) {
+        windows::restart_service(inst)
+    } else if cfg!(target_os="macos") {
+        macos::restart_service(inst)
+    } else if cfg!(target_os="linux") {
+        linux::restart_service(inst)
+    } else {
+        anyhow::bail!("unsupported platform");
+    }
+}
+
 pub fn restart(options: &Restart) -> anyhow::Result<()> {
     let meta = InstanceInfo::try_read(&options.name)?;
     if let Some(meta) = &meta {
-        if cfg!(windows) {
-            windows::restart_service(meta)
-        } else if cfg!(target_os="macos") {
-            macos::restart_service(meta)
-        } else if cfg!(target_os="linux") {
-            linux::restart_service(meta)
-        } else {
-            anyhow::bail!("unsupported platform");
-        }
+        do_restart(meta)
     } else {
         fallback(&options.name, "Deprecated service restarted.",
                  &InstanceCommand::Restart(options.clone()))

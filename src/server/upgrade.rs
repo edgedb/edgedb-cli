@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
@@ -41,16 +43,9 @@ pub enum ToDo {
 }
 
 fn interpret_options(options: &Upgrade) -> anyhow::Result<ToDo> {
-    if options.local_minor {
-        if options.name.is_some() {
-            Err(anyhow::anyhow!(
-                "Cannot perform minor version upgrade on a single instance"
-            )).hint(
-                "Run `edgedb instance upgrade --local-minor` without \
-                specifying an instance.")?;
-        }
+    if false {
         Ok(ToDo::MinorUpgrade)
-    } else if let Some(name) = &options.name {
+    } else if true {
         let nver = if options.to_nightly {
             if options.to_latest {
                 anyhow::bail!(
@@ -77,7 +72,7 @@ fn interpret_options(options: &Upgrade) -> anyhow::Result<ToDo> {
                 .hint("Use one of `--to-latest`, `--to-version` or \
                       `--to-nightly`.")?
         };
-        Ok(ToDo::InstanceUpgrade(name.into(), nver))
+        Ok(ToDo::InstanceUpgrade(options.name.clone(), nver))
     } else {
         Err(anyhow::anyhow!("No upgrade operation specified."))
             .hint("Use `--local-minor` to upgrade the minor version of all \

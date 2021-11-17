@@ -11,7 +11,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
-use crate::portable::local::{InstallInfo};
+use crate::portable::local::{InstallInfo, write_json};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{PackageInfo, PackageHash, Query};
 use crate::portable::repository::{get_server_package, download};
@@ -54,13 +54,6 @@ fn download_package(pkg_info: &PackageInfo)
         }
     }
     Ok(cache_path)
-}
-
-#[context("cannot write metadata {:?}", path)]
-fn write_meta(path: &Path, data: &InstallInfo) -> anyhow::Result<()> {
-    let file = io::BufWriter::new(fs::File::create(path)?);
-    serde_json::to_writer_pretty(file, data)?;
-    Ok(())
 }
 
 fn build_path(base: &Path, path: &Path) -> anyhow::Result<Option<PathBuf>> {
@@ -193,7 +186,7 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
         package_hash: pkg_info.hash.clone(),
         installed_at: SystemTime::now(),
     };
-    write_meta(&tmp_target.join("install_info.json"), &info)?;
+    write_json(&tmp_target.join("install_info.json"), "metadata", &info)?;
     fs::rename(&tmp_target, &target_dir).with_context(
         || format!("cannot rename {:?} -> {:?}", tmp_target, target_dir))?;
     unlink_cache(&cache_path);

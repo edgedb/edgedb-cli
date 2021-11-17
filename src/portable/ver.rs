@@ -183,6 +183,18 @@ impl Filter {
     }
 }
 
+impl Specific {
+    pub fn is_compatible(&self, other: &Specific) -> bool {
+        use MinorVersion::*;
+        match (&self.minor, &other.minor) {
+            (Minor(_), Minor(_)) if self.major == other.major => true,
+            // all dev/alpha/rc are incompatible as well as different major
+            // but fully matching versions are always compatible
+            _ => self == other,
+        }
+    }
+}
+
 impl fmt::Display for Build {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)

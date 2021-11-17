@@ -6,18 +6,25 @@ use std::time::SystemTime;
 use anyhow::Context;
 use fn_error_context::context;
 
+use edgedb_client::Builder;
+
 use crate::credentials;
 use crate::platform::{portable_dir, data_dir};
-use crate::portable::ver;
+use crate::portable::control;
 use crate::portable::repository::PackageHash;
+use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
 use crate::server::options::StartConf;
 
 
+#[derive(Debug)]
 pub struct Paths {
     pub credentials: PathBuf,
     pub data_dir: PathBuf,
     pub service_files: Vec<PathBuf>,
+    pub dump_path: PathBuf,
+    pub backup_dir: PathBuf,
+    pub upgrade_marker: PathBuf,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -38,6 +45,15 @@ pub struct InstallInfo {
     pub installed_at: SystemTime,
 }
 
+
+#[context("cannot write {} file {}", title, path.display())]
+pub fn write_json<T: serde::Serialize>(path: &Path, title: &str, data: &T)
+    -> anyhow::Result<()>
+{
+    let f = io::BufWriter::new(fs::File::create(path)?);
+    serde_json::to_writer_pretty(f, data)?;
+    Ok(())
+}
 
 fn list_installed<'x>(dir: &'x Path)
     -> anyhow::Result<
@@ -103,9 +119,13 @@ pub fn instance_data_dir(name: &str) -> anyhow::Result<PathBuf> {
 
 impl Paths {
     pub fn get(name: &str) -> anyhow::Result<Paths> {
+        let base = data_dir()?;
         Ok(Paths {
             credentials: credentials::path(name)?,
-            data_dir: instance_data_dir(name)?,
+            data_dir: base.join(name),
+            dump_path: base.join(format!("{}.dump", name)),
+            backup_dir: base.join(format!("{}.backup", name)),
+            upgrade_marker: base.join(format!("{}.UPGRADE_IN_PROGRESS", name)),
             service_files: if cfg!(windows) {
                 windows::service_files(name)?
             } else if cfg!(target_os="macos") {
@@ -114,7 +134,7 @@ impl Paths {
                 linux::service_files(name)?
             } else {
                 Vec::new()
-            }
+            },
         })
     }
     pub fn check_exists(&self) -> anyhow::Result<()> {
@@ -164,6 +184,18 @@ impl InstanceInfo {
     }
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
         Ok(self.installation.server_path()?)
+    }
+    pub async fn admin_conn_params(&self) -> anyhow::Result<Builder> {
+        let mut builder = Builder::uninitialized();
+        builder.host_port(
+            Some(control::get_runstate_dir(self)?
+                 .to_str().context("bad characters in runstate dir")?),
+            Some(self.port),
+        );
+        builder.admin(true);
+        builder.user("edgedb");
+        builder.database("edgedb");
+        Ok(builder)
     }
 }
 
