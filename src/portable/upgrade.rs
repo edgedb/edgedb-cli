@@ -14,7 +14,7 @@ use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
 use crate::portable::project;
-use crate::portable::repository::{self, Query, PackageInfo};
+use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
 use crate::print::{self, eecho, Highlight};
 use crate::server::options::{Upgrade, StartConf};
@@ -35,19 +35,18 @@ pub struct BackupMeta {
     pub timestamp: SystemTime,
 }
 
-fn print_project_upgrade_command(
-    options: &Upgrade, current_project: &Option<PathBuf>, project_dir: &Path
-) {
+pub fn print_project_upgrade_command(version: &Query,
+    current_project: &Option<PathBuf>, project_dir: &Path)
+{
     eprintln!(
         "  edgedb project upgrade {}{}",
-        if options.to_latest {
-            "--to-latest".into()
-        } else if options.to_nightly {
-            "--to-nightly".into()
-        } else if let Some(ver) = &options.to_version {
-            format!("--version={}", ver.num())
-        } else {
-            "".into()
+        match version.channel {
+            Channel::Stable => if let Some(filt) = &version.version {
+                format!("--to-version={}", filt)
+            } else {
+                "--to-latest".into()
+            },
+            Channel::Nightly => "--to-nightly".into(),
         },
         if current_project.as_ref().map_or(false, |p| p == project_dir) {
             "".into()
@@ -57,16 +56,18 @@ fn print_project_upgrade_command(
     );
 }
 
-fn check_project(options: &Upgrade) -> anyhow::Result<()> {
-    let project_dirs = project::find_project_dirs(&options.name)?;
+fn check_project(name: &str, force: bool, ver_query: &Query)
+    -> anyhow::Result<()>
+{
+    let project_dirs = project::find_project_dirs(&name)?;
     if project_dirs.is_empty() {
         return Ok(())
     }
 
-    project::print_instance_in_use_warning(&options.name, &project_dirs);
+    project::print_instance_in_use_warning(&name, &project_dirs);
     let current_project = project::project_dir_opt(None)?;
 
-    if options.force {
+    if force {
         eprintln!(
             "To update the project{} after the instance upgrade, run:",
             if project_dirs.len() > 1 { "s" } else { "" }
@@ -76,16 +77,15 @@ fn check_project(options: &Upgrade) -> anyhow::Result<()> {
     }
     for pd in project_dirs {
         let pd = project::read_project_real_path(&pd)?;
-        print_project_upgrade_command(&options, &current_project, &pd);
+        print_project_upgrade_command(&ver_query, &current_project, &pd);
     }
-    if !options.force {
+    if !force {
         anyhow::bail!("Upgrade aborted.");
     }
     Ok(())
 }
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
-    check_project(options)?;
     let inst = InstanceInfo::read(&options.name)?;
     let inst_ver = inst.installation.version.specific();
     let ver_option = options.to_latest || options.to_nightly ||
@@ -95,6 +95,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     } else {
         Query::from_version(&inst_ver)?
     };
+    check_project(&options.name, options.force, &ver_query)?;
 
     let pkg = repository::get_server_package(&ver_query)?
         .context("no package found according to your criteria")?;
@@ -118,7 +119,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     }
 }
 
-fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
+pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
     -> anyhow::Result<()>
 {
     eecho!("Upgrading to a minor version", pkg.version.emphasize());
@@ -150,7 +151,7 @@ fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
     Ok(())
 }
 
-fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
+pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
     -> anyhow::Result<()>
 {
     eecho!("Upgrading to a major version", pkg.version.emphasize());

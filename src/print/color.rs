@@ -9,12 +9,14 @@ static THEME: once_cell::sync::Lazy<Theme> = once_cell::sync::Lazy::new(|| {
             fade: Some(Style { color: Color::Grey37, bold: false }),
             err_marker: Some(Style { color: Color::LightRed, bold: true }),
             emphasize: Some(Style { color: Color::White, bold: true }),
+            command_hint: Some(Style { color: Color::White, bold: true }),
         }
     } else {
         Theme {
             fade: None,
             err_marker: None,
             emphasize: None,
+            command_hint: None,
         }
     }
 });
@@ -29,6 +31,7 @@ struct Theme {
     fade: Option<Style>,
     err_marker: Option<Style>,
     emphasize: Option<Style>,
+    command_hint: Option<Style>,
 }
 
 pub struct Colored<T> {
@@ -53,6 +56,12 @@ pub trait Highlight: fmt::Display + Sized {
     fn emphasize(self) -> Colored<Self> {
         Colored {
             style: theme().emphasize,
+            value: self,
+        }
+    }
+    fn command_hint(self) -> Colored<Self> {
+        Colored {
+            style: theme().command_hint,
             value: self,
         }
     }
