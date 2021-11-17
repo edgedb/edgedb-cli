@@ -84,6 +84,20 @@ fn project_link_and_init() {
         .context("query-2", "query of project2")
         .success();
 
+    Command::new("edgedb").arg("project").arg("upgrade")
+        .arg("--force")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-upgrade", "upgrade project")
+        .success();
+
+    Command::new("edgedb")
+        .arg("query").arg("SELECT 1")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("query-3", "query after upgrade")
+        .success();
+
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("project2")
         .assert()
@@ -146,12 +160,10 @@ fn project_link_and_init() {
         .context("project-init-manual", "init project2 manual")
         .success();
 
-    /*
     Command::new("edgedb").arg("project").arg("upgrade")
-        .arg("--non-interactive")
+        .arg("--force")
         .current_dir("tests/proj/project2")
         .assert()
         .context("project-upgrade-manual", "upgrade manual project")
         .success();
-    */
 }

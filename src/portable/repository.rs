@@ -36,7 +36,7 @@ pub enum PackageType {
     TarZst,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Query {
     pub channel: Channel,
     pub version: Option<ver::Filter>,
@@ -325,6 +325,9 @@ impl Query {
     pub fn nightly() -> Query {
         Query { channel: Channel::Nightly, version: None }
     }
+    pub fn stable() -> Query {
+        Query { channel: Channel::Stable, version: None }
+    }
     pub fn display(&self) -> QueryDisplay {
         QueryDisplay(self)
     }
@@ -476,11 +479,9 @@ impl<'de> Deserialize<'de> for PackageHash {
     }
 }
 
-impl<'de> Deserialize<'de> for Query {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: de::Deserializer<'de>,
-    {
-        let s: String = Deserialize::deserialize(deserializer)?;
+impl std::str::FromStr for Query {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> anyhow::Result<Query> {
         if s == "*" {
             return Ok(Query {
                 channel: Channel::Stable,
@@ -492,14 +493,21 @@ impl<'de> Deserialize<'de> for Query {
                 version: None,
             });
         } else {
-            let ver: ver::Filter = s.parse()
-                .map_err(serde::de::Error::custom)?;
+            let ver: ver::Filter = s.parse()?;
             return Ok(Query {
-                channel: Channel::from_filter(&ver)
-                    .map_err(serde::de::Error::custom)?,
+                channel: Channel::from_filter(&ver)?,
                 version: Some(ver),
             });
         }
+    }
+}
+
+impl<'de> Deserialize<'de> for Query {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: de::Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
     }
 }
 

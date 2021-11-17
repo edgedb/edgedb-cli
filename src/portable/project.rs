@@ -25,12 +25,13 @@ use crate::portable::create;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::install;
+use crate::portable::upgrade;
 use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::ver;
 use crate::print::{self, eecho, Highlight};
-use crate::project::options::{Info, Init, Unlink};
+use crate::project::options::{Info, Init, Unlink, Upgrade};
 use crate::question;
 use crate::server::create::allocate_port;
 use crate::server::is_valid_name;
@@ -701,19 +702,12 @@ fn write_schema_default(dir: &Path) -> anyhow::Result<()> {
 
 #[context("cannot write config `{}`", path.display())]
 fn write_config(path: &Path, version: &Query) -> anyhow::Result<()> {
-    let text = format_config(version);
+    let text = config::format_config(version);
     let tmp = tmp_file_path(path);
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, text)?;
     fs::rename(&tmp, path)?;
     Ok(())
-}
-
-pub fn format_config(version: &Query) -> String {
-    return format!("\
-        [edgedb]\n\
-        server-version = {:?}\n\
-    ", version.as_config_value())
 }
 
 fn ask_version(options: &Init) -> anyhow::Result<PackageInfo> {
@@ -804,6 +798,12 @@ fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
     anyhow::bail!("no project directory found");
 }
 
+#[context("cannot read instance name of {:?}", stash_dir)]
+fn instance_name(stash_dir: &Path) -> anyhow::Result<String> {
+    let inst = fs::read_to_string(&stash_dir.join("instance-name"))?;
+    Ok(inst.trim().into())
+}
+
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
     let stash_path = if let Some(dir) = &options.project_dir {
         let canon = fs::canonicalize(&dir)
@@ -817,9 +817,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
 
     if stash_path.exists() {
         if options.destroy_server_instance {
-            let inst = fs::read_to_string(&stash_path.join("instance-name"))
-                .context("failed to read instance name")?;
-            let inst = inst.trim();
+            let inst = instance_name(&stash_path)?;
             if !options.non_interactive {
                 let q = question::Confirm::new_dangerous(
                     format!("Do you really want to unlink \
@@ -830,15 +828,15 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                     return Ok(())
                 }
             }
-            let mut project_dirs = find_project_dirs(inst)?;
+            let mut project_dirs = find_project_dirs(&inst)?;
             if project_dirs.len() > 1 {
                 project_dirs.iter().position(|d| d == &stash_path)
                     .map(|pos| project_dirs.remove(pos));
-                destroy::print_warning(inst, &project_dirs);
+                destroy::print_warning(&inst, &project_dirs);
                 return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
             }
             if options.destroy_server_instance {
-                destroy::force_by_name(inst)?;
+                destroy::force_by_name(&inst)?;
             }
         } else {
             match fs::read_to_string(&stash_path.join("instance-name")) {
@@ -977,4 +975,151 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
 pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     let bytes = fs::read(&project_dir.join("project-path"))?;
     Ok(bytes_to_path(&bytes)?.to_path_buf())
+}
+
+pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
+    if options.to_version.is_some() || options.to_nightly || options.to_latest
+    {
+        update_toml(&options)
+    } else {
+        upgrade_instance(&options)
+    }
+}
+
+pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let config_path = root.join("edgedb.toml");
+
+    // This assumes to_version.is_some() || to_nightly || to_latest
+    let query = Query::from_options(options.to_nightly, &options.to_version)?;
+    let pkg = repository::get_server_package(&query)?.with_context(||
+        format!("cannot find package matching {}", query.display()))?;
+    let pkg_ver = pkg.version.specific();
+
+    let stash_dir = stash_path(&root)?;
+    if !stash_dir.exists() {
+        log::warn!("No associated instance found.");
+
+        if config::modify(&config_path, &query)? {
+            print::success("Config updated successfully.");
+        } else {
+            print::success("Config is up to date.");
+        }
+        eecho!("Run", "edgedb project init".command_hint(),
+               "to initialize an instance.");
+    } else {
+        let name = instance_name(&stash_dir)?;
+        let inst = Handle::probe(&name)?;
+        let inst = match inst.instance {
+            InstanceKind::Remote
+                => anyhow::bail!("remote instances cannot be upgraded"),
+            InstanceKind::Deprecated
+                => anyhow::bail!("deprecated instances cannot be upgraded. \
+                                  Please create a portable instance instead"),
+            InstanceKind::Portable(inst) => inst,
+        };
+        let inst_ver = inst.installation.version.specific();
+
+        // When force is used we might upgrade to the same version, but
+        // since some selector like `--to-latest` was specified we assume user
+        // want to treat this upgrade as incompatible and do the upgrade.
+        // This is mostly for testing.
+        if pkg_ver.is_compatible(&inst_ver) && !options.force {
+            upgrade::upgrade_compatible(inst, pkg)?;
+        } else {
+            upgrade::upgrade_incompatible(inst, pkg)?;
+        }
+
+        if config::modify(&config_path, &query)? {
+            println!("Remember to commit it to version control.");
+        }
+        print_other_project_warning(&name, &root, &query)?;
+    };
+    Ok(())
+}
+
+fn print_other_project_warning(name: &str, project_path: &Path,
+                               to_version: &Query)
+    -> anyhow::Result<()>
+{
+    let mut project_dirs = Vec::new();
+    for pd in find_project_dirs(name)? {
+        let real_pd = match read_project_real_path(&pd) {
+            Ok(path) => path,
+            Err(e) => {
+                print::error(e);
+                continue;
+            }
+        };
+        if real_pd != project_path {
+            project_dirs.push(real_pd);
+        }
+    }
+    if !project_dirs.is_empty() {
+        print::warn(format!(
+            "Warning: the instance {} is still used by the following \
+            projects:", name
+        ));
+        for pd in &project_dirs {
+            eprintln!("  {}", pd.display());
+        }
+        eprintln!("Run the following commands to update them:");
+        for pd in &project_dirs {
+            upgrade::print_project_upgrade_command(&to_version, &None, pd);
+        }
+    }
+    Ok(())
+}
+
+pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let config_path = root.join("edgedb.toml");
+    let config = config::read(&config_path)?;
+    let cfg_ver = config.edgedb.server_version;
+
+    let stash_dir = stash_path(&root)?;
+    if !stash_dir.exists() {
+        anyhow::bail!("No instance initialized.");
+    }
+
+    let instance_name = instance_name(&stash_dir)?;
+    let inst = Handle::probe(&instance_name)?;
+    let inst = match inst.instance {
+        InstanceKind::Remote
+            => anyhow::bail!("remote instances cannot be upgraded"),
+        InstanceKind::Deprecated
+            => anyhow::bail!("deprecated instances cannot be upgraded. \
+                              Please create a portable instance instead"),
+        InstanceKind::Portable(inst) => inst,
+    };
+    let inst_ver = inst.installation.version.specific();
+
+    let pkg = repository::get_server_package(&cfg_ver)?.with_context(||
+        format!("cannot find package matching {}", cfg_ver.display()))?;
+    let pkg_ver = pkg.version.specific();
+
+    if pkg_ver > inst_ver || options.force {
+        // When force is used we might upgrade to the same version, but
+        // since some selector like `--to-latest` was specified we assume user
+        // want to treat this upgrade as incompatible and do the upgrade.
+        // This is mostly for testing.
+        if pkg_ver.is_compatible(&inst_ver) {
+            upgrade::upgrade_compatible(inst, pkg)?;
+        } else {
+            upgrade::upgrade_incompatible(inst, pkg)?;
+        }
+    } else {
+        eecho!("EdgeDB instance is up to date with \
+               the specification in the `edgedb.toml`.");
+        if cfg_ver.channel != Channel::Nightly {
+            if let Some(pkg) =repository::get_server_package(&Query::stable())?
+            {
+                eecho!("New major version is available:",
+                       pkg.version.emphasize());
+                eecho!("To update `edgedb.toml` and upgrade to this version,
+                       run:\n    edgedb project upgrade --to-latest");
+            }
+        }
+    }
+    Ok(())
 }
