@@ -62,9 +62,8 @@ fn project_link_and_init() {
         .context("query-1", "query of project")
         .success();
 
-    // only nightly works so far
     Command::new("edgedb").arg("project").arg("init")
-        .arg("--server-version=nightly").arg("--non-interactive")
+        .arg("--non-interactive")
         .current_dir("tests/proj/project2")
         .assert()
         .context("project-init", "init project2")
@@ -138,4 +137,21 @@ fn project_link_and_init() {
         .success()
         .stdout(predicates::str::contains("inst1").not())
         .stdout(predicates::str::contains("project2").not());
+
+    Command::new("edgedb").arg("project").arg("init")
+        .arg("--non-interactive")
+        .arg("--server-start-conf=manual")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-init-manual", "init project2 manual")
+        .success();
+
+    /*
+    Command::new("edgedb").arg("project").arg("upgrade")
+        .arg("--non-interactive")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-upgrade-manual", "upgrade manual project")
+        .success();
+    */
 }
