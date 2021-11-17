@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::{BTreeSet, BTreeMap};
+use std::str::FromStr;
 
 use anyhow;
 use clap::{self, FromArgMatches};
@@ -8,6 +9,7 @@ use prettytable::{Table, Row, Cell};
 use regex::Regex;
 
 use edgedb_client::errors::Error;
+use edgedb_client::model::Duration;
 use edgedb_protocol::error_response::display_error_verbose;
 
 use crate::commands::Options;
@@ -499,8 +501,8 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
             }
         }
          IdleTransactionTimeout(_) => {
-             if let Some(secs) = prompt.idle_transaction_timeout {
-                 secs.to_string().into()
+             if prompt.idle_transaction_timeout.to_micros() > 0 {
+                 prompt.idle_transaction_timeout.to_string().into()
              } else {
                  "0  # no timeout".into()
              }
@@ -596,12 +598,9 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                     }
                 }
                 IdleTransactionTimeout(t) => {
-                    let secs = t.value.expect("only set here");
-                    prompt.idle_transaction_timeout = if secs == 0 {
-                        None
-                    } else {
-                        Some(secs)
-                    };
+                    prompt.idle_transaction_timeout = Duration::from_str(
+                        t.value.as_deref().expect("only set here")
+                    )?;
                     prompt.set_idle_transaction_timeout().await?;
                 }
                 HistorySize(c) => {
