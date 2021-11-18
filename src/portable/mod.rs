@@ -15,6 +15,7 @@ mod create;
 mod destroy;
 mod info;
 mod install;
+mod link;
 mod list_versions;
 mod revert;
 mod status;

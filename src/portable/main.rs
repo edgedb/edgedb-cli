@@ -8,6 +8,7 @@ use crate::portable::create;
 use crate::portable::destroy;
 use crate::portable::info;
 use crate::portable::install;
+use crate::portable::link;
 use crate::portable::list_versions;
 use crate::portable::project;
 use crate::portable::revert;
@@ -16,7 +17,6 @@ use crate::portable::uninstall;
 use crate::portable::upgrade;
 
 use crate::server::detect;
-use crate::server::link;
 use crate::server::reset_password;
 
 
@@ -49,7 +49,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Restart(c) => control::restart(c),
         Logs(c) => control::logs(c),
         Revert(c) => revert::revert(c),
-        Unlink(_) => todo!(),
+        Unlink(c) => link::unlink(c),
         Status(c) => status::status(c),
     }
 }
