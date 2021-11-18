@@ -12,13 +12,13 @@ use crate::portable::install;
 use crate::portable::local::{Paths, InstanceInfo, write_json};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
+use crate::portable::reset_password::{password_hash, generate_password};
+use crate::portable::reset_password::{write_credentials};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, eecho, Highlight};
 use crate::process;
 use crate::server::create::allocate_port;
 use crate::server::options::{Create, StartConf};
-use crate::server::reset_password::{password_hash, generate_password};
-use crate::server::reset_password::{write_credentials};
 
 use edgedb_client::credentials::Credentials;
 
