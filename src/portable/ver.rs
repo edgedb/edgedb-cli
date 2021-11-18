@@ -138,6 +138,9 @@ impl fmt::Display for Filter {
 }
 
 impl Build {
+    pub fn is_nightly(&self) -> bool {
+        self.0.contains("-dev.")
+    }
     pub fn specific(&self) -> Specific {
         Specific::from_str(&self.0[..]).expect("build version is valid")
     }

@@ -274,7 +274,7 @@ fn remote_status(options: &Status) -> anyhow::Result<()> {
     status.exit()
 }
 
-fn list_local<'x>(dir: &'x Path)
+pub fn list_local<'x>(dir: &'x Path)
     -> anyhow::Result<
         impl Iterator<Item=anyhow::Result<(String, PathBuf)>> + 'x
     >

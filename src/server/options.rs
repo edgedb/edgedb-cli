@@ -98,6 +98,10 @@ pub struct Uninstall {
     /// Increase verbosity
     #[clap(short='v', long)]
     pub verbose: bool,
+
+    /// Delete docker and package installations
+    #[clap(long)]
+    pub deprecated_install_methods: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
