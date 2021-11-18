@@ -32,7 +32,7 @@ pub fn start_service(_inst: &InstanceInfo) -> anyhow::Result<()> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }
 
-pub fn stop_service(_inst: &InstanceInfo) -> anyhow::Result<()> {
+pub fn stop_service(_name: &str) -> anyhow::Result<()> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }
 

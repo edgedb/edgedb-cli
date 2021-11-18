@@ -164,16 +164,18 @@ impl InstanceInfo {
         if !path.exists() {
             return Ok(None)
         }
-        Ok(Some(InstanceInfo::_read(name, &path)?))
+        Ok(Some(InstanceInfo::read_at(name, &path)?))
     }
 
     pub fn read(name: &str) -> anyhow::Result<InstanceInfo> {
-        InstanceInfo::_read(name,
+        InstanceInfo::read_at(name,
             &instance_data_dir(name)?.join("instance_info.json"))
     }
 
     #[context("error reading instance info: {:?}", path)]
-    fn _read(name: &str, path: &PathBuf) -> anyhow::Result<InstanceInfo> {
+    pub fn read_at(name: &str, path: &PathBuf)
+        -> anyhow::Result<InstanceInfo>
+    {
         let f = io::BufReader::new(fs::File::open(path)?);
         let mut data: InstanceInfo = serde_json::from_reader(f)?;
         data.name = name.into();

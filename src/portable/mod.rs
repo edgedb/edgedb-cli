@@ -16,6 +16,7 @@ mod destroy;
 mod info;
 mod install;
 mod list_versions;
+mod revert;
 mod status;
 mod upgrade;
 pub mod project;

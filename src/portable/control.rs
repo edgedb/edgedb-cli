@@ -67,13 +67,13 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
     }
 }
 
-pub fn do_stop(inst: &InstanceInfo) -> anyhow::Result<()> {
+pub fn do_stop(name: &str) -> anyhow::Result<()> {
     if cfg!(windows) {
-        windows::stop_service(inst)
+        windows::stop_service(name)
     } else if cfg!(target_os="macos") {
-        macos::stop_service(inst)
+        macos::stop_service(name)
     } else if cfg!(target_os="linux") {
-        linux::stop_service(inst)
+        linux::stop_service(name)
     } else {
         anyhow::bail!("unsupported platform");
     }
@@ -82,7 +82,7 @@ pub fn do_stop(inst: &InstanceInfo) -> anyhow::Result<()> {
 pub fn stop(options: &Stop) -> anyhow::Result<()> {
     let meta = InstanceInfo::try_read(&options.name)?;
     if let Some(meta) = &meta {
-        do_stop(meta)
+        do_stop(&meta.name)
     } else {
         fallback(&options.name, "Deprecated service stopped.",
                  &InstanceCommand::Stop(options.clone()))

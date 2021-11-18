@@ -166,4 +166,25 @@ fn project_link_and_init() {
         .assert()
         .context("project-upgrade-manual", "upgrade manual project")
         .success();
+
+    Command::new("edgedb")
+        .arg("query").arg("SELECT 1")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("query-up", "query after upgrade")
+        .success();
+
+    Command::new("edgedb").arg("project").arg("revert")
+        .arg("--no-confirm")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-upgrade-manual", "upgrade manual project")
+        .success();
+
+    Command::new("edgedb")
+        .arg("query").arg("SELECT 1")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("query-rev", "query after revert")
+        .success();
 }

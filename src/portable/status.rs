@@ -9,12 +9,16 @@ use anyhow::Context;
 use async_std::task;
 use async_std::net::TcpStream;
 use async_std::io::timeout;
+use fn_error_context::context;
+use humantime::format_duration;
 
 use edgedb_client::{Builder, credentials::Credentials};
 
 use crate::credentials;
+use crate::format;
 use crate::platform::{data_dir};
 use crate::portable::control::fallback;
+use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, eecho, Highlight};
@@ -38,7 +42,6 @@ pub enum Port {
     Unknown,
 }
 
-/* TODO(tailhook)
 #[derive(Debug)]
 pub enum DataDirectory {
     Absent,
@@ -46,7 +49,16 @@ pub enum DataDirectory {
     Upgrading(anyhow::Result<UpgradeMeta>),
     Normal,
 }
-*/
+
+#[derive(Debug)]
+pub enum BackupStatus {
+    Absent,
+    Exists {
+        backup_meta: anyhow::Result<BackupMeta>,
+        data_meta: anyhow::Result<InstanceInfo>,
+    },
+    Error(anyhow::Error),
+}
 
 #[derive(Debug)]
 pub struct FullStatus {
@@ -55,9 +67,9 @@ pub struct FullStatus {
     pub instance: anyhow::Result<InstanceInfo>,
     pub reserved_port: Option<u16>,
     pub port_status: Port,
-    pub data_dir: Option<PathBuf>,
-    // pub data_status: DataDirectory,
-    // pub backup: BackupStatus,  // TODO(tailhook)
+    pub data_dir: PathBuf,
+    pub data_status: DataDirectory,
+    pub backup: BackupStatus,
     pub credentials_file_exists: bool,
     pub service_exists: bool,
     // TODO(tailhook) add linked projects
@@ -117,7 +129,8 @@ fn external_status(options: &Status) -> anyhow::Result<()> {
     }
 }
 
-fn status_from_meta(name: &str, instance: anyhow::Result<InstanceInfo>)
+fn status_from_meta(name: &str, paths: &Paths,
+                    instance: anyhow::Result<InstanceInfo>)
     -> FullStatus
 {
     let service = if cfg!(windows) {
@@ -132,40 +145,48 @@ fn status_from_meta(name: &str, instance: anyhow::Result<InstanceInfo>)
     let reserved_port = read_ports().ok()
         .and_then(|map| map.get(name).cloned());
     let port_status = probe_port(&instance, &reserved_port);
-    let paths = Paths::get(name);
-    let data_dir = instance.as_ref().ok()
-        .and_then(|i| i.data_dir().ok())
-        .or_else(|| paths.as_ref().map(|p| p.data_dir.clone()).ok());
-    let credentials_file_exists = paths.as_ref()
-        .map(|p| p.credentials.exists()).unwrap_or(false);
-    let service_exists = paths.as_ref()
-        .map(|p| {
-            p.service_files.iter().any(|f| f.exists())
-        }).unwrap_or(false);
+    let data_status = if paths.data_dir.exists() {
+        if paths.upgrade_marker.exists() {
+            DataDirectory::Upgrading(read_upgrade(&paths.upgrade_marker))
+        } else {
+            if instance.is_ok() {
+                DataDirectory::Normal
+            } else {
+                DataDirectory::NoMetadata
+            }
+        }
+    } else {
+        DataDirectory::Absent
+    };
+    let backup = backup_status(name, &paths.backup_dir);
+    let credentials_file_exists = paths.credentials.exists();
+    let service_exists = paths.service_files.iter().any(|f| f.exists());
     return FullStatus {
         name: name.into(),
         service,
         instance,
         reserved_port,
         port_status,
-        data_dir,
-        // data_status // TODO(tailhook)
-        // backup: // TODO(tailhook)
+        data_dir: paths.data_dir.clone(),
+        data_status,
+        backup,
         credentials_file_exists,
         service_exists,
     }
 }
 
-fn instance_status(name: &str) -> FullStatus {
+pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
+    let paths = Paths::get(name)?;   // the only error case
     let meta = InstanceInfo::read(&name);
-    status_from_meta(name, meta)
+    Ok(status_from_meta(name, &paths, meta))
 }
 
 fn normal_status(options: &Status) -> anyhow::Result<()> {
     let meta = InstanceInfo::try_read(&options.name)?;
     // TODO(tailhook) provide (some) status even if there is no metadata
     if let Some(meta) = meta {
-        let status = status_from_meta(&options.name, Ok(meta));
+        let paths = Paths::get(&options.name)?;
+        let status = status_from_meta(&options.name, &paths, Ok(meta));
         if options.debug {
             println!("{:#?}", status);
             Ok(())
@@ -290,7 +311,7 @@ pub fn list(options: &List) -> anyhow::Result<()> {
             log::debug!("Instance {:?} has deprecated install method. \
                         Skipping.", name);
         } else {
-            local.push(instance_status(&name));
+            local.push(instance_status(&name)?);
         }
     }
     let mut remote = Vec::new();
@@ -465,16 +486,10 @@ impl FullStatus {
             Port::Unknown => "unknown",
         });
 
-        if let Some(data_dir) = &self.data_dir {
-            println!("  Data directory: {}", data_dir.display());
-        } else {
-            println!("  Data directory: <cannot be determined>");
-        }
-        /* // TODO(tailhook)
+        println!("  Data directory: {}", self.data_dir.display());
         println!("  Data status: {}", match &self.data_status {
             DataDirectory::Absent => "NOT FOUND".into(),
             DataDirectory::NoMetadata => "METADATA ERROR".into(),
-            /* TODO(tailhook)
             DataDirectory::Upgrading(Err(e)) => format!("upgrading ({:#})", e),
             DataDirectory::Upgrading(Ok(up)) => {
                 format!("upgrading {} -> {} for {}",
@@ -483,11 +498,8 @@ impl FullStatus {
                             up.started.elapsed().unwrap_or(Duration::new(0, 0))
                         ))
             }
-            */
             DataDirectory::Normal => "normal".into(),
         });
-        */
-        /* // TODO(tailhook)
         println!("  Backup: {}", match &self.backup {
             BackupStatus::Absent => "absent".into(),
             BackupStatus::Exists { backup_meta: Err(e), ..} => {
@@ -499,7 +511,7 @@ impl FullStatus {
             BackupStatus::Error(_) => {
                 format!("error")
             }
-        }); */
+        });
     }
     pub fn json<'x>(&'x self) -> JsonStatus<'x> {
         let meta = self.instance.as_ref().ok();
@@ -606,4 +618,24 @@ fn status_str(status: &Service) -> &'static str {
         Service::Failed {..} => "not running",
         Service::Inactive {..} => "inactive",
     }
+}
+
+pub fn backup_status(name: &str, dir: &Path) -> BackupStatus {
+    use BackupStatus::*;
+    if !dir.exists() {
+        return Absent;
+    }
+    let bmeta_json = dir.join("backup.json");
+    let backup_meta = fs::read(&bmeta_json)
+        .with_context(|| format!("error reading {}", bmeta_json.display()))
+        .and_then(|data| serde_json::from_slice(&data)
+        .with_context(|| format!("error decoding {}", bmeta_json.display())));
+    let dmeta_json = dir.join("instance_info.json");
+    let data_meta = InstanceInfo::read_at(name, &dmeta_json);
+    Exists { backup_meta, data_meta }
+}
+
+#[context("failed to read upgrade marker {:?}", file)]
+pub fn read_upgrade(file: &Path) -> anyhow::Result<UpgradeMeta> {
+    Ok(serde_json::from_slice(&fs::read(&file)?)?)
 }

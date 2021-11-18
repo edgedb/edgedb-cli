@@ -3,13 +3,14 @@ use crate::project::options::ProjectCommand;
 use crate::server::options::ServerCommand;
 use crate::server::options::ServerInstanceCommand;
 
-use crate::portable::info;
 use crate::portable::control;
 use crate::portable::create;
 use crate::portable::destroy;
+use crate::portable::info;
 use crate::portable::install;
 use crate::portable::list_versions;
 use crate::portable::project;
+use crate::portable::revert;
 use crate::portable::status;
 use crate::portable::upgrade;
 
@@ -47,7 +48,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Stop(c) => control::stop(c),
         Restart(c) => control::restart(c),
         Logs(c) => control::logs(c),
-        Revert(_) => todo!(),
+        Revert(c) => revert::revert(c),
         Unlink(_) => todo!(),
         Status(c) => status::status(c),
     }

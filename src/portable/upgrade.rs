@@ -142,10 +142,10 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
             eecho!("Upgrade to", pkg.version.emphasize(), "is complete, \
                 but there was an error creating the service:",
                 format_args!("{:#}", e));
-            eprintln!(": \n  \
+            eprintln!("You can start it manually via:\n  \
                 edgedb instance start --foreground {}",
                 inst.name);
-            return Err(ExitCode::new(2))?;
+            return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
         }
     }
     Ok(())
@@ -190,7 +190,7 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
             eecho!("Upgrade to", pkg.version.emphasize(), "is complete, \
                 but there was an error creating the service:",
                 format_args!("{:#}", e));
-            eprintln!(": \n  \
+            eprintln!("You can start it manually via:\n  \
                 edgedb instance start --foreground {}",
                 inst.name);
             return Err(ExitCode::new(2))?;
@@ -214,7 +214,7 @@ pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
     } else {
         task::block_on(dump_instance(inst, &path))?;
         log::info!("Stopping the instance before executable upgrade");
-        control::do_stop(inst)?;
+        control::do_stop(&inst.name)?;
     }
     Ok(())
 }
