@@ -294,12 +294,12 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
     anyhow::bail!("Failed to start EdgeDB");
 }
 
-pub fn stop_service(inst: &InstanceInfo) -> anyhow::Result<()> {
+pub fn stop_service(name: &str) -> anyhow::Result<()> {
     let mut signal_sent = false;
     let deadline = time::Instant::now() + time::Duration::from_secs(30);
-    let lname = launchd_name(&inst.name);
+    let lname = launchd_name(&name);
     loop {
-        match service_status(&inst.name) {
+        match service_status(&name) {
             Service::Running {..} => {
                 if signal_sent {
                     if time::Instant::now() > deadline {

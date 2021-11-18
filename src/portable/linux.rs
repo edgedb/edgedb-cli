@@ -179,11 +179,11 @@ pub fn start_service(inst: &InstanceInfo) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn stop_service(inst: &InstanceInfo) -> anyhow::Result<()> {
+pub fn stop_service(name: &str) -> anyhow::Result<()> {
     process::Native::new("stop service", "systemctl", "systemctl")
         .arg("--user")
         .arg("stop")
-        .arg(unit_name(&inst.name))
+        .arg(unit_name(&name))
         .run()?;
     Ok(())
 }
