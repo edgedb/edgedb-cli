@@ -161,11 +161,17 @@ fn project_link_and_init() {
         .success();
 
     Command::new("edgedb").arg("project").arg("upgrade")
-        .arg("--force")
+        .arg("--to-latest").arg("--force")
         .current_dir("tests/proj/project2")
         .assert()
         .context("project-upgrade-manual", "upgrade manual project")
         .success();
+
+    Command::new("edgedb").arg("instance").arg("status").arg("project2")
+        .arg("--extended")
+        .assert()
+        .context("instance-status", "show extended status")
+        .code(3);
 
     Command::new("edgedb").arg("instance").arg("revert").arg("project2")
         .arg("--no-confirm")
