@@ -15,9 +15,9 @@ use crate::portable::revert;
 use crate::portable::status;
 use crate::portable::uninstall;
 use crate::portable::upgrade;
+use crate::portable::reset_password;
 
 use crate::server::detect;
-use crate::server::reset_password;
 
 
 pub fn server_main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {

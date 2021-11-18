@@ -20,9 +20,9 @@ use crate::hint::{HintedError, HintExt};
 use crate::options::{Options, ConnectionOptions};
 use crate::options::{conn_params, load_tls_options};
 use crate::portable::local::InstanceInfo;
+use crate::portable::reset_password::write_credentials;
 use crate::print;
 use crate::server::options::{Link, Unlink};
-use crate::server::reset_password::write_credentials;
 use crate::{question, credentials};
 
 struct InteractiveCertVerifier {

@@ -17,6 +17,7 @@ mod info;
 mod install;
 mod link;
 mod list_versions;
+mod reset_password;
 mod revert;
 mod status;
 mod uninstall;

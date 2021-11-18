@@ -16,7 +16,6 @@ use crate::server::reset_password::write_credentials;
 use crate::server::is_valid_name;
 
 
-
 pub fn get_connector(name: &str) -> anyhow::Result<Builder> {
     let mut builder = Builder::uninitialized();
     task::block_on(builder.read_instance(name))?;
