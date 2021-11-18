@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature="portable_tests"), allow(dead_code))]
 
 use assert_cmd::Command;
+use predicates::prelude::*;
 
 mod util;
 use util::*;
@@ -193,20 +194,19 @@ fn install() {
         .context("destroy-2", "destroy `second` instance")
         .success();
 
-    /*
-    Command::new(&edgedb)
-        .arg("server").arg("uninstall").arg("--version=1-beta3")
+    Command::new("edgedb")
+        .arg("server").arg("uninstall").arg("--unused")
         .assert()
         .context("uninstall-2", "uninstall old version")
         .success();
-    Command::new(&edgedb)
+
+    Command::new("edgedb")
         .arg("server").arg("list-versions")
         .arg("--installed-only").arg("--column=major-version")
         .assert()
         .success()
         .context("list-2", "list after uninstall")
-        .stdout(predicates::str::contains("1-beta2").not());
-    */
+        .stdout(predicates::str::contains("-dev.").not());
 
     Command::new("edgedb")
         .arg("--admin").arg("--instance").arg("inst1")
