@@ -18,6 +18,7 @@ mod install;
 mod list_versions;
 mod revert;
 mod status;
+mod uninstall;
 mod upgrade;
 pub mod project;
 
