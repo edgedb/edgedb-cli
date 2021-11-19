@@ -1,3 +1,5 @@
+#![cfg_attr(windows, allow(dead_code))]
+
 use std::future::Future;
 use std::pin::Pin;
 use std::process;

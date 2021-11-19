@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature="portable_tests"), allow(dead_code))]
+#![cfg_attr(not(feature="portable_tests"), allow(dead_code, unused_imports))]
 
 use assert_cmd::Command;
 use predicates::prelude::*;
