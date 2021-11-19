@@ -15,7 +15,7 @@ use crate::portable::local::{InstallInfo, write_json};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{PackageInfo, PackageHash, Query};
 use crate::portable::repository::{get_server_package, download};
-use crate::print::{self, eecho, Highlight};
+use crate::print::{self, echo, Highlight};
 use crate::server::options::Install;
 
 
@@ -172,11 +172,11 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     let target_dir = platform::portable_dir()?.join(&ver_name);
     if target_dir.exists() {
         let meta = check_metadata(&target_dir, &pkg_info)?;
-        eecho!("Version", meta.version.emphasize(), "is already installed");
+        echo!("Version", meta.version.emphasize(), "is already installed");
         return Ok(meta);
     }
 
-    eecho!("Downloading package...");
+    echo!("Downloading package...");
     let cache_path = download_package(&pkg_info)?;
     let tmp_target = platform::tmp_file_path(&target_dir);
     unpack_package(&cache_path, &tmp_target)?;
@@ -190,7 +190,7 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     fs::rename(&tmp_target, &target_dir).with_context(
         || format!("cannot rename {:?} -> {:?}", tmp_target, target_dir))?;
     unlink_cache(&cache_path);
-    eecho!("Successfully installed", pkg_info.version.emphasize());
+    echo!("Successfully installed", pkg_info.version.emphasize());
 
     Ok(info)
 }

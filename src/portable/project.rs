@@ -30,7 +30,7 @@ use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::ver;
-use crate::print::{self, eecho, Highlight};
+use crate::print::{self, echo, Highlight};
 use crate::project::options::{Info, Init, Unlink, Upgrade};
 use crate::question;
 use crate::server::create::allocate_port;
@@ -841,7 +841,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
         } else {
             match fs::read_to_string(&stash_path.join("instance-name")) {
                 Ok(name) => {
-                    eecho!("Unlinking instance", name.emphasize());
+                    echo!("Unlinking instance", name.emphasize());
                 }
                 Err(e) => {
                     print::error(format!("Cannot read instance name: {}", e));
@@ -899,7 +899,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
     let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
     let stash_dir = stash_path(&root)?;
     if !stash_dir.exists() {
-        eecho!(print::err_marker(),
+        echo!(print::err_marker(),
             "Project is not initialized.".emphasize(),
             "Run `edgedb project init`.");
         return Err(ExitCode::new(1).into());
@@ -1005,8 +1005,8 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
         } else {
             print::success("Config is up to date.");
         }
-        eecho!("Run", "edgedb project init".command_hint(),
-               "to initialize an instance.");
+        echo!("Run", "edgedb project init".command_hint(),
+              "to initialize an instance.");
     } else {
         let name = instance_name(&stash_dir)?;
         let inst = Handle::probe(&name)?;
@@ -1109,14 +1109,14 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
             upgrade::upgrade_incompatible(inst, pkg)?;
         }
     } else {
-        eecho!("EdgeDB instance is up to date with \
+        echo!("EdgeDB instance is up to date with \
                the specification in the `edgedb.toml`.");
         if cfg_ver.channel != Channel::Nightly {
             if let Some(pkg) =repository::get_server_package(&Query::stable())?
             {
-                eecho!("New major version is available:",
-                       pkg.version.emphasize());
-                eecho!("To update `edgedb.toml` and upgrade to this version,
+                echo!("New major version is available:",
+                      pkg.version.emphasize());
+                echo!("To update `edgedb.toml` and upgrade to this version,
                        run:\n    edgedb project upgrade --to-latest");
             }
         }

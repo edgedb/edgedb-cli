@@ -15,7 +15,7 @@ use crate::portable::repository::{Query};
 use crate::portable::reset_password::{password_hash, generate_password};
 use crate::portable::reset_password::{write_credentials};
 use crate::portable::{windows, linux, macos};
-use crate::print::{self, eecho, Highlight};
+use crate::print::{self, echo, Highlight};
 use crate::process;
 use crate::server::create::allocate_port;
 use crate::server::options::{Create, StartConf};
@@ -55,13 +55,13 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
 
     match (create_service(&info), options.start_conf) {
         (Ok(()), StartConf::Manual) => {
-            eecho!("Instance", options.name.emphasize(), "is ready.");
+            echo!("Instance", options.name.emphasize(), "is ready.");
             eprintln!("You can start it manually via: \n  \
                 edgedb instance start [--foreground] {}",
                 options.name);
         }
         (Ok(()), StartConf::Auto) => {
-            eecho!("Instance", options.name.emphasize(), "is up and running.");
+            echo!("Instance", options.name.emphasize(), "is up and running.");
         }
         (Err(e), _) => {
             eprintln!("Bootstrapping complete, \
@@ -125,7 +125,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     let password = generate_password();
     let script = bootstrap_script(database, user, &password);
 
-    eecho!("Initializing EdgeDB instance...");
+    echo!("Initializing EdgeDB instance...");
     process::Native::new("bootstrap", "edgedb", server_path)
         .arg("--bootstrap-only")
         .env_default("EDGEDB_SERVER_LOG_LEVEL", "warn")

@@ -9,7 +9,7 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::local::Paths;
 use crate::portable::status::{instance_status, DataDirectory, BackupStatus};
-use crate::print::{self, eecho, Highlight};
+use crate::print::{self, echo, Highlight};
 use crate::process;
 use crate::server::options::{Revert, StartConf};
 
@@ -26,32 +26,32 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         => anyhow::bail!("cannot read backup metadata: {}", e),
         Exists { backup_meta: Ok(b), data_meta: Ok(d) } => (b, d),
     };
-    eecho!("EdgeDB version:", old_inst.installation.version);
-    eecho!("Backup timestamp:",
+    echo!("EdgeDB version:", old_inst.installation.version);
+    echo!("Backup timestamp:",
         humantime::format_rfc3339(backup_info.timestamp),
         format!("({})", format::done_before(backup_info.timestamp)));
     if !options.ignore_pid_check {
         match status.data_status {
             DataDirectory::Upgrading(Ok(up)) if process::exists(up.pid) => {
-                eecho!(
+                echo!(
                     "Looks like upgrade is still in progress \
                     with pid", up.pid.emphasize(),
                 );
-                eecho!("Run with `--ignore-pid-check` to override");
+                echo!("Run with `--ignore-pid-check` to override");
                 return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
             }
             DataDirectory::Upgrading(_) => {
-                eecho!("Note: it looks like backup is from a broken upgrade");
+                echo!("Note: it looks like backup is from a broken upgrade");
             }
             _ => {}
         }
     }
     if !options.no_confirm {
         eprintln!();
-        eecho!("Currently stored data", "will be lost".emphasize(),
+        echo!("Currently stored data", "will be lost".emphasize(),
                   "and overwritten by the backup.");
         if old_inst.start_conf == StartConf::Manual {
-            eecho!("Please ensure that server is stopped before proceeeding.");
+            echo!("Please ensure that server is stopped before proceeeding.");
         }
         let q = question::Confirm::new("Do you really want to revert?");
         if !q.ask()? {
@@ -82,24 +82,24 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     let mut exit = None;
     match (create::create_service(&inst), inst.start_conf) {
         (Ok(()), StartConf::Manual) => {
-            eecho!("Instance", inst.name.emphasize(), "is reverted to",
+            echo!("Instance", inst.name.emphasize(), "is reverted to",
                    inst.installation.version.emphasize());
-            eecho!("You can start it manually via: \n  \
+            echo!("You can start it manually via: \n  \
                 edgedb instance start [--foreground] {}",
                 inst.name);
         }
         (Ok(()), StartConf::Auto) => {
             control::do_restart(&inst)?;
-            eecho!("Instance", inst.name.emphasize(),
+            echo!("Instance", inst.name.emphasize(),
                    "is successfully reverted to",
                    inst.installation.version.emphasize());
         }
         (Err(e), _) => {
-            eecho!("Revert to", inst.installation.version.emphasize(),
+            echo!("Revert to", inst.installation.version.emphasize(),
                 "is complete, \
                 but there was an error creating the service:",
                 format_args!("{:#}", e));
-            eecho!("You can start it manually via:\n  \
+            echo!("You can start it manually via:\n  \
                 edgedb instance start --foreground", inst.name);
             exit = Some(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE));
         }

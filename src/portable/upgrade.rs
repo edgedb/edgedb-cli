@@ -16,7 +16,7 @@ use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
 use crate::portable::project;
 use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
-use crate::print::{self, eecho, Highlight};
+use crate::print::{self, echo, Highlight};
 use crate::server::options::{Upgrade, StartConf};
 
 
@@ -102,9 +102,9 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let pkg_ver = pkg.version.specific();
 
     if pkg_ver <= inst_ver && !options.force {
-        eecho!("Latest version found", pkg.version,
-               ", current instance version is", inst.installation.version,
-               ". Already up to date.");
+        echo!("Latest version found", pkg.version,
+              ", current instance version is", inst.installation.version,
+              ". Already up to date.");
         return Ok(());
     }
 
@@ -122,24 +122,24 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
 pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
     -> anyhow::Result<()>
 {
-    eecho!("Upgrading to a minor version", pkg.version.emphasize());
+    echo!("Upgrading to a minor version", pkg.version.emphasize());
     let install = install::package(&pkg).context("error installing EdgeDB")?;
     inst.installation = install;
     match (create::create_service(&inst), inst.start_conf) {
         (Ok(()), StartConf::Manual) => {
-            eecho!("Instance", inst.name.emphasize(),
-                   "is upgraded to", pkg.version.emphasize());
+            echo!("Instance", inst.name.emphasize(),
+                  "is upgraded to", pkg.version.emphasize());
             eprintln!("Please restart the server or run: \n  \
                 edgedb instance start [--foreground] {}",
                 inst.name);
         }
         (Ok(()), StartConf::Auto) => {
             control::do_restart(&inst)?;
-            eecho!("Instance", inst.name.emphasize(),
-                   "is successfully upgraded to", pkg.version.emphasize());
+            echo!("Instance", inst.name.emphasize(),
+                  "is successfully upgraded to", pkg.version.emphasize());
         }
         (Err(e), _) => {
-            eecho!("Upgrade to", pkg.version.emphasize(), "is complete, \
+            echo!("Upgrade to", pkg.version.emphasize(), "is complete, \
                 but there was an error creating the service:",
                 format_args!("{:#}", e));
             eprintln!("You can start it manually via:\n  \
@@ -154,7 +154,7 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
 pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
     -> anyhow::Result<()>
 {
-    eecho!("Upgrading to a major version", pkg.version.emphasize());
+    echo!("Upgrading to a major version", pkg.version.emphasize());
     let install = install::package(&pkg).context("error installing EdgeDB")?;
 
     let paths = Paths::get(&inst.name)?;
@@ -175,19 +175,19 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
 
     match (create::create_service(&inst), inst.start_conf) {
         (Ok(()), StartConf::Manual) => {
-            eecho!("Instance", inst.name.emphasize(),
-                   "is upgraded to", pkg.version.emphasize());
+            echo!("Instance", inst.name.emphasize(),
+                  "is upgraded to", pkg.version.emphasize());
             eprintln!("Please restart the server or run: \n  \
                 edgedb instance start [--foreground] {}",
                 inst.name);
         }
         (Ok(()), StartConf::Auto) => {
             control::do_restart(&inst)?;
-            eecho!("Instance", inst.name.emphasize(),
+            echo!("Instance", inst.name.emphasize(),
                    "is successfully upgraded to", pkg.version.emphasize());
         }
         (Err(e), _) => {
-            eecho!("Upgrade to", pkg.version.emphasize(), "is complete, \
+            echo!("Upgrade to", pkg.version.emphasize(), "is complete, \
                 but there was an error creating the service:",
                 format_args!("{:#}", e));
             eprintln!("You can start it manually via:\n  \
@@ -203,7 +203,7 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
 #[context("cannot dump {:?} -> {}", inst.name, path.display())]
 pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
     // in case not started for now
-    eecho!("Dumping the database...");
+    echo!("Dumping the database...");
     log::info!("Ensuring instance is started");
     let res = control::do_start(&inst);
     if let Err(err) = res {
@@ -272,7 +272,7 @@ fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()>
     fs::create_dir_all(&paths.data_dir)
         .with_context(|| format!("cannot create {:?}", paths.data_dir))?;
 
-    eecho!("Restoring the database...");
+    echo!("Restoring the database...");
     let mut cmd = control::get_server_cmd(inst)?;
     cmd.arg("--generate-self-signed-cert");
     cmd.background_for(async {

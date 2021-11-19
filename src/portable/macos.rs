@@ -8,7 +8,7 @@ use crate::platform::{home_dir, get_current_uid, cache_dir, data_dir};
 use crate::portable::local::{InstanceInfo};
 use crate::portable::status::Service;
 use crate::process;
-use crate::print::{self, eecho, Highlight};
+use crate::print::{self, echo, Highlight};
 use crate::server::options::{StartConf, Logs};
 
 
@@ -276,11 +276,11 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
                 return Ok(());
             }
             Failed { exit_code: Some(code) } => {
-                eecho!(print::err_marker(),
+                echo!(print::err_marker(),
                     "EdgeDB failed".emphasize(), "with exit code", code);
             }
             Failed { exit_code: None } => {
-                eecho!(print::err_marker(), "EdgeDB failed".emphasize());
+                echo!(print::err_marker(), "EdgeDB failed".emphasize());
             }
         }
     }

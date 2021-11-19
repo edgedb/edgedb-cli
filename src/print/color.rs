@@ -103,27 +103,6 @@ macro_rules! echo {
                     .expect("buffering of echo succeeds");
             )*
             buf.push('\n');
-            print!("{}", buf);
-        };
-    }
-}
-
-#[macro_export]
-macro_rules! eecho {
-    ($word1:expr $(,$word:expr )* $(,)?) => {
-        // Buffer the whole output so mutliple processes do not interfere
-        // each other
-        {
-            use ::std::fmt::Write;
-            let mut buf = ::std::string::String::with_capacity(4096);
-            write!(&mut buf, "{}", $word1)
-                .expect("buffering of echo succeeds");
-            $(
-                buf.push(' ');
-                write!(&mut buf, "{}", $word)
-                    .expect("buffering of echo succeeds");
-            )*
-            buf.push('\n');
             eprint!("{}", buf);
         };
     }
