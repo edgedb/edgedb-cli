@@ -30,7 +30,7 @@ pub struct ShellConfig {
     pub input_mode: Option<repl::InputMode>,
     #[serde(default)]
     pub limit: Option<usize>,
-    #[serde(default, deserialize_with = "parse_duration")]
+    #[serde(default, deserialize_with = "parse_idle_tx_timeout")]
     pub idle_transaction_timeout: Option<Duration>,
     #[serde(with="serde_str::opt", default)]
     pub output_format: Option<repl::OutputFormat>,
@@ -60,7 +60,7 @@ fn read_config(path: impl AsRef<Path>) -> anyhow::Result<Config> {
     Ok(val)
 }
 
-fn parse_duration<'de, D>(deserializer: D)
+fn parse_idle_tx_timeout<'de, D>(deserializer: D)
     -> Result<Option<Duration>, D::Error>
 where
     D: serde::Deserializer<'de>
@@ -68,6 +68,8 @@ where
     let s: &str = serde::Deserialize::deserialize(deserializer)?;
     let rv = Duration::from_str(s)
         .map_err(serde::de::Error::custom)?;
+
+    // Postgres limits idle_in_transaction_session_timeout to non-negative i32.
     if rv.to_micros() < 0 {
         Err(serde::de::Error::custom("negative timeout is illegal"))
     } else if rv.to_micros() > 2147483647499 {
