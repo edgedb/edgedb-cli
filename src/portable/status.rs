@@ -57,7 +57,6 @@ pub enum BackupStatus {
         backup_meta: anyhow::Result<BackupMeta>,
         data_meta: anyhow::Result<InstanceInfo>,
     },
-    Error(anyhow::Error),
 }
 
 #[derive(Debug)]
@@ -507,9 +506,6 @@ impl FullStatus {
             }
             BackupStatus::Exists { backup_meta: Ok(b), .. } => {
                 format!("present, {}", format::done_before(b.timestamp))
-            }
-            BackupStatus::Error(_) => {
-                format!("error")
             }
         });
     }

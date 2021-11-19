@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::fs;
 use std::env;
 use std::path::{Path, PathBuf};
