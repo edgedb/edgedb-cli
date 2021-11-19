@@ -13,8 +13,9 @@ use crate::platform;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstallInfo, write_json};
 use crate::portable::platform::optional_docker_check;
-use crate::portable::repository::{PackageInfo, PackageHash, Query};
-use crate::portable::repository::{get_server_package, download};
+use crate::portable::repository::{PackageInfo, PackageHash, Query, download};
+use crate::portable::repository::{get_server_package, get_specific_package};
+use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
 use crate::server::options::Install;
 
@@ -165,6 +166,16 @@ pub fn version(query: &Query) -> anyhow::Result<InstallInfo> {
     let pkg_info = get_server_package(&query)?
         .context("no package matching your criteria found")?;
     package(&pkg_info)
+}
+
+pub fn specific(version: &ver::Specific) -> anyhow::Result<InstallInfo> {
+    let target_dir = platform::portable_dir()?.join(&version.to_string());
+    if target_dir.exists() {
+        return Ok(InstallInfo::read(&target_dir)?);
+    }
+    let pkg = get_specific_package(version)?
+        .with_context(|| format!("cannot find package {}", version))?;
+    package(&pkg)
 }
 
 pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {

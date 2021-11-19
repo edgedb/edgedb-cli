@@ -1,11 +1,14 @@
 use fs_err as fs;
 
+use anyhow::Context;
+
 use crate::commands::ExitCode;
 use crate::format;
 use crate::question;
 use crate::platform::tmp_file_path;
 use crate::portable::control;
 use crate::portable::create;
+use crate::portable::install;
 use crate::portable::exit_codes;
 use crate::portable::local::Paths;
 use crate::portable::status::{instance_status, DataDirectory, BackupStatus};
@@ -53,7 +56,8 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         if old_inst.start_conf == StartConf::Manual {
             echo!("Please ensure that server is stopped before proceeeding.");
         }
-        let q = question::Confirm::new("Do you really want to revert?");
+        let q = question::Confirm::new_dangerous(
+            "Do you really want to revert?");
         if !q.ask()? {
             print::error("Canceled.");
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
@@ -73,6 +77,9 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         }
     }
 
+    install::specific(&old_inst.installation.version.specific())
+        .context("error installing old EdgeDB version")?;
+
     let paths = Paths::get(&options.name)?;
     let tmp_path = tmp_file_path(&paths.data_dir);
     fs::rename(&paths.data_dir, &tmp_path)?;
@@ -80,6 +87,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
 
     let inst = old_inst;
     let mut exit = None;
+    echo!("Starting EdgeDB", inst.installation.version, "...");
     match (create::create_service(&inst), inst.start_conf) {
         (Ok(()), StartConf::Manual) => {
             echo!("Instance", inst.name.emphasize(), "is reverted to",

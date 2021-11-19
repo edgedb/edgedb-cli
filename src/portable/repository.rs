@@ -255,6 +255,16 @@ pub fn get_server_package(query: &Query)
     Ok(pkg)
 }
 
+pub fn get_specific_package(version: &ver::Specific)
+    -> anyhow::Result<Option<PackageInfo>>
+{
+    let channel = Channel::from_version(version)?;
+    let pkg = get_server_packages(channel)?.into_iter()
+        .filter(|pkg| &pkg.version.specific() == version)
+        .next();
+    Ok(pkg)
+}
+
 #[context("failed to download file at URL: {}", url)]
 pub async fn download(dest: impl AsRef<Path>, url: &Url)
     -> Result<blake2b_simd::Hash, anyhow::Error>
