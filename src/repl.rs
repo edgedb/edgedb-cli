@@ -5,6 +5,7 @@ use anyhow::Context;
 use async_std::channel::{Sender, Receiver, RecvError};
 use colorful::Colorful;
 use edgedb_client::client::Connection;
+use edgedb_protocol::model::{Duration as EdbDuration};
 use edgedb_protocol::server_message::TransactionState;
 
 use crate::async_util::timeout;
@@ -52,6 +53,7 @@ pub struct State {
     pub verbose_errors: bool,
     pub last_error: Option<anyhow::Error>,
     pub implicit_limit: Option<usize>,
+    pub idle_transaction_timeout: EdbDuration,
     pub input_mode: InputMode,
     pub output_format: OutputFormat,
     pub display_typenames: bool,
@@ -105,10 +107,15 @@ impl State {
     pub async fn set_idle_transaction_timeout(&mut self) -> anyhow::Result<()> {
         if let Some(conn) = &mut self.connection {
             if conn.protocol().is_at_least(0, 13) {
-                conn.execute(
-                    "CONFIGURE SESSION SET \
-                 session_idle_transaction_timeout := <std::duration>'5m';"
-                ).await.context(
+                let d = self.idle_transaction_timeout;
+                log::info!(
+                    "Setting session_idle_transaction_timeout to {}", d
+                );
+                conn.execute(&format!(
+                    "CONFIGURE SESSION SET session_idle_transaction_timeout \
+                     := <std::duration>'{}us'",
+                    d.to_micros(),
+                )).await.context(
                     "cannot configure session_idle_transaction_timeout"
                 )?;
             }

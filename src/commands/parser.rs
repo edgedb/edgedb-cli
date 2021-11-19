@@ -161,6 +161,9 @@ pub enum Setting {
     HistorySize(SettingUsize),
     /// Print statistics on each query
     PrintStats(PrintStats),
+    /// Set idle transaction timeout in Duration format.
+    /// Defaults to 5 minutes, specify 0 to disable.
+    IdleTransactionTimeout(IdleTransactionTimeout),
 }
 
 #[derive(EdbClap, Clone, Debug, Default)]
@@ -179,6 +182,12 @@ pub struct SettingBool {
 pub struct Limit {
     #[clap(name="limit")]
     pub value: Option<usize>,
+}
+
+#[derive(EdbClap, Clone, Debug, Default)]
+pub struct IdleTransactionTimeout {
+    #[clap(name="duration")]
+    pub value: Option<String>,
 }
 
 #[derive(EdbClap, Clone, Debug, Default)]

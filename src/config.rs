@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use fn_error_context::context;
+use edgedb_protocol::model::Duration;
 
 use crate::platform::config_dir;
 use crate::repl;
@@ -28,6 +30,8 @@ pub struct ShellConfig {
     pub input_mode: Option<repl::InputMode>,
     #[serde(default)]
     pub limit: Option<usize>,
+    #[serde(default, deserialize_with = "parse_idle_tx_timeout")]
+    pub idle_transaction_timeout: Option<Duration>,
     #[serde(with="serde_str::opt", default)]
     pub output_format: Option<repl::OutputFormat>,
     #[serde(default)]
@@ -54,4 +58,23 @@ fn read_config(path: impl AsRef<Path>) -> anyhow::Result<Config> {
     let mut val: Config = serde_path_to_error::deserialize(&mut toml)?;
     val.file_name = Some(path.as_ref().to_path_buf());
     Ok(val)
+}
+
+fn parse_idle_tx_timeout<'de, D>(deserializer: D)
+    -> Result<Option<Duration>, D::Error>
+where
+    D: serde::Deserializer<'de>
+{
+    let s: &str = serde::Deserialize::deserialize(deserializer)?;
+    let rv = Duration::from_str(s)
+        .map_err(serde::de::Error::custom)?;
+
+    // Postgres limits idle_in_transaction_session_timeout to non-negative i32.
+    if rv.to_micros() < 0 {
+        Err(serde::de::Error::custom("negative timeout is illegal"))
+    } else if rv.to_micros() > 2147483647499 {
+        Err(serde::de::Error::custom("timeout is too large"))
+    } else {
+        Ok(Some(rv))
+    }
 }
