@@ -54,7 +54,7 @@ fn destroy_portable(options: &Destroy) -> anyhow::Result<()> {
     match stop_and_disable(&options.name) {
         Ok(f) => found = f,
         Err(e) if e.is::<InstanceNotFound>() => {
-            not_found_err.insert(e);
+            not_found_err = Some(e);
         }
         Err(e) => {
             log::warn!("Error unloading service: {:#}", e);

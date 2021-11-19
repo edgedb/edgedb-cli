@@ -20,7 +20,7 @@ commands:
     description: Run cargo check with all tests
     symlink-name: cargo
     container: ubuntu
-    run: [cargo, check, --tests, --features=github_action_install]
+    run: [cargo, check, --tests, --all-features]
 
   ncheck: !Command
     description: Run cargo check on nightly
@@ -176,11 +176,11 @@ containers:
       - curl
 
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-1.53.0-x86_64-unknown-linux-gnu.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-1.56.1-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-std-1.53.0-x86_64-unknown-linux-musl.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-std-1.56.1-x86_64-unknown-linux-musl.tar.gz"
       script: "./install.sh --prefix=/musl \
                --components=rust-std-x86_64-unknown-linux-musl"
     - !Env RUSTFLAGS: -g
@@ -194,10 +194,10 @@ containers:
             postgres
     - !UbuntuRepo
       url: https://packages.edgedb.com/apt
-      suite: bionic.nightly
+      suite: bionic
       components: [main]
       trusted: true
-    - !Install [edgedb-1-beta3-dev202107020000]
+    - !Install [edgedb-1-rc2]
     - !Text
       /var/docker.sock: ""
 
@@ -211,8 +211,8 @@ containers:
       # needed for musl build
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
-      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-1-beta3-dev202107020000/bin
-      EDGEDB_MAJOR_VERSION: 1-beta3-dev202107020000
+      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-1-rc2
+      EDGEDB_MAJOR_VERSION: 1-rc2
 
   tools:
     setup:
@@ -247,7 +247,7 @@ containers:
       CARGO_HOME: /work/target
       RUST_BACKTRACE: 1
       EDGEDB_HOST: '/work/tmp/run'
-      EDGEDB_MAJOR_VERSION: 1-beta3-dev202107020000
+      EDGEDB_MAJOR_VERSION: 1-rc2
 
   test_install:
     setup:
