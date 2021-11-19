@@ -1,4 +1,5 @@
-#![cfg_attr(not(feature="test_docker_wrapper"), allow(dead_code))]
+#![cfg_attr(not(feature="test_docker_wrapper"),
+            allow(dead_code, unused_imports))]
 
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
