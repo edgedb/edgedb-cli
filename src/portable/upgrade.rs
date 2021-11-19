@@ -193,7 +193,7 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
             eprintln!("You can start it manually via:\n  \
                 edgedb instance start --foreground {}",
                 inst.name);
-            return Err(ExitCode::new(2))?;
+            return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?
         }
     }
 
