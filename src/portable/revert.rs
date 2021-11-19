@@ -25,7 +25,6 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         Exists { data_meta: Err(e), ..}
         => anyhow::bail!("cannot read backup metadata: {}", e),
         Exists { backup_meta: Ok(b), data_meta: Ok(d) } => (b, d),
-        Error(e) => anyhow::bail!("backup status error: {}", e),
     };
     eecho!("EdgeDB version:", old_inst.installation.version);
     eecho!("Backup timestamp:",
