@@ -87,6 +87,13 @@ fn main() {
     }
 }
 
+fn is_cli_upgrade(cmd: &Option<options::Command>) -> bool {
+    use options::Command::CliCommand as Cli;
+    use cli::options::CliCommand;
+    use cli::options::Command::Upgrade;
+    matches!(cmd, Some(Cli(CliCommand { subcommand: Upgrade(..) })))
+}
+
 fn _main() -> anyhow::Result<()> {
     // If a crash happens we want the backtrace to be printed by default
     // to ease bug reporting and troubleshooting.
@@ -119,7 +126,9 @@ fn _main() -> anyhow::Result<()> {
 
     log::debug!(target: "edgedb::cli", "Options: {:#?}", opt);
 
-    version_check::check(opt.no_cli_update_check)?;
+    if !is_cli_upgrade(&opt.subcommand) {
+        version_check::check(opt.no_cli_update_check)?;
+    }
 
     if opt.subcommand.is_some() {
         commands::cli::main(opt)
