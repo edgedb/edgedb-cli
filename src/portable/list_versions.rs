@@ -90,7 +90,7 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
             });
         }
         for install in installed {
-            version_set.entry(install.version.specific())
+            let _ = version_set.entry(install.version.specific())
                 .or_insert_with(|| Pair { package: None, install: None })
                 .install.insert(install);
         }
