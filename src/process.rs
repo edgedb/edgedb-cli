@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use once_cell::sync::Lazy;
+
 use anyhow::Context;
 use async_process::{Command, Stdio, ExitStatus, Output};
 use async_std::io::prelude::{BufReadExt};
@@ -18,6 +20,36 @@ use colorful::{Colorful, Color};
 use serde::de::DeserializeOwned;
 
 use crate::interrupt;
+
+#[cfg(unix)]
+static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
+    use std::ptr::null_mut;
+    use std::ffi::CString;
+
+    let utf8_term = ["LANG", "LC_ALL", "LC_MESSAGES"].iter().any(|n| {
+        env::var(n)
+            .map(|v| v.contains("utf8") || v.contains("UTF-8"))
+            .unwrap_or(false)
+    });
+    if utf8_term {
+        unsafe {
+            let c_utf8 = CString::new("C.UTF-8").unwrap();
+            let loc = libc::newlocale(libc::LC_ALL,
+                                      c_utf8.as_ptr(), null_mut());
+            if loc != null_mut() {
+                libc::freelocale(loc);
+                log::debug!("UTF-8 locale is enabled");
+                return true;
+            } else {
+                log::debug!("Cannot load C.UTF-8");
+                return false;
+            }
+        }
+    } else {
+        log::debug!("UTF-8 not enabled (non-utf-8 locale)");
+        return false;
+    }
+});
 
 
 fn timestamp() -> u64 {
@@ -77,10 +109,23 @@ impl Native {
         cmd: impl AsRef<Path>)
         -> Native
     {
+        let mut command = Command::new(cmd.as_ref());
+        #[cfg(unix)] {
+            if *HAS_UTF8_LOCALE {
+                command.env("LANG", "C.UTF-8");
+                command.env("LC_ALL", "C.UTF-8");
+            } else {
+                command.env("LANG", "C");
+                command.env("LC_ALL", "C");
+            }
+        }
+        if cfg!(target_os="macos") {
+            command.env("LC_CTYPE", "UTF-8");
+        }
         Native {
             description: description.into(),
             marker: marker.into(),
-            command: Command::new(cmd.as_ref()),
+            command,
             proxy: clicolors_control::colors_enabled(),
             stop_process: None,
         }
