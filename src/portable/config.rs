@@ -8,7 +8,7 @@ use crate::commands::ExitCode;
 use crate::portable::exit_codes;
 use crate::portable::repository::{Channel, Query};
 use crate::platform::tmp_file_path;
-use crate::print::{self, eecho, Highlight};
+use crate::print::{self, echo, Highlight};
 
 
 #[derive(serde::Deserialize)]
@@ -105,7 +105,7 @@ fn toml_set_version(data: &str, version: &Query)
 pub fn modify(config: &Path, ver: &Query) -> anyhow::Result<bool> {
     let input = fs::read_to_string(&config)?;
     if let Some(output) = toml_set_version(&input, ver)? {
-        eecho!("Setting `server-version = ",
+        echo!("Setting `server-version = ",
                format_args!("{:?}", ver.as_config_value()).emphasize(),
                "` in `edgedb.toml`");
         let tmp = tmp_file_path(config);

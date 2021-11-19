@@ -9,7 +9,7 @@ use snafu::{Snafu, ResultExt, AsErrorSource};
 
 use edgedb_protocol::error_response::display_error;
 
-pub use crate::{echo, eecho};
+pub use crate::echo;
 
 mod color;
 mod native;
@@ -371,16 +371,16 @@ pub fn err_marker() -> impl fmt::Display {
 pub fn error(line: impl fmt::Display) {
     let text = format!("{:#}", line);
     if text.len() > 60 {
-        eecho!(err_marker(), text);
+        echo!(err_marker(), text);
     } else {
         // Emphasise only short lines. Long lines with bold look ugly.
-        eecho!(err_marker(), text.emphasize());
+        echo!(err_marker(), text.emphasize());
     }
 }
 
 pub fn edgedb_error(err: &edgedb_client::errors::Error, verbose: bool) {
     // Note: not using `error()` as display_error has markup inside
-    eecho!(err_marker(), display_error(err, verbose));
+    echo!(err_marker(), display_error(err, verbose));
 }
 
 pub fn success(line: impl fmt::Display) {

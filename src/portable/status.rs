@@ -21,7 +21,7 @@ use crate::portable::control::fallback;
 use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::{windows, linux, macos};
-use crate::print::{self, eecho, Highlight};
+use crate::print::{self, echo, Highlight};
 use crate::server::create::read_ports;
 use crate::server::is_valid_name;
 use crate::server::options::{InstanceCommand, Status, List};
@@ -361,7 +361,7 @@ pub fn list(options: &List) -> anyhow::Result<()> {
         print_table(&local, &remote);
     }
 
-    eecho!("Only portable packages shown here, \
+    echo!("Only portable packages shown here, \
         use `--deprecated-install-methods` \
         to show docker and package installations.".fade());
     Ok(())

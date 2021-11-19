@@ -14,10 +14,9 @@ use serde::Serialize;
 
 use crate::credentials::{self, get_connector};
 use crate::commands::ExitCode;
-use crate::eecho;
 use crate::platform::{get_current_uid, home_dir, cache_dir, data_dir};
 use crate::process;
-use crate::print::{self, Highlight};
+use crate::print::{self, echo, Highlight};
 use crate::server::control::read_metadata;
 use crate::server::create::{self, Storage};
 use crate::server::detect::{ARCH, Lazy, VersionQuery};
@@ -423,11 +422,11 @@ impl LocalInstance<'_> {
                     return Ok(());
                 }
                 Failed { exit_code: Some(code) } => {
-                    eecho!(print::err_marker(),
+                    echo!(print::err_marker(),
                         "EdgeDB failed".emphasize(), "with exit code", code);
                 }
                 Failed { exit_code: None } => {
-                    eecho!(print::err_marker(), "EdgeDB failed".emphasize());
+                    echo!(print::err_marker(), "EdgeDB failed".emphasize());
                 }
             }
         }

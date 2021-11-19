@@ -3,14 +3,14 @@ use std::path::PathBuf;
 use crate::process;
 use crate::portable::{windows, linux, macos};
 use crate::portable::local::InstanceInfo;
-use crate::print::{self, eecho};
+use crate::print::{self, echo};
 use crate::server::options::{Start, Stop, Restart, InstanceCommand, Logs};
 
 
 pub fn fallback(name: &str, success_message: &str,
                 cmd: &InstanceCommand) -> anyhow::Result<()> {
-    eecho!("No instance", name, "found.",
-           "Looking for deprecated instances...");
+    echo!("No instance", name, "found.",
+          "Looking for deprecated instances...");
     crate::server::control::instance_command(cmd)?;
     eprintln!("{}", success_message);
     print::warn("Please upgrade instance to portable installation");

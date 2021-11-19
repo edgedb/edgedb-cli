@@ -9,7 +9,7 @@ use crate::portable::ver;
 use crate::portable::local::{InstanceInfo};
 use crate::platform::{tmp_file_path, data_dir, portable_dir};
 use crate::server::options::Uninstall;
-use crate::print::{self, eecho, Highlight};
+use crate::print::{self, echo, Highlight};
 
 
 pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
@@ -67,11 +67,11 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
     }
 
     if !all && !options.unused {
-        eecho!("Uninstalled", uninstalled.emphasize(), "versions.");
+        echo!("Uninstalled", uninstalled.emphasize(), "versions.");
         print::error("some instances are used. See messages above.");
         return Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS))?;
     } else if uninstalled > 0 {
-        eecho!("Successfully uninstalled",
+        echo!("Successfully uninstalled",
                uninstalled.emphasize(), "versions.");
     } else {
         print::success("Nothing to uninstall.")

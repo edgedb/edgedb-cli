@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use crate::server::options::ListVersions;
 
-use crate::eecho;
+use crate::echo;
 use crate::portable::local::{self, InstallInfo};
 use crate::portable::repository::{get_server_packages, Channel, PackageInfo};
 use crate::portable::ver;
@@ -120,7 +120,7 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
                         }));
         }
     }
-    eecho!("Only portable packages shown here, \
+    echo!("Only portable packages shown here, \
         use `--deprecated-install-methods` \
         to show docker and package installations.".fade());
     Ok(())
