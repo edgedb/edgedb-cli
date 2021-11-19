@@ -101,3 +101,31 @@ jobs:
         with:
           command: test
           args: --test=docker_portable_wrapper --features docker_test_wrapper,portable_tests
+
+  portable-tests-macos:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    strategy:
+      matrix:
+        test: [portable_smoke, portable_project]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --tests --features docker_test_wrapper,portable_tests
+
+      - run: |
+          sudo cp target/debug/edgedb /usr/local/bin/
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --test=${{ matrix.test }} --features docker_test_wrapper,portable_tests

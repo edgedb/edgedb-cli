@@ -152,15 +152,24 @@ fn bootout(name: &str) -> anyhow::Result<()> {
         .arg("bootout").arg(&unit_name)
         .status()?;
     if status.success() {
-        Ok(())
     } else if status.code() == Some(36) {
         // MacOS Catalina has a bug of returning:
         //   Boot-out failed: 36: Operation now in progress
         // when process has successfully booted out
-        Ok(())
     } else {
         anyhow::bail!("launchctl bootout failed: {}", status)
     }
+    let deadline = time::Instant::now() + time::Duration::from_secs(30);
+    while is_service_loaded(name) {
+        if time::Instant::now() > deadline {
+            anyhow::bail!(
+                "launchctl bootout timed out in 30 seconds: \
+                 service is still loaded"
+            )
+        }
+        thread::sleep(time::Duration::from_secs_f32(0.3));
+    }
+    Ok(())
 }
 
 pub fn is_service_loaded(name: &str) -> bool {
