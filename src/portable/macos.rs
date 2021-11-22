@@ -151,12 +151,10 @@ fn bootout(name: &str) -> anyhow::Result<()> {
         "remove service", "launchctl", "launchctl")
         .arg("bootout").arg(&unit_name)
         .status()?;
-    if status.success() {
-    } else if status.code() == Some(36) {
+    if !status.success() && status.code() != Some(36) {
         // MacOS Catalina has a bug of returning:
         //   Boot-out failed: 36: Operation now in progress
         // when process has successfully booted out
-    } else {
         anyhow::bail!("launchctl bootout failed: {}", status)
     }
     let deadline = time::Instant::now() + time::Duration::from_secs(30);
