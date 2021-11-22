@@ -6,9 +6,9 @@ mod platform;
 mod repository;
 mod ver;
 
-mod macos;
-mod linux;
-mod windows;
+pub mod macos;
+pub mod linux;
+pub mod windows;
 
 mod control;
 mod create;

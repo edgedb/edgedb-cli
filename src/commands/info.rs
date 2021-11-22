@@ -44,18 +44,18 @@ pub async fn info(_options: &Options)-> Result<(), anyhow::Error>
         ]));
     }
     if cfg!(target_os="linux") {
-        use crate::server::linux::unit_dir;
+        use crate::portable::linux::unit_dir;
 
         table.add_row(Row::new(vec![
             Cell::new("Service"),
-            Cell::new(&dir_to_str(unit_dir(false)?)),
+            Cell::new(&dir_to_str(unit_dir()?)),
         ]));
     } else if cfg!(target_os="macos") {
-        use crate::server::macos::plist_dir;
+        use crate::portable::macos::plist_dir;
 
         table.add_row(Row::new(vec![
             Cell::new("Service"),
-            Cell::new(&dir_to_str(plist_dir(false)?)),
+            Cell::new(&dir_to_str(plist_dir()?)),
         ]));
     }
 

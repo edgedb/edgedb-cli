@@ -12,7 +12,7 @@ use crate::server::errors::InstanceNotFound;
 use crate::server::options::{StartConf, Logs};
 
 
-fn unit_dir() -> anyhow::Result<PathBuf> {
+pub fn unit_dir() -> anyhow::Result<PathBuf> {
     Ok(home_dir()?.join(".config/systemd/user"))
 }
 
