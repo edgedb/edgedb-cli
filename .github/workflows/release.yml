@@ -313,35 +313,6 @@ jobs:
       run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
       id: whichver
 
-    - uses: actions/cache@v2
-      id: sdk1010cache
-      with:
-        path: ~/.cache/MacOSX10.10.sdk/
-        key: MacOSX10.10.sdk
-
-    - name: Install Xcode
-      if: steps.sdk1010cache.outputs.cache-hit != 'true'
-      env:
-        XCODE_INSTALL_USER: github-ci@edgedb.com
-        XCODE_INSTALL_PASSWORD: ${{ secrets.BOT_APPLE_ID_PASSWORD }}
-      run: |
-        xcversion install 6.4
-
-    - name: Cache 10.10 SDK
-      if: steps.sdk1010cache.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/.cache
-        cp -a \
-          /Applications/Xcode-6.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk/ \
-          ~/.cache/MacOSX10.10.sdk/
-
-    - name: Select macOS SDK
-      run: |
-        sudo cp -a \
-          ~/.cache/MacOSX10.10.sdk/ \
-          /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
-        sudo xcode-select -s /Library/Developer/CommandLineTools
-
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
@@ -356,13 +327,11 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
-        SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
 
         BUILD_GENERIC: true
 
       run: |
-        xcrun --show-sdk-path
         edgedb-pkg/integration/macos/build.sh
 
     - uses: actions/upload-artifact@v1
@@ -390,13 +359,18 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: nightly
+        toolchain: stable
         default: true
 
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
         python-version: "3.10"
+
+    - name: Configure Pagefile
+      uses: elprans/configure-pagefile-action@v2
+      with:
+        minimum-size: 8GB
 
     - name: Build
       env:
