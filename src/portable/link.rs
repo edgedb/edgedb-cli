@@ -16,14 +16,14 @@ use edgedb_client::errors::{Error, PasswordRequired, ClientNoCredentialsError};
 use edgedb_client::credentials::TlsSecurity;
 
 use crate::connect::Connector;
+use crate::credentials;
 use crate::hint::{HintedError, HintExt};
 use crate::options::{Options, ConnectionOptions};
 use crate::options::{conn_params, load_tls_options};
 use crate::portable::local::InstanceInfo;
-use crate::portable::reset_password::write_credentials;
 use crate::print;
+use crate::question;
 use crate::server::options::{Link, Unlink};
-use crate::{question, credentials};
 
 struct InteractiveCertVerifier {
     cert_out: Mutex<Option<String>>,
@@ -251,7 +251,7 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     }
 
-    task::block_on(write_credentials(&cred_path, &creds))?;
+    task::block_on(credentials::write(&cred_path, &creds))?;
     if !cmd.quiet {
         let mut msg = "Successfully linked to remote instance.".to_string();
         if print::use_color() {

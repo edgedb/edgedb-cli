@@ -1,18 +1,17 @@
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::collections::BTreeSet;
-
-use fs_err as fs;
 
 use anyhow::Context;
 use async_std::task;
+use fn_error_context::context;
+use fs_err as fs;
 
 use edgedb_client::Builder;
 use edgedb_client::credentials::Credentials;
 
-use crate::platform::config_dir;
+use crate::platform::{config_dir, tmp_file_name};
 use crate::question;
-use crate::server::reset_password::write_credentials;
 use crate::server::is_valid_name;
 
 
@@ -51,6 +50,19 @@ pub fn all_instance_names() -> anyhow::Result<BTreeSet<String>> {
     Ok(result)
 }
 
+#[context("cannot write credentials file {}", path.display())]
+pub async fn write(path: &Path, credentials: &Credentials)
+    -> anyhow::Result<()>
+{
+    use async_std::fs;
+
+    fs::create_dir_all(path.parent().unwrap()).await?;
+    let tmp_path = path.with_file_name(tmp_file_name(path));
+    fs::write(&tmp_path, serde_json::to_vec_pretty(&credentials)?).await?;
+    fs::rename(&tmp_path, path).await?;
+    Ok(())
+}
+
 pub fn add_certificate(instance_name: &str, certificate: &str)
     -> anyhow::Result<()>
 {
@@ -58,7 +70,7 @@ pub fn add_certificate(instance_name: &str, certificate: &str)
     let data = fs::read(&cred_path)?;
     let mut creds: Credentials = serde_json::from_slice(&data)?;
     creds.tls_cert_data = Some(certificate.into());
-    task::block_on(write_credentials(&cred_path, &creds))?;
+    task::block_on(write(&cred_path, &creds))?;
     Ok(())
 }
 
@@ -72,9 +84,7 @@ pub fn maybe_update_credentials_file(
              update now?",
             creds_path.display(),
         )).ask()? {
-            task::block_on(write_credentials(
-                &creds_path, &builder.as_credentials()?
-            ))?;
+            task::block_on(write(&creds_path, &builder.as_credentials()?))?;
         }
     }
     Ok(())
