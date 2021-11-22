@@ -266,7 +266,7 @@ pub fn get_specific_package(version: &ver::Specific)
 }
 
 #[context("failed to download file at URL: {}", url)]
-pub async fn download(dest: impl AsRef<Path>, url: &Url)
+pub async fn download(dest: impl AsRef<Path>, url: &Url, quiet: bool)
     -> Result<blake2b_simd::Hash, anyhow::Error>
 {
     let dest = dest.as_ref();
@@ -275,7 +275,9 @@ pub async fn download(dest: impl AsRef<Path>, url: &Url)
     let mut out = fs::File::create(dest).await
         .with_context(|| format!("writing {:?}", dest.display()))?;
 
-    let bar = if let Some(len) = body.len() {
+    let bar = if quiet {
+        ProgressBar::hidden()
+    } else if let Some(len) = body.len() {
         ProgressBar::new(len as u64)
     } else {
         ProgressBar::new_spinner()

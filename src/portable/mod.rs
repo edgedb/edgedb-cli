@@ -3,8 +3,8 @@ mod exit_codes;
 mod local;
 mod main;
 mod platform;
-mod repository;
 mod ver;
+pub mod repository;
 
 pub mod macos;
 pub mod linux;
