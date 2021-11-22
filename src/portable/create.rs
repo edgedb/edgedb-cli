@@ -5,6 +5,7 @@ use async_std::task;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
+use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform;
 use crate::portable::exit_codes;
@@ -13,7 +14,6 @@ use crate::portable::local::{Paths, InstanceInfo, write_json};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
 use crate::portable::reset_password::{password_hash, generate_password};
-use crate::portable::reset_password::{write_credentials};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, echo, Highlight};
 use crate::process;
@@ -149,7 +149,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     creds.database = Some(database.into());
     creds.password = Some(password.into());
     creds.tls_cert_data = Some(cert);
-    task::block_on(write_credentials(&paths.credentials, &creds))?;
+    task::block_on(credentials::write(&paths.credentials, &creds))?;
 
     Ok(())
 }

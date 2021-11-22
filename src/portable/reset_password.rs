@@ -12,7 +12,6 @@ use edgedb_client::credentials::Credentials;
 use edgeql_parser::helpers::{quote_string, quote_name};
 
 use crate::credentials;
-use crate::platform::tmp_file_name;
 use crate::portable::local::InstanceInfo;
 use crate::print;
 use crate::server::options::ResetPassword;
@@ -37,18 +36,6 @@ fn read_credentials(path: &Path) -> anyhow::Result<Credentials> {
     Ok(serde_json::from_slice(&data)?)
 }
 
-#[context("cannot write credentials file {}", path.display())]
-pub async fn write_credentials(path: &Path, credentials: &Credentials)
-    -> anyhow::Result<()>
-{
-    use async_std::fs;
-
-    fs::create_dir_all(path.parent().unwrap()).await?;
-    let tmp_path = path.with_file_name(tmp_file_name(path));
-    fs::write(&tmp_path, serde_json::to_vec_pretty(&credentials)?).await?;
-    fs::rename(&tmp_path, path).await?;
-    Ok(())
-}
 
 pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     let credentials_file = credentials::path(&options.name)?;
@@ -103,7 +90,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
         let mut creds = creds.unwrap_or_else(Default::default);
         creds.user = user.into();
         creds.password = Some(password);
-        task::block_on(write_credentials(&credentials_file, &creds))?;
+        task::block_on(credentials::write(&credentials_file, &creds))?;
     }
     if !options.quiet {
         if save {
