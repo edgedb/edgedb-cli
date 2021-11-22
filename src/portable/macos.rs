@@ -12,7 +12,7 @@ use crate::print::{self, echo, Highlight};
 use crate::server::options::{StartConf, Logs};
 
 
-fn plist_dir() -> anyhow::Result<PathBuf> {
+pub fn plist_dir() -> anyhow::Result<PathBuf> {
     Ok(home_dir()?.join("Library/LaunchAgents"))
 }
 
