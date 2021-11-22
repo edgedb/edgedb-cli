@@ -6,14 +6,13 @@ use std::time::{Duration};
 use anyhow::Context;
 use async_std::task;
 use edgedb_cli_derive::EdbClap;
-use fn_error_context::context;
-use indicatif::{ProgressBar, ProgressStyle};
 use url::Url;
 
 use crate::async_util::timeout;
 use crate::platform::{home_dir, binary_path};
 use crate::print;
 use crate::process;
+use crate::portable::repository::download;
 use crate::server::package::RepositoryInfo;
 use crate::server::remote;
 use crate::server::version::Version;
@@ -83,50 +82,6 @@ fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {
        matches!(old_binary_path(), Ok(old) if exe_path == old))
 }
 
-#[context("cannot download {} -> {}", url, path.display())]
-async fn download(url: &str, path: &Path, quiet: bool) -> anyhow::Result<()> {
-    use async_std::fs;
-    use async_std::prelude::*;
-
-    fs::remove_file(&path).await.ok();
-    let mut opt = fs::OpenOptions::new();
-    opt.write(true).create_new(true);
-    #[cfg(unix)] {
-        use std::os::unix::fs::OpenOptionsExt;
-        opt.mode(0o777);
-    }
-    let mut out = opt.open(path).await?;
-    let mut body = surf::get(url)
-        .header("User-Agent", remote::USER_AGENT)
-        .await
-        .map_err(|e| anyhow::anyhow!("{}", e))?
-        .take_body();
-    let bar = if quiet {
-        ProgressBar::hidden()
-    } else if let Some(len) = body.len() {
-        ProgressBar::new(len as u64)
-    } else {
-        ProgressBar::new_spinner()
-    };
-    bar.set_style(
-        ProgressStyle::default_bar()
-        .template(
-            "{elapsed_precise} [{bar}] \
-            {bytes:>7.dim}/{total_bytes:7} \
-            {binary_bytes_per_sec:.dim} | ETA: {eta}")
-        .progress_chars("=> "));
-    let mut buf = [0u8; 16384];
-    loop {
-        let bytes = body.read(&mut buf).await?;
-        if bytes == 0 {
-            break;
-        }
-        out.write_all(&buf[..bytes]).await?;
-        bar.inc(bytes as u64);
-    }
-    Ok(())
-}
-
 pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     let path = binary_path()?;
     if !_can_upgrade(&path)? {
@@ -153,7 +108,7 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
         .join(&pkg.installref)
         .context("package installref is invalid")?;
     let tmp_path = path.with_extension("download");
-    task::block_on(download(&url.to_string(), &tmp_path, options.quiet))?;
+    task::block_on(download(&tmp_path, &url, options.quiet))?;
     let backup_path = path.with_extension("backup");
     if cfg!(unix) {
         fs::remove_file(&backup_path).ok();
