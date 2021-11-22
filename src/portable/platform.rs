@@ -3,12 +3,16 @@ use std::env;
 
 use anyhow::Context;
 
-pub fn get_name() -> anyhow::Result<&'static str> {
+pub fn get_name(static_build: bool) -> anyhow::Result<&'static str> {
     if cfg!(target_arch="x86_64") {
         if cfg!(target_os="macos") {
             return Ok("x86_64-apple-darwin");
         } else if cfg!(target_os="linux") {
-            return Ok("x86_64-unknown-linux-gnu");
+            if static_build {
+                return Ok("x86_64-unknown-linux-musl");
+            } else {
+                return Ok("x86_64-unknown-linux-gnu");
+            }
         } else {
             anyhow::bail!("unsupported OS on x86_64");
         }

@@ -4,21 +4,24 @@ use std::fmt;
 use std::iter;
 use std::time::Duration;
 
-use crate::portable::platform;
-use crate::portable::ver;
-
 use anyhow::Context;
 use async_std::fs;
 use async_std::io::{ReadExt, WriteExt};
 use async_std::path::Path;
 use async_std::task;
 use fn_error_context::context;
-use url::Url;
 use indicatif::{ProgressBar, ProgressStyle};
+use once_cell::sync::OnceCell;
 use serde::{ser, de, Serialize, Deserialize};
+use url::Url;
+
+use crate::portable::platform;
+use crate::portable::ver;
+
 
 const MAX_ATTEMPTS: u32 = 10;
 pub const USER_AGENT: &str = "edgedb";
+static PKG_ROOT: OnceCell<Url> = OnceCell::new();
 
 #[derive(thiserror::Error, Debug)]
 #[error("page not found")]
@@ -34,6 +37,11 @@ pub enum Channel {
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum PackageType {
     TarZst,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub enum Compression {
+    Zstd,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -83,6 +91,15 @@ pub struct PackageInfo {
 }
 
 #[derive(Debug, Clone)]
+pub struct CliPackageInfo {
+    pub version: semver::Version,
+    pub url: Url,
+    pub size: u64,
+    pub hash: PackageHash,
+    pub compression: Option<Compression>,
+}
+
+#[derive(Debug, Clone)]
 pub enum PackageHash {
     Blake2b(Box<str>),
     Unknown(Box<str>),
@@ -115,6 +132,15 @@ impl PackageInfo {
     }
 }
 
+fn pkg_root() -> anyhow::Result<&'static Url> {
+    PKG_ROOT.get_or_try_init(|| {
+        let pkg_root = env::var("EDGEDB_PKG_ROOT")
+            .unwrap_or_else(|_| String::from("https://packages.edgedb.com"));
+        let pkg_root = Url::parse(&pkg_root)
+            .context("Package root is a valid URL")?;
+        Ok(pkg_root)
+    })
+}
 
 fn retry_seconds() -> impl Iterator<Item=u64> {
     [5, 15, 30, 60].iter().cloned().chain(iter::repeat(60))
@@ -194,6 +220,7 @@ fn filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
     }
     return result;
 }
+
 fn _filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
     let iref = pkg.installrefs.iter()
         .filter(|r| (
@@ -213,9 +240,76 @@ fn _filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
     })
 }
 
+fn filter_cli_package(pkg_root: &Url, pkg: &PackageData)
+    -> Option<CliPackageInfo>
+{
+    let result = _filter_cli_package(pkg_root, pkg);
+    if result.is_none() {
+        log::info!("Skipping package {:?}", pkg);
+    }
+    return result;
+}
+
+fn _filter_cli_package(pkg_root: &Url, pkg: &PackageData)
+    -> Option<CliPackageInfo>
+{
+    let iref = pkg.installrefs.iter()
+        .filter(|r| (
+                r.encoding.as_ref().map(|x| &x[..]) == Some("zstd") &&
+                r.verification.blake2b.as_ref()
+                    .map(valid_hash).unwrap_or(false)
+        ))
+        .next()
+        .or_else(|| {
+            pkg.installrefs.iter()
+            .filter(|r| (
+                    r.encoding.as_ref().map(|x| &x[..]) == Some("identity") &&
+                    r.verification.blake2b.as_ref()
+                        .map(valid_hash).unwrap_or(false)
+            ))
+            .next()
+        })?;
+    let cmpr = if iref.encoding.as_ref().map(|x| &x[..]) == Some("zstd") {
+        Some(Compression::Zstd)
+    } else {
+        None
+    };
+    Some(CliPackageInfo {
+        version: pkg.version.parse().ok()?,
+        url: pkg_root.join(&iref.path).ok()?,
+        hash: PackageHash::Blake2b(
+            iref.verification.blake2b.as_ref()?[..].into()),
+        compression: cmpr,
+        size: iref.verification.size,
+    })
+}
+
 fn valid_hash(val: &String) -> bool {
     val.len() == 128 &&
         hex::decode(val).map(|x| x.len() == 64).unwrap_or(false)
+}
+
+pub fn get_cli_packages(channel: Channel)
+    -> anyhow::Result<Vec<CliPackageInfo>>
+{
+    use Channel::*;
+
+    let pkg_root = pkg_root()?;
+    let plat = platform::get_name(true)?;
+    let url = pkg_root.join(&match channel {
+        Stable => format!("/archive/.jsonindexes/{}.json", plat),
+        Nightly => format!("/archive/.jsonindexes/{}.nightly.json", plat),
+    })?;
+    let data: RepositoryData = match task::block_on(get_json(&url)) {
+        Ok(data) => data,
+        Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
+        Err(e) => return Err(e),
+    };
+    let packages = data.packages.iter()
+        .filter(|pkg| pkg.basename == "edgedb-cli")
+        .filter_map(|p| filter_cli_package(&pkg_root, p))
+        .collect();
+    Ok(packages)
 }
 
 pub fn get_server_packages(channel: Channel)
@@ -223,12 +317,8 @@ pub fn get_server_packages(channel: Channel)
 {
     use Channel::*;
 
-    let pkg_root = env::var("EDGEDB_PKG_ROOT")
-        .unwrap_or_else(|_| String::from("https://packages.edgedb.com"));
-    let pkg_root = Url::parse(&pkg_root)
-        .context("Package root is a valid URL")?;
-
-    let plat = platform::get_name()?;
+    let pkg_root = pkg_root()?;
+    let plat = platform::get_name(false)?;
     let url = pkg_root.join(&match channel {
         Stable => format!("/archive/.jsonindexes/{}.json", plat),
         Nightly => format!("/archive/.jsonindexes/{}.nightly.json", plat),

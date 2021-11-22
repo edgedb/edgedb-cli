@@ -9,7 +9,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::cli;
 use crate::platform;
-use crate::server::version::Version;
+use crate::portable::repository;
 
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -18,7 +18,8 @@ struct Cache {
     timestamp: SystemTime,
     #[serde(with="humantime_serde")]
     expires: SystemTime,
-    version: Option<Version<String>>,
+    #[serde(with="serde_str::opt")]
+    version: Option<semver::Version>,
 }
 
 fn cache_age() -> Duration {
@@ -41,7 +42,7 @@ fn write_cache(dir: &Path, data: &Cache) -> anyhow::Result<()> {
     Ok(serde_json::to_writer_pretty(file, data)?)
 }
 
-fn newer_warning(ver: &Version<String>) {
+fn newer_warning(ver: &semver::Version) {
     if cli::upgrade::can_upgrade() {
         log::warn!(
             "Newer version of edgedb tool exists {} (current {}). \
@@ -55,11 +56,12 @@ fn newer_warning(ver: &Version<String>) {
 }
 
 fn _check(cache_dir: &Path) -> anyhow::Result<()> {
+    let self_version = cli::upgrade::self_version()?;
     match read_cache(cache_dir) {
         Ok(cache) if cache.expires > SystemTime::now() => {
             log::debug!("Cached version {:?}", cache.version);
             if let Some(ver) = cache.version {
-                if Version(env!("CARGO_PKG_VERSION").into()) < ver {
+                if self_version < ver {
                     newer_warning(&ver);
                 }
             }
@@ -71,33 +73,21 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
         }
     }
     let timestamp = SystemTime::now();
-    let repo = match cli::upgrade::get_repo(Duration::from_secs(1)) {
-        Ok(repo) => repo,
-        Err(e) => {
-            log::info!("Error while checking for updates: {}", e);
-            write_cache(cache_dir, &Cache {
-                timestamp,
-                expires: timestamp + negative_cache_age(),
-                version: None,
-            })?;
-            return Ok(());
-        }
-    };
-    let max = repo.packages.iter()
-        .filter(|pkg| pkg.basename == "edgedb-cli")
-        .map(|pkg| &pkg.version)
+    let pkg = repository::get_cli_packages(cli::upgrade::channel())?
+        .into_iter()
+        .map(|pkg| pkg.version)
         .max();
-    if let Some(ver) = &max {
-        if Version(env!("CARGO_PKG_VERSION").into()) < **ver {
+    if let Some(ver) = &pkg {
+        if &self_version < ver {
             newer_warning(&ver);
         }
     }
-    log::debug!("Remote version {:?}", max);
+    log::debug!("Remote version {:?}", pkg);
     write_cache(cache_dir, &Cache {
         timestamp,
         expires: timestamp +
-            if max.is_some() { cache_age() } else { negative_cache_age() },
-        version: max.cloned(),
+            if pkg.is_some() { cache_age() } else { negative_cache_age() },
+        version: pkg.clone(),
     })?;
     Ok(())
 }

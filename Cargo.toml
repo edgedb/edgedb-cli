@@ -97,6 +97,7 @@ async-process = { git="https://github.com/smol-rs/async-process", rev="c8bdbc1"}
 crossbeam-utils = "0.8.5"
 tar = "0.4.37"
 zstd = "0.9.0"
+semver = "1.0.4"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
