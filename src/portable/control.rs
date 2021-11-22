@@ -1,3 +1,5 @@
+use fs_err as fs;
+
 use std::path::PathBuf;
 
 use crate::process;
@@ -41,21 +43,28 @@ pub fn get_server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     }
 }
 
-pub fn get_runstate_dir(inst: &InstanceInfo) -> anyhow::Result<PathBuf> {
+pub fn get_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
     if cfg!(windows) {
-        windows::runstate_dir(&inst.name)
+        windows::runstate_dir(&name)
     } else if cfg!(target_os="macos") {
-        macos::runstate_dir(&inst.name)
+        macos::runstate_dir(&name)
     } else if cfg!(target_os="linux") {
-        linux::runstate_dir(&inst.name)
+        linux::runstate_dir(&name)
     } else {
         anyhow::bail!("unsupported platform");
     }
 }
 
+pub fn ensure_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
+    let runstate_dir = get_runstate_dir(name)?;
+    fs::create_dir_all(&runstate_dir)?;
+    Ok(runstate_dir)
+}
+
 pub fn start(options: &Start) -> anyhow::Result<()> {
     let meta = InstanceInfo::try_read(&options.name)?;
     if let Some(meta) = &meta {
+        ensure_runstate_dir(&meta.name)?;
         if options.foreground {
             get_server_cmd(meta)?.no_proxy().run()
         } else {

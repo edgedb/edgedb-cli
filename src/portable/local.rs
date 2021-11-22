@@ -190,7 +190,7 @@ impl InstanceInfo {
     pub async fn admin_conn_params(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::uninitialized();
         builder.host_port(
-            Some(control::get_runstate_dir(self)?
+            Some(control::get_runstate_dir(&self.name)?
                  .to_str().context("bad characters in runstate dir")?),
             Some(self.port),
         );

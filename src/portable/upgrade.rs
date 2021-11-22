@@ -209,6 +209,7 @@ pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
     if let Err(err) = res {
         log::warn!("Error starting service: {:#}. Trying to start manually.",
             err);
+        control::ensure_runstate_dir(&inst.name)?;
         let mut cmd = control::get_server_cmd(inst)?;
         cmd.background_for(dump_instance(inst, &path))?;
     } else {
@@ -273,6 +274,7 @@ fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()>
         .with_context(|| format!("cannot create {:?}", paths.data_dir))?;
 
     echo!("Restoring the database...");
+    control::ensure_runstate_dir(&inst.name)?;
     let mut cmd = control::get_server_cmd(inst)?;
     cmd.arg("--generate-self-signed-cert");
     cmd.background_for(async {
