@@ -135,7 +135,7 @@ name = "edgedb"
 path = "src/main.rs"
 
 [profile.release]
-debug = true
+debug = false
 lto = false
 
 [patch.crates-io]
