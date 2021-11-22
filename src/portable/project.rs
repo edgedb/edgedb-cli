@@ -463,6 +463,7 @@ pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
 
 fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
     if let InstanceKind::Portable(inst) = &info.instance {
+        control::ensure_runstate_dir(&info.name)?;
         let mut cmd = control::get_server_cmd(inst)?;
         cmd.background_for(migrate(info, false))?;
         Ok(())
