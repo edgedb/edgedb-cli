@@ -1,21 +1,18 @@
 use std::env;
-use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::time::{Duration};
 
 use anyhow::Context;
 use async_std::task;
 use edgedb_cli_derive::EdbClap;
-use url::Url;
+use fn_error_context::context;
+use fs_err as fs;
+use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::async_util::timeout;
-use crate::platform::{home_dir, binary_path};
-use crate::print;
+use crate::platform::{home_dir, binary_path, tmp_file_path};
+use crate::print::{self, echo, Highlight};
 use crate::process;
-use crate::portable::repository::download;
-use crate::server::package::RepositoryInfo;
-use crate::server::remote;
-use crate::server::version::Version;
+use crate::portable::repository::{self, download, Channel};
 
 
 #[derive(EdbClap, Clone, Debug)]
@@ -31,33 +28,6 @@ pub struct CliUpgrade {
     pub force: bool,
 }
 
-
-pub fn get_repo(max_wait: Duration) -> anyhow::Result<RepositoryInfo> {
-    let platform =
-        if cfg!(windows) {
-            "win"
-        } else if cfg!(target_os="linux") {
-            "linux"
-        } else if cfg!(target_os="macos") {
-            "macos"
-        } else {
-            anyhow::bail!("unknown OS");
-        };
-    let suffix = if env!("CARGO_PKG_VERSION").contains(".g") {
-        ".nightly"
-    } else {
-        ""
-    };
-    let url = format!(
-        "https://packages.edgedb.com/archive/.jsonindexes/{}-x86_64{}.json",
-        platform, suffix
-    );
-
-    task::block_on(timeout(
-        max_wait,
-        remote::get_json(&url, "cannot get package index for CLI tools"),
-    ))
-}
 
 pub fn can_upgrade() -> bool {
     binary_path().and_then(|p| _can_upgrade(&p)).unwrap_or_else(|e| {
@@ -82,20 +52,71 @@ fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {
        matches!(old_binary_path(), Ok(old) if exe_path == old))
 }
 
+#[context("error unpacking {:?} -> {:?}", src, tgt)]
+fn unpack_file(src: &Path, tgt: &Path,
+               compression: Option<repository::Compression>)
+    -> anyhow::Result<()>
+{
+    fs::remove_file(&tgt).ok();
+    match compression {
+        Some(repository::Compression::Zstd) => {
+            fs::remove_file(&tgt).ok();
+            let src_f = fs::File::open(&src)?;
+
+            let mut opt = fs::OpenOptions::new();
+            opt.write(true).create_new(true);
+            #[cfg(unix)] {
+                use fs_err::os::unix::fs::OpenOptionsExt;
+                opt.mode(0o755);
+            }
+            let mut tgt_f = opt.open(&tgt)?;
+
+            let bar = ProgressBar::new(src.metadata()?.len());
+            bar.set_style(
+                ProgressStyle::default_bar()
+                .template("Unpacking [{bar}] {bytes:>7.dim}/{total_bytes:7}")
+                .progress_chars("=> "));
+            let mut decoded = zstd::Decoder::new(io::BufReader::new(
+                bar.wrap_read(src_f)
+            ))?;
+            io::copy(&mut decoded, &mut tgt_f)?;
+            fs::remove_file(&src).ok();
+            Ok(())
+        }
+        None => {
+            #[cfg(unix)] {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&src, PermissionsExt::from_mode(0o755))?;
+            }
+            fs::rename(&src, &tgt)?;
+            Ok(())
+        }
+    }
+
+}
+
+pub fn channel() -> repository::Channel {
+    if env!("CARGO_PKG_VERSION").contains("-dev.") {
+        Channel::Nightly
+    } else {
+        Channel::Stable
+    }
+}
+
+pub fn self_version() -> anyhow::Result<semver::Version> {
+    env!("CARGO_PKG_VERSION").parse()
+        .context("cannot parse cli version")
+}
+
 pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     let path = binary_path()?;
     if !_can_upgrade(&path)? {
         anyhow::bail!("Only binary installed at {:?} can be upgraded", path);
     }
-    let repo = get_repo(Duration::from_secs(120))?;
-
-    let max = repo.packages.iter()
-        .filter(|pkg| pkg.basename == "edgedb-cli")
-        .max_by_key(|pkg| (&pkg.version, &pkg.revision));
-    let pkg = max.ok_or_else(|| anyhow::anyhow!("cannot find new version"))?;
-    if !options.force &&
-        pkg.version <= Version(env!("CARGO_PKG_VERSION").into())
-    {
+    let pkg = repository::get_cli_packages(channel())?
+        .into_iter().max_by(|a, b| a.version.cmp(&b.version))
+        .context("cannot find new version")?;
+    if !options.force && pkg.version <= self_version()? {
         log::info!("Version is the same. No update needed.");
         if !options.quiet {
             print::success("Already up to date.");
@@ -103,12 +124,11 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let url = Url::parse("https://packages.edgedb.com/")
-        .expect("hardcoded URL is valid")
-        .join(&pkg.installref)
-        .context("package installref is invalid")?;
-    let tmp_path = path.with_extension("download");
-    task::block_on(download(&tmp_path, &url, options.quiet))?;
+    let down_path = path.with_extension("download");
+    let tmp_path = tmp_file_path(&path);
+    task::block_on(download(&down_path, &pkg.url, options.quiet))?;
+    unpack_file(&down_path, &tmp_path, pkg.compression)?;
+
     let backup_path = path.with_extension("backup");
     if cfg!(unix) {
         fs::remove_file(&backup_path).ok();
@@ -126,10 +146,7 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
         .run()?;
     fs::remove_file(&tmp_path).ok();
     if !options.quiet {
-        print::success_msg(
-            "Upgraded to version",
-            format!("{} (revision {})", pkg.version, pkg.revision),
-        );
+        echo!("Upgraded to version", pkg.version.emphasize());
     }
     Ok(())
 }
