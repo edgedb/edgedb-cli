@@ -32,13 +32,16 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
         }
     }
     let mut used_versions = BTreeMap::new();
-    for pair in status::list_local(&data_dir()?)? {
-        let (name, _) = pair?;
-        InstanceInfo::try_read(&name)?
-            .map(|info| {
-                used_versions.insert(info.installation.version.specific(),
-                                     info.name);
-            });
+    let data_dir = data_dir()?;
+    if data_dir.exists() {
+        for pair in status::list_local(&data_dir)? {
+            let (name, _) = pair?;
+            InstanceInfo::try_read(&name)?
+                .map(|info| {
+                    used_versions.insert(info.installation.version.specific(),
+                                         info.name);
+                });
+        }
     }
     let mut all = true;
     candidates.retain(|cand| {
