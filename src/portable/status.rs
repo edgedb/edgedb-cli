@@ -303,14 +303,17 @@ pub fn list(options: &List) -> anyhow::Result<()> {
     }
     let mut visited = BTreeSet::new();
     let mut local = Vec::new();
-    for pair in list_local(&data_dir()?)? {
-        let (name, path) = pair?;
-        visited.insert(name.clone());
-        if path.join("metadata.json").exists() {
-            log::debug!("Instance {:?} has deprecated install method. \
-                        Skipping.", name);
-        } else {
-            local.push(instance_status(&name)?);
+    let data_dir = data_dir()?;
+    if data_dir.exists() {
+        for pair in list_local(&data_dir)? {
+            let (name, path) = pair?;
+            visited.insert(name.clone());
+            if path.join("metadata.json").exists() {
+                log::debug!("Instance {:?} has deprecated install method. \
+                            Skipping.", name);
+            } else {
+                local.push(instance_status(&name)?);
+            }
         }
     }
     let mut remote = Vec::new();
