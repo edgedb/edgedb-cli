@@ -2,6 +2,7 @@ use fs_err as fs;
 
 use std::path::PathBuf;
 
+use crate::credentials;
 use crate::process;
 use crate::portable::{windows, linux, macos};
 use crate::portable::local::InstanceInfo;
@@ -20,6 +21,12 @@ pub fn fallback(name: &str, success_message: &str,
 }
 
 pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
+    let cred_path = credentials::path(&inst.name)?;
+    if !cred_path.exists() {
+        log::warn!("No corresponding credentials file {:?} exists. \
+                    Use `edgedb instance reset-password {}` to create one.",
+                    cred_path, inst.name);
+    }
     if cfg!(windows) {
         windows::start_service(inst)
     } else if cfg!(target_os="macos") {
