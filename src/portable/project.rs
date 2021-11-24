@@ -1021,20 +1021,27 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
         };
         let inst_ver = inst.installation.version.specific();
 
-        // When force is used we might upgrade to the same version, but
-        // since some selector like `--to-latest` was specified we assume user
-        // want to treat this upgrade as incompatible and do the upgrade.
-        // This is mostly for testing.
-        if pkg_ver.is_compatible(&inst_ver) && !options.force {
-            upgrade::upgrade_compatible(inst, pkg)?;
-        } else {
-            upgrade::upgrade_incompatible(inst, pkg)?;
-        }
+        if pkg_ver > inst_ver || options.force {
+            // When force is used we might upgrade to the same version, but
+            // since some selector like `--to-latest` was specified we assume
+            // user want to treat this upgrade as incompatible and do the
+            // upgrade.  This is mostly for testing.
+            if pkg_ver.is_compatible(&inst_ver) && !options.force {
+                upgrade::upgrade_compatible(inst, pkg)?;
+            } else {
+                upgrade::upgrade_incompatible(inst, pkg)?;
+            }
 
-        if config::modify(&config_path, &query)? {
-            println!("Remember to commit it to version control.");
+            if config::modify(&config_path, &query)? {
+                println!("Remember to commit it to version control.");
+            }
+            print_other_project_warning(&name, &root, &query)?;
+        } else {
+            echo!("Latest version found", pkg.version.to_string() + ",",
+                  "current instance version is",
+                  inst.installation.version.emphasize().to_string() + ".",
+                  "Already up to date.");
         }
-        print_other_project_warning(&name, &root, &query)?;
     };
     Ok(())
 }

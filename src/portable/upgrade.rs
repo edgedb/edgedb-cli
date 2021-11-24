@@ -102,9 +102,10 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let pkg_ver = pkg.version.specific();
 
     if pkg_ver <= inst_ver && !options.force {
-        echo!("Latest version found", pkg.version,
-              ", current instance version is", inst.installation.version,
-              ". Already up to date.");
+        echo!("Latest version found", pkg.version.to_string() + ",",
+              "current instance version is",
+              inst.installation.version.emphasize().to_string() + ".",
+              "Already up to date.");
         return Ok(());
     }
 
