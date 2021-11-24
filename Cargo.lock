@@ -1099,7 +1099,7 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.2.0"
-source = "git+https://github.com/fantix/edgedb-rust?branch=error-display#25a64727b3f27dc5db6b097b600de6d0e0988ef8"
+source = "git+https://github.com/edgedb/edgedb-rust#75c71f844c0ca51cd7329804a6ecce46c3462a75"
 dependencies = [
  "async-std",
  "async-trait",
@@ -1130,7 +1130,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.2.0"
-source = "git+https://github.com/fantix/edgedb-rust?branch=error-display#25a64727b3f27dc5db6b097b600de6d0e0988ef8"
+source = "git+https://github.com/edgedb/edgedb-rust#75c71f844c0ca51cd7329804a6ecce46c3462a75"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -1141,7 +1141,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.1.0"
-source = "git+https://github.com/fantix/edgedb-rust?branch=error-display#25a64727b3f27dc5db6b097b600de6d0e0988ef8"
+source = "git+https://github.com/edgedb/edgedb-rust#75c71f844c0ca51cd7329804a6ecce46c3462a75"
 dependencies = [
  "bytes",
 ]
@@ -1149,7 +1149,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.2.0"
-source = "git+https://github.com/fantix/edgedb-rust?branch=error-display#25a64727b3f27dc5db6b097b600de6d0e0988ef8"
+source = "git+https://github.com/edgedb/edgedb-rust#75c71f844c0ca51cd7329804a6ecce46c3462a75"
 dependencies = [
  "bigdecimal",
  "bytes",

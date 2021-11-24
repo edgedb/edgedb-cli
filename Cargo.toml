@@ -7,9 +7,9 @@ edition = "2018"
 
 [dependencies]
 edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
-edgedb-protocol = {git = "https://github.com/fantix/edgedb-rust", features=["all-types"], branch="error-display"}
-edgedb-derive = {git = "https://github.com/fantix/edgedb-rust", branch="error-display"}
-edgedb-client = {git = "https://github.com/fantix/edgedb-rust", features=["admin_socket", "unstable"], branch="error-display"}
+edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust", features=["all-types"]}
+edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust"}
+edgedb-client = {git = "https://github.com/edgedb/edgedb-rust", features=["admin_socket", "unstable"]}
 snafu = {version="0.6.0", features=["backtraces"]}
 anyhow = "1.0.23"
 async-std = {version="1.9", features=[
