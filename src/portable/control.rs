@@ -73,7 +73,10 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
     if let Some(meta) = &meta {
         ensure_runstate_dir(&meta.name)?;
         if options.foreground {
-            get_server_cmd(meta)?.no_proxy().run()
+            get_server_cmd(meta)?
+                .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
+                .no_proxy()
+                .run()
         } else {
             do_start(meta)
         }
