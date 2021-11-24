@@ -267,15 +267,16 @@ pub struct Restart {
 #[derive(EdbClap, Debug, Clone)]
 pub struct List {
     /// Output more debug info about each instance
-    #[clap(long)]
+    #[clap(long, conflicts_with_all=&["debug", "json"])]
     pub extended: bool,
 
     /// Output all available debug info about each instance
     #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(conflicts_with_all=&["extended", "json"])]
     pub debug: bool,
 
     /// Output in JSON format
-    #[clap(long)]
+    #[clap(long, conflicts_with_all=&["extended", "debug"])]
     pub json: bool,
 
     /// Show versions of docker and package installations
@@ -291,19 +292,20 @@ pub struct Status {
     pub name: String,
 
     /// Show current systems service info
-    #[clap(long)]
+    #[clap(long, conflicts_with_all=&["debug", "json", "extended"])]
     pub service: bool,
 
     /// Output more debug info about each instance
-    #[clap(long)]
+    #[clap(long, conflicts_with_all=&["debug", "json", "service"])]
     pub extended: bool,
 
     /// Output all available debug info about each instance
     #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(conflicts_with_all=&["extended", "json", "service"])]
     pub debug: bool,
 
     /// Output in JSON format
-    #[clap(long)]
+    #[clap(long, conflicts_with_all=&["extended", "debug", "service"])]
     pub json: bool,
 }
 
