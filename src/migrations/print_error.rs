@@ -9,11 +9,7 @@ use codespan_reporting::term::{emit};
 use termcolor::{StandardStream, ColorChoice};
 
 use edgedb_client::errors::{Error, InternalServerError};
-use edgedb_client::errors::FIELD_POSITION_END;
-use edgedb_client::errors::FIELD_POSITION_START;
-use edgedb_client::errors::{FIELD_HINT, FIELD_DETAILS};
 use edgeql_parser::tokenizer::TokenStream;
-use edgedb_client::errors::FIELD_SERVER_TRACEBACK;
 
 use crate::print;
 use crate::migrations::source_map::SourceMap;
@@ -32,12 +28,8 @@ fn end_of_last_token(data: &str) -> Option<u64> {
 fn get_error_info<'x>(err: &Error, source_map: &'x SourceMap<SourceName>)
     -> Option<(&'x Path, String, usize, usize, bool)>
 {
-    let pstart = err.headers().get(&FIELD_POSITION_START)
-       .and_then(|x| str::from_utf8(x).ok())
-       .and_then(|x| x.parse::<u32>().ok())? as usize;
-    let pend = err.headers().get(&FIELD_POSITION_END)
-       .and_then(|x| str::from_utf8(x).ok())
-       .and_then(|x| x.parse::<u32>().ok())? as usize;
+    let pstart = err.position_start()?;
+    let pend = err.position_end()?;
     let (src, offset) = source_map.translate_range(pstart, pend).ok()?;
     let res = match src {
         SourceName::File(path) => {
@@ -71,11 +63,8 @@ pub fn print_migration_error(err: &Error, source_map: &SourceMap<SourceName>)
     } else {
         &err.initial_message().unwrap_or(err.kind_name())
     };
-    let hint = err.headers().get(&FIELD_HINT)
-        .and_then(|x| str::from_utf8(x).ok())
-        .unwrap_or("error");
-    let detail = err.headers().get(&FIELD_DETAILS)
-        .and_then(|x| String::from_utf8(x.to_vec()).ok());
+    let hint = err.hint().unwrap_or("error");
+    let detail = err.details().map(|s| s.into());
     let file_name_display = file_name.display();
     let files = SimpleFile::new(&file_name_display, data);
     let diag = Diagnostic::error()
@@ -94,13 +83,10 @@ pub fn print_migration_error(err: &Error, source_map: &SourceMap<SourceName>)
         &Default::default(), &files, &diag)?;
 
     if err.is::<InternalServerError>() {
-        let tb = err.headers().get(&FIELD_SERVER_TRACEBACK);
-        if let Some(traceback) = tb {
-            if let Ok(traceback) = str::from_utf8(traceback) {
-                eprintln!("  Server traceback:");
-                for line in traceback.lines() {
-                    eprintln!("      {}", line);
-                }
+        if let Some(traceback) = err.server_traceback() {
+            eprintln!("  Server traceback:");
+            for line in traceback.lines() {
+                eprintln!("      {}", line);
             }
         }
     }
