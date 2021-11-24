@@ -8,6 +8,7 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform;
+use crate::portable::control::self_signed_arg;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{Paths, InstanceInfo, write_json};
@@ -126,13 +127,13 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     let script = bootstrap_script(database, user, &password);
 
     echo!("Initializing EdgeDB instance...");
-    process::Native::new("bootstrap", "edgedb", server_path)
-        .arg("--bootstrap-only")
-        .env_default("EDGEDB_SERVER_LOG_LEVEL", "warn")
-        .arg("--data-dir").arg(&tmp_data)
-        .arg("--generate-self-signed-cert")
-        .arg("--bootstrap-command").arg(script)
-        .run()?;
+    let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
+    cmd.arg("--bootstrap-only");
+    cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
+    cmd.arg("--data-dir").arg(&tmp_data);
+    self_signed_arg(&mut cmd, &info.installation.version);
+    cmd.arg("--bootstrap-command").arg(script);
+    cmd.run()?;
 
     let cert_path = tmp_data.join("edbtlscert.pem");
     let cert = fs::read_to_string(&cert_path)

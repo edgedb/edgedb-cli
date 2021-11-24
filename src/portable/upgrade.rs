@@ -277,7 +277,7 @@ fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()>
     echo!("Restoring the database...");
     control::ensure_runstate_dir(&inst.name)?;
     let mut cmd = control::get_server_cmd(inst)?;
-    cmd.arg("--generate-self-signed-cert");
+    control::self_signed_arg(&mut cmd, &inst.installation.version);
     cmd.background_for(async {
         restore_instance(inst, &paths.dump_path).await?;
         log::info!("Restarting instance {:?} to apply \
