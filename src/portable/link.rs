@@ -24,6 +24,8 @@ use crate::portable::local::InstanceInfo;
 use crate::print;
 use crate::question;
 use crate::server::options::{Link, Unlink};
+use crate::server::is_valid_name;
+
 
 struct InteractiveCertVerifier {
     cert_out: Mutex<Option<String>>,
@@ -125,16 +127,20 @@ impl ServerCertVerifier for InteractiveCertVerifier {
 
 fn gen_default_instance_name(input: impl fmt::Display) -> String {
     let input = input.to_string();
-    input.strip_suffix(":5656").unwrap_or(&input).chars().map(|x| match x {
-        'A'..='Z' => x,
-        'a'..='z' => x,
-        '0'..='9' => x,
-        _ => '_',
-    }).collect::<String>()
-}
-
-pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
-    task::block_on(async_link(cmd, opts))
+    let mut name = input.strip_suffix(":5656").unwrap_or(&input)
+        .chars().map(|x| match x {
+            'A'..='Z' => x,
+            'a'..='z' => x,
+            '0'..='9' => x,
+            _ => '_',
+        }).collect::<String>();
+    if name.is_empty() {
+        return "inst1".into();
+    }
+    if matches!(name.chars().next().unwrap(), '0'..='9') {
+        name.insert(0, '_');
+    }
+    return name;
 }
 
 fn is_no_credentials_error(mut e: &anyhow::Error) -> bool {
@@ -147,7 +153,7 @@ fn is_no_credentials_error(mut e: &anyhow::Error) -> bool {
     return false;
 }
 
-async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
+pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let mut builder = match conn_params(&opts.conn_options) {
         Ok(builder) => builder,
         Err(e) if is_no_credentials_error(&e) => {
@@ -172,9 +178,9 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             trust_tls_cert: cmd.trust_tls_cert,
         }
     );
-    if let Err(e) = builder.connect_with_cert_verifier(
-        verifier.clone()
-    ).await {
+    let connect_result = task::block_on(
+        builder.connect_with_cert_verifier(verifier.clone()));
+    if let Err(e) = connect_result {
         if e.is::<PasswordRequired>() {
             let password;
 
@@ -205,9 +211,8 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                     trust_tls_cert: true,
                 }
             );
-            Connector::new(Ok(builder)).connect_with_cert_verifier(
-                verifier.clone()
-            ).await?;
+            task::block_on(Connector::new(Ok(builder))
+                           .connect_with_cert_verifier(verifier.clone()))?;
         } else {
             return Err(e.into());
         }
@@ -226,10 +231,18 @@ async fn async_link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 }
                 (credentials::path(&default)?, default)
             } else {
-                let name = question::String::new(
-                    "Specify a new instance name for the remote server"
-                ).default(&default).ask()?;
-                (credentials::path(&name)?, name)
+                loop {
+                    let name = question::String::new(
+                        "Specify a new instance name for the remote server"
+                    ).default(&default).ask()?;
+                    if !is_valid_name(&name) {
+                        print::error(
+                            "Instance name must be a valid identifier, \
+                             (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
+                        continue;
+                    }
+                    break (credentials::path(&name)?, name);
+                }
             }
         }
     };
