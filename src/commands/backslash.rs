@@ -8,9 +8,8 @@ use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
 use regex::Regex;
 
-use edgedb_client::errors::Error;
+use edgedb_client::errors::{Error, display_error_verbose};
 use edgedb_client::model::Duration;
-use edgedb_protocol::error_response::display_error_verbose;
 
 use crate::commands::Options;
 use crate::repl;

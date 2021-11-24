@@ -456,7 +456,9 @@ async fn execute_query(options: &Options, mut state: &mut repl::State,
                             source: ref error,
                             ..
                         } => {
-                            eprintln!("{:#}", error);
+                            print_query_error(
+                                error, statement, state.verbose_errors
+                            )?;
                         }
                         _ => eprintln!("{:#?}", e),
                     }
@@ -601,6 +603,10 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                         .await?;
                 } else if err.is::<CleanShutdown>() {
                     return Err(err)?;
+                } else if let
+                    Some(e) = err.downcast_ref::<edgedb_client::Error>()
+                {
+                    print::edgedb_error(e, state.verbose_errors);
                 } else if !err.is::<QueryError>() {
                     print::error(err);
                 }

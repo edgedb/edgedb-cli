@@ -7,7 +7,7 @@ use async_std::stream::{Stream, StreamExt};
 use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
 
-use edgedb_protocol::error_response::display_error;
+use edgedb_client::errors::display_error;
 
 pub use crate::echo;
 
