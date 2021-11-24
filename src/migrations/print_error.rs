@@ -9,11 +9,11 @@ use codespan_reporting::term::{emit};
 use termcolor::{StandardStream, ColorChoice};
 
 use edgedb_client::errors::{Error, InternalServerError};
-use edgedb_protocol::error_response::FIELD_POSITION_END;
-use edgedb_protocol::error_response::FIELD_POSITION_START;
-use edgedb_protocol::error_response::{FIELD_HINT, FIELD_DETAILS};
+use edgedb_client::errors::FIELD_POSITION_END;
+use edgedb_client::errors::FIELD_POSITION_START;
+use edgedb_client::errors::{FIELD_HINT, FIELD_DETAILS};
 use edgeql_parser::tokenizer::TokenStream;
-use edgedb_protocol::error_response::FIELD_SERVER_TRACEBACK;
+use edgedb_client::errors::FIELD_SERVER_TRACEBACK;
 
 use crate::print;
 use crate::migrations::source_map::SourceMap;

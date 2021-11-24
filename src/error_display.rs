@@ -7,10 +7,10 @@ use codespan_reporting::term::{emit};
 use termcolor::{StandardStream, ColorChoice};
 
 use edgedb_client::errors::{Error, InternalServerError};
-use edgedb_protocol::error_response::FIELD_POSITION_START;
-use edgedb_protocol::error_response::FIELD_POSITION_END;
-use edgedb_protocol::error_response::{FIELD_HINT, FIELD_DETAILS};
-use edgedb_protocol::error_response::FIELD_SERVER_TRACEBACK;
+use edgedb_client::errors::FIELD_POSITION_START;
+use edgedb_client::errors::FIELD_POSITION_END;
+use edgedb_client::errors::{FIELD_HINT, FIELD_DETAILS};
+use edgedb_client::errors::FIELD_SERVER_TRACEBACK;
 
 use crate::print;
 
@@ -37,8 +37,23 @@ pub fn print_query_error(err: &Error, query: &str, verbose: bool)
     let detail = err.headers().get(&FIELD_DETAILS)
         .and_then(|x| String::from_utf8(x.to_vec()).ok());
     let files = SimpleFile::new("query", query);
+    let context_error = err
+        .contexts()
+        .rev()
+        .map(|s| s.as_ref())
+        .collect::<Vec<_>>();
+    if context_error.len() > 0 {
+        print::error(context_error.join(": "));
+    }
     let diag = Diagnostic::error()
-        .with_message(&format!("{:#}", err))
+        .with_message(&format!(
+            "{:#}{:#}",
+            err.kind_name(),
+            err
+                .initial_message()
+                .map(|s| format!(": {:#}", s))
+                .unwrap_or("".into())
+        ))
         .with_labels(vec![
             Label {
                 file_id: (),
