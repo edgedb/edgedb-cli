@@ -83,7 +83,7 @@ KillMode=mixed
 TimeoutSec=0
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
     "###,
         instance_name=name,
         data_dir=info.data_dir()?.display(),
