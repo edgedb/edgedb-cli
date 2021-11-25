@@ -212,7 +212,7 @@ fn print_post_upgrade_rc3_message()
             # The EdgeDB command-line tool is now upgraded!\n\
             \n\
             We have changed how server is installed and instances are
-            set up. Unfortunately this requires some manual steps to convert\n\
+            set up. A few manual steps are needed to convert\n\
             your instances if there are any. To list instances that need\n\
             to be converted, run: \n\
             ```\n\
