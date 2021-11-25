@@ -296,10 +296,27 @@ pub fn list_local<'x>(dir: &'x Path)
     }))
 }
 
+pub fn portable_names() -> anyhow::Result<BTreeSet<String>> {
+    let data_dir = data_dir()?;
+    if !data_dir.exists() {
+        return Ok(BTreeSet::new());
+    }
+    let mut result = BTreeSet::new();
+    for pair in list_local(&data_dir)? {
+        let (name, path) = pair?;
+        if path.join("instance_info.json").exists() {
+            result.insert(name);
+        }
+    }
+    Ok(result)
+}
+
 pub fn list(options: &List) -> anyhow::Result<()> {
     if options.deprecated_install_methods {
-        return crate::server::status::print_status_all(
-            options.extended, options.debug, options.json);
+        let names = portable_names()?;
+        log::debug!("Portable package instances {:?}", names);
+        return crate::server::status::list_instances(
+            options.extended, options.debug, options.json, names);
     }
     let mut visited = BTreeSet::new();
     let mut local = Vec::new();
@@ -307,11 +324,13 @@ pub fn list(options: &List) -> anyhow::Result<()> {
     if data_dir.exists() {
         for pair in list_local(&data_dir)? {
             let (name, path) = pair?;
-            visited.insert(name.clone());
             if path.join("metadata.json").exists() {
+                // consider deprecated instances remote,
+                // i.e. not adding them in "visited"
                 log::debug!("Instance {:?} has deprecated install method. \
                             Skipping.", name);
             } else {
+                visited.insert(name.clone());
                 local.push(instance_status(&name)?);
             }
         }
@@ -364,9 +383,9 @@ pub fn list(options: &List) -> anyhow::Result<()> {
         print_table(&local, &remote);
     }
 
-    echo!("Only portable packages shown here, \
-        use `--deprecated-install-methods` \
-        to show docker and package installations.".fade());
+    echo!("Older instances may be listed here as `remote`. \
+        Use `--deprecated-install-methods` \
+        to see full details on docker and package installations.".fade());
     Ok(())
 }
 

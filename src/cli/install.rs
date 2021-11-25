@@ -205,6 +205,41 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn print_post_upgrade_rc3_message()
+{
+    if cfg!(windows) {
+        print_markdown!("\
+            # The EdgeDB command-line tool is now upgraded!\n\
+            \n\
+            We have changed how server is installed and instances are
+            set up. Unfortunately this requires some manual steps to convert\n\
+            your instances if there are any. To list instances that need\n\
+            to be converted, run: \n\
+            ```\n\
+                edgedb instance list --deprecated-install-methods\n\
+            ```\n\
+            Migration process and details: https://edgedb.com/p/rc3-upgrade
+            ",
+        );
+    } else {
+        print_markdown!("\
+            # The EdgeDB command-line tool is now upgraded!\n\
+            \n\
+            We are deprecating Docker instances managed by the command-line \n\
+            tool. In this release you can still see your instances by running:
+            ```\n\
+                edgedb instance list --deprecated-install-methods\n\
+            ```\n\
+            \n\
+            We are working on the better Windows support. In the meantime, \n\
+            you can use regular `docker run` to run EdgeDB.\n\
+            \n\
+            More details in our blog post: https://edgedb.com/p/rc3-upgrade
+            ",
+        );
+    }
+}
+
 fn print_post_install_message(settings: &Settings,
     init_result: anyhow::Result<InitResult>)
 {
@@ -541,6 +576,8 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         };
 
         print_post_install_message(&settings, init_result);
+    } else {
+        print_post_upgrade_rc3_message();
     }
 
     Ok(())
