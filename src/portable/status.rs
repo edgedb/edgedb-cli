@@ -383,7 +383,7 @@ pub fn list(options: &List) -> anyhow::Result<()> {
         print_table(&local, &remote);
     }
 
-    echo!("Older instances may be listed here as `remote`. \
+    echo!("Instances from legacy installation methods may be listed here as `remote`. \
         Use `--deprecated-install-methods` \
         to see full details on docker and package installations.".fade());
     Ok(())
