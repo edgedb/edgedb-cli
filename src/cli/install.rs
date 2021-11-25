@@ -218,7 +218,7 @@ fn print_post_upgrade_rc3_message()
             ```\n\
                 edgedb instance list --deprecated-install-methods\n\
             ```\n\
-            Migration process and details: https://edgedb.com/p/rc3-upgrade
+            For migration process details see https://edgedb.com/p/rc3-upgrade
             ",
         );
     } else {
