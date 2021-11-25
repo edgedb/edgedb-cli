@@ -207,7 +207,7 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
 
 fn print_post_upgrade_rc3_message()
 {
-    if cfg!(windows) {
+    if !cfg!(windows) {
         print_markdown!("\
             # The EdgeDB command-line tool is now upgraded!\n\
             \n\
