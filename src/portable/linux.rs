@@ -1,10 +1,10 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::platform::{home_dir, data_dir, get_current_uid};
+use crate::platform::{home_dir, cache_dir};
 use crate::portable::local::{InstanceInfo};
 use crate::portable::status::Service;
 use crate::process;
@@ -149,13 +149,7 @@ pub fn runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
     if let Some(dir) = dirs::runtime_dir() {
         Ok(dir.join(format!("edgedb-{}", name)))
     } else {
-        let dir = Path::new("/run/user")
-            .join(get_current_uid().to_string());
-        if dir.exists() {
-            Ok(dir.join(format!("edgedb-{}", name)))
-        } else {
-            Ok(data_dir()?.join(name).clone())
-        }
+        Ok(cache_dir()?.join("run").join(name))
     }
 }
 
