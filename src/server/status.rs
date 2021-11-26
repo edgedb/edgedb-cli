@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, BTreeSet};
 use std::io;
 use std::fs;
 use std::process::exit;
@@ -429,7 +429,8 @@ pub fn backup_status(dir: &Path) -> BackupStatus {
     Exists { backup_meta, data_meta }
 }
 
-pub fn print_status_all(extended: bool, debug: bool, json: bool)
+pub fn list_instances(extended: bool, debug: bool, json: bool,
+                   skip_portable: BTreeSet<String>)
     -> anyhow::Result<()>
 {
     let os = detect::current_os()?;
@@ -440,9 +441,13 @@ pub fn print_status_all(extended: bool, debug: bool, json: bool)
         statuses.extend(
             meth.all_instances()?
             .into_iter()
-            .map(|i| {
+            .flat_map(|i| {
                 local_names.insert(String::from(i.name()));
-                i.get_status()
+                if skip_portable.contains(i.name()) {
+                    None
+                } else {
+                    Some(i.get_status())
+                }
             })
         );
     }

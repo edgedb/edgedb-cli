@@ -16,7 +16,8 @@ pub fn fallback(name: &str, success_message: &str,
           "Looking for deprecated instances...");
     crate::server::control::instance_command(cmd)?;
     eprintln!("{}", success_message);
-    print::warn("Please upgrade instance to portable installation");
+    print::warn("Please convert the instance to the new installation layout.");
+    echo!("Migration process and details: https://edgedb.com/p/rc3-upgrade");
     Ok(())
 }
 
