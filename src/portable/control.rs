@@ -3,10 +3,11 @@ use fs_err as fs;
 use std::path::PathBuf;
 
 use crate::credentials;
-use crate::process;
-use crate::portable::{windows, linux, macos};
 use crate::portable::local::InstanceInfo;
+use crate::portable::ver;
+use crate::portable::{windows, linux, macos};
 use crate::print::{self, echo};
+use crate::process;
 use crate::server::options::{Start, Stop, Restart, InstanceCommand, Logs};
 
 
@@ -140,5 +141,13 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
         linux::logs(options)
     } else {
         anyhow::bail!("unsupported platform");
+    }
+}
+
+pub fn self_signed_arg(cmd: &mut process::Native, ver: &ver::Build) {
+    if ver.specific() > "1.0-rc.2".parse().unwrap() {
+        cmd.arg("--tls-cert-mode=generate_self_signed");
+    } else {
+        cmd.arg("--generate-self-signed-cert");
     }
 }
