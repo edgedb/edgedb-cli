@@ -133,7 +133,7 @@ pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
     match _check(&dir) {
         Ok(()) => {}
         Err(e) => {
-            log::warn!("Cannot check for updates: {}", e);
+            log::warn!("Cannot check for updates: {:#}", e);
         }
     }
     Ok(())
