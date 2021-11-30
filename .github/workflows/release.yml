@@ -417,7 +417,7 @@ jobs:
         target: debian-stretch
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-stretch@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
@@ -442,7 +442,7 @@ jobs:
         target: debian-buster
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-buster@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
@@ -467,7 +467,7 @@ jobs:
         target: debian-bullseye
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-bullseye@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
@@ -492,7 +492,7 @@ jobs:
         target: ubuntu-xenial
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
@@ -517,7 +517,7 @@ jobs:
         target: ubuntu-bionic
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-bionic@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
@@ -542,7 +542,7 @@ jobs:
         target: ubuntu-focal
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-focal@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
@@ -567,7 +567,7 @@ jobs:
         target: centos-7
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-7@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
@@ -592,7 +592,7 @@ jobs:
         target: centos-8
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-8@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"

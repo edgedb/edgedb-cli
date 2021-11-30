@@ -70,7 +70,7 @@ main() {
             _ext=".exe"
             ;;
     esac
-    local _url="${EDGEDB_PKG_ROOT}/dist/${_arch}${suffix:+.}${suffix}/edgedb-cli_latest${suffix:+_}${suffix}${_ext}"
+    local _url="${EDGEDB_PKG_ROOT}/dist/${_arch}${suffix:+.}${suffix}/edgedb-cli${suffix:+_}${suffix}${_ext}"
 
     local _dir
     _dir="$(mktemp -d 2>/dev/null || ensure mktemp -d -t edgedb)"
@@ -139,15 +139,15 @@ get_architecture() {
     case "$_ostype" in
 
         Linux)
-            _ostype=linux
+            _ostype=unknown-linux-musl
             ;;
 
         Darwin)
-            _ostype=macos
+            _ostype=apple-darwin
             ;;
 
         MINGW* | MSYS* | CYGWIN*)
-            _ostype=windows
+            _ostype=pc-windows-msvc
             ;;
 
         *)
@@ -181,7 +181,7 @@ get_architecture() {
         fi
     fi
 
-    local _arch="${_ostype}-${_cputype}"
+    local _arch="${_cputype}-${_ostype}"
 
     RETVAL="$_arch"
 }
