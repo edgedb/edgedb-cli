@@ -9,6 +9,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::cli;
 use crate::platform;
+use crate::portable::ver;
 use crate::portable::repository;
 
 
@@ -19,7 +20,7 @@ struct Cache {
     #[serde(with="humantime_serde")]
     expires: SystemTime,
     #[serde(with="serde_str::opt")]
-    version: Option<semver::Version>,
+    version: Option<ver::Semver>,
 }
 
 fn cache_age() -> Duration {
@@ -42,7 +43,7 @@ fn write_cache(dir: &Path, data: &Cache) -> anyhow::Result<()> {
     Ok(serde_json::to_writer_pretty(file, data)?)
 }
 
-fn newer_warning(ver: &semver::Version) {
+fn newer_warning(ver: &ver::Semver) {
     if cli::upgrade::can_upgrade() {
         log::warn!(
             "Newer version of edgedb tool exists {} (current {}). \
