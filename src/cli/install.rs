@@ -18,7 +18,7 @@ use prettytable::{Table, Row, Cell};
 use crate::cli::migrate;
 use crate::options::RawOptions;
 use crate::platform::{home_dir, config_dir, get_current_uid, binary_path};
-use crate::print;
+use crate::print::{self, echo, Highlight};
 use crate::print_markdown;
 use crate::process;
 use crate::portable::project;
@@ -208,35 +208,29 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
 fn print_post_upgrade_rc3_message()
 {
     if !cfg!(windows) {
-        print_markdown!("\
-            # The EdgeDB command-line tool is now upgraded!\n\
-            \n\
-            We have changed how server is installed and instances are
-            set up. A few manual steps are needed to convert\n\
-            your instances if there are any. To list instances that need\n\
-            to be converted, run: \n\
-            ```\n\
-                edgedb instance list --deprecated-install-methods\n\
-            ```\n\
-            For migration process details see https://edgedb.com/p/rc3-upgrade
-            ",
-        );
+        echo!("The EdgeDB command-line tool is now upgraded!".title());
+        println!();
+        echo!("We have changed how server is installed and instances are");
+        echo!("set up. A few manual steps are needed to convert your ");
+        echo!("instances if there are any. To list instances that need to be ");
+        echo!("converted, run:");
+        echo!("    edgedb instance list --deprecated-install-methods");
+        println!();
+        echo!("For migration process details see \
+               https://edgedb.com/p/rc3-upgrade");
     } else {
-        print_markdown!("\
-            # The EdgeDB command-line tool is now upgraded!\n\
-            \n\
-            We are deprecating Docker instances managed by the command-line \n\
-            tool. In this release you can still see your instances by running:
-            ```\n\
-                edgedb instance list --deprecated-install-methods\n\
-            ```\n\
-            \n\
-            We are working on the better Windows support. In the meantime, \n\
-            you can use regular `docker run` to run EdgeDB.\n\
-            \n\
-            More details in our blog post: https://edgedb.com/p/rc3-upgrade
-            ",
-        );
+        echo!("The EdgeDB command-line tool is now upgraded!".title());
+        println!();
+        echo!("We are deprecating Docker instances managed by the");
+        echo!("command-line tool. In this release you can still see your ");
+        echo!("instances by running:");
+        echo!("    edgedb instance list --deprecated-install-methods");
+        println!();
+        echo!("We are working on the better Windows support. In the meantime,");
+        echo!("you can use regular `docker run` to run EdgeDB.");
+        println!();
+        echo!("More details in our blog post: \
+              https://edgedb.com/p/rc3-upgrade");
     }
 }
 

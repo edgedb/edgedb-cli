@@ -143,7 +143,7 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     }
     process::Native::new("upgrade", "cli", &tmp_path)
         .arg("cli").arg("install").arg("--upgrade")
-        .run()?;
+        .no_proxy().run()?;
     fs::remove_file(&tmp_path).ok();
     if !options.quiet {
         echo!("Upgraded to version", pkg.version.emphasize());
