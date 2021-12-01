@@ -39,11 +39,11 @@ fn github_action_install() -> anyhow::Result<()> {
     let (shut_tx, shut_rx) = oneshot::channel();
 
     let plat = if cfg!(all(target_os="linux", target_arch="x86_64")) {
-        "linux-x86_64"
+        "x86_64-unknown-linux-musl"
     } else if cfg!(all(target_os="macos", target_arch="x86_64")) {
-        "macos-x86_64"
+        "x86_64-apple-darwin"
     } else if cfg!(all(target_os="windows", target_arch="x86_64")) {
-        "windows-x86_64"
+        "x86_64-pc-windows-msvc"
     } else {
         panic!("unsupported platform");
     };
@@ -52,7 +52,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .and(warp::fs::file("./edgedb-init.sh"))
         .or(path("dist")
             .and(path(plat))
-            .and(path("edgedb-cli_latest"))
+            .and(path("edgedb-cli"))
             .and(warp::filters::path::end())
             .and(warp::fs::file(env!("CARGO_BIN_EXE_edgedb"))));
 
