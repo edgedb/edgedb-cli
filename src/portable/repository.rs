@@ -92,7 +92,7 @@ pub struct PackageInfo {
 
 #[derive(Debug, Clone)]
 pub struct CliPackageInfo {
-    pub version: semver::Version,
+    pub version: ver::Semver,
     pub url: Url,
     pub size: u64,
     pub hash: PackageHash,

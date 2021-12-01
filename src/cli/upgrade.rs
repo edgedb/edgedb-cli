@@ -12,6 +12,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::platform::{home_dir, binary_path, tmp_file_path};
 use crate::print::{self, echo, Highlight};
 use crate::process;
+use crate::portable::ver;
 use crate::portable::repository::{self, download, Channel};
 
 
@@ -103,7 +104,7 @@ pub fn channel() -> repository::Channel {
     }
 }
 
-pub fn self_version() -> anyhow::Result<semver::Version> {
+pub fn self_version() -> anyhow::Result<ver::Semver> {
     env!("CARGO_PKG_VERSION").parse()
         .context("cannot parse cli version")
 }

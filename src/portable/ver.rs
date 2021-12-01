@@ -9,6 +9,9 @@ use regex::Regex;
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Build(Box<str>);
 
+#[derive(Clone, Debug)]
+pub struct Semver(semver::Version);
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Specific {
     pub major: u32,
@@ -235,5 +238,44 @@ impl PartialOrd for Build {
 impl Ord for Build {
     fn cmp(&self, other: &Build) -> Ordering {
         self.comparator().cmp(&other.comparator())
+    }
+}
+
+impl fmt::Display for Semver {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl FromStr for Semver {
+    type Err = semver::Error;
+    fn from_str(s: &str) -> Result<Semver, semver::Error> {
+        s.parse().map(Semver)
+    }
+}
+
+impl PartialEq for Semver {
+    fn eq(&self, other: &Semver) -> bool {
+        let a = (&self.0.major, &self.0.minor, &self.0.patch, &self.0.pre);
+        let b = (&other.0.major, &other.0.minor, &other.0.patch, &other.0.pre);
+        a == b
+    }
+}
+
+impl Eq for Semver {}
+
+impl PartialOrd for Semver {
+    fn partial_cmp(&self, other: &Semver) -> Option<Ordering> {
+        let a = (&self.0.major, &self.0.minor, &self.0.patch, &self.0.pre);
+        let b = (&other.0.major, &other.0.minor, &other.0.patch, &other.0.pre);
+        a.partial_cmp(&b)
+    }
+}
+
+impl Ord for Semver {
+    fn cmp(&self, other: &Semver) -> Ordering {
+        let a = (&self.0.major, &self.0.minor, &self.0.patch, &self.0.pre);
+        let b = (&other.0.major, &other.0.minor, &other.0.patch, &other.0.pre);
+        a.cmp(&b)
     }
 }
