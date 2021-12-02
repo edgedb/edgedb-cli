@@ -173,7 +173,7 @@ get_architecture() {
     esac
 
     if [ "$_cputype" = "arm64" ]; then
-        if [ "$_ostype" = "macos" ]; then
+        if [ "$_ostype" = "apple-darwin" ]; then
             # Rely on Rosetta for now
             _cputype=x86_64
         else
