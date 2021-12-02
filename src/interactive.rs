@@ -114,7 +114,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         print,
         verbose_errors: cfg.shell.verbose_errors.unwrap_or(false),
         last_error: None,
-        implicit_limit: Some(limit),
+        implicit_limit: if limit != 0 { Some(limit) } else { None },
         idle_transaction_timeout: idle_tx_timeout,
         output_format: options.output_format
             .or(cfg.shell.output_format)
