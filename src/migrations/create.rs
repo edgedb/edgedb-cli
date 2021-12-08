@@ -6,9 +6,12 @@ use async_std::io::prelude::WriteExt;
 use async_std::io;
 use async_std::path::{Path, PathBuf};
 use async_std::stream::StreamExt;
+use blocking::unblock;
 use colorful::Colorful;
 use edgedb_client::client::Connection;
 use edgedb_client::errors::{Error, QueryError};
+use edgedb_client::model::Duration;
+use edgeql_parser::helpers::quote_string;
 use edgedb_derive::Queryable;
 use edgedb_protocol::queryable::Queryable;
 use edgeql_parser::hash::Hasher;
@@ -55,7 +58,7 @@ enum Choice {
     Quit,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct RequiredUserInput {
     placeholder: String,
     prompt: String,
@@ -138,7 +141,7 @@ fn print_statements(statements: impl IntoIterator<Item=impl AsRef<str>>) {
     }
 }
 
-fn choice(prompt: &str) -> anyhow::Result<Choice> {
+async fn choice(prompt: &str) -> anyhow::Result<Choice> {
     use Choice::*;
 
     let mut q = question::Choice::new(prompt.to_string());
@@ -156,7 +159,7 @@ fn choice(prompt: &str) -> anyhow::Result<Choice> {
         "stop and save changes (splits migration into multiple)");
     q.option(Quit, &["q", "quit"],
         "quit without saving changes");
-    q.ask()
+    unblock(move || q.ask()).await
 }
 
 #[context("could not read schema in {}", ctx.schema_dir.display())]
@@ -306,7 +309,10 @@ impl InteractiveMigration<'_> {
                     }
                 }
                 println!("(approved as part of an earlier prompt)");
-                match get_user_input(&proposal.required_user_input) {
+                let input = self.cli.ping_while(
+                    get_user_input(&proposal.required_user_input)
+                ).await;
+                match input {
                     Ok(data) => break data,
                     Err(e) if e.is::<Refused>() => {
                         // TODO(tailhook) ask if we want to rollback or quit
@@ -324,9 +330,12 @@ impl InteractiveMigration<'_> {
                 "Apply the DDL statements?"
             };
             loop {
-                match choice(prompt)? {
+                match self.cli.ping_while(choice(prompt)).await? {
                     Yes => {
-                        match get_user_input(&proposal.required_user_input) {
+                        let input_res = self.cli.ping_while(
+                            get_user_input(&proposal.required_user_input)
+                        ).await;
+                        match input_res {
                             Ok(data) => input = data,
                             Err(e) if e.is::<Refused>() => continue,
                             Err(e) => return Err(e.into()),
@@ -503,6 +512,12 @@ pub async fn create(cli: &mut Connection, _options: &Options,
 {
     let ctx = Context::from_config(&create.cfg);
     let migrations = migration::read_all(&ctx, true).await?;
+
+    let old_timeout = cli.query_row::<Duration, _>(
+        "SELECT cfg::Config.session_idle_transaction_timeout", &()).await?;
+    cli.execute("CONFIGURE SESSION SET session_idle_transaction_timeout \
+                     := <std::duration>'2 hours'").await?;
+
     execute_start_migration(&ctx, cli).await?;
     let descr = query_row::<CurrentMigration>(cli,
         "DESCRIBE CURRENT MIGRATION AS JSON",
@@ -528,8 +543,15 @@ pub async fn create(cli: &mut Connection, _options: &Options,
         }
         run_interactive(&ctx, cli, migrations.len() as u64 + 1, &create).await
     };
+
     let abort = cli.execute("ABORT MIGRATION").await.map_err(|e| e.into());
-    exec.and(abort)?;
+    let timeout = cli.execute(format!(
+        "CONFIGURE SESSION SET session_idle_transaction_timeout \
+            := <std::duration>{}",
+        quote_string(&old_timeout.to_string())
+    )).await.map_err(|e| e.into());
+
+    exec.and(abort).and(timeout)?;
     Ok(())
 }
 
@@ -574,12 +596,14 @@ fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
     }
 }
 
-fn get_user_input(req: &[RequiredUserInput])
+async fn get_user_input(req: &[RequiredUserInput])
     -> Result<BTreeMap<String, String>, anyhow::Error>
 {
     let mut result = BTreeMap::new();
     for item in req {
-        result.insert(item.placeholder.clone(), get_input(item)?);
+        let copy = item.clone();
+        let input = unblock(move || get_input(&copy)).await?;
+        result.insert(item.placeholder.clone(), input);
     }
     Ok(result)
 }
