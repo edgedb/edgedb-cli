@@ -140,7 +140,13 @@ impl State {
         Ok(())
     }
     pub async fn soft_reconnect(&mut self) -> anyhow::Result<()> {
-        if !self.in_transaction() {
+        if self.in_transaction() {
+            let is_closed = self.connection.as_ref()
+                .map(|c| !c.is_consistent()).unwrap_or(false);
+            if is_closed {
+                anyhow::bail!("connection closed by server");
+            }
+        } else {
             self.ensure_connection().await?;
         }
         Ok(())

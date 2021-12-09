@@ -589,10 +589,10 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                 ToDoItem::Query(statement) => {
                     state.soft_reconnect()
                         .race(ctrlc.wait_result())
-                        .await?;
-                    execute_query(options, state, statement)
-                        .race(ctrlc.wait_result())
                         .await
+                    .and(execute_query(options, state, statement)
+                        .race(ctrlc.wait_result())
+                        .await)
                 }
             };
             if let Err(err) = result {
