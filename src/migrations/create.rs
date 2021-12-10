@@ -10,6 +10,7 @@ use blocking::unblock;
 use colorful::Colorful;
 use edgedb_client::client::Connection;
 use edgedb_client::errors::{Error, QueryError};
+use edgedb_client::errors::{ErrorKind, ClientConnectionEosError};
 use edgedb_client::model::Duration;
 use edgeql_parser::helpers::quote_string;
 use edgedb_derive::Queryable;
@@ -107,6 +108,10 @@ struct SplitMigration;
 async fn execute(cli: &mut Connection, text: impl AsRef<str>)
     -> Result<(), Error>
 {
+    if !cli.is_consistent() {
+        return Err(ClientConnectionEosError::with_message(
+                "connection closed by server"));
+    }
     let text = text.as_ref();
     log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
     cli.execute(text).await?;
@@ -409,9 +414,13 @@ impl InteractiveMigration<'_> {
                             eprintln!("Error applying statement: {:#}", e);
                         }
                     }
-                    eprintln!("Rolling back last operation...");
-                    self.rollback().await?;
-                    return Ok(());
+                    if self.cli.is_consistent() {
+                        eprintln!("Rolling back last operation...");
+                        self.rollback().await?;
+                        return Ok(());
+                    } else {
+                        return Err(ExitCode::new(1).into());
+                    }
                 }
             }
         }
@@ -544,14 +553,18 @@ pub async fn create(cli: &mut Connection, _options: &Options,
         run_interactive(&ctx, cli, migrations.len() as u64 + 1, &create).await
     };
 
-    let abort = cli.execute("ABORT MIGRATION").await.map_err(|e| e.into());
-    let timeout = cli.execute(format!(
-        "CONFIGURE SESSION SET session_idle_transaction_timeout \
-            := <std::duration>{}",
-        quote_string(&old_timeout.to_string())
-    )).await.map_err(|e| e.into());
+    if cli.is_consistent() {
+        let abort = cli.execute("ABORT MIGRATION").await.map_err(|e| e.into());
+        let timeout = cli.execute(format!(
+            "CONFIGURE SESSION SET session_idle_transaction_timeout \
+                := <std::duration>{}",
+            quote_string(&old_timeout.to_string())
+        )).await.map_err(|e| e.into());
+        exec.and(abort).and(timeout)?;
+    } else {
+        exec?;
+    }
 
-    exec.and(abort).and(timeout)?;
     Ok(())
 }
 
