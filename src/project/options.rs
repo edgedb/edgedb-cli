@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use clap::{ValueHint};
 use edgedb_cli_derive::EdbClap;
 
-use crate::server::methods::InstallMethod;
 use crate::server::version::Version;
 use crate::server::options::{instance_name_opt, StartConf};
 

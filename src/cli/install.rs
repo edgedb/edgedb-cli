@@ -21,8 +21,7 @@ use crate::platform::{home_dir, config_dir, get_current_uid, binary_path};
 use crate::print::{self, echo, Highlight};
 use crate::print_markdown;
 use crate::process;
-use crate::portable::project;
-use crate::project::options::Init;
+use crate::portable::project::{self, Init};
 use crate::question::{self, read_choice};
 use crate::table;
 
@@ -433,7 +432,6 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             project_dir: None,
             server_version: None,
             server_instance: None,
-            server_install_method: None,
             non_interactive: false,
             no_migrations: false,
             link: false,

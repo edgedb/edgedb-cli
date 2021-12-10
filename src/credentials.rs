@@ -12,14 +12,8 @@ use edgedb_client::credentials::Credentials;
 
 use crate::platform::{config_dir, tmp_file_name};
 use crate::question;
-use crate::server::is_valid_name;
+use crate::portable::local::is_valid_name;
 
-
-pub fn get_connector(name: &str) -> anyhow::Result<Builder> {
-    let mut builder = Builder::uninitialized();
-    task::block_on(builder.read_instance(name))?;
-    Ok(builder)
-}
 
 pub fn base_dir() -> anyhow::Result<PathBuf> {
     Ok(config_dir()?.join("credentials"))
@@ -60,17 +54,6 @@ pub async fn write(path: &Path, credentials: &Credentials)
     let tmp_path = path.with_file_name(tmp_file_name(path));
     fs::write(&tmp_path, serde_json::to_vec_pretty(&credentials)?).await?;
     fs::rename(&tmp_path, path).await?;
-    Ok(())
-}
-
-pub fn add_certificate(instance_name: &str, certificate: &str)
-    -> anyhow::Result<()>
-{
-    let cred_path = path(instance_name)?;
-    let data = fs::read(&cred_path)?;
-    let mut creds: Credentials = serde_json::from_slice(&data)?;
-    creds.tls_cert_data = Some(certificate.into());
-    task::block_on(write(&cred_path, &creds))?;
     Ok(())
 }
 

@@ -1,7 +1,6 @@
 use crate::options::Options;
-use crate::project::options::ProjectCommand;
-use crate::server::options::ServerCommand;
-use crate::server::options::ServerInstanceCommand;
+use crate::portable::project::ProjectCommand;
+use crate::portable::options::{ServerCommand, ServerInstanceCommand};
 
 use crate::portable::control;
 use crate::portable::create;
@@ -17,25 +16,22 @@ use crate::portable::uninstall;
 use crate::portable::upgrade;
 use crate::portable::reset_password;
 
-use crate::server::detect;
-
 
 pub fn server_main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
-    use crate::server::options::Command::*;
+    use crate::portable::options::Command::*;
 
     match &cmd.subcommand {
         Install(c) => install::install(c),
         Uninstall(c) => uninstall::uninstall(c),
         ListVersions(c) => list_versions::list_versions(c),
         Info(c) => info::info(c),
-        _Detect(c) => detect::main(c),
     }
 }
 
 pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
     -> Result<(), anyhow::Error>
 {
-    use crate::server::options::InstanceCommand::*;
+    use crate::portable::options::InstanceCommand::*;
 
     match &cmd.subcommand {
         Create(c) => create::create(c),
@@ -55,7 +51,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
 }
 
 pub fn project_main(cmd: &ProjectCommand) -> anyhow::Result<()> {
-    use crate::project::options::Command::*;
+    use crate::portable::project::Command::*;
 
     match &cmd.subcommand {
         Init(c) => project::init(c),

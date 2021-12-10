@@ -6,10 +6,10 @@ use std::thread;
 use crate::commands::ExitCode;
 use crate::platform::{home_dir, get_current_uid, cache_dir, data_dir};
 use crate::portable::local::{InstanceInfo};
+use crate::portable::options::{StartConf, Logs};
 use crate::portable::status::Service;
-use crate::process;
 use crate::print::{self, echo, Highlight};
-use crate::server::options::{StartConf, Logs};
+use crate::process;
 
 
 pub fn plist_dir() -> anyhow::Result<PathBuf> {

@@ -434,7 +434,7 @@ impl Query {
         QueryDisplay(self)
     }
     pub fn from_options(nightly: bool,
-        version: &Option<crate::server::version::Version<String>>)
+        version: &Option<ver::Filter>)
         -> anyhow::Result<Query>
     {
         let channel = if nightly {
@@ -442,27 +442,9 @@ impl Query {
         } else {
             Channel::Stable
         };
-        let version = version.as_ref().map(|x| x.num().parse())
-            .transpose().context("Unexpected --version")?;
+        let version = version.clone();
 
         Ok(Query { channel, version })
-    }
-    pub fn from_option(
-        version: &Option<crate::server::version::Version<String>>)
-        -> anyhow::Result<Query>
-    {
-        match version {
-            None => Ok(Query { channel: Channel::Stable, version: None }),
-            Some(ver) if ver.num() == "nightly" => {
-                Ok(Query { channel: Channel::Nightly, version: None })
-            }
-            Some(version) => {
-                let version = version.num().parse()
-                              .context("Unexpected --version")?;
-                let channel = Channel::from_filter(&version)?;
-                Ok(Query { channel, version: Some(version) })
-            }
-        }
     }
     pub fn from_filter(ver: &ver::Filter) -> anyhow::Result<Query> {
         use crate::portable::repository::ver::FilterMinor;

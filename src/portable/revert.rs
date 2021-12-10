@@ -4,17 +4,17 @@ use anyhow::Context;
 
 use crate::commands::ExitCode;
 use crate::format;
-use crate::question;
 use crate::platform::tmp_file_path;
 use crate::portable::control;
 use crate::portable::create;
-use crate::portable::install;
 use crate::portable::exit_codes;
+use crate::portable::install;
 use crate::portable::local::Paths;
+use crate::portable::options::{Revert, StartConf};
 use crate::portable::status::{instance_status, DataDirectory, BackupStatus};
 use crate::print::{self, echo, Highlight};
 use crate::process;
-use crate::server::options::{Revert, StartConf};
+use crate::question;
 
 
 pub fn revert(options: &Revert) -> anyhow::Result<()> {

@@ -1,10 +1,9 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use crate::server::options::ListVersions;
-
 use crate::echo;
 use crate::portable::local::{self, InstallInfo};
+use crate::portable::options::ListVersions;
 use crate::portable::repository::{get_server_packages, Channel, PackageInfo};
 use crate::portable::ver;
 use crate::print::Highlight;
@@ -56,9 +55,6 @@ pub fn all_packages() -> Vec<PackageInfo> {
 }
 
 pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
-    if options.deprecated_install_methods {
-        return crate::server::list_versions::list_versions(options);
-    }
     let mut installed = local::get_installed()?;
     if options.installed_only {
         if options.json {

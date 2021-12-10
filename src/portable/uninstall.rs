@@ -1,31 +1,28 @@
 use std::collections::BTreeMap;
 use fs_err as fs;
 
-use crate::portable::local;
 use crate::commands::ExitCode;
+use crate::platform::{tmp_file_path, data_dir, portable_dir};
 use crate::portable::exit_codes;
+use crate::portable::local::{InstanceInfo};
+use crate::portable::local;
+use crate::portable::options::Uninstall;
 use crate::portable::status;
 use crate::portable::ver;
-use crate::portable::local::{InstanceInfo};
-use crate::platform::{tmp_file_path, data_dir, portable_dir};
-use crate::server::options::Uninstall;
 use crate::print::{self, echo, Highlight};
 
 
 pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
-    if options.deprecated_install_methods {
-        return crate::server::uninstall::uninstall(options);
-    }
     let mut candidates = local::get_installed()?;
     if options.nightly {
         candidates.retain(|cand| cand.version.is_nightly());
     }
     if let Some(ver) = &options.version {
-        if let Ok(ver) = ver.num().parse::<ver::Filter>() {
+        if let Ok(ver) = ver.parse::<ver::Filter>() {
             candidates.retain(|cand| ver.matches(&cand.version));
-        } else if let Ok(ver) = ver.num().parse::<ver::Specific>() {
+        } else if let Ok(ver) = ver.parse::<ver::Specific>() {
             candidates.retain(|cand| ver == cand.version.specific());
-        } else if let Ok(ver) = ver.num().parse::<ver::Build>() {
+        } else if let Ok(ver) = ver.parse::<ver::Build>() {
             candidates.retain(|cand| ver == cand.version);
         } else {
             anyhow::bail!("cannot parse version {:?}", ver);

@@ -1,9 +1,9 @@
 use crate::cli::options::Command as Cli;
 use crate::options::{Options, Command};
 use crate::commands::parser::{Common, MigrationCmd};
-use crate::server::options::Command as Server;
-use crate::server::options::InstanceCommand as Instance;
-use crate::project::options::Command as Project;
+use crate::portable::options::Command as Server;
+use crate::portable::options::InstanceCommand as Instance;
+use crate::portable::project::Command as Project;
 
 
 pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
@@ -36,8 +36,6 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
         Some(Command::Server(s)) => match &s.subcommand {
             Server::Uninstall(u) if u.verbose => {
                 builder.filter_module(
-                    "edgedb::server::uninstall", log::LevelFilter::Info);
-                builder.filter_module(
                     "edgedb::portable::uninstall", log::LevelFilter::Info);
             }
             _ => {}
@@ -45,13 +43,9 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
         Some(Command::Instance(i)) => match &i.subcommand {
             Instance::Destroy(d) if d.verbose => {
                 builder.filter_module(
-                    "edgedb::server::destroy", log::LevelFilter::Info);
-                builder.filter_module(
                     "edgedb::portable::destroy", log::LevelFilter::Info);
             }
             Instance::Upgrade(u) if u.verbose => {
-                builder.filter_module(
-                    "edgedb::server::upgrade", log::LevelFilter::Info);
                 builder.filter_module(
                     "edgedb::portable::upgrade", log::LevelFilter::Info);
             }
@@ -59,8 +53,6 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
         },
         Some(Command::Project(p)) => match &p.subcommand {
             Project::Upgrade(u) if u.verbose => {
-                builder.filter_module(
-                    "edgedb::server::upgrade", log::LevelFilter::Info);
                 builder.filter_module(
                     "edgedb::project::upgrade", log::LevelFilter::Info);
                 builder.filter_module(

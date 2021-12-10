@@ -20,11 +20,10 @@ use crate::credentials;
 use crate::hint::{HintedError, HintExt};
 use crate::options::{Options, ConnectionOptions};
 use crate::options::{conn_params, load_tls_options};
-use crate::portable::local::InstanceInfo;
+use crate::portable::local::{InstanceInfo, is_valid_name};
+use crate::portable::options::{Link, Unlink};
 use crate::print;
 use crate::question;
-use crate::server::options::{Link, Unlink};
-use crate::server::is_valid_name;
 
 
 struct InteractiveCertVerifier {

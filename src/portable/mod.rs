@@ -1,8 +1,9 @@
 mod config;
 mod exit_codes;
-mod local;
 mod main;
 mod platform;
+pub mod local;
+pub mod options;
 pub mod repository;
 pub mod ver;
 

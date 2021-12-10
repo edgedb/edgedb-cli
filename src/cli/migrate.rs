@@ -8,14 +8,14 @@ use fs_err as fs;
 use fn_error_context::context;
 
 use crate::cli::install::{get_rc_files, no_dir_in_path};
+use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::binary_path;
 use crate::platform::{home_dir, tmp_file_path, symlink_dir, config_dir};
+use crate::portable::project;
 use crate::print;
-use crate::project;
-use crate::question;
 use crate::print_markdown;
-use crate::commands::ExitCode;
+use crate::question;
 
 
 #[derive(EdbClap, Clone, Debug)]
@@ -343,11 +343,6 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
 
     remove_file(&base.join("env"), dry_run)?;
     remove_dir_all(&base.join("bin"), dry_run)?;
-
-    if cfg!(target_os="macos") {
-        macos_recreate_all_services(dry_run)?;
-    }
-
     remove_dir_all(&base.join("run"), dry_run)?;
     remove_dir_all(&base.join("logs"), dry_run)?;
     remove_dir_all(&base.join("cache"), dry_run)?;
@@ -404,26 +399,5 @@ fn remove_dir_all(path: &Path, dry_run: bool) -> anyhow::Result<()> {
     }
     log::info!("Removing dir {:?}", path);
     fs::remove_dir_all(path)?;
-    Ok(())
-}
-
-/// Recreates all service files to update /run and /logs dirs
-fn macos_recreate_all_services(dry_run: bool) -> anyhow::Result<()> {
-    use crate::server::detect;
-    use crate::server::methods::InstallMethod;
-    use crate::server::macos;
-
-    let os = detect::current_os()?;
-    let avail_methods = os.get_available_methods()?;
-    let meth = os.make_method(&InstallMethod::Package, &avail_methods)?;
-
-    for inst in meth.all_instances()? {
-        if dry_run {
-            log::info!("Would restart instance {:?}", inst.name());
-            continue;
-        }
-        macos::recreate_launchctl_service(inst)?;
-    }
-
     Ok(())
 }

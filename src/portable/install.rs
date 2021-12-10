@@ -12,12 +12,12 @@ use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstallInfo, write_json};
+use crate::portable::options::Install;
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{PackageInfo, PackageHash, Query, download};
 use crate::portable::repository::{get_server_package, get_specific_package};
 use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
-use crate::server::options::Install;
 
 
 #[context("metadata error for {:?}", dir)]
@@ -148,9 +148,6 @@ fn unlink_cache(cache_file: &Path) {
 }
 
 pub fn install(options: &Install) -> anyhow::Result<()> {
-    if options.method.is_some() {
-        return crate::server::install::install(options);
-    }
     if optional_docker_check()? {
         print::error(
             "`edgedb server install` in a Docker container is not supported.",

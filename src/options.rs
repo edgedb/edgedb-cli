@@ -21,10 +21,10 @@ use crate::commands::parser::Common;
 use crate::connect::Connector;
 use crate::hint::HintExt;
 use crate::markdown;
+use crate::portable::project;
+use crate::portable;
 use crate::print;
-use crate::project;
 use crate::repl::OutputFormat;
-use crate::server;
 
 pub mod describe;
 
@@ -250,12 +250,12 @@ pub enum Command {
     Info,
     /// Manage project installation
     #[edb(expand_help)]
-    Project(project::options::ProjectCommand),
+    Project(project::ProjectCommand),
     /// Manage local EdgeDB instances
     #[edb(expand_help)]
-    Instance(server::options::ServerInstanceCommand),
+    Instance(portable::options::ServerInstanceCommand),
     /// Manage local EdgeDB installations
-    Server(server::options::ServerCommand),
+    Server(portable::options::ServerCommand),
     /// Generate shell completions
     #[clap(name="_gen_completions")]
     #[edb(hidden)]

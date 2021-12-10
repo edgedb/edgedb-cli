@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -9,12 +10,15 @@ use fn_error_context::context;
 use edgedb_client::Builder;
 
 use crate::credentials;
-use crate::platform::{portable_dir, data_dir};
+use crate::platform::{portable_dir, data_dir, config_dir};
 use crate::portable::control;
+use crate::portable::options::StartConf;
 use crate::portable::repository::PackageHash;
 use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
-use crate::server::options::StartConf;
+
+
+const MIN_PORT: u16 = 10700;
 
 
 #[derive(Debug)]
@@ -45,11 +49,64 @@ pub struct InstallInfo {
     pub installed_at: SystemTime,
 }
 
+fn port_file() -> anyhow::Result<PathBuf> {
+    Ok(config_dir()?.join("instance_ports.json"))
+}
+
+pub fn read_ports() -> anyhow::Result<BTreeMap<String, u16>> {
+    _read_ports(&port_file()?)
+}
+
+
+#[context("failed reading port mapping {}", path.display())]
+fn _read_ports(path: &Path) -> anyhow::Result<BTreeMap<String, u16>> {
+    let data = match fs::read_to_string(&path) {
+        Ok(data) if data.is_empty() => {
+            return Ok(BTreeMap::new());
+        }
+        Ok(data) => data,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Ok(BTreeMap::new());
+        }
+        Err(e) => return Err(e)?,
+    };
+    Ok(serde_json::from_str(&data)?)
+}
+
+fn next_min_port(port_map: &BTreeMap<String, u16>) -> u16 {
+    if port_map.len() == 0 {
+        return MIN_PORT;
+    }
+    let port_set: BTreeSet<u16> = port_map.values().cloned().collect();
+    let mut prev = MIN_PORT - 1;
+    for port in port_set {
+        if port > prev+1 {
+            return prev + 1;
+        }
+        prev = port;
+    }
+    return prev+1;
+}
+
+pub fn allocate_port(name: &str) -> anyhow::Result<u16> {
+    let port_file = port_file()?;
+    let mut port_map = _read_ports(&port_file)?;
+    if let Some(port) = port_map.get(name) {
+        return Ok(*port);
+    }
+    let port = next_min_port(&port_map);
+    port_map.insert(name.to_string(), port);
+    write_json(&port_file, "ports mapping", &port_map)?;
+    Ok(port)
+}
 
 #[context("cannot write {} file {}", title, path.display())]
 pub fn write_json<T: serde::Serialize>(path: &Path, title: &str, data: &T)
     -> anyhow::Result<()>
 {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let f = io::BufWriter::new(fs::File::create(path)?);
     serde_json::to_writer_pretty(f, data)?;
     Ok(())
@@ -212,4 +269,18 @@ impl InstallInfo {
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
         Ok(self.base_path()?.join("bin").join("edgedb-server"))
     }
+}
+
+pub fn is_valid_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return false,
+    }
+    for c in chars {
+        if !c.is_ascii_alphanumeric() && c != '_' {
+            return false;
+        }
+    }
+    return true;
 }

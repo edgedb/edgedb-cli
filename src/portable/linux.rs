@@ -5,11 +5,11 @@ use anyhow::Context;
 use fn_error_context::context;
 
 use crate::platform::{home_dir, cache_dir};
+use crate::portable::destroy::InstanceNotFound;
 use crate::portable::local::{InstanceInfo};
+use crate::portable::options::{StartConf, Logs};
 use crate::portable::status::Service;
 use crate::process;
-use crate::server::errors::InstanceNotFound;
-use crate::server::options::{StartConf, Logs};
 
 
 pub fn unit_dir() -> anyhow::Result<PathBuf> {

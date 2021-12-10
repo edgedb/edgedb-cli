@@ -5,25 +5,17 @@ use async_std::stream::from_iter;
 
 use crate::commands::Options;
 use crate::commands::list;
-use crate::server::version::Version;
 use edgedb_client::client::Connection;
 
 
 pub async fn get_databases<T>(cli: &mut Connection) -> anyhow::Result<T>
     where T: Default + Extend<String>,
 {
-    let server_ver = &cli.get_version().await?[..];
-    let mut items = if Version(server_ver) < Version("1.0-alpha.6") {
-        cli.query(
-            "SELECT (SELECT sys::Database FILTER .name != 'edgedb0').name",
-            &(),
-        ).await?
-    } else {
+    let mut items =
         cli.query(
             "SELECT (SELECT sys::Database FILTER NOT .builtin).name",
             &(),
-        ).await?
-    };
+        ).await?;
     let mut databases = T::default();
     while let Some(name) = items.next().await.transpose()? {
         databases.extend(Some(name))

@@ -7,8 +7,12 @@ use crate::portable::exit_codes;
 use crate::portable::local;
 use crate::portable::project::{self};
 use crate::portable::{windows, linux, macos};
-use crate::server::errors::InstanceNotFound;
-use crate::server::options::Destroy;
+use crate::portable::options::Destroy;
+
+
+#[derive(Debug, thiserror::Error)]
+#[error("instance not found")]
+pub struct InstanceNotFound(#[source] pub anyhow::Error);
 
 
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
@@ -46,7 +50,7 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     }
 }
 
-fn destroy_portable(options: &Destroy) -> anyhow::Result<()> {
+fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
     let paths = local::Paths::get(&options.name)?;
     log::debug!("Paths {:?}", paths);
     let mut found = false;
@@ -107,18 +111,4 @@ pub fn force_by_name(name: &str) -> anyhow::Result<()> {
         verbose: false,
         force: true,
     })
-}
-
-fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
-    match destroy_portable(options) {
-        Ok(()) => {
-            crate::server::destroy::do_destroy(Vec::new(), options)?;
-        }
-        Err(e) if e.is::<InstanceNotFound>() => {
-            crate::server::destroy::do_destroy(
-                vec![("portable".into(), e)], options)?;
-        }
-        Err(e) => return Err(e),
-    }
-    Ok(())
 }
