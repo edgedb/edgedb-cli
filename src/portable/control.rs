@@ -4,23 +4,12 @@ use std::path::PathBuf;
 
 use crate::credentials;
 use crate::portable::local::InstanceInfo;
+use crate::portable::options::{Start, Stop, Restart, Logs};
 use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
-use crate::print::{self, echo};
+
 use crate::process;
-use crate::server::options::{Start, Stop, Restart, InstanceCommand, Logs};
 
-
-pub fn fallback(name: &str, success_message: &str,
-                cmd: &InstanceCommand) -> anyhow::Result<()> {
-    echo!("No instance", name, "found.",
-          "Looking for deprecated instances...");
-    crate::server::control::instance_command(cmd)?;
-    eprintln!("{}", success_message);
-    print::warn("Please convert the instance to the new installation layout.");
-    echo!("Migration process and details: https://edgedb.com/p/rc3-upgrade");
-    Ok(())
-}
 
 pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
     let cred_path = credentials::path(&inst.name)?;
@@ -71,20 +60,15 @@ pub fn ensure_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
 }
 
 pub fn start(options: &Start) -> anyhow::Result<()> {
-    let meta = InstanceInfo::try_read(&options.name)?;
-    if let Some(meta) = &meta {
-        ensure_runstate_dir(&meta.name)?;
-        if options.foreground {
-            get_server_cmd(meta)?
-                .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
-                .no_proxy()
-                .run()
-        } else {
-            do_start(meta)
-        }
+    let meta = InstanceInfo::read(&options.name)?;
+    ensure_runstate_dir(&meta.name)?;
+    if options.foreground {
+        get_server_cmd(&meta)?
+            .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
+            .no_proxy()
+            .run()
     } else {
-        fallback(&options.name, "Deprecated service started.",
-                 &InstanceCommand::Start(options.clone()))
+        do_start(&meta)
     }
 }
 
@@ -101,13 +85,8 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
 }
 
 pub fn stop(options: &Stop) -> anyhow::Result<()> {
-    let meta = InstanceInfo::try_read(&options.name)?;
-    if let Some(meta) = &meta {
-        do_stop(&meta.name)
-    } else {
-        fallback(&options.name, "Deprecated service stopped.",
-                 &InstanceCommand::Stop(options.clone()))
-    }
+    let meta = InstanceInfo::read(&options.name)?;
+    do_stop(&meta.name)
 }
 
 pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
@@ -123,13 +102,8 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn restart(options: &Restart) -> anyhow::Result<()> {
-    let meta = InstanceInfo::try_read(&options.name)?;
-    if let Some(meta) = &meta {
-        do_restart(meta)
-    } else {
-        fallback(&options.name, "Deprecated service restarted.",
-                 &InstanceCommand::Restart(options.clone()))
-    }
+    let meta = InstanceInfo::read(&options.name)?;
+    do_restart(&meta)
 }
 
 pub fn logs(options: &Logs) -> anyhow::Result<()> {

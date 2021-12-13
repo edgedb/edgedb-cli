@@ -17,14 +17,12 @@ use edgedb_client::{Builder, credentials::Credentials};
 use crate::credentials;
 use crate::format;
 use crate::platform::{data_dir};
-use crate::portable::control::fallback;
-use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::local::{InstanceInfo, Paths};
+use crate::portable::local::{read_ports, is_valid_name};
+use crate::portable::options::{Status, List};
+use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::{windows, linux, macos};
-use crate::print::{self, echo, Highlight};
-use crate::server::create::read_ports;
-use crate::server::is_valid_name;
-use crate::server::options::{InstanceCommand, Status, List};
+use crate::print::{self};
 use crate::table::{self, Table, Row, Cell};
 
 
@@ -112,19 +110,15 @@ pub fn status(options: &Status) -> anyhow::Result<()> {
 }
 
 fn external_status(options: &Status) -> anyhow::Result<()> {
-    let meta = InstanceInfo::try_read(&options.name)?;
-    if let Some(meta) = &meta {
-        if cfg!(windows) {
-            windows::external_status(meta)
-        } else if cfg!(target_os="macos") {
-            macos::external_status(meta)
-        } else if cfg!(target_os="linux") {
-            linux::external_status(meta)
-        } else {
-            anyhow::bail!("unsupported platform");
-        }
+    let ref meta = InstanceInfo::read(&options.name)?;
+    if cfg!(windows) {
+        windows::external_status(meta)
+    } else if cfg!(target_os="macos") {
+        macos::external_status(meta)
+    } else if cfg!(target_os="linux") {
+        linux::external_status(meta)
     } else {
-        fallback(&options.name, "", &InstanceCommand::Status(options.clone()))
+        anyhow::bail!("unsupported platform");
     }
 }
 
@@ -181,11 +175,10 @@ pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
 }
 
 fn normal_status(options: &Status) -> anyhow::Result<()> {
-    let meta = InstanceInfo::try_read(&options.name)?;
-    // TODO(tailhook) provide (some) status even if there is no metadata
+    let meta = InstanceInfo::try_read(&options.name).transpose();
     if let Some(meta) = meta {
         let paths = Paths::get(&options.name)?;
-        let status = status_from_meta(&options.name, &paths, Ok(meta));
+        let status = status_from_meta(&options.name, &paths, meta);
         if options.debug {
             println!("{:#?}", status);
             Ok(())
@@ -197,15 +190,7 @@ fn normal_status(options: &Status) -> anyhow::Result<()> {
             status.print_and_exit();
         }
     } else {
-        match fallback(&options.name, "Deprecated service found.",
-                       &InstanceCommand::Status(options.clone()))
-        {
-            Ok(()) => Ok(()),
-            Err(e) if e.is::<crate::server::errors::InstanceNotFound>() => {
-                remote_status(options)
-            }
-            Err(e) => Err(e),
-        }
+        remote_status(options)
     }
 }
 
@@ -251,6 +236,7 @@ fn _remote_status(name: &str) -> anyhow::Result<RemoteStatus> {
         connection,
     })
 }
+
 fn remote_status(options: &Status) -> anyhow::Result<()> {
     let status = _remote_status(&options.name)?;
     if options.service {
@@ -296,28 +282,7 @@ pub fn list_local<'x>(dir: &'x Path)
     }))
 }
 
-pub fn portable_names() -> anyhow::Result<BTreeSet<String>> {
-    let data_dir = data_dir()?;
-    if !data_dir.exists() {
-        return Ok(BTreeSet::new());
-    }
-    let mut result = BTreeSet::new();
-    for pair in list_local(&data_dir)? {
-        let (name, path) = pair?;
-        if path.join("instance_info.json").exists() {
-            result.insert(name);
-        }
-    }
-    Ok(result)
-}
-
 pub fn list(options: &List) -> anyhow::Result<()> {
-    if options.deprecated_install_methods {
-        let names = portable_names()?;
-        log::debug!("Portable package instances {:?}", names);
-        return crate::server::status::list_instances(
-            options.extended, options.debug, options.json, names);
-    }
     let mut visited = BTreeSet::new();
     let mut local = Vec::new();
     let data_dir = data_dir()?;
@@ -383,9 +348,6 @@ pub fn list(options: &List) -> anyhow::Result<()> {
         print_table(&local, &remote);
     }
 
-    echo!("Instances from legacy installation methods may be listed here as `remote`. \
-        Use `--deprecated-install-methods` \
-        to see full details on docker and package installations.".fade());
     Ok(())
 }
 

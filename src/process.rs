@@ -1,12 +1,10 @@
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::future::{Future, pending};
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::process::exit;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use once_cell::sync::Lazy;
 
@@ -17,7 +15,7 @@ use async_std::io::{self, Read, ReadExt, BufReader, WriteExt};
 use async_std::prelude::{FutureExt, StreamExt};
 use async_std::task;
 use colorful::{Colorful, Color};
-use serde::de::DeserializeOwned;
+
 
 use crate::interrupt;
 
@@ -52,11 +50,6 @@ static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
 });
 
 
-fn timestamp() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
-}
-
-
 pub struct Native {
     command: Command,
     stop_process: Option<Box<dyn Fn() -> Command>>,
@@ -65,22 +58,6 @@ pub struct Native {
     proxy: bool,
 }
 
-pub struct Docker {
-    docker_cmd: PathBuf,
-    description: Cow<'static, str>,
-    env: BTreeMap<OsString, EnvVal>,
-    mounts: Vec<String>,
-    arguments: Vec<OsString>,
-    set_user: bool,
-    expose_ports: Vec<u16>,
-    image: Cow<'static, str>,
-    cmd: Cow<'static, str>,
-}
-
-enum EnvVal {
-    Propagate,
-    Value(OsString),
-}
 
 #[cfg(unix)]
 pub fn exists(pid: u32) -> bool {
@@ -138,6 +115,7 @@ impl Native {
         self.command.arg(val);
         self
     }
+    #[allow(dead_code)]
     pub fn env(&mut self, key: impl AsRef<OsStr>, val: impl AsRef<OsStr>)
         -> &mut Self
     {
@@ -192,27 +170,6 @@ impl Native {
             Ok(Err((output.status, data)))
         }
     }
-    pub fn get_json_or_stderr<T>(&mut self)
-        -> anyhow::Result<Result<T, String>>
-        where T: DeserializeOwned,
-    {
-        let output = task::block_on(self._run(true, true))?;
-        if output.status.success() {
-            let value = serde_json::from_slice(&output.stdout[..])
-                .with_context(|| format!(
-                    "cannot decode output of {} (command-line: {:?})",
-                    self.description, self.command,
-                ))?;
-            Ok(Ok(value))
-        } else {
-            let data = String::from_utf8(output.stderr)
-            .with_context(|| format!(
-                "cannot decode error output of {} (command-line: {:?})",
-                self.description, self.command,
-            ))?;
-            Ok(Err(data))
-        }
-    }
     pub fn get_stdout_text(&mut self) -> anyhow::Result<String> {
         let output = task::block_on(self._run(true, false))?;
         if output.status.success() {
@@ -226,16 +183,19 @@ impl Native {
                           self.description, output.status, self.command);
         }
     }
+    #[allow(dead_code)]
     pub fn get_output(&mut self) -> anyhow::Result<Output> {
         task::block_on(self._run(true, true))
     }
 
+    #[allow(dead_code)]
     pub fn background_for<T>(&mut self,
         f: impl Future<Output=anyhow::Result<T>>)
         -> anyhow::Result<T>
     {
         task::block_on(self._background(f))
     }
+    #[allow(dead_code)]
     pub fn feed(&mut self, data: impl AsRef<[u8]>) -> anyhow::Result<()> {
         task::block_on(self._feed(data.as_ref()))
     }
@@ -493,131 +453,6 @@ impl Native {
     }
 }
 
-impl Docker {
-    pub fn new(description: impl Into<Cow<'static, str>>,
-        docker_cmd: impl AsRef<Path>,
-        image: impl Into<Cow<'static, str>>,
-        cmd: impl Into<Cow<'static, str>>)
-        -> Docker
-    {
-        Docker {
-            docker_cmd: docker_cmd.as_ref().into(),
-            description: description.into(),
-            env: BTreeMap::new(),
-            mounts: Vec::new(),
-            arguments: Vec::new(),
-            set_user: true,
-            expose_ports: Vec::new(),
-            image: image.into(),
-            cmd: cmd.into(),
-        }
-    }
-    pub fn env(&mut self, name: impl Into<OsString>,
-        value: impl Into<OsString>)
-        -> &mut Self
-    {
-        self.env.insert(name.into(), EnvVal::Value(value.into()));
-        self
-    }
-    pub fn env_default(&mut self,
-        name: impl AsRef<OsStr> + Into<OsString>,
-        default: impl Into<OsString>)
-        -> &mut Self
-    {
-        if env::var_os(name.as_ref()).is_some() {
-            self.env.insert(name.into(), EnvVal::Propagate);
-        } else {
-            self.env.insert(name.into(), EnvVal::Value(default.into()));
-        }
-        self
-    }
-    pub fn expose_port(&mut self, port: u16) -> &mut Self {
-        self.expose_ports.push(port);
-        self
-    }
-    pub fn as_root(&mut self) -> &mut Self {
-        self.set_user = false;
-        self
-    }
-    pub fn mount(&mut self, source: impl AsRef<str>, target: impl AsRef<str>)
-        -> &mut Self
-    {
-        assert!(!source.as_ref().contains(","));
-        assert!(!target.as_ref().contains(","));
-        self.mounts.push(format!("source={},target={}",
-            source.as_ref(), target.as_ref()));
-        self
-    }
-    pub fn arg(&mut self, val: impl Into<OsString>) -> &mut Self {
-        self.arguments.push(val.into());
-        self
-    }
-    fn make_native(&self, interactive: bool) -> Native {
-        let name = format!("edgedb_{}_{}", std::process::id(), timestamp());
-        let docker = self.docker_cmd.clone();
-
-        let mut cmd = Native::new(self.description.clone(), "docker", &docker);
-        cmd.arg("run");
-        cmd.arg("--rm");
-        cmd.arg("--name").arg(&name);
-        if interactive {
-            cmd.arg("--interactive");
-        }
-        for (key, val) in &self.env {
-            match val {
-                EnvVal::Propagate => {
-                    cmd.arg("--env").arg(key);
-                }
-                EnvVal::Value(val) => {
-                    let mut arg = key.clone();
-                    arg.push("=");
-                    arg.push(val);
-                    cmd.arg("--env").arg(arg);
-                }
-            }
-        }
-
-        for mnt in &self.mounts {
-            cmd.arg("--mount").arg(mnt);
-        }
-        if self.set_user {
-            cmd.arg("--user=999:999");
-        }
-        for port in &self.expose_ports {
-            cmd.arg(format!("--publish={0}:{0}", port));
-        }
-        cmd.arg(&self.image[..]);
-        cmd.arg(&self.cmd[..]);
-        for arg in &self.arguments {
-            cmd.arg(arg);
-        }
-        cmd.stop_process = Some(Box::new(move || {
-            let mut cmd = Command::new(&docker);
-            cmd.arg("stop");
-            cmd.arg(&name);
-            return cmd;
-        }));
-        return cmd;
-    }
-    pub fn feed(&self, data: impl AsRef<[u8]>) -> anyhow::Result<()> {
-        self.make_native(true).feed(data)
-    }
-    pub fn run(&mut self) -> anyhow::Result<()> {
-        self.make_native(false).run()
-    }
-    pub fn get_stdout_text(&mut self) -> anyhow::Result<String> {
-        self.make_native(false).get_stdout_text()
-    }
-    pub fn get_output(&mut self) -> anyhow::Result<Output> {
-        self.make_native(false).get_output()
-    }
-    pub fn background_for<T>(&mut self,
-        f: impl Future<Output=anyhow::Result<T>>)
-        -> anyhow::Result<T>
-    {
-        self.make_native(false).background_for(f)
-    }
-}
 
 async fn stdout_loop(marker: &str, pipe: Option<impl Read+Unpin>,
     capture_buffer: Option<&mut Vec<u8>>)

@@ -147,10 +147,8 @@ impl Build {
     pub fn specific(&self) -> Specific {
         Specific::from_str(&self.0[..]).expect("build version is valid")
     }
-    fn comparator(&self) -> crate::server::version::Version<&str> {
-        let end = self.0.as_bytes().iter().position(|&c| c == b'+')
-            .unwrap_or(self.0.len());
-        crate::server::version::Version(&self.0[..end])
+    fn comparator(&self) -> Specific {
+        self.specific()
     }
 }
 

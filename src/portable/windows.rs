@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::process;
 use crate::portable::local::{InstanceInfo};
 use crate::portable::status::{Service};
-use crate::server::options::{Logs};
+use crate::portable::options::{Logs};
 
 
 pub fn service_files(_name: &str) -> anyhow::Result<Vec<PathBuf>> {

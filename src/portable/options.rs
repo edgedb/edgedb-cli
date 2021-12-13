@@ -1,13 +1,12 @@
 use std::fmt;
 use std::str::FromStr;
 
-use clap::{AppSettings, ArgSettings, ValueHint};
+use clap::{ArgSettings, ValueHint};
 use serde::{Serialize, Deserialize};
 use edgedb_cli_derive::EdbClap;
 
-use crate::server::version::Version;
-use crate::server::methods::InstallMethod;
-use crate::server::is_valid_name;
+use crate::portable::local::is_valid_name;
+use crate::portable::ver;
 
 
 #[derive(EdbClap, Debug, Clone)]
@@ -63,10 +62,6 @@ pub enum Command {
     Uninstall(Uninstall),
     /// List available and installed versions of EdgeDB
     ListVersions(ListVersions),
-    /// Show system introspection debug info
-    #[clap(name="_detect")]
-    #[edb(hidden)]
-    _Detect(Detect),
 }
 
 #[derive(EdbClap, Debug, Clone)]
@@ -76,9 +71,7 @@ pub struct Install {
     #[clap(long)]
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
-    pub version: Option<Version<String>>,
-    #[clap(long, possible_values=&["package", "docker"][..])]
-    pub method: Option<InstallMethod>,
+    pub version: Option<ver::Filter>,
 }
 
 #[derive(EdbClap, Debug, Clone)]
@@ -94,14 +87,10 @@ pub struct Uninstall {
     pub nightly: bool,
     /// Uninstall specific version
     #[clap(long, conflicts_with="nightly")]
-    pub version: Option<Version<String>>,
+    pub version: Option<String>,
     /// Increase verbosity
     #[clap(short='v', long)]
     pub verbose: bool,
-
-    /// Delete docker and package installations
-    #[clap(long)]
-    pub deprecated_install_methods: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
@@ -118,10 +107,6 @@ pub struct ListVersions {
     /// Output in JSON format
     #[clap(long)]
     pub json: bool,
-
-    /// Show versions of docker and package installations
-    #[clap(long)]
-    pub deprecated_install_methods: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -143,9 +128,7 @@ pub struct Create {
     #[clap(long)]
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
-    pub version: Option<Version<String>>,
-    #[clap(long, possible_values=&["package", "docker"][..])]
-    pub method: Option<InstallMethod>,
+    pub version: Option<ver::Filter>,
     #[clap(long)]
     pub port: Option<u16>,
 
@@ -278,10 +261,6 @@ pub struct List {
     /// Output in JSON format
     #[clap(long, conflicts_with_all=&["extended", "debug"])]
     pub json: bool,
-
-    /// Show versions of docker and package installations
-    #[clap(long)]
-    pub deprecated_install_methods: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
@@ -333,7 +312,7 @@ pub struct Upgrade {
 
     /// Upgrade specified instance to a specified version
     #[clap(long, conflicts_with_all=&["to_nightly", "to_latest"])]
-    pub to_version: Option<Version<String>>,
+    pub to_version: Option<ver::Filter>,
 
     /// Upgrade specified instance to a latest nightly version
     #[clap(long, conflicts_with_all=&["to_version", "to_latest"])]
@@ -408,16 +387,9 @@ pub struct Info {
     #[clap(long)]
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
-    pub version: Option<Version<String>>,
-    #[clap(long, possible_values=&["package", "docker"][..])]
-    pub method: Option<InstallMethod>,
+    pub version: Option<ver::Filter>,
 }
 
-
-#[derive(EdbClap, Debug, Clone)]
-#[clap(setting=AppSettings::Hidden)]
-pub struct Detect {
-}
 
 impl FromStr for StartConf {
     type Err = anyhow::Error;

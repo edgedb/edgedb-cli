@@ -1,9 +1,9 @@
 use anyhow::Context;
 
 use crate::portable::local;
+use crate::portable::options::Info;
 use crate::portable::repository::Query;
 use crate::portable::ver;
-use crate::server::options::Info;
 use crate::table;
 
 
@@ -18,9 +18,6 @@ struct JsonInfo<'a> {
 pub fn info(options: &Info) -> anyhow::Result<()> {
     if !options.nightly && !options.latest && !options.version.is_some() {
         anyhow::bail!("One of `--latest`, `--nightly`, `--version=` required");
-    }
-    if options.method.is_some() {
-        return crate::server::info::info(options);
     }
     // note this assumes that latest is set if no nightly and version
     let query = Query::from_options(options.nightly, &options.version)?;

@@ -11,23 +11,19 @@ use crate::platform;
 use crate::portable::control::self_signed_arg;
 use crate::portable::exit_codes;
 use crate::portable::install;
-use crate::portable::local::{Paths, InstanceInfo, write_json};
+use crate::portable::local::{Paths, InstanceInfo, write_json, allocate_port};
+use crate::portable::options::{Create, StartConf};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
 use crate::portable::reset_password::{password_hash, generate_password};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, echo, Highlight};
 use crate::process;
-use crate::server::create::allocate_port;
-use crate::server::options::{Create, StartConf};
 
 use edgedb_client::credentials::Credentials;
 
 
 pub fn create(options: &Create) -> anyhow::Result<()> {
-    if options.method.is_some() {
-        return crate::server::create::create(options);
-    }
     if optional_docker_check()? {
         print::error(
             "`edgedb instance create` in a Docker container is not supported.",

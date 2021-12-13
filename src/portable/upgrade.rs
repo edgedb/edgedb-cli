@@ -13,11 +13,11 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
+use crate::portable::options::{Upgrade, StartConf};
 use crate::portable::project;
 use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
-use crate::server::options::{Upgrade, StartConf};
 
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]

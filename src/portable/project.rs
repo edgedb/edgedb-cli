@@ -7,11 +7,13 @@ use std::borrow::Cow;
 
 use anyhow::Context;
 use async_std::task;
+use clap::{ValueHint};
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 
 use edgedb_client::client::Connection;
 use edgedb_client::Builder;
+use edgedb_cli_derive::EdbClap;
 
 use crate::commands::ExitCode;
 use crate::connect::Connector;
@@ -25,18 +27,17 @@ use crate::portable::create;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::install;
-use crate::portable::upgrade;
-use crate::portable::local::{InstanceInfo, Paths};
+use crate::portable::local::{InstanceInfo, Paths, allocate_port, is_valid_name};
+use crate::portable::options::{instance_name_opt, StartConf};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
+use crate::portable::upgrade;
 use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
-use crate::project::options::{Info, Init, Unlink, Upgrade};
 use crate::question;
-use crate::server::create::allocate_port;
-use crate::server::is_valid_name;
-use crate::server::options::StartConf;
 use crate::table;
+
+
 
 
 const DEFAULT_ESDL: &str = "\
@@ -46,6 +47,134 @@ const DEFAULT_ESDL: &str = "\
 ";
 
 
+#[derive(EdbClap, Debug, Clone)]
+pub struct ProjectCommand {
+    #[clap(subcommand)]
+    pub subcommand: Command,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub enum Command {
+    /// Initialize a new or existing project
+    Init(Init),
+    /// Clean-up the project configuration
+    Unlink(Unlink),
+    /// Get various metadata about the project
+    Info(Info),
+    /// Upgrade EdgeDB instance used for the current project
+    ///
+    /// This command has two modes of operation.
+    ///
+    /// Upgrade instance to a version specified in `edgedb.toml`:
+    ///
+    ///     project upgrade
+    ///
+    /// Update `edgedb.toml` to a new version and upgrade the instance:
+    ///
+    ///     project upgrade --to-latest
+    ///     project upgrade --to-version=1-beta2
+    ///     project upgrade --to-nightly
+    ///
+    /// In all cases your data is preserved and converted using dump/restore
+    /// mechanism. This might fail if lower version is specified (for example
+    /// if upgrading from nightly to the stable version).
+    Upgrade(Upgrade),
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Init {
+    /// Specifies a project root directory explicitly.
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    /// Specifies the desired EdgeDB server version
+    #[clap(long)]
+    pub server_version: Option<Query>,
+
+    /// Specifies whether the existing EdgeDB server instance
+    /// should be linked with the project
+    #[clap(long)]
+    pub link: bool,
+
+    /// Specifies the EdgeDB server instance to be associated with the project
+    #[clap(long, validator(instance_name_opt))]
+    pub server_instance: Option<String>,
+
+    /// Specifies whether to start EdgeDB automatically
+    #[clap(long, default_value="auto",
+           possible_values=&["auto", "manual"][..])]
+    pub server_start_conf: Option<StartConf>,
+
+    /// Skip running migrations
+    ///
+    /// There are two main use cases for this option:
+    /// 1. With `--link` option to connect to a datastore with existing data
+    /// 2. To initialize a new instance but then restore dump to it
+    #[clap(long)]
+    pub no_migrations: bool,
+
+    /// Run in non-interactive mode (accepting all defaults)
+    #[clap(long)]
+    pub non_interactive: bool,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Unlink {
+    /// Specifies a project root directory explicitly.
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    /// If specified, the associated EdgeDB instance is destroyed by running
+    /// `edgedb instance destroy`.
+    #[clap(long, short='D')]
+    pub destroy_server_instance: bool,
+
+    #[clap(long)]
+    pub non_interactive: bool,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Info {
+    /// Specifies a project root directory explicitly.
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    /// Display only the instance name
+    #[clap(long)]
+    pub instance_name: bool,
+
+    /// Output in JSON format
+    #[clap(long)]
+    pub json: bool,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Upgrade {
+    /// Specifies a project root directory explicitly.
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    /// Upgrade to a latest stable version
+    #[clap(long)]
+    pub to_latest: bool,
+
+    /// Upgrade to a specified major version
+    #[clap(long)]
+    pub to_version: Option<ver::Filter>,
+
+    /// Upgrade to a latest nightly version
+    #[clap(long)]
+    pub to_nightly: bool,
+
+    /// Verbose output
+    #[clap(short='v', long)]
+    pub verbose: bool,
+
+    /// Force upgrade process even if there is no new version
+    #[clap(long)]
+    pub force: bool,
+}
+
 pub struct Handle {
     name: String,
     instance: InstanceKind,
@@ -54,7 +183,6 @@ pub struct Handle {
 pub enum InstanceKind {
     Remote,
     Portable(InstanceInfo),
-    Deprecated,
 }
 
 #[derive(serde::Serialize)]
@@ -66,9 +194,6 @@ struct JsonInfo<'a> {
 
 
 pub fn init(options: &Init) -> anyhow::Result<()> {
-    if options.server_install_method.is_some() {
-        return crate::project::init::init(options);
-    }
     if optional_docker_check()? {
         print::error(
             "`edgedb project init` in a Docker container is not supported.",
@@ -267,8 +392,8 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     let schema_files = find_schema_files(&schema_dir)?;
     let config = config::read(&config_path)?;
 
-    let ver_query = if options.server_version.is_some() {
-        Query::from_option(&options.server_version)?
+    let ver_query = if let Some(sver) = &options.server_version {
+        sver.clone()
     } else {
         config.edgedb.server_version
     };
@@ -582,7 +707,6 @@ fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
 impl InstanceKind {
     fn is_local(&self) -> bool {
         match self {
-            InstanceKind::Deprecated => true,
             InstanceKind::Portable(_) => true,
             InstanceKind::Remote => false,
         }
@@ -591,30 +715,16 @@ impl InstanceKind {
 
 impl Handle {
     pub fn probe(name: &str) -> anyhow::Result<Handle> {
-        use crate::server::errors::InstanceNotFound;
-
         if let Some(info) = InstanceInfo::try_read(name)? {
             return Ok(Handle {
                 name: name.into(),
                 instance: InstanceKind::Portable(info),
             });
         };
-        let os = crate::server::detect::current_os()?;
-        let methods = os
-            .get_available_methods()?
-            .instantiate_all(&*os, true)?;
-        let inst_info = crate::server::control::get_instance(&methods, name);
-        match inst_info {
-            Ok(_) => Ok(Handle {
-                name: name.into(),
-                instance: InstanceKind::Deprecated,
-            }),
-            Err(e) if e.is::<InstanceNotFound>() => Ok(Handle {
-                name: name.into(),
-                instance: InstanceKind::Remote,
-            }),
-            Err(e) => return Err(e),
-        }
+        Ok(Handle {
+            name: name.into(),
+            instance: InstanceKind::Remote,
+        })
     }
     pub async fn get_builder(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::uninitialized();
@@ -712,7 +822,7 @@ fn write_config(path: &Path, version: &Query) -> anyhow::Result<()> {
 }
 
 fn ask_version(options: &Init) -> anyhow::Result<PackageInfo> {
-    let ver_query = Query::from_option(&options.server_version)?;
+    let ver_query = options.server_version.clone().unwrap_or(Query::stable());
     if options.non_interactive || options.server_version.is_some() {
         let pkg = repository::get_server_package(&ver_query)?
             .with_context(|| format!("no package matching {} found",
@@ -1014,9 +1124,6 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
         let inst = match inst.instance {
             InstanceKind::Remote
                 => anyhow::bail!("remote instances cannot be upgraded"),
-            InstanceKind::Deprecated
-                => anyhow::bail!("deprecated instances cannot be upgraded. \
-                                  Please create a portable instance instead"),
             InstanceKind::Portable(inst) => inst,
         };
         let inst_ver = inst.installation.version.specific();
@@ -1095,9 +1202,6 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
     let inst = match inst.instance {
         InstanceKind::Remote
             => anyhow::bail!("remote instances cannot be upgraded"),
-        InstanceKind::Deprecated
-            => anyhow::bail!("deprecated instances cannot be upgraded. \
-                              Please create a portable instance instead"),
         InstanceKind::Portable(inst) => inst,
     };
     let inst_ver = inst.installation.version.specific();

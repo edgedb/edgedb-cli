@@ -13,8 +13,8 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 
 use crate::credentials;
 use crate::portable::local::InstanceInfo;
+use crate::portable::options::ResetPassword;
 use crate::print;
-use crate::server::options::ResetPassword;
 
 
 const PASSWORD_LENGTH: usize = 24;
