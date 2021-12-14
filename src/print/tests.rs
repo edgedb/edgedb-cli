@@ -150,14 +150,14 @@ fn array_ellipsis() {
             Value::Int64(20),
             Value::Int64(30),
         ]),
-    ], Config::new().max_items(2)).unwrap(), "{[10, 20, ...]}");
+    ], Config::new().max_items(Some(2))).unwrap(), "{[10, 20, ...]}");
     assert_eq!(test_format_cfg(&[
         Value::Array(vec![
             Value::Int64(10),
             Value::Int64(20),
             Value::Int64(30),
         ]),
-    ], Config::new().max_items(2).max_width(10)).unwrap(), r###"{
+    ], Config::new().max_items(Some(2)).max_width(10)).unwrap(), r###"{
   [
     10,
     20,
@@ -168,7 +168,7 @@ fn array_ellipsis() {
         Value::Array(vec![
             Value::Int64(10),
         ]),
-    ], Config::new().max_items(2)).unwrap(), "{[10]}");
+    ], Config::new().max_items(Some(2))).unwrap(), "{[10]}");
 }
 
 #[test]
@@ -186,12 +186,12 @@ fn set_ellipsis() {
             Value::Int64(20),
             Value::Int64(30),
         ]),
-    ], Config::new().max_items(2)).unwrap(), "{{10, 20, ...}}");
+    ], Config::new().max_items(Some(2))).unwrap(), "{{10, 20, ...}}");
     assert_eq!(test_format_cfg(&[
         Value::Set(vec![
             Value::Int64(10),
         ]),
-    ], Config::new().max_items(2)).unwrap(), "{{10}}");
+    ], Config::new().max_items(Some(2))).unwrap(), "{{10}}");
 }
 
 #[test]
