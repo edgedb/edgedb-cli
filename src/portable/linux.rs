@@ -1,4 +1,5 @@
 use std::fs;
+use std::env;
 use std::path::{PathBuf};
 
 use anyhow::Context;
@@ -62,7 +63,7 @@ pub fn create_service(info: &InstanceInfo)
 }
 
 #[context("cannot compose service file")]
-pub fn systemd_unit(name: &str, info: &InstanceInfo) -> anyhow::Result<String>
+pub fn systemd_unit(name: &str, _info: &InstanceInfo) -> anyhow::Result<String>
 {
     Ok(format!(r###"
 [Unit]
@@ -73,11 +74,10 @@ After=network.target
 
 [Service]
 Type=notify
+NotifyAccess=all
 
-Environment="EDGEDATA={data_dir}" "EDGEDB_SERVER_INSTANCE_NAME={instance_name}" "EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS=1"
 RuntimeDirectory=edgedb-{instance_name}
-
-ExecStart={server_path} --data-dir=${{EDGEDATA}} --runstate-dir=%t/edgedb-{instance_name} --port={port}
+ExecStart={executable} instance start {instance_name} --managed-by=systemd
 ExecReload=/bin/kill -HUP ${{MAINPID}}
 KillMode=mixed
 TimeoutSec=0
@@ -86,9 +86,9 @@ TimeoutSec=0
 WantedBy=default.target
     "###,
         instance_name=name,
-        data_dir=info.data_dir()?.display(),
-        server_path=info.server_path()?.display(),
-        port=info.port,
+        executable=env::current_exe()
+            .context("cannot get executable path")?
+            .display(),
     ))
 }
 
@@ -158,6 +158,8 @@ pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     let server_path = inst.server_path()?;
     let mut pro = process::Native::new("edgedb", "edgedb", server_path);
     pro.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
+    pro.env_default("EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY", "optional");
+    pro.env_default("EDGEDB_SERVER_INSTANCE_NAME", &inst.name);
     pro.arg("--data-dir").arg(data_dir);
     pro.arg("--runstate-dir").arg(runstate_dir(&inst.name)?);
     pro.arg("--port").arg(inst.port.to_string());

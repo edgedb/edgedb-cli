@@ -1,7 +1,11 @@
+use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::time;
 use std::thread;
+use std::time;
+
+use anyhow::Context;
+use fn_error_context::context;
 
 use crate::commands::ExitCode;
 use crate::platform::{home_dir, get_current_uid, cache_dir, data_dir};
@@ -61,7 +65,8 @@ fn log_file(name: &str) -> anyhow::Result<PathBuf> {
     Ok(cache_dir()?.join(format!("logs/{}.log", name)))
 }
 
-fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
+#[context("cannot compose plist file")]
+fn plist_data(name: &str, _info: &InstanceInfo) -> anyhow::Result<String> {
     Ok(format!(r###"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
@@ -73,19 +78,12 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
 
     <key>ProgramArguments</key>
     <array>
-        <string>{server_path}</string>
-        <string>--data-dir={data_dir}</string>
-        <string>--runstate-dir={runstate_dir}</string>
-        <string>--port={port}</string>
-    </array>
-
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>EDGEDB_SERVER_INSTANCE_NAME</key>
+        <string>{executable}</string>
+        <string>instance</string>
+        <string>start</string>
         <string>{instance_name}</string>
-        <key>EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS</key>
-        <string>1</string>
-    </dict>
+        <string>--managed-by=launchctl</string>
+    </array>
 
     <key>StandardOutPath</key>
     <string>{log_path}</string>
@@ -101,11 +99,10 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
 </plist>
 "###,
         instance_name=name,
-        data_dir=info.data_dir()?.display(),
-        server_path=info.server_path()?.display(),
-        runstate_dir=runstate_dir(&name)?.display(),
+        executable=env::current_exe()
+            .context("cannot get executable path")?
+            .display(),
         log_path=log_file(&name)?.display(),
-        port=info.port,
     ))
 }
 
@@ -241,6 +238,8 @@ pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     let server_path = inst.server_path()?;
     let mut pro = process::Native::new("edgedb", "edgedb", server_path);
     pro.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
+    pro.env_default("EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY", "optional");
+    pro.env_default("EDGEDB_SERVER_INSTANCE_NAME", &inst.name);
     pro.arg("--data-dir").arg(data_dir);
     pro.arg("--runstate-dir").arg(runstate_dir);
     pro.arg("--port").arg(inst.port.to_string());
