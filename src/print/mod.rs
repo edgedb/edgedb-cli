@@ -91,8 +91,8 @@ impl Config {
         self.max_width = Some(value);
         self
     }
-    pub fn max_items(&mut self, value: usize) -> &mut Config {
-        self.max_items = Some(value);
+    pub fn max_items(&mut self, value: Option<usize>) -> &mut Config {
+        self.max_items = value;
         self
     }
     pub fn colors(&mut self, value: bool) -> &mut Config {

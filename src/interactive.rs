@@ -96,10 +96,11 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
     let (repl_wr, repl_rd) = channel(1);
     let conn = options.create_connector()?;
     let limit = cfg.shell.limit.unwrap_or(100);
+    let implicit_limit = if limit != 0 { Some(limit) } else { None };
     let idle_tx_timeout = cfg.shell.idle_transaction_timeout
         .unwrap_or_else(|| Duration::from_micros(5 * 60_000_000));
     let print = print::Config::new()
-        .max_items(limit)
+        .max_items(implicit_limit)
         .expand_strings(cfg.shell.expand_strings.unwrap_or(true))
         .implicit_properties(cfg.shell.implicit_properties.unwrap_or(false))
         .colors(atty::is(atty::Stream::Stdout))
@@ -114,7 +115,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         print,
         verbose_errors: cfg.shell.verbose_errors.unwrap_or(false),
         last_error: None,
-        implicit_limit: if limit != 0 { Some(limit) } else { None },
+        implicit_limit: implicit_limit,
         idle_transaction_timeout: idle_tx_timeout,
         output_format: options.output_format
             .or(cfg.shell.output_format)
