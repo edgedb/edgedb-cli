@@ -229,6 +229,10 @@ pub struct Start {
                     launchctl to manage the process (note: you might need to \
                     stop non-foreground instance first)"))]
     pub foreground: bool,
+
+    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(possible_values=&["systemd", "launchctl"][..])]
+    pub managed_by: Option<String>,
 }
 
 #[derive(EdbClap, Debug, Clone)]

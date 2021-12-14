@@ -62,7 +62,7 @@ pub fn ensure_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
 pub fn start(options: &Start) -> anyhow::Result<()> {
     let meta = InstanceInfo::read(&options.name)?;
     ensure_runstate_dir(&meta.name)?;
-    if options.foreground {
+    if options.foreground || options.managed_by.is_some() {
         get_server_cmd(&meta)?
             .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
             .no_proxy()
