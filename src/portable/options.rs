@@ -230,6 +230,11 @@ pub struct Start {
                     stop non-foreground instance first)"))]
     pub foreground: bool,
 
+    /// With `--foreground` stops server running in background. And restarts
+    /// the service back on exit.
+    #[clap(long)]
+    pub auto_restart: bool,
+
     #[clap(long, setting=ArgSettings::Hidden)]
     #[clap(possible_values=&["systemd", "launchctl"][..])]
     pub managed_by: Option<String>,

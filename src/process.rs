@@ -230,7 +230,7 @@ impl Native {
             .join(stdout_loop(mark, err, capture_err.then(|| &mut stderr)))
             .race(self.signal_loop(pid, &term))
             .await;
-        term.exit_if_occurred();
+        term.err_if_occurred()?;
         let status = child_result.with_context(|| format!(
                 "failed to get status of {} (command-line: {:?})",
                 self.description, self.command))?;
@@ -250,7 +250,7 @@ impl Native {
         let pid = child.id();
         let child_result = child.status()
             .race(self.signal_loop(pid, &term)).await;
-        term.exit_if_occurred();
+        term.err_if_occurred()?;
         let status = child_result.with_context(|| format!(
                 "failed to get status of {} (command-line: {:?})",
                 self.description, self.command))?;
@@ -280,7 +280,7 @@ impl Native {
             .join(stdout_loop(&self.marker, err, None))
             .race(self.signal_loop(pid, &term))
             .await;
-        term.exit_if_occurred();
+        term.err_if_occurred()?;
         return result;
     }
 
@@ -306,7 +306,7 @@ impl Native {
             .join(stdout_loop(&self.marker, err, None))
             .race(self.signal_loop(pid, &term))
             .await;
-        term.exit_if_occurred();
+        term.err_if_occurred()?;
         let status = child_result.with_context(|| format!(
                 "failed to get status of {} (command-line: {:?})",
                 self.description, self.command))?;
