@@ -11,6 +11,8 @@ use arc_swap::ArcSwapOption;
 use futures_util::task::AtomicWaker;
 use backtrace::Backtrace;
 
+use crate::commands::ExitCode;
+
 
 static CUR_INTERRUPT: ArcSwapOption<SignalState> = ArcSwapOption::const_empty();
 
@@ -61,10 +63,14 @@ impl Event {
     fn wait(&self) -> EventWait {
         EventWait(&*self)
     }
+    fn clear(&self) {
+        self.first.store(None);
+        self.last.store(None);
+    }
 }
 
 #[cfg(unix)]
-pub fn exit_on(signal: Signal) -> ! {
+fn signal_message(signal: Signal) -> i32 {
     let id = signal.to_unix();
     if signal == Signal::Interrupt {
         log::warn!("Exiting due to interrupt");
@@ -72,12 +78,18 @@ pub fn exit_on(signal: Signal) -> ! {
         log::warn!("Exiting on signal {}",
             signal_hook::low_level::signal_name(id).unwrap_or("<unknown>"));
     }
-    process::exit(128 + id);
+    return id;
 }
 
 #[cfg(windows)]
-pub fn exit_on(_signal: Signal) -> ! {
-    _win_exit_on_interrupt();
+fn signal_message(_signal: Signal) -> i32 {
+    log::warn!("Exiting due to interrupt");
+    return 2;  // same as SIGINT on linux
+}
+
+fn exit_on(signal: Signal) -> ! {
+    let id = signal_message(signal);
+    process::exit(128 + id);
 }
 
 #[allow(dead_code)]
@@ -149,10 +161,12 @@ impl Interrupt {
     pub async fn wait(&self) -> Signal {
         self.event.wait().await
     }
-    pub fn exit_if_occurred(&self) {
+    pub fn err_if_occurred(&self) -> anyhow::Result<()> {
         if let Some(sig) = self.event.first.load() {
-            exit_on(sig);
+            self.event.clear();
+            return Err(ExitCode::new(signal_message(sig)).into());
         }
+        Ok(())
     }
 }
 
