@@ -2,11 +2,10 @@ use std::borrow::Cow;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
+use std::fs;
 use std::future::{Future, pending};
 use std::path::{Path};
 use std::process::exit;
-
-use once_cell::sync::Lazy;
 
 use anyhow::Context;
 use async_process::{Command, Stdio, ExitStatus, Output};
@@ -15,7 +14,7 @@ use async_std::io::{self, Read, ReadExt, BufReader, WriteExt};
 use async_std::prelude::{FutureExt, StreamExt};
 use async_std::task;
 use colorful::{Colorful, Color};
-
+use once_cell::sync::Lazy;
 
 use crate::interrupt;
 
@@ -111,6 +110,21 @@ impl Native {
         self.proxy = false;
         self
     }
+
+    pub fn log_file(&mut self, path: &Path) -> anyhow::Result<&mut Self>
+    {
+        if let Some(dir) = path.parent() {
+            fs::create_dir_all(&dir)?;
+        }
+        let file = fs::OpenOptions::new()
+            .write(true).append(true).create(true)
+            .open(&path)
+            .with_context(|| format!("cannot open log file {:?}", path))?;
+        self.command.stdout(file.try_clone().context("cannot clone file")?);
+        self.command.stderr(file);
+        self.proxy = false;
+        Ok(self)
+    }
     pub fn arg(&mut self, val: impl AsRef<OsStr>) -> &mut Self {
         self.command.arg(val);
         self
@@ -183,9 +197,15 @@ impl Native {
                           self.description, output.status, self.command);
         }
     }
-    #[allow(dead_code)]
     pub fn get_output(&mut self) -> anyhow::Result<Output> {
         task::block_on(self._run(true, true))
+    }
+
+    /// EOS for stdout here means that process is safefully started.
+    /// We return stdout as text just because we can and we might find a
+    /// useful case for this later.
+    pub fn daemonize_with_stdout(&mut self) -> anyhow::Result<Vec<u8>> {
+        task::block_on(self._daemonize())
     }
 
     #[allow(dead_code)]
@@ -236,6 +256,37 @@ impl Native {
                 self.description, self.command))?;
         log::debug!("Result of {}: {}", self.description, status);
         Ok(Output { status, stdout, stderr })
+    }
+
+    async fn _daemonize(&mut self) -> anyhow::Result<Vec<u8>> {
+        let term = interrupt::Interrupt::term();
+        let mut stdout = Vec::new();
+        log::info!("Daemonizing {}: {:?}", self.description, self.command);
+        self.command.stdout(Stdio::piped());
+        let mut child = self.command.spawn()
+            .with_context(|| format!(
+                "{} failed to start (command-line: {:?})",
+                self.description, self.command))?;
+        let pid = child.id();
+
+        let mark = &self.marker;
+        let out = child.stdout.take();
+        async { Err(child.status().await) }
+            .race(async { Ok(stdout_loop(mark, out, Some(&mut stdout)).await) })
+            .race(self.signal_loop(pid, &term))
+            .await
+            .map_err(|res| match res {
+                Ok(status) => anyhow::anyhow!(
+                    "failed to run {} (command-line: {:?}): {}",
+                    self.description, self.command, status),
+                Err(e) => anyhow::anyhow!(
+                    "failed to run {} (command-line: {:?}): {}",
+                    self.description, self.command, e),
+            })?;
+        term.err_if_occurred()?;
+        log::debug!("Process {} daemonized with output: {:?}",
+                    self.description, stdout);
+        Ok(stdout)
     }
 
     async fn _status(&mut self) -> anyhow::Result<ExitStatus> {

@@ -20,10 +20,6 @@ pub fn stop_and_disable(_name: &str) -> anyhow::Result<bool> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }
 
-pub fn runstate_dir(_name: &str) -> anyhow::Result<PathBuf> {
-    anyhow::bail!("running server is not supported on Windows yet");
-}
-
 pub fn server_cmd(_inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     anyhow::bail!("running server is not supported on Windows yet");
 }

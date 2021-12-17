@@ -1,7 +1,9 @@
+use std::env;
 use std::path::{Path, PathBuf};
 use std::ffi::OsString;
 
 use anyhow::Context;
+use fn_error_context::context;
 
 
 #[cfg(windows)]
@@ -145,4 +147,9 @@ pub fn portable_dir() -> anyhow::Result<PathBuf> {
     Ok(dirs::data_dir()
         .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
         .join("edgedb").join("portable"))
+}
+
+#[context("cannot determine running executable path")]
+pub fn current_exe() -> anyhow::Result<PathBuf> {
+    Ok(env::current_exe()?)
 }

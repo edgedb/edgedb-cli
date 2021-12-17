@@ -1,15 +1,14 @@
-use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::thread;
 use std::time;
 
-use anyhow::Context;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
-use crate::platform::{home_dir, get_current_uid, cache_dir, data_dir};
-use crate::portable::local::{InstanceInfo};
+use crate::platform::{home_dir, get_current_uid, data_dir};
+use crate::platform::{current_exe};
+use crate::portable::local::{InstanceInfo, log_file, runstate_dir};
 use crate::portable::options::{StartConf, Logs};
 use crate::portable::status::Service;
 use crate::print::{self, echo, Highlight};
@@ -53,18 +52,6 @@ pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
     }
 }
 
-fn runtime_base() -> anyhow::Result<PathBuf> {
-    Ok(cache_dir()?.join("run"))
-}
-
-pub fn runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(runtime_base()?.join(name))
-}
-
-fn log_file(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(cache_dir()?.join(format!("logs/{}.log", name)))
-}
-
 #[context("cannot compose plist file")]
 fn plist_data(name: &str, _info: &InstanceInfo) -> anyhow::Result<String> {
     Ok(format!(r###"
@@ -99,9 +86,7 @@ fn plist_data(name: &str, _info: &InstanceInfo) -> anyhow::Result<String> {
 </plist>
 "###,
         instance_name=name,
-        executable=env::current_exe()
-            .context("cannot get executable path")?
-            .display(),
+        executable=current_exe()?.display(),
         log_path=log_file(&name)?.display(),
     ))
 }
@@ -121,7 +106,9 @@ fn _create_service(info: &InstanceInfo) -> anyhow::Result<()>
     let plist_path = plist_dir_path.join(&plist_name(name));
     let unit_name = launchd_name(name);
     fs::write(&plist_path, plist_data(name, info)?)?;
-    fs::create_dir_all(runtime_base()?)?;
+    if let Some(dir) = runstate_dir(name)?.parent() {
+        fs::create_dir_all(dir)?;
+    }
 
     // Clear the disabled status of the unit name, in case the user disabled
     // a service with the same name some time ago and it's likely forgotten
