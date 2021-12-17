@@ -10,8 +10,7 @@ use fn_error_context::context;
 use edgedb_client::Builder;
 
 use crate::credentials;
-use crate::platform::{portable_dir, data_dir, config_dir};
-use crate::portable::control;
+use crate::platform::{portable_dir, data_dir, config_dir, cache_dir};
 use crate::portable::options::StartConf;
 use crate::portable::repository::PackageHash;
 use crate::portable::ver;
@@ -51,6 +50,23 @@ pub struct InstallInfo {
 
 fn port_file() -> anyhow::Result<PathBuf> {
     Ok(config_dir()?.join("instance_ports.json"))
+}
+
+pub fn log_file(name: &str) -> anyhow::Result<PathBuf> {
+    Ok(cache_dir()?.join(format!("logs/{}.log", name)))
+}
+
+pub fn lock_file(name: &str) -> anyhow::Result<PathBuf> {
+    Ok(runstate_dir(name)?.join("service.lock"))
+}
+
+pub fn runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
+    if cfg!(target_os="linux") {
+        if let Some(dir) = dirs::runtime_dir() {
+            return Ok(dir.join(format!("edgedb-{}", name)))
+        }
+    }
+    Ok(cache_dir()?.join("run").join(name))
 }
 
 pub fn read_ports() -> anyhow::Result<BTreeMap<String, u16>> {
@@ -247,8 +263,8 @@ impl InstanceInfo {
     pub async fn admin_conn_params(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::uninitialized();
         builder.host_port(
-            Some(control::get_runstate_dir(&self.name)?
-                 .to_str().context("bad characters in runstate dir")?),
+            Some(runstate_dir(&self.name)?.to_str()
+                 .context("bad characters in runstate dir")?),
             Some(self.port),
         );
         builder.admin(true);

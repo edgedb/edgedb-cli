@@ -9,7 +9,7 @@ use fn_error_context::context;
 use fs_err as fs;
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::platform::{home_dir, binary_path, tmp_file_path};
+use crate::platform::{home_dir, binary_path, tmp_file_path, current_exe};
 use crate::print::{self, echo, Highlight};
 use crate::process;
 use crate::portable::ver;
@@ -47,8 +47,7 @@ pub fn old_binary_path() -> anyhow::Result<PathBuf> {
 }
 
 fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {
-    let exe_path = env::current_exe()
-        .with_context(|| format!("cannot determine running executable path"))?;
+    let exe_path = current_exe()?;
     Ok(exe_path == path ||
        matches!(old_binary_path(), Ok(old) if exe_path == old))
 }

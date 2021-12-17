@@ -232,11 +232,12 @@ pub struct Start {
 
     /// With `--foreground` stops server running in background. And restarts
     /// the service back on exit.
-    #[clap(long)]
+    #[clap(long, conflicts_with="managed_by")]
     pub auto_restart: bool,
 
     #[clap(long, setting=ArgSettings::Hidden)]
-    #[clap(possible_values=&["systemd", "launchctl"][..])]
+    #[clap(possible_values=&["systemd", "launchctl", "edgedb-cli"][..])]
+    #[clap(conflicts_with="auto_restart")]
     pub managed_by: Option<String>,
 }
 

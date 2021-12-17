@@ -5,7 +5,7 @@ use fn_error_context::context;
 use fs_err as fs;
 
 use crate::credentials;
-use crate::portable::local::InstanceInfo;
+use crate::portable::local::{InstanceInfo, runstate_dir, lock_file};
 use crate::portable::options::{Start, Stop, Restart, Logs};
 use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
@@ -42,20 +42,8 @@ pub fn get_server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     }
 }
 
-pub fn get_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
-    if cfg!(windows) {
-        windows::runstate_dir(&name)
-    } else if cfg!(target_os="macos") {
-        macos::runstate_dir(&name)
-    } else if cfg!(target_os="linux") {
-        linux::runstate_dir(&name)
-    } else {
-        anyhow::bail!("unsupported platform");
-    }
-}
-
 pub fn ensure_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
-    let runstate_dir = get_runstate_dir(name)?;
+    let runstate_dir = runstate_dir(name)?;
     fs::create_dir_all(&runstate_dir)?;
     Ok(runstate_dir)
 }
@@ -72,11 +60,75 @@ fn write_lock_info(path: &Path, lock: &mut fs::File,
     Ok(())
 }
 
+#[cfg(unix)]
+fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
+    use std::os::unix::io::AsRawFd;
+    use std::io;
+    use async_std::future::pending;
+    use async_std::os::unix::net::UnixDatagram;
+    use async_std::task;
+    use crate::portable::local::log_file;
+
+    unsafe { libc::setsid() };
+
+    let log_path = log_file(&meta.name)?;
+    let log_file = fs::OpenOptions::new()
+        .create(true).write(true).append(true)
+        .open(&log_path)?;
+    let null = fs::OpenOptions::new().write(true).open("/dev/null")?;
+    let notify_socket = runstate_dir(&meta.name)?.join(".s.daemon");
+    if notify_socket.exists() {
+        fs::remove_file(&notify_socket)?;
+    }
+    if let Some(dir) = notify_socket.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let sock = task::block_on(UnixDatagram::bind(&notify_socket))
+        .context("cannot create notify socket")?;
+
+    get_server_cmd(&meta)?
+        .env("NOTIFY_SOCKET", &notify_socket)
+        .log_file(&log_path)?
+        .background_for(async {
+            let mut buf = [0u8; 1024];
+            while !matches!(sock.recv(&mut buf).await,
+                           Ok(len) if &buf[..len] == b"READY=1")
+            { };
+
+            // Redirect stderr to log file, right before daemonizing.
+            // So that all early errors are visible, but all later ones
+            // (i.e. a message on term) do not clobber user's terminal.
+            if unsafe { libc::dup2(log_file.as_raw_fd(), 2) } < 0 {
+                return Err(io::Error::last_os_error())
+                    .context("cannot close stdout")?;
+            }
+            drop(log_file);
+
+            // Closing stdout to notify that daemon is successfully started.
+            // Note: we can't just close the file descriptor as it will be
+            // replaced with something unexpected on any next new file
+            // descriptor creation. So we replace it with `/dev/null` (the
+            // writing end of the original pipe is closed at this point).
+            if unsafe { libc::dup2(null.as_raw_fd(), 1) } < 0 {
+                return Err(io::Error::last_os_error())
+                    .context("cannot close stdout")?;
+            }
+            drop(null);
+
+            Ok(pending::<()>().await)
+        })
+}
+
+#[cfg(windows)]
+fn run_server_by_cli() -> anyhow::Result<()> {
+    anyhow::bail!("daemonizing is not yet supported for Windows");
+}
+
 pub fn start(options: &Start) -> anyhow::Result<()> {
     let meta = InstanceInfo::read(&options.name)?;
-    let runstate_dir = ensure_runstate_dir(&meta.name)?;
+    ensure_runstate_dir(&meta.name)?;
     if options.foreground || options.managed_by.is_some() {
-        let lock_path = runstate_dir.join("service.lock");
+        let lock_path = lock_file(&meta.name)?;
         let lock_file = fs::OpenOptions::new()
             .create(true).write(true).read(true)
             .open(&lock_path)
@@ -117,18 +169,23 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             write_lock_info(&lock_path, &mut *lock, &options.managed_by)?;
             lock
         };
-        let res = get_server_cmd(&meta)?
-            .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
-            .no_proxy()
-            .run();
-        drop(lock);
-        if needs_restart {
-            log::warn!("Restarting service back into background...");
-            do_start(&meta).map_err(|e| {
-                log::warn!("Error starting service: {}", e);
-            }).ok();
+        if matches!(options.managed_by.as_deref(), Some("edgedb-cli")) {
+            debug_assert!(!needs_restart);
+            run_server_by_cli(&meta)
+        } else {
+            let res = get_server_cmd(&meta)?
+                .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
+                .no_proxy()
+                .run();
+            drop(lock);
+            if needs_restart {
+                log::warn!("Restarting service back into background...");
+                do_start(&meta).map_err(|e| {
+                    log::warn!("Error starting service: {}", e);
+                }).ok();
+            }
+            Ok(res?)
         }
-        Ok(res?)
     } else {
         do_start(&meta)
     }

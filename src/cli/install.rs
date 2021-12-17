@@ -18,6 +18,7 @@ use prettytable::{Table, Row, Cell};
 use crate::cli::migrate;
 use crate::options::RawOptions;
 use crate::platform::{home_dir, config_dir, get_current_uid, binary_path};
+use crate::platform::{current_exe};
 use crate::print::{self, echo, Highlight};
 use crate::print_markdown;
 use crate::process;
@@ -491,8 +492,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     } else {
         settings.installation_path.join("edgedb")
     };
-    let exe_path = env::current_exe()
-        .with_context(|| format!("cannot determine running executable path"))?;
+    let exe_path = current_exe()?;
     fs::create_dir_all(&settings.installation_path)
         .with_context(|| format!("failed to create {:?}",
                                  settings.installation_path))?;
