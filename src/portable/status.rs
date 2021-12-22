@@ -16,9 +16,11 @@ use edgedb_client::{Builder, credentials::Credentials};
 
 use crate::credentials;
 use crate::format;
+use crate::process;
 use crate::platform::{data_dir};
+use crate::portable::control;
 use crate::portable::local::{InstanceInfo, Paths};
-use crate::portable::local::{read_ports, is_valid_name};
+use crate::portable::local::{read_ports, is_valid_name, lock_file};
 use crate::portable::options::{Status, List};
 use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::{windows, linux, macos};
@@ -122,19 +124,52 @@ fn external_status(options: &Status) -> anyhow::Result<()> {
     }
 }
 
+fn is_run_by_supervisor(name: &str) -> anyhow::Result<Option<bool>> {
+    let lock_path = lock_file(name)?;
+    match fs::read_to_string(&lock_path) {
+        Ok(s) if s == "systemd" && cfg!(target_os="linux") => Ok(Some(true)),
+        Ok(s) if s == "launchctl" && cfg!(target_os="macos") => Ok(Some(true)),
+        Ok(_) => Ok(Some(false)),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e).context(format!("cannot read {:?}", lock_path))?,
+    }
+}
+
+fn service_status(name: &str) -> anyhow::Result<Service> {
+    let run_by_super = is_run_by_supervisor(name)?;
+    let mut pid = None;
+    if !run_by_super.unwrap_or(false) {
+        if let Some(file_pid) = control::read_pid(name)? {
+            if process::exists(file_pid) {
+                pid = Some(file_pid);
+            }
+        }
+    };
+
+    let service = if let Some(pid) = pid {
+        Service::Running { pid }
+    } else if control::detect_supervisor(name) {
+        if cfg!(windows) {
+            windows::service_status(name)
+        } else if cfg!(target_os="macos") {
+            macos::service_status(name)
+        } else if cfg!(target_os="linux") {
+            linux::service_status(name)
+        } else {
+            anyhow::bail!("unsupported platform")
+        }
+    } else {
+        anyhow::bail!("no supervisor is found and no active pid exists");
+    };
+    Ok(service)
+}
+
 fn status_from_meta(name: &str, paths: &Paths,
                     instance: anyhow::Result<InstanceInfo>)
     -> FullStatus
 {
-    let service = if cfg!(windows) {
-        windows::service_status(name)
-    } else if cfg!(target_os="macos") {
-        macos::service_status(name)
-    } else if cfg!(target_os="linux") {
-        linux::service_status(name)
-    } else {
-        Service::Inactive { error: "unsupported platform".into() }
-    };
+    let service = service_status(name)
+        .unwrap_or_else(|e| Service::Inactive { error: e.to_string() });
     let reserved_port = read_ports().ok()
         .and_then(|map| map.get(name).cloned());
     let port_status = probe_port(&instance, &reserved_port);
@@ -419,7 +454,7 @@ impl FullStatus {
         println!("{}:", self.name);
 
         print!("  Status: ");
-        match self.service {
+        match &self.service {
             Service::Running { pid } => {
                 println!("running, pid {}", pid);
                 println!("  Pid: {}", pid);
@@ -430,8 +465,9 @@ impl FullStatus {
             Service::Failed { exit_code: None } => {
                 println!("not running");
             }
-            Service::Inactive {..} => {
+            Service::Inactive { error } => {
                 println!("inactive");
+                println!("  Inactivity assumed because: {}", error);
             }
         }
         println!("  Service/Container: {}", match self.service_exists {

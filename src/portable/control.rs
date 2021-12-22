@@ -82,7 +82,7 @@ fn write_lock_info(path: &Path, lock: &mut std::fs::File,
     Ok(())
 }
 
-fn detect_supervisor(name: &str) -> bool {
+pub fn detect_supervisor(name: &str) -> bool {
     if cfg!(windows) {
         false
     } else if cfg!(target_os="macos") {
