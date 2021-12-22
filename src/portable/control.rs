@@ -318,15 +318,18 @@ fn supervisor_stop_and_disable(instance: &str) -> anyhow::Result<bool> {
 }
 
 pub fn stop_and_disable(instance: &str) -> anyhow::Result<bool> {
-    let lock = open_lock(instance)?;
+    let lock_path = lock_file(instance)?;
     let supervisor = detect_supervisor(instance);
-    if lock.try_read().is_err() {  // properly running
-        if !supervisor || !is_run_by_supervisor(lock) {
-            if let Some(pid) = read_pid(instance)? {
-                log::info!("Killing EdgeDB with pid {}", pid);
-                process::term(pid)?;
-                // wait for unlock
-                let _ = open_lock(instance)?.read()?;
+    if lock_path.exists() {
+        let lock = open_lock(instance)?;
+        if lock.try_read().is_err() {  // properly running
+            if !supervisor || !is_run_by_supervisor(lock) {
+                if let Some(pid) = read_pid(instance)? {
+                    log::info!("Killing EdgeDB with pid {}", pid);
+                    process::term(pid)?;
+                    // wait for unlock
+                    let _ = open_lock(instance)?.read()?;
+                }
             }
         }
     }
