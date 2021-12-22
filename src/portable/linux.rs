@@ -1,6 +1,8 @@
 use std::fs;
 use std::env;
 use std::path::{PathBuf};
+use async_std::os::unix::net::UnixDatagram;
+use async_std::task;
 
 use anyhow::Context;
 use fn_error_context::context;
@@ -74,7 +76,6 @@ After=network.target
 
 [Service]
 Type=notify
-NotifyAccess=all
 
 RuntimeDirectory=edgedb-{instance_name}
 ExecStart={executable} instance start {instance_name} --managed-by=systemd
@@ -278,4 +279,48 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
         cmd.arg("--follow");
     }
     cmd.no_proxy().run()
+}
+
+// We proxy for two reasons:
+// 1. There is a race condition between sending notification and systemd
+//    receiving it if we set NotifyAccess=all
+// 2. For systemd user daemon in Docker, NotifyAccess doesn't work at all
+//    (it looks like just because systemd fails to match cgroups that include
+//    parent cgroup path)
+pub fn run_and_proxy_notify_socket(meta: &InstanceInfo) -> anyhow::Result<()> {
+    let systemd_socket = env::var_os("NOTIFY_SOCKET").unwrap();
+    let systemd = task::block_on(async {
+        let sock = UnixDatagram::unbound()
+            .context("cannot create systemd notify socket")?;
+        sock.connect(&systemd_socket).await
+            .context("cannot connect to systemd notify socket")?;
+        Ok::<_, anyhow::Error>(sock)
+    })?;
+
+    let inner_socket = runstate_dir(&meta.name)?.join(".s.nfy-inner");
+    if inner_socket.exists() {
+        fs::remove_file(&inner_socket)?;
+    } else if let Some(dir) = inner_socket.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let inner = task::block_on(UnixDatagram::bind(&inner_socket))
+        .context("cannot create inner notify socket")?;
+    server_cmd(&meta)?
+        .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
+        .env("NOTIFY_SOCKET", inner_socket)
+        .no_proxy()
+        .background_for(async {
+            let mut buf = [0u8; 16384];
+            loop {
+                match inner.recv(&mut buf).await {
+                    Ok(len) => {
+                        systemd.send(&buf[..len]).await.ok();
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Error receiving from notify socket: {:#}", e);
+                    }
+                }
+            }
+        })
 }

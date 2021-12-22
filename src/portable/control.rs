@@ -1,5 +1,6 @@
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
+use std::env;
 
 use anyhow::Context;
 use fn_error_context::context;
@@ -112,8 +113,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     let notify_socket = runstate_dir(&meta.name)?.join(".s.daemon");
     if notify_socket.exists() {
         fs::remove_file(&notify_socket)?;
-    }
-    if let Some(dir) = notify_socket.parent() {
+    } if let Some(dir) = notify_socket.parent() {
         fs::create_dir_all(dir)?;
     }
     let sock = task::block_on(UnixDatagram::bind(&notify_socket))
@@ -198,10 +198,19 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             debug_assert!(!needs_restart);
             run_server_by_cli(&meta)
         } else {
-            let res = get_server_cmd(&meta)?
-                .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
-                .no_proxy()
-                .run();
+
+            let res;
+            if matches!(options.managed_by.as_deref(), Some("systemd")) &&
+               env::var_os("NOTIFY_SOCKET").is_some()
+            {
+                res = linux::run_and_proxy_notify_socket(&meta);
+            } else {
+                res = get_server_cmd(&meta)?
+                    .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
+                    .no_proxy()
+                    .run();
+            }
+
             drop(lock);
             if needs_restart {
                 log::warn!("Restarting service back into background...");
