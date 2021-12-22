@@ -82,11 +82,11 @@ pub fn term(pid: u32) -> anyhow::Result<()>{
     };
     if handle == null_mut() {
         // MSDN doesn't describe what is proper error here :(
-        return anyhow::bail!("process could not be found or cannot be killed");
+        anyhow::bail!("process could not be found or cannot be killed");
     }
-    unsafe { TerminateProcess(self.0, 1) };
+    unsafe { TerminateProcess(handle, 1) };
     unsafe { CloseHandle(handle) };
-    return true;
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -148,6 +148,7 @@ impl Native {
         self
     }
 
+    #[cfg(unix)] // unused on windows
     pub fn log_file(&mut self, path: &Path) -> anyhow::Result<&mut Self>
     {
         if let Some(dir) = path.parent() {

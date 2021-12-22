@@ -64,7 +64,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
             eprintln!("Bootstrapping complete, \
                 but there was an error creating the service: {:#}", e);
             eprintln!("You can start it manually via: \n  \
-                edgedb instance start --foreground {}",
+                edgedb instance start {}",
                 options.name);
             return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
         }

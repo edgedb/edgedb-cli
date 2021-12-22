@@ -154,7 +154,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 #[cfg(windows)]
-fn run_server_by_cli() -> anyhow::Result<()> {
+fn run_server_by_cli(_meta: &InstanceInfo) -> anyhow::Result<()> {
     anyhow::bail!("daemonizing is not yet supported for Windows");
 }
 
@@ -201,7 +201,8 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
 
             let res;
             if matches!(options.managed_by.as_deref(), Some("systemd")) &&
-               env::var_os("NOTIFY_SOCKET").is_some()
+               env::var_os("NOTIFY_SOCKET").is_some() &&
+               cfg!(target_os="linux")
             {
                 res = linux::run_and_proxy_notify_socket(&meta);
             } else {
