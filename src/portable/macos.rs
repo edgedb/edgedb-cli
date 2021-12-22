@@ -233,6 +233,30 @@ pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     Ok(pro)
 }
 
+pub fn detect_gui_session() -> bool {
+    let path = if let Ok(path) = which::which("launchctl") {
+        path
+    } else {
+        return false;
+    };
+    let out = process::Native::new("detect gui session", "launchctl", &path)
+        .arg("print-disabled")  // Faster than bare print
+        .arg(get_domain_target())
+        .get_output();
+    match out {
+        Ok(out) if out.status.success() => return true,
+        Ok(out) => {
+            log::info!("detecting gui session: {:?}",
+                       String::from_utf8_lossy(&out.stderr));
+            return false;
+        }
+        Err(e) => {
+            log::info!("detecting gui session: {:#}", e);
+            return false;
+        }
+    }
+}
+
 pub fn start_service(inst: &InstanceInfo) -> anyhow::Result<()> {
     if inst.start_conf == StartConf::Auto || is_service_loaded(&inst.name)
     {

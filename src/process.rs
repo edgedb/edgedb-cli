@@ -4,7 +4,7 @@ use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fs;
 use std::future::{Future, pending};
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 use std::process::exit;
 
 use anyhow::Context;
@@ -17,6 +17,7 @@ use colorful::{Colorful, Color};
 use once_cell::sync::Lazy;
 
 use crate::interrupt;
+use crate::platform::tmp_file_path;
 
 #[cfg(unix)]
 static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
@@ -55,8 +56,38 @@ pub struct Native {
     marker: Cow<'static, str>,
     description: Cow<'static, str>,
     proxy: bool,
+    pid_file: Option<PathBuf>,
 }
 
+#[cfg(unix)]
+pub fn term(pid: u32) -> anyhow::Result<()>{
+    use signal_hook::consts::signal::{SIGTERM};
+
+    if unsafe { libc::kill(pid as i32, SIGTERM) } != 0 {
+        return Err(io::Error::last_os_error())
+            .with_context(|| format!("cannot kill {}", pid))?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+pub fn term(pid: u32) -> anyhow::Result<()>{
+    use std::ptr::null_mut;
+    use winapi::um::processthreadsapi::{OpenProcess, TerminateProcess};
+    use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_TERMINATE};
+    use winapi::um::handleapi::CloseHandle;
+
+    let handle = unsafe {
+        OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, pid)
+    };
+    if handle == null_mut() {
+        // MSDN doesn't describe what is proper error here :(
+        return anyhow::bail!("process could not be found or cannot be killed");
+    }
+    unsafe { TerminateProcess(self.0, 1) };
+    unsafe { CloseHandle(handle) };
+    return true;
+}
 
 #[cfg(unix)]
 pub fn exists(pid: u32) -> bool {
@@ -104,10 +135,16 @@ impl Native {
             command,
             proxy: clicolors_control::colors_enabled(),
             stop_process: None,
+            pid_file: None,
         }
     }
     pub fn no_proxy(&mut self) -> &mut Self {
         self.proxy = false;
+        self
+    }
+
+    pub fn pid_file(&mut self, path: &Path) -> &mut Self {
+        self.pid_file = Some(path.to_path_buf());
         self
     }
 
@@ -241,6 +278,7 @@ impl Native {
                 "{} failed to start (command-line: {:?})",
                 self.description, self.command))?;
         let pid = child.id();
+        write_pid_file(&self.pid_file, pid);
 
         let mark = &self.marker;
         let out = child.stdout.take();
@@ -250,7 +288,10 @@ impl Native {
             .join(stdout_loop(mark, err, capture_err.then(|| &mut stderr)))
             .race(self.signal_loop(pid, &term))
             .await;
+
+        remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
+
         let status = child_result.with_context(|| format!(
                 "failed to get status of {} (command-line: {:?})",
                 self.description, self.command))?;
@@ -268,22 +309,27 @@ impl Native {
                 "{} failed to start (command-line: {:?})",
                 self.description, self.command))?;
         let pid = child.id();
+        write_pid_file(&self.pid_file, pid);
 
         let mark = &self.marker;
         let out = child.stdout.take();
-        async { Err(child.status().await) }
+        let res = async { Err(child.status().await) }
             .race(async { Ok(stdout_loop(mark, out, Some(&mut stdout)).await) })
             .race(self.signal_loop(pid, &term))
-            .await
-            .map_err(|res| match res {
-                Ok(status) => anyhow::anyhow!(
-                    "failed to run {} (command-line: {:?}): {}",
-                    self.description, self.command, status),
-                Err(e) => anyhow::anyhow!(
-                    "failed to run {} (command-line: {:?}): {}",
-                    self.description, self.command, e),
-            })?;
+            .await;
+
+        remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
+
+        res.map_err(|res| match res {
+            Ok(status) => anyhow::anyhow!(
+                "failed to run {} (command-line: {:?}): {}",
+                self.description, self.command, status),
+            Err(e) => anyhow::anyhow!(
+                "failed to run {} (command-line: {:?}): {}",
+                self.description, self.command, e),
+        })?;
+
         log::debug!("Process {} daemonized with output: {:?}",
                     self.description, stdout);
         Ok(stdout)
@@ -299,9 +345,14 @@ impl Native {
                 "{} failed to start (command-line: {:?})",
                 self.description, self.command))?;
         let pid = child.id();
+        write_pid_file(&self.pid_file, pid);
+
         let child_result = child.status()
             .race(self.signal_loop(pid, &term)).await;
+
+        remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
+
         let status = child_result.with_context(|| format!(
                 "failed to get status of {} (command-line: {:?})",
                 self.description, self.command))?;
@@ -326,12 +377,17 @@ impl Native {
         let out = child.stdout.take();
         let err = child.stderr.take();
         let pid = child.id();
+        write_pid_file(&self.pid_file, pid);
+
         let ((result, _), _) = self.run_and_kill(child, f)
             .join(stdout_loop(&self.marker, out, None))
             .join(stdout_loop(&self.marker, err, None))
             .race(self.signal_loop(pid, &term))
             .await;
+
+        remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
+
         return result;
     }
 
@@ -348,6 +404,8 @@ impl Native {
                 "{} failed to start (command-line: {:?})",
                 self.description, self.command))?;
         let pid = child.id();
+        write_pid_file(&self.pid_file, pid);
+
         let inp = child.stdin.take().unwrap();
         let out = child.stdout.take();
         let err = child.stderr.take();
@@ -357,7 +415,10 @@ impl Native {
             .join(stdout_loop(&self.marker, err, None))
             .race(self.signal_loop(pid, &term))
             .await;
+
+        remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
+
         let status = child_result.with_context(|| format!(
                 "failed to get status of {} (command-line: {:?})",
                 self.description, self.command))?;
@@ -565,5 +626,26 @@ async fn wait_forever() -> ! {
     unreachable!();
 }
 
+fn write_pid_file(path: &Option<PathBuf>, pid: u32) {
+    if let Some(path) = path {
+        _write_pid_file(path, pid).map_err(|e| {
+            log::error!("Cannot write pid file {:?}: {:#}", path, e);
+        }).ok();
+    }
+}
 
+fn remove_pid_file(path: &Option<PathBuf>) {
+    if let Some(path) = path {
+        fs::remove_file(&path).map_err(|e| {
+            log::error!("Cannot remove pid file {:?}: {:#}", path, e);
+        }).ok();
+    }
+}
 
+fn _write_pid_file(path: &Path, pid: u32) -> anyhow::Result<()> {
+    let tmp_path = tmp_file_path(&path);
+    fs::remove_file(&tmp_path).ok();
+    fs::write(&tmp_path, pid.to_string().as_bytes())?;
+    fs::rename(&tmp_path, path)?;
+    Ok(())
+}
