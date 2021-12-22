@@ -1,3 +1,4 @@
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
@@ -5,20 +6,16 @@ use fn_error_context::context;
 use fs_err as fs;
 
 use crate::credentials;
-use crate::portable::local::{InstanceInfo, runstate_dir, lock_file};
+use crate::bug;
+use crate::portable::local::{InstanceInfo, runstate_dir, open_lock, lock_file};
 use crate::portable::options::{Start, Stop, Restart, Logs};
 use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
 use crate::process;
+use crate::platform::current_exe;
 
 
-pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
-    let cred_path = credentials::path(&inst.name)?;
-    if !cred_path.exists() {
-        log::warn!("No corresponding credentials file {:?} exists. \
-                    Use `edgedb instance reset-password {}` to create one.",
-                    cred_path, inst.name);
-    }
+fn supervisor_start(inst: &InstanceInfo) -> anyhow::Result<()> {
     if cfg!(windows) {
         windows::start_service(inst)
     } else if cfg!(target_os="macos") {
@@ -27,6 +24,30 @@ pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
         linux::start_service(inst)
     } else {
         anyhow::bail!("unsupported platform");
+    }
+}
+
+fn daemon_start(instance: &str) -> anyhow::Result<()> {
+    process::Native::new("edgedb cli", "edgedb-cli", &current_exe()?)
+        .arg("instance")
+        .arg("start")
+        .arg(instance)
+        .arg("--managed-by=edgedb-cli")
+        .daemonize_with_stdout()?;
+    Ok(())
+}
+
+pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
+    let cred_path = credentials::path(&inst.name)?;
+    if !cred_path.exists() {
+        log::warn!("No corresponding credentials file {:?} exists. \
+                    Use `edgedb instance reset-password {}` to create one.",
+                    cred_path, inst.name);
+    }
+    if detect_supervisor(&inst.name) {
+        supervisor_start(inst)
+    } else {
+        daemon_start(&inst.name)
     }
 }
 
@@ -49,7 +70,7 @@ pub fn ensure_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
 }
 
 #[context("cannot write lock metadata at {:?}", path)]
-fn write_lock_info(path: &Path, lock: &mut fs::File,
+fn write_lock_info(path: &Path, lock: &mut std::fs::File,
                    marker: &Option<String>)
     -> anyhow::Result<()>
 {
@@ -60,10 +81,21 @@ fn write_lock_info(path: &Path, lock: &mut fs::File,
     Ok(())
 }
 
+fn detect_supervisor(name: &str) -> bool {
+    if cfg!(windows) {
+        false
+    } else if cfg!(target_os="macos") {
+        macos::detect_gui_session()
+    } else if cfg!(target_os="linux") {
+        linux::detect_systemd(name)
+    } else {
+        false
+    }
+}
+
 #[cfg(unix)]
 fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     use std::os::unix::io::AsRawFd;
-    use std::io;
     use async_std::future::pending;
     use async_std::os::unix::net::UnixDatagram;
     use async_std::task;
@@ -71,6 +103,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
 
     unsafe { libc::setsid() };
 
+    let pid_path = runstate_dir(&meta.name)?.join("edgedb.pid");
     let log_path = log_file(&meta.name)?;
     let log_file = fs::OpenOptions::new()
         .create(true).write(true).append(true)
@@ -88,6 +121,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
 
     get_server_cmd(&meta)?
         .env("NOTIFY_SOCKET", &notify_socket)
+        .pid_file(&pid_path)
         .log_file(&log_path)?
         .background_for(async {
             let mut buf = [0u8; 1024];
@@ -129,11 +163,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
     ensure_runstate_dir(&meta.name)?;
     if options.foreground || options.managed_by.is_some() {
         let lock_path = lock_file(&meta.name)?;
-        let lock_file = fs::OpenOptions::new()
-            .create(true).write(true).read(true)
-            .open(&lock_path)
-            .with_context(|| format!("cannot open lock file {:?}", lock_path))?;
-        let mut lock = fd_lock::RwLock::new(lock_file);
+        let mut lock = open_lock(&meta.name)?;
         let mut needs_restart = false;
         let try_write = lock.try_write();
         let lock = if let Ok(mut lock) = try_write {
@@ -149,16 +179,11 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
                             Waiting for that process to be stopped...",
                             locked_by.escape_default());
             } else if options.auto_restart {
-                if locked_by != "user" {
-                    log::warn!("Process is already running by {}. \
-                                Stopping...", locked_by.escape_default());
-                    needs_restart = true;
-                    do_stop(&options.name)
-                        .context("cannot stop service")?;
-                } else {
-                    log::warn!("Process is already running by {}. \
-                                Stopping...", locked_by.escape_default());
-                }
+                log::warn!("Process is already running by {}. \
+                            Stopping...", locked_by.escape_default());
+                needs_restart = true;
+                do_stop(&options.name)
+                    .context("cannot stop service")?;
             } else {
                 anyhow::bail!("Process is already running by {}. \
                     Please stop the service manually or run \
@@ -191,7 +216,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
     }
 }
 
-pub fn do_stop(name: &str) -> anyhow::Result<()> {
+fn supervisor_stop(name: &str) -> anyhow::Result<()> {
     if cfg!(windows) {
         windows::stop_service(name)
     } else if cfg!(target_os="macos") {
@@ -203,12 +228,108 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
     }
 }
 
+pub fn read_pid(instance: &str) -> anyhow::Result<Option<u32>> {
+    let pid_path = runstate_dir(instance)?.join("edgedb.pid");
+    match fs::read_to_string(&pid_path) {
+        Ok(pid_str) => {
+            let pid = pid_str.trim().parse().with_context(
+                || format!("cannot parse pid file {:?}", pid_path))?;
+            Ok(Some(pid))
+        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            Ok(None)
+        }
+        Err(e) => {
+            return Err(e)
+                .context(format!("cannot read pid file {:?}", pid_path))?;
+        }
+    }
+}
+
+fn is_run_by_supervisor(lock: fd_lock::RwLock<std::fs::File>) -> bool {
+    let mut buf = String::with_capacity(100);
+    if lock.into_inner().read_to_string(&mut buf).is_err() {
+        return false;
+    }
+    log::debug!("Service running by {:?}", buf);
+    match &buf[..] {
+        "systemd" if cfg!(target_os="linux") => true,
+        "launchctl" if cfg!(target_os="macos") => true,
+        _ => false,
+    }
+}
+
+pub fn do_stop(name: &str) -> anyhow::Result<()> {
+    let lock = open_lock(name)?;
+    let supervisor = detect_supervisor(name);
+    if lock.try_read().is_err() {  // properly running
+        if supervisor && is_run_by_supervisor(lock) {
+            supervisor_stop(name)
+        } else {
+            if let Some(pid) = read_pid(name)? {
+                log::info!("Killing EdgeDB with pid {}", pid);
+                process::term(pid)?;
+                // wait for unlock
+                let _ = open_lock(name)?.read()?;
+                Ok(())
+            } else {
+                return Err(bug::error("cannot find pid"));
+            }
+        }
+    } else {  // probably not running
+        if supervisor {
+            supervisor_stop(name)
+        } else {
+            if let Some(pid) = read_pid(name)? {
+                log::info!("Killing EdgeDB with pid {}", pid);
+                process::term(pid)?;
+                // wait for unlock
+                let _ = open_lock(name)?.read()?;
+            } // nothing to do
+            Ok(())
+        }
+    }
+}
+
 pub fn stop(options: &Stop) -> anyhow::Result<()> {
     let meta = InstanceInfo::read(&options.name)?;
     do_stop(&meta.name)
 }
 
-pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
+fn supervisor_stop_and_disable(instance: &str) -> anyhow::Result<bool> {
+    if cfg!(target_os="macos") {
+        macos::stop_and_disable(&instance)
+    } else if cfg!(target_os="linux") {
+        linux::stop_and_disable(&instance)
+    } else if cfg!(windows) {
+        windows::stop_and_disable(&instance)
+    } else {
+        anyhow::bail!("service is not supported on the platform");
+    }
+}
+
+pub fn stop_and_disable(instance: &str) -> anyhow::Result<bool> {
+    let lock = open_lock(instance)?;
+    let supervisor = detect_supervisor(instance);
+    if lock.try_read().is_err() {  // properly running
+        if !supervisor || !is_run_by_supervisor(lock) {
+            if let Some(pid) = read_pid(instance)? {
+                log::info!("Killing EdgeDB with pid {}", pid);
+                process::term(pid)?;
+                // wait for unlock
+                let _ = open_lock(instance)?.read()?;
+            }
+        }
+    }
+    if supervisor {
+        supervisor_stop_and_disable(instance)
+    } else {
+        let dir = runstate_dir(instance)?;
+        Ok(dir.exists())
+    }
+}
+
+fn supervisor_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
     if cfg!(windows) {
         windows::restart_service(inst)
     } else if cfg!(target_os="macos") {
@@ -217,6 +338,47 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
         linux::restart_service(inst)
     } else {
         anyhow::bail!("unsupported platform");
+    }
+}
+
+pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
+    let lock = open_lock(&inst.name)?;
+    let supervisor = detect_supervisor(&inst.name);
+    if lock.try_read().is_err() {  // properly running
+        if supervisor && is_run_by_supervisor(lock) {
+            supervisor_restart(inst)
+        } else {
+            if let Some(pid) = read_pid(&inst.name)? {
+                log::info!("Killing EdgeDB with pid {}", pid);
+                process::term(pid)?;
+                // wait for unlock
+                let _ = open_lock(&inst.name)?.read()?;
+            } else {
+                return Err(bug::error("cannot find pid"));
+            }
+            if supervisor {
+                supervisor_start(inst)
+            } else {
+                daemon_start(&inst.name)
+            }
+        }
+    } else {  // probably not running
+        if supervisor {
+            supervisor_restart(inst)
+        } else {
+            if let Some(pid) = read_pid(&inst.name)? {
+                log::info!("Killing EdgeDB with pid {}", pid);
+                process::term(pid)?;
+                // wait for unlock
+                let _ = lock.read()?;
+            } // nothing to do
+            // todo(tailhook) optimize supervisor detection
+            if supervisor {
+                supervisor_start(inst)
+            } else {
+                daemon_start(&inst.name)
+            }
+        }
     }
 }
 

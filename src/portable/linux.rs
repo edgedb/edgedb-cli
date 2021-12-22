@@ -1,18 +1,16 @@
 use std::fs;
 use std::env;
 use std::path::{PathBuf};
-use std::io::Read;
 
 use anyhow::Context;
 use fn_error_context::context;
 
 use crate::platform::{home_dir, current_exe};
 use crate::portable::destroy::InstanceNotFound;
-use crate::portable::local::{InstanceInfo, runstate_dir, lock_file};
+use crate::portable::local::{InstanceInfo, runstate_dir};
 use crate::portable::options::{StartConf, Logs};
 use crate::portable::status::Service;
 use crate::process;
-use crate::print::{echo};
 
 
 pub fn unit_dir() -> anyhow::Result<PathBuf> {
@@ -158,7 +156,12 @@ pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     Ok(pro)
 }
 
-fn detect_systemd(unit: &str) -> Option<PathBuf> {
+pub fn detect_systemd(instance: &str) -> bool {
+    _detect_systemd(instance).is_some()
+}
+
+fn _detect_systemd(instance: &str) -> Option<PathBuf> {
+    let unit_name = unit_name(instance);
     env::var_os("XDG_RUNTIME_DIR")?;
     let path = if let Ok(path) = which::which("systemctl") {
         path
@@ -168,7 +171,7 @@ fn detect_systemd(unit: &str) -> Option<PathBuf> {
     let out = process::Native::new("detect systemd", "systemctl", &path)
         .arg("--user")
         .arg("is-enabled")
-        .arg(unit)
+        .arg(&unit_name)
         .get_output().ok()?;
     if out.status.success() {
         return Some(path);
@@ -184,38 +187,12 @@ fn detect_systemd(unit: &str) -> Option<PathBuf> {
 }
 
 pub fn start_service(inst: &InstanceInfo) -> anyhow::Result<()> {
-    let unit_name = unit_name(&inst.name);
-    if let Some(systemctl) = detect_systemd(&unit_name) {
-        process::Native::new("service start", "systemctl", &systemctl)
-            .arg("--user")
-            .arg("start")
-            .arg(&unit_name)
-            .run()?;
-        Ok(())
-    } else {
-        let lock_path = lock_file(&inst.name)?;
-        let lock_file = fs::OpenOptions::new()
-            .create(true).write(true).read(true)
-            .open(&lock_path)
-            .with_context(|| format!("cannot open lock file {:?}", lock_path))?;
-        let lock = fd_lock::RwLock::new(lock_file);
-
-        if lock.try_read().is_err() {
-            let mut by = String::with_capacity(100);
-            lock.into_inner().read_to_string(&mut by)
-                .context("cannot read lock file")?;
-            echo!("EdgeDB is already running by", by);
-            return Ok(());
-        }
-
-        process::Native::new("edgedb cli", "edgedb-cli", &current_exe()?)
-            .arg("instance")
-            .arg("start")
-            .arg(&inst.name)
-            .arg("--managed-by=edgedb-cli")
-            .daemonize_with_stdout()?;
-        Ok(())
-    }
+    process::Native::new("service start", "systemctl", "systemctl")
+        .arg("--user")
+        .arg("start")
+        .arg(&unit_name(&inst.name))
+        .run()?;
+    Ok(())
 }
 
 pub fn stop_service(name: &str) -> anyhow::Result<()> {

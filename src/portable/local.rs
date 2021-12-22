@@ -28,6 +28,7 @@ pub struct Paths {
     pub dump_path: PathBuf,
     pub backup_dir: PathBuf,
     pub upgrade_marker: PathBuf,
+    pub runstate_dir: PathBuf,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -52,21 +53,33 @@ fn port_file() -> anyhow::Result<PathBuf> {
     Ok(config_dir()?.join("instance_ports.json"))
 }
 
-pub fn log_file(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(cache_dir()?.join(format!("logs/{}.log", name)))
+pub fn log_file(instance: &str) -> anyhow::Result<PathBuf> {
+    Ok(cache_dir()?.join(format!("logs/{}.log", instance)))
 }
 
-pub fn lock_file(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(runstate_dir(name)?.join("service.lock"))
+pub fn lock_file(instance: &str) -> anyhow::Result<PathBuf> {
+    Ok(runstate_dir(instance)?.join("service.lock"))
 }
 
-pub fn runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
+pub fn open_lock(instance: &str) -> anyhow::Result<fd_lock::RwLock<fs::File>> {
+    let lock_path = lock_file(instance)?;
+    if let Some(parent) = lock_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let lock_file = fs::OpenOptions::new()
+        .create(true).write(true).read(true)
+        .open(&lock_path)
+        .with_context(|| format!("cannot open lock file {:?}", lock_path))?;
+    Ok(fd_lock::RwLock::new(lock_file))
+}
+
+pub fn runstate_dir(instance: &str) -> anyhow::Result<PathBuf> {
     if cfg!(target_os="linux") {
         if let Some(dir) = dirs::runtime_dir() {
-            return Ok(dir.join(format!("edgedb-{}", name)))
+            return Ok(dir.join(format!("edgedb-{}", instance)))
         }
     }
-    Ok(cache_dir()?.join("run").join(name))
+    Ok(cache_dir()?.join("run").join(instance))
 }
 
 pub fn read_ports() -> anyhow::Result<BTreeMap<String, u16>> {
@@ -199,6 +212,7 @@ impl Paths {
             dump_path: base.join(format!("{}.dump", name)),
             backup_dir: base.join(format!("{}.backup", name)),
             upgrade_marker: base.join(format!("{}.UPGRADE_IN_PROGRESS", name)),
+            runstate_dir: runstate_dir(name)?,
             service_files: if cfg!(windows) {
                 windows::service_files(name)?
             } else if cfg!(target_os="macos") {

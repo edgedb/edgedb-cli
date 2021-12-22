@@ -3,11 +3,11 @@ use std::path::{PathBuf};
 use fs_err as fs;
 
 use crate::commands::ExitCode;
+use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local;
-use crate::portable::project::{self};
-use crate::portable::{windows, linux, macos};
 use crate::portable::options::Destroy;
+use crate::portable::project::{self};
 
 
 #[derive(Debug, thiserror::Error)]
@@ -38,24 +38,12 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
-    if cfg!(target_os="macos") {
-        macos::stop_and_disable(&name)
-    } else if cfg!(target_os="linux") {
-        linux::stop_and_disable(&name)
-    } else if cfg!(windows) {
-        windows::stop_and_disable(&name)
-    } else {
-        anyhow::bail!("service is not supported on the platform");
-    }
-}
-
 fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
     let paths = local::Paths::get(&options.name)?;
     log::debug!("Paths {:?}", paths);
     let mut found = false;
     let mut not_found_err = None;
-    match stop_and_disable(&options.name) {
+    match control::stop_and_disable(&options.name) {
         Ok(f) => found = f,
         Err(e) if e.is::<InstanceNotFound>() => {
             not_found_err = Some(e);
@@ -63,6 +51,11 @@ fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
         Err(e) => {
             log::warn!("Error unloading service: {:#}", e);
         }
+    }
+    if paths.runstate_dir.exists() {
+        found = true;
+        log::info!("Removing runstate directory {:?}", paths.runstate_dir);
+        fs::remove_dir_all(&paths.runstate_dir)?;
     }
     if paths.data_dir.exists() {
         found = true;
