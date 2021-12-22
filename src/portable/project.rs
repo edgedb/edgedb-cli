@@ -476,7 +476,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             eprintln!("Bootstrapping complete, \
                 but there was an error creating the service: {:#}", e);
             eprintln!("You can start it manually via: \n  \
-                edgedb instance start --foreground {}",
+                edgedb instance start {}",
                 name);
             return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
         }

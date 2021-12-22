@@ -1,8 +1,6 @@
 use std::fs;
 use std::env;
 use std::path::{PathBuf};
-use async_std::os::unix::net::UnixDatagram;
-use async_std::task;
 
 use anyhow::Context;
 use fn_error_context::context;
@@ -287,7 +285,11 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
 // 2. For systemd user daemon in Docker, NotifyAccess doesn't work at all
 //    (it looks like just because systemd fails to match cgroups that include
 //    parent cgroup path)
+#[cfg(target_os="linux")]
 pub fn run_and_proxy_notify_socket(meta: &InstanceInfo) -> anyhow::Result<()> {
+    use async_std::os::unix::net::UnixDatagram;
+    use async_std::task;
+
     let systemd_socket = env::var_os("NOTIFY_SOCKET").unwrap();
     let systemd = task::block_on(async {
         let sock = UnixDatagram::unbound()
@@ -323,4 +325,9 @@ pub fn run_and_proxy_notify_socket(meta: &InstanceInfo) -> anyhow::Result<()> {
                 }
             }
         })
+}
+
+#[cfg(not(target_os="linux"))]
+pub fn run_and_proxy_notify_socket(_: &InstanceInfo) -> anyhow::Result<()> {
+    unreachable!();
 }
