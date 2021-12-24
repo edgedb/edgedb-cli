@@ -9,6 +9,7 @@ use fn_error_context::context;
 
 use edgedb_client::Builder;
 
+use crate::bug;
 use crate::credentials;
 use crate::platform::{portable_dir, data_dir, config_dir, cache_dir};
 use crate::portable::options::StartConf;
@@ -35,7 +36,7 @@ pub struct Paths {
 pub struct InstanceInfo {
     #[serde(skip)]
     pub name: String,
-    pub installation: InstallInfo,
+    pub installation: Option<InstallInfo>,
     pub port: u16,
     pub start_conf: StartConf,
 }
@@ -200,7 +201,11 @@ pub fn get_installed() -> anyhow::Result<Vec<InstallInfo>> {
 }
 
 pub fn instance_data_dir(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(data_dir()?.join(name))
+    if cfg!(windows) {
+        windows::instance_data_dir(name)
+    } else {
+        Ok(data_dir()?.join(name))
+    }
 }
 
 impl Paths {
@@ -242,6 +247,10 @@ impl Paths {
 
 
 impl InstanceInfo {
+    pub fn get_version(&self) -> anyhow::Result<&ver::Build> {
+        self.installation.as_ref().map(|v| &v.version)
+            .ok_or_else(|| bug::error("no installation info at this point"))
+    }
     pub fn try_read(name: &str) -> anyhow::Result<Option<InstanceInfo>> {
         let mut path = instance_data_dir(name)?;
         path.push("instance_info.json");
@@ -272,7 +281,9 @@ impl InstanceInfo {
         instance_data_dir(&self.name)
     }
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
-        Ok(self.installation.server_path()?)
+        self.installation.as_ref()
+            .ok_or_else(|| bug::error("version should be set"))?
+            .server_path()
     }
     pub async fn admin_conn_params(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::uninitialized();

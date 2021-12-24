@@ -1,12 +1,10 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use crate::echo;
 use crate::portable::local::{self, InstallInfo};
 use crate::portable::options::ListVersions;
 use crate::portable::repository::{get_server_packages, Channel, PackageInfo};
 use crate::portable::ver;
-use crate::print::Highlight;
 use crate::table::{self, Table, Row, Cell};
 
 
@@ -116,9 +114,6 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
                         }));
         }
     }
-    echo!("Only portable packages shown here, \
-        use `--deprecated-install-methods` \
-        to show docker and package installations.".fade());
     Ok(())
 }
 

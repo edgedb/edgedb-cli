@@ -38,17 +38,30 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
                               to remove remains of unused instance",
                               options.name))?;
 
-    let query = Query::from_options(options.nightly, &options.version)?;
-    let inst = install::version(&query).context("error installing EdgeDB")?;
-    let port = allocate_port(&options.name)?;
-    let info = InstanceInfo {
-        name: options.name.clone(),
-        installation: inst,
-        port,
-        start_conf: options.start_conf,
+    let port = options.port.map(Ok)
+        .unwrap_or_else(|| allocate_port(&options.name))?;
+
+    let info = if cfg!(windows) {
+        windows::create_instance(options, port, &paths)?;
+        InstanceInfo {
+            name: options.name.clone(),
+            installation: None,
+            port,
+            start_conf: options.start_conf,
+        }
+    } else {
+        let query = Query::from_options(options.nightly, &options.version)?;
+        let inst = install::version(&query).context("error installing EdgeDB")?;
+        let info = InstanceInfo {
+            name: options.name.clone(),
+            installation: Some(inst),
+            port,
+            start_conf: options.start_conf,
+        };
+        bootstrap(&paths, &info,
+                  &options.default_database, &options.default_user)?;
+        info
     };
-    bootstrap(&paths, &info,
-              &options.default_database, &options.default_user)?;
 
     if windows::is_wrapped() {
         // no service and no messages
@@ -114,7 +127,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
                  database: &str, user: &str)
     -> anyhow::Result<()>
 {
-    let server_path = info.installation.server_path()?;
+    let server_path = info.server_path()?;
 
     let tmp_data = platform::tmp_file_path(&paths.data_dir);
     if tmp_data.exists() {
@@ -132,7 +145,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     cmd.arg("--bootstrap-only");
     cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
     cmd.arg("--data-dir").arg(&tmp_data);
-    self_signed_arg(&mut cmd, &info.installation.version);
+    self_signed_arg(&mut cmd, info.get_version()?);
     cmd.arg("--bootstrap-command").arg(script);
     cmd.run()?;
 

@@ -149,6 +149,13 @@ pub fn portable_dir() -> anyhow::Result<PathBuf> {
         .join("edgedb").join("portable"))
 }
 
+#[cfg_attr(unix, allow(dead_code))]
+pub fn wsl_dir() -> anyhow::Result<PathBuf> {
+    Ok(dirs::data_dir()
+        .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
+        .join("edgedb").join("wsl"))
+}
+
 #[context("cannot determine running executable path")]
 pub fn current_exe() -> anyhow::Result<PathBuf> {
     Ok(env::current_exe()?)

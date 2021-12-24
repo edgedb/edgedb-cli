@@ -53,7 +53,7 @@ fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {
 }
 
 #[context("error unpacking {:?} -> {:?}", src, tgt)]
-fn unpack_file(src: &Path, tgt: &Path,
+pub fn unpack_file(src: &Path, tgt: &Path,
                compression: Option<repository::Compression>)
     -> anyhow::Result<()>
 {
@@ -126,7 +126,7 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
 
     let down_path = path.with_extension("download");
     let tmp_path = tmp_file_path(&path);
-    task::block_on(download(&down_path, &pkg.url, options.quiet))?;
+    task::block_on(download(&down_path, &pkg.url, options.quiet, true))?;
     unpack_file(&down_path, &tmp_path, pkg.compression)?;
 
     let backup_path = path.with_extension("backup");

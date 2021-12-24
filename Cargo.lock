@@ -18,6 +18,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
+name = "adler32"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aae1277d39aeec15cb388266ecc24b11c80469deae6067e17a1a7aa9e5c1f234"
+
+[[package]]
 name = "aead"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -509,6 +515,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
 
 [[package]]
+name = "bzip2"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6afcd980b5f3a45017c57e57a2fcccbb351cc43a356ce117ef760ef8052b89b0"
+dependencies = [
+ "bzip2-sys",
+ "libc",
+]
+
+[[package]]
+name = "bzip2-sys"
+version = "0.1.11+1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "736a955f3fa7875102d57c82b8cac37ec45224a07fd32d58f9f7a186b6cd4cdc"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+]
+
+[[package]]
 name = "cache-padded"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -724,6 +751,15 @@ name = "cpuid-bool"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcb25d077389e53838a8158c8e99174c5a9d902dee4904320db714f3c653ffba"
+
+[[package]]
+name = "crc32fast"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "738c290dfaea84fc1ca15ad9c168d083b05a714e1efddd8edaab678dc28d2836"
+dependencies = [
+ "cfg-if 1.0.0",
+]
 
 [[package]]
 name = "crossbeam"
@@ -1021,6 +1057,7 @@ dependencies = [
  "immutable-chunkmap",
  "indicatif",
  "libc",
+ "libflate",
  "linked-hash-map",
  "log",
  "minimad",
@@ -1079,6 +1116,8 @@ dependencies = [
  "whoami",
  "winapi",
  "winreg",
+ "wslapi",
+ "zip",
  "zstd",
 ]
 
@@ -1277,6 +1316,18 @@ dependencies = [
  "libc",
  "redox_syscall 0.2.9",
  "winapi",
+]
+
+[[package]]
+name = "flate2"
+version = "1.0.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e6988e897c1c9c485f43b47a529cef42fde0547f9d8d41a7062518f1d8fc53f"
+dependencies = [
+ "cfg-if 1.0.0",
+ "crc32fast",
+ "libc",
+ "miniz_oxide",
 ]
 
 [[package]]
@@ -1856,6 +1907,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b03d17f364a3a042d5e5d46b053bbbf82c92c9430c592dd4c064dc6ee997125"
 
 [[package]]
+name = "libflate"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16364af76ebb39b5869bb32c81fa93573267cd8c62bb3474e28d78fac3fb141e"
+dependencies = [
+ "adler32",
+ "crc32fast",
+ "libflate_lz77",
+]
+
+[[package]]
+name = "libflate_lz77"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39a734c0493409afcd49deee13c006a04e3586b9761a03543c6272c9c51f2f5a"
+dependencies = [
+ "rle-decode-fast",
+]
+
+[[package]]
 name = "linked-hash-map"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1920,6 +1991,12 @@ dependencies = [
  "mime",
  "unicase",
 ]
+
+[[package]]
+name = "minidl"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74551f17dc3e8490f7186008c2bb45284dad2cd8e62604d2adb9d6e56a3d2dd2"
 
 [[package]]
 name = "minimad"
@@ -2661,6 +2738,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rle-decode-fast"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cabe4fa914dec5870285fa7f71f602645da47c486e68486d2b4ceb4a343e90ac"
+
+[[package]]
 name = "rpassword"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2847,6 +2930,9 @@ name = "semver"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "568a8e6258aa33c13358f81fd834adb854c6f7c9468520910a9b1e8fac068012"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "semver-parser"
@@ -3946,6 +4032,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7cff876b8f18eed75a66cf49b65e7f967cb354a7aa16003fb55dbfd25b44b4f"
 
 [[package]]
+name = "wchar"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c74d010bf16569f942b0b7d3c777dd674f8ee539b48d809dc548b3453039c2df"
+dependencies = [
+ "proc-macro-hack",
+ "wchar-impl",
+]
+
+[[package]]
+name = "wchar-impl"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f135922b9303f899bfa446fce1eb149f43462f1e9ac7f50e24ea6b913416dd84"
+dependencies = [
+ "proc-macro-hack",
+ "proc-macro2",
+ "quote 1.0.9",
+ "syn 1.0.73",
+]
+
+[[package]]
 name = "web-sys"
 version = "0.3.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4087,12 +4195,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "wslapi"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afc9c51137636a37c388bb01765a0eae1362915d82a5e238e1a356c400f9f619"
+dependencies = [
+ "minidl",
+ "wchar",
+ "winapi",
+]
+
+[[package]]
 name = "xattr"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "244c3741f4240ef46274860397c7c74e50eb23624996930e484c16679633a54c"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "zip"
+version = "0.5.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93ab48844d61251bb3835145c521d88aa4031d7139e8485990f60ca911fa0815"
+dependencies = [
+ "byteorder",
+ "bzip2",
+ "crc32fast",
+ "flate2",
+ "thiserror",
+ "time 0.1.43",
 ]
 
 [[package]]

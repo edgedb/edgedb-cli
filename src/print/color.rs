@@ -105,7 +105,8 @@ impl<T: fmt::Display> fmt::Display for Colored<&T> {
 
 #[macro_export]
 macro_rules! echo {
-    ($word1:expr $(,$word:expr )* $(,)?) => {
+    ($word1:expr $(; $semi_word1:expr)*
+     $(,$word:expr $(; $semi_word:expr )*)* $(,)?) => {
         // Buffer the whole output so mutliple processes do not interfere
         // each other
         {
@@ -114,9 +115,17 @@ macro_rules! echo {
             write!(&mut buf, "{}", $word1)
                 .expect("buffering of echo succeeds");
             $(
+                write!(&mut buf, "{}", $semi_word1)
+                    .expect("buffering of echo succeeds");
+            )*
+            $(
                 buf.push(' ');
                 write!(&mut buf, "{}", $word)
                     .expect("buffering of echo succeeds");
+                $(
+                    write!(&mut buf, "{}", $semi_word)
+                        .expect("buffering of echo succeeds");
+                )*
             )*
             buf.push('\n');
             eprint!("{}", buf);

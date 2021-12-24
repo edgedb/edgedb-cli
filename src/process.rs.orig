@@ -299,12 +299,8 @@ impl Native {
     pub fn feed(&mut self, data: impl AsRef<[u8]>) -> anyhow::Result<()> {
         task::block_on(self._feed(data.as_ref()))
     }
-    /// Redirects stdout+stderr into /dev/null and returns status
-    pub fn status_only(&mut self) -> anyhow::Result<ExitStatus> {
-        task::block_on(self._status())
-    }
     pub fn status(&mut self) -> anyhow::Result<ExitStatus> {
-        task::block_on(self._run(false, false)).map(|out| out.status)
+        task::block_on(self._status())
     }
 
     async fn _run(&mut self, capture_out: bool, capture_err: bool)

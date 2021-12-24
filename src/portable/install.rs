@@ -43,7 +43,8 @@ fn download_package(pkg_info: &PackageInfo)
     let download_dir = cache_dir.join("downloads");
     fs::create_dir_all(&download_dir)?;
     let cache_path = download_dir.join(pkg_info.cache_file_name());
-    let hash = task::block_on(download(&cache_path, &pkg_info.url, false))?;
+    let hash = task::block_on(download(&cache_path, &pkg_info.url,
+                                       false, true))?;
     match &pkg_info.hash {
         PackageHash::Blake2b(hex) => {
             if hash.to_hex()[..] != hex[..] {

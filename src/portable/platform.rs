@@ -3,18 +3,38 @@ use std::env;
 
 use anyhow::Context;
 
-pub fn get_name(static_build: bool) -> anyhow::Result<&'static str> {
+pub fn get_cli() -> anyhow::Result<&'static str> {
     if cfg!(target_arch="x86_64") {
         if cfg!(target_os="macos") {
             return Ok("x86_64-apple-darwin");
         } else if cfg!(target_os="linux") {
-            if static_build {
-                return Ok("x86_64-unknown-linux-musl");
-            } else {
-                return Ok("x86_64-unknown-linux-gnu");
-            }
+            return Ok("x86_64-unknown-linux-musl");
         } else if cfg!(windows) {
             return Ok("x86_64-pc-windows-msvc");
+        } else {
+            anyhow::bail!("unsupported OS on x86_64");
+        }
+    } else if cfg!(target_arch="aarch64") {
+        if cfg!(target_os="macos") {
+            return Ok("aarch64-apple-darwin");
+        } else {
+            anyhow::bail!("unsupported OS on aarch64")
+        }
+    } else {
+        anyhow::bail!("unsupported architecture");
+    }
+}
+
+pub fn get_server() -> anyhow::Result<&'static str> {
+    if cfg!(target_arch="x86_64") {
+        if cfg!(target_os="macos") {
+            return Ok("x86_64-apple-darwin");
+        } else if cfg!(target_os="linux") {
+            return Ok("x86_64-unknown-linux-gnu");
+        } else if cfg!(windows) {
+            // on windows use server version from linux
+            // as we run server in WSL
+            return Ok("x86_64-unknown-linux-gnu");
         } else {
             anyhow::bail!("unsupported OS on x86_64");
         }

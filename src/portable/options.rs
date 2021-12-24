@@ -3,10 +3,11 @@ use std::str::FromStr;
 
 use clap::{ArgSettings, ValueHint};
 use serde::{Serialize, Deserialize};
-use edgedb_cli_derive::EdbClap;
+use edgedb_cli_derive::{EdbClap, IntoArgs};
 
 use crate::portable::local::is_valid_name;
 use crate::portable::ver;
+use crate::process::{self, IntoArg};
 
 
 #[derive(EdbClap, Debug, Clone)]
@@ -64,7 +65,7 @@ pub enum Command {
     ListVersions(ListVersions),
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Install {
     #[clap(short='i', long)]
     pub interactive: bool,
@@ -74,7 +75,7 @@ pub struct Install {
     pub version: Option<ver::Filter>,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Uninstall {
     /// Uninstall all versions
     #[clap(long)]
@@ -93,7 +94,7 @@ pub struct Uninstall {
     pub verbose: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct ListVersions {
     #[clap(long)]
     pub installed_only: bool,
@@ -115,16 +116,12 @@ pub enum StartConf {
     Manual,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Create {
     /// Name of the created instance
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
-    #[clap(long)]
-    pub system: bool,
-    #[clap(short='i', long)]
-    pub interactive: bool,
     #[clap(long)]
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
@@ -145,24 +142,9 @@ pub struct Create {
     /// credentials file)
     #[clap(long, default_value="edgedb")]
     pub default_user: String,
-
-    /// Overwrite data directory and credential file if any of these exist.
-    /// This is mainly useful for recovering from interrupted initializations.
-    #[clap(long)]
-    pub overwrite: bool,
-
-    /// Do not create a user and database named after current unix user
-    #[clap(long, setting=ArgSettings::Hidden)]
-    pub inhibit_user_creation: bool,
-    /// Do not start database right now, even if --start-conf=auto
-    #[clap(long, setting=ArgSettings::Hidden)]
-    pub inhibit_start: bool,
-    /// Write upgrade metadata marker with specified contents
-    #[clap(long, setting=ArgSettings::Hidden)]
-    pub upgrade_marker: Option<String>,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Destroy {
     /// Name of the instance to destroy
     #[clap(validator(instance_name_opt))]
@@ -213,7 +195,7 @@ pub struct Unlink {
     pub name: String,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Start {
     /// Name of the instance to start
     #[clap(validator(instance_name_opt))]
@@ -241,7 +223,7 @@ pub struct Start {
     pub managed_by: Option<String>,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Stop {
     /// Name of the instance to stop
     #[clap(validator(instance_name_opt))]
@@ -249,7 +231,7 @@ pub struct Stop {
     pub name: String,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Restart {
     /// Name of the instance to restart
     #[clap(validator(instance_name_opt))]
@@ -257,7 +239,7 @@ pub struct Restart {
     pub name: String,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct List {
     /// Output more debug info about each instance
     #[clap(long, conflicts_with_all=&["debug", "json"])]
@@ -283,7 +265,7 @@ pub struct List {
     pub quiet: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Status {
     /// Name of the instance
     #[clap(validator(instance_name_opt))]
@@ -313,7 +295,7 @@ pub struct Status {
     pub quiet: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Logs {
     /// Name of the instance
     #[clap(validator(instance_name_opt))]
@@ -329,7 +311,7 @@ pub struct Logs {
     pub follow: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Upgrade {
     /// Upgrade specified instance to the latest version
     #[clap(long, conflicts_with_all=&["to_nightly", "to_version"])]
@@ -356,7 +338,7 @@ pub struct Upgrade {
     pub force: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Revert {
     /// Name of the instance to revert
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
@@ -371,7 +353,7 @@ pub struct Revert {
     pub no_confirm: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct ResetPassword {
     /// Name of the instance to reset
     #[clap(validator(instance_name_opt))]
@@ -398,7 +380,7 @@ pub struct ResetPassword {
     pub quiet: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Info {
     /// Display only the server binary path
     #[clap(long)]
@@ -425,6 +407,12 @@ impl FromStr for StartConf {
             _ => anyhow::bail!("Unsupported start configuration, \
                 options: `auto`, `manual`"),
         }
+    }
+}
+
+impl IntoArg for &StartConf {
+    fn add_arg(self, process: &mut process::Native) {
+        process.arg(self.as_str());
     }
 }
 

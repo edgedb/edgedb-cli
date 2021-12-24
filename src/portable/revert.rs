@@ -29,7 +29,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         => anyhow::bail!("cannot read backup metadata: {}", e),
         Exists { backup_meta: Ok(b), data_meta: Ok(d) } => (b, d),
     };
-    echo!("EdgeDB version:", old_inst.installation.version);
+    echo!("EdgeDB version:", old_inst.get_version()?);
     echo!("Backup timestamp:",
         humantime::format_rfc3339(backup_info.timestamp),
         format!("({})", format::done_before(backup_info.timestamp)));
@@ -77,7 +77,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         }
     }
 
-    install::specific(&old_inst.installation.version.specific())
+    install::specific(&old_inst.get_version()?.specific())
         .context("error installing old EdgeDB version")?;
 
     let paths = Paths::get(&options.name)?;
@@ -87,11 +87,11 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
 
     let inst = old_inst;
     let mut exit = None;
-    echo!("Starting EdgeDB", inst.installation.version, "...");
+    echo!("Starting EdgeDB", inst.get_version()?, "...");
     match (create::create_service(&inst), inst.start_conf) {
         (Ok(()), StartConf::Manual) => {
             echo!("Instance", inst.name.emphasize(), "is reverted to",
-                   inst.installation.version.emphasize());
+                   inst.get_version()?.emphasize());
             echo!("You can start it manually via: \n  \
                 edgedb instance start [--foreground] {}",
                 inst.name);
@@ -100,10 +100,10 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             control::do_restart(&inst)?;
             echo!("Instance", inst.name.emphasize(),
                    "is successfully reverted to",
-                   inst.installation.version.emphasize());
+                   inst.get_version()?.emphasize());
         }
         (Err(e), _) => {
-            echo!("Revert to", inst.installation.version.emphasize(),
+            echo!("Revert to", inst.get_version()?.emphasize(),
                 "is complete, \
                 but there was an error creating the service:",
                 format_args!("{:#}", e));

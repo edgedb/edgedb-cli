@@ -6,10 +6,12 @@ use anyhow::Context;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+use crate::process::{self, IntoArg};
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Build(Box<str>);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Semver(semver::Version);
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -123,6 +125,12 @@ impl FromStr for Filter {
                         Use: {:?}.", value, result.to_string());
         }
         Ok(result)
+    }
+}
+
+impl IntoArg for &Filter {
+    fn add_arg(self, process: &mut process::Native) {
+        process.arg(self.to_string());
     }
 }
 

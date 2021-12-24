@@ -28,11 +28,12 @@ use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, Paths, allocate_port, is_valid_name};
-use crate::portable::options::{instance_name_opt, StartConf};
-use crate::portable::platform::optional_docker_check;
+use crate::portable::options::{self, instance_name_opt, StartConf};
+use crate::portable::platform::{optional_docker_check};
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::upgrade;
 use crate::portable::ver;
+use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
 use crate::question;
 use crate::table;
@@ -46,6 +47,11 @@ const DEFAULT_ESDL: &str = "\
     }\n\
 ";
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProjectInfo {
+    instance_name: String,
+    stash_dir: PathBuf,
+}
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct ProjectCommand {
@@ -180,9 +186,13 @@ pub struct Handle {
     instance: InstanceKind,
 }
 
+pub struct WslInfo {
+}
+
 pub enum InstanceKind {
     Remote,
     Portable(InstanceInfo),
+    Wsl(WslInfo),
 }
 
 #[derive(serde::Serialize)]
@@ -205,9 +215,9 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
             let dir = fs::canonicalize(&dir)?;
             if dir.join("edgedb.toml").exists() {
                 if options.link {
-                    link(options, &dir)?;
+                    link(options, &dir)?
                 } else {
-                    init_existing(options, &dir)?;
+                    init_existing(options, &dir)?
                 }
             } else {
                 if options.link {
@@ -217,7 +227,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                         a new project run command without `--link` flag")
                 }
 
-                init_new(options, &dir)?;
+                init_new(options, &dir)?
             }
         }
         None => {
@@ -226,9 +236,9 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
             if let Some(dir) = search_dir(&base_dir)? {
                 let dir = fs::canonicalize(&dir)?;
                 if options.link {
-                    link(options, &dir)?;
+                    link(options, &dir)?
                 } else {
-                    init_existing(options, &dir)?;
+                    init_existing(options, &dir)?
                 }
             } else {
                 if options.link {
@@ -239,7 +249,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 }
 
                 let dir = fs::canonicalize(&base_dir)?;
-                init_new(options, &dir)?;
+                init_new(options, &dir)?
             }
         }
     };
@@ -263,9 +273,11 @@ fn ask_existing_instance_name() -> anyhow::Result<String> {
     }
 }
 
-fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
-    println!("Found `edgedb.toml` in `{}`", project_dir.display());
-    println!("Linking project...");
+fn link(options: &Init, project_dir: &Path)
+    -> anyhow::Result<ProjectInfo>
+{
+    echo!("Found `edgedb.toml` in", project_dir.display());
+    echo!("Linking project...");
 
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
@@ -291,7 +303,7 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 }
 
 fn do_link(inst: &Handle, options: &Init, project_dir: &Path, stash_dir: &Path)
-    -> anyhow::Result<()>
+    -> anyhow::Result<ProjectInfo>
 {
     write_stash_dir(&stash_dir, &project_dir, &inst.name)?;
 
@@ -310,7 +322,10 @@ fn do_link(inst: &Handle, options: &Init, project_dir: &Path, stash_dir: &Path)
         eprintln!("To connect to {}, run `edgedb`", inst.name);
     }
 
-    Ok(())
+    Ok(ProjectInfo {
+        instance_name: inst.name.clone(),
+        stash_dir: stash_dir.into(),
+    })
 }
 
 fn ask_name(dir: &Path, options: &Init) -> anyhow::Result<(String, bool)> {
@@ -376,10 +391,10 @@ fn ask_name(dir: &Path, options: &Init) -> anyhow::Result<(String, bool)> {
 }
 
 pub fn init_existing(options: &Init, project_dir: &Path)
-    -> anyhow::Result<()>
+    -> anyhow::Result<ProjectInfo>
 {
-    println!("Found `edgedb.toml` in `{}`", project_dir.display());
-    println!("Initializing project...");
+    echo!("Found `edgedb.toml` in", project_dir.display());
+    echo!("Initializing project...");
 
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
@@ -409,18 +424,24 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         return do_link(&inst, options, project_dir, &stash_dir);
     }
 
-    println!("Checking EdgeDB versions...");
+    echo!("Checking EdgeDB versions...");
 
-    let pkg = repository::get_server_package(&ver_query)?.with_context(||
-        format!("cannot find package matching {}", ver_query.display()))?;
+    let pkg = repository::get_server_package(&ver_query)?
+        .with_context(||
+            format!("cannot find package matching {}", ver_query.display()))?;
 
+    let meth = if cfg!(windows) {
+        "WSL"
+    } else {
+        "portable package"
+    };
     table::settings(&[
         ("Project directory", &project_dir.display().to_string()),
         ("Project config", &config_path.display().to_string()),
         (&format!("Schema dir {}",
             if schema_files { "(non-empty)" } else { "(empty)" }),
             &schema_dir.display().to_string()),
-        ("Installation method", "portable package"),
+        ("Installation method", meth),
         ("Version", &pkg.version.to_string()),
         ("Instance name", &name),
     ]);
@@ -434,27 +455,48 @@ pub fn init_existing(options: &Init, project_dir: &Path)
 
 fn do_init(name: &str, pkg: &PackageInfo,
            stash_dir: &Path, project_dir: &Path, options: &Init)
-    -> anyhow::Result<()>
+    -> anyhow::Result<ProjectInfo>
 {
-    let inst = install::package(&pkg).context("error installing EdgeDB")?;
     let start_conf = options.server_start_conf.unwrap_or(StartConf::Auto);
     let port = allocate_port(name)?;
-    let info = InstanceInfo {
-        name: name.into(),
-        installation: inst,
-        port,
-        start_conf,
-    };
     let paths = Paths::get(&name)?;
-    create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
 
-    let svc_result = create::create_service(&info);
+    let (instance, svc_result) = if cfg!(windows) {
+        let q = repository::Query::from_version(&pkg.version.specific())?;
+        windows::create_instance(&options::Create {
+            name: name.into(),
+            nightly: q.is_nightly(),
+            version: q.version,
+            port: Some(port),
+            start_conf,
+            default_database: "edgedb".into(),
+            default_user: "edgedb".into(),
+        }, port, &paths)?;
+        let svc_result = create::create_service(&InstanceInfo {
+            name: name.into(),
+            installation: None,
+            port,
+            start_conf,
+        });
+        (InstanceKind::Wsl(WslInfo {}), svc_result)
+    } else {
+        let inst = install::package(&pkg).context("error installing EdgeDB")?;
+        let info = InstanceInfo {
+            name: name.into(),
+            installation: Some(inst),
+            port,
+            start_conf,
+        };
+        create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
+        let svc_result = create::create_service(&info);
+        (InstanceKind::Portable(info), svc_result)
+    };
 
     write_stash_dir(stash_dir, project_dir, &name)?;
 
     let handle = Handle {
         name: name.into(),
-        instance: InstanceKind::Portable(info),
+        instance,
     };
     match (svc_result, start_conf) {
         (Ok(()), StartConf::Manual) => {
@@ -481,10 +523,15 @@ fn do_init(name: &str, pkg: &PackageInfo,
             return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
         }
     }
-    Ok(())
+    Ok(ProjectInfo {
+        instance_name: name.into(),
+        stash_dir: stash_dir.into(),
+    })
 }
 
-pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
+pub fn init_new(options: &Init, project_dir: &Path)
+    -> anyhow::Result<ProjectInfo>
+{
     eprintln!("No `edgedb.toml` found in `{}` or above",
               project_dir.display());
 
@@ -502,7 +549,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         );
         q.default(true);
         if !q.ask()? {
-            return Ok(());
+            return Err(ExitCode::new(0).into());
         }
     }
 
@@ -526,17 +573,22 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         return do_link(&inst, options, project_dir, &stash_dir);
     }
 
-    println!("Checking EdgeDB versions...");
+    echo!("Checking EdgeDB versions...");
 
     let pkg = ask_version(options)?;
 
+    let meth = if cfg!(windows) {
+        "WSL"
+    } else {
+        "portable package"
+    };
     table::settings(&[
         ("Project directory", &project_dir.display().to_string()),
         ("Project config", &config_path.display().to_string()),
         (&format!("Schema dir {}",
             if schema_files { "(non-empty)" } else { "(empty)" }),
             &schema_dir.display().to_string()),
-        ("Installation method", "portable package"),
+        ("Installation method", meth),
         ("Version", &pkg.version.to_string()),
         ("Instance name", &name),
     ]);
@@ -587,22 +639,39 @@ pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
 }
 
 fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
-    if let InstanceKind::Portable(inst) = &info.instance {
-        control::ensure_runstate_dir(&info.name)?;
-        let mut cmd = control::get_server_cmd(inst)?;
-        cmd.background_for(migrate(info, false))?;
-        Ok(())
-    } else {
-        anyhow::bail!("remote instance is not running, cannot run migrations");
+    match &info.instance {
+        InstanceKind::Portable(inst) => {
+            control::ensure_runstate_dir(&info.name)?;
+            let mut cmd = control::get_server_cmd(inst)?;
+            cmd.background_for(migrate(info, false))?;
+            Ok(())
+        }
+        InstanceKind::Wsl(_) => {
+            let mut cmd = windows::server_cmd(&info.name)?;
+            cmd.background_for(migrate(info, false))?;
+            Ok(())
+        }
+        InstanceKind::Remote => {
+            anyhow::bail!("remote instance is not running, \
+                          cannot run migrations");
+        }
     }
 }
 
-fn start(inst: &Handle) -> anyhow::Result<()> {
-    if let InstanceKind::Portable(inst) = &inst.instance {
-        control::do_start(&inst)?;
-        Ok(())
-    } else {
-        anyhow::bail!("remote instance is not running, cannot run migrations");
+fn start(handle: &Handle) -> anyhow::Result<()> {
+    match &handle.instance {
+        InstanceKind::Portable(inst) => {
+            control::do_start(&inst)?;
+            Ok(())
+        }
+        InstanceKind::Wsl(_) => {
+            windows::daemon_start(&handle.name)?;
+            Ok(())
+        }
+        InstanceKind::Remote => {
+            anyhow::bail!("remote instance is not running, \
+                          cannot run migrations");
+        }
     }
 }
 
@@ -621,7 +690,7 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
         Skip,
     }
 
-    println!("Applying migrations...");
+    echo!("Applying migrations...");
 
     let mut conn = loop {
         match inst.get_connection().await {
@@ -658,7 +727,7 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
                     Retry => continue,
                     Skip => {
                         print::warn("Skipping migrations.");
-                        eprintln!("Once service is running, \
+                        echo!("Once service is running, \
                             you can apply migrations by running:\n  \
                               edgedb migrate");
                         return Ok(());
@@ -707,6 +776,7 @@ fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
 impl InstanceKind {
     fn is_local(&self) -> bool {
         match self {
+            InstanceKind::Wsl(_) => true,
             InstanceKind::Portable(_) => true,
             InstanceKind::Remote => false,
         }
@@ -786,15 +856,15 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>,
 {
     print::success("Project initialized.");
     if start_conf == StartConf::Manual {
-        println!("To start the server run:\n  \
-                  edgedb instance start {}",
-                  name.escape_default());
+        echo!("To start the server run:");
+        echo!("  edgedb instance start".command_hint(),
+              name.escape_default().command_hint());
     } else {
         if let Some(dir) = dir_option {
-            println!("To connect to {}, navigate to {} and run `edgedb`",
-                name, dir.display());
+            echo!("To connect to", name.emphasize();
+                  ", navigate to", dir.display(), "and run `edgedb`");
         } else {
-            println!("To connect to {}, run `edgedb`", name);
+            echo!("To connect to", name.emphasize(); ", run `edgedb`");
         }
     }
 }
@@ -1125,28 +1195,40 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
             InstanceKind::Remote
                 => anyhow::bail!("remote instances cannot be upgraded"),
             InstanceKind::Portable(inst) => inst,
+            InstanceKind::Wsl(_) => todo!(),
         };
-        let inst_ver = inst.installation.version.specific();
+        let inst_ver = inst.get_version()?.specific();
 
         if pkg_ver > inst_ver || options.force {
-            // When force is used we might upgrade to the same version, but
-            // since some selector like `--to-latest` was specified we assume
-            // user want to treat this upgrade as incompatible and do the
-            // upgrade.  This is mostly for testing.
-            if pkg_ver.is_compatible(&inst_ver) && !options.force {
-                upgrade::upgrade_compatible(inst, pkg)?;
+            if cfg!(windows) {
+                windows::upgrade(&options::Upgrade {
+                    to_latest: false,
+                    to_version: query.version.clone(),
+                    to_nightly: query.is_nightly(),
+                    name: name.clone(),
+                    verbose: false,
+                    force: options.force,
+                })?;
             } else {
-                upgrade::upgrade_incompatible(inst, pkg)?;
+                // When force is used we might upgrade to the same version, but
+                // since some selector like `--to-latest` was specified we
+                // assume user want to treat this upgrade as incompatible and
+                // do the upgrade.  This is mostly for testing.
+                if pkg_ver.is_compatible(&inst_ver) && !options.force {
+                    upgrade::upgrade_compatible(inst, pkg)?;
+                } else {
+                    upgrade::upgrade_incompatible(inst, pkg)?;
+                }
             }
 
             if config::modify(&config_path, &query)? {
-                println!("Remember to commit it to version control.");
+                echo!("Remember to commit it to version control.");
             }
             print_other_project_warning(&name, &root, &query)?;
         } else {
             echo!("Latest version found", pkg.version.to_string() + ",",
                   "current instance version is",
-                  inst.installation.version.emphasize().to_string() + ".",
+                  inst.get_version()?.emphasize().to_string() + ".",
                   "Already up to date.");
         }
     };
@@ -1203,22 +1285,34 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
         InstanceKind::Remote
             => anyhow::bail!("remote instances cannot be upgraded"),
         InstanceKind::Portable(inst) => inst,
+        InstanceKind::Wsl(_) => todo!(),
     };
-    let inst_ver = inst.installation.version.specific();
+    let inst_ver = inst.get_version()?.specific();
 
     let pkg = repository::get_server_package(&cfg_ver)?.with_context(||
         format!("cannot find package matching {}", cfg_ver.display()))?;
     let pkg_ver = pkg.version.specific();
 
     if pkg_ver > inst_ver || options.force {
-        // When force is used we might upgrade to the same version, but
-        // since some selector like `--to-latest` was specified we assume user
-        // want to treat this upgrade as incompatible and do the upgrade.
-        // This is mostly for testing.
-        if pkg_ver.is_compatible(&inst_ver) {
-            upgrade::upgrade_compatible(inst, pkg)?;
+        if cfg!(windows) {
+            windows::upgrade(&options::Upgrade {
+                to_latest: false,
+                to_version: cfg_ver.version.clone(),
+                to_nightly: cfg_ver.is_nightly(),
+                name: instance_name.into(),
+                verbose: false,
+                force: options.force,
+            })?;
         } else {
-            upgrade::upgrade_incompatible(inst, pkg)?;
+            // When force is used we might upgrade to the same version, but
+            // since some selector like `--to-latest` was specified we assume
+            // user want to treat this upgrade as incompatible and do the
+            // upgrade. This is mostly for testing.
+            if pkg_ver.is_compatible(&inst_ver) {
+                upgrade::upgrade_compatible(inst, pkg)?;
+            } else {
+                upgrade::upgrade_incompatible(inst, pkg)?;
+            }
         }
     } else {
         echo!("EdgeDB instance is up to date with \

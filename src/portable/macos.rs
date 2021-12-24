@@ -134,7 +134,7 @@ fn bootout(name: &str) -> anyhow::Result<()> {
     let status = process::Native::new(
         "remove service", "launchctl", "launchctl")
         .arg("bootout").arg(&unit_name)
-        .status()?;
+        .status_only()?;
     if !status.success() && status.code() != Some(36) {
         // MacOS Catalina has a bug of returning:
         //   Boot-out failed: 36: Operation now in progress

@@ -33,11 +33,9 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
     if data_dir.exists() {
         for pair in status::list_local(&data_dir)? {
             let (name, _) = pair?;
-            InstanceInfo::try_read(&name)?
-                .map(|info| {
-                    used_versions.insert(info.installation.version.specific(),
-                                         info.name);
-                });
+            if let Some(info) = InstanceInfo::try_read(&name)? {
+                used_versions.insert(info.get_version()?.specific(), info.name);
+            }
         }
     }
     let mut all = true;
