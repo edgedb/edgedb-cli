@@ -17,6 +17,7 @@ use crate::portable::options::{Upgrade, StartConf};
 use crate::portable::project;
 use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
+use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
 
 
@@ -87,7 +88,7 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     let inst = InstanceInfo::read(&options.name)?;
-    let inst_ver = inst.installation.version.specific();
+    let inst_ver = inst.get_version()?.specific();
     let ver_option = options.to_latest || options.to_nightly ||
         options.to_version.is_some();
     let ver_query = if ver_option {
@@ -97,6 +98,10 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     };
     check_project(&options.name, options.force, &ver_query)?;
 
+    if cfg!(windows) {
+        return windows::upgrade(options);
+    }
+
     let pkg = repository::get_server_package(&ver_query)?
         .context("no package found according to your criteria")?;
     let pkg_ver = pkg.version.specific();
@@ -104,7 +109,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     if pkg_ver <= inst_ver && !options.force {
         echo!("Latest version found", pkg.version.to_string() + ",",
               "current instance version is",
-              inst.installation.version.emphasize().to_string() + ".",
+              inst.get_version()?.emphasize().to_string() + ".",
               "Already up to date.");
         return Ok(());
     }
@@ -125,7 +130,7 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
 {
     echo!("Upgrading to a minor version", pkg.version.emphasize());
     let install = install::package(&pkg).context("error installing EdgeDB")?;
-    inst.installation = install;
+    inst.installation = Some(install);
     match (create::create_service(&inst), inst.start_conf) {
         (Ok(()), StartConf::Manual) => {
             echo!("Instance", inst.name.emphasize(),
@@ -144,7 +149,7 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
                 but there was an error creating the service:",
                 format_args!("{:#}", e));
             eprintln!("You can start it manually via:\n  \
-                edgedb instance start --foreground {}",
+                edgedb instance start [--foreground] {}",
                 inst.name);
             return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
         }
@@ -163,7 +168,7 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
 
     backup(&inst, &install, &paths)?;
 
-    inst.installation = install;
+    inst.installation = Some(install);
 
     reinit_and_restore(&inst, &paths).map_err(|e| {
         print::error(format!("{:#}", e));
@@ -252,7 +257,7 @@ fn backup(inst: &InstanceInfo, new_inst: &InstallInfo, paths: &Paths)
         anyhow::bail!("Upgrade is already in progress");
     }
     write_json(&paths.upgrade_marker, "upgrade marker", &UpgradeMeta {
-        source: inst.installation.version.clone(),
+        source: inst.get_version()?.clone(),
         target: new_inst.version.clone(),
         started: SystemTime::now(),
         pid: std::process::id(),
@@ -277,7 +282,7 @@ fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()>
     echo!("Restoring the database...");
     control::ensure_runstate_dir(&inst.name)?;
     let mut cmd = control::get_server_cmd(inst)?;
-    control::self_signed_arg(&mut cmd, &inst.installation.version);
+    control::self_signed_arg(&mut cmd, inst.get_version()?);
     cmd.background_for(async {
         restore_instance(inst, &paths.dump_path).await?;
         log::info!("Restarting instance {:?} to apply \

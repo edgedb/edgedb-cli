@@ -129,3 +129,36 @@ jobs:
         with:
           command: test
           args: --test=${{ matrix.test }} --features portable_tests
+
+  # portable-tests-windows:
+  #   runs-on: windows-latest
+  #   timeout-minutes: 35
+  #   strategy:
+  #     matrix:
+  #       test: [portable_smoke, portable_project]
+  #     fail-fast: false
+  #   steps:
+  #     - uses: actions/checkout@master
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         profile: minimal
+  #         toolchain: stable
+  #         default: true
+
+  #     - uses: actions-rs/cargo@v1
+  #       with:
+  #         command: build
+  #         args: --tests --features portable_tests
+
+  #     - uses: actions-rs/cargo@v1
+  #       with:
+  #         command: run
+  #         args: -- cli install -y --no-wait-for-exit-prompt
+
+  #     - run: |
+  #         echo "$HOME\\AppData\\Roaming\\bin" >> $GITHUB_PATH
+
+  #     - uses: actions-rs/cargo@v1
+  #       with:
+  #         command: test
+  #         args: --test=${{ matrix.test }} --features portable_tests

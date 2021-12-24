@@ -97,9 +97,11 @@ async-process = { git="https://github.com/smol-rs/async-process", rev="c8bdbc1"}
 crossbeam-utils = "0.8.5"
 tar = "0.4.37"
 zstd = "0.9.0"
-semver = "1.0.4"
+semver = {version="1.0.4", features=["serde"]}
 blocking = "1.1.0"
 fd-lock = "3.0.2"
+zip = "0.5.0"
+libflate = "1.1.1"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
@@ -125,6 +127,7 @@ signal-hook = {version="0.3.10", features=["iterator"]}
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.8"
 winreg = "0.8.0"
+wslapi = "0.1.3"
 
 [target.'cfg(unix)'.dev-dependencies]
 rexpect = {git="https://github.com/tailhook/rexpect", branch="default_terminal_size"}

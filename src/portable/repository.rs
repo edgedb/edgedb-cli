@@ -146,7 +146,9 @@ fn retry_seconds() -> impl Iterator<Item=u64> {
     [5, 15, 30, 60].iter().cloned().chain(iter::repeat(60))
 }
 
-pub async fn get_header(original_url: &Url) -> anyhow::Result<surf::Response> {
+pub async fn get_header(original_url: &Url, permanent_warning: bool)
+    -> anyhow::Result<surf::Response>
+{
     use surf::StatusCode::{self, MovedPermanently, PermanentRedirect};
     use surf::StatusCode::{TooManyRequests};
 
@@ -175,7 +177,8 @@ pub async fn get_header(original_url: &Url) -> anyhow::Result<surf::Response> {
                     }
                     Err(e) => return Err(e)?,
                 };
-                if matches!(res.status(), MovedPermanently | PermanentRedirect)
+                if permanent_warning &&
+                   matches!(res.status(), MovedPermanently | PermanentRedirect)
                 {
                     log::warn!("Location {} permanently moved to {}.",
                                url, new_url);
@@ -206,7 +209,7 @@ pub async fn get_header(original_url: &Url) -> anyhow::Result<surf::Response> {
 pub async fn get_json<T>(url: &Url) -> Result<T, anyhow::Error>
     where T: serde::de::DeserializeOwned,
 {
-    let body_bytes = get_header(url).await?
+    let body_bytes = get_header(url, true).await?
         .body_bytes().await.map_err(HttpError)?;
 
     let jd = &mut serde_json::Deserializer::from_slice(&body_bytes);
@@ -292,13 +295,18 @@ fn valid_hash(val: &String) -> bool {
 pub fn get_cli_packages(channel: Channel)
     -> anyhow::Result<Vec<CliPackageInfo>>
 {
+    get_platform_cli_packages(channel, platform::get_cli()?)
+}
+
+pub fn get_platform_cli_packages(channel: Channel, platform: &str)
+    -> anyhow::Result<Vec<CliPackageInfo>>
+{
     use Channel::*;
 
     let pkg_root = pkg_root()?;
-    let plat = platform::get_name(true)?;
     let url = pkg_root.join(&match channel {
-        Stable => format!("/archive/.jsonindexes/{}.json", plat),
-        Nightly => format!("/archive/.jsonindexes/{}.nightly.json", plat),
+        Stable => format!("/archive/.jsonindexes/{}.json", platform),
+        Nightly => format!("/archive/.jsonindexes/{}.nightly.json", platform),
     })?;
     let data: RepositoryData = match task::block_on(get_json(&url)) {
         Ok(data) => data,
@@ -315,13 +323,19 @@ pub fn get_cli_packages(channel: Channel)
 pub fn get_server_packages(channel: Channel)
     -> anyhow::Result<Vec<PackageInfo>>
 {
+    let plat = platform::get_server()?;
+    get_platform_server_packages(channel, plat)
+}
+
+fn get_platform_server_packages(channel: Channel, platform: &str)
+    -> anyhow::Result<Vec<PackageInfo>>
+{
     use Channel::*;
 
     let pkg_root = pkg_root()?;
-    let plat = platform::get_name(false)?;
     let url = pkg_root.join(&match channel {
-        Stable => format!("/archive/.jsonindexes/{}.json", plat),
-        Nightly => format!("/archive/.jsonindexes/{}.nightly.json", plat),
+        Stable => format!("/archive/.jsonindexes/{}.json", platform),
+        Nightly => format!("/archive/.jsonindexes/{}.nightly.json", platform),
     })?;
     let data: RepositoryData = match task::block_on(get_json(&url)) {
         Ok(data) => data,
@@ -338,8 +352,16 @@ pub fn get_server_packages(channel: Channel)
 pub fn get_server_package(query: &Query)
     -> anyhow::Result<Option<PackageInfo>>
 {
+    let plat = platform::get_server()?;
+    get_platform_server_package(query, plat)
+}
+
+fn get_platform_server_package(query: &Query, platform: &str)
+    -> anyhow::Result<Option<PackageInfo>>
+{
     let filter = query.version.as_ref();
-    let pkg = get_server_packages(query.channel)?.into_iter()
+    let pkg = get_platform_server_packages(query.channel, platform)?
+        .into_iter()
         .filter(|pkg| filter.map(|q| q.matches(&pkg.version)).unwrap_or(true))
         .max_by_key(|pkg| pkg.version.specific());
     Ok(pkg)
@@ -356,12 +378,13 @@ pub fn get_specific_package(version: &ver::Specific)
 }
 
 #[context("failed to download file at URL: {}", url)]
-pub async fn download(dest: impl AsRef<Path>, url: &Url, quiet: bool)
+pub async fn download(dest: impl AsRef<Path>, url: &Url, quiet: bool,
+                      permanent_warning: bool)
     -> Result<blake2b_simd::Hash, anyhow::Error>
 {
     let dest = dest.as_ref();
     log::info!("Downloading {} -> {}", url, dest.display());
-    let mut body = get_header(url).await?.take_body();
+    let mut body = get_header(url, permanent_warning).await?.take_body();
     let mut out = fs::File::create(dest).await
         .with_context(|| format!("writing {:?}", dest.display()))?;
 
@@ -527,6 +550,9 @@ impl Query {
         } else {
             "*".into()
         }
+    }
+    pub fn is_nightly(&self) -> bool {
+        matches!(self.channel, Channel::Nightly)
     }
 }
 

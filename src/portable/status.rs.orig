@@ -85,7 +85,7 @@ pub enum ConnectionStatus {
 }
 
 #[derive(Debug)]
-pub struct RemoteStatus {
+struct RemoteStatus {
     pub name: String,
     pub credentials: Credentials,
     pub version: Option<String>,
@@ -331,7 +331,7 @@ pub fn get_remote(visited: &BTreeSet<String>)
         if visited.contains(&name) {
             continue;
         }
-        match _remote_status(&name, false) {
+        match _remote_status(&name) {
             Ok(status) => result.push(status),
             Err(e) => {
                 log::warn!(
@@ -363,11 +363,32 @@ pub fn list(options: &List) -> anyhow::Result<()> {
         }
         local.sort_by(|a, b| a.name.cmp(&b.name));
     }
+<<<<<<< Updated upstream
+    let mut remote = Vec::new();
+    if !options.no_remote {
+        for name in credentials::all_instance_names()? {
+            if visited.contains(&name) {
+                continue;
+            }
+            match _remote_status(&name, false) {
+                Ok(status) => remote.push(status),
+                Err(e) => {
+                    log::warn!(
+                        "Cannot check remote instance {:?}: {:#}", name, e);
+                    continue;
+                }
+            }
+        }
+    }
+    local.sort_by(|a, b| a.name.cmp(&b.name));
+    remote.sort_by(|a, b| a.name.cmp(&b.name));
+=======
     let remote = if options.no_remote {
         Vec::new()
     } else {
         get_remote(&visited)?
     };
+>>>>>>> Stashed changes
 
     if local.is_empty() && remote.is_empty() {
         if options.json {
@@ -498,9 +519,7 @@ impl FullStatus {
 
         match &self.instance {
             Ok(inst) => {
-                if let Ok(version) = inst.get_version() {
-                    println!("  Version: {}", version);
-                }
+                println!("  Version: {}", inst.installation.version);
                 println!("  Startup: {}", inst.start_conf);
                 if let Some(port) = self.reserved_port {
                     if inst.port == port {
@@ -553,8 +572,7 @@ impl FullStatus {
         JsonStatus {
             name: self.name.clone(),
             port: meta.map(|m| m.port),
-            version: meta.and_then(|m| m.get_version().ok())
-                .map(|v| v.to_string()),
+            version: meta.map(|m| m.installation.version.to_string()),
             service_status: Some(status_str(&self.service).to_string()),
             remote_status: None,
         }

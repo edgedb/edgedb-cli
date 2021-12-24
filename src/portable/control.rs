@@ -19,29 +19,33 @@ use crate::platform::current_exe;
 
 fn supervisor_start(inst: &InstanceInfo) -> anyhow::Result<()> {
     if cfg!(windows) {
-        windows::start_service(inst)
+        windows::start_service(&inst.name)
     } else if cfg!(target_os="macos") {
         macos::start_service(inst)
     } else if cfg!(target_os="linux") {
-        linux::start_service(inst)
+        linux::start_service(&inst.name)
     } else {
         anyhow::bail!("unsupported platform");
     }
 }
 
 fn daemon_start(instance: &str) -> anyhow::Result<()> {
-    let lock = open_lock(instance)?;
-    if lock.try_read().is_err() {  // properly running
-        log::info!("Instance {:?} is already running", instance);
-        return Ok(())
+    if cfg!(windows) {
+        windows::daemon_start(instance)
+    } else {
+        let lock = open_lock(instance)?;
+        if lock.try_read().is_err() {  // properly running
+            log::info!("Instance {:?} is already running", instance);
+            return Ok(())
+        }
+        process::Native::new("edgedb cli", "edgedb-cli", &current_exe()?)
+            .arg("instance")
+            .arg("start")
+            .arg(instance)
+            .arg("--managed-by=edgedb-cli")
+            .daemonize_with_stdout()?;
+        Ok(())
     }
-    process::Native::new("edgedb cli", "edgedb-cli", &current_exe()?)
-        .arg("instance")
-        .arg("start")
-        .arg(instance)
-        .arg("--managed-by=edgedb-cli")
-        .daemonize_with_stdout()?;
-    Ok(())
 }
 
 pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
@@ -60,7 +64,7 @@ pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
 
 pub fn get_server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     if cfg!(windows) {
-        windows::server_cmd(inst)
+        windows::server_cmd(&inst.name)
     } else if cfg!(target_os="macos") {
         macos::server_cmd(inst)
     } else if cfg!(target_os="linux") {
