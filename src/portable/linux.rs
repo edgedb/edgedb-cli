@@ -41,12 +41,16 @@ pub fn create_service(info: &InstanceInfo)
     let unit_path = unit_dir.join(&unit_name);
     fs::write(&unit_path, systemd_unit(name, info)?)
         .with_context(|| format!("cannot write {:?}", unit_path))?;
-    process::Native::new("systemctl", "systemctl", "systemctl")
-        .arg("--user")
-        .arg("daemon-reload")
-        .run()
-        .map_err(|e| log::warn!("failed to reload systemd daemon: {}", e))
-        .ok();
+    if preliminary_detect().is_some() {
+        process::Native::new("systemctl", "systemctl", "systemctl")
+            .arg("--user")
+            .arg("daemon-reload")
+            .run()
+            .map_err(|e| log::warn!("failed to reload systemd daemon: {}", e))
+            .ok();
+    } else {
+        anyhow::bail!("no systemd user daemon found")
+    }
     if info.start_conf == StartConf::Auto {
         process::Native::new("systemctl", "systemctl", "systemctl")
             .arg("--user")
@@ -159,14 +163,19 @@ pub fn detect_systemd(instance: &str) -> bool {
     _detect_systemd(instance).is_some()
 }
 
-fn _detect_systemd(instance: &str) -> Option<PathBuf> {
-    let unit_name = unit_name(instance);
-    env::var_os("XDG_RUNTIME_DIR")?;
-    let path = if let Ok(path) = which::which("systemctl") {
-        path
+fn preliminary_detect() -> Option<PathBuf> {
+    env::var_os("XDG_RUNTIME_DIR")
+        .or_else(|| env::var_os("DBUS_SESSION_BUS_ADDRESS"))?;
+    if let Ok(path) = which::which("systemctl") {
+        Some(path)
     } else {
-        return None;
-    };
+        None
+    }
+}
+
+fn _detect_systemd(instance: &str) -> Option<PathBuf> {
+    let path = preliminary_detect()?;
+    let unit_name = unit_name(instance);
     let out = process::Native::new("detect systemd", "systemctl", &path)
         .arg("--user")
         .arg("is-enabled")
