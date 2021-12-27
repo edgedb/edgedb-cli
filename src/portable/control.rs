@@ -106,6 +106,9 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
 
     let pid_path = runstate_dir(&meta.name)?.join("edgedb.pid");
     let log_path = log_file(&meta.name)?;
+    if let Some(dir) = log_path.parent() {
+        fs::create_dir_all(&dir)?;
+    }
     let log_file = fs::OpenOptions::new()
         .create(true).write(true).append(true)
         .open(&log_path)?;
