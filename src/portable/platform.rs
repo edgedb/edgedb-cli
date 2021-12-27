@@ -13,6 +13,8 @@ pub fn get_name(static_build: bool) -> anyhow::Result<&'static str> {
             } else {
                 return Ok("x86_64-unknown-linux-gnu");
             }
+        } else if cfg!(windows) {
+            return Ok("x86_64-pc-windows-msvc");
         } else {
             anyhow::bail!("unsupported OS on x86_64");
         }
