@@ -46,6 +46,11 @@ const DEFAULT_ESDL: &str = "\
     }\n\
 ";
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ProjectInfo {
+    instance_name: String,
+    stash_dir: PathBuf,
+}
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct ProjectCommand {
@@ -116,6 +121,10 @@ pub struct Init {
     /// Run in non-interactive mode (accepting all defaults)
     #[clap(long)]
     pub non_interactive: bool,
+
+    /// Prints JSON with project info to stdout
+    #[clap(long, setting=clap::ArgSettings::Hidden)]
+    pub print_project_info: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
@@ -200,14 +209,14 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
-    match &options.project_dir {
+    let info = match &options.project_dir {
         Some(dir) => {
             let dir = fs::canonicalize(&dir)?;
             if dir.join("edgedb.toml").exists() {
                 if options.link {
-                    link(options, &dir)?;
+                    link(options, &dir)?
                 } else {
-                    init_existing(options, &dir)?;
+                    init_existing(options, &dir)?
                 }
             } else {
                 if options.link {
@@ -217,7 +226,7 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                         a new project run command without `--link` flag")
                 }
 
-                init_new(options, &dir)?;
+                init_new(options, &dir)?
             }
         }
         None => {
@@ -226,9 +235,9 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
             if let Some(dir) = search_dir(&base_dir)? {
                 let dir = fs::canonicalize(&dir)?;
                 if options.link {
-                    link(options, &dir)?;
+                    link(options, &dir)?
                 } else {
-                    init_existing(options, &dir)?;
+                    init_existing(options, &dir)?
                 }
             } else {
                 if options.link {
@@ -239,10 +248,15 @@ pub fn init(options: &Init) -> anyhow::Result<()> {
                 }
 
                 let dir = fs::canonicalize(&base_dir)?;
-                init_new(options, &dir)?;
+                init_new(options, &dir)?
             }
         }
     };
+    if options.print_project_info {
+        println!("{}",
+                 serde_json::to_string_pretty(&info)
+                 .expect("can serialize project info"));
+    }
     Ok(())
 }
 
@@ -263,9 +277,11 @@ fn ask_existing_instance_name() -> anyhow::Result<String> {
     }
 }
 
-fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
-    println!("Found `edgedb.toml` in `{}`", project_dir.display());
-    println!("Linking project...");
+fn link(options: &Init, project_dir: &Path)
+    -> anyhow::Result<ProjectInfo>
+{
+    echo!("Found `edgedb.toml` in", project_dir.display());
+    echo!("Linking project...");
 
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
@@ -291,7 +307,7 @@ fn link(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
 }
 
 fn do_link(inst: &Handle, options: &Init, project_dir: &Path, stash_dir: &Path)
-    -> anyhow::Result<()>
+    -> anyhow::Result<ProjectInfo>
 {
     write_stash_dir(&stash_dir, &project_dir, &inst.name)?;
 
@@ -310,7 +326,10 @@ fn do_link(inst: &Handle, options: &Init, project_dir: &Path, stash_dir: &Path)
         eprintln!("To connect to {}, run `edgedb`", inst.name);
     }
 
-    Ok(())
+    Ok(ProjectInfo {
+        instance_name: inst.name.clone(),
+        stash_dir: stash_dir.into(),
+    })
 }
 
 fn ask_name(dir: &Path, options: &Init) -> anyhow::Result<(String, bool)> {
@@ -376,10 +395,10 @@ fn ask_name(dir: &Path, options: &Init) -> anyhow::Result<(String, bool)> {
 }
 
 pub fn init_existing(options: &Init, project_dir: &Path)
-    -> anyhow::Result<()>
+    -> anyhow::Result<ProjectInfo>
 {
-    println!("Found `edgedb.toml` in `{}`", project_dir.display());
-    println!("Initializing project...");
+    echo!("Found `edgedb.toml` in", project_dir.display());
+    echo!("Initializing project...");
 
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
@@ -409,7 +428,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         return do_link(&inst, options, project_dir, &stash_dir);
     }
 
-    println!("Checking EdgeDB versions...");
+    echo!("Checking EdgeDB versions...");
 
     let pkg = repository::get_server_package(&ver_query)?.with_context(||
         format!("cannot find package matching {}", ver_query.display()))?;
@@ -434,20 +453,20 @@ pub fn init_existing(options: &Init, project_dir: &Path)
 
 fn do_init(name: &str, pkg: &PackageInfo,
            stash_dir: &Path, project_dir: &Path, options: &Init)
-    -> anyhow::Result<()>
+    -> anyhow::Result<ProjectInfo>
 {
-    let inst = install::package(&pkg).context("error installing EdgeDB")?;
     let start_conf = options.server_start_conf.unwrap_or(StartConf::Auto);
     let port = allocate_port(name)?;
+    let paths = Paths::get(&name)?;
+
+    let inst = install::package(&pkg).context("error installing EdgeDB")?;
     let info = InstanceInfo {
         name: name.into(),
         installation: inst,
         port,
         start_conf,
     };
-    let paths = Paths::get(&name)?;
     create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
-
     let svc_result = create::create_service(&info);
 
     write_stash_dir(stash_dir, project_dir, &name)?;
@@ -481,10 +500,15 @@ fn do_init(name: &str, pkg: &PackageInfo,
             return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
         }
     }
-    Ok(())
+    Ok(ProjectInfo {
+        instance_name: name.into(),
+        stash_dir: stash_dir.into(),
+    })
 }
 
-pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
+pub fn init_new(options: &Init, project_dir: &Path)
+    -> anyhow::Result<ProjectInfo>
+{
     eprintln!("No `edgedb.toml` found in `{}` or above",
               project_dir.display());
 
@@ -502,7 +526,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         );
         q.default(true);
         if !q.ask()? {
-            return Ok(());
+            return Err(ExitCode::new(0).into());
         }
     }
 
@@ -526,7 +550,7 @@ pub fn init_new(options: &Init, project_dir: &Path) -> anyhow::Result<()> {
         return do_link(&inst, options, project_dir, &stash_dir);
     }
 
-    println!("Checking EdgeDB versions...");
+    echo!("Checking EdgeDB versions...");
 
     let pkg = ask_version(options)?;
 
@@ -621,7 +645,7 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
         Skip,
     }
 
-    println!("Applying migrations...");
+    echo!("Applying migrations...");
 
     let mut conn = loop {
         match inst.get_connection().await {
@@ -658,7 +682,7 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
                     Retry => continue,
                     Skip => {
                         print::warn("Skipping migrations.");
-                        eprintln!("Once service is running, \
+                        echo!("Once service is running, \
                             you can apply migrations by running:\n  \
                               edgedb migrate");
                         return Ok(());
@@ -786,15 +810,15 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>,
 {
     print::success("Project initialized.");
     if start_conf == StartConf::Manual {
-        println!("To start the server run:\n  \
-                  edgedb instance start {}",
-                  name.escape_default());
+        echo!("To start the server run:");
+        echo!("  edgedb instance start".command_hint(),
+              name.escape_default().command_hint());
     } else {
         if let Some(dir) = dir_option {
-            println!("To connect to {}, navigate to {} and run `edgedb`",
-                name, dir.display());
+            echo!("To connect to", name.emphasize();
+                  ", navigate to", dir.display(), "and run `edgedb`");
         } else {
-            println!("To connect to {}, run `edgedb`", name);
+            echo!("To connect to", name.emphasize(); ", run `edgedb`");
         }
     }
 }
@@ -1140,7 +1164,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
             }
 
             if config::modify(&config_path, &query)? {
-                println!("Remember to commit it to version control.");
+                echo!("Remember to commit it to version control.");
             }
             print_other_project_warning(&name, &root, &query)?;
         } else {

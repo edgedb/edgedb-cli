@@ -437,6 +437,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             no_migrations: false,
             link: false,
             server_start_conf: None,
+            print_project_info: false,
         };
         let dir = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
