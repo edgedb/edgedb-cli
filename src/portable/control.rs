@@ -1,13 +1,14 @@
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::env;
+use std::fs;
 
 use anyhow::Context;
 use fn_error_context::context;
-use fs_err as fs;
 
 use crate::credentials;
 use crate::bug;
+use crate::hint::HintExt;
 use crate::portable::local::{InstanceInfo, runstate_dir, open_lock, lock_file};
 use crate::portable::options::{Start, Stop, Restart, Logs};
 use crate::portable::ver;
@@ -66,12 +67,29 @@ pub fn get_server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
 
 pub fn ensure_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
     let runstate_dir = runstate_dir(name)?;
-    fs::create_dir_all(&runstate_dir)?;
+    match fs::create_dir_all(&runstate_dir) {
+        Ok(()) => {}
+        Err(e) if e.kind() == io::ErrorKind::PermissionDenied && cfg!(unix)
+        => {
+            return Err(e)
+                .context(format!(
+                    "failed to create runstate dir {:?}", runstate_dir))
+                .hint("This may mean that `XDG_RUNTIME_DIR` \
+                    is inherited from another user's environment. \
+                    Run `unset XDG_RUNTIME_DIR` or use a better login-as-user \
+                    tool (use `sudo` instead of `su`).")?;
+        }
+        Err(e) => {
+            return Err(e)
+                .context(format!(
+                    "failed to create runstate dir {:?}", runstate_dir));
+        }
+    }
     Ok(runstate_dir)
 }
 
 #[context("cannot write lock metadata at {:?}", path)]
-fn write_lock_info(path: &Path, lock: &mut std::fs::File,
+fn write_lock_info(path: &Path, lock: &mut fs::File,
                    marker: &Option<String>)
     -> anyhow::Result<()>
 {
@@ -107,17 +125,17 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     let pid_path = runstate_dir(&meta.name)?.join("edgedb.pid");
     let log_path = log_file(&meta.name)?;
     if let Some(dir) = log_path.parent() {
-        fs::create_dir_all(&dir)?;
+        fs_err::create_dir_all(&dir)?;
     }
-    let log_file = fs::OpenOptions::new()
+    let log_file = fs_err::OpenOptions::new()
         .create(true).write(true).append(true)
         .open(&log_path)?;
-    let null = fs::OpenOptions::new().write(true).open("/dev/null")?;
+    let null = fs_err::OpenOptions::new().write(true).open("/dev/null")?;
     let notify_socket = runstate_dir(&meta.name)?.join(".s.daemon");
     if notify_socket.exists() {
-        fs::remove_file(&notify_socket)?;
+        fs_err::remove_file(&notify_socket)?;
     } if let Some(dir) = notify_socket.parent() {
-        fs::create_dir_all(dir)?;
+        fs_err::create_dir_all(dir)?;
     }
     let sock = task::block_on(UnixDatagram::bind(&notify_socket))
         .context("cannot create notify socket")?;
@@ -174,7 +192,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             lock
         } else {
             drop(try_write);
-            let locked_by = fs::read_to_string(&lock_path)
+            let locked_by = fs_err::read_to_string(&lock_path)
                 .with_context(|| format!("cannot read lock file {:?}",
                                          lock_path))?;
             if options.managed_by.is_some() {
@@ -243,7 +261,7 @@ fn supervisor_stop(name: &str) -> anyhow::Result<()> {
 
 pub fn read_pid(instance: &str) -> anyhow::Result<Option<u32>> {
     let pid_path = runstate_dir(instance)?.join("edgedb.pid");
-    match fs::read_to_string(&pid_path) {
+    match fs_err::read_to_string(&pid_path) {
         Ok(pid_str) => {
             let pid = pid_str.trim().parse().with_context(
                 || format!("cannot parse pid file {:?}", pid_path))?;
@@ -259,7 +277,7 @@ pub fn read_pid(instance: &str) -> anyhow::Result<Option<u32>> {
     }
 }
 
-fn is_run_by_supervisor(lock: fd_lock::RwLock<std::fs::File>) -> bool {
+fn is_run_by_supervisor(lock: fd_lock::RwLock<fs::File>) -> bool {
     let mut buf = String::with_capacity(100);
     if lock.into_inner().read_to_string(&mut buf).is_err() {
         return false;
