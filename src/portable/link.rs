@@ -171,7 +171,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         InteractiveCertVerifier {
             cert_out: Mutex::new(None),
             tls_security: creds.tls_security,
-            system_ca_only: creds.tls_cert_data.is_none(),
+            system_ca_only: creds.tls_ca.is_none(),
             non_interactive: cmd.non_interactive,
             quiet: cmd.quiet,
             trust_tls_cert: cmd.trust_tls_cert,
@@ -204,7 +204,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 InteractiveCertVerifier {
                     cert_out: Mutex::new(None),
                     tls_security: creds.tls_security,
-                    system_ca_only: creds.tls_cert_data.is_none(),
+                    system_ca_only: creds.tls_ca.is_none(),
                     non_interactive: true,
                     quiet: false,
                     trust_tls_cert: true,
@@ -217,7 +217,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     }
     if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
-        creds.tls_cert_data = Some(cert.clone());
+        creds.tls_ca = Some(cert.clone());
     }
 
     let (cred_path, instance_name) = match &cmd.name {
