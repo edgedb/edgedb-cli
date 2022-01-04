@@ -258,10 +258,13 @@ fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus) {
     }
 }
 
-fn _remote_status(name: &str) -> anyhow::Result<RemoteStatus> {
+fn _remote_status(name: &str, quiet: bool) -> anyhow::Result<RemoteStatus> {
     let cred_path = credentials::path(&name)?;
     if !cred_path.exists() {
-        echo!(print::err_marker(), "No instance", name.emphasize(), "found");
+        if !quiet {
+            echo!(print::err_marker(),
+                  "No instance", name.emphasize(), "found");
+        }
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }
     let file = io::BufReader::new(fs::File::open(cred_path)?);
@@ -276,7 +279,7 @@ fn _remote_status(name: &str) -> anyhow::Result<RemoteStatus> {
 }
 
 fn remote_status(options: &Status) -> anyhow::Result<()> {
-    let status = _remote_status(&options.name)?;
+    let status = _remote_status(&options.name, options.quiet)?;
     if options.service {
         println!("Remote instance");
     } else if options.debug {
@@ -344,7 +347,7 @@ pub fn list(options: &List) -> anyhow::Result<()> {
             if visited.contains(&name) {
                 continue;
             }
-            match _remote_status(&name) {
+            match _remote_status(&name, false) {
                 Ok(status) => remote.push(status),
                 Err(e) => {
                     log::warn!(
