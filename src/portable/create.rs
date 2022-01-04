@@ -145,7 +145,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     creds.user = user.into();
     creds.database = Some(database.into());
     creds.password = Some(password.into());
-    creds.tls_cert_data = Some(cert);
+    creds.tls_ca = Some(cert);
     task::block_on(credentials::write(&paths.credentials, &creds))?;
 
     Ok(())
