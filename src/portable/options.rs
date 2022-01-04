@@ -306,6 +306,11 @@ pub struct Status {
     /// Output in JSON format
     #[clap(long, conflicts_with_all=&["extended", "debug", "service"])]
     pub json: bool,
+
+    /// Do not print error on "No instance found" only indicate by error code
+    //  Currently needed for WSL
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub quiet: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
