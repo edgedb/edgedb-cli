@@ -271,6 +271,16 @@ pub struct List {
     /// Output in JSON format
     #[clap(long, conflicts_with_all=&["extended", "debug"])]
     pub json: bool,
+
+    /// Do query remote instances
+    //  Currently needed for WSL
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub no_remote: bool,
+
+    /// Do not show warnings on no instances
+    //  Currently needed for WSL
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub quiet: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]

@@ -14,17 +14,19 @@ use humantime::format_duration;
 
 use edgedb_client::{Builder, credentials::Credentials};
 
+use crate::commands::ExitCode;
 use crate::credentials;
 use crate::format;
-use crate::process;
 use crate::platform::{data_dir};
 use crate::portable::control;
+use crate::portable::exit_codes;
 use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::local::{read_ports, is_valid_name, lock_file};
 use crate::portable::options::{Status, List};
 use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::{windows, linux, macos};
-use crate::print::{self};
+use crate::print::{self, echo, Highlight};
+use crate::process;
 use crate::table::{self, Table, Row, Cell};
 
 
@@ -259,7 +261,8 @@ fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus) {
 fn _remote_status(name: &str) -> anyhow::Result<RemoteStatus> {
     let cred_path = credentials::path(&name)?;
     if !cred_path.exists() {
-        anyhow::bail!("No instance {:?} found", name);
+        echo!(print::err_marker(), "No instance", name.emphasize(), "found");
+        return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }
     let file = io::BufReader::new(fs::File::open(cred_path)?);
     let credentials = serde_json::from_reader(file)?;
@@ -336,15 +339,18 @@ pub fn list(options: &List) -> anyhow::Result<()> {
         }
     }
     let mut remote = Vec::new();
-    for name in credentials::all_instance_names()? {
-        if visited.contains(&name) {
-            continue;
-        }
-        match _remote_status(&name) {
-            Ok(status) => remote.push(status),
-            Err(e) => {
-                log::warn!("Cannot check remote instance {:?}: {:#}", name, e);
+    if !options.no_remote {
+        for name in credentials::all_instance_names()? {
+            if visited.contains(&name) {
                 continue;
+            }
+            match _remote_status(&name) {
+                Ok(status) => remote.push(status),
+                Err(e) => {
+                    log::warn!(
+                        "Cannot check remote instance {:?}: {:#}", name, e);
+                    continue;
+                }
             }
         }
     }
@@ -354,7 +360,7 @@ pub fn list(options: &List) -> anyhow::Result<()> {
     if local.is_empty() && remote.is_empty() {
         if options.json {
             println!("[]");
-        } else {
+        } else if !options.quiet {
             print::warn("No instances found");
         }
         return Ok(());
