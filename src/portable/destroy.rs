@@ -6,6 +6,7 @@ use crate::commands::ExitCode;
 use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local;
+use crate::print;
 use crate::portable::options::Destroy;
 use crate::portable::project::{self};
 
@@ -27,7 +28,14 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
         print_warning(&options.name, &project_dirs);
         return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
     }
-    do_destroy(options)?;
+    match do_destroy(options) {
+        Ok(()) => {}
+        Err(e) if e.is::<InstanceNotFound>() => {
+            print::error(e);
+            Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND))?;
+        }
+        Err(e) => Err(e)?,
+    }
     for dir in project_dirs {
         match project::read_project_real_path(&dir) {
             Ok(path) => eprintln!("Unlinking {}", path.display()),
