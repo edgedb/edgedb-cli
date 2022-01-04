@@ -114,7 +114,7 @@ fn project_link_and_init() {
         .arg("instance").arg("destroy").arg("project1")
         .assert()
         .context("destroy-1-non-exist", "it's project name, not instance name")
-        .code(1);
+        .code(8); // instance not found
 
     Command::new("edgedb").arg("instance").arg("list")
         .assert()
