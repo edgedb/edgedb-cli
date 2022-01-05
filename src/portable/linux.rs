@@ -7,7 +7,7 @@ use fn_error_context::context;
 
 use crate::platform::{home_dir, current_exe};
 use crate::portable::destroy::InstanceNotFound;
-use crate::portable::local::{InstanceInfo, runstate_dir};
+use crate::portable::local::{InstanceInfo, runstate_dir, log_file};
 use crate::portable::options::{StartConf, Logs};
 use crate::portable::status::Service;
 use crate::process;
@@ -276,16 +276,28 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn logs(options: &Logs) -> anyhow::Result<()> {
-    let mut cmd = process::Native::new(
-        "logs", "journalctl", "journalctl");
-    cmd.arg("--user-unit").arg(unit_name(&options.name));
-    if let Some(n) = options.tail  {
-        cmd.arg(format!("--lines={}", n));
+    if detect_systemd(&options.name) {
+        let mut cmd = process::Native::new(
+            "logs", "journalctl", "journalctl");
+        cmd.arg("--user-unit").arg(unit_name(&options.name));
+        if let Some(n) = options.tail  {
+            cmd.arg(format!("--lines={}", n));
+        }
+        if options.follow {
+            cmd.arg("--follow");
+        }
+        cmd.no_proxy().run()
+    } else {
+        let mut cmd = process::Native::new("log", "tail", "tail");
+        if let Some(n) = options.tail {
+            cmd.arg("-n").arg(n.to_string());
+        }
+        if options.follow {
+            cmd.arg("-F");
+        }
+        cmd.arg(log_file(&options.name)?);
+        cmd.no_proxy().run()
     }
-    if options.follow {
-        cmd.arg("--follow");
-    }
-    cmd.no_proxy().run()
 }
 
 // We proxy for two reasons:
