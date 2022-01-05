@@ -29,6 +29,11 @@ fn supervisor_start(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 fn daemon_start(instance: &str) -> anyhow::Result<()> {
+    let lock = open_lock(instance)?;
+    if lock.try_read().is_err() {  // properly running
+        log::info!("Instance {:?} is already running", instance);
+        return Ok(())
+    }
     process::Native::new("edgedb cli", "edgedb-cli", &current_exe()?)
         .arg("instance")
         .arg("start")
