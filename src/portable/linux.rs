@@ -48,8 +48,6 @@ pub fn create_service(info: &InstanceInfo)
             .run()
             .map_err(|e| log::warn!("failed to reload systemd daemon: {}", e))
             .ok();
-    } else {
-        anyhow::bail!("no systemd user daemon found")
     }
     if info.start_conf == StartConf::Auto {
         process::Native::new("systemctl", "systemctl", "systemctl")
