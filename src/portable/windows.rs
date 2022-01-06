@@ -1,3 +1,4 @@
+use std::env;
 use std::path::PathBuf;
 
 use crate::process;
@@ -48,4 +49,8 @@ pub fn external_status(_inst: &InstanceInfo) -> anyhow::Result<()> {
 
 pub fn logs(_options: &Logs) -> anyhow::Result<()> {
     anyhow::bail!("running as a service is not supported on Windows yet");
+}
+
+pub fn is_wrapped() -> bool {
+    env::var_os("_EDGEDB_FROM_WINDOWS").map(|x| x.is_empty()).unwrap_or(false)
 }
