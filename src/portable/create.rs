@@ -50,6 +50,11 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
     bootstrap(&paths, &info,
               &options.default_database, &options.default_user)?;
 
+    if windows::is_wrapped() {
+        // no service and no messages
+        return Ok(())
+    }
+
     match (create_service(&info), options.start_conf) {
         (Ok(()), StartConf::Manual) => {
             echo!("Instance", options.name.emphasize(), "is ready.");
@@ -156,7 +161,16 @@ pub fn create_service(meta: &InstanceInfo) -> anyhow::Result<()>
     if cfg!(target_os="macos") {
         macos::create_service(&meta)
     } else if cfg!(target_os="linux") {
-        linux::create_service(&meta)
+        if windows::is_wrapped() {
+            // No service. Managed by windows.
+            // Note: in `create` we avoid even calling this function because
+            // we need to print message from windows. But on upgrade, revert,
+            // etc. completion message is printed from the linux, so this
+            // function is called.
+            Ok(())
+        } else {
+            linux::create_service(&meta)
+        }
     } else if cfg!(windows) {
         windows::create_service(&meta)
     } else {
