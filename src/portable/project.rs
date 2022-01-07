@@ -1220,8 +1220,15 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
                     upgrade::upgrade_incompatible(inst, pkg)?;
                 }
             }
+            let config_version = if query.is_nightly() {
+                query.clone()
+            } else {
+                // on `--to-latest` which is equivalent to `server-version="*"`
+                // we put specific version instead
+                Query::from_version(&pkg_ver)?
+            };
 
-            if config::modify(&config_path, &query)? {
+            if config::modify(&config_path, &config_version)? {
                 echo!("Remember to commit it to version control.");
             }
             print_other_project_warning(&name, &root, &query)?;
