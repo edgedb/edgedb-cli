@@ -368,16 +368,22 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
         let root_path = download_dir.join("install.tar");
         unpack_root(&appx_path, &root_path)?;
 
-        let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
-        fs::create_dir_all(&distro_path)?;
-        echo!("Initializing WSL distribution...");
-        process::Native::new("wsl import", "wsl", "wsl")
-            .arg("--import")
-            .arg(CURRENT_DISTRO)
-            .arg(&distro_path)
-            .arg(&root_path)
-            .arg("--version=2")
-            .run()?;
+        if env::var("EDGEDB_WSL").as_deref() == Ok("1") {
+            let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
+            wsl.register_distribution(CURRENT_DISTRO, &distro_path)?;
+        } else {
+            let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
+            fs::create_dir_all(&distro_path)?;
+	    echo!("Initializing WSL distribution...");
+            process::Native::new("wsl import", "wsl", "wsl")
+                .arg("--import")
+                .arg(CURRENT_DISTRO)
+                .arg(&distro_path)
+                .arg(&root_path)
+		.arg("--version=2")
+                .run()?;
+        };
+
         wsl_simple_cmd(&wsl, &distro,
                        "useradd edgedb --uid 1000 --create-home")?;
 
