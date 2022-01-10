@@ -66,6 +66,16 @@ jobs:
           target: x86_64-unknown-linux-musl
           default: true
 
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --target=x86_64-unknown-linux-musl
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: edgedb-linux-binary
+          path: target/x86_64-unknown-linux-musl/debug/edgedb
+
       - name: Install EdgeDB
         uses: edgedb/setup-edgedb@v1
         if: ${{ matrix.os != 'windows-latest' }}
@@ -130,35 +140,51 @@ jobs:
           command: test
           args: --test=${{ matrix.test }} --features portable_tests
 
-  # portable-tests-windows:
-  #   runs-on: windows-latest
-  #   timeout-minutes: 35
-  #   strategy:
-  #     matrix:
-  #       test: [portable_smoke, portable_project]
-  #     fail-fast: false
-  #   steps:
-  #     - uses: actions/checkout@master
-  #     - uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: stable
-  #         default: true
+  portable-tests-windows:
+    needs: musl-test
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        test: [portable_smoke, portable_project]
+      fail-fast: false
+    env:
+      _EDGEDB_WSL_DISTRO: Debian
+      _EDGEDB_WSL_LINUX_BINARY: ./linux-binary/edgedb
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
 
-  #     - uses: actions-rs/cargo@v1
-  #       with:
-  #         command: build
-  #         args: --tests --features portable_tests
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --tests --features portable_tests
 
-  #     - uses: actions-rs/cargo@v1
-  #       with:
-  #         command: run
-  #         args: -- cli install -y --no-wait-for-exit-prompt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: -- cli install -y --no-wait-for-exit-prompt
 
-  #     - run: |
-  #         echo "$HOME\\AppData\\Roaming\\bin" >> $GITHUB_PATH
+      - uses: actions/download-artifact@v2
+        with:
+          name: edgedb-linux-binary
+          path: linux-binary
 
-  #     - uses: actions-rs/cargo@v1
-  #       with:
-  #         command: test
-  #         args: --test=${{ matrix.test }} --features portable_tests
+      - run: |
+          ls linux-binary
+
+      - run: |
+          echo "$HOME\\AppData\\Roaming\\bin" >> $GITHUB_PATH
+
+      - uses: Vampire/setup-wsl@v1
+        with:
+            distribution: Debian
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --test=${{ matrix.test }} --features portable_tests

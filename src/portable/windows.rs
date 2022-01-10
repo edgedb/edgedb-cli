@@ -379,7 +379,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             return Err(NoDistribution.into());
         }
 
-        if let Ok(use_distro) = env::var("EDGEDB_WSL_DISTRO") {
+        if let Ok(use_distro) = env::var("_EDGEDB_WSL_DISTRO") {
             distro = use_distro;
         } else {
             let download_dir = cache_dir()?.join("downloads");
@@ -413,7 +413,6 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
 
         wsl_simple_cmd(&wsl, &distro,
                        "useradd edgedb --uid 1000 --create-home")?;
-
     }
 
     if update_cli {

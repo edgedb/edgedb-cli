@@ -67,7 +67,7 @@ fn install() {
         .success();
 
     Command::new("edgedb")
-        .arg("--admin").arg("--instance").arg("inst1")
+        .arg("--instance").arg("inst1")
         .arg("query").arg("SELECT 1")
         .env("RUST_LOG", "debug")
         .assert()
@@ -167,7 +167,7 @@ fn install() {
         .success();
 
     Command::new("edgedb")
-        .arg("--admin").arg("--instance").arg("inst1")
+        .arg("--instance").arg("inst1")
         .arg("query").arg("SELECT 1")
         .assert()
         .context("query-1-2", "query `inst1` after upgrade")
@@ -182,7 +182,7 @@ fn install() {
         .success();
 
     Command::new("edgedb")
-        .arg("--admin").arg("--instance").arg("inst1")
+        .arg("--instance").arg("inst1")
         .arg("query").arg("SELECT 1")
         .assert()
         .context("query-1-3", "query `inst1` after 2nd upgrade")
@@ -209,7 +209,7 @@ fn install() {
         .stdout(predicates::str::contains("-dev.").not());
 
     Command::new("edgedb")
-        .arg("--admin").arg("--instance").arg("inst1")
+        .arg("--instance").arg("inst1")
         .arg("query").arg("SELECT 1")
         .assert()
         .context("query-1a", "late query of `inst1`")

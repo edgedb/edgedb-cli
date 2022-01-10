@@ -140,6 +140,9 @@ native-tls = {version="0.2.4", features=["vendored"]}
 name = "edgedb"
 path = "src/main.rs"
 
+[profile.dev]
+opt-level = 2 # 1 -- needed so windows don't get stack overflow, 2 - for GHA
+
 [profile.release]
 debug = true
 lto = true
