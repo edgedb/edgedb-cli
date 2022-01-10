@@ -138,7 +138,7 @@ jobs:
         test: [portable_smoke, portable_project]
       fail-fast: false
     env:
-      EDGEDB_WSL: 1
+      EDGEDB_WSL_DISTRO: Debian
     steps:
       - uses: actions/checkout@master
       - uses: actions-rs/toolchain@v1
@@ -159,6 +159,10 @@ jobs:
 
       - run: |
           echo "$HOME\\AppData\\Roaming\\bin" >> $GITHUB_PATH
+
+      - uses: Vampire/setup-wsl@v1
+        with:
+            distribution: Debian
 
       - uses: actions-rs/cargo@v1
         with:

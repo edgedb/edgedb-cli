@@ -360,18 +360,21 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
         if !install {
             return Err(NoDistribution.into());
         }
-        let download_path = download_dir.join("debian.zip");
-        task::block_on(download(&download_path, &*DISTRO_URL, false, false))?;
-        echo!("Unpacking WSL distribution...");
-        let appx_path = download_dir.join("debian.appx");
-        unpack_appx(&download_path, &appx_path)?;
-        let root_path = download_dir.join("install.tar");
-        unpack_root(&appx_path, &root_path)?;
 
-        if env::var("EDGEDB_WSL").as_deref() == Ok("1") {
-            let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
-            wsl.register_distribution(CURRENT_DISTRO, &distro_path)?;
+        if let Ok(use_distro) = env::var("EDGEDB_WSL_DISTRO") {
+            distro = use_distro;
         } else {
+            let download_dir = cache_dir()?.join("downloads");
+            fs::create_dir_all(&download_dir)?;
+
+	    let download_path = download_dir.join("debian.zip");
+	    task::block_on(download(&download_path, &*DISTRO_URL, false, false))?;
+	    echo!("Unpacking WSL distribution...");
+	    let appx_path = download_dir.join("debian.appx");
+	    unpack_appx(&download_path, &appx_path)?;
+	    let root_path = download_dir.join("install.tar");
+	    unpack_root(&appx_path, &root_path)?;
+
             let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
             fs::create_dir_all(&distro_path)?;
 	    echo!("Initializing WSL distribution...");
@@ -382,15 +385,16 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
                 .arg(&root_path)
 		.arg("--version=2")
                 .run()?;
+
+            fs::remove_file(&download_path)?;
+            fs::remove_file(&appx_path)?;
+            fs::remove_file(&root_path)?;
+
+            distro = CURRENT_DISTRO.into();
         };
 
         wsl_simple_cmd(&wsl, &distro,
                        "useradd edgedb --uid 1000 --create-home")?;
-
-        fs::remove_file(&download_path)?;
-        fs::remove_file(&appx_path)?;
-        fs::remove_file(&root_path)?;
-        distro = CURRENT_DISTRO.into();
     }
 
     if update_cli {
