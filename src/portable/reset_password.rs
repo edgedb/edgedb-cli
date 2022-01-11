@@ -15,6 +15,7 @@ use crate::credentials;
 use crate::portable::local::InstanceInfo;
 use crate::portable::options::ResetPassword;
 use crate::print;
+use crate::tty_password;
 
 
 const PASSWORD_LENGTH: usize = 24;
@@ -56,12 +57,10 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
         rpassword::read_password()?
     } else if options.password {
         loop {
-            let password = rpassword::read_password_from_tty(
-                Some(&format!("New password for '{}': ",
-                              user.escape_default())))?;
-            let confirm = rpassword::read_password_from_tty(
-                Some(&format!("Confirm password for '{}': ",
-                              user.escape_default())))?;
+            let password = tty_password::read(
+                format!("New password for '{}': ", user.escape_default()))?;
+            let confirm = tty_password::read(
+                format!("Confirm password for '{}': ", user.escape_default()))?;
             if password != confirm {
                 print::error("Passwords don't match");
             } else {

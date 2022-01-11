@@ -2,7 +2,6 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::Context;
 use anymap::AnyMap;
 use async_std::task;
 use atty;
@@ -25,6 +24,7 @@ use crate::portable::project;
 use crate::portable;
 use crate::print;
 use crate::repl::OutputFormat;
+use crate::tty_password;
 
 pub mod describe;
 
@@ -570,9 +570,8 @@ fn set_password(options: &ConnectionOptions, builder: &mut Builder)
         return Ok(());
     } else if options.password {
         let user = builder.get_user();
-        rpassword::read_password_from_tty(
-            Some(&format!("Password for '{}': ", user.escape_default()))
-        ).context("error reading password")?
+        tty_password::read(
+            format!("Password for '{}': ", user.escape_default()))?
     } else {
         return Ok(())
     };

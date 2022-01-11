@@ -24,6 +24,7 @@ use crate::portable::local::{InstanceInfo, is_valid_name};
 use crate::portable::options::{Link, Unlink};
 use crate::print;
 use crate::question;
+use crate::tty_password;
 
 
 struct InteractiveCertVerifier {
@@ -186,10 +187,9 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             if opts.conn_options.password_from_stdin {
                 password = rpassword::read_password()?;
             } else if !cmd.non_interactive {
-                password = rpassword::read_password_from_tty(
-                    Some(&format!("Password for '{}': ",
-                                builder.get_user().escape_default())))
-                    .context("error reading password")?;
+                password = tty_password::read(format!(
+                        "Password for '{}': ",
+                        builder.get_user().escape_default()))?;
             } else {
                 return Err(e.into());
             }
