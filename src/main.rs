@@ -43,6 +43,7 @@ mod repl;
 //mod server;
 mod statement;
 mod table;
+mod tty_password;
 mod variables;
 mod version_check;
 

@@ -8,13 +8,26 @@ use std::task::{Poll, Context};
 use std::thread;
 
 use arc_swap::ArcSwapOption;
-use futures_util::task::AtomicWaker;
 use backtrace::Backtrace;
+use fn_error_context::context;
+use futures_util::task::AtomicWaker;
 
 use crate::commands::ExitCode;
+use crate::bug;
 
 
 static CUR_INTERRUPT: ArcSwapOption<SignalState> = ArcSwapOption::const_empty();
+static CUR_TERM: ArcSwapOption<TermSentinel> = ArcSwapOption::const_empty();
+
+#[cfg(windows)]
+struct TermSentinel {
+}
+
+#[cfg(unix)]
+struct TermSentinel {
+    tty: std::fs::File,
+    termios: libc::termios,
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum Signal {
@@ -37,6 +50,9 @@ pub struct SignalState {
     backtrace: Backtrace,
     event: Arc<Event>,
     signals: SigMask,
+}
+
+pub struct MemorizeTerm {
 }
 
 struct Event {
@@ -69,6 +85,56 @@ impl Event {
     }
 }
 
+impl MemorizeTerm {
+    #[cfg(unix)]
+    #[context("cannot get terminal mode")]
+    pub fn new() -> anyhow::Result<MemorizeTerm> {
+        use std::os::unix::io::AsRawFd;
+
+        let tty = std::fs::File::open("/dev/tty")?;
+        let mut mode = std::mem::MaybeUninit::<libc::termios>::uninit();
+        if unsafe { libc::tcgetattr(tty.as_raw_fd(), mode.as_mut_ptr()) } != 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+        let mode = unsafe { mode.assume_init() };
+        let sentinel = Arc::new(TermSentinel { tty, termios: mode });
+        let old = CUR_TERM.compare_and_swap(&None::<Arc<_>>, Some(sentinel));
+        if old.is_some() {
+            return Err(bug::error(
+                    "nested terminal mode change is unsupported"));
+        }
+        Ok(MemorizeTerm {})
+    }
+    #[cfg(windows)]
+    #[context("cannot get terminal mode")]
+    pub fn new() -> anyhow::Result<MemorizeTerm> {
+        Ok(MemorizeTerm {})
+    }
+}
+
+impl Drop for MemorizeTerm {
+    fn drop(&mut self) {
+        // Drop means code was executed normally and it isn't exit due
+        // to signal. In this case `rpassword` will take care of interrupt
+        CUR_TERM.swap(None);
+    }
+}
+
+#[cfg(unix)]
+fn reset_terminal(sentinel: &TermSentinel) {
+    use std::os::unix::io::AsRawFd;
+
+    unsafe {
+        libc::tcsetattr(sentinel.tty.as_raw_fd(),
+                         libc::TCSANOW, &sentinel.termios);
+    }
+}
+
+#[cfg(windows)]
+fn reset_terminal(sentinel: &TermSentinel) {
+    // TODO
+}
+
 #[cfg(unix)]
 fn signal_message(signal: Signal) -> i32 {
     let id = signal.to_unix();
@@ -88,14 +154,11 @@ fn signal_message(_signal: Signal) -> i32 {
 }
 
 fn exit_on(signal: Signal) -> ! {
+    if let Some(sentinel) = &*CUR_TERM.load() {
+        reset_terminal(&*sentinel);
+    }
     let id = signal_message(signal);
     process::exit(128 + id);
-}
-
-#[allow(dead_code)]
-fn _win_exit_on_interrupt() -> ! {
-    log::warn!("Exiting due to interrupt");
-    process::exit(128 + 2);
 }
 
 pub fn init_signals() {
