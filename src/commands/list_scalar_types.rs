@@ -78,7 +78,7 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
             } else if !system {
                 eprintln!("No user-defined scalar types found. {}",
                     if options.command_line { "Try --system" }
-                    else { r"Try \lT -s" });
+                    else { r"Try \ls -s" });
             }
         } else {
             table.printstd();
