@@ -100,18 +100,21 @@ fn project_link_and_init() {
 
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("project2")
+        .arg("--non-interactive")
         .assert()
         .context("destroy-2-no", "should warn")
         .code(2);
 
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("inst1")
+        .arg("--non-interactive")
         .assert()
         .context("destroy-1-no", "should warn")
         .code(2);
 
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("project1")
+        .arg("--non-interactive")
         .assert()
         .context("destroy-1-non-exist", "it's project name, not instance name")
         .code(8); // instance not found

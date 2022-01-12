@@ -189,7 +189,7 @@ fn install() {
         .success();
 
     Command::new("edgedb")
-        .arg("instance").arg("destroy").arg("second")
+        .arg("instance").arg("destroy").arg("second").arg("--non-interactive")
         .assert()
         .context("destroy-2", "destroy `second` instance")
         .success();

@@ -264,6 +264,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
             Command::new(&edgedb)
                 .arg("instance").arg("destroy").arg("second")
+                .arg("--non-interactive")
                 .assert()
                 .context("destroy-2", "destroy `second` instance")
                 .success();
