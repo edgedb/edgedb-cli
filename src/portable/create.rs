@@ -77,6 +77,8 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         }
         (Ok(()), StartConf::Auto) => {
             echo!("Instance", options.name.emphasize(), "is up and running.");
+            echo!("To connect to the instance run:");
+            echo!("  edgedb -I", options.name);
         }
         (Err(e), _) => {
             eprintln!("Bootstrapping complete, \
