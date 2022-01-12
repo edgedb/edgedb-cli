@@ -9,7 +9,8 @@ use crate::portable::local;
 use crate::portable::options::Destroy;
 use crate::portable::project::{self};
 use crate::portable::windows;
-use crate::print;
+use crate::print::{self, echo, Highlight};
+use crate::question;
 
 
 #[derive(Debug, thiserror::Error)]
@@ -44,6 +45,16 @@ pub fn with_projects<F>(name: &str, force: bool, f: F) -> anyhow::Result<()>
 
 pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     with_projects(&options.name, options.force, || {
+        if !options.force && !options.non_interactive {
+            let q = question::Confirm::new_dangerous(
+                format!("Do you really want to delete instance {:?}?",
+                        options.name)
+            );
+            if !q.ask()? {
+                print::error("Canceled.");
+                return Ok(())
+            }
+        }
         match do_destroy(options) {
             Ok(()) => Ok(()),
             Err(e) if e.is::<InstanceNotFound>() => {
@@ -52,7 +63,11 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
             }
             Err(e) => Err(e),
         }
-    })
+    })?;
+    if !options.quiet {
+        echo!("Instance", options.name.emphasize(), "is succesfully deleted.");
+    }
+    Ok(())
 }
 
 fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
@@ -123,5 +138,7 @@ pub fn force_by_name(name: &str) -> anyhow::Result<()> {
         name: name.to_string(),
         verbose: false,
         force: true,
+        quiet: false,
+        non_interactive: true,
     })
 }

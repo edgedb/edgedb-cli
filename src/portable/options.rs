@@ -151,12 +151,20 @@ pub struct Destroy {
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: String,
     /// Verbose output
-    #[clap(short='v', long)]
+    #[clap(short='v', long, overrides_with="quiet")]
     pub verbose: bool,
+
+    /// Verbose output
+    #[clap(short='q', long, overrides_with="verbose")]
+    pub quiet: bool,
 
     /// Force destroy even if instance is referred to by a project
     #[clap(long)]
     pub force: bool,
+
+    /// Do not ask questions, assume user wants to delete instance
+    #[clap(long)]
+    pub non_interactive: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]
