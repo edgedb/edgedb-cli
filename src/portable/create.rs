@@ -8,7 +8,7 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform;
-use crate::portable::control::self_signed_arg;
+use crate::portable::control::{self_signed_arg, ensure_runstate_dir};
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{Paths, InstanceInfo, write_json, allocate_port};
@@ -147,6 +147,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     cmd.arg("--bootstrap-only");
     cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
     cmd.arg("--data-dir").arg(&tmp_data);
+    cmd.arg("--runstate-dir").arg(&ensure_runstate_dir(&info.name)?);
     self_signed_arg(&mut cmd, info.get_version()?);
     cmd.arg("--bootstrap-command").arg(script);
     cmd.run()?;
