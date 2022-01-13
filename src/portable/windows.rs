@@ -310,6 +310,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
         fs::create_dir_all(&download_dir)?;
         let download_path = download_dir.join("debian.zip");
         task::block_on(download(&download_path, &*DISTRO_URL, false, false))?;
+        echo!("Unpacking WSL distribution...");
         let appx_path = download_dir.join("debian.appx");
         unpack_appx(&download_path, &appx_path)?;
         let root_path = download_dir.join("install.tar");
@@ -317,12 +318,13 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
 
         let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
         fs::create_dir_all(&distro_path)?;
-        echo!("Initializing WSL...");
+        echo!("Initializing WSL distribution...");
         process::Native::new("wsl import", "wsl", "wsl")
             .arg("--import")
             .arg(CURRENT_DISTRO)
             .arg(&distro_path)
             .arg(&root_path)
+            .arg("--version=2")
             .run()?;
         wsl_simple_cmd(&wsl, &distro,
                        "useradd edgedb --uid 1000 --create-home")?;
@@ -349,8 +351,9 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
         process::Native::new("update certificates", "apt", "wsl")
             .arg("--distribution").arg(&distro)
             .arg("bash").arg("-c")
-            .arg("apt-get update -qq && \
-                  apt-get install -y ca-certificates -qq && \
+            .arg("export DEBIAN_FRONTEND=noninteractive; \
+                  apt-get update -qq && \
+                  apt-get install -y ca-certificates -qq -o=Dpkg::Use-Pty=0 && \
                   apt-get clean -qq && \
                   rm -rf /var/lib/apt/lists/*")
             .run()?;

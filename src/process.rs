@@ -626,10 +626,19 @@ async fn stdout_loop(marker: &str, pipe: Option<impl Read+Unpin>,
             let buf = BufReader::new(pipe);
             let mut lines = buf.lines();
             while let Some(Ok(line)) = lines.next().await {
-                io::stderr().write_all(
-                    format!("[{}] {}\n", marker, line).color(Color::Grey37)
-                    .to_string().as_bytes()
-                ).await.ok();
+                if cfg!(windows) {
+                    io::stderr().write_all(
+                        format!("[{}] {}\r\n", marker, line)
+                        .color(Color::Grey37)
+                        .to_string().as_bytes()
+                    ).await.ok();
+                } else {
+                    io::stderr().write_all(
+                        format!("[{}] {}\n", marker, line)
+                        .color(Color::Grey37)
+                        .to_string().as_bytes()
+                    ).await.ok();
+                }
             }
         }
         (None, Some(_)) => unreachable!(),

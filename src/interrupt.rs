@@ -131,8 +131,8 @@ fn reset_terminal(sentinel: &TermSentinel) {
 }
 
 #[cfg(windows)]
-fn reset_terminal(sentinel: &TermSentinel) {
-    // TODO
+fn reset_terminal(_sentinel: &TermSentinel) {
+    // On windows it's reset automatically
 }
 
 #[cfg(unix)]
