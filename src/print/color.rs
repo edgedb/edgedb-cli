@@ -40,6 +40,7 @@ struct Theme {
     err_marker: Option<Style>,
     emphasize: Option<Style>,
     command_hint: Option<Style>,
+    #[allow(dead_code)]
     title: Option<Style>,
 }
 
