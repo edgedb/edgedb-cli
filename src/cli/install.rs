@@ -107,21 +107,21 @@ fn print_long_description(settings: &Settings) {
         ${update_win\n\
         This path will then be added to your `PATH` environment variable by \
         modifying the `HKEY_CURRENT_USER/Environment/PATH` registry key.\n\
-        }\n\
         \n\
+        }\n\
         ${update_files\n\
         This path will then be added to your `PATH` environment variable by \
         modifying the profile file${s} located at:\n\
         ```\n\
             ${rc_files}\n\
         ```\n\
-        }\n\
         \n\
+        }\n\
         ${modify_path
         Path ${installation_path} should be added to the `PATH` manually \
         after installation.\n\
-        }\n\
         \n\
+        }\n\
         ${no_modified\n\
         This path is already in your `PATH` environment variable, so no \
         profile will be modified.\n\
@@ -129,7 +129,7 @@ fn print_long_description(settings: &Settings) {
         ",
         dir_kind=if settings.system { "system" } else { "user" },
         installation_path=settings.installation_path.display(),
-        update_win: if cfg!(windows),
+        update_win: if cfg!(windows) && settings.modify_path,
         update_files: if !cfg!(windows) && settings.modify_path => {
             rc_files=settings.rc_files.iter()
                      .map(|p| p.display().to_string())
@@ -208,7 +208,7 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
 fn print_post_install_message(settings: &Settings,
     init_result: anyhow::Result<InitResult>)
 {
-    if cfg!(windows) {
+    if cfg!(windows) && settings.modify_path {
         print_markdown!("\
             # The EdgeDB command-line tool is now installed!\n\
             \n\
