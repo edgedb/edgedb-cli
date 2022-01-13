@@ -52,7 +52,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
             );
             if !q.ask()? {
                 print::error("Canceled.");
-                return Ok(())
+                return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
             }
         }
         match do_destroy(options) {
@@ -65,7 +65,8 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
         }
     })?;
     if !options.quiet {
-        echo!("Instance", options.name.emphasize(), "is succesfully deleted.");
+        echo!("Instance", options.name.emphasize(),
+              "is successfully deleted.");
     }
     Ok(())
 }
