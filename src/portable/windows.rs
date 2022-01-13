@@ -317,6 +317,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
 
         let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
         fs::create_dir_all(&distro_path)?;
+        echo!("Initializing WSL...");
         process::Native::new("wsl import", "wsl", "wsl")
             .arg("--import")
             .arg(CURRENT_DISTRO)
