@@ -68,7 +68,7 @@ fn github_action_install() -> anyhow::Result<()> {
 
     if cfg!(windows) {
         fs::copy(env!("CARGO_BIN_EXE_edgedb"), "edgedb-init.exe")?;
-        Command::new("edgedb-init.exe")
+        Command::new(".\\edgedb-init.exe")
             .arg("-y")
             .assert()
             .context("edgedb-init", "self install by command name")
