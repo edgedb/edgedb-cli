@@ -27,6 +27,12 @@ pub struct CliUpgrade {
     /// Reinstall even if there is no newer version
     #[clap(long)]
     pub force: bool,
+    /// Upgrade to the latest nightly version
+    #[clap(long)]
+    pub to_nightly: bool,
+    /// Upgrade to the latest stable version
+    #[clap(long)]
+    pub to_stable: bool,
 }
 
 
@@ -113,10 +119,21 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     if !_can_upgrade(&path)? {
         anyhow::bail!("Only binary installed at {:?} can be upgraded", path);
     }
-    let pkg = repository::get_cli_packages(channel())?
+    let cur_channel = channel();
+    let channel = if options.to_stable {
+        Channel::Stable
+    } else if options.to_nightly {
+        Channel::Nightly
+    } else {
+        cur_channel
+    };
+
+    let pkg = repository::get_cli_packages(channel)?
         .into_iter().max_by(|a, b| a.version.cmp(&b.version))
         .context("cannot find new version")?;
-    if !options.force && pkg.version <= self_version()? {
+    // Always force upgrade when switching channel
+    let force = options.force || cur_channel != channel;
+    if !force && pkg.version <= self_version()? {
         log::info!("Version is the same. No update needed.");
         if !options.quiet {
             print::success("Already up to date.");
