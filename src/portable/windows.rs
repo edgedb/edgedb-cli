@@ -55,8 +55,9 @@ struct Wsl {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct WslInfo {
     distribution: String,
-    cli_timestamp: SystemTime,
-    cli_version: ver::Semver,
+    last_checked_version: Option<ver::Semver>,
+    cli_timestamp: Option<SystemTime>,
+    cli_version: Option<ver::Semver>,
     certs_timestamp: SystemTime,
 }
 
@@ -73,12 +74,69 @@ impl Wsl {
     fn root(&self) -> PathBuf {
         Path::new(r"\\wsl$\").join(&self.distribution)
     }
-    fn credentials(&self, instance: &str) -> PathBuf {
-        self.root()
-        .join("home").join("edgedb").join(".config")
-        .join("edgedb").join("credentials")
-        .join(format!("{}.json", instance))
+    #[cfg(windows)]
+    fn copy_out(&self, src: impl AsRef<str>, destination: impl AsRef<Path>)
+        -> anyhow::Result<()>
+    {
+        let dest = path_to_linux(destination);
+        let cmd = format!("cp {} {}",
+                            shell_excape::unix::escape(src),
+                            shell_excape::unix::escape(dest));
+
+        let code = self.launch_interactive(
+            distro,
+            cmd,
+            /* current_working_dir */ false,
+        )?;
+        if code != 0 {
+            anyhow::bail!("WSL command {:?} exited with exit code: {}",
+                          cmd, code);
+        }
+        Ok(())
     }
+    #[cfg(not(windows))]
+    fn copy_out(&self, _src: impl AsRef<str>, _destination: impl AsRef<Path>)
+        -> anyhow::Result<()>
+    {
+        unreachable!();
+    }
+
+}
+
+fn credentials_linux(instance: &str) -> String {
+    format!("/home/edgedb/.config/edgedb/credentials/{}.json", instance)
+}
+
+#[context("cannot convert to linux (WSL) path {:?}", path)]
+fn path_to_linux(path: &Path) -> anyhow::Result<String> {
+    use std::path::Component::*;
+    use std::path::Prefix::*;
+
+    let path = path.canonicalize()?;
+    let mut result = String::with_capacity(
+        path.to_str().map(|m| m.len()).unwrap_or(32) + 32);
+    result.push_str("/wsl");
+    for component in path.components() {
+        match component {
+            Prefix(pre) => match pre.kind() {
+                VerbatimDisk(c) | Disk(c) if c.is_ascii_alphabetic() => {
+                    result.push('/');
+                    result.push((c as char).to_ascii_lowercase());
+                }
+                _ => anyhow::bail!("unsupported prefix {:?}", pre),
+            },
+            RootDir => {}
+            CurDir => return Err(bug::error("current dir in canonical path")),
+            ParentDir => return Err(bug::error("parent dir in canonical path")),
+            Normal(s) => {
+                result.push('/');
+                result.push_str(
+                    s.to_str().context("invalid characters in path")?,
+                );
+            }
+        }
+    }
+    Ok(result)
 }
 
 pub fn create_instance(options: &options::Create, port: u16, paths: &Paths)
@@ -97,7 +155,7 @@ pub fn create_instance(options: &options::Create, port: u16, paths: &Paths)
     if let Some(dir) = paths.credentials.parent() {
         fs_err::create_dir(&dir)?;
     }
-    fs_err::copy(wsl.credentials(&options.name), &paths.credentials)?;
+    wsl.copy_out(credentials_linux(&options.name), &paths.credentials)?;
 
     Ok(())
 }
@@ -183,15 +241,8 @@ fn unpack_root(zip_path: &Path, dest: &Path) -> anyhow::Result<()> {
 fn wsl_check_cli(_wsl: &wslapi::Library, wsl_info: &WslInfo)
     -> anyhow::Result<bool>
 {
-    let bin_path = bin_path(&wsl_info.distribution);
-    let timestamp = match fs::metadata(&bin_path) {
-        Ok(mdata) => mdata.modified()?,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(false),
-        Err(e) => return Err(e).context(format!(
-            "cannot read metadata of {:?}", bin_path))?,
-    };
-    Ok(timestamp == wsl_info.cli_timestamp &&
-       wsl_info.cli_version > self_version()?)
+    let self_ver = self_version()?;
+    Ok(wsl_info.last_checked_version.map(|v| v != self_ver).unwrap_or(true))
 }
 
 #[cfg(windows)]
@@ -249,10 +300,6 @@ fn download_binary(dest: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn bin_path(distro: &str) -> PathBuf {
-    Path::new(r"\\wsl$").join(distro).join("usr").join("bin").join("edgedb")
-}
-
 #[cfg(windows)]
 fn wsl_simple_cmd(wsl: &wslapi::Library, distro: &str, cmd: &str)
     -> anyhow::Result<()>
@@ -303,14 +350,16 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
         }
     }
     let mut distro = distro.unwrap_or(CURRENT_DISTRO.to_string());
+
+    let download_dir = cache_dir()?.join("downloads");
+    fs::create_dir_all(&download_dir)?;
+
     if !wsl.is_distribution_registered(&distro) {
         update_cli = true;
         certs_timestamp = None;
         if !install {
             return Err(NoDistribution.into());
         }
-        let download_dir = cache_dir()?.join("downloads");
-        fs::create_dir_all(&download_dir)?;
         let download_path = download_dir.join("debian.zip");
         task::block_on(download(&download_path, &*DISTRO_URL, false, false))?;
         echo!("Unpacking WSL distribution...");
@@ -338,13 +387,14 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
         distro = CURRENT_DISTRO.into();
     }
 
-    let bin_path = bin_path(&distro);
     if update_cli {
         echo!("Updating container's CLI version...");
-        download_binary(&bin_path)?;
-        // TODO(tailhook) maybe change to set $LXMOD
-        wsl_simple_cmd(&wsl, &distro,
-                       "chmod 755 /usr/bin/edgedb")?;
+        let cache_path = download_dir.join("edgedb");
+        download_binary(&cache_path)?;
+        wsl_simple_cmd(&wsl, &distro, format!(
+            "mv {} /usr/bin/edgedb; chmod 755 /usr/bin/edgedb",
+            shell_escape::unix::escape(path_to_linux(&cache_path)),
+        ))?;
     }
 
     let certs_timestamp = if let Some(ts) = certs_timestamp {
@@ -531,10 +581,8 @@ pub fn reset_password(options: &options::ResetPassword) -> anyhow::Result<()> {
         wsl.edgedb()
             .arg("instance").arg("reset-password").args(options)
             .run()?;
-        fs_err::copy(
-            wsl.credentials(&options.name),
-            credentials::path(&options.name)?,
-        )?;
+        wsl.copy_out(credentials_linux(&options.name),
+                     credentials::path(&options.name)?)?;
     } else {
         anyhow::bail!("WSL distribution is not installed, \
                        so no EdgeDB instances are present.");
@@ -699,10 +747,8 @@ pub fn upgrade(options: &options::Upgrade) -> anyhow::Result<()> {
         .args(options)
         .run()?;
     // credentials might be updated on upgrade if we change format somehow
-    fs_err::copy(
-        wsl.credentials(&options.name),
-        credentials::path(&options.name)?,
-    )?;
+    wsl.copy_out(credentials_linux(&options.name),
+                 credentials::path(&options.name)?)?;
     Ok(())
 }
 
@@ -714,10 +760,8 @@ pub fn revert(options: &options::Revert) -> anyhow::Result<()> {
         .args(options)
         .run()?;
     // credentials might be updated on upgrade if we change format somehow
-    fs_err::copy(
-        wsl.credentials(&options.name),
-        credentials::path(&options.name)?,
-    )?;
+    wsl.copy_out(credentials_linux(&options.name),
+                 credentials::path(&options.name)?)?;
     Ok(())
 }
 
