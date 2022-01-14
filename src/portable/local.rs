@@ -202,7 +202,7 @@ pub fn get_installed() -> anyhow::Result<Vec<InstallInfo>> {
 
 pub fn instance_data_dir(name: &str) -> anyhow::Result<PathBuf> {
     if cfg!(windows) {
-        windows::instance_data_dir(name)
+        return Err(bug::error("no instance data dir on windows"));
     } else {
         Ok(data_dir()?.join(name))
     }
@@ -264,8 +264,15 @@ impl InstanceInfo {
     }
 
     pub fn read(name: &str) -> anyhow::Result<InstanceInfo> {
-        InstanceInfo::read_at(name,
-            &instance_data_dir(name)?.join("instance_info.json"))
+        if cfg!(windows) {
+            let data = windows::get_instance_info(name)?;
+            let mut data: InstanceInfo = serde_json::from_str(&data)?;
+            data.name = name.into();
+            Ok(data)
+        } else {
+            InstanceInfo::read_at(name,
+                &instance_data_dir(name)?.join("instance_info.json"))
+        }
     }
 
     #[context("error reading instance info: {:?}", path)]

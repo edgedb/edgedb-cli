@@ -116,7 +116,7 @@ fn run_test(name: &'static str) {
         mkdir -p /run/user/1000 /sys/fs/cgroup/$cg_path
         chown user1 /sys/fs/cgroup/$cg_path /run/user/1000
         sudo -H -u user1 bash -exc {script}
-    "###, script=shell_escape::escape(&script));
+    "###, script=shell_escape::escape(script.into()));
 
     Command::new("docker")
         .arg("run")

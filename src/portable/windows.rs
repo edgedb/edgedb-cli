@@ -56,8 +56,9 @@ struct Wsl {
 struct WslInfo {
     distribution: String,
     last_checked_version: Option<ver::Semver>,
+    #[serde(skip_serializing_if="Option::is_none")]
     cli_timestamp: Option<SystemTime>,
-    cli_version: Option<ver::Semver>,
+    cli_version: ver::Semver,
     certs_timestamp: SystemTime,
 }
 
@@ -71,20 +72,17 @@ impl Wsl {
         pro.no_proxy();
         return pro
     }
-    fn root(&self) -> PathBuf {
-        Path::new(r"\\wsl$\").join(&self.distribution)
-    }
     #[cfg(windows)]
     fn copy_out(&self, src: impl AsRef<str>, destination: impl AsRef<Path>)
         -> anyhow::Result<()>
     {
-        let dest = path_to_linux(destination);
+        let dest = path_to_linux(destination.as_ref())?;
         let cmd = format!("cp {} {}",
-                            shell_excape::unix::escape(src),
-                            shell_excape::unix::escape(dest));
+                            shell_escape::unix::escape(src.as_ref().into()),
+                            shell_escape::unix::escape(dest.into()));
 
-        let code = self.launch_interactive(
-            distro,
+        let code = self.lib.launch_interactive(
+            &self.distribution,
             cmd,
             /* current_working_dir */ false,
         )?;
@@ -94,6 +92,17 @@ impl Wsl {
         }
         Ok(())
     }
+
+    fn read_text_file(&self, linux_path: impl AsRef<str>)
+        -> anyhow::Result<String>
+    {
+        process::Native::new("read file", "wsl", "wsl")
+            .arg("--distribution").arg(&self.distribution)
+            .arg("cat")
+            .arg(linux_path.as_ref())
+            .get_stdout_text()
+    }
+
     #[cfg(not(windows))]
     fn copy_out(&self, _src: impl AsRef<str>, _destination: impl AsRef<Path>)
         -> anyhow::Result<()>
@@ -247,10 +256,9 @@ fn wsl_check_cli(_wsl: &wslapi::Library, wsl_info: &WslInfo)
 
 #[cfg(windows)]
 #[context("cannot check linux CLI version")]
-fn wsl_cli_version(_wsl: &wslapi::Library, distro: &str, path: &Path)
-    -> anyhow::Result<(SystemTime, ver::Semver)>
+fn wsl_cli_version(distro: &str)
+    -> anyhow::Result<ver::Semver>
 {
-    let timestamp = fs_err::metadata(path)?.modified()?;
     // Note: cannot capture output using wsl.launch
     let data = process::Native::new("check version", "edgedb", "wsl")
         .arg("--distribution").arg(distro)
@@ -261,7 +269,7 @@ fn wsl_cli_version(_wsl: &wslapi::Library, distro: &str, path: &Path)
         .with_context(|| format!(
                 "bad version info returned by linux CLI: {:?}", data))?
         .parse()?;
-    Ok((timestamp, version))
+    Ok(version)
 }
 
 #[cfg(windows)]
@@ -367,23 +375,23 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             let download_dir = cache_dir()?.join("downloads");
             fs::create_dir_all(&download_dir)?;
 
-	    let download_path = download_dir.join("debian.zip");
-	    task::block_on(download(&download_path, &*DISTRO_URL, false, false))?;
-	    echo!("Unpacking WSL distribution...");
-	    let appx_path = download_dir.join("debian.appx");
-	    unpack_appx(&download_path, &appx_path)?;
-	    let root_path = download_dir.join("install.tar");
-	    unpack_root(&appx_path, &root_path)?;
+            let download_path = download_dir.join("debian.zip");
+            task::block_on(download(&download_path, &*DISTRO_URL, false, false))?;
+            echo!("Unpacking WSL distribution...");
+            let appx_path = download_dir.join("debian.appx");
+            unpack_appx(&download_path, &appx_path)?;
+            let root_path = download_dir.join("install.tar");
+            unpack_root(&appx_path, &root_path)?;
 
             let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
             fs::create_dir_all(&distro_path)?;
-	    echo!("Initializing WSL distribution...");
+            echo!("Initializing WSL distribution...");
             process::Native::new("wsl import", "wsl", "wsl")
                 .arg("--import")
                 .arg(CURRENT_DISTRO)
                 .arg(&distro_path)
                 .arg(&root_path)
-		.arg("--version=2")
+                .arg("--version=2")
                 .run()?;
 
             fs::remove_file(&download_path)?;
@@ -401,9 +409,9 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
         echo!("Updating container's CLI version...");
         let cache_path = download_dir.join("edgedb");
         download_binary(&cache_path)?;
-        wsl_simple_cmd(&wsl, &distro, format!(
+        wsl_simple_cmd(&wsl, &distro, &format!(
             "mv {} /usr/bin/edgedb; chmod 755 /usr/bin/edgedb",
-            shell_escape::unix::escape(path_to_linux(&cache_path)),
+            shell_escape::unix::escape(path_to_linux(&cache_path)?.into()),
         ))?;
     }
 
@@ -423,7 +431,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
         SystemTime::now()
     };
 
-    let (cli_timestamp, cli_version) = wsl_cli_version(&wsl, &distro, &bin_path)?;
+    let cli_version = wsl_cli_version(&distro)?;
     let my_ver = self_version()?;
     if cli_version < my_ver {
         return Err(bug::error(format!(
@@ -432,7 +440,8 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
     }
     let info = WslInfo {
         distribution: distro.into(),
-        cli_timestamp,
+        last_checked_version: Some(my_ver),
+        cli_timestamp: None,
         cli_version,
         certs_timestamp,
     };
@@ -775,10 +784,9 @@ pub fn revert(options: &options::Revert) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn instance_data_dir(name: &str) -> anyhow::Result<PathBuf> {
+pub fn get_instance_info(name: &str) -> anyhow::Result<String> {
     let wsl = try_get_wsl()?;
-    Ok(wsl.root()
-        .join("home").join("edgedb")
-        .join(".local").join("share").join("edgedb")
-        .join("data").join(name))
+    wsl.read_text_file(format!(
+        "/home/edgedb/.local/share/edgedb/data/{}/instance_info.json",
+        name))
 }
