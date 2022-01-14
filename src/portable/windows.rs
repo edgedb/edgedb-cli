@@ -164,7 +164,9 @@ pub fn create_instance(options: &options::Create, port: u16, paths: &Paths)
         .run()?;
 
     if let Some(dir) = paths.credentials.parent() {
-        fs_err::create_dir_all(&dir)?;
+        if !dir.exists() {
+            fs_err::create_dir(&dir)?;
+        }
     }
     wsl.copy_out(credentials_linux(&options.name), &paths.credentials)?;
 
