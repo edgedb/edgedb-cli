@@ -252,15 +252,29 @@ impl InstanceInfo {
             .ok_or_else(|| bug::error("no installation info at this point"))
     }
     pub fn try_read(name: &str) -> anyhow::Result<Option<InstanceInfo>> {
-        let mut path = instance_data_dir(name)?;
-        path.push("instance_info.json");
-        // TODO(tailhook) check existence of the directory
-        // and crash on existence of the file.
-        // But this can only be done, once we get rid of old install methods
-        if !path.exists() {
-            return Ok(None)
+        if cfg!(windows) {
+            let data = match windows::get_instance_info(name) {
+                Ok(data) => data,
+                Err(e) => {
+                    // TODO(tailhook) better differentiate the error
+                    log::info!("Reading instance info failed with {:#}", e);
+                    return Ok(None)
+                }
+            };
+            let mut data: InstanceInfo = serde_json::from_str(&data)?;
+            data.name = name.into();
+            Ok(Some(data))
+        } else {
+            let mut path = instance_data_dir(name)?;
+            path.push("instance_info.json");
+            // TODO(tailhook) check existence of the directory
+            // and crash on existence of the file.
+            // But this can only be done, once we get rid of old install methods
+            if !path.exists() {
+                return Ok(None)
+            }
+            Ok(Some(InstanceInfo::read_at(name, &path)?))
         }
-        Ok(Some(InstanceInfo::read_at(name, &path)?))
     }
 
     pub fn read(name: &str) -> anyhow::Result<InstanceInfo> {
