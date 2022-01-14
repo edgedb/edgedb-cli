@@ -94,6 +94,9 @@ pub fn create_instance(options: &options::Create, port: u16, paths: &Paths)
         .arg("instance").arg("create").args(&inner_options)
         .run()?;
 
+    if let Some(dir) = paths.credentials.parent() {
+        fs_err::create_dir(&dir)?;
+    }
     fs_err::copy(wsl.credentials(&options.name), &paths.credentials)?;
 
     Ok(())
