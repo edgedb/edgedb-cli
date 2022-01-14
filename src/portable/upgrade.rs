@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{SystemTime, Duration};
 
 use anyhow::Context;
 use async_std::task;
@@ -312,7 +312,8 @@ async fn restore_instance(inst: &InstanceInfo, path: &Path)
     -> anyhow::Result<()>
 {
     use crate::commands::parser::Restore;
-    let conn_params = inst.admin_conn_params().await?;
+    let mut conn_params = inst.admin_conn_params().await?;
+    conn_params.wait_until_available(Duration::from_secs(300));
 
     log::info!("Restoring instance {:?}", inst.name);
     let mut cli = conn_params.connect().await?;
