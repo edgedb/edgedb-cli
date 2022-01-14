@@ -147,6 +147,11 @@ jobs:
           toolchain: stable
           default: true
 
+      - name: Set version to nightly
+        # any nightly version will work
+        run: |
+          bash .github/workflows/replace_version.sh
+
       - uses: actions-rs/cargo@v1
         with:
           command: build
