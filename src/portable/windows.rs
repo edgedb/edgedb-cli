@@ -83,7 +83,7 @@ impl Wsl {
 
         let code = self.lib.launch_interactive(
             &self.distribution,
-            cmd,
+            &cmd,
             /* current_working_dir */ false,
         )?;
         if code != 0 {
@@ -120,11 +120,13 @@ fn credentials_linux(instance: &str) -> String {
 fn path_to_linux(path: &Path) -> anyhow::Result<String> {
     use std::path::Component::*;
     use std::path::Prefix::*;
+    if !path.is_absolute() {
+        return Err(bug::error("path must be absolute"))?;
+    }
 
-    let path = path.canonicalize()?;
     let mut result = String::with_capacity(
         path.to_str().map(|m| m.len()).unwrap_or(32) + 32);
-    result.push_str("/wsl");
+    result.push_str("/mnt");
     for component in path.components() {
         match component {
             Prefix(pre) => match pre.kind() {
@@ -162,7 +164,7 @@ pub fn create_instance(options: &options::Create, port: u16, paths: &Paths)
         .run()?;
 
     if let Some(dir) = paths.credentials.parent() {
-        fs_err::create_dir(&dir)?;
+        fs_err::create_dir_all(&dir)?;
     }
     wsl.copy_out(credentials_linux(&options.name), &paths.credentials)?;
 
@@ -172,8 +174,13 @@ pub fn create_instance(options: &options::Create, port: u16, paths: &Paths)
 pub fn destroy(options: &options::Destroy) -> anyhow::Result<()> {
     let mut found = false;
     if let Some(wsl) = get_wsl()? {
+        let options = options::Destroy {
+            non_interactive: true,
+            quiet: true,
+            .. options.clone()
+        };
         let status = wsl.edgedb()
-            .arg("instance").arg("destroy").args(options)
+            .arg("instance").arg("destroy").args(&options)
             .status()?;
         match status.code() {
             Some(exit_codes::INSTANCE_NOT_FOUND) => {}
@@ -251,7 +258,8 @@ fn wsl_check_cli(_wsl: &wslapi::Library, wsl_info: &WslInfo)
     -> anyhow::Result<bool>
 {
     let self_ver = self_version()?;
-    Ok(wsl_info.last_checked_version.map(|v| v != self_ver).unwrap_or(true))
+    Ok(wsl_info.last_checked_version.as_ref()
+       .map(|v| v != &self_ver).unwrap_or(true))
 }
 
 #[cfg(windows)]
