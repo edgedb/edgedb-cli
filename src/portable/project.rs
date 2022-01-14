@@ -515,11 +515,11 @@ fn do_init(name: &str, pkg: &PackageInfo,
             if !options.no_migrations {
                 run_and_migrate(&handle)?;
             }
-            eprintln!("Bootstrapping complete, \
-                but there was an error creating the service: {:#}", e);
-            eprintln!("You can start it manually via: \n  \
-                edgedb instance start {}",
-                name);
+            echo!("Bootstrapping complete, \
+                but there was an error creating the service:",
+                format_args!("{:#}", e));
+            echo!("You can start it manually via:");
+            echo!("  edgedb instance start", name);
             return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
         }
     }
@@ -1208,6 +1208,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
                     name: name.clone(),
                     verbose: false,
                     force: options.force,
+                    force_dump_restore: options.force,
                 })?;
             } else {
                 // When force is used we might upgrade to the same version, but
@@ -1309,6 +1310,7 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
                 name: instance_name.into(),
                 verbose: false,
                 force: options.force,
+                force_dump_restore: options.force,
             })?;
         } else {
             // When force is used we might upgrade to the same version, but

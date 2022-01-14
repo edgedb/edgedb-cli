@@ -128,6 +128,9 @@ macro_rules! echo {
                         .expect("buffering of echo succeeds");
                 )*
             )*
+            if cfg!(windows) {
+                buf.push('\r');
+            }
             buf.push('\n');
             eprint!("{}", buf);
         };

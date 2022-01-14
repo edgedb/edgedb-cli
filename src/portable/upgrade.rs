@@ -118,7 +118,9 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     // we rely on presence of the version specifying options instead to
     // define how we want upgrade to be performed. This is mostly useful
     // for tests.
-    if pkg_ver.is_compatible(&inst_ver) && !(options.force && ver_option) {
+    if pkg_ver.is_compatible(&inst_ver) && !(options.force && ver_option) &&
+        !options.force_dump_restore
+    {
         upgrade_compatible(inst, pkg)
     } else {
         upgrade_incompatible(inst, pkg)

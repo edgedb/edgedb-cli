@@ -344,6 +344,12 @@ pub struct Upgrade {
     /// Force upgrade process even if there is no new version
     #[clap(long)]
     pub force: bool,
+
+    /// Force dump-restore upgrade during upgrade even version is compatible
+    ///
+    /// This is used by `project upgrade --force`
+    #[clap(long, setting=ArgSettings::Hidden)]
+    pub force_dump_restore: bool,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
