@@ -286,6 +286,9 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
         .with_context(|| format!("error applying init file {:?}", filename))?;
 
     let mut conn_params = options.conn_params.clone();
+    conn_params.modify(|p| {
+        p.wait_until_available(Duration::from_secs(300));
+    });
     let mut params = params.clone();
     let existing: BTreeSet<_> = list_databases::get_databases(cli).await?;
 
