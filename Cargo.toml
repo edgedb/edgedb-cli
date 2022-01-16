@@ -12,7 +12,7 @@ edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust"}
 edgedb-client = {git = "https://github.com/edgedb/edgedb-rust", features=["admin_socket", "unstable"]}
 snafu = {version="0.6.0", features=["backtraces"]}
 anyhow = "1.0.23"
-async-std = {version="1.9", features=[
+async-std = {version="1.10", features=[
     # need FutureExt::race
     "unstable"
 ]}
@@ -93,7 +93,7 @@ clicolors-control = "1.0.1"
 backtrace = "0.3.61"
 arc-swap = "1.4.0"
 ctrlc = "3.2.0"
-async-process = { git="https://github.com/smol-rs/async-process", rev="c8bdbc1"}
+async-process = "1.3.0"
 crossbeam-utils = "0.8.5"
 tar = "0.4.37"
 zstd = "0.9.0"
