@@ -310,7 +310,8 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
                 log::info!("Killing EdgeDB with pid {}", pid);
                 process::term(pid)?;
                 // wait for unlock
-                let _ = open_lock(name)?.read()?;
+                let _ = open_lock(name)?
+                    .read().context("cannot acquire read lock")?;
                 Ok(())
             } else {
                 return Err(bug::error("cannot find pid"));
