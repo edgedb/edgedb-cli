@@ -268,9 +268,9 @@ fn backup(inst: &InstanceInfo, new_inst: &InstallInfo, paths: &Paths)
     write_json(&paths.data_dir.join("backup.json"), "backup metadata",
         &BackupMeta { timestamp: SystemTime::now() })?;
     if paths.backup_dir.exists() {
-        fs::remove_dir_all(&paths.backup_dir)?;
+        fs_err::remove_dir_all(&paths.backup_dir)?;
     }
-    fs::rename(&paths.data_dir, &paths.backup_dir)?;
+    fs_err::rename(&paths.data_dir, &paths.backup_dir)?;
 
     Ok(())
 }

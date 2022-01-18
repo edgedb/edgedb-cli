@@ -65,7 +65,7 @@ pub fn lock_file(instance: &str) -> anyhow::Result<PathBuf> {
 pub fn open_lock(instance: &str) -> anyhow::Result<fd_lock::RwLock<fs::File>> {
     let lock_path = lock_file(instance)?;
     if let Some(parent) = lock_path.parent() {
-        fs::create_dir_all(parent)?;
+        fs_err::create_dir_all(parent)?;
     }
     let lock_file = fs::OpenOptions::new()
         .create(true).write(true).read(true)
