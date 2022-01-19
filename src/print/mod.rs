@@ -385,34 +385,27 @@ pub fn edgedb_error(err: &edgedb_client::errors::Error, verbose: bool) {
 
 pub fn success(line: impl fmt::Display) {
     if use_color() {
-        println!(
-            "{}",
-            line.to_string().bold().light_green(),
-        );
+        echo!(line.to_string().bold().light_green());
     } else {
-        println!("{}", line);
+        echo!(line);
     }
 }
 
 pub fn success_msg(title: impl fmt::Display, msg: impl fmt::Display) {
     if use_color() {
-        println!(
-            "{}: {}",
-            title.to_string().bold().light_green(),
+        echo!(
+            title.to_string().bold().light_green(); ":",
             msg.to_string().bold().white(),
         );
     } else {
-        println!("{}: {}", title, msg);
+        echo!(title; ":", msg);
     }
 }
 
 pub fn warn(line: impl fmt::Display) {
     if use_color() {
-        eprintln!(
-            "{}",
-            line.to_string().bold().yellow(),
-        );
+        echo!(line.to_string().bold().yellow());
     } else {
-        eprintln!("{}", line);
+        echo!(line);
     }
 }
