@@ -177,7 +177,6 @@ impl Native {
         self
     }
 
-    #[cfg_attr(windows, allow(dead_code))]
     pub fn pid_file(&mut self, path: &Path) -> &mut Self {
         self.pid_file = Some(path.to_path_buf());
         self
@@ -683,6 +682,7 @@ async fn wait_forever() -> ! {
 }
 
 fn write_pid_file(path: &Option<PathBuf>, pid: u32) {
+    log::debug!("Writing pid file {:?} (pid: {})", path, pid);
     if let Some(path) = path {
         _write_pid_file(path, pid).map_err(|e| {
             log::error!("Cannot write pid file {:?}: {:#}", path, e);

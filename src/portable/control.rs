@@ -121,6 +121,10 @@ pub fn detect_supervisor(name: &str) -> bool {
     }
 }
 
+fn pid_file_path(instance: &str) -> anyhow::Result<PathBuf> {
+    Ok(runstate_dir(instance)?.join("edgedb.pid"))
+}
+
 #[cfg(unix)]
 fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     use std::os::unix::io::AsRawFd;
@@ -131,7 +135,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
 
     unsafe { libc::setsid() };
 
-    let pid_path = runstate_dir(&meta.name)?.join("edgedb.pid");
+    let pid_path = pid_file_path(&meta.name)?;
     let log_path = log_file(&meta.name)?;
     if let Some(dir) = log_path.parent() {
         fs_err::create_dir_all(&dir)?;
@@ -236,8 +240,10 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             {
                 res = linux::run_and_proxy_notify_socket(&meta);
             } else {
+                let pid_path = pid_file_path(&meta.name)?;
                 res = get_server_cmd(&meta)?
                     .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
+                    .pid_file(&pid_path)
                     .no_proxy()
                     .run();
             }
@@ -269,7 +275,7 @@ fn supervisor_stop(name: &str) -> anyhow::Result<()> {
 }
 
 pub fn read_pid(instance: &str) -> anyhow::Result<Option<u32>> {
-    let pid_path = runstate_dir(instance)?.join("edgedb.pid");
+    let pid_path = pid_file_path(instance)?;
     match fs_err::read_to_string(&pid_path) {
         Ok(pid_str) => {
             let pid = pid_str.trim().parse().with_context(
