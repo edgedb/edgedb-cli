@@ -531,7 +531,17 @@ pub fn stop_and_disable(_name: &str) -> anyhow::Result<bool> {
 pub fn server_cmd(instance: &str) -> anyhow::Result<process::Native> {
     let wsl = try_get_wsl()?;
     let mut pro = wsl.edgedb();
-    pro.arg("instance").arg("start").arg("--foreground").arg(&instance);
+    pro.arg("instance").arg("start").arg("--foreground").arg(instance);
+    let instance = String::from(instance);
+    pro.stop_process(move || {
+        let mut cmd = async_process::Command::new("wsl");
+        cmd.arg("--user").arg("edgedb");
+        cmd.arg("--distribution").arg(&wsl.distribution);
+        cmd.arg("_EDGEDB_FROM_WINDOWS=1");
+        cmd.arg("/usr/bin/edgedb");
+        cmd.arg("instance").arg("stop").arg(&instance);
+        cmd
+    });
     Ok(pro)
 }
 

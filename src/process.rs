@@ -609,6 +609,12 @@ impl Native {
             }
         }
     }
+    pub fn stop_process<F>(&mut self, f: F) -> &mut Self
+        where F: Fn() -> Command + 'static
+    {
+        self.stop_process = Some(Box::new(f));
+        self
+    }
 }
 
 
