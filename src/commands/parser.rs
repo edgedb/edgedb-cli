@@ -428,6 +428,13 @@ pub enum ValueParameter {
     /// How long an individual query can run before being aborted. A value of
     /// `0s` disables the mechanism; it is disabled by default.
     QueryExecutionTimeout(ConfigStr),
+
+    /// Defines whether DDL commands that aren't migrations are allowed
+    ///
+    /// May be set to:
+    /// * `AlwaysAllow`
+    /// * `NeverAllow`
+    AllowBareDdl(ConfigStr),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -456,6 +463,8 @@ pub enum ConfigParameter {
     SessionIdleTransactionTimeout,
     /// Reset query execution timeout
     QueryExecutionTimeout,
+    /// Reset allow_bare_ddl parameter to `AlwaysAllow`
+    AllowBareDdl,
 }
 
 #[derive(EdbClap, Clone, Debug)]
