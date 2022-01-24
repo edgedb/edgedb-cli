@@ -1,6 +1,6 @@
 use std::fs;
 use crate::SERVER;
-use predicates::str::ends_with;
+use predicates::str::{ends_with, contains};
 
 
 #[test]
@@ -43,6 +43,11 @@ fn initial() -> anyhow::Result<()> {
             on the filesystem.\n  Run `edgedb migrate` to apply.\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
+        .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
+        .assert().success()
+        .stdout("\"AlwaysAllow\"\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
         .arg("migration").arg("create")
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/initial")
@@ -56,9 +61,15 @@ fn initial() -> anyhow::Result<()> {
         .arg("migrate")
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().success()
-        .stderr(ends_with("Applied \
+        .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n"));
+            (00001.edgeql)\n"))
+        .stderr(contains("Note:"));
+    SERVER.admin_cmd()
+        .arg("--database=initial")
+        .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
+        .assert().success()
+        .stdout("\"NeverAllow\"\n");
     SERVER.admin_cmd()
         .arg("--database=initial")
         .arg("migration").arg("status")
@@ -123,7 +134,7 @@ fn initial() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db1/initial")
         .arg("--to-revision=m1e5vq3h4oizlsp4a3zge5bqh")
         .assert().success()
-        .stderr(ends_with("Applied \
+        .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
             (00001.edgeql)\n\
             Applied \
@@ -193,7 +204,7 @@ fn modified1() -> anyhow::Result<()> {
         .arg("migrate")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().success()
-        .stderr(ends_with("Applied \
+        .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
             (00001.edgeql)\n"));
     SERVER.admin_cmd()
@@ -320,7 +331,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
         .arg("migrate")
         .arg("--schema-dir=tests/migrations/db1/modified2")
         .assert().success()
-        .stderr(ends_with("Applied \
+        .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
             (00001.edgeql)\n"));
 
@@ -371,7 +382,7 @@ fn modified3_interactive() -> anyhow::Result<()> {
         .arg("migrate")
         .arg("--schema-dir=tests/migrations/db1/modified3")
         .assert().success()
-        .stderr(ends_with("Applied \
+        .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
             (00001.edgeql)\n"));
 
@@ -445,7 +456,7 @@ fn input_required() -> anyhow::Result<()> {
         .arg("migrate")
         .arg("--schema-dir=tests/migrations/db3")
         .assert().success()
-        .stderr(ends_with("Applied \
+        .stderr(contains("Applied \
             m1d6kfhjnqmrw4lleqvx6fibf5hpmndpw2tn2f6o4wm6fjyf55dhcq \
             (00001.edgeql)\n"));
 
