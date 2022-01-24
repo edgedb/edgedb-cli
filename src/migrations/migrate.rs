@@ -11,7 +11,7 @@ use crate::commands::ExitCode;
 use crate::commands::parser::Migrate;
 use crate::migrations::context::Context;
 use crate::migrations::migration::{self, MigrationFile};
-use crate::print;
+use crate::print::{self, echo, Highlight};
 use crate::error_display::print_query_error;
 
 
@@ -176,5 +176,24 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         }
     }
     cli.execute("COMMIT").await?;
+    if db_migration.is_none() {
+        let ddl_setting = cli.query_row(r#"
+            SELECT exists(
+                SELECT prop := (
+                        SELECT schema::ObjectType
+                        FILTER .name = 'cfg::DatabaseConfig'
+                    ).properties.name
+                FILTER prop = "allow_bare_ddl"
+            )
+        "#, &()).await?;
+        if ddl_setting {
+            cli.execute(r#"
+                CONFIGURE CURRENT DATABASE SET allow_bare_ddl :=
+                    cfg::AllowBareDDL.NeverAllow;
+            "#).await?;
+            echo!("Note: adding first migration disables DDL. \
+                   More info: https://edgedb.com/p/bare_dll".fade());
+        }
+    }
     return Ok(())
 }
