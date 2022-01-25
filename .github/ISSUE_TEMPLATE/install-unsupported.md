@@ -10,8 +10,3 @@ Architecture:
 Installation method: <!-- Docker, package manager name, tar.gz, etc. -->
 <!-- Add any other notes about the platform relevant to the implementation -->
 
-
-Output of `edgedb server _detect`:
-```
-<!-- paste here -->
-```
