@@ -192,7 +192,7 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
                     cfg::AllowBareDDL.NeverAllow;
             "#).await?;
             echo!("Note: adding first migration disables DDL. \
-                   More info: https://edgedb.com/p/bare_dll".fade());
+                   More info: https://edgedb.com/p/bare_ddl".fade());
         }
     }
     return Ok(())
