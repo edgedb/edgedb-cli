@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use async_std::task;
-use clap::{ValueHint};
+use clap::{ArgSettings, ValueHint};
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use sha1::Digest;
@@ -90,6 +90,8 @@ pub enum Command {
     /// mechanism. This might fail if lower version is specified (for example
     /// if upgrading from nightly to the stable version).
     Upgrade(Upgrade),
+    /// Manipulate EdgeDB instance linked to the current project.
+    Instance(Instance),
 }
 
 #[derive(EdbClap, Debug, Clone)]
@@ -187,6 +189,47 @@ pub struct Upgrade {
     /// Force upgrade process even if there is no new version
     #[clap(long)]
     pub force: bool,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Instance {
+    #[clap(subcommand)]
+    pub subcommand: InstanceCommand,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub enum InstanceCommand {
+    /// Start EdgeDB instance linked to the current project.
+    Start(Start),
+}
+
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Start {
+    /// Specifies a project root directory explicitly.
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    #[clap(long)]
+    #[cfg_attr(target_os="linux",
+        clap(about="Start the server in the foreground rather than using \
+                    systemd to manage the process (note: you might need to \
+                    stop non-foreground instance first)"))]
+    #[cfg_attr(target_os="macos",
+        clap(about="Start the server in the foreground rather than using \
+                    launchctl to manage the process (note: you might need to \
+                    stop non-foreground instance first)"))]
+    pub foreground: bool,
+
+    /// With `--foreground` stops server running in background. And restarts
+    /// the service back on exit.
+    #[clap(long, conflicts_with="managed_by")]
+    pub auto_restart: bool,
+
+    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(possible_values=&["systemd", "launchctl", "edgedb-cli"][..])]
+    #[clap(conflicts_with="auto_restart")]
+    pub managed_by: Option<String>,
 }
 
 pub struct Handle {
@@ -623,7 +666,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
                 but there was an error creating the service:",
                 format_args!("{:#}", e));
             echo!("You can start it manually via:");
-            echo!("  edgedb instance start", name);
+            echo!("  edgedb project instance start");
             return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
         }
     }
@@ -1566,4 +1609,38 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+pub fn instance(cmd: &Instance) -> anyhow::Result<()> {
+    use InstanceCommand::*;
+
+    match &cmd.subcommand {
+        Start(c) => start_instance(c),
+    }
+}
+
+fn start_instance(options: &Start) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let stash_dir = stash_path(&root)?;
+    if !stash_dir.exists() {
+        echo!(print::err_marker(),
+            "Project is not initialized.".emphasize(),
+            "Run", "edgedb project init".command_hint(),
+            "to initialize an instance.");
+        return Err(ExitCode::new(1).into());
+    }
+    let instance_name = instance_name(&stash_dir)?;
+
+    let start_options = options::Start {
+        name: instance_name,
+        foreground: options.foreground,
+        auto_restart: options.auto_restart,
+        managed_by: options.managed_by.clone()
+    };
+
+    if cfg!(windows) {
+        windows::start(&start_options)
+    } else {
+        control::start(&start_options)
+    }
 }

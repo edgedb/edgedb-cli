@@ -76,5 +76,6 @@ pub fn project_main(cmd: &ProjectCommand, options: &Options) -> anyhow::Result<(
         Unlink(c) => project::unlink(c, options),
         Info(c) => project::info(c),
         Upgrade(c) => project::upgrade(c),
+        Instance(c) => project::instance(c),
     }
 }
