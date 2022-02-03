@@ -174,6 +174,17 @@ impl State {
             }
         }
     }
+    async fn editor_response(&mut self) -> anyhow::Result<prompt::Input> {
+        let result = if let Some(conn) = &mut self.connection {
+            conn.ping_while(self.prompt.data.recv()).await
+        } else {
+            self.prompt.data.recv().await
+        };
+        match result {
+            Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
+            Ok(x) => Ok(x),
+        }
+    }
     pub async fn edgeql_input(&mut self, initial: &str)
         -> anyhow::Result<prompt::Input>
     {
@@ -195,15 +206,7 @@ impl State {
                 }
             ).await
             .context("cannot send to input thread")?;
-        let result = if let Some(conn) = &mut self.connection {
-            conn.ping_while(self.prompt.data.recv()).await
-        } else {
-            self.prompt.data.recv().await
-        };
-        match result {
-            Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
-            Ok(x) => Ok(x),
-        }
+        self.editor_response().await
     }
     pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()>
     {
@@ -219,15 +222,12 @@ impl State {
         self.prompt.control.send(prompt::Control::ShowHistory).await
             .context("cannot send to input thread")
     }
-    pub async fn spawn_editor(&self, entry: Option<isize>)
+    pub async fn spawn_editor(&mut self, entry: Option<isize>)
         -> anyhow::Result<prompt::Input>
     {
         self.prompt.control.send(prompt::Control::SpawnEditor { entry }).await
             .context("cannot send to input thread")?;
-        match self.prompt.data.recv().await {
-            Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
-            Ok(x) => Ok(x),
-        }
+        self.editor_response().await
     }
     pub async fn set_history_limit(&mut self, val: usize)
         -> anyhow::Result<()>
