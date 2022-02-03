@@ -308,11 +308,13 @@ fn error() -> anyhow::Result<()> {
         .env("NO_COLOR", "1")
         .assert().code(1)
         .stderr(ends_with(
-r###"error: Unexpected 'create'
+r###"error: Unexpected keyword 'create'
   ┌─ tests/migrations/db1/error/bad.esdl:3:9
   │
 3 │         create property text -> str;
-  │         ^^^^^^ error
+  │         ^^^^^^ Use a different identifier or quote the name with backticks: `create`
+  │
+  = Token 'create' is a reserved keyword and cannot be used as an identifier
 
 edgedb error: cannot proceed until .esdl files are fixed
 "###));
