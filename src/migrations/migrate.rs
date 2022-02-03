@@ -4,6 +4,8 @@ use async_std::path::Path;
 use async_std::stream::StreamExt;
 use colorful::Colorful;
 use edgedb_client::client::Connection;
+use edgedb_client::model::Duration;
+use edgeql_parser::helpers::quote_string;
 use linked_hash_map::LinkedHashMap;
 
 use crate::commands::Options;
@@ -147,6 +149,13 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         }
         return Ok(());
     }
+
+    // Disable idle transaction timeout while migrations get applied.
+    let old_timeout = cli.query_row::<Duration, _>(
+        "SELECT cfg::Config.session_idle_transaction_timeout", &()).await?;
+    cli.execute("CONFIGURE SESSION SET session_idle_transaction_timeout \
+                     := <std::duration>'0'").await?;
+
     // TODO(tailhook) use special transaction facility
     cli.execute("START TRANSACTION").await?;
     for (_, migration) in migrations {
@@ -176,6 +185,13 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         }
     }
     cli.execute("COMMIT").await?;
+
+    cli.execute(format!(
+        "CONFIGURE SESSION SET session_idle_transaction_timeout \
+            := <std::duration>{}",
+        quote_string(&old_timeout.to_string())
+    )).await?;
+
     if db_migration.is_none() {
         let ddl_setting = cli.query_row(r#"
             SELECT exists(
