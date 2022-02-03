@@ -137,6 +137,7 @@ impl State {
         self.conn_params = params;
         self.database = database.into();
         self.connection = Some(conn);
+        self.set_idle_transaction_timeout().await?;
         Ok(())
     }
     pub async fn soft_reconnect(&mut self) -> anyhow::Result<()> {
