@@ -9,6 +9,7 @@ use linked_hash_map::LinkedHashMap;
 use crate::commands::Options;
 use crate::commands::ExitCode;
 use crate::commands::parser::Migrate;
+use crate::migrations::timeout;
 use crate::migrations::context::Context;
 use crate::migrations::migration::{self, MigrationFile};
 use crate::print::{self, echo, Highlight};
@@ -147,35 +148,44 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         }
         return Ok(());
     }
-    // TODO(tailhook) use special transaction facility
-    cli.execute("START TRANSACTION").await?;
-    for (_, migration) in migrations {
-        let data = fs::read_to_string(&migration.path).await
-            .context("error re-reading migration file")?;
-        cli.execute(&data).await.map_err(|err| {
-            match print_query_error(&err, &data, false) {
-                Ok(()) => ExitCode::new(1).into(),
-                Err(err) => err,
-            }
-        })?;
-        if !migrate.quiet {
-            if print::use_color() {
-                eprintln!(
-                    "{} {} ({})",
-                    "Applied".bold().light_green(),
-                    migration.data.id.bold().white(),
-                    Path::new(migration.path.file_name().unwrap()).display(),
-                );
-            } else {
-                eprintln!(
-                    "Applied {} ({})",
-                    migration.data.id,
-                    Path::new(migration.path.file_name().unwrap()).display(),
-                );
+    let old_timeout = timeout::inhibit_for_transaction(cli).await?;
+    let transaction = async {
+        cli.execute("START TRANSACTION").await?;
+        for (_, migration) in migrations {
+            let data = fs::read_to_string(&migration.path).await
+                .context("error re-reading migration file")?;
+            cli.execute(&data).await.map_err(|err| {
+                match print_query_error(&err, &data, false) {
+                    Ok(()) => ExitCode::new(1).into(),
+                    Err(err) => err,
+                }
+            })?;
+            if !migrate.quiet {
+                if print::use_color() {
+                    eprintln!(
+                        "{} {} ({})",
+                        "Applied".bold().light_green(),
+                        migration.data.id.bold().white(),
+                        Path::new(migration.path.file_name().unwrap()).display(),
+                    );
+                } else {
+                    eprintln!(
+                        "Applied {} ({})",
+                        migration.data.id,
+                        Path::new(migration.path.file_name().unwrap()).display(),
+                    );
+                }
             }
         }
-    }
-    cli.execute("COMMIT").await?;
+        cli.execute("COMMIT").await?;
+        Ok(())
+    }.await;
+    if cli.is_consistent() {
+        let timeout = timeout::restore_for_transaction(cli, old_timeout).await;
+        transaction.and(timeout)?;
+    } else {
+        transaction?;
+    };
     if db_migration.is_none() {
         let ddl_setting = cli.query_row(r#"
             SELECT exists(

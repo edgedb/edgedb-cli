@@ -11,8 +11,6 @@ use colorful::Colorful;
 use edgedb_client::client::Connection;
 use edgedb_client::errors::{Error, QueryError};
 use edgedb_client::errors::{ErrorKind, ClientConnectionEosError};
-use edgedb_client::model::Duration;
-use edgeql_parser::helpers::quote_string;
 use edgedb_derive::Queryable;
 use edgedb_protocol::queryable::Queryable;
 use edgeql_parser::hash::Hasher;
@@ -33,6 +31,7 @@ use crate::migrations::context::Context;
 use crate::migrations::migration;
 use crate::migrations::print_error::print_migration_error;
 use crate::migrations::prompt;
+use crate::migrations::timeout;
 use crate::migrations::source_map::{Builder, SourceMap};
 use crate::platform::tmp_file_name;
 use crate::print;
@@ -522,50 +521,49 @@ pub async fn create(cli: &mut Connection, _options: &Options,
     let ctx = Context::from_config(&create.cfg);
     let migrations = migration::read_all(&ctx, true).await?;
 
-    let old_timeout = cli.query_row::<Duration, _>(
-        "SELECT cfg::Config.session_idle_transaction_timeout", &()).await?;
-    cli.execute("CONFIGURE SESSION SET session_idle_transaction_timeout \
-                     := <std::duration>'2 hours'").await?;
+    let old_timeout = timeout::inhibit_for_transaction(cli).await?;
+    let exec = async {
+        execute_start_migration(&ctx, cli).await?;
+        let exec = async {
+            let descr = query_row::<CurrentMigration>(cli,
+                "DESCRIBE CURRENT MIGRATION AS JSON",
+            ).await?;
+            let db_migration = if descr.parent == "initial" {
+                None
+            } else {
+                Some(&descr.parent)
+            };
+            if db_migration != migrations.keys().last() {
+                anyhow::bail!("Database must be updated to the last migration \
+                    on the filesystem for `migration create`. Run:\n  \
+                    edgedb migrate");
+            }
 
-    execute_start_migration(&ctx, cli).await?;
-    let descr = query_row::<CurrentMigration>(cli,
-        "DESCRIBE CURRENT MIGRATION AS JSON",
-    ).await?;
-    let db_migration = if descr.parent == "initial" {
-        None
-    } else {
-        Some(&descr.parent)
-    };
-    if db_migration != migrations.keys().last() {
-        anyhow::bail!("Database must be updated to the last migration \
-            on the filesystem for `migration create`. Run:\n  \
-            edgedb migrate");
-    }
-
-    let exec = if create.non_interactive {
-        run_non_interactive(&ctx, cli, migrations.len() as u64 +1,
-            &create).await
-    } else {
-        if create.allow_unsafe {
-            log::warn!(
-                "The `--allow-unsafe` flag is unused in interactive mode");
+            let num_migrations = migrations.len() as u64 +1;
+            if create.non_interactive {
+                run_non_interactive(&ctx, cli, num_migrations, &create).await
+            } else {
+                if create.allow_unsafe {
+                    log::warn!("The `--allow-unsafe` flag is unused \
+                                in interactive mode");
+                }
+                run_interactive(&ctx, cli, num_migrations, &create).await
+            }
+        }.await;
+        if cli.is_consistent() {
+            let abort = cli.execute("ABORT MIGRATION").await
+                .map(|_| ()).map_err(|e| e.into());
+            exec.and(abort)
+        } else {
+            exec
         }
-        run_interactive(&ctx, cli, migrations.len() as u64 + 1, &create).await
-    };
-
+    }.await;
     if cli.is_consistent() {
-        let abort = cli.execute("ABORT MIGRATION").await.map_err(|e| e.into());
-        let timeout = cli.execute(format!(
-            "CONFIGURE SESSION SET session_idle_transaction_timeout \
-                := <std::duration>{}",
-            quote_string(&old_timeout.to_string())
-        )).await.map_err(|e| e.into());
-        exec.and(abort).and(timeout)?;
+        let timeout = timeout::restore_for_transaction(cli, old_timeout).await;
+        exec.and(timeout)
     } else {
-        exec?;
+        exec
     }
-
-    Ok(())
 }
 
 fn add_newline_after_comment(value: &mut String) -> Result<(), anyhow::Error> {
