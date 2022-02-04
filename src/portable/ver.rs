@@ -45,7 +45,7 @@ pub enum FilterMinor {
 }
 
 static BUILD: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^\d+\.\d+(?:-(?:alpha|beta|rc|dev)\.\d+)?\+[a-f0-9]{7}$"#)
+    Regex::new(r#"^\d+\.\d+(?:-(?:alpha|beta|rc|dev)\.\d+)?\+(?:[a-f0-9]{7}|local)$"#)
         .unwrap()
 });
 
@@ -67,7 +67,7 @@ impl FromStr for Build {
     type Err = anyhow::Error;
     fn from_str(value: &str) -> anyhow::Result<Build> {
         if !BUILD.is_match(value) {
-            anyhow::bail!("unsupported build version format");
+            anyhow::bail!("unsupported build version format: {}", value);
         }
         Ok(Build(value.into()))
     }
