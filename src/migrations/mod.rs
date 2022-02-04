@@ -8,6 +8,7 @@ mod print_error;
 mod source_map;
 mod status;
 mod prompt;
+mod timeout;
 
 const NULL_MIGRATION: &str = "initial";
 
