@@ -209,7 +209,7 @@ jobs:
         context: dockerctx
         tags: |
           edgedb/edgedb-cli:${{ env.PKG_PLATFORM_FULL }}-latest
-          edgedb/edgedb-cli:${{ env.PKG_PLATFORM_FULL }}-${{ steps.describe.outputs.version }}
+          edgedb/edgedb-cli:${{ env.PKG_PLATFORM_FULL }}-${{ steps.describe.outputs.version-core }}
 
     - name: Update docker manifest
       env:
