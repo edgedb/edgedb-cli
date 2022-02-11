@@ -359,13 +359,22 @@ impl Native {
 
         let mark = &self.marker;
         let out = child.stdout.take();
-        let res = async { Err(child.status().await) }
+        let mut res = async { Err(child.status().await) }
             .race(async { Ok(stdout_loop(mark, out, Some(&mut stdout)).await) })
             .race(self.signal_loop(pid, &term))
             .await;
 
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
+
+        if res.is_ok() {
+            // After stdout is finished check that process is still alive.
+            // This way we figure out whether stdout was intentionally closed
+            // or because process is shut down
+            if let Some(exit) = child.try_status().transpose() {
+                res = Err(exit);
+            }
+        }
 
         res.map_err(|res| match res {
             Ok(status) => anyhow::anyhow!(
