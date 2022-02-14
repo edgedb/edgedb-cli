@@ -69,6 +69,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
             }
             print::prompt(self.suffix);
             let value = editor.readline("> ")?;
+            let value = value.trim();
             let choice = match value.parse::<u32>() {
                 Ok(choice) => choice,
                 Err(e) => {
@@ -113,15 +114,16 @@ impl<'a> String<'a> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         let initial = self.initial.as_ref().map(|s| &s[..])
             .unwrap_or(self.default);
-        let mut val = editor.readline_with_initial(
+        let val = editor.readline_with_initial(
             "> ",
             (initial, ""),
         )?;
+        let mut val = val.trim();
         if val == "" {
-            val = self.default.to_string();
+            val = self.default;
         }
-        self.initial = Some(val.clone());
-        return Ok(val);
+        self.initial = Some(val.into());
+        return Ok(val.into());
     }
 }
 
@@ -167,6 +169,7 @@ impl<'a> Confirm<'a> {
         }.to_string();
         loop {
             let val = editor.readline_with_initial("> ", (&initial, ""))?;
+            let val = val.trim();
             if self.is_dangerous {
                 match val.as_ref() {
                     "Yes" => return Ok(true),
@@ -180,7 +183,7 @@ impl<'a> Confirm<'a> {
                         return Ok(self.default.unwrap());
                     }
                     _ => {
-                        initial = val;
+                        initial = val.into();
                         print::error("Please answer Y or N");
                         continue;
                     }
@@ -216,7 +219,8 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
                 format!("{} [{}]", self.question, options)
             );
             let val = editor.readline("> ")?;
-            if matches!(val.as_ref(), "?" | "h" | "help") {
+            let val = val.trim();
+            if matches!(val, "?" | "h" | "help") {
                 const HELP: &str = "h or ?";
                 let pad = (&self.choices)
                             .iter()
