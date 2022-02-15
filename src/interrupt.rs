@@ -227,7 +227,7 @@ impl Interrupt {
     pub fn err_if_occurred(&self) -> anyhow::Result<()> {
         if let Some(sig) = self.event.first.load() {
             self.event.clear();
-            return Err(ExitCode::new(signal_message(sig)).into());
+            return Err(ExitCode::new(128 + signal_message(sig)).into());
         }
         Ok(())
     }

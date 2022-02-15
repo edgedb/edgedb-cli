@@ -6,15 +6,16 @@ use std::fs;
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::credentials;
 use crate::bug;
+use crate::commands::ExitCode;
+use crate::credentials;
 use crate::hint::HintExt;
+use crate::platform::current_exe;
 use crate::portable::local::{InstanceInfo, runstate_dir, open_lock, lock_file};
 use crate::portable::options::{Start, Stop, Restart, Logs};
 use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
 use crate::process;
-use crate::platform::current_exe;
 
 
 fn supervisor_start(inst: &InstanceInfo) -> anyhow::Result<()> {
@@ -233,7 +234,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             run_server_by_cli(&meta)
         } else {
 
-            let res;
+            let mut res;
             if matches!(options.managed_by.as_deref(), Some("systemd")) &&
                env::var_os("NOTIFY_SOCKET").is_some() &&
                cfg!(target_os="linux")
@@ -249,6 +250,19 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             }
 
             drop(lock);
+
+            // On macos we send SIGTERM to stop the service
+            // And to convince launchctl not to start service we must return
+            // exit code of zero
+            #[cfg(target_os="macos")]
+            if let Err(err) = &res {
+                if let Some(exit) = err.downcast_ref::<ExitCode>() {
+                    if exit.code() == 128 + 15 { // Sigterm exit code
+                        res = Err(ExitCode::new(0).into());
+                    }
+                }
+            }
+
             if needs_restart {
                 log::warn!("Restarting service back into background...");
                 do_start(&meta).map_err(|e| {
