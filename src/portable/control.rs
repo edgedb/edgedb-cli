@@ -7,7 +7,6 @@ use anyhow::Context;
 use fn_error_context::context;
 
 use crate::bug;
-use crate::commands::ExitCode;
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform::current_exe;
@@ -234,6 +233,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             run_server_by_cli(&meta)
         } else {
 
+            #[allow(unused_mut)]
             let mut res;
             if matches!(options.managed_by.as_deref(), Some("systemd")) &&
                env::var_os("NOTIFY_SOCKET").is_some() &&
@@ -256,6 +256,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             // exit code of zero
             #[cfg(target_os="macos")]
             if let Err(err) = &res {
+                use crate::commands::ExitCode;
                 if let Some(exit) = err.downcast_ref::<ExitCode>() {
                     if exit.code() == 128 + 15 { // Sigterm exit code
                         res = Err(ExitCode::new(0).into());
