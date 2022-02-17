@@ -107,8 +107,7 @@ pub struct Init {
     pub server_instance: Option<String>,
 
     /// Specifies whether to start EdgeDB automatically
-    #[clap(long, default_value="auto",
-           possible_values=&["auto", "manual"][..])]
+    #[clap(long, possible_values=&["auto", "manual"][..])]
     pub server_start_conf: Option<StartConf>,
 
     /// Skip running migrations
@@ -390,6 +389,23 @@ fn ask_name(dir: &Path, options: &Init) -> anyhow::Result<(String, bool)> {
     }
 }
 
+fn ask_start_conf(options: &Init) -> anyhow::Result<StartConf> {
+    if let Some(conf) = &options.server_start_conf {
+        return Ok(*conf);
+    }
+    if options.non_interactive {
+        return Ok(StartConf::Auto);
+    }
+    let confirm = question::Confirm::new(
+        "Do you want to start instance automatically on login?"
+    );
+    if confirm.ask()? {
+        Ok(StartConf::Auto)
+    } else {
+        Ok(StartConf::Manual)
+    }
+}
+
 pub fn init_existing(options: &Init, project_dir: &Path)
     -> anyhow::Result<ProjectInfo>
 {
@@ -414,7 +430,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
     };
     let (name, exists) = ask_name(project_dir, options)?;
 
-    if exists {
+    let start_conf = if exists {
         if options.server_start_conf.is_some() {
             log::warn!("Linking to existing instance. \
                 `--server-start-conf` is ignored.");
@@ -422,7 +438,9 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         let inst = Handle::probe(&name)?;
         inst.check_version(&ver_query);
         return do_link(&inst, options, project_dir, &stash_dir);
-    }
+    } else {
+        ask_start_conf(options)?
+    };
 
     echo!("Checking EdgeDB versions...");
 
@@ -442,6 +460,7 @@ pub fn init_existing(options: &Init, project_dir: &Path)
             if schema_files { "(non-empty)" } else { "(empty)" }),
             &schema_dir.display().to_string()),
         ("Installation method", meth),
+        ("Start configuration", start_conf.as_str()),
         ("Version", &pkg.version.to_string()),
         ("Instance name", &name),
     ]);
@@ -450,14 +469,14 @@ pub fn init_existing(options: &Init, project_dir: &Path)
         write_schema_default(&schema_dir)?;
     }
 
-    do_init(&name, &pkg, &stash_dir, &project_dir, options)
+    do_init(&name, &pkg, &stash_dir, &project_dir, start_conf, options)
 }
 
 fn do_init(name: &str, pkg: &PackageInfo,
-           stash_dir: &Path, project_dir: &Path, options: &Init)
+           stash_dir: &Path, project_dir: &Path, start_conf: StartConf,
+           options: &Init)
     -> anyhow::Result<ProjectInfo>
 {
-    let start_conf = options.server_start_conf.unwrap_or(StartConf::Auto);
     let port = allocate_port(name)?;
     let paths = Paths::get(&name)?;
 
@@ -571,11 +590,12 @@ pub fn init_new(options: &Init, project_dir: &Path)
             write_schema_default(&schema_dir)?;
         }
         return do_link(&inst, options, project_dir, &stash_dir);
-    }
+    };
 
     echo!("Checking EdgeDB versions...");
 
     let pkg = ask_version(options)?;
+    let start_conf = ask_start_conf(options)?;
 
     let meth = if cfg!(windows) {
         "WSL"
@@ -589,6 +609,7 @@ pub fn init_new(options: &Init, project_dir: &Path)
             if schema_files { "(non-empty)" } else { "(empty)" }),
             &schema_dir.display().to_string()),
         ("Installation method", meth),
+        ("Start configuration", start_conf.as_str()),
         ("Version", &pkg.version.to_string()),
         ("Instance name", &name),
     ]);
@@ -599,7 +620,7 @@ pub fn init_new(options: &Init, project_dir: &Path)
         write_schema_default(&schema_dir)?;
     }
 
-    do_init(&name, &pkg, &stash_dir, &project_dir, options)
+    do_init(&name, &pkg, &stash_dir, &project_dir, start_conf, options)
 }
 
 pub fn search_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {

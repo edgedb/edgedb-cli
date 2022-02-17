@@ -431,7 +431,7 @@ impl IntoArg for &StartConf {
 }
 
 impl StartConf {
-    fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             StartConf::Auto => "auto",
             StartConf::Manual => "manual",
