@@ -16,13 +16,14 @@ use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
 use crate::cli::migrate;
+use crate::commands::ExitCode;
 use crate::options::RawOptions;
-use crate::platform::{home_dir, config_dir, get_current_uid, binary_path};
 use crate::platform::{current_exe};
-use crate::print;
+use crate::platform::{home_dir, config_dir, binary_path};
+use crate::portable::project::{self, Init};
+use crate::print::{self, echo};
 use crate::print_markdown;
 use crate::process;
-use crate::portable::project::{self, Init};
 use crate::question::{self, read_choice};
 use crate::table;
 
@@ -418,21 +419,33 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
     }
 }
 
+
 fn _main(options: &CliInstall) -> anyhow::Result<()> {
-    let mut settings = if !cfg!(windows) && get_current_uid() == 0 {
-        anyhow::bail!("Installation as root is not supported. \
-            Try running without sudo.")
-    } else {
-        let installation_path = binary_path()?
-            .parent().unwrap().to_owned();
-        Settings {
-            rc_files: get_rc_files()?,
-            system: false,
-            modify_path: !options.no_modify_path &&
-                         no_dir_in_path(&installation_path),
-            installation_path,
-            env_file: config_dir()?.join("env"),
+    #[cfg(unix)]
+    if !options.no_confirm {
+
+        match home_dir_from_passwd().zip(env::var_os("HOME")) {
+            Some((passwd, env)) if passwd != env => {
+                echo!("$HOME differs from euid-obtained home directory: \
+                       you may be using sudo");
+                echo!("$HOME directory:", Path::new(&env).display());
+                echo!("euid-obtained home directory:", passwd.display());
+                echo!("if this is what you want, \
+                       restart the installation with `-y'");
+                return Err(ExitCode::new(1).into());
+            }
+            _ => {}
         }
+    }
+    let installation_path = binary_path()?
+        .parent().unwrap().to_owned();
+    let mut settings = Settings {
+        rc_files: get_rc_files()?,
+        system: false,
+        modify_path: !options.no_modify_path &&
+                     no_dir_in_path(&installation_path),
+        installation_path,
+        env_file: config_dir()?.join("env"),
     };
     if !options.quiet && !options.upgrade {
         print_long_description(&settings);
@@ -767,6 +780,39 @@ impl Shell {
                 generate::<generators::PowerShell, _>(&mut app, n, buf)
             }
             Zsh => generate::<generators::Zsh, _>(&mut app, n, buf),
+        }
+    }
+}
+
+// search user database to get home dir of euid user
+#[cfg(unix)]
+pub(crate) fn home_dir_from_passwd() -> Option<PathBuf> {
+    use std::ffi::{CStr, OsString};
+    use std::mem::MaybeUninit;
+    use std::os::unix::ffi::OsStringExt;
+    use std::ptr;
+    unsafe {
+        let init_size = match libc::sysconf(libc::_SC_GETPW_R_SIZE_MAX) {
+            -1 => 1024,
+            n => n as usize,
+        };
+        let mut buf = Vec::with_capacity(init_size);
+        let mut pwd: MaybeUninit<libc::passwd> = MaybeUninit::uninit();
+        let mut pwdp = ptr::null_mut();
+        match libc::getpwuid_r(
+            libc::geteuid(),
+            pwd.as_mut_ptr(),
+            buf.as_mut_ptr(),
+            buf.capacity(),
+            &mut pwdp,
+        ) {
+            0 if !pwdp.is_null() => {
+                let pwd = pwd.assume_init();
+                let bytes = CStr::from_ptr(pwd.pw_dir).to_bytes().to_vec();
+                let pw_dir = OsString::from_vec(bytes);
+                Some(PathBuf::from(pw_dir))
+            }
+            _ => None,
         }
     }
 }
