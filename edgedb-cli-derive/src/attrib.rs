@@ -39,7 +39,7 @@ pub enum ContainerAttr {
 #[derive(Debug)]
 pub enum SubcommandAttr {
     Inherit(syn::Type),
-    Hidden,
+    Hide(bool),
     ExpandHelp,
     Name(syn::LitStr),
     Default(syn::Ident),
@@ -111,7 +111,7 @@ pub struct SubcommandAttrs {
     pub doc: Option<Markdown>,
     pub about: Option<Markdown>,
     pub flatten: bool,
-    pub hidden: bool,
+    pub hide: bool,
     pub expand_help: bool,
     pub inherit: Vec<syn::Type>,
     pub options: LinkedHashMap<syn::Ident, syn::Expr>,
@@ -260,9 +260,11 @@ impl Parse for SubcommandAttr {
             let _eq: syn::Token![=] = input.parse()?;
             let val = input.parse()?;
             Ok(Name(val))
-        } else if lookahead.peek(kw::hidden) {
-            let _kw: kw::hidden = input.parse()?;
-            Ok(Hidden)
+        } else if lookahead.peek(kw::hide) {
+            let _kw: kw::hide = input.parse()?;
+            let _eq: syn::Token![=] = input.parse()?;
+            let val: syn::LitBool = input.parse()?;
+            Ok(Hide(val.value))
         } else if lookahead.peek(kw::expand_help) {
             let _kw: kw::expand_help = input.parse()?;
             Ok(ExpandHelp)
@@ -487,7 +489,7 @@ impl SubcommandAttrs {
             about: None,
             flatten: false,
             expand_help: false,
-            hidden: false,
+            hide: false,
             inherit: Vec::new(),
             options: LinkedHashMap::new(),
         };
@@ -506,7 +508,7 @@ impl SubcommandAttrs {
                     match item {
                         Inherit(ty) => res.inherit.push(ty),
                         Name(name) => res.name = Some(name.value()),
-                        Hidden => res.hidden = true,
+                        Hide(value) => res.hide = value,
                         ExpandHelp => res.expand_help = true,
                         Value { name, value } if name == "about" => {
                             try_set_opt(&mut res.about, value);

@@ -40,20 +40,23 @@ pub fn structure(s: &types::Struct) -> TokenStream {
     };
 
     quote! {
-        impl #impl_gen clap::Clap for #ident #ty_gen #where_cl { }
-        impl #impl_gen clap::IntoApp for #ident #ty_gen #where_cl {
-            fn into_app<'help>() -> clap::App<'help> {
-                <Self as clap::IntoApp>::augment_clap(clap::App::new(#name))
+        impl #impl_gen clap::Parser for #ident #ty_gen #where_cl {}
+        impl #impl_gen clap::CommandFactory for #ident #ty_gen #where_cl {
+            fn into_app<'help>() -> clap::Command<'help> {
+                <Self as clap::Args>::augment_args(clap::Command::new(#name))
             }
-            fn augment_clap(mut #app: clap::App<'_>) -> clap::App<'_> {
+            fn into_app_for_update<'help>() -> clap::Command<'help> {
+                <Self as clap::Args>::augment_args_for_update(
+                    clap::Command::new(#name))
+            }
+        }
+        impl #impl_gen clap::Args for #ident #ty_gen #where_cl {
+            fn augment_args(mut #app: clap::Command<'_>) -> clap::Command<'_> {
                 #augment
                 return #app;
             }
-            fn into_app_for_update<'help>() -> clap::App<'help> {
-                Self::augment_clap_for_update(clap::App::new(#name))
-            }
-            fn augment_clap_for_update(mut #app: clap::App<'_>)
-                -> clap::App<'_>
+            fn augment_args_for_update(mut #app: clap::Command<'_>)
+                -> clap::Command<'_>
             {
                 #augment_for_update
                 return #app;
@@ -62,22 +65,27 @@ pub fn structure(s: &types::Struct) -> TokenStream {
         impl #impl_gen crate::commands::backslash::IntoApp
             for #ident #ty_gen #where_cl
         {
-            fn into_app<'help>() -> clap::App<'help> {
+            fn into_app<'help>() -> clap::Command<'help> {
                 <Self as crate::commands::backslash::IntoApp>
-                    ::augment_clap(clap::App::new(#name))
+                    ::augment_args(clap::Command::new(#name))
             }
-            fn augment_clap(mut #app: clap::App<'_>) -> clap::App<'_> {
+            fn augment_args(mut #app: clap::Command<'_>) -> clap::Command<'_> {
                 #augment_no_inheritance
                 return #app;
             }
         }
         impl #impl_gen clap::FromArgMatches for #ident #ty_gen #where_cl {
-            fn from_arg_matches(#matches: &clap::ArgMatches) -> Self {
+            fn from_arg_matches(#matches: &clap::ArgMatches)
+                -> Result<Self, clap::Error>
+            {
                 #from_matches
             }
             fn update_from_arg_matches(&mut self, #matches: &clap::ArgMatches)
+                -> Result<(), clap::Error>
             {
                 #update_matches
+                #[allow(unreachable_code)]
+                Ok(())
             }
         }
         impl #impl_gen crate::options::PropagateArgs
@@ -85,8 +93,10 @@ pub fn structure(s: &types::Struct) -> TokenStream {
         {
             fn propagate_args(&self, #dest: &mut ::anymap::AnyMap,
                 #matches: &clap::ArgMatches)
+                -> Result<(), clap::Error>
             {
-                #propagate_args
+                #propagate_args;
+                Ok(())
             }
         }
         impl #impl_gen crate::options::describe::Describe
@@ -110,29 +120,29 @@ pub fn subcommands(e: &types::Enum) -> TokenStream {
     let (impl_gen, ty_gen, where_cl) = e.generics.split_for_impl();
     let app = syn::Ident::new("app", Span::call_site());
     let sub = syn::Ident::new("sub", Span::call_site());
+    let name = syn::Ident::new("name", Span::call_site());
     let augment = mk_subcommands(&e, &app, false, true);
     let augment_for_update = mk_subcommands(&e, &app, true, true);
     let augment_no_inheritance = mk_subcommands(&e, &app, false, false);
     let from_sub = mk_match_subcommand(&e, &sub);
     let propagation = mk_subcommand_propagation(&e);
     let describe_subcommands = mk_subcommand_describe(&e);
+    let has_subcommand = mk_has_subcommand(&e, &name);
     let setting = if e.attrs.setting { mk_setting_impl(&e) } else { quote!() };
     quote! {
+        impl #impl_gen clap::FromArgMatches for #ident #ty_gen #where_cl {
+            fn from_arg_matches(#sub: &clap::ArgMatches)
+                -> Result<Self, clap::Error>
+            {
+                #from_sub
+            }
+            fn update_from_arg_matches(&mut self, _: &clap::ArgMatches)
+                -> Result<(), clap::Error>
+            {
+                todo!("update from arg matches")
+            }
+        }
         impl #impl_gen clap::Subcommand for #ident #ty_gen #where_cl {
-            fn from_subcommand(subcommand: Option<(&str, &clap::ArgMatches)>)
-                -> Option<Self>
-            {
-                if let Some(#sub) = subcommand {
-                    #from_sub
-                } else {
-                    None
-                }
-            }
-            fn update_from_subcommand(&mut self,
-                _: std::option::Option<(&str, &clap::ArgMatches)>)
-            {
-                todo!("update from subcommand")
-            }
             fn augment_subcommands(mut #app: clap::App<'_>) -> clap::App<'_> {
                 #augment
                 return #app;
@@ -142,6 +152,9 @@ pub fn subcommands(e: &types::Enum) -> TokenStream {
             {
                 #augment_for_update
                 return #app;
+            }
+            fn has_subcommand(#name: &str) -> bool {
+                #has_subcommand
             }
         }
         impl #impl_gen crate::options::describe::DescribeEnum
@@ -232,7 +245,7 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
             static ABOUT: ::once_cell::sync::Lazy<String> =
                 ::once_cell::sync::Lazy::new(
                     || crate::markdown::format_markdown(#source));
-            #arg = #arg.about((&ABOUT).as_str());
+            #arg = #arg.help((&ABOUT).as_str());
         });
     }
     if let Some(name) = field.attrs.name.as_ref() {
@@ -307,7 +320,7 @@ fn mk_struct(s: &types::Struct, app: &syn::Ident,
         });
     }
     let (subcmd_interface, flat_interface) = if inheritance {
-        (quote!(clap::Subcommand), quote!(clap::IntoApp))
+        (quote!(clap::Subcommand), quote!(clap::Args))
     } else {
         (
             quote!(crate::commands::backslash::Subcommand),
@@ -322,12 +335,12 @@ fn mk_struct(s: &types::Struct, app: &syn::Ident,
             if for_update {
                 output.extend(quote! {
                     #app = <#ty as #flat_interface>
-                        ::augment_clap_for_update(#app);
+                        ::augment_args_for_update(#app);
                 });
             } else {
                 output.extend(quote! {
                     #app = <#ty as #flat_interface>
-                        ::augment_clap(#app);
+                        ::augment_args(#app);
                 });
             }
         } else if field.attrs.subcommand {
@@ -366,7 +379,7 @@ fn mk_subcommands(s: &types::Enum, app: &syn::Ident,
         });
     }
     let (flat_interface, cmd_interface) = if inheritance {
-        (quote!(clap::Subcommand), quote!(clap::IntoApp))
+        (quote!(clap::Subcommand), quote!(clap::Args))
     } else {
         (
             quote!(crate::commands::backslash::Subcommand),
@@ -397,11 +410,11 @@ fn mk_subcommands(s: &types::Enum, app: &syn::Ident,
                 if for_update {
                     quote! {
                         #isub = <#ty as #cmd_interface>
-                            ::augment_clap_for_update(#isub);
+                            ::augment_args_for_update(#isub);
                     }
                 } else {
                     quote! {
-                        #isub = <#ty as #cmd_interface>::augment_clap(#isub);
+                        #isub = <#ty as #cmd_interface>::augment_args(#isub);
                     }
                 }
             } else {
@@ -411,7 +424,7 @@ fn mk_subcommands(s: &types::Enum, app: &syn::Ident,
                 s.attrs.inherit.iter().chain(&sub.attrs.inherit)
                 .map(|ty| quote! {
                     #isub = <#ty as #cmd_interface>
-                        ::augment_clap_for_update(#isub);
+                        ::augment_args_for_update(#isub);
                 })
                 .collect::<Vec<_>>()
             } else {
@@ -419,7 +432,7 @@ fn mk_subcommands(s: &types::Enum, app: &syn::Ident,
             };
             output.extend(quote! {
                 let mut #isub = clap::App::new(#name);
-                #isub = #isub.setting(clap::AppSettings::DisableVersionFlag);
+                #isub = #isub.disable_version_flag(true);
                 #cmd_def
                 #opts
                 #( #inherit )*
@@ -451,9 +464,9 @@ fn mk_subcommand(s: &types::Subcommand, sub: &syn::Ident)
             #sub = #sub.#name(#value);
         });
     }
-    if s.attrs.hidden {
+    if s.attrs.hide {
         modifiers.extend(quote! {
-            #sub = #sub.setting(clap::AppSettings::Hidden);
+            #sub = #sub.hide(true);
         });
     }
 
@@ -573,7 +586,7 @@ fn mk_struct_propagate(s: &types::Struct,
                         #dest,
                         args,
                     )
-                });
+                }).transpose()?;
             }
         } else {
             quote! {
@@ -583,13 +596,14 @@ fn mk_struct_propagate(s: &types::Struct,
                         #dest,
                         args,
                     )
-                });
+                }).transpose()?;
             }
         }
     } else {
         quote!()
     }
 }
+
 fn mk_struct_matches(s: &types::Struct, matches: &syn::Ident) -> TokenStream {
     let struct_name = &s.ident;
     let mut fields = Vec::with_capacity(s.fields.len());
@@ -600,13 +614,13 @@ fn mk_struct_matches(s: &types::Struct, matches: &syn::Ident) -> TokenStream {
         let ty = &fld.ty;
         if fld.attrs.subcommand {
             let parser = quote! {
-                <#ty as clap::Subcommand>::from_subcommand(
-                    #matches.subcommand()
-                )
+                <#ty as clap::FromArgMatches>::from_arg_matches(#matches)
             };
             subcmd = Some(fld);
             if fld.optional {
-                fields.push(quote! { let #field_name = #parser; });
+                // TODO(tailhook) maybe validate that this is missing
+                // subcommand error
+                fields.push(quote! { let #field_name = #parser.ok(); });
             } else {
                 fields.push(quote! { let #field_name = #parser.unwrap(); });
             }
@@ -614,7 +628,7 @@ fn mk_struct_matches(s: &types::Struct, matches: &syn::Ident) -> TokenStream {
             fields.push(quote! {
                 let #field_name: #ty = clap::FromArgMatches::from_arg_matches(
                     #matches
-                );
+                )?;
             });
             if fld.attrs.inheritable {
                 inheritable.push((field_name, ty));
@@ -677,9 +691,9 @@ fn mk_struct_matches(s: &types::Struct, matches: &syn::Ident) -> TokenStream {
     quote! {
         #( #fields )*
         #propagate
-        return #struct_name {
+        return Ok(#struct_name {
             #( #field_names ),*
-        };
+        });
     }
 }
 
@@ -698,7 +712,7 @@ fn mk_struct_update_matches(s: &types::Struct, matches: &syn::Ident)
                 <#ty as clap::FromArgMatches>::update_from_arg_matches(
                     &mut self.#field_name,
                     #matches,
-                )
+                )?
             });
         } else {
             let parser = get_parser(fld, matches);
@@ -725,12 +739,11 @@ fn mk_match_subcommand(s: &types::Enum, sub: &syn::Ident) -> TokenStream {
         if subcmd.attrs.flatten {
             let ty = &subcmd.ty;
             flatten.push(quote! {
-                let flattened = <#ty as clap::Subcommand>::from_subcommand(
-                    Some(#sub)
-                );
-                if let Some(fl_sub) = flattened {
-                    return Some(#type_name::#ident(fl_sub));
-                };
+                if <#ty as clap::Subcommand>::has_subcommand(name) {
+                    let matches = <#ty as clap::FromArgMatches>
+                        ::from_arg_matches(#sub);
+                    return matches.map(#type_name::#ident);
+                }
             });
         } else {
             let name = subcmd.attrs.name.clone()
@@ -740,29 +753,37 @@ fn mk_match_subcommand(s: &types::Enum, sub: &syn::Ident) -> TokenStream {
             match &subcmd.ty {
                 Some(ty) => {
                     branches.push(quote! {
-                        #name => {
-                            Some(#type_name::#ident(
+                        Some((#name, #values)) => {
+                            Ok(#type_name::#ident(
                                 <#ty as clap::FromArgMatches>
-                                ::from_arg_matches(#values)
+                                ::from_arg_matches(#values)?
                             ))
                         }
                     });
                 }
                 None => {
                     branches.push(quote! {
-                        #name => Some(#type_name::#ident),
+                        Some((#name, _)) => Ok(#type_name::#ident),
                     });
                 }
             }
         }
     }
     quote! {
-        let (name, #values) = #sub;
-        match name {
+        match #sub.subcommand() {
             #(#branches)*
-            _ => {
+            Some((name, _)) => {
                 #(#flatten)*
-                return None;
+                return Err(clap::Error::raw(
+                    ::clap::ErrorKind::InvalidSubcommand,
+                    format!("Subcommand {:?} not found", name),
+                ));
+            }
+            None => {
+                return Err(clap::Error::raw(
+                    ::clap::ErrorKind::MissingSubcommand,
+                    format!("Subcommand required"),
+                ));
             }
         }
     }
@@ -782,7 +803,7 @@ fn mk_subcommand_propagation(e: &types::Enum) -> TokenStream {
                 ::clap::FromArgMatches::update_from_arg_matches(
                     val,
                     #matches,
-                );
+                )?;
             };
         }
     });
@@ -797,7 +818,7 @@ fn mk_subcommand_propagation(e: &types::Enum) -> TokenStream {
                         #inner,
                         #dest,
                         #matches,
-                    )
+                    )?;
                 }
             )
         } else {
@@ -812,7 +833,7 @@ fn mk_subcommand_propagation(e: &types::Enum) -> TokenStream {
                     ::clap::FromArgMatches::update_from_arg_matches(
                         val,
                         #matches,
-                    );
+                    )?;
                 }
             }
         });
@@ -830,11 +851,13 @@ fn mk_subcommand_propagation(e: &types::Enum) -> TokenStream {
         {
             fn propagate_args(&self, #dest: &mut ::anymap::AnyMap,
                 #matches: &clap::ArgMatches)
+                -> Result<(), clap::Error>
             {
                 #( #propagate_global )*
                 match self {
                     #( #match_branches ),*
                 }
+                Ok(())
             }
         }
     };
@@ -855,7 +878,7 @@ fn subcmd_to_desc(sub: &types::Subcommand, e: &types::Enum) -> TokenStream {
         .map(|a| a.source.value().to_string())
         .map(|v| quote!(Some(#v)))
         .unwrap_or_else(|| quote!(None));
-    let hidden = sub.attrs.hidden;
+    let hide = sub.attrs.hide;
     let expand_help = sub.attrs.expand_help;
     let describe_inner = if let Some(ty) = &sub.ty {
         quote!(<#ty as crate::options::describe::Describe>::describe)
@@ -867,7 +890,7 @@ fn subcmd_to_desc(sub: &types::Subcommand, e: &types::Enum) -> TokenStream {
             name: #name,
             override_about: #about,
             override_title: #title,
-            hidden: #hidden,
+            hide: #hide,
             expand_help: #expand_help,
             describe_inner: #describe_inner,
         }
@@ -961,6 +984,35 @@ fn mk_setting_impl(e: &types::Enum) -> TokenStream {
                     vec![#( #all_items ),*]
                 })[..];
             }
+        }
+    }
+}
+
+fn mk_has_subcommand(e: &types::Enum, name: &syn::Ident) -> TokenStream {
+    let mut direct = Vec::new();
+    let mut flattened = Vec::new();
+    for subcmd in &e.subcommands {
+        let ident = &subcmd.ident;
+        if subcmd.attrs.flatten {
+            let ty = &subcmd.ty;
+            flattened.push(quote! {
+                n if <#ty as clap::Subcommand>::has_subcommand(n) => true,
+            });
+        } else {
+            let name = subcmd.attrs.name.clone()
+                .unwrap_or_else(|| {
+                    e.attrs.rename_all.convert(&ident.to_string())
+                });
+            direct.push(quote! {
+                #name => true,
+            });
+        }
+    }
+    quote!{
+        match #name {
+            #(#direct)*
+            #(#flattened)*
+            _ => false,
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use clap::{ArgSettings, ValueHint};
+use clap::{ValueHint};
 use serde::{Serialize, Deserialize};
 use edgedb_cli_derive::{EdbClap, IntoArgs};
 
@@ -211,11 +211,11 @@ pub struct Start {
     pub name: String,
     #[clap(long)]
     #[cfg_attr(target_os="linux",
-        clap(about="Start the server in the foreground rather than using \
+        clap(help="Start the server in the foreground rather than using \
                     systemd to manage the process (note: you might need to \
                     stop non-foreground instance first)"))]
     #[cfg_attr(target_os="macos",
-        clap(about="Start the server in the foreground rather than using \
+        clap(help="Start the server in the foreground rather than using \
                     launchctl to manage the process (note: you might need to \
                     stop non-foreground instance first)"))]
     pub foreground: bool,
@@ -225,7 +225,7 @@ pub struct Start {
     #[clap(long, conflicts_with="managed_by")]
     pub auto_restart: bool,
 
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     #[clap(possible_values=&["systemd", "launchctl", "edgedb-cli"][..])]
     #[clap(conflicts_with="auto_restart")]
     pub managed_by: Option<String>,
@@ -254,7 +254,7 @@ pub struct List {
     pub extended: bool,
 
     /// Output all available debug info about each instance
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     #[clap(conflicts_with_all=&["extended", "json"])]
     pub debug: bool,
 
@@ -264,12 +264,12 @@ pub struct List {
 
     /// Do query remote instances
     //  Currently needed for WSL
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     pub no_remote: bool,
 
     /// Do not show warnings on no instances
     //  Currently needed for WSL
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     pub quiet: bool,
 }
 
@@ -289,7 +289,7 @@ pub struct Status {
     pub extended: bool,
 
     /// Output all available debug info about each instance
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     #[clap(conflicts_with_all=&["extended", "json", "service"])]
     pub debug: bool,
 
@@ -299,7 +299,7 @@ pub struct Status {
 
     /// Do not print error on "No instance found" only indicate by error code
     //  Currently needed for WSL
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     pub quiet: bool,
 }
 
@@ -348,7 +348,7 @@ pub struct Upgrade {
     /// Force dump-restore upgrade during upgrade even version is compatible
     ///
     /// This is used by `project upgrade --force`
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     pub force_dump_restore: bool,
 }
 

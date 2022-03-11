@@ -20,9 +20,8 @@ bytes = "1.0.1"
 blake2b_simd = "0.5.11"
 blake3 = "1.1.0"
 rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb_20210403"}
-#clap = "3.0.0-beta.2"
-clap = { git="https://github.com/clap-rs/clap" }
-clap_generate = { git="https://github.com/clap-rs/clap" }
+clap = {version="3.1.5", features=["derive", "cargo"]}
+clap_complete = "3.1.1"
 strsim = "0.10.0"
 whoami = "1.1"
 atty = "0.2.13"
