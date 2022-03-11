@@ -8,7 +8,7 @@ use std::path::Path;
 use std::process::exit;
 
 use async_std::task;
-use clap::Clap;
+use clap::{Parser};
 
 use crate::options::Options;
 

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{AppSettings, ArgSettings, ValueHint};
+use clap::{ValueHint};
 use edgedb_cli_derive::EdbClap;
 
 use crate::repl;
@@ -33,10 +33,10 @@ pub enum Common {
     /// List matching database objects by name and type
     List(List),
     /// Show postgres address. Works on dev-mode database only.
-    #[edb(hidden)]
+    #[edb(hide=true)]
     Pgaddr,
     /// Run psql shell. Works on dev-mode database only.
-    #[edb(hidden)]
+    #[edb(hide=true)]
     Psql,
 }
 
@@ -115,7 +115,7 @@ pub enum DatabaseCmd {
 }
 
 #[derive(EdbClap, Clone, Debug)]
-#[clap(setting=AppSettings::NoBinaryName)]
+#[clap(no_binary_name=true)]
 pub struct Backslash {
     #[clap(subcommand)]
     pub command: BackslashCmd,
@@ -196,8 +196,7 @@ pub struct SettingUsize {
 }
 
 #[derive(EdbClap, Clone, Debug)]
-#[clap(setting=AppSettings::TrailingVarArg)]
-#[clap(setting=AppSettings::AllowLeadingHyphen)]
+#[clap(trailing_var_arg=true, allow_hyphen_values=true)]
 pub struct Edit {
     pub entry: Option<isize>,
 }
@@ -529,7 +528,7 @@ pub struct CreateMigration {
     #[clap(long)]
     pub allow_empty: bool,
     /// Print queries executed
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     pub debug_print_queries: bool,
 }
 

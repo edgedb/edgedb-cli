@@ -18,7 +18,7 @@ pub struct Subcommand {
     pub name: &'static str,
     pub override_title: Option<&'static str>,
     pub override_about: Option<&'static str>,
-    pub hidden: bool,
+    pub hide: bool,
     pub expand_help: bool,
     pub describe_inner: fn() -> Command,
 }

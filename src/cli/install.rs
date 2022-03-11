@@ -9,8 +9,8 @@ use std::process::{exit};
 use std::str::FromStr;
 
 use anyhow::Context;
-use clap::{IntoApp, ArgSettings};
-use clap_generate::{generate, generators};
+use clap::IntoApp;
+use clap_complete::{generate, shells};
 use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
@@ -54,7 +54,7 @@ pub struct CliInstall {
     pub no_wait_for_exit_prompt: bool,
 
     /// Installation is run from `self ugprade` command
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     pub upgrade: bool,
 }
 
@@ -770,16 +770,14 @@ impl Shell {
     fn generate(&self, buf: &mut dyn Write) {
         use Shell::*;
 
-        let mut app = RawOptions::into_app();
+        let mut app = RawOptions::command();
         let n = "edgedb";
         match self {
-            Bash => generate::<generators::Bash, _>(&mut app, n, buf),
-            Elvish => generate::<generators::Elvish, _>(&mut app, n, buf),
-            Fish => generate::<generators::Fish, _>(&mut app, n, buf),
-            PowerShell => {
-                generate::<generators::PowerShell, _>(&mut app, n, buf)
-            }
-            Zsh => generate::<generators::Zsh, _>(&mut app, n, buf),
+            Bash => generate(shells::Bash, &mut app, n, buf),
+            Elvish => generate(shells::Elvish, &mut app, n, buf),
+            Fish => generate(shells::Fish, &mut app, n, buf),
+            PowerShell => generate(shells::PowerShell, &mut app, n, buf),
+            Zsh => generate(shells::Zsh, &mut app, n, buf),
         }
     }
 }

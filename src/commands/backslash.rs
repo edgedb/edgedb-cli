@@ -24,12 +24,12 @@ use crate::table;
 pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(|| CommandCache::new());
 
 pub trait IntoApp {
-    fn into_app<'help>() -> clap::App<'help>;
-    fn augment_clap(app: clap::App<'_>) -> clap::App<'_>;
+    fn into_app<'help>() -> clap::Command<'help>;
+    fn augment_args(app: clap::Command<'_>) -> clap::Command<'_>;
 }
 
 pub trait Subcommand {
-    fn augment_subcommands(app: clap::App<'_>) -> clap::App<'_>;
+    fn augment_subcommands(app: clap::Command<'_>) -> clap::Command<'_>;
 }
 
 
@@ -276,7 +276,7 @@ impl<'a> Iterator for Parser<'a> {
 }
 
 impl CommandInfo {
-    fn from(cmd: &clap::App) -> CommandInfo {
+    fn from(cmd: &clap::Command) -> CommandInfo {
         CommandInfo {
             options: cmd.get_arguments()
                 .filter_map(|a| a.get_short())
@@ -286,7 +286,7 @@ impl CommandInfo {
                 .filter(|a| a.get_long().is_none())
                 .map(|a| Argument {
                     required: false,
-                    name: a.get_name().to_owned(),
+                    name: a.get_id().to_owned(),
                 })
                 .collect(),
             description: cmd.get_about().map(|x| x.trim().to_owned()),
@@ -351,11 +351,11 @@ impl CommandCache {
             let cmd = setting_cmd.remove(&setting.name())
                 .expect("all settings have cmd");
             let arg = cmd.get_arguments()
-                .filter(|a| a.get_name() != "help" && a.get_name() != "version")
+                .filter(|a| a.get_id() != "help" && a.get_id() != "version")
                 .next()
                 .expect("setting has argument");
             let values = arg.get_possible_values()
-                .map(|v| v.iter().map(|x| (*x).to_owned()).collect());
+                .map(|v| v.iter().map(|x| x.get_name().to_owned()).collect());
             let description = cmd.get_about().unwrap_or("").trim().to_owned();
             let info = SettingInfo {
                 name: setting.name(),
@@ -363,7 +363,7 @@ impl CommandCache {
                     setting.name(), description),
                 description,
                 setting,
-                value_name: arg.get_name().to_owned(),
+                value_name: arg.get_id().to_owned(),
                 values,
              };
             (info.name, info)
@@ -435,9 +435,9 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
     }
     Backslash::into_app()
         .try_get_matches_from(arguments)
-        .map(|m| Backslash::from_arg_matches(&m))
+        .and_then(|m| Backslash::from_arg_matches(&m))
         .map_err(|e| ParseError {
-            help: e.kind == clap::ErrorKind::DisplayHelp,
+            help: e.kind() == clap::ErrorKind::DisplayHelp,
             message: backslashify_help(&e.to_string()).into(),
             span: None,
         })
