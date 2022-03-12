@@ -143,7 +143,7 @@ jobs:
   portable-tests-windows:
     needs: musl-test
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 65
     strategy:
       matrix:
         test: [portable_smoke, portable_project]
