@@ -184,7 +184,10 @@ jobs:
         with:
             distribution: Debian
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --test=${{ matrix.test }} --features portable_tests -- --nocapture
+              #- uses: actions-rs/cargo@v1
+              #  with:
+              #    command: test
+              #    args: --test=${{ matrix.test }} --features portable_tests -- --nocapture
+              #
+      - run: |
+          cargo test --test=${{ matrix.test }} --features portable_tests -- --nocapture
