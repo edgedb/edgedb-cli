@@ -187,4 +187,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --test=${{ matrix.test }} --features portable_tests
+          args: --test=${{ matrix.test }} --features portable_tests -- --nocapture
