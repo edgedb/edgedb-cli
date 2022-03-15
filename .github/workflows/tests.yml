@@ -190,4 +190,6 @@ jobs:
               #    args: --test=${{ matrix.test }} --features portable_tests -- --nocapture
               #
       - run: |
-          cargo test --test=${{ matrix.test }} --features portable_tests -- --nocapture
+          cargo test -vv --test=${{ matrix.test }} --features portable_tests -- --nocapture
+        env:
+          RUST_LOG: info
