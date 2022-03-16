@@ -97,7 +97,7 @@ jobs:
 <% endfor %>
 <% for tgt in targets.win %>
   build-<< tgt.name >>:
-    runs-on: windows-latest
+    runs-on: windows-2019
     needs: prep
 
     steps:
@@ -264,7 +264,7 @@ jobs:
 <% for tgt in targets.win %>
   publish-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
-    runs-on: windows-latest
+    runs-on: windows-2019
 
     steps:
     - uses: actions/download-artifact@v1

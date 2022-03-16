@@ -248,7 +248,7 @@ jobs:
 
 
   build-win-x86_64:
-    runs-on: windows-latest
+    runs-on: windows-2019
     continue-on-error: true
 
     steps:
@@ -619,7 +619,7 @@ jobs:
 
   publish-win-x86_64:
     needs: [build-win-x86_64]
-    runs-on: windows-latest
+    runs-on: windows-2019
 
     steps:
     - uses: actions/download-artifact@v1
@@ -649,4 +649,3 @@ jobs:
       shell: bash
       run: |
         edgedb-pkg/integration/win/publish.sh
-

@@ -329,7 +329,7 @@ jobs:
 
 
   build-win-x86_64:
-    runs-on: windows-latest
+    runs-on: windows-2019
     needs: prep
 
     steps:
@@ -694,7 +694,7 @@ jobs:
 
   publish-win-x86_64:
     needs: [build-win-x86_64]
-    runs-on: windows-latest
+    runs-on: windows-2019
 
     steps:
     - uses: actions/download-artifact@v1
