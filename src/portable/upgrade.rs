@@ -133,6 +133,11 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
     echo!("Upgrading to a minor version", pkg.version.emphasize());
     let install = install::package(&pkg).context("error installing EdgeDB")?;
     inst.installation = Some(install);
+
+    let paths = Paths::get(&inst.name)?;
+    let metapath = paths.data_dir.join("instance_info.json");
+    write_json(&metapath, "new instance metadata", &inst)?;
+
     match (create::create_service(&inst), inst.start_conf) {
         (Ok(()), StartConf::Manual) => {
             echo!("Instance", inst.name.emphasize(),
