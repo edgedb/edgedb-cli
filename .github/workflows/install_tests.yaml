@@ -41,7 +41,7 @@ jobs:
     strategy:
       max-parallel: 4
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-2019, macos-latest]
     steps:
       - uses: actions/checkout@master
       - uses: actions-rs/toolchain@v1
