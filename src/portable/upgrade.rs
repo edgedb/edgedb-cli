@@ -134,8 +134,7 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
     let install = install::package(&pkg).context("error installing EdgeDB")?;
     inst.installation = Some(install);
 
-    let paths = Paths::get(&inst.name)?;
-    let metapath = paths.data_dir.join("instance_info.json");
+    let metapath = inst.data_dir()?.join("instance_info.json");
     write_json(&metapath, "new instance metadata", &inst)?;
 
     match (create::create_service(&inst), inst.start_conf) {
