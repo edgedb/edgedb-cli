@@ -142,7 +142,7 @@ jobs:
 
   portable-tests-windows:
     needs: musl-test
-    runs-on: windows-latest
+    runs-on: windows-2019
     timeout-minutes: 65
     strategy:
       matrix:
@@ -184,12 +184,7 @@ jobs:
         with:
             distribution: Debian
 
-              #- uses: actions-rs/cargo@v1
-              #  with:
-              #    command: test
-              #    args: --test=${{ matrix.test }} --features portable_tests -- --nocapture
-              #
-      - run: |
-          cargo test -vv --test=${{ matrix.test }} --features portable_tests -- --nocapture
-        env:
-          RUST_LOG: info
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --test=${{ matrix.test }} --features portable_tests
