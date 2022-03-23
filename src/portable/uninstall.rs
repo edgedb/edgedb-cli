@@ -19,7 +19,7 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
     }
     if let Some(ver) = &options.version {
         if let Ok(ver) = ver.parse::<ver::Filter>() {
-            candidates.retain(|cand| ver.matches(&cand.version));
+            candidates.retain(|cand| ver.matches(&cand.version, false));
         } else if let Ok(ver) = ver.parse::<ver::Specific>() {
             candidates.retain(|cand| ver == cand.version.specific());
         } else if let Ok(ver) = ver.parse::<ver::Build>() {

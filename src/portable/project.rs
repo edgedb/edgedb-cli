@@ -836,7 +836,7 @@ impl Handle {
     }
     fn check_version(&self, ver_query: &Query) {
         match self.get_version() {
-            Ok(inst_ver) if ver_query.matches(&inst_ver) => {}
+            Ok(inst_ver) if ver_query.matches(&inst_ver, false) => {}
             Ok(inst_ver) => {
                 print::warn(format!(
                     "WARNING: existing instance has version {}, \
@@ -1255,7 +1255,8 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
             }
             print_other_project_warning(&name, &root, &query)?;
         } else {
-            echo!("Latest version found", pkg.version.to_string() + ",",
+            echo!("Latest or requested version found",
+                  pkg.version.to_string() + ",",
                   "current instance version is",
                   inst.get_version()?.emphasize().to_string() + ".",
                   "Already up to date.");

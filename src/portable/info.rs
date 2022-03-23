@@ -22,7 +22,9 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
     // note this assumes that latest is set if no nightly and version
     let query = Query::from_options(options.nightly, &options.version)?;
     let all = local::get_installed()?;
-    let inst = all.into_iter().filter(|item| query.matches(&item.version))
+    let inst = all
+        .into_iter()
+        .filter(|item| query.matches(&item.version, true))
         .max_by_key(|item| item.version.specific())
         .context("cannot find installed packages maching your criteria")?;
     if options.bin_path {

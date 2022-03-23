@@ -161,7 +161,7 @@ impl Build {
 }
 
 impl Filter {
-    pub fn matches(&self, bld: &Build) -> bool {
+    pub fn matches(&self, bld: &Build, exact: bool) -> bool {
         use MinorVersion as M;
         use FilterMinor as Q;
 
@@ -173,6 +173,7 @@ impl Filter {
         match (spec.minor, self.minor.unwrap_or(Q::Minor(0))) {
             // dev releases can't be matched
             (M::Dev(_), _) => false,
+            (M::Minor(v), Q::Minor(q)) if exact => v == q,
             // minor releases are upgradeable
             (M::Minor(v), Q::Minor(q)) => v >= q,
             // Special-case before 1.0, to treat all prereleases as major

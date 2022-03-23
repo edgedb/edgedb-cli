@@ -362,7 +362,11 @@ fn get_platform_server_package(query: &Query, platform: &str)
     let filter = query.version.as_ref();
     let pkg = get_platform_server_packages(query.channel, platform)?
         .into_iter()
-        .filter(|pkg| filter.map(|q| q.matches(&pkg.version)).unwrap_or(true))
+        .filter(|pkg| {
+            filter
+                .map(|q| q.matches(&pkg.version, true))
+                .unwrap_or(true)
+        })
         .max_by_key(|pkg| pkg.version.specific());
     Ok(pkg)
 }
@@ -532,9 +536,9 @@ impl Query {
             }
         }
     }
-    pub fn matches(&self, ver: &ver::Build) -> bool {
+    pub fn matches(&self, ver: &ver::Build, exact: bool) -> bool {
         match &self.version {
-            Some(query_ver) => query_ver.matches(ver),
+            Some(query_ver) => query_ver.matches(ver, exact),
             None => {
                 Channel::from_version(&ver.specific())
                     .map(|channel| self.channel == channel)
