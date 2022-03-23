@@ -10,6 +10,7 @@ use crate::platform::config_dir;
 use crate::portable::local::write_json;
 use crate::print;
 use std::path::PathBuf;
+use surf::Response;
 
 const EDGEDB_CLOUD_BASE_URL: &str = "http://127.0.0.1:5959";
 const AUTHENTICATION_WAIT_TIME: i32 = 180;
@@ -40,16 +41,7 @@ fn cloud_config_file() -> anyhow::Result<PathBuf> {
     Ok(config_dir()?.join("cloud.json"))
 }
 
-pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
-    let base_url = options
-        .cloud_base_url
-        .as_deref()
-        .unwrap_or(EDGEDB_CLOUD_BASE_URL);
-    let mut resp = surf::post(format!("{}/v1/auth/sessions/", base_url))
-        .content_type(surf::http::mime::JSON)
-        .body("{\"type\":\"CLI\"}")
-        .await
-        .map_err(HttpError)?;
+pub async fn raise_http_error(resp: &mut Response) -> anyhow::Result<()> {
     if !resp.status().is_success() {
         let ErrorResponse { status, error } = resp.body_json().await.map_err(HttpError)?;
         anyhow::bail!(format!(
@@ -57,6 +49,17 @@ pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Resul
             status, error
         ));
     }
+    Ok(())
+}
+
+pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
+    let base_url = get_base_url(options);
+    let mut resp = surf::post(format!("{}/v1/auth/sessions/", base_url))
+        .content_type(surf::http::mime::JSON)
+        .body("{\"type\":\"CLI\"}")
+        .await
+        .map_err(HttpError)?;
+    raise_http_error(&mut resp).await?;
     let UserSession {
         id,
         auth_url,
@@ -74,6 +77,7 @@ pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Resul
         resp = surf::get(format!("{}/v1/auth/sessions/{}", base_url, id))
             .await
             .map_err(HttpError)?;
+        raise_http_error(&mut resp).await?;
         let UserSession {
             id: _,
             auth_url: _,
@@ -92,8 +96,7 @@ pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Resul
         }
         task::sleep(Duration::from_secs(1)).await;
     }
-    print::error("Timed out.");
-    Ok(())
+    anyhow::bail!("Timed out.")
 }
 
 pub async fn logout(_c: &options::Logout) -> anyhow::Result<()> {
@@ -124,4 +127,11 @@ pub fn get_access_token(options: &CloudOptions) -> anyhow::Result<Option<String>
     };
     let config: CloudConfig = serde_json::from_str(&data)?;
     Ok(config.access_token)
+}
+
+pub fn get_base_url(options: &CloudOptions) -> &str {
+    options
+        .cloud_base_url
+        .as_deref()
+        .unwrap_or(EDGEDB_CLOUD_BASE_URL)
 }

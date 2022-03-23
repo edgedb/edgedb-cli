@@ -1,3 +1,5 @@
+use async_std::task;
+
 use crate::cloud;
 use crate::options::Options;
 use crate::portable::project::ProjectCommand;
@@ -45,7 +47,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Destroy(c) => destroy::destroy(c),
         ResetPassword(c) if cfg!(windows) => windows::reset_password(c),
         ResetPassword(c) => reset_password::reset_password(c),
-        Link(c) if c.cloud => cloud::ops::link(c, &options),
+        Link(c) if c.cloud => task::block_on(cloud::ops::link(c, &options)),
         Link(c) => link::link(c, &options),
         List(c) if cfg!(windows) => windows::list(c),
         List(c) => status::list(c),

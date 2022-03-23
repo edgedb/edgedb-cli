@@ -1,18 +1,176 @@
-use crate::cloud::auth;
+use colorful::Colorful;
+use edgedb_client::Builder;
 
+use crate::cloud::auth;
+use crate::credentials;
+use crate::print;
+use crate::question;
+
+#[derive(Debug, thiserror::Error)]
+#[error("HTTP error: {0}")]
+pub struct HttpError(surf::Error);
+
+#[derive(Debug, serde::Deserialize)]
+struct CloudInstance {
+    id: String,
+    name: String,
+    dsn: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct CloudInstanceQuery {
+    name: String,
+}
 
 pub fn create(
     _cmd: &crate::portable::options::Create,
     opts: &crate::options::Options,
 ) -> anyhow::Result<()> {
-    println!("cloud create: {:?}", auth::get_access_token(&opts.cloud_options)?);
+    println!(
+        "cloud create: {:?}",
+        auth::get_access_token(&opts.cloud_options)?
+    );
     Ok(())
 }
 
-pub fn link(
-    _cmd: &crate::portable::options::Link,
+pub async fn link(
+    cmd: &crate::portable::options::Link,
     opts: &crate::options::Options,
 ) -> anyhow::Result<()> {
-    println!("cloud link: {:?}", auth::get_access_token(&opts.cloud_options)?);
+    if cmd.non_interactive {
+        if let Some(name) = &cmd.name {
+            if !crate::portable::local::is_valid_name(name) {
+                print::error(
+                    "Instance name must be a valid identifier, \
+                             (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)",
+                );
+            }
+            let cred_path = credentials::path(name)?;
+            if cred_path.exists() && !cmd.overwrite {
+                anyhow::bail!("File {} exists; abort.", cred_path.display());
+            }
+        } else {
+            anyhow::bail!("Name is mandatory if --non-interactive is set.");
+        }
+    }
+    let options = &opts.cloud_options;
+    let base_url = auth::get_base_url(options);
+    let access_token = if let Some(access_token) = auth::get_access_token(options)? {
+        access_token
+    } else {
+        if cmd.non_interactive {
+            anyhow::bail!("Run `edgedb cloud login` first.");
+        } else {
+            let q = question::Confirm::new(
+                "You're not authenticated to the EdgeDB Cloud yet, login now?",
+            );
+            if q.ask()? {
+                auth::login(&crate::cloud::options::Login {}, options).await?;
+                if let Some(access_token) = auth::get_access_token(options)? {
+                    access_token
+                } else {
+                    anyhow::bail!("Couldn't fetch access token.");
+                }
+            } else {
+                print::error("Aborted.");
+                return Ok(());
+            }
+        }
+    };
+    let cloud_name = if let Some(name) = &cmd.name {
+        name.clone()
+    } else {
+        if cmd.non_interactive {
+            unreachable!("Already checked previously");
+        } else {
+            loop {
+                let name = question::String::new(
+                    "Input the name of the EdgeDB Cloud instance to connect to",
+                )
+                .ask()?;
+                if !crate::portable::local::is_valid_name(&name) {
+                    print::error(
+                        "Instance name must be a valid identifier, \
+                                 (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)",
+                    );
+                    continue;
+                }
+                break name;
+            }
+        }
+    };
+    let mut resp = surf::get(format!("{}/v1/edgedb-instances/", base_url))
+        .query(&CloudInstanceQuery { name: cloud_name.clone() }).map_err(HttpError)?
+        .header("Authorization", format!("Bearer {}", access_token))
+        .await
+        .map_err(HttpError)?;
+    auth::raise_http_error(&mut resp).await?;
+    let CloudInstance { id, dsn, name: _ } = resp.body_json().await.map_err(HttpError)?;
+
+    let (cred_path, instance_name) = if let Some(name) = &cmd.name {
+        let cred_path = credentials::path(&name)?;
+        if cred_path.exists() && cmd.overwrite && !cmd.quiet {
+            print::warn(format!("Overwriting {}", cred_path.display()));
+        }
+        (cred_path, name.clone())
+    } else {
+        assert!(!cmd.non_interactive, "Already checked previously");
+        let same_name_exists = credentials::path(&cloud_name)?.exists() && !cmd.overwrite;
+        loop {
+            let name = if same_name_exists {
+                question::String::new("Specify a local name to refer to the EdgeDB Cloud instance")
+                    .ask()?
+            } else {
+                question::String::new("Use the same name locally?")
+                    .default(&cloud_name)
+                    .ask()?
+            };
+            if !crate::portable::local::is_valid_name(&name) {
+                print::error(
+                    "Instance name must be a valid identifier, \
+                         (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)",
+                );
+                continue;
+            }
+            let cred_path = credentials::path(&name)?;
+            if cred_path.exists() {
+                if cmd.overwrite {
+                    if !cmd.quiet {
+                        print::warn(format!("Overwriting {}", cred_path.display()));
+                    }
+                } else {
+                    let mut q = question::Confirm::new_dangerous(format!(
+                        "{} exists! Overwrite?",
+                        cred_path.display()
+                    ));
+                    q.default(false);
+                    if !q.ask()? {
+                        continue;
+                    }
+                }
+            }
+            break (cred_path, name);
+        }
+    };
+
+    let mut creds = Builder::uninitialized()
+        .read_dsn(&dsn)
+        .await?
+        .as_credentials()?;
+    creds.cloud_instance_id = Some(id);
+    creds.cloud_original_dsn = Some(dsn);
+    credentials::write(&cred_path, &creds).await?;
+    if !cmd.quiet {
+        let mut msg = "Successfully linked to EdgeDB Cloud instance.".to_string();
+        if print::use_color() {
+            msg = format!("{}", msg.bold().light_green());
+        }
+        eprintln!(
+            "{} To connect run:\
+            \n  edgedb -I {}",
+            msg,
+            instance_name.escape_default(),
+        );
+    }
     Ok(())
 }
