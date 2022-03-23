@@ -38,6 +38,7 @@ static CONNECTION_ARG_HINT: &str = "\
 
 const CONN_OPTIONS_GROUP: &str =
     "CONNECTION OPTIONS (`edgedb --help-connect` to see the full list)";
+const CLOUD_OPTIONS_GROUP: &str = "CLOUD OPTIONS";
 
 pub trait PropagateArgs {
     fn propagate_args(&self, dest: &mut AnyMap, matches: &clap::ArgMatches)
@@ -186,6 +187,22 @@ pub struct ConnectionOptions {
     pub connect_timeout: Option<Duration>,
 }
 
+#[derive(EdbClap, Clone, Debug)]
+#[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
+pub struct CloudOptions {
+    /// Specify the base URL for EdgeDB Cloud API access, default is
+    /// http://127.0.0.1:5959
+    #[clap(long, name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    #[clap(hide=true)]
+    pub cloud_base_url: Option<String>,
+
+    /// Specify the EdgeDB Cloud API access token to use, instead of loading
+    /// the access token from the remembered authentication.
+    #[clap(long, name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    #[clap(hide=true)]
+    pub cloud_access_token: Option<String>,
+}
+
 /// Use the `edgedb` command-line tool to spin up local instances,
 /// manage EdgeDB projects, create and apply migrations, and more.
 ///
@@ -236,6 +253,9 @@ pub struct RawOptions {
     #[edb(inheritable)]
     pub conn: ConnectionOptions,
 
+    #[edb(inheritable)]
+    pub cloud: CloudOptions,
+
     #[clap(subcommand)]
     pub subcommand: Option<Command>,
 }
@@ -272,8 +292,8 @@ pub enum Command {
     #[clap(name="_self_install")]
     #[edb(hide=true)]
     _SelfInstall(cli::install::CliInstall),
-    /// Manage EdgeDB Cloud instances
-    #[edb(hide=true)]
+    /// EdgeDB Cloud authentication
+    #[edb(inherit(CloudOptions), hide=true)]
     Cloud(CloudCommand),
 }
 
@@ -299,6 +319,7 @@ pub struct Query {
 #[derive(Debug, Clone)]
 pub struct Options {
     pub conn_options: ConnectionOptions,
+    pub cloud_options: CloudOptions,
     pub subcommand: Option<Command>,
     pub interactive: bool,
     pub debug_print_frames: bool,
@@ -546,6 +567,7 @@ impl Options {
 
         Ok(Options {
             conn_options: tmp.conn,
+            cloud_options: tmp.cloud,
             interactive,
             subcommand,
             debug_print_frames: tmp.debug_print_frames,

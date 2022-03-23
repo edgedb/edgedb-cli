@@ -76,7 +76,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             commands::show_ui(&options)
         }
         Command::Cloud(c) => {
-            cloud_main(c)
+            cloud_main(c, &options.cloud_options)
         }
     }
 }

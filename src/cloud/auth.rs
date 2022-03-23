@@ -3,6 +3,7 @@ use std::time::Duration;
 use async_std::task;
 
 use crate::cloud::options;
+use crate::options::CloudOptions;
 use crate::platform::config_dir;
 use crate::portable::local::write_json;
 use crate::print;
@@ -37,8 +38,11 @@ fn cloud_config_file() -> anyhow::Result<PathBuf> {
     Ok(config_dir()?.join("cloud.json"))
 }
 
-pub async fn login(c: &options::Login) -> anyhow::Result<()> {
-    let base_url = c.cloud_base_url.as_deref().unwrap_or(EDGEDB_CLOUD_BASE_URL);
+pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
+    let base_url = options
+        .cloud_base_url
+        .as_deref()
+        .unwrap_or(EDGEDB_CLOUD_BASE_URL);
     let mut resp = surf::post(format!("{}/v1/auth/sessions/", base_url))
         .content_type(surf::http::mime::JSON)
         .body("{\"type\":\"CLI\"}")

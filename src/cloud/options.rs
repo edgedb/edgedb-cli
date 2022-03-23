@@ -1,5 +1,7 @@
 use edgedb_cli_derive::{EdbClap};
 
+use crate::options::CloudOptions;
+
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct CloudCommand {
@@ -10,6 +12,7 @@ pub struct CloudCommand {
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
     /// Authenticate to the EdgeDB Cloud and remember the access token locally
+    #[edb(inherit(CloudOptions))]
     Login(Login),
     /// Forget the stored access token
     Logout(Logout),
@@ -17,8 +20,6 @@ pub enum Command {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Login {
-    #[edb(hide=true)]
-    pub cloud_base_url: Option<String>
 }
 
 #[derive(EdbClap, Debug, Clone)]
