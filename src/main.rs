@@ -34,6 +34,7 @@ mod options;
 mod outputs;
 mod platform;
 mod portable;
+mod cloud;
 mod print;
 mod process;
 //mod project;
