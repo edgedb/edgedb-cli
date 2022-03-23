@@ -63,6 +63,7 @@ pub struct ProjectCommand {
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
     /// Initialize a new or existing project
+    #[edb(inherit(crate::options::CloudOptions))]
     Init(Init),
     /// Clean-up the project configuration
     Unlink(Unlink),
@@ -122,6 +123,10 @@ pub struct Init {
     /// Run in non-interactive mode (accepting all defaults)
     #[clap(long)]
     pub non_interactive: bool,
+
+    /// Use EdgeDB Cloud to initialize this project
+    #[clap(long, hide=true)]
+    pub cloud: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
@@ -203,13 +208,19 @@ struct JsonInfo<'a> {
 }
 
 
-pub fn init(options: &Init) -> anyhow::Result<()> {
+pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
         print::error(
             "`edgedb project init` in a Docker container is not supported.",
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
+    let _cloud_access_token = if options.cloud {
+        crate::cloud::auth::get_access_token(&opts.cloud_options)?
+    } else {
+        None
+    };
+    // TODO(fantix): add init --cloud logic here
     match &options.project_dir {
         Some(dir) => {
             let dir = fs::canonicalize(&dir)?;

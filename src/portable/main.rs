@@ -66,11 +66,11 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
     }
 }
 
-pub fn project_main(cmd: &ProjectCommand) -> anyhow::Result<()> {
+pub fn project_main(cmd: &ProjectCommand, options: &Options) -> anyhow::Result<()> {
     use crate::portable::project::Command::*;
 
     match &cmd.subcommand {
-        Init(c) => project::init(c),
+        Init(c) => project::init(c, &options),
         Unlink(c) => project::unlink(c),
         Info(c) => project::info(c),
         Upgrade(c) => project::upgrade(c),
