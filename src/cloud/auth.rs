@@ -1,3 +1,5 @@
+use std::fs;
+use std::io;
 use std::time::Duration;
 
 use async_std::task;
@@ -102,4 +104,24 @@ pub async fn logout(_c: &options::Logout) -> anyhow::Result<()> {
     )?;
     print::success("You're now logged out from EdgeDB Cloud.");
     Ok(())
+}
+
+pub fn get_access_token(options: &CloudOptions) -> anyhow::Result<Option<String>> {
+    if let Some(access_token) = &options.cloud_access_token {
+        return Ok(Some(access_token.clone()));
+    }
+    let data = match fs::read_to_string(cloud_config_file()?) {
+        Ok(data) if data.is_empty() => {
+            return Ok(None);
+        }
+        Ok(data) => data,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Ok(None);
+        }
+        Err(e) => {
+            return Err(e)?;
+        }
+    };
+    let config: CloudConfig = serde_json::from_str(&data)?;
+    Ok(config.access_token)
 }

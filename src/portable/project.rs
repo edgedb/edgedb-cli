@@ -491,6 +491,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             start_conf,
             default_database: "edgedb".into(),
             default_user: "edgedb".into(),
+            cloud: false,
         }, port, &paths)?;
         let svc_result = create::create_service(&InstanceInfo {
             name: name.into(),
