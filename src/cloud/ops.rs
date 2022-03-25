@@ -1,8 +1,15 @@
+use std::fs;
+use std::io;
+use std::path::PathBuf;
+
+use async_std::task;
 use colorful::Colorful;
+use edgedb_client::credentials::Credentials;
 use edgedb_client::Builder;
 
 use crate::cloud::auth;
 use crate::credentials;
+use crate::options::CloudOptions;
 use crate::print;
 use crate::question;
 
@@ -100,7 +107,10 @@ pub async fn link(
         }
     };
     let mut resp = surf::get(format!("{}/v1/edgedb-instances/", base_url))
-        .query(&CloudInstanceQuery { name: cloud_name.clone() }).map_err(HttpError)?
+        .query(&CloudInstanceQuery {
+            name: cloud_name.clone(),
+        })
+        .map_err(HttpError)?
         .header("Authorization", format!("Bearer {}", access_token))
         .await
         .map_err(HttpError)?;
@@ -171,6 +181,34 @@ pub async fn link(
             msg,
             instance_name.escape_default(),
         );
+    }
+    Ok(())
+}
+
+async fn destroy(instance_id: &str, options: &CloudOptions) -> anyhow::Result<()> {
+    log::info!("Destroying EdgeDB Cloud instance: {}", instance_id);
+    let base_url = auth::get_base_url(options);
+    let access_token = if let Some(token) = auth::get_access_token(options)? {
+        token
+    } else {
+        anyhow::bail!("Cloud authentication required.");
+    };
+    let mut resp = surf::delete(format!("{}/v1/edgedb-instances/{}", base_url, instance_id))
+        .header("Authorization", format!("Bearer {}", access_token))
+        .await
+        .map_err(HttpError)?;
+    auth::raise_http_error(&mut resp).await?;
+    Ok(())
+}
+
+pub fn try_to_destroy(
+    cred_path: &PathBuf,
+    options: &crate::options::Options,
+) -> anyhow::Result<()> {
+    let file = io::BufReader::new(fs::File::open(cred_path)?);
+    let credentials: Credentials = serde_json::from_reader(file)?;
+    if let Some(instance_id) = credentials.cloud_instance_id {
+        task::block_on(destroy(&instance_id, &options.cloud_options))?
     }
     Ok(())
 }

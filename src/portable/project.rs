@@ -66,6 +66,7 @@ pub enum Command {
     #[edb(inherit(crate::options::CloudOptions))]
     Init(Init),
     /// Clean-up the project configuration
+    #[edb(inherit(crate::options::CloudOptions))]
     Unlink(Unlink),
     /// Get various metadata about the project
     Info(Info),
@@ -1019,7 +1020,7 @@ fn instance_name(stash_dir: &Path) -> anyhow::Result<String> {
     Ok(inst.trim().into())
 }
 
-pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
+pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Result<()> {
     let stash_path = if let Some(dir) = &options.project_dir {
         let canon = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
@@ -1051,7 +1052,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                 return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
             }
             if options.destroy_server_instance {
-                destroy::force_by_name(&inst)?;
+                destroy::force_by_name(&inst, opts)?;
             }
         } else {
             match fs::read_to_string(&stash_path.join("instance-name")) {

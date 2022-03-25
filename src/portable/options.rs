@@ -38,6 +38,7 @@ pub enum InstanceCommand {
     /// Restart an instance
     Restart(Restart),
     /// Destroy an instance and remove the data
+    #[edb(inherit(crate::options::CloudOptions))]
     Destroy(Destroy),
     /// Link a remote instance
     #[edb(inherit(crate::options::ConnectionOptions))]

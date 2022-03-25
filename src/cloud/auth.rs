@@ -18,7 +18,7 @@ const AUTHENTICATION_WAIT_TIME: i32 = 180;
 #[derive(Debug, serde::Deserialize)]
 struct ErrorResponse {
     status: String,
-    error: String,
+    error: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -44,10 +44,17 @@ fn cloud_config_file() -> anyhow::Result<PathBuf> {
 pub async fn raise_http_error(resp: &mut Response) -> anyhow::Result<()> {
     if !resp.status().is_success() {
         let ErrorResponse { status, error } = resp.body_json().await.map_err(HttpError)?;
-        anyhow::bail!(format!(
-            "Failed to create authentication session: {}: {}",
-            status, error
-        ));
+        if let Some(error) = error {
+            anyhow::bail!(format!(
+                "Failed to create authentication session: {}: {}",
+                status, error
+            ));
+        } else {
+            anyhow::bail!(format!(
+                "Failed to create authentication session: {}",
+                status
+            ));
+        }
     }
     Ok(())
 }

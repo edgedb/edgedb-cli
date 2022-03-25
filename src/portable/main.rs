@@ -42,12 +42,12 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
     use crate::portable::options::InstanceCommand::*;
 
     match &cmd.subcommand {
-        Create(c) if c.cloud => cloud::ops::create(c, &options),
+        Create(c) if c.cloud => cloud::ops::create(c, options),
         Create(c) => create::create(c),
-        Destroy(c) => destroy::destroy(c),
+        Destroy(c) => destroy::destroy(c, options),
         ResetPassword(c) if cfg!(windows) => windows::reset_password(c),
         ResetPassword(c) => reset_password::reset_password(c),
-        Link(c) if c.cloud => task::block_on(cloud::ops::link(c, &options)),
+        Link(c) if c.cloud => task::block_on(cloud::ops::link(c, options)),
         Link(c) => link::link(c, &options),
         List(c) if cfg!(windows) => windows::list(c),
         List(c) => status::list(c),
@@ -73,7 +73,7 @@ pub fn project_main(cmd: &ProjectCommand, options: &Options) -> anyhow::Result<(
 
     match &cmd.subcommand {
         Init(c) => project::init(c, &options),
-        Unlink(c) => project::unlink(c),
+        Unlink(c) => project::unlink(c, options),
         Info(c) => project::info(c),
         Upgrade(c) => project::upgrade(c),
     }
