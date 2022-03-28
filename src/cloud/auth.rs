@@ -62,8 +62,7 @@ pub async fn raise_http_error(resp: &mut Response) -> anyhow::Result<()> {
 pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
     let base_url = get_base_url(options);
     let mut resp = surf::post(format!("{}/v1/auth/sessions/", base_url))
-        .content_type(surf::http::mime::JSON)
-        .body("{\"type\":\"CLI\"}")
+        .body(serde_json::json!({ "type": "CLI" }))
         .await
         .map_err(HttpError)?;
     raise_http_error(&mut resp).await?;

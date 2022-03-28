@@ -10,7 +10,7 @@ use edgedb_client::Builder;
 use crate::cloud::auth;
 use crate::credentials;
 use crate::options::CloudOptions;
-use crate::print;
+use crate::print::{self, Highlight};
 use crate::question;
 
 #[derive(Debug, thiserror::Error)]
@@ -29,14 +29,60 @@ struct CloudInstanceQuery {
     name: String,
 }
 
-pub fn create(
-    _cmd: &crate::portable::options::Create,
+#[derive(Debug, serde::Serialize)]
+struct CloudInstanceCreate {
+    name: String,
+    nightly: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    default_database: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    default_user: Option<String>,
+}
+
+pub async fn create(
+    cmd: &crate::portable::options::Create,
     opts: &crate::options::Options,
 ) -> anyhow::Result<()> {
-    println!(
-        "cloud create: {:?}",
-        auth::get_access_token(&opts.cloud_options)?
+    let options = &opts.cloud_options;
+    let base_url = auth::get_base_url(options);
+    let access_token = if let Some(access_token) = auth::get_access_token(options)? {
+        access_token
+    } else {
+        anyhow::bail!("Run `edgedb cloud login` first.");
+    };
+    let cred_path = credentials::path(&cmd.name)?;
+    if cred_path.exists() {
+        anyhow::bail!("File {} exists; abort.", cred_path.display());
+    }
+    let mut resp = surf::post(format!("{}/v1/edgedb-instances/", base_url))
+        .body(serde_json::to_value(CloudInstanceCreate {
+            name: cmd.name.clone(),
+            nightly: cmd.nightly,
+            version: cmd.version.clone().map(|o| format!("{}", o)),
+            default_database: Some(cmd.default_database.clone()),
+            default_user: Some(cmd.default_user.clone()),
+        })?)
+        .header("Authorization", format!("Bearer {}", access_token))
+        .await
+        .map_err(HttpError)?;
+    auth::raise_http_error(&mut resp).await?;
+    let CloudInstance { id, dsn, name: _ } = resp.body_json().await.map_err(HttpError)?;
+    let mut creds = Builder::uninitialized()
+        .read_dsn(&dsn)
+        .await?
+        .as_credentials()?;
+    creds.cloud_instance_id = Some(id);
+    creds.cloud_original_dsn = Some(dsn);
+    credentials::write(&cred_path, &creds).await?;
+    print::echo!(
+        "EdgeDB Cloud instance",
+        cmd.name.emphasize(),
+        "is up and running."
     );
+    print::echo!("To connect to the instance run:");
+    print::echo!("  edgedb -I", cmd.name);
     Ok(())
 }
 

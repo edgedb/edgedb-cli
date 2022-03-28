@@ -42,7 +42,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
     use crate::portable::options::InstanceCommand::*;
 
     match &cmd.subcommand {
-        Create(c) if c.cloud => cloud::ops::create(c, options),
+        Create(c) if c.cloud => task::block_on(cloud::ops::create(c, options)),
         Create(c) => create::create(c),
         Destroy(c) => destroy::destroy(c, options),
         ResetPassword(c) if cfg!(windows) => windows::reset_password(c),
