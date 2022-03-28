@@ -74,7 +74,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     let inst = InstanceInfo::read(&options.name)?;
     task::block_on(async {
         let conn_params = inst.admin_conn_params().await?;
-        let mut cli = conn_params.connect().await?;
+        let mut cli = conn_params.build()?.connect().await?;
         cli.execute(&format!(r###"
             ALTER ROLE {name} {{
                 SET password := {password};

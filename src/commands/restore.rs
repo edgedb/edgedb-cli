@@ -288,7 +288,7 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
     let mut conn_params = options.conn_params.clone();
     conn_params.modify(|p| {
         p.wait_until_available(Duration::from_secs(300));
-    });
+    })?;
     let mut params = params.clone();
     let existing: BTreeSet<_> = list_databases::get_databases(cli).await?;
 
@@ -307,7 +307,7 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
                 .with_context(|| format!("error creating database {:?}",
                                          database))?;
         }
-        conn_params.modify(|p| { p.database(&database); });
+        conn_params.modify(|p| { p.database(&database); })?;
         let mut db_conn = conn_params.connect().await.with_context(||
              format!("cannot connect to database {:?}", database))?;
         params.path = path.into();

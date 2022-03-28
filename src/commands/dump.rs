@@ -5,6 +5,7 @@ use async_std::path::{Path, PathBuf};
 use async_std::stream::StreamExt;
 use async_std::fs;
 use async_std::io::{self, Write, prelude::WriteExt};
+use sha1::{Digest};
 
 use edgedb_protocol::client_message::{ClientMessage, Dump};
 use edgedb_protocol::server_message::ServerMessage;
@@ -106,7 +107,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
             header_buf.truncate(0);
             header_buf.push(b'H');
             header_buf.extend(
-                &sha1::Sha1::from(&packet.data).digest().bytes()[..]);
+                &sha1::Sha1::new_with_prefix(&packet.data).finalize()[..]);
             header_buf.extend(
                 &(packet.data.len() as u32).to_be_bytes()[..]);
             output.write_all(&header_buf).await?;
@@ -137,7 +138,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
                 header_buf.truncate(0);
                 header_buf.push(b'D');
                 header_buf.extend(
-                    &sha1::Sha1::from(&packet.data).digest().bytes()[..]);
+                    &sha1::Sha1::new_with_prefix(&packet.data).finalize()[..]);
                 header_buf.extend(
                     &(packet.data.len() as u32).to_be_bytes()[..]);
                 output.write_all(&header_buf).await?;
@@ -200,7 +201,7 @@ pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
     let mut conn_params = options.conn_params.clone();
     for database in &databases {
         let mut db_conn = conn_params
-            .modify(|p| { p.database(database); })
+            .modify(|p| { p.database(database); })?
             .connect().await?;
         let filename = dir.join(urlencoding::encode(database) + ".dump");
         dump_db(&mut db_conn, options, &filename).await?;

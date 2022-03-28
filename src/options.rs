@@ -67,7 +67,8 @@ pub struct ConnectionOptions {
     #[clap(short='H', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(value_hint=ValueHint::Hostname)]
     #[clap(hide=true)]
-    #[clap(conflicts_with_all=&["dsn", "credentials_file", "instance"])]
+    #[clap(conflicts_with_all=
+           &["dsn", "credentials_file", "instance", "unix_path"])]
     pub host: Option<String>,
 
     /// Port to connect to EdgeDB
@@ -75,6 +76,14 @@ pub struct ConnectionOptions {
     #[clap(hide=true)]
     #[clap(conflicts_with_all=&["dsn", "credentials_file", "instance"])]
     pub port: Option<u16>,
+
+    /// Unix socket dir for the
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(value_hint=ValueHint::AnyPath)]
+    #[clap(hide=true)]
+    #[clap(conflicts_with_all=
+           &["dsn", "credentials_file", "instance", "host"])]
+    pub unix_path: Option<PathBuf>,
 
     /// User name of the EdgeDB user
     #[clap(short='u', long, help_heading=Some(CONN_OPTIONS_GROUP))]
@@ -572,7 +581,9 @@ fn set_password(options: &ConnectionOptions, builder: &mut Builder)
 
 pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     let mut bld = Builder::uninitialized();
-    if tmp.host.is_some() || tmp.port.is_some() {
+    if let Some(path) = &tmp.unix_path {
+        bld.unix_path(path, tmp.port, tmp.admin);
+    } else if tmp.host.is_some() || tmp.port.is_some() {
         bld.host_port(tmp.host.clone(), tmp.port);
         bld.read_extra_env_vars()?;
     } else if let Some(dsn) = &tmp.dsn {
@@ -588,7 +599,7 @@ pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
         bld = task::block_on(Builder::from_env())?;
     };
     if tmp.admin {
-        bld.admin(true);
+        bld.admin()?;
     }
     if let Some(user) = &tmp.user {
         bld.user(user);
