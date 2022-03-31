@@ -18,7 +18,7 @@ use edgeql_parser::expr;
 use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
 use edgeql_parser::schema_file::validate;
 use fn_error_context::context;
-use immutable_chunkmap::set::Set;
+use immutable_chunkmap::set::SetM as Set;
 use rustyline::error::ReadlineError;
 use serde::Deserialize;
 

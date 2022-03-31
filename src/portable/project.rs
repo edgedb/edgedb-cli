@@ -10,6 +10,7 @@ use async_std::task;
 use clap::{ValueHint};
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
+use sha1::Digest;
 
 use edgedb_client::client::Connection;
 use edgedb_client::Builder;
@@ -638,7 +639,7 @@ pub fn search_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
 }
 
 fn hash(path: &Path) -> anyhow::Result<String> {
-    Ok(hex::encode(sha1::Sha1::from(path_bytes(path)?).digest().bytes()))
+    Ok(hex::encode(sha1::Sha1::new_with_prefix(path_bytes(path)?).finalize()))
 }
 
 fn stash_name(path: &Path) -> anyhow::Result<OsString> {
@@ -823,7 +824,7 @@ impl Handle {
         Ok(builder)
     }
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {
-        Ok(self.get_builder().await?.connect().await?)
+        Ok(self.get_builder().await?.build()?.connect().await?)
     }
     pub fn get_version(&self) -> anyhow::Result<ver::Build> {
         task::block_on(async {

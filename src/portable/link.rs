@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fs;
 use std::sync::{Mutex, Arc};
+use std::time::SystemTime;
 
 use anyhow::Context;
 use async_std::task;
@@ -8,10 +9,10 @@ use colorful::Colorful;
 use pem;
 use ring::digest;
 use rustls;
-use rustls::{RootCertStore, ServerCertVerifier, ServerCertVerified, TLSError};
-use webpki::DNSNameRef;
+use rustls::{Certificate, ServerName};
+use rustls::client::{ServerCertVerifier, ServerCertVerified};
 
-use edgedb_client::{tls::verify_server_cert, Builder};
+use edgedb_client::{Builder};
 use edgedb_client::errors::{Error, PasswordRequired, ClientNoCredentialsError};
 use edgedb_client::credentials::TlsSecurity;
 
@@ -28,7 +29,8 @@ use crate::tty_password;
 
 
 struct InteractiveCertVerifier {
-    cert_out: Mutex<Option<String>>,
+    inner: rustls::client::WebPkiVerifier,
+    cert_out: Mutex<Option<Certificate>>,
     tls_security: TlsSecurity,
     system_ca_only: bool,
     non_interactive: bool,
@@ -36,33 +38,23 @@ struct InteractiveCertVerifier {
     trust_tls_cert: bool,
 }
 
-impl InteractiveCertVerifier {
-    fn verify_hostname(&self, default: bool) -> bool {
-        match self.tls_security {
-            TlsSecurity::Default => default,
-            TlsSecurity::Strict => true,
-            _ => false,
-        }
-    }
-}
-
 impl ServerCertVerifier for InteractiveCertVerifier {
     fn verify_server_cert(&self,
-                          roots: &RootCertStore,
-                          presented_certs: &[rustls::Certificate],
-                          dns_name: DNSNameRef,
-                          _ocsp_response: &[u8],
-    ) -> Result<ServerCertVerified, TLSError> {
+        end_entity: &Certificate,
+        intermediates: &[Certificate],
+        server_name: &ServerName,
+        scts: &mut dyn Iterator<Item = &[u8]>,
+        ocsp_response: &[u8],
+        now: SystemTime
+    ) -> Result<ServerCertVerified, rustls::Error> {
         if let TlsSecurity::Insecure = self.tls_security {
             return Ok(ServerCertVerified::assertion());
         }
-        let untrusted_index = presented_certs.len() - 1;
-        match verify_server_cert(roots, presented_certs) {
-            Ok(cert) => {
-                if self.verify_hostname(self.system_ca_only) {
-                    cert.verify_is_valid_for_dns_name(dns_name)
-                        .map_err(TLSError::WebPKIError)?;
-                }
+        match self.inner.verify_server_cert(
+            end_entity, intermediates, server_name, scts, ocsp_response, now)
+        {
+            Ok(val) => {
+                return Ok(val);
             }
             Err(e) => {
                 if !self.system_ca_only {
@@ -71,21 +63,25 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                     return Err(e);
                 }
 
+                // TODO(tailhook) check specific error
+
+                /* TODO(tailhook)
                 // Make sure the verification with the to-be-trusted cert
                 // trusted is a success before asking the user
                 let mut roots = RootCertStore::empty();
                 roots.add(&presented_certs[untrusted_index])
-                    .map_err(TLSError::WebPKIError)?;
+                    .map_err(rustls::Error::WebPKIError)?;
                 let cert = verify_server_cert(&roots, presented_certs)?;
                 if self.verify_hostname(false) {
                     cert.verify_is_valid_for_dns_name(dns_name)
-                        .map_err(TLSError::WebPKIError)?;
+                        .map_err(rustls::Error::WebPKIError)?;
                 }
+                */
 
                 // Acquire consensus to trust the root of presented_certs chain
                 let fingerprint = digest::digest(
                     &digest::SHA1_FOR_LEGACY_USE_ONLY,
-                    &presented_certs[untrusted_index].0
+                    &end_entity.0,
                 );
                 if self.trust_tls_cert {
                     if !self.quiet {
@@ -112,12 +108,7 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                 }
 
                 // Export the cert in PEM format and return verification success
-                *self.cert_out.lock().unwrap() = Some(
-                    pem::encode(&pem::Pem {
-                        tag: "CERTIFICATE".into(),
-                        contents: presented_certs[untrusted_index].0.clone(),
-                    })
-                );
+                *self.cert_out.lock().unwrap() = Some(end_entity.clone());
             }
         }
 
@@ -170,6 +161,10 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let mut creds = builder.as_credentials()?;
     let mut verifier = Arc::new(
         InteractiveCertVerifier {
+            inner: rustls::client::WebPkiVerifier::new(
+                builder.root_cert_store()?,
+                None,
+            ),
             cert_out: Mutex::new(None),
             tls_security: creds.tls_security,
             system_ca_only: creds.tls_ca.is_none(),
@@ -179,7 +174,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     );
     let connect_result = task::block_on(
-        builder.connect_with_cert_verifier(verifier.clone()));
+        builder.build()?.connect_with_cert_verifier(verifier.clone()));
     if let Err(e) = connect_result {
         if e.is::<PasswordRequired>() {
             let password;
@@ -197,11 +192,19 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             let mut builder = builder.clone();
             builder.password(&password);
             if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
-                builder.pem_certificates(cert)?;
+                let pem = pem::encode(&pem::Pem {
+                    tag: "CERTIFICATE".into(),
+                    contents: cert.0.clone(),
+                });
+                builder.pem_certificates(&pem)?;
             }
             creds = builder.as_credentials()?;
             verifier = Arc::new(
                 InteractiveCertVerifier {
+                    inner: rustls::client::WebPkiVerifier::new(
+                        builder.root_cert_store()?,
+                        None,
+                    ),
                     cert_out: Mutex::new(None),
                     tls_security: creds.tls_security,
                     system_ca_only: creds.tls_ca.is_none(),
@@ -217,7 +220,10 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     }
     if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
-        creds.tls_ca = Some(cert.clone());
+        creds.tls_ca = Some(pem::encode(&pem::Pem {
+            tag: "CERTIFICATE".into(),
+            contents: cert.0.clone(),
+        }));
     }
 
     let (cred_path, instance_name) = match &cmd.name {

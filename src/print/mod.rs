@@ -29,6 +29,7 @@ use stream::Output;
 
 
 #[derive(Snafu, Debug)]
+#[snafu(context(suffix(false)))]
 pub enum PrintError<S: AsErrorSource + Error, P: AsErrorSource + Error> {
     #[snafu(display("error fetching element"))]
     StreamErr { source: S },

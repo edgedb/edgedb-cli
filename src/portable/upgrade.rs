@@ -246,7 +246,7 @@ pub async fn dump_instance(inst: &InstanceInfo, destination: &Path)
         fs::remove_dir_all(&destination).await?;
     }
     let conn_params = inst.admin_conn_params().await?;
-    let mut cli = conn_params.connect().await?;
+    let mut cli = conn_params.build()?.connect().await?;
     let options = commands::Options {
         command_line: true,
         styler: None,
@@ -320,7 +320,7 @@ async fn restore_instance(inst: &InstanceInfo, path: &Path)
     conn_params.wait_until_available(Duration::from_secs(300));
 
     log::info!("Restoring instance {:?}", inst.name);
-    let mut cli = conn_params.connect().await?;
+    let mut cli = conn_params.build()?.connect().await?;
 
     let options = commands::Options {
         command_line: true,
