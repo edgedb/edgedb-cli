@@ -149,6 +149,10 @@ pub struct Create {
     /// Create an EdgeDB Cloud instance rather than a local instance
     #[clap(long, hide=true)]
     pub cloud: bool,
+
+    /// Create the EdgeDB Cloud instance under the given organization
+    #[clap(long, hide=true)]
+    pub cloud_org: Option<String>,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]

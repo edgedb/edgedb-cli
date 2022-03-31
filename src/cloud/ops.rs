@@ -24,21 +24,23 @@ struct CloudInstance {
     dsn: String,
 }
 
-#[derive(Debug, serde::Serialize)]
-struct CloudInstanceQuery {
+#[derive(Debug, serde::Deserialize)]
+struct Org {
+    id: String,
     name: String,
 }
 
 #[derive(Debug, serde::Serialize)]
 struct CloudInstanceCreate {
     name: String,
-    nightly: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    default_database: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    default_user: Option<String>,
+    org: String,
+    // nightly: bool,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // version: Option<String>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // default_database: Option<String>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // default_user: Option<String>,
 }
 
 pub async fn create(
@@ -56,13 +58,30 @@ pub async fn create(
     if cred_path.exists() {
         anyhow::bail!("File {} exists; abort.", cred_path.display());
     }
-    let mut resp = surf::post(format!("{}/v1/edgedb-instances/", base_url))
+    let mut resp = surf::get(format!("{}/v1/orgs/", base_url))
+        .header("Authorization", format!("Bearer {}", access_token))
+        .await
+        .map_err(HttpError)?;
+    auth::raise_http_error(&mut resp).await?;
+    let orgs: Vec<Org> = resp.body_json().await.map_err(HttpError)?;
+    let org_id = if let Some(name) = &cmd.cloud_org {
+        if let Some(org) = orgs.iter().find(|org| org.name.eq(name)) {
+            org.id.clone()
+        } else {
+            anyhow::bail!("Organization {} not found", name);
+        }
+    } else {
+        // TODO: use default organization
+        orgs[0].id.clone()
+    };
+    resp = surf::post(format!("{}/v1/instances/", base_url))
         .body(serde_json::to_value(CloudInstanceCreate {
             name: cmd.name.clone(),
-            nightly: cmd.nightly,
-            version: cmd.version.clone().map(|o| format!("{}", o)),
-            default_database: Some(cmd.default_database.clone()),
-            default_user: Some(cmd.default_user.clone()),
+            org: org_id,
+            // nightly: cmd.nightly,
+            // version: cmd.version.clone().map(|o| format!("{}", o)),
+            // default_database: Some(cmd.default_database.clone()),
+            // default_user: Some(cmd.default_user.clone()),
         })?)
         .header("Authorization", format!("Bearer {}", access_token))
         .await
@@ -152,16 +171,20 @@ pub async fn link(
             }
         }
     };
-    let mut resp = surf::get(format!("{}/v1/edgedb-instances/", base_url))
-        .query(&CloudInstanceQuery {
-            name: cloud_name.clone(),
-        })
-        .map_err(HttpError)?
+    let mut resp = surf::get(format!("{}/v1/instances/", base_url))
         .header("Authorization", format!("Bearer {}", access_token))
         .await
         .map_err(HttpError)?;
     auth::raise_http_error(&mut resp).await?;
-    let CloudInstance { id, dsn, name: _ } = resp.body_json().await.map_err(HttpError)?;
+    let instances: Vec<CloudInstance> = resp.body_json().await.map_err(HttpError)?;
+    let (id, dsn) = if let Some(instance) = instances
+        .iter()
+        .find(|instance| instance.name.eq(&cloud_name))
+    {
+        (instance.id.clone(), instance.dsn.clone())
+    } else {
+        anyhow::bail!("No such Cloud instance named {}", cloud_name);
+    };
 
     let (cred_path, instance_name) = if let Some(name) = &cmd.name {
         let cred_path = credentials::path(&name)?;
@@ -239,7 +262,7 @@ async fn destroy(instance_id: &str, options: &CloudOptions) -> anyhow::Result<()
     } else {
         anyhow::bail!("Cloud authentication required.");
     };
-    let mut resp = surf::delete(format!("{}/v1/edgedb-instances/{}", base_url, instance_id))
+    let mut resp = surf::delete(format!("{}/v1/instances/{}", base_url, instance_id))
         .header("Authorization", format!("Bearer {}", access_token))
         .await
         .map_err(HttpError)?;
