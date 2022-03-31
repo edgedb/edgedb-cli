@@ -1,25 +1,14 @@
-use std::fs;
-use std::io;
 use std::time::Duration;
 
 use async_std::task;
 
+use crate::cloud::client::{cloud_config_file, CloudClient, CloudConfig};
 use crate::cloud::options;
 use crate::options::CloudOptions;
-use crate::platform::config_dir;
 use crate::portable::local::write_json;
 use crate::print;
-use std::path::PathBuf;
-use surf::Response;
 
-const EDGEDB_CLOUD_BASE_URL: &str = "http://127.0.0.1:5959";
 const AUTHENTICATION_WAIT_TIME: i32 = 180;
-
-#[derive(Debug, serde::Deserialize)]
-struct ErrorResponse {
-    status: String,
-    error: Option<String>,
-}
 
 #[derive(Debug, serde::Deserialize)]
 struct UserSession {
@@ -28,50 +17,19 @@ struct UserSession {
     auth_url: String,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct CloudConfig {
-    access_token: Option<String>,
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("HTTP error: {0}")]
-pub struct HttpError(surf::Error);
-
-fn cloud_config_file() -> anyhow::Result<PathBuf> {
-    Ok(config_dir()?.join("cloud.json"))
-}
-
-pub async fn raise_http_error(resp: &mut Response) -> anyhow::Result<()> {
-    if !resp.status().is_success() {
-        let ErrorResponse { status, error } = resp.body_json().await.map_err(HttpError)?;
-        if let Some(error) = error {
-            anyhow::bail!(format!(
-                "Failed to create authentication session: {}: {}",
-                status, error
-            ));
-        } else {
-            anyhow::bail!(format!(
-                "Failed to create authentication session: {}",
-                status
-            ));
-        }
-    }
-    Ok(())
-}
-
 pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
-    let base_url = get_base_url(options);
-    let mut resp = surf::post(format!("{}/v1/auth/sessions/", base_url))
-        .body(serde_json::json!({ "type": "CLI" }))
-        .await
-        .map_err(HttpError)?;
-    raise_http_error(&mut resp).await?;
+    do_login(&CloudClient::new(options)?).await
+}
+
+pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
     let UserSession {
         id,
         auth_url,
         token: _,
-    } = resp.body_json().await.map_err(HttpError)?;
-    let link = format!("{}{}", base_url, auth_url);
+    } = client
+        .post("auth/sessions/", serde_json::json!({ "type": "CLI" }))
+        .await?;
+    let link = format!("{}{}", client.base_url, auth_url);
     log::debug!("Opening URL in browser: {}", link);
     if open::that(&link).is_ok() {
         print::prompt("Please complete the authentication in the opened browser.");
@@ -80,15 +38,11 @@ pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Resul
         print::success_msg("Link", link);
     }
     for _ in 0..AUTHENTICATION_WAIT_TIME {
-        resp = surf::get(format!("{}/v1/auth/sessions/{}", base_url, id))
-            .await
-            .map_err(HttpError)?;
-        raise_http_error(&mut resp).await?;
         let UserSession {
             id: _,
             auth_url: _,
             token,
-        } = resp.body_json().await.map_err(HttpError)?;
+        } = client.get(format!("auth/sessions/{}", id)).await?;
         if let Some(token) = token {
             write_json(
                 &cloud_config_file()?,
@@ -113,31 +67,4 @@ pub async fn logout(_c: &options::Logout) -> anyhow::Result<()> {
     )?;
     print::success("You're now logged out from EdgeDB Cloud.");
     Ok(())
-}
-
-pub fn get_access_token(options: &CloudOptions) -> anyhow::Result<Option<String>> {
-    if let Some(access_token) = &options.cloud_access_token {
-        return Ok(Some(access_token.clone()));
-    }
-    let data = match fs::read_to_string(cloud_config_file()?) {
-        Ok(data) if data.is_empty() => {
-            return Ok(None);
-        }
-        Ok(data) => data,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            return Ok(None);
-        }
-        Err(e) => {
-            return Err(e)?;
-        }
-    };
-    let config: CloudConfig = serde_json::from_str(&data)?;
-    Ok(config.access_token)
-}
-
-pub fn get_base_url(options: &CloudOptions) -> &str {
-    options
-        .cloud_base_url
-        .as_deref()
-        .unwrap_or(EDGEDB_CLOUD_BASE_URL)
 }

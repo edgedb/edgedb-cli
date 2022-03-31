@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::borrow::Cow;
+use std::str::FromStr;
 
 use anyhow::Context;
 use async_std::task;
@@ -16,6 +17,7 @@ use edgedb_client::client::Connection;
 use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
 
+use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
 use crate::connect::Connector;
 use crate::credentials;
@@ -216,12 +218,6 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
-    let _cloud_access_token = if options.cloud {
-        crate::cloud::auth::get_access_token(&opts.cloud_options)?
-    } else {
-        None
-    };
-    // TODO(fantix): add init --cloud logic here
     match &options.project_dir {
         Some(dir) => {
             let dir = fs::canonicalize(&dir)?;
@@ -229,7 +225,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
                 if options.link {
                     link(options, &dir)?
                 } else {
-                    init_existing(options, &dir)?
+                    init_existing(options, &dir, &opts.cloud_options)?
                 }
             } else {
                 if options.link {
@@ -239,7 +235,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
                         a new project run command without `--link` flag")
                 }
 
-                init_new(options, &dir)?
+                init_new(options, &dir, opts)?
             }
         }
         None => {
@@ -250,7 +246,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
                 if options.link {
                     link(options, &dir)?
                 } else {
-                    init_existing(options, &dir)?
+                    init_existing(options, &dir, &opts.cloud_options)?
                 }
             } else {
                 if options.link {
@@ -261,7 +257,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
                 }
 
                 let dir = fs::canonicalize(&base_dir)?;
-                init_new(options, &dir)?
+                init_new(options, &dir, opts)?
             }
         }
     };
@@ -419,7 +415,7 @@ fn ask_start_conf(options: &Init) -> anyhow::Result<StartConf> {
     }
 }
 
-pub fn init_existing(options: &Init, project_dir: &Path)
+pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::options::CloudOptions)
     -> anyhow::Result<ProjectInfo>
 {
     echo!("Found `edgedb.toml` in", project_dir.display());
@@ -457,32 +453,75 @@ pub fn init_existing(options: &Init, project_dir: &Path)
 
     echo!("Checking EdgeDB versions...");
 
-    let pkg = repository::get_server_package(&ver_query)?
-        .with_context(||
-            format!("cannot find package matching {}", ver_query.display()))?;
+    if options.cloud {
+        let mut client = CloudClient::new(cloud_options)?;
+        if !client.is_logged_in {
+            if options.non_interactive {
+                anyhow::bail!("Run `edgedb cloud login` first.");
+            } else {
+                let q = question::Confirm::new(
+                    "You're not authenticated to the EdgeDB Cloud yet, login now?",
+                );
+                if q.ask()? {
+                    task::block_on(crate::cloud::auth::do_login(&client))?;
+                    client = CloudClient::new(cloud_options)?;
+                    if !client.is_logged_in {
+                        anyhow::bail!("Couldn't fetch access token.");
+                    }
+                } else {
+                    anyhow::bail!("Aborted.");
+                }
+            }
+        };
+        let org = task::block_on(ask_cloud_org(&client, options))?;
+        if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
+            &name, &client,
+        ))? {
+            // TODO(fantix): link
+            // return do_cloud_link();
+        }
+        table::settings(&[
+            ("Project directory", &project_dir.display().to_string()),
+            ("Project config", &config_path.display().to_string()),
+            (&format!("Schema dir {}",
+                      if schema_files { "(non-empty)" } else { "(empty)" }),
+             &schema_dir.display().to_string()),
+            // ("Version", &format!("{:?}", version)),
+            ("Instance name", &name),
+        ]);
+        if !schema_files {
+            write_schema_default(&schema_dir)?;
+        }
 
-    let meth = if cfg!(windows) {
-        "WSL"
+        do_cloud_init(name, org, &stash_dir, &project_dir, options, &client)  // , version)
     } else {
-        "portable package"
-    };
-    table::settings(&[
-        ("Project directory", &project_dir.display().to_string()),
-        ("Project config", &config_path.display().to_string()),
-        (&format!("Schema dir {}",
-            if schema_files { "(non-empty)" } else { "(empty)" }),
-            &schema_dir.display().to_string()),
-        ("Installation method", meth),
-        ("Start configuration", start_conf.as_str()),
-        ("Version", &pkg.version.to_string()),
-        ("Instance name", &name),
-    ]);
+        let pkg = repository::get_server_package(&ver_query)?
+            .with_context(||
+                format!("cannot find package matching {}", ver_query.display()))?;
 
-    if !schema_files {
-        write_schema_default(&schema_dir)?;
+        let meth = if cfg!(windows) {
+            "WSL"
+        } else {
+            "portable package"
+        };
+        table::settings(&[
+            ("Project directory", &project_dir.display().to_string()),
+            ("Project config", &config_path.display().to_string()),
+            (&format!("Schema dir {}",
+                      if schema_files { "(non-empty)" } else { "(empty)" }),
+             &schema_dir.display().to_string()),
+            ("Installation method", meth),
+            ("Start configuration", start_conf.as_str()),
+            ("Version", &pkg.version.to_string()),
+            ("Instance name", &name),
+        ]);
+
+        if !schema_files {
+            write_schema_default(&schema_dir)?;
+        }
+
+        do_init(&name, &pkg, &stash_dir, &project_dir, start_conf, options)
     }
-
-    do_init(&name, &pkg, &stash_dir, &project_dir, start_conf, options)
 }
 
 fn do_init(name: &str, pkg: &PackageInfo,
@@ -563,7 +602,38 @@ fn do_init(name: &str, pkg: &PackageInfo,
     })
 }
 
-pub fn init_new(options: &Init, project_dir: &Path)
+fn do_cloud_init(
+    name: String,
+    org: String,
+    stash_dir: &Path,
+    project_dir: &Path,
+    options: &Init,
+    client: &CloudClient,
+    // version: String,
+) -> anyhow::Result<ProjectInfo> {
+    let instance = crate::cloud::ops::CloudInstanceCreate {
+        name: name.clone(),
+        org,
+        // version: Some(version),
+        // default_database: None,
+        // default_user: None,
+    };
+    task::block_on(
+        crate::cloud::ops::create_cloud_instance(client, &instance)
+    )?;
+    write_stash_dir(stash_dir, project_dir, &name)?;
+    if !options.no_migrations {
+        // TODO: run migrations
+        // task::block_on(migrate(&handle, false))?;
+    }
+    print_initialized(&name, &options.project_dir, StartConf::Auto);
+    Ok(ProjectInfo {
+        instance_name: name,
+        stash_dir: stash_dir.into(),
+    })
+}
+
+pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Options)
     -> anyhow::Result<ProjectInfo>
 {
     eprintln!("No `edgedb.toml` found in `{}` or above",
@@ -609,33 +679,78 @@ pub fn init_new(options: &Init, project_dir: &Path)
 
     echo!("Checking EdgeDB versions...");
 
-    let pkg = ask_version(options)?;
-    let start_conf = ask_start_conf(options)?;
+    if options.cloud {
+        let mut client = CloudClient::new(&opts.cloud_options)?;
+        if !client.is_logged_in {
+            if options.non_interactive {
+                anyhow::bail!("Run `edgedb cloud login` first.");
+            } else {
+                let q = question::Confirm::new(
+                    "You're not authenticated to the EdgeDB Cloud yet, login now?",
+                );
+                if q.ask()? {
+                    task::block_on(crate::cloud::auth::do_login(&client))?;
+                    client = CloudClient::new(&opts.cloud_options)?;
+                    if !client.is_logged_in {
+                        anyhow::bail!("Couldn't fetch access token.");
+                    }
+                } else {
+                    anyhow::bail!("Aborted.");
+                }
+            }
+        };
+        let org = task::block_on(ask_cloud_org(&client, options))?;
+        if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
+            &name, &client,
+        ))? {
+            // return do_cloud_link();
+        }
+        let version = ask_cloud_version(options)?;
+        table::settings(&[
+            ("Project directory", &project_dir.display().to_string()),
+            ("Project config", &config_path.display().to_string()),
+            (&format!("Schema dir {}",
+                      if schema_files { "(non-empty)" } else { "(empty)" }),
+             &schema_dir.display().to_string()),
+            ("Version", &format!("{:?}", version)),
+            ("Instance name", &name),
+        ]);
+        let ver_query = Query::from_str(&version)?;
+        write_config(&config_path, &ver_query)?;
+        if !schema_files {
+            write_schema_default(&schema_dir)?;
+        }
 
-    let meth = if cfg!(windows) {
-        "WSL"
+        do_cloud_init(name, org, &stash_dir, &project_dir, options, &client)  // , version)
     } else {
-        "portable package"
-    };
-    table::settings(&[
-        ("Project directory", &project_dir.display().to_string()),
-        ("Project config", &config_path.display().to_string()),
-        (&format!("Schema dir {}",
-            if schema_files { "(non-empty)" } else { "(empty)" }),
-            &schema_dir.display().to_string()),
-        ("Installation method", meth),
-        ("Start configuration", start_conf.as_str()),
-        ("Version", &pkg.version.to_string()),
-        ("Instance name", &name),
-    ]);
+        let pkg = ask_version(options)?;
+        let start_conf = ask_start_conf(options)?;
 
-    let ver_query = Query::from_version(&pkg.version.specific())?;
-    write_config(&config_path, &ver_query)?;
-    if !schema_files {
-        write_schema_default(&schema_dir)?;
+        let meth = if cfg!(windows) {
+            "WSL"
+        } else {
+            "portable package"
+        };
+        table::settings(&[
+            ("Project directory", &project_dir.display().to_string()),
+            ("Project config", &config_path.display().to_string()),
+            (&format!("Schema dir {}",
+                      if schema_files { "(non-empty)" } else { "(empty)" }),
+             &schema_dir.display().to_string()),
+            ("Installation method", meth),
+            ("Start configuration", start_conf.as_str()),
+            ("Version", &pkg.version.to_string()),
+            ("Instance name", &name),
+        ]);
+
+        let ver_query = Query::from_version(&pkg.version.specific())?;
+        write_config(&config_path, &ver_query)?;
+        if !schema_files {
+            write_schema_default(&schema_dir)?;
+        }
+
+        do_init(&name, &pkg, &stash_dir, &project_dir, start_conf, options)
     }
-
-    do_init(&name, &pkg, &stash_dir, &project_dir, start_conf, options)
 }
 
 pub fn search_dir(base: &Path) -> anyhow::Result<Option<PathBuf>> {
@@ -980,6 +1095,35 @@ fn ask_version(options: &Init) -> anyhow::Result<PackageInfo> {
                 }
             }
         }
+    }
+}
+
+fn ask_cloud_version(options: &Init) -> anyhow::Result<String> {
+    if options.non_interactive {
+        Ok("*".into())
+    } else {
+        let mut q = question::String::new(
+            "Specify the version of EdgeDB to use with this project"
+        );
+        let default_version;
+        if let Some(version) = &options.server_version {
+            default_version = version.display().to_string();
+            q.default(&default_version);
+        }
+        Ok(q.ask()?)
+    }
+}
+
+async fn ask_cloud_org(client: &CloudClient, options: &Init) -> anyhow::Result<String> {
+    let orgs: Vec<crate::cloud::ops::Org> = client.get("orgs/").await?;
+    if options.non_interactive {
+        Ok(orgs.into_iter().next().unwrap().id)
+    } else {
+        let mut q = question::Numeric::new("Choose an organization:");
+        for org in orgs {
+            q.option(org.name, org.id);
+        }
+        Ok(q.ask()?)
     }
 }
 

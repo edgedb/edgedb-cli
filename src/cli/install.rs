@@ -411,9 +411,13 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             server_start_conf: None,
             cloud: false,
         };
+        let options = crate::options::CloudOptions {
+            cloud_base_url: None,
+            cloud_access_token: None,
+        };
         let dir = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
-        project::init_existing(&init, &dir)?;
+        project::init_existing(&init, &dir, &options)?;
         Ok(Initialized)
     } else {
         Ok(NotAProject)
