@@ -28,6 +28,7 @@ pub enum InstanceCommand {
     #[edb(inherit(crate::options::CloudOptions))]
     Create(Create),
     /// Show all instances
+    #[edb(inherit(crate::options::CloudOptions))]
     List(List),
     /// Show status of a matching instance
     Status(Status),
@@ -286,6 +287,10 @@ pub struct List {
     //  Currently needed for WSL
     #[clap(long, hide=true)]
     pub quiet: bool,
+
+    /// List EdgeDB Cloud instances
+    #[clap(long, hide=true)]
+    pub cloud: bool,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]

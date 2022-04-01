@@ -360,7 +360,11 @@ pub fn get_remote(visited: &BTreeSet<String>)
     Ok(result)
 }
 
-pub fn list(options: &List) -> anyhow::Result<()> {
+pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()> {
+    if options.cloud {
+        return task::block_on(crate::cloud::ops::list(options, opts));
+    }
+
     let mut visited = BTreeSet::new();
     let mut local = Vec::new();
     let data_dir = data_dir()?;

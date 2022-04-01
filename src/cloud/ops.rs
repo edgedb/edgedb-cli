@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::io;
@@ -15,15 +16,48 @@ use crate::credentials;
 use crate::options::CloudOptions;
 use crate::print::{self, Highlight};
 use crate::question;
+use crate::table::{self, Cell, Row, Table};
 
 const INSTANCE_CREATE_WAIT_TIME: i32 = 5 * 60;
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudInstance {
     id: String,
     name: String,
     dsn: String,
     status: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct InstanceStatus {
+    cloud_instance: CloudInstance,
+    credentials: Option<Credentials>,
+    instance_name: Option<String>,
+}
+
+impl InstanceStatus {
+    fn from_cloud_instance(cloud_instance: CloudInstance) -> Self {
+        Self {
+            cloud_instance,
+            credentials: None,
+            instance_name: None,
+        }
+    }
+
+    fn print_extended(&self) {
+        println!("{}:", self.cloud_instance.name);
+
+        println!("  Status: {}", self.cloud_instance.status);
+        println!("  ID: {}", self.cloud_instance.id);
+        if let Some(name) = &self.instance_name {
+            println!("  Local Instance: {}", name);
+        }
+        if let Some(creds) = &self.credentials {
+            if let Some(dsn) = &creds.cloud_original_dsn {
+                println!("  DSN: {}", dsn);
+            }
+        }
+    }
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -305,6 +339,64 @@ pub fn try_to_destroy(
     let credentials: Credentials = serde_json::from_reader(file)?;
     if let Some(instance_id) = credentials.cloud_instance_id {
         task::block_on(destroy(&instance_id, &options.cloud_options))?;
+    }
+    Ok(())
+}
+
+pub async fn list(
+    cmd: &crate::portable::options::List,
+    opts: &crate::options::Options,
+) -> anyhow::Result<()> {
+    let client = CloudClient::new(&opts.cloud_options)?;
+    if !client.is_logged_in {
+        anyhow::bail!("Run `edgedb cloud login` first.");
+    };
+    let cloud_instances: Vec<CloudInstance> = client.get("instances/").await?;
+    let mut instances = cloud_instances
+        .into_iter()
+        .map(|inst| (inst.id.clone(), InstanceStatus::from_cloud_instance(inst)))
+        .collect::<HashMap<String, InstanceStatus>>();
+    for name in credentials::all_instance_names()? {
+        let file = io::BufReader::new(fs::File::open(credentials::path(&name)?)?);
+        let creds: Credentials = serde_json::from_reader(file)?;
+        if let Some(id) = &creds.cloud_instance_id {
+            if let Some(instance) = instances.get_mut(id) {
+                (*instance).instance_name = Some(name);
+                (*instance).credentials = Some(creds);
+            }
+        }
+    }
+    if cmd.json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&instances.into_values().collect::<Vec<_>>())?
+        );
+    } else if cmd.debug {
+        for instance in instances.values() {
+            println!("{:#?}", instance);
+        }
+    } else if cmd.extended {
+        for instance in instances.values() {
+            instance.print_extended();
+        }
+    } else {
+        let mut table = Table::new();
+        table.set_format(*table::FORMAT);
+        table.set_titles(Row::new(
+            ["Kind", "Name", "Cloud Name", "Status"]
+                .iter()
+                .map(|x| table::header_cell(x))
+                .collect(),
+        ));
+        for instance in instances.values() {
+            table.add_row(Row::new(vec![
+                Cell::new("cloud"),
+                Cell::new(instance.instance_name.as_deref().unwrap_or("-")),
+                Cell::new(&instance.cloud_instance.name),
+                Cell::new(&instance.cloud_instance.status),
+            ]));
+        }
+        table.printstd();
     }
     Ok(())
 }

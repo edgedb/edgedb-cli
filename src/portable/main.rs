@@ -50,7 +50,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Link(c) if c.cloud => task::block_on(cloud::ops::link(c, options)),
         Link(c) => link::link(c, &options),
         List(c) if cfg!(windows) => windows::list(c),
-        List(c) => status::list(c),
+        List(c) => status::list(c, options),
         Upgrade(c) => upgrade::upgrade(c),
         Start(c) if cfg!(windows) => windows::start(c),
         Start(c) => control::start(c),
