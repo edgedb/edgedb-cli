@@ -1,10 +1,12 @@
+use std::env;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use async_std::task;
 use colorful::Colorful;
-use edgedb_client::credentials::Credentials;
+use edgedb_client::credentials::{Credentials, TlsSecurity};
 use edgedb_client::Builder;
 
 use crate::cloud::auth;
@@ -14,11 +16,14 @@ use crate::options::CloudOptions;
 use crate::print::{self, Highlight};
 use crate::question;
 
+const INSTANCE_CREATE_WAIT_TIME: i32 = 5 * 60;
+
 #[derive(Debug, serde::Deserialize)]
 pub struct CloudInstance {
     id: String,
     name: String,
     dsn: String,
+    status: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -54,6 +59,49 @@ pub async fn find_cloud_instance_by_name(
     }
 }
 
+async fn wait_instance_create(
+    mut instance: CloudInstance,
+    client: &CloudClient,
+    quiet: bool,
+) -> anyhow::Result<CloudInstance> {
+    for i in 0..INSTANCE_CREATE_WAIT_TIME {
+        if instance.dsn != "" {
+            return Ok(instance);
+        }
+        if instance.status != "available" && instance.status != "creating" {
+            anyhow::bail!(
+                "Failed to create EdgeDB Cloud instance: {}",
+                instance.status
+            );
+        }
+        if instance.status == "creating" {
+            if i == 0 && !quiet {
+                print::echo!("Waiting for EdgeDB Cloud instance creation...");
+            }
+            task::sleep(Duration::from_secs(1)).await;
+        }
+        instance = client.get(format!("instances/{}", instance.id)).await?;
+    }
+    if instance.dsn != "" {
+        Ok(instance)
+    } else {
+        anyhow::bail!("Timed out.")
+    }
+}
+
+async fn write_credentials(cred_path: &PathBuf, instance: CloudInstance) -> anyhow::Result<()> {
+    let mut creds = Builder::uninitialized()
+        .read_dsn(&instance.dsn)
+        .await?
+        .as_credentials()?;
+    if env::var("EDGEDB_TEST_INSECURE_CLOUD").unwrap_or("".into()) == "1" {
+        creds.tls_security = TlsSecurity::Insecure;
+    }
+    creds.cloud_instance_id = Some(instance.id);
+    creds.cloud_original_dsn = Some(instance.dsn);
+    credentials::write(&cred_path, &creds).await
+}
+
 pub async fn create_cloud_instance(
     client: &CloudClient,
     instance: &CloudInstanceCreate,
@@ -62,16 +110,11 @@ pub async fn create_cloud_instance(
     if cred_path.exists() {
         anyhow::bail!("File {} exists; abort.", cred_path.display());
     }
-    let CloudInstance { id, dsn, name: _ } = client
+    let instance: CloudInstance = client
         .post("instances/", serde_json::to_value(instance)?)
         .await?;
-    let mut creds = Builder::uninitialized()
-        .read_dsn(&dsn)
-        .await?
-        .as_credentials()?;
-    creds.cloud_instance_id = Some(id);
-    creds.cloud_original_dsn = Some(dsn);
-    credentials::write(&cred_path, &creds).await?;
+    let instance = wait_instance_create(instance, client, false).await?;
+    write_credentials(&cred_path, instance).await?;
     Ok(())
 }
 
@@ -177,7 +220,7 @@ pub async fn link(
     };
     let instance = if let Some(instance) = find_cloud_instance_by_name(&cloud_name, &client).await?
     {
-        instance
+        wait_instance_create(instance, &client, cmd.quiet).await?
     } else {
         anyhow::bail!("No such Cloud instance named {}", cloud_name);
     };
@@ -228,13 +271,7 @@ pub async fn link(
         }
     };
 
-    let mut creds = Builder::uninitialized()
-        .read_dsn(&instance.dsn)
-        .await?
-        .as_credentials()?;
-    creds.cloud_instance_id = Some(instance.id.clone());
-    creds.cloud_original_dsn = Some(instance.dsn.clone());
-    credentials::write(&cred_path, &creds).await?;
+    write_credentials(&cred_path, instance).await?;
     if !cmd.quiet {
         let mut msg = "Successfully linked to EdgeDB Cloud instance.".to_string();
         if print::use_color() {
@@ -256,7 +293,8 @@ async fn destroy(instance_id: &str, options: &CloudOptions) -> anyhow::Result<()
     if !client.is_logged_in {
         anyhow::bail!("Cloud authentication required.");
     };
-    client.delete(format!("instances/{}", instance_id)).await
+    let _: CloudInstance = client.delete(format!("instances/{}", instance_id)).await?;
+    Ok(())
 }
 
 pub fn try_to_destroy(

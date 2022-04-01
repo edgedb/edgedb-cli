@@ -447,6 +447,8 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         let inst = Handle::probe(&name)?;
         inst.check_version(&ver_query);
         return do_link(&inst, options, project_dir, &stash_dir);
+    } else if options.cloud {
+        StartConf::Auto
     } else {
         ask_start_conf(options)?
     };

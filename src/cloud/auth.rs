@@ -8,7 +8,7 @@ use crate::options::CloudOptions;
 use crate::portable::local::write_json;
 use crate::print;
 
-const AUTHENTICATION_WAIT_TIME: i32 = 180;
+const AUTHENTICATION_WAIT_TIME: i32 = 5 * 60;
 
 #[derive(Debug, serde::Deserialize)]
 struct UserSession {

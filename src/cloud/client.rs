@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::env;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -54,7 +55,11 @@ impl CloudClient {
         let base_url = options
             .cloud_base_url
             .as_deref()
-            .unwrap_or(EDGEDB_CLOUD_BASE_URL)
+            .unwrap_or(
+                env::var("EDGEDB_CLOUD_BASE_URL")
+                    .as_deref()
+                    .unwrap_or(EDGEDB_CLOUD_BASE_URL),
+            )
             .to_string();
         let mut config = surf::Config::new()
             .set_base_url(surf::Url::parse(&base_url)?.join(EDGEDB_CLOUD_API_VERSION)?)
