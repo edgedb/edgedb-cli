@@ -26,6 +26,8 @@ pub struct CloudInstance {
     name: String,
     dsn: String,
     status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tls_ca: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -131,6 +133,7 @@ async fn write_credentials(cred_path: &PathBuf, instance: CloudInstance) -> anyh
     if env::var("EDGEDB_TEST_INSECURE_CLOUD").unwrap_or("".into()) == "1" {
         creds.tls_security = TlsSecurity::Insecure;
     }
+    creds.tls_ca = instance.tls_ca;
     creds.cloud_instance_id = Some(instance.id);
     creds.cloud_original_dsn = Some(instance.dsn);
     credentials::write(&cred_path, &creds).await
