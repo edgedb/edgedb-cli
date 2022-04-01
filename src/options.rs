@@ -247,7 +247,7 @@ pub enum Command {
     #[edb(inherit(ConnectionOptions))]
     Query(Query),
     /// Launches the web UI for the EdgeDB instance
-    #[edb(inherit(ConnectionOptions))]
+    #[edb(inherit(ConnectionOptions), hide=true)]
     UI,
     /// Show information about the EdgeDB installation
     Info,
