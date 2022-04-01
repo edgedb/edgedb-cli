@@ -564,8 +564,7 @@ fn set_password(options: &ConnectionOptions, builder: &mut Builder)
     -> anyhow::Result<()>
 {
     let password = if options.password_from_stdin {
-        rpassword::read_password()
-            .expect("password cannot be read")
+        tty_password::read_stdin()?
     } else if options.no_password {
         return Ok(());
     } else if options.password {

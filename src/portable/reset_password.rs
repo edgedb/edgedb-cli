@@ -54,7 +54,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
         (None, !options.no_save_credentials, user)
     };
     let password = if options.password_from_stdin {
-        rpassword::read_password()?
+        tty_password::read_stdin()?
     } else if options.password {
         loop {
             let password = tty_password::read(
