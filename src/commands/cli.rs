@@ -71,5 +71,8 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         Command::Info => {
             task::block_on(commands::info(&options)).into()
         }
+        Command::UI => {
+            commands::show_ui(&options)
+        }
     }
 }

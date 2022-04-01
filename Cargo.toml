@@ -101,6 +101,7 @@ blocking = "1.1.0"
 fd-lock = "3.0.2"
 zip = "0.5.0"
 libflate = "1.1.1"
+open = "2.1.1"
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
