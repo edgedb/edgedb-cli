@@ -22,6 +22,7 @@ pub mod backslash;
 pub mod cli;
 pub mod options;
 pub mod parser;
+mod ui;
 
 pub use self::configure::configure;
 pub use self::dump::{dump, dump_all};
@@ -40,3 +41,4 @@ pub use self::restore::{restore, restore_all};
 pub use self::psql::psql;
 pub use self::exit::ExitCode;
 pub use self::info::info;
+pub use self::ui::show_ui;
