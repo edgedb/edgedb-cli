@@ -180,7 +180,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             let password;
 
             if opts.conn_options.password_from_stdin {
-                password = rpassword::read_password()?;
+                password = tty_password::read_stdin()?
             } else if !cmd.non_interactive {
                 password = tty_password::read(format!(
                         "Password for '{}': ",
