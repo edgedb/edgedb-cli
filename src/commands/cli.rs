@@ -2,6 +2,7 @@ use async_std::task;
 
 use crate::cli;
 use crate::cli::directory_check;
+use crate::cloud::main::cloud_main;
 use crate::options::{Options, Command};
 use crate::commands::parser::{Common, MigrationCmd, Migration};
 use crate::commands;
@@ -53,7 +54,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::Project(cmd) => {
             directory_check::check_and_error()?;
-            portable::project_main(cmd)
+            portable::project_main(cmd, &options)
         }
         Command::Query(q) => {
             directory_check::check_and_warn();
@@ -73,6 +74,9 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::UI => {
             commands::show_ui(&options)
+        }
+        Command::Cloud(c) => {
+            cloud_main(c, &options.cloud_options)
         }
     }
 }

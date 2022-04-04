@@ -3,6 +3,7 @@ use std::path::{PathBuf};
 use fs_err as fs;
 
 use crate::commands::ExitCode;
+use crate::options::Options;
 use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local;
@@ -43,7 +44,7 @@ pub fn with_projects<F>(name: &str, force: bool, f: F) -> anyhow::Result<()>
     Ok(())
 }
 
-pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
+pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
     with_projects(&options.name, options.force, || {
         if !options.force && !options.non_interactive {
             let q = question::Confirm::new_dangerous(
@@ -55,7 +56,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
                 return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
             }
         }
-        match do_destroy(options) {
+        match do_destroy(options, opts) {
             Ok(()) => Ok(()),
             Err(e) if e.is::<InstanceNotFound>() => {
                 print::error(e);
@@ -71,7 +72,7 @@ pub fn destroy(options: &Destroy) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
+fn do_destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
     if cfg!(windows) {
         return windows::destroy(options);
     }
@@ -100,6 +101,14 @@ fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
     }
     if paths.credentials.exists(){
         found = true;
+        if let Err(e) = crate::cloud::ops::try_to_destroy(&paths.credentials, opts) {
+            let msg = format!("Failed to destroy EdgeDB Cloud instance: {:#}", e);
+            if options.force {
+                print::warn(msg);
+            } else {
+                anyhow::bail!(msg);
+            }
+        }
         log::info!("Removing credentials file {:?}", &paths.credentials);
         fs::remove_file(&paths.credentials)?;
     }
@@ -134,12 +143,12 @@ fn do_destroy(options: &Destroy) -> anyhow::Result<()> {
     }
 }
 
-pub fn force_by_name(name: &str) -> anyhow::Result<()> {
+pub fn force_by_name(name: &str, options: &Options) -> anyhow::Result<()> {
     do_destroy(&Destroy {
         name: name.to_string(),
         verbose: false,
         force: true,
         quiet: false,
         non_interactive: true,
-    })
+    }, options)
 }

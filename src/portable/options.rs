@@ -25,8 +25,10 @@ pub struct ServerInstanceCommand {
 #[derive(EdbClap, Clone, Debug)]
 pub enum InstanceCommand {
     /// Initialize a new EdgeDB instance
+    #[edb(inherit(crate::options::CloudOptions))]
     Create(Create),
     /// Show all instances
+    #[edb(inherit(crate::options::CloudOptions))]
     List(List),
     /// Show status of a matching instance
     Status(Status),
@@ -37,9 +39,11 @@ pub enum InstanceCommand {
     /// Restart an instance
     Restart(Restart),
     /// Destroy an instance and remove the data
+    #[edb(inherit(crate::options::CloudOptions))]
     Destroy(Destroy),
     /// Link a remote instance
     #[edb(inherit(crate::options::ConnectionOptions))]
+    #[edb(inherit(crate::options::CloudOptions))]
     Link(Link),
     /// Unlink a remote instance
     Unlink(Unlink),
@@ -142,6 +146,14 @@ pub struct Create {
     /// credentials file)
     #[clap(long, default_value="edgedb")]
     pub default_user: String,
+
+    /// Create an EdgeDB Cloud instance rather than a local instance
+    #[clap(long, hide=true)]
+    pub cloud: bool,
+
+    /// Create the EdgeDB Cloud instance under the given organization
+    #[clap(long, hide=true)]
+    pub cloud_org: Option<String>,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
@@ -192,6 +204,10 @@ pub struct Link {
     /// Overwrite existing credential file if any.
     #[clap(long)]
     pub overwrite: bool,
+
+    /// Link to an EdgeDB Cloud instance rather than a regular remote instance
+    #[clap(long, hide=true)]
+    pub cloud: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -271,6 +287,10 @@ pub struct List {
     //  Currently needed for WSL
     #[clap(long, hide=true)]
     pub quiet: bool,
+
+    /// List EdgeDB Cloud instances
+    #[clap(long, hide=true)]
+    pub cloud: bool,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]

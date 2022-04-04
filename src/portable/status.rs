@@ -85,8 +85,17 @@ pub enum ConnectionStatus {
 }
 
 #[derive(Debug)]
+pub enum RemoteType {
+    Remote,
+    Cloud {
+        instance_id: String
+    },
+}
+
+#[derive(Debug)]
 pub struct RemoteStatus {
     pub name: String,
+    pub type_: RemoteType,
     pub credentials: Credentials,
     pub version: Option<String>,
     pub connection: ConnectionStatus,
@@ -102,6 +111,8 @@ pub struct JsonStatus {
     pub service_status: Option<String>,
     #[serde(skip_serializing_if="Option::is_none")]
     pub remote_status: Option<String>,
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub cloud_instance_id: Option<String>,
 }
 
 
@@ -272,6 +283,11 @@ fn _remote_status(name: &str, quiet: bool) -> anyhow::Result<RemoteStatus> {
     let (version, connection) = try_connect(&credentials);
     return Ok(RemoteStatus {
         name: name.into(),
+        type_: if let Some(instance_id) = &credentials.cloud_instance_id {
+            RemoteType::Cloud { instance_id: instance_id.clone() }
+        } else {
+            RemoteType::Remote
+        },
         credentials,
         version,
         connection,
@@ -344,7 +360,11 @@ pub fn get_remote(visited: &BTreeSet<String>)
     Ok(result)
 }
 
-pub fn list(options: &List) -> anyhow::Result<()> {
+pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()> {
+    if options.cloud {
+        return task::block_on(crate::cloud::ops::list(options, opts));
+    }
+
     let mut visited = BTreeSet::new();
     let mut local = Vec::new();
     let data_dir = data_dir()?;
@@ -424,7 +444,10 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
     }
     for status in remote {
         table.add_row(Row::new(vec![
-            Cell::new("remote"),
+            Cell::new(match status.type_ {
+                RemoteType::Cloud { instance_id: _ } => "cloud",
+                RemoteType::Remote => "remote",
+            }),
             Cell::new(&status.name),
             Cell::new(&format!("{}:{}",
                    status.credentials.host.as_deref().unwrap_or("localhost"),
@@ -557,6 +580,7 @@ impl FullStatus {
                 .map(|v| v.to_string()),
             service_status: Some(status_str(&self.service).to_string()),
             remote_status: None,
+            cloud_instance_id: None,
         }
     }
     pub fn print_json_and_exit<'x>(&'x self) -> ! {
@@ -602,6 +626,9 @@ impl FullStatus {
 impl RemoteStatus {
     pub fn print_extended(&self) {
         println!("{}:", self.name);
+        if let RemoteType::Cloud { instance_id } = &self.type_ {
+            println!("  Cloud Instance ID: {}", instance_id);
+        }
         println!("  Status: {}", self.connection.as_str());
         println!("  Credentials: exist");
         println!("  Version: {}",
@@ -625,6 +652,11 @@ impl RemoteStatus {
             version: self.version.clone(),
             service_status: None,
             remote_status: Some(self.connection.as_str().to_string()),
+            cloud_instance_id: if let RemoteType::Cloud { instance_id } = &self.type_ {
+                Some(instance_id.clone())
+            } else {
+                None
+            },
         }
     }
 
