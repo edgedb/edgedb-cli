@@ -197,7 +197,7 @@ containers:
       suite: bionic
       components: [main]
       trusted: true
-    - !Install [edgedb-1-rc2]
+    - !Install [edgedb-1]
     - !Text
       /var/docker.sock: ""
 
@@ -211,8 +211,8 @@ containers:
       # needed for musl build
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
-      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-1-rc2
-      EDGEDB_MAJOR_VERSION: 1-rc2
+      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-1
+      EDGEDB_MAJOR_VERSION: 1
 
   tools:
     setup:
