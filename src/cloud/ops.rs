@@ -407,3 +407,51 @@ pub async fn list(
     }
     Ok(())
 }
+
+pub async fn ask_link_existing_cloud_instance(client: &CloudClient) -> anyhow::Result<String> {
+    let cloud_instances: Vec<CloudInstance> = client.get("instances/").await?;
+    let mut cloud_instances = cloud_instances
+        .into_iter()
+        .map(|inst| (inst.name.clone(), inst))
+        .collect::<HashMap<_, _>>();
+    let instances = credentials::all_instance_names()?;
+
+    let mut q = question::String::new(
+        "Specify the name of EdgeDB Cloud instance \
+                               to link with this project",
+    );
+    loop {
+        let target_name = q.ask()?;
+
+        if instances.contains(&target_name) {
+            print::error(format!(
+                "{:?} is a locally-used name, try --link without --cloud",
+                target_name
+            ));
+        } else if let Some(inst) = cloud_instances.remove(&target_name) {
+            let inst = wait_instance_create(inst, client, false).await?;
+            let cred_path = credentials::path(&target_name)?;
+            write_credentials(&cred_path, inst).await?;
+            return Ok(target_name);
+        } else {
+            print::error(format!("Cloud instance {:?} doesn't exist", target_name));
+        }
+    }
+}
+
+pub async fn link_existing_cloud_instance(client: &CloudClient, name: &str) -> anyhow::Result<()> {
+    let cred_path = credentials::path(&name)?;
+    if cred_path.exists() {
+        anyhow::bail!(
+            "{:?} is a locally-used name, try --link without --cloud",
+            name,
+        );
+    }
+    if let Some(inst) = find_cloud_instance_by_name(name, client).await? {
+        let inst = wait_instance_create(inst, client, false).await?;
+        write_credentials(&cred_path, inst).await?;
+        Ok(())
+    } else {
+        anyhow::bail!(format!("Cloud instance {:?} doesn't exist", name));
+    }
+}

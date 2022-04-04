@@ -223,7 +223,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             let dir = fs::canonicalize(&dir)?;
             if dir.join("edgedb.toml").exists() {
                 if options.link {
-                    link(options, &dir)?
+                    link(options, &dir, opts)?
                 } else {
                     init_existing(options, &dir, &opts.cloud_options)?
                 }
@@ -244,7 +244,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             if let Some(dir) = search_dir(&base_dir)? {
                 let dir = fs::canonicalize(&dir)?;
                 if options.link {
-                    link(options, &dir)?
+                    link(options, &dir, opts)?
                 } else {
                     init_existing(options, &dir, &opts.cloud_options)?
                 }
@@ -281,7 +281,7 @@ fn ask_existing_instance_name() -> anyhow::Result<String> {
     }
 }
 
-fn link(options: &Init, project_dir: &Path)
+fn link(options: &Init, project_dir: &Path, opts: &crate::options::Options)
     -> anyhow::Result<ProjectInfo>
 {
     echo!("Found `edgedb.toml` in", project_dir.display());
@@ -297,11 +297,20 @@ fn link(options: &Init, project_dir: &Path)
     let ver_query = config.edgedb.server_version;
 
     let name = if let Some(name) = &options.server_instance {
+        if options.cloud {
+            let client = CloudClient::new(&opts.cloud_options)?;
+            task::block_on(crate::cloud::ops::link_existing_cloud_instance(
+                &client, name,
+            ))?
+        }
         name.clone()
     } else if options.non_interactive {
         anyhow::bail!("Existing instance name should be specified \
                        with `--server-instance` argument when linking project \
                        in non-interactive mode")
+    } else if options.cloud {
+        let client = CloudClient::new(&opts.cloud_options)?;
+        task::block_on(crate::cloud::ops::ask_link_existing_cloud_instance(&client))?
     } else {
         ask_existing_instance_name()?
     };
@@ -398,6 +407,27 @@ fn ask_name(dir: &Path, options: &Init) -> anyhow::Result<(String, bool)> {
     }
 }
 
+fn ask_link_cloud_instance(options: &Init, name: &str) -> anyhow::Result<()> {
+    if options.non_interactive {
+        anyhow::bail!(format!(
+                    "Cloud instance {:?} already exists, \
+                           to link project with it pass `--link` \
+                           flag explicitly",
+                    name
+                ));
+    } else {
+        let confirm = question::Confirm::new(format!(
+            "Do you want to use existing Cloud instance {:?} for the project?",
+            name
+        ));
+        if confirm.ask()? {
+            Ok(())
+        } else {
+            anyhow::bail!("Aborted.");
+        }
+    }
+}
+
 fn ask_start_conf(options: &Init) -> anyhow::Result<StartConf> {
     if let Some(conf) = &options.server_start_conf {
         return Ok(*conf);
@@ -479,8 +509,11 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
             &name, &client,
         ))? {
-            // TODO(fantix): link
-            // return do_cloud_link();
+            ask_link_cloud_instance(options, &name)?;
+            task::block_on(crate::cloud::ops::link_existing_cloud_instance(&client, &name))?;
+            let inst = Handle::probe(&name)?;
+            inst.check_version(&ver_query);
+            return do_link(&inst, options, project_dir, &stash_dir);
         }
         table::settings(&[
             ("Project directory", &project_dir.display().to_string()),
@@ -708,7 +741,10 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
         if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
             &name, &client,
         ))? {
-            // return do_cloud_link();
+            ask_link_cloud_instance(options, &name)?;
+            task::block_on(crate::cloud::ops::link_existing_cloud_instance(&client, &name))?;
+            let inst = Handle::probe(&name)?;
+            return do_link(&inst, options, project_dir, &stash_dir);
         }
         let version = ask_cloud_version(options)?;
         table::settings(&[
