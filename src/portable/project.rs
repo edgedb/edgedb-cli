@@ -625,8 +625,11 @@ fn do_cloud_init(
     )?;
     write_stash_dir(stash_dir, project_dir, &name)?;
     if !options.no_migrations {
-        // TODO: run migrations
-        // task::block_on(migrate(&handle, false))?;
+        let handle = Handle {
+            name: name.clone(),
+            instance: InstanceKind::Remote,
+        };
+        task::block_on(migrate(&handle, false))?;
     }
     print_initialized(&name, &options.project_dir, StartConf::Auto);
     Ok(ProjectInfo {

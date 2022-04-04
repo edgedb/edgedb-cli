@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::env;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -7,7 +6,7 @@ use std::time::Duration;
 
 use async_std::task;
 use colorful::Colorful;
-use edgedb_client::credentials::{Credentials, TlsSecurity};
+use edgedb_client::credentials::Credentials;
 use edgedb_client::Builder;
 
 use crate::cloud::auth;
@@ -130,9 +129,6 @@ async fn write_credentials(cred_path: &PathBuf, instance: CloudInstance) -> anyh
         .read_dsn(&instance.dsn)
         .await?
         .as_credentials()?;
-    if env::var("EDGEDB_TEST_INSECURE_CLOUD").unwrap_or("".into()) == "1" {
-        creds.tls_security = TlsSecurity::Insecure;
-    }
     creds.tls_ca = instance.tls_ca;
     creds.cloud_instance_id = Some(instance.id);
     creds.cloud_original_dsn = Some(instance.dsn);
@@ -368,6 +364,14 @@ pub async fn list(
                 (*instance).credentials = Some(creds);
             }
         }
+    }
+    if instances.is_empty() {
+        if cmd.json {
+            println!("[]");
+        } else if !cmd.quiet {
+            print::warn("No instances found");
+        }
+        return Ok(());
     }
     if cmd.json {
         println!(
