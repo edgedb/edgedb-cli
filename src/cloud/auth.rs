@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_std::task;
 
@@ -8,7 +8,8 @@ use crate::options::CloudOptions;
 use crate::portable::local::write_json;
 use crate::print;
 
-const AUTHENTICATION_WAIT_TIME: i32 = 5 * 60;
+const AUTHENTICATION_WAIT_TIME: Duration = Duration::from_secs(10 * 60);
+const AUTHENTICATION_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Debug, serde::Deserialize)]
 struct UserSession {
@@ -37,26 +38,36 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
         print::prompt("Please open this link in your browser and complete the authentication:");
         print::success_msg("Link", link);
     }
-    for _ in 0..AUTHENTICATION_WAIT_TIME {
-        let UserSession {
-            id: _,
-            auth_url: _,
-            token,
-        } = client.get(format!("auth/sessions/{}", id)).await?;
-        if let Some(token) = token {
-            write_json(
-                &cloud_config_file()?,
-                "cloud config",
-                &CloudConfig {
-                    access_token: Some(token),
-                },
-            )?;
-            print::success("Successfully authenticated to EdgeDB Cloud.");
-            return Ok(());
+    let deadline = Instant::now() + AUTHENTICATION_WAIT_TIME;
+    while Instant::now() < deadline {
+        match client.get(format!("auth/sessions/{}", id)).await {
+            Ok(UserSession {
+                id: _,
+                auth_url: _,
+                token: Some(token),
+            }) => {
+                write_json(
+                    &cloud_config_file()?,
+                    "cloud config",
+                    &CloudConfig {
+                        access_token: Some(token),
+                    },
+                )?;
+                print::success("Successfully authenticated to EdgeDB Cloud.");
+                return Ok(());
+            }
+            Err(e) => print::warn(format!(
+                "Retrying to get results because request failed: {:?}",
+                e
+            )),
+            _ => {}
         }
-        task::sleep(Duration::from_secs(1)).await;
+        task::sleep(AUTHENTICATION_POLL_INTERVAL).await;
     }
-    anyhow::bail!("Timed out.")
+    anyhow::bail!(
+        "Authentication is expected to be done in {:?}.",
+        AUTHENTICATION_WAIT_TIME
+    )
 }
 
 pub async fn logout(_c: &options::Logout) -> anyhow::Result<()> {

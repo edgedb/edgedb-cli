@@ -7,10 +7,12 @@ use std::time::Duration;
 
 use surf::http::auth::{AuthenticationScheme, Authorization};
 
+use crate::commands::ExitCode;
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
+use crate::print;
 
-const EDGEDB_CLOUD_BASE_URL: &str = "http://127.0.0.1:5959";
+const EDGEDB_CLOUD_BASE_URL: &str = "https://free-tier0.ovh-us-west-2.edgedb.cloud";
 const EDGEDB_CLOUD_API_VERSION: &str = "/v1/";
 const EDGEDB_CLOUD_API_TIMEOUT: u64 = 10;
 
@@ -78,6 +80,17 @@ impl CloudClient {
             is_logged_in,
             base_url,
         })
+    }
+
+    pub fn ensure_authenticated(&self, quiet: bool) -> anyhow::Result<()> {
+        if self.is_logged_in {
+            Ok(())
+        } else {
+            if !quiet {
+                print::error("Run `edgedb cloud login` first.");
+            }
+            Err(ExitCode::new(9).into())
+        }
     }
 
     pub async fn request<T: serde::de::DeserializeOwned>(

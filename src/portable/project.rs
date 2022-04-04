@@ -252,7 +252,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
                 if options.link {
                     anyhow::bail!(
                         "`edgedb.toml` was not found, unable to link an EdgeDB \
-                        instance with uninitialized project, to initialize
+                        instance with uninitialized project, to initialize \
                         a new project run command without `--link` flag")
                 }
 
@@ -488,22 +488,18 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
     if options.cloud {
         let mut client = CloudClient::new(cloud_options)?;
         if !client.is_logged_in {
-            if options.non_interactive {
-                anyhow::bail!("Run `edgedb cloud login` first.");
-            } else {
-                let q = question::Confirm::new(
+            if !options.non_interactive {
+                let mut q = question::Confirm::new(
                     "You're not authenticated to the EdgeDB Cloud yet, login now?",
                 );
-                if q.ask()? {
+                if q.default(true).ask()? {
                     task::block_on(crate::cloud::auth::do_login(&client))?;
                     client = CloudClient::new(cloud_options)?;
-                    if !client.is_logged_in {
-                        anyhow::bail!("Couldn't fetch access token.");
-                    }
                 } else {
                     anyhow::bail!("Aborted.");
                 }
             }
+            client.ensure_authenticated(false)?;
         };
         let org = task::block_on(ask_cloud_org(&client, options))?;
         if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
@@ -720,22 +716,18 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     if options.cloud {
         let mut client = CloudClient::new(&opts.cloud_options)?;
         if !client.is_logged_in {
-            if options.non_interactive {
-                anyhow::bail!("Run `edgedb cloud login` first.");
-            } else {
-                let q = question::Confirm::new(
+            if !options.non_interactive {
+                let mut q = question::Confirm::new(
                     "You're not authenticated to the EdgeDB Cloud yet, login now?",
                 );
-                if q.ask()? {
+                if q.default(true).ask()? {
                     task::block_on(crate::cloud::auth::do_login(&client))?;
                     client = CloudClient::new(&opts.cloud_options)?;
-                    if !client.is_logged_in {
-                        anyhow::bail!("Couldn't fetch access token.");
-                    }
                 } else {
                     anyhow::bail!("Aborted.");
                 }
             }
+            client.ensure_authenticated(false)?;
         };
         let org = task::block_on(ask_cloud_org(&client, options))?;
         if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
@@ -744,6 +736,11 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             ask_link_cloud_instance(options, &name)?;
             task::block_on(crate::cloud::ops::link_existing_cloud_instance(&client, &name))?;
             let inst = Handle::probe(&name)?;
+            write_config(&config_path,
+                         &Query::from_version(&inst.get_version()?.specific())?)?;
+            if !schema_files {
+                write_schema_default(&schema_dir)?;
+            }
             return do_link(&inst, options, project_dir, &stash_dir);
         }
         let version = ask_cloud_version(options)?;

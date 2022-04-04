@@ -191,7 +191,7 @@ pub struct ConnectionOptions {
 #[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
 pub struct CloudOptions {
     /// Specify the base URL for EdgeDB Cloud API access, default is
-    /// http://127.0.0.1:5959
+    /// https://free-tier0.ovh-us-west-2.edgedb.cloud
     #[clap(long, name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub cloud_base_url: Option<String>,

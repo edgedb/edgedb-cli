@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_std::task;
 use colorful::Colorful;
@@ -17,7 +17,8 @@ use crate::print::{self, Highlight};
 use crate::question;
 use crate::table::{self, Cell, Row, Table};
 
-const INSTANCE_CREATE_WAIT_TIME: i32 = 5 * 60;
+const INSTANCE_CREATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
+const INSTANCE_CREATION_POLLING_INTERVAL : Duration = Duration::from_secs(1);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudInstance {
@@ -99,7 +100,11 @@ async fn wait_instance_create(
     client: &CloudClient,
     quiet: bool,
 ) -> anyhow::Result<CloudInstance> {
-    for i in 0..INSTANCE_CREATE_WAIT_TIME {
+    if !quiet && instance.status == "creating" {
+        print::echo!("Waiting for EdgeDB Cloud instance creation...");
+    }
+    let deadline = Instant::now() + INSTANCE_CREATION_WAIT_TIME;
+    while Instant::now() < deadline {
         if instance.dsn != "" {
             return Ok(instance);
         }
@@ -110,10 +115,7 @@ async fn wait_instance_create(
             );
         }
         if instance.status == "creating" {
-            if i == 0 && !quiet {
-                print::echo!("Waiting for EdgeDB Cloud instance creation...");
-            }
-            task::sleep(Duration::from_secs(1)).await;
+            task::sleep(INSTANCE_CREATION_POLLING_INTERVAL).await;
         }
         instance = client.get(format!("instances/{}", instance.id)).await?;
     }
@@ -156,9 +158,7 @@ pub async fn create(
     opts: &crate::options::Options,
 ) -> anyhow::Result<()> {
     let client = CloudClient::new(&opts.cloud_options)?;
-    if !client.is_logged_in {
-        anyhow::bail!("Run `edgedb cloud login` first.");
-    };
+    client.ensure_authenticated(false)?;
     // let version = Query::from_options(cmd.nightly, &cmd.version)?;
     let orgs: Vec<Org> = client.get("orgs/").await?;
     let org_id = if let Some(name) = &cmd.cloud_org {
@@ -211,23 +211,19 @@ pub async fn link(
         }
     }
     if !client.is_logged_in {
-        if cmd.non_interactive {
-            anyhow::bail!("Run `edgedb cloud login` first.");
-        } else {
-            let q = question::Confirm::new(
+        if !cmd.non_interactive {
+            let mut q = question::Confirm::new(
                 "You're not authenticated to the EdgeDB Cloud yet, login now?",
             );
-            if q.ask()? {
+            if q.default(true).ask()? {
                 auth::do_login(&client).await?;
                 client = CloudClient::new(&opts.cloud_options)?;
-                if !client.is_logged_in {
-                    anyhow::bail!("Couldn't fetch access token.");
-                }
             } else {
                 print::error("Aborted.");
                 return Ok(());
             }
         }
+        client.ensure_authenticated(false)?;
     };
     let cloud_name = if let Some(name) = &cmd.name {
         name.clone()
@@ -323,9 +319,7 @@ pub async fn link(
 async fn destroy(instance_id: &str, options: &CloudOptions) -> anyhow::Result<()> {
     log::info!("Destroying EdgeDB Cloud instance: {}", instance_id);
     let client = CloudClient::new(options)?;
-    if !client.is_logged_in {
-        anyhow::bail!("Cloud authentication required.");
-    };
+    client.ensure_authenticated(false)?;
     let _: CloudInstance = client.delete(format!("instances/{}", instance_id)).await?;
     Ok(())
 }
@@ -347,9 +341,7 @@ pub async fn list(
     opts: &crate::options::Options,
 ) -> anyhow::Result<()> {
     let client = CloudClient::new(&opts.cloud_options)?;
-    if !client.is_logged_in {
-        anyhow::bail!("Run `edgedb cloud login` first.");
-    };
+    client.ensure_authenticated(false)?;
     let cloud_instances: Vec<CloudInstance> = client.get("instances/").await?;
     let mut instances = cloud_instances
         .into_iter()
