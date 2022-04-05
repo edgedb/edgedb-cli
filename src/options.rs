@@ -611,8 +611,19 @@ pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     let mut bld = Builder::uninitialized();
     if let Some(path) = &tmp.unix_path {
         bld.unix_path(path, tmp.port, tmp.admin);
+        bld.read_extra_env_vars()?;
     } else if tmp.host.is_some() || tmp.port.is_some() {
-        bld.host_port(tmp.host.clone(), tmp.port);
+        match &tmp.host {
+            Some(host) if host.contains("/") => {
+                log::warn!("Deprecated: `--host` that contains slash is path \
+                    to a unix socket. Use TCP connection if possible \
+                    otherwise use `--unix-path`.");
+                bld.unix_path(host, tmp.port, tmp.admin);
+            }
+            _ => {
+                bld.host_port(tmp.host.clone(), tmp.port);
+            }
+        }
         bld.read_extra_env_vars()?;
     } else if let Some(dsn) = &tmp.dsn {
         task::block_on(bld.read_dsn(dsn))?;
