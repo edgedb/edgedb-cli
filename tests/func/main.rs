@@ -181,6 +181,17 @@ impl ServerGuard {
         return cmd
     }
 
+    pub fn admin_cmd_deprecated(&self) -> Command {
+        let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
+        cmd.arg("--no-cli-update-check");
+        cmd.arg("--admin");
+        // test deprecated --host /unix/path
+        cmd.arg("--host").arg(&self.runstate_dir);
+        cmd.arg("--port").arg(self.port.to_string());
+        cmd.env("CLICOLOR", "0");
+        return cmd
+    }
+
     pub fn raw_cmd(&self) -> Command {
         let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
         cmd.arg("--no-cli-update-check");

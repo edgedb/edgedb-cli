@@ -9,6 +9,13 @@ fn with_comment() {
 }
 
 #[test]
+fn deprecated_unix_host() {
+    SERVER.admin_cmd_deprecated()
+        .write_stdin("SELECT 1")
+        .assert().success();
+}
+
+#[test]
 fn stdin_password() {
     SERVER.admin_cmd()
         .arg("--password-from-stdin")
