@@ -2988,7 +2988,7 @@ dependencies = [
 [[package]]
 name = "serde_str"
 version = "1.0.0"
-source = "git+https://github.com/tailhook/serde-str#5310c8df4416ff3192c2c13c14e227f834465b1e"
+source = "git+https://github.com/tailhook/serde-str#d48076ec69a86e82abeca5f44c0b73ada1fda848"
 dependencies = [
  "serde",
 ]
