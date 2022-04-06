@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
 
+use anyhow::Context as _;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use serde::{Serialize, Deserialize};
@@ -56,7 +57,7 @@ fn newer_warning(ver: &ver::Semver) {
     }
 }
 
-fn _check(cache_dir: &Path) -> anyhow::Result<()> {
+fn _check(cache_dir: &Path, strict: bool) -> anyhow::Result<()> {
     let self_version = cli::upgrade::self_version()?;
     match read_cache(cache_dir) {
         Ok(cache) if cache.expires > SystemTime::now() => {
@@ -70,6 +71,9 @@ fn _check(cache_dir: &Path) -> anyhow::Result<()> {
         }
         Ok(_) => {},
         Err(e) => {
+            if strict {
+                return Err(e).context("error reading CLI version cache");
+            }
             log::debug!("Error reading cache: {}", e);
         }
     }
@@ -100,6 +104,7 @@ fn cache_dir() -> anyhow::Result<PathBuf> {
 }
 
 pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
+    let mut strict = false;
     if no_version_check_opt {
         log::debug!("Skipping version check due to --no-cli-update-check");
         return Ok(());
@@ -112,9 +117,12 @@ pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
             return Ok(());
         }
         Ok("cached") | Ok("default") => {}
+        Ok("strict") => {
+            strict = true;
+        }
         Ok(value) => {
             anyhow::bail!("unexpected value of EDGEDB_RUN_VERSION_CHECK: {:?} \
-                           Options: never, cached, default.",
+                           Options: never, cached, strict, default.",
                           value);
         }
         Err(env::VarError::NotPresent) => {}
@@ -127,13 +135,19 @@ pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
     let dir = match cache_dir() {
         Ok(dir) => dir,
         Err(e) => {
+            if strict {
+                return Err(e).context("Version check failed");
+            }
             log::debug!("Version check ignored: {}", e);
             return Ok(());
         }
     };
-    match _check(&dir) {
+    match _check(&dir, strict) {
         Ok(()) => {}
         Err(e) => {
+            if strict {
+                return Err(e).context("Cannot check for updates");
+            }
             log::warn!("Cannot check for updates: {:#}", e);
         }
     }
