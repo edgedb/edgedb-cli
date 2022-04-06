@@ -1,4 +1,5 @@
 use crate::SERVER;
+use assert_cmd::Command;
 
 
 #[test]
@@ -22,3 +23,14 @@ fn stdin_password() {
         .write_stdin("password\n")
         .assert().success();
 }
+
+#[test]
+fn strict_version_check() {
+    Command::cargo_bin("edgedb")
+        .expect("binary found")
+        .env("EDGEDB_RUN_VERSION_CHECK", "strict")
+        .arg("info")
+        .assert()
+        .success();
+}
+
