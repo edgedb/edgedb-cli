@@ -1337,7 +1337,16 @@ pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
     };
     for item in dir {
         let entry = item?;
-        let path = entry.path().join("instance-name");
+        let sub_dir = entry.path();
+        if sub_dir.file_name()
+            .and_then(|f| f.to_str())
+            .map(|n| n.starts_with("."))
+            .unwrap_or(true)
+        {
+            // skip hidden files, most likely .DS_Store (see #689)
+            continue;
+        }
+        let path = sub_dir.join("instance-name");
         let inst = match fs::read_to_string(&path) {
             Ok(inst) => inst,
             Err(e) => {
