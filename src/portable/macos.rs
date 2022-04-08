@@ -230,6 +230,10 @@ pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     pro.arg("--data-dir").arg(data_dir);
     pro.arg("--runstate-dir").arg(runstate_dir);
     pro.arg("--port").arg(inst.port.to_string());
+    if inst.get_version()?.specific().major >= 2 {
+        pro.arg("--compiler-pool-mode=on_demand");
+        pro.arg("--admin-ui=enabled");
+    }
     Ok(pro)
 }
 
