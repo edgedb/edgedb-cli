@@ -57,6 +57,9 @@ pub enum InstanceCommand {
     Revert(Revert),
     /// Reset password for a user in the instance
     ResetPassword(ResetPassword),
+    /// Echo credentials to connect to the instance
+    #[edb(inherit(crate::options::ConnectionOptions))]
+    Credentials(ShowCredentials),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -506,6 +509,31 @@ pub struct Info {
     pub version: Option<ver::Filter>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum ShowCredentialsType {
+    JSON,
+    InsecureDSN,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct ShowCredentials {
+    #[clap(long, possible_values=&[
+    "json", "insecure_dsn",
+    ])]
+    pub _type: Option<ShowCredentialsType>
+}
+
+impl FromStr for ShowCredentialsType {
+    type Err = anyhow::Error;
+    fn from_str(v: &str) -> anyhow::Result<ShowCredentialsType> {
+        use ShowCredentialsType::*;
+        match v {
+            "json" => Ok(JSON),
+            "insecure_dsn" => Ok(InsecureDSN),
+            _ => anyhow::bail!("unknown type {:?}", v),
+        }
+    }
+}
 
 impl FromStr for StartConf {
     type Err = anyhow::Error;

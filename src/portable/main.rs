@@ -7,6 +7,7 @@ use crate::portable::options::{ServerCommand, ServerInstanceCommand};
 
 use crate::portable::control;
 use crate::portable::create;
+use crate::portable::credentials;
 use crate::portable::destroy;
 use crate::portable::info;
 use crate::portable::install;
@@ -65,6 +66,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Unlink(c) => link::unlink(c),
         Status(c) if cfg!(windows) => windows::status(c),
         Status(c) => status::status(c),
+        Credentials(c) => credentials::show_credentials(&options, &c),
     }
 }
 
