@@ -515,7 +515,7 @@ pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
 pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     fs_err::write(service_file(&info.name)?, format!("wsl \
-        --distribution {} \
+        --distribution {} --user edgedb \
         /usr/bin/edgedb instance start {}",
         &wsl.distribution, &info.name))?;
     if info.start_conf == StartConf::Auto {
