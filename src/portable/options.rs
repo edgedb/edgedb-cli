@@ -518,7 +518,7 @@ pub enum ShowCredentialsType {
 #[derive(EdbClap, Clone, Debug)]
 pub struct ShowCredentials {
     #[clap(long, possible_values=&[
-    "json", "insecure_dsn",
+    "json", "insecure-dsn",
     ])]
     pub _type: Option<ShowCredentialsType>
 }
