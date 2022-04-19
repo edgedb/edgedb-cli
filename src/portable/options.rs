@@ -529,7 +529,7 @@ impl FromStr for ShowCredentialsType {
         use ShowCredentialsType::*;
         match v {
             "json" => Ok(JSON),
-            "insecure_dsn" => Ok(InsecureDSN),
+            "insecure-dsn" => Ok(InsecureDSN),
             _ => anyhow::bail!("unknown type {:?}", v),
         }
     }
