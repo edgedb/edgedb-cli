@@ -37,7 +37,6 @@ pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Resul
             print::echo!(url);
         }
         _ => {
-            creds.tls_ca = None;
             print::echo!(serde_json::to_string_pretty(&creds)?);
         }
     }
