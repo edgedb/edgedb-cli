@@ -194,6 +194,35 @@ jobs:
         name: builds-ubuntu-focal
         path: artifacts/ubuntu-focal
 
+  build-ubuntu-jammy:
+    runs-on: ubuntu-latest
+    needs: prep
+
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-cli/edgedb-pkg
+
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        BUILD_IS_RELEASE: "true"
+        PKG_REVISION: "<current-date>"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-ubuntu-jammy
+        path: artifacts/ubuntu-jammy
+
   build-centos-7:
     runs-on: ubuntu-latest
     needs: prep
@@ -531,6 +560,31 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+
+  publish-ubuntu-jammy:
+    needs: [build-ubuntu-jammy]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-ubuntu-jammy
+        path: artifacts/ubuntu-jammy
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-jammy
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 

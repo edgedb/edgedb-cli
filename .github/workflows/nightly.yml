@@ -137,6 +137,27 @@ jobs:
         name: builds-ubuntu-focal
         path: artifacts/ubuntu-focal
 
+  build-ubuntu-jammy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
+      env:
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v1
+      with:
+        name: builds-ubuntu-jammy
+        path: artifacts/ubuntu-jammy
+
   build-centos-7:
     runs-on: ubuntu-latest
 
@@ -459,6 +480,32 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+  publish-ubuntu-jammy:
+    needs: [build-ubuntu-jammy]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-ubuntu-jammy
+        path: artifacts/ubuntu-jammy
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-jammy
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "jammy"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+
   publish-centos-7:
     needs: [build-centos-7]
     runs-on: ubuntu-latest
@@ -649,3 +696,4 @@ jobs:
       shell: bash
       run: |
         edgedb-pkg/integration/win/publish.sh
+
