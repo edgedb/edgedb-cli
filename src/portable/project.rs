@@ -675,8 +675,10 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
 
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
-        // TODO(tailhook) do more checks and probably cleanup the dir
-        anyhow::bail!("Project is already initialized.");
+        anyhow::bail!("Project was already initialized \
+                       but then `edgedb.toml` was deleted. \
+                       Please run `edgedb project unlink -D` to \
+                       cleanup old database instance.");
     }
 
     if options.non_interactive {
