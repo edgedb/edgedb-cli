@@ -434,6 +434,12 @@ pub enum ValueParameter {
     /// * `AlwaysAllow`
     /// * `NeverAllow`
     AllowBareDdl(ConfigStr),
+
+    /// Apply access policies
+    ///
+    /// When set to `false` user-specified access policies are not applied, so
+    /// any queries may be executed.
+    ApplyAccessPolicies(ConfigStr),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -464,6 +470,8 @@ pub enum ConfigParameter {
     QueryExecutionTimeout,
     /// Reset allow_bare_ddl parameter to `AlwaysAllow`
     AllowBareDdl,
+    /// Reset apply_access_policies parameter to `true`
+    ApplyAccessPolicies,
 }
 
 #[derive(EdbClap, Clone, Debug)]

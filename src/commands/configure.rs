@@ -102,6 +102,9 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
         C::Set(Set { parameter: S::AllowBareDdl(param) }) => {
             set_string(cli, "allow_bare_ddl", param).await
         }
+        C::Set(Set { parameter: S::ApplyAccessPolicies(param) }) => {
+            set_string(cli, "apply_access_policies", param).await
+        }
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
             let name = match parameter {
@@ -118,6 +121,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                     => "session_idle_transaction_timeout",
                 C::QueryExecutionTimeout => "query_execution_timeout",
                 C::AllowBareDdl => "allow_bare_ddl",
+                C::ApplyAccessPolicies => "apply_access_policies",
             };
             print::completion(&cli.execute(
                 &format!("CONFIGURE SYSTEM RESET {}", name)
