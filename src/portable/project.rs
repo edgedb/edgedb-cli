@@ -192,7 +192,7 @@ pub struct Upgrade {
 pub struct Handle {
     name: String,
     instance: InstanceKind,
-    project_dir: Option<PathBuf>,
+    project_dir: PathBuf,
 }
 
 pub struct WslInfo {
@@ -315,15 +315,15 @@ fn link(options: &Init, project_dir: &Path, opts: &crate::options::Options)
     } else {
         ask_existing_instance_name()?
     };
-    let inst = Handle::probe(&name)?;
+    let inst = Handle::probe(&name, project_dir)?;
     inst.check_version(&ver_query);
-    do_link(&inst, options, project_dir, &stash_dir)
+    do_link(&inst, options, &stash_dir)
 }
 
-fn do_link(inst: &Handle, options: &Init, project_dir: &Path, stash_dir: &Path)
+fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     -> anyhow::Result<ProjectInfo>
 {
-    write_stash_dir(&stash_dir, &project_dir, &inst.name)?;
+    write_stash_dir(&stash_dir, &inst.project_dir, &inst.name)?;
 
     if !options.no_migrations {
         task::block_on(migrate(inst, !options.non_interactive))?;
@@ -475,9 +475,9 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             log::warn!("Linking to existing instance. \
                 `--server-start-conf` is ignored.");
         }
-        let inst = Handle::probe(&name)?;
+        let inst = Handle::probe(&name, project_dir)?;
         inst.check_version(&ver_query);
-        return do_link(&inst, options, project_dir, &stash_dir);
+        return do_link(&inst, options, &stash_dir);
     } else if options.cloud {
         StartConf::Auto
     } else {
@@ -508,9 +508,9 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         ))? {
             ask_link_cloud_instance(options, &name)?;
             task::block_on(crate::cloud::ops::link_existing_cloud_instance(&client, &name))?;
-            let inst = Handle::probe(&name)?;
+            let inst = Handle::probe(&name, project_dir)?;
             inst.check_version(&ver_query);
-            return do_link(&inst, options, project_dir, &stash_dir);
+            return do_link(&inst, options, &stash_dir);
         }
         table::settings(&[
             ("Project directory", &project_dir.display().to_string()),
@@ -601,7 +601,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
 
     let handle = Handle {
         name: name.into(),
-        project_dir: Some(project_dir.into()),
+        project_dir: project_dir.into(),
         instance,
     };
     match (svc_result, start_conf) {
@@ -659,7 +659,7 @@ fn do_cloud_init(
         let handle = Handle {
             name: name.clone(),
             instance: InstanceKind::Remote,
-            project_dir: Some(project_dir.into()),
+            project_dir: project_dir.into(),
         };
         task::block_on(migrate(&handle, false))?;
     }
@@ -705,13 +705,13 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             log::warn!("Linking to existing instance. \
                 `--server-start-conf` is ignored.");
         }
-        let inst = Handle::probe(&name)?;
+        let inst = Handle::probe(&name, project_dir)?;
         write_config(&config_path,
                      &Query::from_version(&inst.get_version()?.specific())?)?;
         if !schema_files {
             write_schema_default(&schema_dir)?;
         }
-        return do_link(&inst, options, project_dir, &stash_dir);
+        return do_link(&inst, options, &stash_dir);
     };
 
     echo!("Checking EdgeDB versions...");
@@ -738,13 +738,13 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
         ))? {
             ask_link_cloud_instance(options, &name)?;
             task::block_on(crate::cloud::ops::link_existing_cloud_instance(&client, &name))?;
-            let inst = Handle::probe(&name)?;
+            let inst = Handle::probe(&name, project_dir)?;
             write_config(&config_path,
                          &Query::from_version(&inst.get_version()?.specific())?)?;
             if !schema_files {
                 write_schema_default(&schema_dir)?;
             }
-            return do_link(&inst, options, project_dir, &stash_dir);
+            return do_link(&inst, options, &stash_dir);
         }
         let version = ask_cloud_version(options)?;
         table::settings(&[
@@ -930,11 +930,6 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
         };
     };
 
-    let schema_dir = match &inst.project_dir {
-        Some(project_dir) => project_dir.join("./dbschema"),
-        None => "./dbschema".into()
-    };
-
     migrations::migrate(
         &mut conn,
         &Options {
@@ -944,7 +939,7 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
         },
         &Migrate {
             cfg: MigrationConfig {
-                schema_dir,
+                schema_dir: inst.project_dir.join("./dbschema"),
             },
             quiet: false,
             to_revision: None,
@@ -981,18 +976,18 @@ impl InstanceKind {
 }
 
 impl Handle {
-    pub fn probe(name: &str) -> anyhow::Result<Handle> {
+    pub fn probe(name: &str, project_dir: &Path) -> anyhow::Result<Handle> {
         if let Some(info) = InstanceInfo::try_read(name)? {
             return Ok(Handle {
                 name: name.into(),
                 instance: InstanceKind::Portable(info),
-                project_dir: None
+                project_dir: project_dir.into()
             });
         };
         Ok(Handle {
             name: name.into(),
             instance: InstanceKind::Remote,
-            project_dir: None
+            project_dir: project_dir.into()
         })
     }
     pub async fn get_builder(&self) -> anyhow::Result<Builder> {
@@ -1427,7 +1422,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
               "to initialize an instance.");
     } else {
         let name = instance_name(&stash_dir)?;
-        let inst = Handle::probe(&name)?;
+        let inst = Handle::probe(&name, &root)?;
         let inst = match inst.instance {
             InstanceKind::Remote
                 => anyhow::bail!("remote instances cannot be upgraded"),
@@ -1525,7 +1520,7 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
     }
 
     let instance_name = instance_name(&stash_dir)?;
-    let inst = Handle::probe(&instance_name)?;
+    let inst = Handle::probe(&instance_name, &root)?;
     let inst = match inst.instance {
         InstanceKind::Remote
             => anyhow::bail!("remote instances cannot be upgraded"),
