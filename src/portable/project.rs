@@ -192,6 +192,7 @@ pub struct Upgrade {
 pub struct Handle {
     name: String,
     instance: InstanceKind,
+    project_dir: Option<PathBuf>,
 }
 
 pub struct WslInfo {
@@ -600,6 +601,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
 
     let handle = Handle {
         name: name.into(),
+        project_dir: Some(project_dir.into()),
         instance,
     };
     match (svc_result, start_conf) {
@@ -657,6 +659,7 @@ fn do_cloud_init(
         let handle = Handle {
             name: name.clone(),
             instance: InstanceKind::Remote,
+            project_dir: Some(project_dir.into()),
         };
         task::block_on(migrate(&handle, false))?;
     }
@@ -927,6 +930,11 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
         };
     };
 
+    let schema_dir = match &inst.project_dir {
+        Some(project_dir) => project_dir.join("./dbschema"),
+        None => "./dbschema".into()
+    };
+
     migrations::migrate(
         &mut conn,
         &Options {
@@ -936,7 +944,7 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
         },
         &Migrate {
             cfg: MigrationConfig {
-                schema_dir: "./dbschema".into(),
+                schema_dir,
             },
             quiet: false,
             to_revision: None,
@@ -978,11 +986,13 @@ impl Handle {
             return Ok(Handle {
                 name: name.into(),
                 instance: InstanceKind::Portable(info),
+                project_dir: None
             });
         };
         Ok(Handle {
             name: name.into(),
             instance: InstanceKind::Remote,
+            project_dir: None
         })
     }
     pub async fn get_builder(&self) -> anyhow::Result<Builder> {
