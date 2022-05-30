@@ -9,8 +9,9 @@ use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
 use edgedb_client::Builder;
-use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind};
 use edgedb_client::credentials::TlsSecurity;
+use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind};
+use edgedb_protocol::model;
 use fs_err as fs;
 
 use crate::cli::options::CliCommand;
@@ -170,7 +171,7 @@ pub struct ConnectionOptions {
     /// In case EdgeDB connection can't be established, retry up to
     /// WAIT_TIME (e.g. '30s').
     #[clap(long, name="WAIT_TIME", help_heading=Some(CONN_OPTIONS_GROUP),
-                parse(try_from_str=humantime::parse_duration))]
+                parse(try_from_str=parse_duration))]
     #[clap(hide=true)]
     pub wait_until_available: Option<Duration>,
 
@@ -182,7 +183,7 @@ pub struct ConnectionOptions {
     /// In case EdgeDB doesn't respond for a TIMEOUT, fail
     /// (or retry if `--wait-until-available` is also specified). Default '10s'.
     #[clap(long, name="TIMEOUT", help_heading=Some(CONN_OPTIONS_GROUP),
-           parse(try_from_str=humantime::parse_duration))]
+           parse(try_from_str=parse_duration))]
     #[clap(hide=true)]
     pub connect_timeout: Option<Duration>,
 }
@@ -327,6 +328,14 @@ pub struct Options {
     pub debug_print_codecs: bool,
     pub output_format: Option<OutputFormat>,
     pub no_cli_update_check: bool,
+}
+
+fn parse_duration(value: &str) -> anyhow::Result<Duration> {
+    let value = value.parse::<model::Duration>()?;
+    match value.is_negative() {
+        false => Ok(value.abs_duration()),
+        true => anyhow::bail!("negative durations are unsupported"),
+    }
 }
 
 fn say_option_is_deprecated(option_name: &str, suggestion: &str) {
