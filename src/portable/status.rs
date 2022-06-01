@@ -1,15 +1,20 @@
 use std::collections::BTreeSet;
-use std::io;
+use std::fmt::Display;
 use std::fs;
+use std::future::Future;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 use std::process::exit;
+use std::time::Duration;
 
 use anyhow::Context;
-use async_std::task;
-use async_std::net::TcpStream;
 use async_std::io::timeout;
+use async_std::net::TcpStream;
+use async_std::prelude::FutureExt;
+use async_std::stream;
+use async_std::task;
 use fn_error_context::context;
+use futures_util::StreamExt;
 use humantime::format_duration;
 
 use edgedb_client::{Builder, credentials::Credentials};
@@ -248,13 +253,10 @@ async fn try_get_version(creds: &Credentials) -> anyhow::Result<String> {
     Ok(builder.build()?.connect().await?.get_version().await?)
 }
 
-fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus) {
+async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus)
+{
     use async_std::future::timeout;
-
-    let result = task::block_on(
-        timeout(Duration::from_secs(2), try_get_version(creds))
-    );
-    match result {
+    match timeout(Duration::from_secs(2), try_get_version(creds)).await {
         Ok(Ok(ver)) => (Some(ver), ConnectionStatus::Connected),
         Ok(Err(e)) => {
             let inner = e.source().and_then(|e| e.downcast_ref::<io::Error>());
@@ -269,7 +271,9 @@ fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus) {
     }
 }
 
-fn _remote_status(name: &str, quiet: bool) -> anyhow::Result<RemoteStatus> {
+async fn _remote_status(name: &str, quiet: bool)
+    -> anyhow::Result<RemoteStatus>
+{
     let cred_path = credentials::path(&name)?;
     if !cred_path.exists() {
         if !quiet {
@@ -278,9 +282,9 @@ fn _remote_status(name: &str, quiet: bool) -> anyhow::Result<RemoteStatus> {
         }
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }
-    let file = io::BufReader::new(fs::File::open(cred_path)?);
-    let credentials = serde_json::from_reader(file)?;
-    let (version, connection) = try_connect(&credentials);
+    let cred_data = async_std::fs::read(cred_path).await?;
+    let credentials = serde_json::from_slice(&cred_data)?;
+    let (version, connection) = try_connect(&credentials).await;
     return Ok(RemoteStatus {
         name: name.into(),
         type_: if let Some(instance_id) = &credentials.cloud_instance_id {
@@ -294,8 +298,27 @@ fn _remote_status(name: &str, quiet: bool) -> anyhow::Result<RemoteStatus> {
     })
 }
 
+async fn intermediate_feedback<F, D>(future: F, text: impl FnOnce() -> D)
+    -> F::Output
+    where F: Future,
+          D: Display,
+{
+    future.race(async {
+        task::sleep(Duration::from_millis(300)).await;
+        if atty::is(atty::Stream::Stderr) {
+            eprintln!("{}", text());
+        }
+        async_std::future::pending().await
+    }).await
+}
+
 pub fn remote_status(options: &Status) -> anyhow::Result<()> {
-    let status = _remote_status(&options.name, options.quiet)?;
+    let status = task::block_on(
+        intermediate_feedback(
+            _remote_status(&options.name, options.quiet),
+            || "Trying to connect...",
+        )
+    )?;
     if options.service {
         println!("Remote instance");
     } else if options.debug {
@@ -342,20 +365,29 @@ pub fn list_local<'x>(dir: &'x Path)
 pub fn get_remote(visited: &BTreeSet<String>)
     -> anyhow::Result<Vec<RemoteStatus>>
 {
-    let mut result = Vec::new();
-    for name in credentials::all_instance_names()? {
-        if visited.contains(&name) {
-            continue;
-        }
-        match _remote_status(&name, false) {
-            Ok(status) => result.push(status),
-            Err(e) => {
-                log::warn!(
-                    "Cannot check remote instance {:?}: {:#}", name, e);
-                continue;
-            }
-        }
-    }
+    let instances: Vec<_> = credentials::all_instance_names()?
+        .into_iter()
+        .filter(|name| !visited.contains(name))
+        .collect();
+    let num = instances.len();
+    let mut result: Vec<_> = task::block_on(
+        intermediate_feedback(
+            stream::from_iter(instances)
+                .map(|name| async move {
+                    _remote_status(&name, false).await
+                    .map_err(|e| {
+                        log::warn!(
+                            "Cannot check remote instance {:?}: {:#}",
+                            name,
+                            e);
+                    }).ok()
+                })
+                .buffer_unordered(100)
+                .flat_map(|x| stream::from_iter(x))
+                .collect(),
+            || format!("Checking {} remote instances...", num),
+        )
+    );
     result.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(result)
 }
