@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
@@ -52,6 +53,9 @@ static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
 
 pub struct Native {
     command: Command,
+    program: OsString,
+    args: Vec<OsString>,
+    envs: HashMap<OsString, Option<OsString>>,
     stop_process: Option<Box<dyn Fn() -> Command>>,
     marker: Cow<'static, str>,
     description: Cow<'static, str>,
@@ -150,27 +154,30 @@ impl Native {
         cmd: impl AsRef<Path>)
         -> Native
     {
-        let mut command = Command::new(cmd.as_ref());
-        #[cfg(unix)] {
-            if *HAS_UTF8_LOCALE {
-                command.env("LANG", "C.UTF-8");
-                command.env("LC_ALL", "C.UTF-8");
-            } else {
-                command.env("LANG", "C");
-                command.env("LC_ALL", "C");
-            }
-        }
-        if cfg!(target_os="macos") {
-            command.env("LC_CTYPE", "UTF-8");
-        }
-        Native {
+        let mut me = Native {
             description: description.into(),
             marker: marker.into(),
-            command,
+            command: Command::new(cmd.as_ref()),
+            program: cmd.as_ref().as_os_str().to_os_string(),
+            args: vec![cmd.as_ref().as_os_str().to_os_string()],
+            envs: HashMap::new(),
             proxy: clicolors_control::colors_enabled(),
             stop_process: None,
             pid_file: None,
+        };
+        #[cfg(unix)] {
+            if *HAS_UTF8_LOCALE {
+                me.env("LANG", "C.UTF-8");
+                me.env("LC_ALL", "C.UTF-8");
+            } else {
+                me.env("LANG", "C");
+                me.env("LC_ALL", "C");
+            }
         }
+        if cfg!(target_os="macos") {
+            me.env("LC_CTYPE", "UTF-8");
+        }
+        return me;
     }
     pub fn no_proxy(&mut self) -> &mut Self {
         self.proxy = false;
@@ -199,7 +206,8 @@ impl Native {
     }
 
     pub fn arg(&mut self, val: impl AsRef<OsStr>) -> &mut Self {
-        self.command.arg(val);
+        self.command.arg(val.as_ref());
+        self.args.push(val.as_ref().to_os_string());
         self
     }
 
@@ -208,10 +216,13 @@ impl Native {
         self
     }
 
-    #[allow(dead_code)]
     pub fn env(&mut self, key: impl AsRef<OsStr>, val: impl AsRef<OsStr>)
         -> &mut Self
     {
+        self.envs.insert(
+            key.as_ref().to_os_string(),
+            Some(val.as_ref().to_os_string()),
+        );
         self.command.env(key, val);
         self
     }
@@ -221,7 +232,7 @@ impl Native {
         -> &mut Self
     {
         if env::var_os(name.as_ref()).is_none() {
-            self.command.env(name.into(), default.into());
+            self.env(name.into(), default.into());
         } // otherwise it's normally propagated
         self
     }
@@ -623,6 +634,54 @@ impl Native {
     {
         self.stop_process = Some(Box::new(f));
         self
+    }
+    /// Replace current process with this one instead off spawning
+    #[cfg(unix)]
+    pub fn exec_replacing_self(&self)
+        -> anyhow::Result<std::convert::Infallible>
+    {
+        use nix::unistd::execve;
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+        log::debug!("Replacing CLI with {:?}", self.command);
+
+        fn env_pair(key: &OsStr, val: &OsStr)
+            -> anyhow::Result<CString>
+        {
+            let mut cstr = Vec::with_capacity(key.len() + val.len() + 2);
+            cstr.extend(key.as_bytes());
+            cstr.push(b'=');
+            cstr.extend(val.as_bytes());
+            return Ok(CString::new(cstr)?);
+        }
+
+        let mut env = Vec::new();
+        for (key, val) in &self.envs {
+            if let Some(val) = val {
+                env.push(env_pair(key, val)?);
+            }
+        }
+        for (key, val) in env::vars_os() {
+            if !self.envs.contains_key(&key) {
+                env.push(env_pair(&key, &val)?);
+            }
+        }
+
+        execve(
+            &CString::new(self.program.as_bytes())?,
+            &self.args.iter()
+                .map(|arg| CString::new(arg.as_bytes()))
+                .collect::<Result<Vec<_>, _>>()?,
+            &env,
+        )?;
+        unreachable!();
+    }
+    /// Replace current process with this one instead off spawning
+    #[cfg(not(unix))]
+    pub fn exec_replacing_self(&self)
+        -> anyhow::Result<std::convert::Infallible>
+    {
+        unimplemented!();
     }
 }
 

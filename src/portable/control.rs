@@ -1,6 +1,5 @@
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::env;
 use std::fs;
 
 use anyhow::Context;
@@ -192,6 +191,22 @@ fn run_server_by_cli(_meta: &InstanceInfo) -> anyhow::Result<()> {
     anyhow::bail!("daemonizing is not yet supported for Windows");
 }
 
+#[cfg(unix)]
+fn set_inheritable(file: &impl std::os::unix::io::AsRawFd)
+    -> anyhow::Result<()>
+{
+    use nix::fcntl::{fcntl, FcntlArg, FdFlag};
+
+    let flags = fcntl(file.as_raw_fd(), FcntlArg::F_GETFD)
+        .context("get FD flags")?;
+    let flags = FdFlag::from_bits(flags).context("bad FD flags")?;
+    fcntl(
+        file.as_raw_fd(),
+        FcntlArg::F_SETFD(flags & !FdFlag::FD_CLOEXEC),
+    ).context("set FD flags")?;
+    Ok(())
+}
+
 pub fn start(options: &Start) -> anyhow::Result<()> {
     let meta = InstanceInfo::read(&options.name)?;
     ensure_runstate_dir(&meta.name)?;
@@ -232,22 +247,29 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             debug_assert!(!needs_restart);
             run_server_by_cli(&meta)
         } else {
-
-            #[allow(unused_mut)]
-            let mut res;
-            if matches!(options.managed_by.as_deref(), Some("systemd")) &&
-               env::var_os("NOTIFY_SOCKET").is_some() &&
-               cfg!(target_os="linux")
+            #[cfg(unix)]
+            if matches!(options.managed_by.as_deref(),
+                        Some("systemd"|"launchctl"))
             {
-                res = linux::run_and_proxy_notify_socket(&meta);
-            } else {
-                let pid_path = pid_file_path(&meta.name)?;
-                res = get_server_cmd(&meta)?
+                use std::os::unix::io::AsRawFd;
+
+                set_inheritable(&*lock).context("set inheritable for lock")?;
+                get_server_cmd(&meta)?
                     .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
-                    .pid_file(&pid_path)
-                    .no_proxy()
-                    .run();
+                    .env("EDGEDB_SERVER_EXTERNAL_LOCK_FD",
+                         lock.as_raw_fd().to_string())
+                    .exec_replacing_self()?;
+                drop(lock);
+                unreachable!();
             }
+
+            let pid_path = pid_file_path(&meta.name)?;
+            #[allow(unused_mut)]
+            let mut res = get_server_cmd(&meta)?
+                .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
+                .pid_file(&pid_path)
+                .no_proxy()
+                .run();
 
             drop(lock);
 
