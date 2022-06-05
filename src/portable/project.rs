@@ -243,7 +243,6 @@ pub struct Status {
     pub quiet: bool,
 }
 
-
 #[derive(EdbClap, Debug, Clone)]
 pub struct Start {
     /// Specifies a project root directory explicitly
