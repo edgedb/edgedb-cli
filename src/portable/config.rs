@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use fn_error_context::context;
 
@@ -24,6 +24,8 @@ pub struct SrcConfig {
 pub struct SrcEdgedb {
     #[serde(default)]
     pub server_version: Option<toml::Spanned<Query>>,
+    #[serde(default)]
+    pub schema_directory: Option<toml::Spanned<String>>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }
@@ -36,6 +38,7 @@ pub struct Config {
 #[derive(Debug)]
 pub struct Edgedb {
     pub server_version: Query,
+    pub schema_directory: PathBuf
 }
 
 fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
@@ -45,11 +48,12 @@ fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
     }
 }
 
-pub fn format_config(version: &Query) -> String {
+pub fn format_config(version: &Query, schema_dir: &Path) -> String {
     return format!("\
         [edgedb]\n\
         server-version = {:?}\n\
-    ", version.as_config_value())
+        schema-directory = {:?}\n\
+    ", version.as_config_value(), schema_dir)
 }
 
 
@@ -68,11 +72,15 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
                     channel: Channel::Stable,
                     version: None,
                 }),
+            schema_directory: val.edgedb.schema_directory
+                .map(|x| x.into_inner())
+                .unwrap_or("dbschema".into())
+                .into()
         }
     })
 }
 
-fn toml_set_version(data: &str, version: &Query)
+fn toml_modify_config(data: &str, version: &Query, schema_dir: &Path)
     -> anyhow::Result<Option<String>>
 {
     use std::fmt::Write;
@@ -80,21 +88,32 @@ fn toml_set_version(data: &str, version: &Query)
     let mut toml = toml::de::Deserializer::new(&data);
     let parsed: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
     if let Some(ver_position) = &parsed.edgedb.server_version {
-        if ver_position.get_ref() == version {
-            return Ok(None);
+        if let Some(schema_dir_position) = &parsed.edgedb.schema_directory {
+            if ver_position.get_ref() == version {
+                return Ok(None);
+            }
+
+            let schema_dir_length = schema_dir.display().to_string().len();
+            let mut out = String::with_capacity(data.len() + 5 + schema_dir_length);
+            write!(&mut out, "{}{:?}{}{:?}{}",
+                &data[..ver_position.start()],
+                version.as_config_value(),
+                &data[ver_position.end()..schema_dir_position.start()],
+                schema_dir,
+                &data[schema_dir_position.end()..],
+            ).unwrap();
+
+            return Ok(Some(out));
+        } else {
+            print::error("No schema-directory found in `edgedb.toml`.");
         }
-        let mut out = String::with_capacity(data.len() + 5);
-        write!(&mut out, "{}{:?}{}",
-            &data[..ver_position.start()],
-            version.as_config_value(),
-            &data[ver_position.end()..],
-        ).unwrap();
-        return Ok(Some(out));
+    } else {
+        print::error("No server-version found in `edgedb.toml`.");
     }
-    print::error("No server-version found in `edgedb.toml`.");
+
     eprintln!("Please ensure that `edgedb.toml` contains:");
     println!("  {}",
-        format_config(version)
+        format_config(version, schema_dir)
         .lines()
         .collect::<Vec<_>>()
         .join("\n  "));
@@ -102,12 +121,14 @@ fn toml_set_version(data: &str, version: &Query)
 }
 
 #[context("cannot modify `{}`", config.display())]
-pub fn modify(config: &Path, ver: &Query) -> anyhow::Result<bool> {
+pub fn modify(config: &Path, ver: &Query, schema_dir: &Path) -> anyhow::Result<bool> {
     let input = fs::read_to_string(&config)?;
-    if let Some(output) = toml_set_version(&input, ver)? {
+    if let Some(output) = toml_modify_config(&input, ver, schema_dir)? {
         echo!("Setting `server-version = ",
                format_args!("{:?}", ver.as_config_value()).emphasize(),
-               "` in `edgedb.toml`");
+               "and `schema-direcorty = ",
+               format_args!("{:?}", schema_dir).emphasize(),
+               " in `edgedb.toml`");
         let tmp = tmp_file_path(config);
         fs::remove_file(&tmp).ok();
         fs::write(&tmp, output)?;
@@ -120,82 +141,107 @@ pub fn modify(config: &Path, ver: &Query) -> anyhow::Result<bool> {
 
 #[cfg(test)]
 mod test {
+    use std::path::Path;
     use test_case::test_case;
-    use super::toml_set_version;
+    use super::toml_modify_config;
 
     const TOML_BETA1: &str = "\
         [edgedb]\n\
         server-version = \"1.0-beta.1\"\n\
+        schema-directory = \"dbschema\"\n\
     ";
     const TOML_BETA2: &str = "\
         [edgedb]\n\
         server-version = \"1.0-beta.2\"\n\
+        schema-directory = \"dbschema\"\n\
     ";
     const TOML_NIGHTLY: &str = "\
         [edgedb]\n\
         server-version = \"nightly\"\n\
+        schema-directory = \"dbschema\"\n\
+    ";
+    const TOML_NIGHTLY_CUSTOM_SCHEMA_DIR: &str = "\
+        [edgedb]\n\
+        server-version = \"nightly\"\n\
+        schema-directory = \"custom-dir\"\n\
     ";
 
     const TOML2_BETA1: &str = "\
         [edgedb]\n\
         # some comment\n\
         server-version = \"1.0-beta.1\" #and here\n\
+        schema-directory = \"dbschema\"\n\
         other-setting = true\n\
     ";
     const TOML2_BETA2: &str = "\
         [edgedb]\n\
         # some comment\n\
         server-version = \"1.0-beta.2\" #and here\n\
+        schema-directory = \"dbschema\"\n\
         other-setting = true\n\
     ";
     const TOML2_NIGHTLY: &str = "\
         [edgedb]\n\
         # some comment\n\
         server-version = \"nightly\" #and here\n\
+        schema-directory = \"dbschema\"\n\
+        other-setting = true\n\
+    ";
+    const TOML2_NIGHTLY_CUSTOM_SCHEMA_DIR: &str = "\
+        [edgedb]\n\
+        # some comment\n\
+        server-version = \"nightly\" #and here\n\
+        schema-directory = \"custom-dir\"\n\
         other-setting = true\n\
     ";
 
     const TOMLI_BETA1: &str = "\
-        edgedb = {server-version = \"1.0-beta.1\"}\n\
+        edgedb = {server-version = \"1.0-beta.1\", schema-directory = \"dbschema\"}\n\
     ";
     const TOMLI_BETA2: &str = "\
-        edgedb = {server-version = \"1.0-beta.2\"}\n\
+        edgedb = {server-version = \"1.0-beta.2\", schema-directory = \"dbschema\"}\n\
     ";
     const TOMLI_NIGHTLY: &str = "\
-        edgedb = {server-version = \"nightly\"}\n\
+        edgedb = {server-version = \"nightly\", schema-directory = \"dbschema\"}\n\
+    ";
+    const TOMLI_NIGHTLY_CUSTOM_SCHEMA_DIR: &str = "\
+        edgedb = {server-version = \"nightly\", schema-directory = \"custom-dir\"}\n\
     ";
 
-    #[test_case(TOML_BETA1, "1.0-beta.2" => Some(TOML_BETA2.into()))]
-    #[test_case(TOML_BETA2, "1.0-beta.2" => None)]
-    #[test_case(TOML_NIGHTLY, "1.0-beta.2" => Some(TOML_BETA2.into()))]
-    #[test_case(TOML_BETA1, "1.0-beta.1" => None)]
-    #[test_case(TOML_BETA2, "1.0-beta.1" => Some(TOML_BETA1.into()))]
-    #[test_case(TOML_NIGHTLY, "1.0-beta.1" => Some(TOML_BETA1.into()))]
-    #[test_case(TOML_BETA1, "nightly" => Some(TOML_NIGHTLY.into()))]
-    #[test_case(TOML_BETA2, "nightly" => Some(TOML_NIGHTLY.into()))]
-    #[test_case(TOML_NIGHTLY, "nightly" => None)]
+    #[test_case(TOML_BETA1, "1.0-beta.2", "dbschema" => Some(TOML_BETA2.into()))]
+    #[test_case(TOML_BETA2, "1.0-beta.2", "dbschema" => None)]
+    #[test_case(TOML_NIGHTLY, "1.0-beta.2", "dbschema" => Some(TOML_BETA2.into()))]
+    #[test_case(TOML_BETA1, "1.0-beta.1", "dbschema" => None)]
+    #[test_case(TOML_BETA2, "1.0-beta.1", "dbschema" => Some(TOML_BETA1.into()))]
+    #[test_case(TOML_NIGHTLY, "1.0-beta.1", "dbschema" => Some(TOML_BETA1.into()))]
+    #[test_case(TOML_BETA1, "nightly", "dbschema" => Some(TOML_NIGHTLY.into()))]
+    #[test_case(TOML_BETA2, "nightly", "dbschema" => Some(TOML_NIGHTLY.into()))]
+    #[test_case(TOML_BETA2, "nightly", "custom-dir" => Some(TOML_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
+    #[test_case(TOML_NIGHTLY, "nightly", "dbschema" => None)]
 
-    #[test_case(TOML2_BETA1, "1.0-beta.2" => Some(TOML2_BETA2.into()))]
-    #[test_case(TOML2_BETA2, "1.0-beta.2" => None)]
-    #[test_case(TOML2_NIGHTLY, "1.0-beta.2" => Some(TOML2_BETA2.into()))]
-    #[test_case(TOML2_BETA1, "1.0-beta.1" => None)]
-    #[test_case(TOML2_BETA2, "1.0-beta.1" => Some(TOML2_BETA1.into()))]
-    #[test_case(TOML2_NIGHTLY, "1.0-beta.1" => Some(TOML2_BETA1.into()))]
-    #[test_case(TOML2_BETA1, "nightly" => Some(TOML2_NIGHTLY.into()))]
-    #[test_case(TOML2_BETA2, "nightly" => Some(TOML2_NIGHTLY.into()))]
-    #[test_case(TOML2_NIGHTLY, "nightly" => None)]
+    #[test_case(TOML2_BETA1, "1.0-beta.2", "dbschema" => Some(TOML2_BETA2.into()))]
+    #[test_case(TOML2_BETA2, "1.0-beta.2", "dbschema" => None)]
+    #[test_case(TOML2_NIGHTLY, "1.0-beta.2", "dbschema" => Some(TOML2_BETA2.into()))]
+    #[test_case(TOML2_BETA1, "1.0-beta.1", "dbschema" => None)]
+    #[test_case(TOML2_BETA2, "1.0-beta.1", "dbschema" => Some(TOML2_BETA1.into()))]
+    #[test_case(TOML2_NIGHTLY, "1.0-beta.1", "dbschema" => Some(TOML2_BETA1.into()))]
+    #[test_case(TOML2_BETA1, "nightly", "dbschema" => Some(TOML2_NIGHTLY.into()))]
+    #[test_case(TOML2_BETA2, "nightly", "dbschema" => Some(TOML2_NIGHTLY.into()))]
+    #[test_case(TOML2_BETA2, "nightly", "custom-dir" => Some(TOML2_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
+    #[test_case(TOML2_NIGHTLY, "nightly", "dbschema" => None)]
 
-    #[test_case(TOMLI_BETA1, "1.0-beta.2" => Some(TOMLI_BETA2.into()))]
-    #[test_case(TOMLI_BETA2, "1.0-beta.2" => None)]
-    #[test_case(TOMLI_NIGHTLY, "1.0-beta.2" => Some(TOMLI_BETA2.into()))]
-    #[test_case(TOMLI_BETA1, "1.0-beta.1" => None)]
-    #[test_case(TOMLI_BETA2, "1.0-beta.1" => Some(TOMLI_BETA1.into()))]
-    #[test_case(TOMLI_NIGHTLY, "1.0-beta.1" => Some(TOMLI_BETA1.into()))]
-    #[test_case(TOMLI_BETA1, "nightly" => Some(TOMLI_NIGHTLY.into()))]
-    #[test_case(TOMLI_BETA2, "nightly" => Some(TOMLI_NIGHTLY.into()))]
-    #[test_case(TOMLI_NIGHTLY, "nightly" => None)]
-    fn set(src: &str, ver: &str) -> Option<String> {
-        toml_set_version(src, &ver.parse().unwrap()).unwrap()
+    #[test_case(TOMLI_BETA1, "1.0-beta.2", "dbschema" => Some(TOMLI_BETA2.into()))]
+    #[test_case(TOMLI_BETA2, "1.0-beta.2", "dbschema" => None)]
+    #[test_case(TOMLI_NIGHTLY, "1.0-beta.2", "dbschema" => Some(TOMLI_BETA2.into()))]
+    #[test_case(TOMLI_BETA1, "1.0-beta.1", "dbschema" => None)]
+    #[test_case(TOMLI_BETA2, "1.0-beta.1", "dbschema" => Some(TOMLI_BETA1.into()))]
+    #[test_case(TOMLI_NIGHTLY, "1.0-beta.1", "dbschema" => Some(TOMLI_BETA1.into()))]
+    #[test_case(TOMLI_BETA1, "nightly", "dbschema" => Some(TOMLI_NIGHTLY.into()))]
+    #[test_case(TOMLI_BETA2, "nightly", "dbschema" => Some(TOMLI_NIGHTLY.into()))]
+    #[test_case(TOMLI_BETA2, "nightly", "custom-dir" => Some(TOMLI_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
+    #[test_case(TOMLI_NIGHTLY, "nightly", "dbschema" => None)]
+    fn modify(src: &str, ver: &str, schema_dir: &str) -> Option<String> {
+        toml_modify_config(src, &ver.parse().unwrap(), Path::new(schema_dir)).unwrap()
     }
 
 }
