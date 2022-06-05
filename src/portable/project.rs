@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use async_std::task;
-use clap::{ArgSettings, ValueHint};
+use clap::ValueHint;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use sha1::Digest;
@@ -34,6 +34,8 @@ use crate::portable::local::{InstanceInfo, Paths, allocate_port, is_valid_name};
 use crate::portable::options::{self, instance_name_opt, StartConf};
 use crate::portable::platform::{optional_docker_check};
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
+use crate::portable::reset_password;
+use crate::portable::status;
 use crate::portable::upgrade;
 use crate::portable::ver;
 use crate::portable::windows;
@@ -90,7 +92,7 @@ pub enum Command {
     /// mechanism. This might fail if lower version is specified (for example
     /// if upgrading from nightly to the stable version).
     Upgrade(Upgrade),
-    /// Manipulate EdgeDB instance linked to the current project.
+    /// Manipulate EdgeDB instance linked to the current project
     Instance(Instance),
 }
 
@@ -199,37 +201,131 @@ pub struct Instance {
 
 #[derive(EdbClap, Debug, Clone)]
 pub enum InstanceCommand {
-    /// Start EdgeDB instance linked to the current project.
+    /// Show status of a project instance
+    Status(Status),
+    /// Start a project instance
     Start(Start),
+    /// Stop a project instance
+    Stop(Stop),
+    /// Restart a project instance
+    Restart(Restart),
+    /// Show logs of a project instance
+    Logs(Logs),
+    /// Reset password for a user in the project instance
+    ResetPassword(ResetPassword),
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Status {
+    /// Specifies a project root directory explicitly
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    /// Show current systems service info
+    #[clap(long, conflicts_with_all=&["debug", "json", "extended"])]
+    pub service: bool,
+
+    /// Output more debug info about each instance
+    #[clap(long, conflicts_with_all=&["debug", "json", "service"])]
+    pub extended: bool,
+
+    /// Output all available debug info about each instance
+    #[clap(long, hide=true)]
+    #[clap(conflicts_with_all=&["extended", "json", "service"])]
+    pub debug: bool,
+
+    /// Output in JSON format
+    #[clap(long, conflicts_with_all=&["extended", "debug", "service"])]
+    pub json: bool,
+
+    /// Do not print any messages, only indicate success by exit status
+    #[clap(long, hide=true)]
+    pub quiet: bool,
 }
 
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Start {
-    /// Specifies a project root directory explicitly.
+    /// Specifies a project root directory explicitly
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
     #[clap(long)]
     #[cfg_attr(target_os="linux",
-        clap(about="Start the server in the foreground rather than using \
+        clap(help="Start the server in the foreground rather than using \
                     systemd to manage the process (note: you might need to \
                     stop non-foreground instance first)"))]
     #[cfg_attr(target_os="macos",
-        clap(about="Start the server in the foreground rather than using \
+        clap(help="Start the server in the foreground rather than using \
                     launchctl to manage the process (note: you might need to \
                     stop non-foreground instance first)"))]
     pub foreground: bool,
 
     /// With `--foreground` stops server running in background. And restarts
-    /// the service back on exit.
+    /// the service back on exit
     #[clap(long, conflicts_with="managed_by")]
     pub auto_restart: bool,
 
-    #[clap(long, setting=ArgSettings::Hidden)]
+    #[clap(long, hide=true)]
     #[clap(possible_values=&["systemd", "launchctl", "edgedb-cli"][..])]
     #[clap(conflicts_with="auto_restart")]
     pub managed_by: Option<String>,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Stop {
+    /// Specifies a project root directory explicitly
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Restart {
+    /// Specifies a project root directory explicitly
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Logs {
+    /// Specifies a project root directory explicitly
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+
+    /// Number of lines to show
+    #[clap(short='n', long)]
+    pub tail: Option<usize>,
+
+    /// Show log's tail and the continue watching for the new entries
+    #[clap(short='f', long)]
+    pub follow: bool,
+}
+
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct ResetPassword {
+    /// Specifies a project root directory explicitly
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub project_dir: Option<PathBuf>,
+    /// User to change password for. Default is got from credentials file
+    #[clap(long)]
+    pub user: Option<String>,
+    /// Read a password from the terminal rather than generating new one
+    #[clap(long)]
+    pub password: bool,
+    /// Read a password from stdin rather than generating new one
+    #[clap(long)]
+    pub password_from_stdin: bool,
+    /// Save new user and password into a credentials file. By default
+    /// credentials file is updated only if user name matches
+    #[clap(long)]
+    pub save_credentials: bool,
+    /// Do not save generated password into a credentials file even if user name matches
+    #[clap(long)]
+    pub no_save_credentials: bool,
+    /// Do not print any messages, only indicate success by exit status
+    #[clap(long)]
+    pub quiet: bool,
 }
 
 pub struct Handle {
@@ -1091,8 +1187,7 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>,
     print::success("Project initialized.");
     if start_conf == StartConf::Manual {
         echo!("To start the server run:");
-        echo!("  edgedb instance start".command_hint(),
-              name.escape_default().command_hint());
+        echo!("  edgedb project instance start".command_hint());
     } else {
         if let Some(dir) = dir_option {
             echo!("To connect to", name.emphasize();
@@ -1615,7 +1710,40 @@ pub fn instance(cmd: &Instance) -> anyhow::Result<()> {
     use InstanceCommand::*;
 
     match &cmd.subcommand {
+        Status(c) => show_instance_status(c),
         Start(c) => start_instance(c),
+        Stop(c) => stop_instance(c),
+        Restart(c) => restart_instance(c),
+        Logs(c) => show_instance_logs(c),
+        ResetPassword(c) => reset_instance_password(c),
+    }
+}
+
+fn show_instance_status(options: &Status) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let stash_dir = stash_path(&root)?;
+    if !stash_dir.exists() {
+        echo!(print::err_marker(),
+            "Project is not initialized.".emphasize(),
+            "Run", "edgedb project init".command_hint(),
+            "to initialize an instance.");
+        return Err(ExitCode::new(1).into());
+    }
+    let instance_name = instance_name(&stash_dir)?;
+
+    let status_options = options::Status {
+        name: instance_name,
+        service: options.service,
+        extended: options.extended,
+        debug: options.debug,
+        json: options.json,
+        quiet: options.quiet,
+    };
+
+    if cfg!(windows) {
+        windows::status(&status_options)
+    } else {
+        status::status(&status_options)
     }
 }
 
@@ -1642,5 +1770,106 @@ fn start_instance(options: &Start) -> anyhow::Result<()> {
         windows::start(&start_options)
     } else {
         control::start(&start_options)
+    }
+}
+
+fn stop_instance(options: &Stop) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let stash_dir = stash_path(&root)?;
+    if !stash_dir.exists() {
+        echo!(print::err_marker(),
+            "Project is not initialized.".emphasize(),
+            "Run", "edgedb project init".command_hint(),
+            "to initialize an instance.");
+        return Err(ExitCode::new(1).into());
+    }
+    let instance_name = instance_name(&stash_dir)?;
+
+    let stop_options = options::Stop {
+        name: instance_name,
+    };
+
+    if cfg!(windows) {
+        windows::stop(&stop_options)
+    } else {
+        control::stop(&stop_options)
+    }
+}
+
+fn restart_instance(options: &Restart) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let stash_dir = stash_path(&root)?;
+    if !stash_dir.exists() {
+        echo!(print::err_marker(),
+            "Project is not initialized.".emphasize(),
+            "Run", "edgedb project init".command_hint(),
+            "to initialize an instance.");
+        return Err(ExitCode::new(1).into());
+    }
+    let instance_name = instance_name(&stash_dir)?;
+
+    let restart_options = options::Restart {
+        name: instance_name,
+    };
+
+    if cfg!(windows) {
+        windows::restart(&restart_options)
+    } else {
+        control::restart(&restart_options)
+    }
+}
+
+fn show_instance_logs(options: &Logs) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let stash_dir = stash_path(&root)?;
+    if !stash_dir.exists() {
+        echo!(print::err_marker(),
+            "Project is not initialized.".emphasize(),
+            "Run", "edgedb project init".command_hint(),
+            "to initialize an instance.");
+        return Err(ExitCode::new(1).into());
+    }
+    let instance_name = instance_name(&stash_dir)?;
+
+    let logs_options = options::Logs {
+        name: instance_name,
+        tail: options.tail,
+        follow: options.follow,
+    };
+
+    if cfg!(windows) {
+        windows::logs(&logs_options)
+    } else {
+        control::logs(&logs_options)
+    }
+}
+
+
+fn reset_instance_password(options: &ResetPassword) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let stash_dir = stash_path(&root)?;
+    if !stash_dir.exists() {
+        echo!(print::err_marker(),
+            "Project is not initialized.".emphasize(),
+            "Run", "edgedb project init".command_hint(),
+            "to initialize an instance.");
+        return Err(ExitCode::new(1).into());
+    }
+    let instance_name = instance_name(&stash_dir)?;
+
+    let reset_password_options = options::ResetPassword {
+        name: instance_name,
+        user: options.user.clone(),
+        password: options.password,
+        password_from_stdin: options.password_from_stdin,
+        save_credentials: options.save_credentials,
+        no_save_credentials: options.no_save_credentials,
+        quiet: options.quiet,
+    };
+
+    if cfg!(windows) {
+        windows::reset_password(&reset_password_options)
+    } else {
+        reset_password::reset_password(&reset_password_options)
     }
 }
