@@ -301,7 +301,6 @@ pub struct Logs {
     pub follow: bool,
 }
 
-
 #[derive(EdbClap, Debug, Clone)]
 pub struct ResetPassword {
     /// Specifies a project root directory explicitly

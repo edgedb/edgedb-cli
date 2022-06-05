@@ -98,6 +98,57 @@ fn project_link_and_init() {
         .context("query-3", "query after upgrade")
         .success();
 
+    Command::new("edgedb").arg("project").arg("instance").arg("logs")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-instance-logs", "project instance logs")
+        .success();
+
+    Command::new("edgedb").arg("project").arg("instance").arg("restart")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-instance-restart", "project instance restart")
+        .success();
+
+    Command::new("edgedb")
+        .arg("query").arg("SELECT 1")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("query-4", "query after restart")
+        .success();
+
+    Command::new("edgedb").arg("project").arg("instance").arg("stop")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-instance-stop", "project instance stop")
+        .success();
+
+    Command::new("edgedb").arg("project").arg("instance").arg("start")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-instance-start", "project instance start")
+        .success();
+
+    Command::new("edgedb")
+        .arg("query").arg("SELECT 1")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("query-5", "query after manual stop/start")
+        .success();
+
+    Command::new("edgedb").arg("project").arg("instance").arg("reset-password")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("project-instance-reset-password", "project instance reset password")
+        .success();
+
+    Command::new("edgedb")
+        .arg("query").arg("SELECT 1")
+        .current_dir("tests/proj/project2")
+        .assert()
+        .context("query-6", "query after password reset")
+        .success();
+
     Command::new("edgedb")
         .arg("instance").arg("destroy").arg("project2")
         .arg("--non-interactive")
@@ -140,7 +191,6 @@ fn project_link_and_init() {
         .stdout(predicates::str::contains("inst1"))
         .stdout(predicates::str::contains("project2").not());
 
-
     Command::new("edgedb")
         .arg("project").arg("unlink").arg("-D").arg("--non-interactive")
         .current_dir("tests/proj/project1")
@@ -170,10 +220,11 @@ fn project_link_and_init() {
         .context("project-upgrade-manual", "upgrade manual project")
         .success();
 
-    Command::new("edgedb").arg("instance").arg("status").arg("project2")
+    Command::new("edgedb").arg("project").arg("instance").arg("status")
         .arg("--extended")
+        .current_dir("tests/proj/project2")
         .assert()
-        .context("instance-status", "show extended status")
+        .context("project-instance-status", "show extended status")
         .code(3);
 
     Command::new("edgedb").arg("instance").arg("revert").arg("project2")
