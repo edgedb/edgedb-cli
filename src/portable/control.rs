@@ -112,7 +112,7 @@ pub fn detect_supervisor(name: &str) -> bool {
     if cfg!(windows) {
         false
     } else if cfg!(target_os="macos") {
-        macos::detect_gui_session()
+        macos::detect_launchd()
     } else if cfg!(target_os="linux") {
         linux::detect_systemd(name)
     } else {

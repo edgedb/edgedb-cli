@@ -28,7 +28,7 @@ fn plist_path(name: &str) -> anyhow::Result<PathBuf> {
 }
 
 fn get_domain_target() -> String {
-    format!("gui/{}", get_current_uid())
+    format!("user/{}", get_current_uid())
 }
 
 fn launchd_name(name: &str) -> String {
@@ -62,6 +62,9 @@ fn plist_data(name: &str, _info: &InstanceInfo) -> anyhow::Result<String> {
 <dict>
     <key>Label</key>
     <string>edgedb-server-{instance_name}</string>
+
+    <key>LimitLoadToSessionType</key>
+    <string>Background</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -237,25 +240,25 @@ pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     Ok(pro)
 }
 
-pub fn detect_gui_session() -> bool {
+pub fn detect_launchd() -> bool {
     let path = if let Ok(path) = which::which("launchctl") {
         path
     } else {
         return false;
     };
-    let out = process::Native::new("detect gui session", "launchctl", &path)
+    let out = process::Native::new("detect launchd", "launchctl", &path)
         .arg("print-disabled")  // Faster than bare print
         .arg(get_domain_target())
         .get_output();
     match out {
         Ok(out) if out.status.success() => return true,
         Ok(out) => {
-            log::info!("detecting gui session: {:?}",
+            log::info!("detecting launchd session: {:?}",
                        String::from_utf8_lossy(&out.stderr));
             return false;
         }
         Err(e) => {
-            log::info!("detecting gui session: {:#}", e);
+            log::info!("detecting launchd session: {:#}", e);
             return false;
         }
     }
