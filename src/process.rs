@@ -53,6 +53,7 @@ static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
 
 pub struct Native {
     command: Command,
+    #[cfg_attr(windows, allow(dead_code))]
     program: OsString,
     args: Vec<OsString>,
     envs: HashMap<OsString, Option<OsString>>,
@@ -675,13 +676,6 @@ impl Native {
             &env,
         )?;
         unreachable!();
-    }
-    /// Replace current process with this one instead off spawning
-    #[cfg(not(unix))]
-    pub fn exec_replacing_self(&self)
-        -> anyhow::Result<std::convert::Infallible>
-    {
-        unimplemented!();
     }
 }
 
