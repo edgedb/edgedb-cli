@@ -701,7 +701,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     }
 
     let config_path = project_dir.join("edgedb.toml");
-    let schema_dir = Path::new("dbschema");
+    let schema_dir = project_dir.join("dbschema");
     let schema_files = find_schema_files(&schema_dir)?;
 
     let (name, exists) = ask_name(project_dir, options)?;
