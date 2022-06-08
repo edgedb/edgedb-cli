@@ -518,7 +518,7 @@ pub async fn create(cli: &mut Connection, _options: &Options,
     create: &CreateMigration)
     -> Result<(), anyhow::Error>
 {
-    let ctx = Context::from_config(&create.cfg);
+    let ctx = Context::from_project_or_config(&create.cfg)?;
     let migrations = migration::read_all(&ctx, true).await?;
 
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;

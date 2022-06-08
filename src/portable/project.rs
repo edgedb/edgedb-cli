@@ -945,7 +945,7 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
         },
         &Migrate {
             cfg: MigrationConfig {
-                schema_dir: inst.project_dir.join(&inst.schema_dir),
+                schema_dir: Some(inst.project_dir.join(&inst.schema_dir)),
             },
             quiet: false,
             to_revision: None,

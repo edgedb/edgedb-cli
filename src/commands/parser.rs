@@ -514,9 +514,10 @@ pub struct AuthParameter {
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct MigrationConfig {
-    /// Directory where `*.esdl` and `*.edgeql` files are located
-    #[clap(long, default_value="./dbschema", value_hint=ValueHint::DirPath)]
-    pub schema_dir: PathBuf,
+    /// Directory where `*.esdl` and `*.edgeql` files are located.
+    /// Default is `./dbschema`
+    #[clap(long, value_hint=ValueHint::DirPath)]
+    pub schema_dir: Option<PathBuf>,
 }
 
 #[derive(EdbClap, Clone, Debug)]

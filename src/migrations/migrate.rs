@@ -56,7 +56,7 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     migrate: &Migrate)
     -> Result<(), anyhow::Error>
 {
-    let ctx = Context::from_config(&migrate.cfg);
+    let ctx = Context::from_project_or_config(&migrate.cfg)?;
 
     let mut migrations = migration::read_all(&ctx, true).await?;
     let db_migration: Option<String> = cli.query_row_opt(r###"
