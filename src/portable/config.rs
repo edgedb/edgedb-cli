@@ -25,7 +25,7 @@ pub struct SrcEdgedb {
     #[serde(default)]
     pub server_version: Option<toml::Spanned<Query>>,
     #[serde(default)]
-    pub schema_directory: Option<toml::Spanned<String>>,
+    pub schema_dir: Option<toml::Spanned<String>>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }
@@ -38,7 +38,7 @@ pub struct Config {
 #[derive(Debug)]
 pub struct Edgedb {
     pub server_version: Query,
-    pub schema_directory: PathBuf
+    pub schema_dir: PathBuf
 }
 
 fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
@@ -52,7 +52,7 @@ pub fn format_config(version: &Query, schema_dir: &Path) -> String {
     return format!("\
         [edgedb]\n\
         server-version = {:?}\n\
-        schema-directory = {:?}\n\
+        schema-dir = {:?}\n\
     ", version.as_config_value(), schema_dir)
 }
 
@@ -72,7 +72,7 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
                     channel: Channel::Stable,
                     version: None,
                 }),
-            schema_directory: val.edgedb.schema_directory
+            schema_dir: val.edgedb.schema_dir
                 .map(|x| x.into_inner())
                 .unwrap_or("dbschema".into())
                 .into()
@@ -88,7 +88,7 @@ fn toml_modify_config(data: &str, version: &Query, schema_dir: &Path)
     let mut toml = toml::de::Deserializer::new(&data);
     let parsed: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
     if let Some(ver_position) = &parsed.edgedb.server_version {
-        if let Some(schema_dir_position) = &parsed.edgedb.schema_directory {
+        if let Some(schema_dir_position) = &parsed.edgedb.schema_dir {
             if ver_position.get_ref() == version {
                 return Ok(None);
             }
@@ -105,7 +105,7 @@ fn toml_modify_config(data: &str, version: &Query, schema_dir: &Path)
 
             return Ok(Some(out));
         } else {
-            print::error("No schema-directory found in `edgedb.toml`.");
+            print::error("No schema-dir found in `edgedb.toml`.");
         }
     } else {
         print::error("No server-version found in `edgedb.toml`.");
@@ -148,64 +148,64 @@ mod test {
     const TOML_BETA1: &str = "\
         [edgedb]\n\
         server-version = \"1.0-beta.1\"\n\
-        schema-directory = \"dbschema\"\n\
+        schema-dir = \"dbschema\"\n\
     ";
     const TOML_BETA2: &str = "\
         [edgedb]\n\
         server-version = \"1.0-beta.2\"\n\
-        schema-directory = \"dbschema\"\n\
+        schema-dir = \"dbschema\"\n\
     ";
     const TOML_NIGHTLY: &str = "\
         [edgedb]\n\
         server-version = \"nightly\"\n\
-        schema-directory = \"dbschema\"\n\
+        schema-dir = \"dbschema\"\n\
     ";
     const TOML_NIGHTLY_CUSTOM_SCHEMA_DIR: &str = "\
         [edgedb]\n\
         server-version = \"nightly\"\n\
-        schema-directory = \"custom-dir\"\n\
+        schema-dir = \"custom-dir\"\n\
     ";
 
     const TOML2_BETA1: &str = "\
         [edgedb]\n\
         # some comment\n\
         server-version = \"1.0-beta.1\" #and here\n\
-        schema-directory = \"dbschema\"\n\
+        schema-dir = \"dbschema\"\n\
         other-setting = true\n\
     ";
     const TOML2_BETA2: &str = "\
         [edgedb]\n\
         # some comment\n\
         server-version = \"1.0-beta.2\" #and here\n\
-        schema-directory = \"dbschema\"\n\
+        schema-dir = \"dbschema\"\n\
         other-setting = true\n\
     ";
     const TOML2_NIGHTLY: &str = "\
         [edgedb]\n\
         # some comment\n\
         server-version = \"nightly\" #and here\n\
-        schema-directory = \"dbschema\"\n\
+        schema-dir = \"dbschema\"\n\
         other-setting = true\n\
     ";
     const TOML2_NIGHTLY_CUSTOM_SCHEMA_DIR: &str = "\
         [edgedb]\n\
         # some comment\n\
         server-version = \"nightly\" #and here\n\
-        schema-directory = \"custom-dir\"\n\
+        schema-dir = \"custom-dir\"\n\
         other-setting = true\n\
     ";
 
     const TOMLI_BETA1: &str = "\
-        edgedb = {server-version = \"1.0-beta.1\", schema-directory = \"dbschema\"}\n\
+        edgedb = {server-version = \"1.0-beta.1\", schema-dir = \"dbschema\"}\n\
     ";
     const TOMLI_BETA2: &str = "\
-        edgedb = {server-version = \"1.0-beta.2\", schema-directory = \"dbschema\"}\n\
+        edgedb = {server-version = \"1.0-beta.2\", schema-dir = \"dbschema\"}\n\
     ";
     const TOMLI_NIGHTLY: &str = "\
-        edgedb = {server-version = \"nightly\", schema-directory = \"dbschema\"}\n\
+        edgedb = {server-version = \"nightly\", schema-dir = \"dbschema\"}\n\
     ";
     const TOMLI_NIGHTLY_CUSTOM_SCHEMA_DIR: &str = "\
-        edgedb = {server-version = \"nightly\", schema-directory = \"custom-dir\"}\n\
+        edgedb = {server-version = \"nightly\", schema-dir = \"custom-dir\"}\n\
     ";
 
     #[test_case(TOML_BETA1, "1.0-beta.2", "dbschema" => Some(TOML_BETA2.into()))]

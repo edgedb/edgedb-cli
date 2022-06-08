@@ -316,7 +316,7 @@ fn link(options: &Init, project_dir: &Path, opts: &crate::options::Options)
     } else {
         ask_existing_instance_name()?
     };
-    let inst = Handle::probe(&name, project_dir, &config.edgedb.schema_directory)?;
+    let inst = Handle::probe(&name, project_dir, &config.edgedb.schema_dir)?;
     inst.check_version(&ver_query);
     do_link(&inst, options, &stash_dir)
 }
@@ -461,7 +461,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
     let config_path = project_dir.join("edgedb.toml");
     let config = config::read(&config_path)?;
-    let schema_dir = project_dir.join(config.edgedb.schema_directory.clone());
+    let schema_dir = project_dir.join(config.edgedb.schema_dir.clone());
     let schema_files = find_schema_files(&schema_dir)?;
 
     let ver_query = if let Some(sver) = &options.server_version {
@@ -476,7 +476,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             log::warn!("Linking to existing instance. \
                 `--server-start-conf` is ignored.");
         }
-        let inst = Handle::probe(&name, project_dir, &config.edgedb.schema_directory)?;
+        let inst = Handle::probe(&name, project_dir, &config.edgedb.schema_dir)?;
         inst.check_version(&ver_query);
         return do_link(&inst, options, &stash_dir);
     } else if options.cloud {
@@ -509,7 +509,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         ))? {
             ask_link_cloud_instance(options, &name)?;
             task::block_on(crate::cloud::ops::link_existing_cloud_instance(&client, &name))?;
-            let inst = Handle::probe(&name, project_dir, &config.edgedb.schema_directory)?;
+            let inst = Handle::probe(&name, project_dir, &config.edgedb.schema_dir)?;
             inst.check_version(&ver_query);
             return do_link(&inst, options, &stash_dir);
         }
@@ -1422,7 +1422,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
     if !stash_dir.exists() {
         log::warn!("No associated instance found.");
 
-        if config::modify(&config_path, &query, &config.edgedb.schema_directory)? {
+        if config::modify(&config_path, &query, &config.edgedb.schema_dir)? {
             print::success("Config updated successfully.");
         } else {
             print::success("Config is up to date.");
@@ -1431,7 +1431,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
               "to initialize an instance.");
     } else {
         let name = instance_name(&stash_dir)?;
-        let inst = Handle::probe(&name, &root, &config.edgedb.schema_directory)?;
+        let inst = Handle::probe(&name, &root, &config.edgedb.schema_dir)?;
         let inst = match inst.instance {
             InstanceKind::Remote
                 => anyhow::bail!("remote instances cannot be upgraded"),
@@ -1470,7 +1470,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
                 Query::from_version(&pkg_ver)?
             };
 
-            if config::modify(&config_path, &config_version, &config.edgedb.schema_directory)? {
+            if config::modify(&config_path, &config_version, &config.edgedb.schema_dir)? {
                 echo!("Remember to commit it to version control.");
             }
             print_other_project_warning(&name, &root, &query)?;
@@ -1529,7 +1529,7 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
     }
 
     let instance_name = instance_name(&stash_dir)?;
-    let inst = Handle::probe(&instance_name, &root, &config.edgedb.schema_directory)?;
+    let inst = Handle::probe(&instance_name, &root, &config.edgedb.schema_dir)?;
     let inst = match inst.instance {
         InstanceKind::Remote
             => anyhow::bail!("remote instances cannot be upgraded"),
