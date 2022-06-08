@@ -43,7 +43,7 @@ fn cli(tagname: &str, dockerfile: &str, version: &str)
             test "$val" = "2"
 
             # changed in 1-alpha.7 due to dropping implicit __tid__
-            edgedb -Itest1 list-scalar-types --system
+            edgedb -Itest1 list scalars --system
         "###,
         version=version,
     )).success();
