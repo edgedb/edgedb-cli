@@ -204,6 +204,25 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
     }
 }
 
+async fn run_first_migration(ctx: &Context, cli: &mut Connection, index: u64,
+    options: &CreateMigration)
+    -> anyhow::Result<()>
+{
+    execute(cli, "POPULATE MIGRATION").await?;
+    let descr = query_row::<CurrentMigration>(cli,
+        "DESCRIBE CURRENT MIGRATION AS JSON"
+    ).await?;
+    if !descr.complete {
+        return Err(bug::error("First migration populated is not complete"));
+    }
+    if descr.confirmed.is_empty() && !options.allow_empty {
+        print::warn("No schema changes detected.");
+        return Err(ExitCode::new(4))?;
+    }
+    write_migration(ctx, &descr, index, false).await?;
+    Ok(())
+}
+
 async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
     options: &CreateMigration)
     -> anyhow::Result<()>
@@ -540,7 +559,10 @@ pub async fn create(cli: &mut Connection, _options: &Options,
             }
 
             let num_migrations = migrations.len() as u64 +1;
-            if create.non_interactive {
+            if db_migration.is_none() {
+                assert_eq!(num_migrations, 1);
+                run_first_migration(&ctx, cli, num_migrations, &create).await
+            } else if create.non_interactive {
                 run_non_interactive(&ctx, cli, num_migrations, &create).await
             } else {
                 if create.allow_unsafe {
