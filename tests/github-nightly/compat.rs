@@ -13,12 +13,12 @@ use crate::measure::Time;
 #[test_case("edbtest_stretch", &dock_debian("stretch"), "")]
 #[test_case("edbtest_focal", &dock_ubuntu("focal"), "")]
 // alpha7
-#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--version=1-alpha7")]
-#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--version=1-alpha7")]
-#[test_case("edbtest_centos8", &dock_centos(8), "--version=1-alpha7")]
-#[test_case("edbtest_buster", &dock_debian("buster"), "--version=1-alpha7")]
-#[test_case("edbtest_stretch", &dock_debian("stretch"), "--version=1-alpha7")]
-#[test_case("edbtest_focal", &dock_ubuntu("focal"), "--version=1-alpha7")]
+#[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--version=1-rc.5")]
+#[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--version=1-rc.5")]
+#[test_case("edbtest_centos8", &dock_centos(8), "--version=1-rc.5")]
+#[test_case("edbtest_buster", &dock_debian("buster"), "--version=1-rc.5")]
+#[test_case("edbtest_stretch", &dock_debian("stretch"), "--version=1-rc.5")]
+#[test_case("edbtest_focal", &dock_ubuntu("focal"), "--version=1-rc.5")]
 // nightly
 #[test_case("edbtest_bionic", &dock_ubuntu("bionic"), "--nightly")]
 #[test_case("edbtest_xenial", &dock_ubuntu("xenial"), "--nightly")]
@@ -43,7 +43,6 @@ fn cli(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result<()> {
                 query "SELECT 1+1")
             test "$val" = "2"
 
-            # changed in 1-alpha.7 due to dropping implicit __tid__
             edgedb -Itest1 list scalars --system
         "###,
             version = version,

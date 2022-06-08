@@ -13,10 +13,8 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_systemd(
-        tagname,
-        r###"
-        edgedb server install --version=1-alpha7
+    run_systemd(tagname, r###"
+        edgedb server install --version=1-rc.5
         edgedb instance create test1 --start-conf=manual || test "$?" -eq 2
         edgedb instance start --foreground test1 &
         edgedb --wait-until-available=60s -Itest1 query '
@@ -26,7 +24,7 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         ' 'INSERT Type1 { prop1 := "value1" }'
         kill %1 && wait
 
-        RUST_LOG=debug edgedb instance upgrade test1 --to-version=1-beta1
+        RUST_LOG=debug edgedb instance upgrade test1 --to-version=1
 
         edgedb instance start --foreground test1 &
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
@@ -51,25 +49,23 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_systemd(
-        tagname,
-        r###"
-        edgedb server install --version=1-alpha7
+    run_systemd(tagname, r###"
+        edgedb server install --version=1-rc.5
         edgedb instance create test1
 
         ver1=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
+        [[ $ver1 =~ ^1\.0-rc\.5\+ ]]
         path=$(edgedb server info --bin-path)
-        test "$path" = "/usr/bin/edgedb-server-1-alpha7"
+        test "$path" = "/usr/bin/edgedb-server-1-rc.5"
 
         edgedb --wait-until-available=60s -Itest1 query '
             CREATE TYPE Type1 {
                 CREATE PROPERTY prop1 -> str;
             }
         ' 'INSERT Type1 { prop1 := "value1" }'
-        if ! edgedb instance upgrade test1 --to-version=1-beta1; then
+        if ! edgedb instance upgrade test1 --to-version=1; then
             res=$?
             journalctl -xe
             exit $res
@@ -77,9 +73,9 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver2 =~ ^1\.0-beta\.1\+ ]]
+        [[ $ver2 =~ ^1\.0\+ ]]
         path=$(edgedb server info --bin-path)
-        test "$path" = "/usr/bin/edgedb-server-1-beta1"
+        test "$path" = "/usr/bin/edgedb-server-1"
 
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
@@ -93,7 +89,7 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
+        [[ $ver1 =~ ^1\.0-rc\.5\+ ]]
 
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
@@ -124,13 +120,13 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         mkdir /tmp/workdir
         cd /tmp/workdir
 
-        edgedb server install --version=1-alpha7 --method=docker
+        edgedb server install --version=1-rc.5 --method=docker
         edgedb instance create test1
 
         ver1=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
+        [[ $ver1 =~ ^1\.0-rc\.5\+ ]]
 
         edgedb --wait-until-available=60s -Itest1 query '
             CREATE TYPE Type1 {
@@ -142,7 +138,7 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver2 =~ ^1\.0-beta\.1\+ ]]
+        [[ $ver2 =~ ^1\.0\+ ]]
 
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
@@ -153,7 +149,7 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver1 =~ ^1\.0-alpha\.7\+ ]]
+        [[ $ver1 =~ ^1\.0-rc\.5\+ ]]
 
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
