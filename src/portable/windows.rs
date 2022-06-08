@@ -38,6 +38,15 @@ const DISTRO_URL: Lazy<Url> = Lazy::new(|| {
     "https://aka.ms/wsl-debian-gnulinux".parse().expect("wsl url parsed")
 });
 const CERT_UPDATE_INTERVAL: Duration = Duration::from_secs(30*86400);
+const IS_IN_WSL: Lazy<bool> = Lazy::new(|| {
+    if cfg!(target_os="linux") {
+        fs::read_to_string("/proc/version")
+            .map(|s| s.contains("Microsoft"))
+            .unwrap_or(false)
+    } else {
+        false
+    }
+});
 
 static WSL: OnceCell<Wsl> = OnceCell::new();
 
@@ -819,4 +828,8 @@ pub fn get_instance_info(name: &str) -> anyhow::Result<String> {
     wsl.read_text_file(format!(
         "/home/edgedb/.local/share/edgedb/data/{}/instance_info.json",
         name))
+}
+
+pub fn is_in_wsl() -> bool {
+    *IS_IN_WSL
 }
