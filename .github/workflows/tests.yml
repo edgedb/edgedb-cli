@@ -13,7 +13,7 @@ on:
     - cron: "0 */6 * * *"
 
 env:
-  RUST_TEST_THREADS: 2
+  RUST_TEST_THREADS: 3
   RUST_BACKTRACE: 1
 
 jobs:
@@ -117,7 +117,7 @@ jobs:
     timeout-minutes: 35
     strategy:
       matrix:
-        test: [portable_smoke, portable_project]
+        test: [portable_smoke, portable_project, portable_project_dir]
       fail-fast: false
     steps:
       - uses: actions/checkout@master
@@ -146,7 +146,7 @@ jobs:
     timeout-minutes: 45
     strategy:
       matrix:
-        test: [portable_smoke, portable_project]
+        test: [portable_smoke, portable_project, portable_project_dir]
       fail-fast: false
     env:
       _EDGEDB_WSL_DISTRO: Debian
