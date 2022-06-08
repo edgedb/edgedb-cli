@@ -22,7 +22,7 @@ use crate::hint::{HintedError, HintExt};
 use crate::options::{Options, ConnectionOptions};
 use crate::options::{conn_params, load_tls_options};
 use crate::portable::local::{InstanceInfo, is_valid_name};
-use crate::portable::options::{Link, Unlink};
+use crate::portable::options::{Link, Unlink, instance_arg};
 use crate::print;
 use crate::question;
 use crate::tty_password;
@@ -354,15 +354,16 @@ fn prompt_conn_params(
 }
 
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
-    let inst = InstanceInfo::try_read(&options.name)?;
+    let name = instance_arg(&options.name, &options.instance)?;
+    let inst = InstanceInfo::try_read(name)?;
     if inst.is_some() {
         return Err(
             anyhow::anyhow!("cannot unlink local instance {:?}.", options.name)
         ).with_hint(|| format!(
             "use `edgedb instance destroy {}` to remove the instance",
-             options.name))?;
+             name))?;
     }
-    fs::remove_file(credentials::path(&options.name)?)
-        .with_context(|| format!("cannot unlink {}", options.name))?;
+    fs::remove_file(credentials::path(name)?)
+        .with_context(|| format!("cannot unlink {}", name))?;
     Ok(())
 }

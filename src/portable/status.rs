@@ -27,7 +27,7 @@ use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::local::{read_ports, is_valid_name, lock_file};
-use crate::portable::options::{Status, List};
+use crate::portable::options::{Status, List, instance_arg};
 use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, echo, Highlight};
@@ -130,7 +130,8 @@ pub fn status(options: &Status) -> anyhow::Result<()> {
 }
 
 fn external_status(options: &Status) -> anyhow::Result<()> {
-    let ref meta = InstanceInfo::read(&options.name)?;
+    let name = instance_arg(&options.name, &options.instance)?;
+    let ref meta = InstanceInfo::read(name)?;
     if cfg!(windows) {
         windows::external_status(meta)
     } else if cfg!(target_os="macos") {
@@ -228,10 +229,11 @@ pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
 }
 
 fn normal_status(options: &Status) -> anyhow::Result<()> {
-    let meta = InstanceInfo::try_read(&options.name).transpose();
+    let name = instance_arg(&options.name, &options.instance)?;
+    let meta = InstanceInfo::try_read(name).transpose();
     if let Some(meta) = meta {
-        let paths = Paths::get(&options.name)?;
-        let status = status_from_meta(&options.name, &paths, meta);
+        let paths = Paths::get(name)?;
+        let status = status_from_meta(name, &paths, meta);
         if options.debug {
             println!("{:#?}", status);
             Ok(())
@@ -313,9 +315,10 @@ async fn intermediate_feedback<F, D>(future: F, text: impl FnOnce() -> D)
 }
 
 pub fn remote_status(options: &Status) -> anyhow::Result<()> {
+    let name = instance_arg(&options.name, &options.instance)?;
     let status = task::block_on(
         intermediate_feedback(
-            _remote_status(&options.name, options.quiet),
+            _remote_status(name, options.quiet),
             || "Trying to connect...",
         )
     )?;

@@ -10,7 +10,7 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::Paths;
-use crate::portable::options::{Revert, StartConf};
+use crate::portable::options::{Revert, StartConf, instance_arg};
 use crate::portable::status::{instance_status, DataDirectory, BackupStatus};
 use crate::print::{self, echo, Highlight};
 use crate::process;
@@ -20,7 +20,8 @@ use crate::question;
 pub fn revert(options: &Revert) -> anyhow::Result<()> {
     use BackupStatus::*;
 
-    let status = instance_status(&options.name)?;
+    let name = instance_arg(&options.name, &options.instance)?;
+    let status = instance_status(name)?;
     let (backup_info, old_inst) = match status.backup {
         Absent => anyhow::bail!("cannot find backup directory to revert"),
         Exists { backup_meta: Err(e), ..}
@@ -65,7 +66,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     }
 
     if old_inst.start_conf != StartConf::Manual {
-        if let Err(e) = control::do_stop(&options.name) {
+        if let Err(e) = control::do_stop(name) {
             print::error(format!("Error stopping service: {:#}", e));
             if !options.no_confirm {
                 let q = question::Confirm::new("Do you want to proceed?");
@@ -80,7 +81,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     install::specific(&old_inst.get_version()?.specific())
         .context("error installing old EdgeDB version")?;
 
-    let paths = Paths::get(&options.name)?;
+    let paths = Paths::get(name)?;
     let tmp_path = tmp_file_path(&paths.data_dir);
     fs::rename(&paths.data_dir, &tmp_path)?;
     fs::rename(&paths.backup_dir, &paths.data_dir)?;

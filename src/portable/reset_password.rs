@@ -13,7 +13,7 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 
 use crate::credentials;
 use crate::portable::local::InstanceInfo;
-use crate::portable::options::ResetPassword;
+use crate::portable::options::{ResetPassword, instance_arg};
 use crate::print;
 use crate::tty_password;
 
@@ -39,7 +39,8 @@ fn read_credentials(path: &Path) -> anyhow::Result<Credentials> {
 
 
 pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
-    let credentials_file = credentials::path(&options.name)?;
+    let name = instance_arg(&options.name, &options.instance)?;
+    let credentials_file = credentials::path(name)?;
     let (creds, save, user) = if credentials_file.exists() {
         let creds = read_credentials(&credentials_file)?;
         let user = options.user.clone().unwrap_or_else(|| creds.user.clone());
@@ -71,7 +72,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
         generate_password()
     };
 
-    let inst = InstanceInfo::read(&options.name)?;
+    let inst = InstanceInfo::read(name)?;
     task::block_on(async {
         let conn_params = inst.admin_conn_params().await?;
         let mut cli = conn_params.build()?.connect().await?;

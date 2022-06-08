@@ -75,7 +75,7 @@ pub fn structure(s: &types::Struct) -> TokenStream {
                 FromStr | FromOsStr | TryFromStr | TryFromOsStr => {
                     if field.optional {
                         args.push(quote! {
-                            if let Some(value) = self.#ident {
+                            if let Some(value) = &self.#ident {
                                 process.args([value]);
                             }
                         });

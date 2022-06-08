@@ -7,7 +7,7 @@ use crate::options::Options;
 use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local;
-use crate::portable::options::Destroy;
+use crate::portable::options::{Destroy, instance_arg};
 use crate::portable::project::{self};
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
@@ -45,18 +45,18 @@ pub fn with_projects<F>(name: &str, force: bool, f: F) -> anyhow::Result<()>
 }
 
 pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
-    with_projects(&options.name, options.force, || {
+    let name = instance_arg(&options.name, &options.instance)?;
+    with_projects(&name, options.force, || {
         if !options.force && !options.non_interactive {
             let q = question::Confirm::new_dangerous(
-                format!("Do you really want to delete instance {:?}?",
-                        options.name)
+                format!("Do you really want to delete instance {:?}?", name)
             );
             if !q.ask()? {
                 print::error("Canceled.");
                 return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
             }
         }
-        match do_destroy(options, opts) {
+        match do_destroy(options, opts, name) {
             Ok(()) => Ok(()),
             Err(e) if e.is::<InstanceNotFound>() => {
                 print::error(e);
@@ -66,21 +66,22 @@ pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
         }
     })?;
     if !options.quiet {
-        echo!("Instance", options.name.emphasize(),
-              "is successfully deleted.");
+        echo!("Instance", name.emphasize(), "is successfully deleted.");
     }
     Ok(())
 }
 
-fn do_destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
+fn do_destroy(options: &Destroy, opts: &Options, name: &str)
+    -> anyhow::Result<()>
+{
     if cfg!(windows) {
         return windows::destroy(options);
     }
-    let paths = local::Paths::get(&options.name)?;
+    let paths = local::Paths::get(name)?;
     log::debug!("Paths {:?}", paths);
     let mut found = false;
     let mut not_found_err = None;
-    match control::stop_and_disable(&options.name) {
+    match control::stop_and_disable(name) {
         Ok(f) => found = f,
         Err(e) if e.is::<InstanceNotFound>() => {
             not_found_err = Some(e);
@@ -145,10 +146,11 @@ fn do_destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
 
 pub fn force_by_name(name: &str, options: &Options) -> anyhow::Result<()> {
     do_destroy(&Destroy {
-        name: name.to_string(),
+        name: None,
+        instance: Some(name.to_string()),
         verbose: false,
         force: true,
         quiet: false,
         non_interactive: true,
-    }, options)
+    }, options, name)
 }

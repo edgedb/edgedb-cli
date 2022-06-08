@@ -11,9 +11,11 @@ use edgedb_client::Builder;
 
 use crate::cloud::auth;
 use crate::cloud::client::CloudClient;
+use crate::commands::ExitCode;
 use crate::credentials;
 use crate::options::CloudOptions;
-use crate::print::{self, Highlight};
+use crate::portable::local::is_valid_name;
+use crate::print::{self, echo, err_marker, Highlight};
 use crate::question;
 use crate::table::{self, Cell, Row, Table};
 
@@ -153,6 +155,27 @@ pub async fn create_cloud_instance(
     Ok(())
 }
 
+fn ask_name() -> anyhow::Result<String> {
+    let instances = credentials::all_instance_names()?;
+    loop {
+        let name = question::String::new(
+            "Specify a name for the new instance"
+        ).ask()?;
+        if !is_valid_name(&name) {
+            echo!(err_marker(),
+                "Instance name must be a valid identifier, \
+                 (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
+            continue;
+        }
+        if instances.contains(&name) {
+            echo!(err_marker(),
+                "Instance", name.emphasize(), "already exists.");
+            continue;
+        }
+        return Ok(name);
+    }
+}
+
 pub async fn create(
     cmd: &crate::portable::options::Create,
     opts: &crate::options::Options,
@@ -171,8 +194,17 @@ pub async fn create(
         // TODO: use default organization
         orgs[0].id.clone()
     };
+    let name = if let Some(name) = &cmd.name {
+        name.to_owned()
+    } else if cmd.non_interactive {
+        echo!(err_marker(), "Instance name is required \
+                             in non-interactive mode");
+        return Err(ExitCode::new(2).into());
+    } else {
+        ask_name()?
+    };
     let instance = CloudInstanceCreate {
-        name: cmd.name.clone(),
+        name: name.clone(),
         org: org_id
         // version: Some(format!("{}", version.display())),
         // default_database: Some(cmd.default_database.clone()),
@@ -181,11 +213,11 @@ pub async fn create(
     create_cloud_instance(&client, &instance).await?;
     print::echo!(
         "EdgeDB Cloud instance",
-        cmd.name.emphasize(),
+        name.emphasize(),
         "is up and running."
     );
     print::echo!("To connect to the instance run:");
-    print::echo!("  edgedb -I", cmd.name);
+    print::echo!("  edgedb -I", name);
     Ok(())
 }
 
@@ -196,7 +228,7 @@ pub async fn link(
     let mut client = CloudClient::new(&opts.cloud_options)?;
     if cmd.non_interactive {
         if let Some(name) = &cmd.name {
-            if !crate::portable::local::is_valid_name(name) {
+            if !is_valid_name(name) {
                 print::error(
                     "Instance name must be a valid identifier, \
                              (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)",
@@ -236,7 +268,7 @@ pub async fn link(
                     "Input the name of the EdgeDB Cloud instance to connect to",
                 )
                 .ask()?;
-                if !crate::portable::local::is_valid_name(&name) {
+                if !is_valid_name(&name) {
                     print::error(
                         "Instance name must be a valid identifier, \
                                  (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)",
@@ -272,7 +304,7 @@ pub async fn link(
                     .default(&cloud_name)
                     .ask()?
             };
-            if !crate::portable::local::is_valid_name(&name) {
+            if !is_valid_name(&name) {
                 print::error(
                     "Instance name must be a valid identifier, \
                          (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)",

@@ -10,7 +10,7 @@ use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform::current_exe;
 use crate::portable::local::{InstanceInfo, runstate_dir, open_lock, lock_file};
-use crate::portable::options::{Start, Stop, Restart, Logs};
+use crate::portable::options::{Start, Stop, Restart, Logs, instance_arg};
 use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
 use crate::process;
@@ -208,7 +208,8 @@ fn set_inheritable(file: &impl std::os::unix::io::AsRawFd)
 }
 
 pub fn start(options: &Start) -> anyhow::Result<()> {
-    let meta = InstanceInfo::read(&options.name)?;
+    let name = instance_arg(&options.name, &options.instance)?;
+    let meta = InstanceInfo::read(name)?;
     ensure_runstate_dir(&meta.name)?;
     if options.foreground || options.managed_by.is_some() {
         let lock_path = lock_file(&meta.name)?;
@@ -231,7 +232,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
                 log::warn!("Process is already running by {}. \
                             Stopping...", locked_by.escape_default());
                 needs_restart = true;
-                do_stop(&options.name)
+                do_stop(name)
                     .context("cannot stop service")?;
             } else {
                 anyhow::bail!("Process is already running by {}. \
@@ -376,7 +377,8 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
 }
 
 pub fn stop(options: &Stop) -> anyhow::Result<()> {
-    let meta = InstanceInfo::read(&options.name)?;
+    let name = instance_arg(&options.name, &options.instance)?;
+    let meta = InstanceInfo::read(name)?;
     do_stop(&meta.name)
 }
 
@@ -470,7 +472,8 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn restart(options: &Restart) -> anyhow::Result<()> {
-    let meta = InstanceInfo::read(&options.name)?;
+    let name = instance_arg(&options.name, &options.instance)?;
+    let meta = InstanceInfo::read(name)?;
     do_restart(&meta)
 }
 

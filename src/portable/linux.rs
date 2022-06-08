@@ -8,7 +8,7 @@ use fn_error_context::context;
 use crate::platform::{home_dir, current_exe};
 use crate::portable::destroy::InstanceNotFound;
 use crate::portable::local::{InstanceInfo, runstate_dir, log_file};
-use crate::portable::options::{StartConf, Logs};
+use crate::portable::options::{StartConf, Logs, instance_arg};
 use crate::portable::status::Service;
 use crate::process;
 
@@ -278,10 +278,11 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn logs(options: &Logs) -> anyhow::Result<()> {
-    if detect_systemd(&options.name) {
+    let name = instance_arg(&options.name, &options.instance)?;
+    if detect_systemd(&name) {
         let mut cmd = process::Native::new(
             "logs", "journalctl", "journalctl");
-        cmd.arg("--user-unit").arg(unit_name(&options.name));
+        cmd.arg("--user-unit").arg(unit_name(&name));
         if let Some(n) = options.tail  {
             cmd.arg(format!("--lines={}", n));
         }
@@ -297,7 +298,7 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
         if options.follow {
             cmd.arg("-F");
         }
-        cmd.arg(log_file(&options.name)?);
+        cmd.arg(log_file(&name)?);
         cmd.no_proxy().run()
     }
 }
