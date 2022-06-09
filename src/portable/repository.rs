@@ -9,6 +9,7 @@ use async_std::fs;
 use async_std::io::{ReadExt, WriteExt};
 use async_std::path::Path;
 use async_std::task;
+use async_std::prelude::FutureExt;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
 use once_cell::sync::OnceCell;
@@ -17,6 +18,7 @@ use url::Url;
 
 use crate::portable::platform;
 use crate::portable::ver;
+use crate::portable::windows;
 
 
 const MAX_ATTEMPTS: u32 = 10;
@@ -205,8 +207,7 @@ pub async fn get_header(original_url: &Url, permanent_warning: bool)
     }
 }
 
-#[context("failed to fetch JSON at URL: {}", url)]
-pub async fn get_json<T>(url: &Url) -> Result<T, anyhow::Error>
+async fn _get_json<T>(url: &Url) -> Result<T, anyhow::Error>
     where T: serde::de::DeserializeOwned,
 {
     let body_bytes = get_header(url, true).await?
@@ -214,6 +215,28 @@ pub async fn get_json<T>(url: &Url) -> Result<T, anyhow::Error>
 
     let jd = &mut serde_json::Deserializer::from_slice(&body_bytes);
     Ok(serde_path_to_error::deserialize(jd)?)
+}
+
+#[context("failed to fetch JSON at URL: {}", url)]
+async fn get_json<T>(url: &Url) -> Result<T, anyhow::Error>
+    where T: serde::de::DeserializeOwned,
+{
+    _get_json(url).race(async {
+        task::sleep(Duration::from_secs(2)).await;
+        if atty::is(atty::Stream::Stderr) {
+            eprintln!("Fetching {} takes too long. Common reasons are:",
+                      url);
+            eprintln!("  1. Your internet connectivity is slow");
+            eprintln!("  2. Firewall blocks internet access to this resource");
+            if windows::is_in_wsl() {
+                eprintln!("Note: EdgeDB CLI tool is running in \
+                           Windows Subsystem for Linux (WSL).");
+                eprintln!("  Consider adding Windows Defender Firewall \
+                          rule for WSL.");
+            }
+        }
+        async_std::future::pending().await
+    }).await
 }
 
 fn filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
