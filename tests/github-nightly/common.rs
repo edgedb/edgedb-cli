@@ -46,22 +46,38 @@ pub fn dock_ubuntu_jspy(codename: &str) -> String {
 }
 
 pub fn dock_centos(codename: u32) -> String {
-    format!(r###"
-        FROM centos:{codename}
-        RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-        RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \
-                     /etc/yum.repos.d/CentOS-*
-        RUN yum -y install sudo yum-utils systemd
-        RUN yum-config-manager \
-            --add-repo \
-            https://download.docker.com/linux/centos/docker-ce.repo
-        RUN yum -y install docker-ce-cli
-        RUN adduser --uid 1000 --home /home/user1 \
-            --shell /bin/bash --group users \
-            user1
-        ADD ./edgedb /usr/bin/edgedb
-        ADD ./sudoers /etc/sudoers
-    "###, codename=codename)
+    if codename == 8 {
+        format!(r###"
+            FROM centos:{codename}
+            RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+            RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \
+                         /etc/yum.repos.d/CentOS-*
+            RUN yum -y install sudo yum-utils systemd
+            RUN yum-config-manager \
+                --add-repo \
+                https://download.docker.com/linux/centos/docker-ce.repo
+            RUN yum -y install docker-ce-cli
+            RUN adduser --uid 1000 --home /home/user1 \
+                --shell /bin/bash --group users \
+                user1
+            ADD ./edgedb /usr/bin/edgedb
+            ADD ./sudoers /etc/sudoers
+        "###, codename=codename)
+    } else {
+        format!(r###"
+            FROM centos:{codename}
+            RUN yum -y install sudo yum-utils systemd
+            RUN yum-config-manager \
+                --add-repo \
+                https://download.docker.com/linux/centos/docker-ce.repo
+            RUN yum -y install docker-ce-cli
+            RUN adduser --uid 1000 --home /home/user1 \
+                --shell /bin/bash --group users \
+                user1
+            ADD ./edgedb /usr/bin/edgedb
+            ADD ./sudoers /etc/sudoers
+        "###, codename=codename)
+    }
 }
 
 pub fn dock_debian(codename: &str) -> String {
