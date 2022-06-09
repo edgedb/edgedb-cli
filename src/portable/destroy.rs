@@ -8,7 +8,7 @@ use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local;
 use crate::portable::options::{Destroy, instance_arg};
-use crate::portable::project::{self};
+use crate::portable::project;
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
 use crate::question;
@@ -25,12 +25,14 @@ pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     eprintln!("  edgedb instance destroy {:?} --force", name);
 }
 
-pub fn with_projects<F>(name: &str, force: bool, f: F) -> anyhow::Result<()>
-    where F: FnOnce() -> anyhow::Result<()>
+pub fn with_projects(name: &str, force: bool,
+                     warn: impl FnOnce(&str, &[PathBuf]),
+                     f: impl FnOnce() -> anyhow::Result<()>)
+    -> anyhow::Result<()>
 {
     let project_dirs = project::find_project_dirs(&name)?;
     if !force && !project_dirs.is_empty() {
-        print_warning(&name, &project_dirs);
+        warn(&name, &project_dirs);
         return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
     }
     f()?;
@@ -46,7 +48,7 @@ pub fn with_projects<F>(name: &str, force: bool, f: F) -> anyhow::Result<()>
 
 pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
     let name = instance_arg(&options.name, &options.instance)?;
-    with_projects(&name, options.force, || {
+    with_projects(&name, options.force, print_warning, || {
         if !options.force && !options.non_interactive {
             let q = question::Confirm::new_dangerous(
                 format!("Do you really want to delete instance {:?}?", name)

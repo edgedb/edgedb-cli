@@ -237,6 +237,10 @@ pub struct Unlink {
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub instance: Option<String>,
+
+    /// Force destroy even if instance is referred to by a project
+    #[clap(long)]
+    pub force: bool,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]

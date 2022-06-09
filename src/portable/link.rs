@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fs;
+use std::path::PathBuf;
 use std::sync::{Mutex, Arc};
 use std::time::SystemTime;
 
@@ -21,8 +22,10 @@ use crate::credentials;
 use crate::hint::{HintedError, HintExt};
 use crate::options::{Options, ConnectionOptions};
 use crate::options::{conn_params, load_tls_options};
+use crate::portable::destroy::with_projects;
 use crate::portable::local::{InstanceInfo, is_valid_name};
 use crate::portable::options::{Link, Unlink, instance_arg};
+use crate::portable::project;
 use crate::print;
 use crate::question;
 use crate::tty_password;
@@ -353,6 +356,12 @@ fn prompt_conn_params(
     Ok(())
 }
 
+pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
+    project::print_instance_in_use_warning(name, project_dirs);
+    eprintln!("If you really want to unlink the instance, run:");
+    eprintln!("  edgedb instance unlink {:?} --force", name);
+}
+
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
     let name = instance_arg(&options.name, &options.instance)?;
     let inst = InstanceInfo::try_read(name)?;
@@ -363,7 +372,9 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
             "use `edgedb instance destroy {}` to remove the instance",
              name))?;
     }
-    fs::remove_file(credentials::path(name)?)
-        .with_context(|| format!("cannot unlink {}", name))?;
+    with_projects(&name, options.force, print_warning, || {
+        fs::remove_file(credentials::path(name)?)
+            .with_context(|| format!("cannot unlink {}", name))
+    })?;
     Ok(())
 }
