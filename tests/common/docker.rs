@@ -25,7 +25,7 @@ import asyncio
 import sys
 import edgedb
 
-assert edgedb.connect(sys.argv[1]).query_one("SELECT 1+1") == 2
+assert edgedb.create_client(sys.argv[1]).query_one("SELECT 1+1") == 2
 
 async def test_async():
     conn = await edgedb.async_connect(sys.argv[1])
@@ -37,7 +37,7 @@ assert asyncio.get_event_loop().run_until_complete(test_async()) == 2
 pub fn edbconnect_js() -> &'static str {
     r###"
 const edgedb = require('edgedb')
-edgedb.connect(process.argv[2])
+edgedb.createClient(process.argv[2])
 .then(function(conn) {
     return conn.queryOne('SELECT 1+1')
 })
