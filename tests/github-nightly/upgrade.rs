@@ -54,8 +54,6 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
             SELECT sys::get_version_as_str()
         ')
         [[ $ver1 =~ ^1\.0-rc\.5\+ ]]
-        path=$(edgedb server info --bin-path)
-        test "$path" = "/usr/bin/edgedb-server-1-rc.5"
 
         edgedb --wait-until-available=60s -Itest1 query '
             CREATE TYPE Type1 {
@@ -71,8 +69,6 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
             SELECT sys::get_version_as_str()
         ')
         [[ $ver2 =~ ^1\.0\+ ]]
-        path=$(edgedb server info --bin-path)
-        test "$path" = "/usr/bin/edgedb-server-1"
 
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
