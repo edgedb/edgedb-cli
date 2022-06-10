@@ -68,7 +68,7 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         ver2=$(edgedb -Itest1 --wait-until-available=60s --tab-separated query '
             SELECT sys::get_version_as_str()
         ')
-        [[ $ver2 =~ ^1\.0\+ ]]
+        [[ $ver2 =~ ^1\.[0-9]+\+ ]]
 
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
