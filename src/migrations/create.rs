@@ -13,12 +13,13 @@ use edgedb_client::errors::{Error, QueryError};
 use edgedb_client::errors::{ErrorKind, ClientConnectionEosError};
 use edgedb_derive::Queryable;
 use edgedb_protocol::queryable::Queryable;
-use edgeql_parser::hash::Hasher;
 use edgeql_parser::expr;
-use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
+use edgeql_parser::hash::Hasher;
 use edgeql_parser::schema_file::validate;
+use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
 use fn_error_context::context;
 use immutable_chunkmap::set::SetM as Set;
+use linked_hash_map::LinkedHashMap;
 use rustyline::error::ReadlineError;
 use serde::Deserialize;
 
@@ -28,7 +29,7 @@ use crate::commands::{Options, ExitCode};
 use crate::error_display::print_query_error;
 use crate::highlight;
 use crate::migrations::context::Context;
-use crate::migrations::migration;
+use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::print_error::print_migration_error;
 use crate::migrations::prompt;
 use crate::migrations::timeout;
@@ -204,23 +205,39 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
     }
 }
 
-async fn run_first_migration(ctx: &Context, cli: &mut Connection, index: u64,
-    options: &CreateMigration)
+async fn first_migration(cli: &mut Connection, ctx: &Context,
+                         options: &CreateMigration)
     -> anyhow::Result<()>
 {
-    execute(cli, "POPULATE MIGRATION").await?;
-    let descr = query_row::<CurrentMigration>(cli,
-        "DESCRIBE CURRENT MIGRATION AS JSON"
-    ).await?;
-    if !descr.complete {
-        return Err(bug::error("First migration populated is not complete"));
+    execute_start_migration(&ctx, cli).await?;
+    let exec = async {
+        execute(cli, "POPULATE MIGRATION").await?;
+        let descr = query_row::<CurrentMigration>(cli,
+            "DESCRIBE CURRENT MIGRATION AS JSON"
+        ).await?;
+        if descr.parent != "initial" {
+            // We know there are zero revisions in the filesystem
+            anyhow::bail!("There is no database revision {} \
+                in the filesystem. Consider updating sources.",
+                descr.parent);
+        }
+        if !descr.complete {
+            return Err(bug::error("First migration populated is not complete"));
+        }
+        if descr.confirmed.is_empty() && !options.allow_empty {
+            print::warn("No schema changes detected.");
+            return Err(ExitCode::new(4))?;
+        }
+        write_migration(ctx, &descr, 1, false).await?;
+        Ok(())
+    }.await;
+    if cli.is_consistent() {
+        let abort = cli.execute("ABORT MIGRATION").await
+            .map(|_| ()).map_err(|e| e.into());
+        return exec.and(abort)
+    } else {
+        return exec
     }
-    if descr.confirmed.is_empty() && !options.allow_empty {
-        print::warn("No schema changes detected.");
-        return Err(ExitCode::new(4))?;
-    }
-    write_migration(ctx, &descr, index, false).await?;
-    Ok(())
 }
 
 async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
@@ -535,56 +552,65 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
 
 pub async fn create(cli: &mut Connection, _options: &Options,
     create: &CreateMigration)
-    -> Result<(), anyhow::Error>
+    -> anyhow::Result<()>
 {
     let ctx = Context::from_config(&create.cfg);
     let migrations = migration::read_all(&ctx, true).await?;
 
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
-    let exec = async {
-        execute_start_migration(&ctx, cli).await?;
-        let exec = async {
-            let descr = query_row::<CurrentMigration>(cli,
-                "DESCRIBE CURRENT MIGRATION AS JSON",
-            ).await?;
-            let db_migration = if descr.parent == "initial" {
-                None
-            } else {
-                Some(&descr.parent)
-            };
-            if db_migration != migrations.keys().last() {
-                anyhow::bail!("Database must be updated to the last migration \
-                    on the filesystem for `migration create`. Run:\n  \
-                    edgedb migrate");
-            }
-
-            let num_migrations = migrations.len() as u64 +1;
-            if db_migration.is_none() {
-                assert_eq!(num_migrations, 1);
-                run_first_migration(&ctx, cli, num_migrations, &create).await
-            } else if create.non_interactive {
-                run_non_interactive(&ctx, cli, num_migrations, &create).await
-            } else {
-                if create.allow_unsafe {
-                    log::warn!("The `--allow-unsafe` flag is unused \
-                                in interactive mode");
-                }
-                run_interactive(&ctx, cli, num_migrations, &create).await
-            }
-        }.await;
-        if cli.is_consistent() {
-            let abort = cli.execute("ABORT MIGRATION").await
-                .map(|_| ()).map_err(|e| e.into());
-            exec.and(abort)
-        } else {
-            exec
-        }
-    }.await;
+    // This decision must be done early on because of the bug in EdgeDB:
+    //   https://github.com/edgedb/edgedb/issues/3958
+    let exec = if migrations.len() == 0 {
+        first_migration(cli, &ctx, create).await
+    } else {
+        normal_migration(cli, &ctx, migrations, create).await
+    };
     if cli.is_consistent() {
         let timeout = timeout::restore_for_transaction(cli, old_timeout).await;
         exec.and(timeout)
     } else {
         exec
+    }
+}
+
+async fn normal_migration(cli: &mut Connection, ctx: &Context,
+                          migrations: LinkedHashMap<String, MigrationFile>,
+                          create: &CreateMigration)
+    -> anyhow::Result<()>
+{
+    execute_start_migration(&ctx, cli).await?;
+    let exec = async {
+        let descr = query_row::<CurrentMigration>(cli,
+            "DESCRIBE CURRENT MIGRATION AS JSON",
+        ).await?;
+        let db_migration = if descr.parent == "initial" {
+            None
+        } else {
+            Some(&descr.parent)
+        };
+        if db_migration != migrations.keys().last() {
+            anyhow::bail!("Database must be updated to the last migration \
+                on the filesystem for `migration create`. Run:\n  \
+                edgedb migrate");
+        }
+
+        let num_migrations = migrations.len() as u64 +1;
+        if create.non_interactive {
+            run_non_interactive(&ctx, cli, num_migrations, &create).await
+        } else {
+            if create.allow_unsafe {
+                log::warn!("The `--allow-unsafe` flag is unused \
+                            in interactive mode");
+            }
+            run_interactive(&ctx, cli, num_migrations, &create).await
+        }
+    }.await;
+    if cli.is_consistent() {
+        let abort = cli.execute("ABORT MIGRATION").await
+            .map(|_| ()).map_err(|e| e.into());
+        return exec.and(abort)
+    } else {
+        return exec
     }
 }
 
