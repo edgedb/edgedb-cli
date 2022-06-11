@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::commands::parser::MigrationConfig;
 use crate::portable::config;
+use crate::portable::project;
 
 
 pub struct Context {
@@ -12,9 +13,10 @@ impl Context {
     pub fn from_project_or_config(cfg: &MigrationConfig) -> anyhow::Result<Context> {
         let schema_dir = if let Some(schema_dir) = &cfg.schema_dir {
             schema_dir.clone()
-        } else if let Some(config_path) = search_project_config_path(&Path::new(".")) {
+        } else if let Some(config_dir_path) = project::search_dir(Path::new(".").as_ref()) {
+            let config_path = config_dir_path.join("edgedb.toml");
             let config = config::read(&config_path)?;
-            config.edgedb.schema_dir
+            config.project.schema_dir.unwrap_or("./dbschema".into())
         } else {
             "./dbschema".into()
         };
@@ -23,25 +25,4 @@ impl Context {
             schema_dir,
         })
     }
-}
-
-
-fn search_project_config_path(base_path: &Path) -> Option<PathBuf>
-{
-    let mut path = base_path;
-
-    let config_path = path.join("edgedb.toml");
-    if config_path.exists() {
-        return Some(config_path);
-    }
-
-    while let Some(parent) = path.parent() {
-        let config_path = parent.join("edgedb.toml");
-        if config_path.exists() {
-            return Some(config_path);
-        }
-        path = parent;
-    }
-
-    None
 }

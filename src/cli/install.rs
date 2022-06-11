@@ -379,8 +379,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
 
     let base_dir = env::current_dir()
         .context("failed to get current directory")?;
-    let dir = project::search_dir(&base_dir)?;
-    if let Some(dir) = dir {
+    if let Some(dir) = project::search_dir(&base_dir) {
         if project::stash_path(&base_dir)?.exists() {
             log::info!("Project is already initialized. Skipping...");
             return Ok(Already);
