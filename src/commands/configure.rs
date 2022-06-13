@@ -10,7 +10,7 @@ async fn set_string(cli: &mut Connection, name: &str, value: &ConfigStr)
     -> Result<(), anyhow::Error>
 {
     print::completion(&cli.execute(
-        &format!("CONFIGURE SYSTEM SET {} := {}",
+        &format!("CONFIGURE INSTANCE SET {} := {}",
             name, quote_string(&value.value))
     ).await?);
     Ok(())
@@ -20,7 +20,7 @@ async fn set_duration(cli: &mut Connection, name: &str, value: &ConfigStr)
     -> Result<(), anyhow::Error>
 {
     print::completion(&cli.execute(
-        &format!("CONFIGURE SYSTEM SET {} := <duration>{}",
+        &format!("CONFIGURE INSTANCE SET {} := <duration>{}",
             name, quote_string(&value.value))
     ).await?);
     Ok(())
@@ -53,7 +53,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                     "comment := {}", quote_string(comment_text)))
             }
             print::completion(&cli.execute(&format!(r###"
-                CONFIGURE SYSTEM INSERT Auth {{
+                CONFIGURE INSTANCE INSERT Auth {{
                     {}
                 }}
                 "###,
@@ -63,7 +63,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
         }
         C::Set(Set { parameter: S::ListenAddresses(param) }) => {
             print::completion(&cli.execute(
-                &format!("CONFIGURE SYSTEM SET listen_addresses := {{{}}}",
+                &format!("CONFIGURE INSTANCE SET listen_addresses := {{{}}}",
                 param.address.iter().map(|x| quote_string(x))
                     .collect::<Vec<_>>().join(", "))
             ).await?);
@@ -71,7 +71,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
         }
         C::Set(Set { parameter: S::ListenPort(param) }) => {
             print::completion(&cli.execute(
-                &format!("CONFIGURE SYSTEM SET listen_port := {}", param.port)
+                &format!("CONFIGURE INSTANCE SET listen_port := {}", param.port)
             ).await?);
             Ok(())
         }
@@ -124,7 +124,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 C::ApplyAccessPolicies => "apply_access_policies",
             };
             print::completion(&cli.execute(
-                &format!("CONFIGURE SYSTEM RESET {}", name)
+                &format!("CONFIGURE INSTANCE RESET {}", name)
             ).await?);
             Ok(())
         }
