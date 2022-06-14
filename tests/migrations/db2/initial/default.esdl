@@ -1,0 +1,3 @@
+module default {
+    type X;
+};

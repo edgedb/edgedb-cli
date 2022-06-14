@@ -426,15 +426,31 @@ fn modified3_interactive() -> anyhow::Result<()> {
 
 #[test]
 fn prompt_id() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db2/migrations/00001.edgeql")
+    fs::remove_file("tests/migrations/db2/initial/migrations/00001.edgeql")
+        .ok();
+    fs::remove_file("tests/migrations/db2/modified1/migrations/00002.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db2")
         .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db2")
+        .arg("migration").arg("create")
+        .arg("--schema-dir=tests/migrations/db2/initial")
+        .assert().success();  // should not ask any questions on first rev
+    SERVER.admin_cmd()
+        .arg("--database=db2")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db2/initial")
+        .assert().success()
+        .stderr(contains("Applied \
+            m1fvz72asuad3xkor4unxshp524wp6stgdnbd34vxvjfjkrzemonkq \
+            (00001.edgeql)\n"));
+
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=db2");
         cmd.arg("migration").arg("create");
-        cmd.arg("--schema-dir=tests/migrations/db2");
+        cmd.arg("--schema-dir=tests/migrations/db2/modified1");
     });
     cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("yes").unwrap();

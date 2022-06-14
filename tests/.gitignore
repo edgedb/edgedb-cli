@@ -3,5 +3,6 @@
 /migrations/db1/modified1/migrations/00002.edgeql
 /migrations/db1/modified2/migrations/00002.edgeql
 /migrations/db1/modified3/migrations/00002.edgeql
-/migrations/db2/migrations/00001.edgeql
+/migrations/db2/initial/migrations/00001.edgeql
+/migrations/db2/modified1/migrations/00002.edgeql
 /migrations/db3/migrations/00002.edgeql
