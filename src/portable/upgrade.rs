@@ -13,7 +13,7 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
-use crate::portable::options::{Upgrade, StartConf};
+use crate::portable::options::{Upgrade, StartConf, instance_arg};
 use crate::portable::project;
 use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
@@ -87,7 +87,8 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
 }
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
-    let inst = InstanceInfo::read(&options.name)?;
+    let name = instance_arg(&options.name, &options.instance)?;
+    let inst = InstanceInfo::read(name)?;
     let inst_ver = inst.get_version()?.specific();
     let ver_option = options.to_latest || options.to_nightly ||
         options.to_version.is_some();
@@ -96,7 +97,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     } else {
         Query::from_version(&inst_ver)?
     };
-    check_project(&options.name, options.force, &ver_query)?;
+    check_project(name, options.force, &ver_query)?;
 
     if cfg!(windows) {
         return windows::upgrade(options);

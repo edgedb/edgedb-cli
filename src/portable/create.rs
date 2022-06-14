@@ -11,16 +11,40 @@ use crate::platform;
 use crate::portable::control::{self_signed_arg, ensure_runstate_dir};
 use crate::portable::exit_codes;
 use crate::portable::install;
-use crate::portable::local::{Paths, InstanceInfo, write_json, allocate_port};
+use crate::portable::local::{Paths, InstanceInfo};
+use crate::portable::local::{write_json, allocate_port, is_valid_name};
 use crate::portable::options::{Create, StartConf};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
 use crate::portable::reset_password::{password_hash, generate_password};
 use crate::portable::{windows, linux, macos};
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, echo, err_marker, Highlight};
 use crate::process;
+use crate::question;
 
 use edgedb_client::credentials::Credentials;
+
+
+fn ask_name() -> anyhow::Result<String> {
+    let instances = credentials::all_instance_names()?;
+    loop {
+        let name = question::String::new(
+            "Specify a name for the new instance"
+        ).ask()?;
+        if !is_valid_name(&name) {
+            echo!(err_marker(),
+                "Instance name must be a valid identifier, \
+                 (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
+            continue;
+        }
+        if instances.contains(&name) {
+            echo!(err_marker(),
+                "Instance", name.emphasize(), "already exists.");
+            continue;
+        }
+        return Ok(name);
+    }
+}
 
 
 pub fn create(options: &Create) -> anyhow::Result<()> {
@@ -31,20 +55,30 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
 
-    let paths = Paths::get(&options.name)?;
+    let name = if let Some(name) = &options.name {
+        name.to_owned()
+    } else if options.non_interactive {
+        echo!(err_marker(), "Instance name is required \
+                             in non-interactive mode");
+        return Err(ExitCode::new(2).into());
+    } else {
+        ask_name()?
+    };
+
+    let paths = Paths::get(&name)?;
     paths.check_exists()
-        .with_context(|| format!("instance {:?} detected", options.name))
+        .with_context(|| format!("instance {:?} detected", name))
         .with_hint(|| format!("Use `edgedb destroy {}` \
                               to remove remains of unused instance",
-                              options.name))?;
+                              name))?;
 
     let port = options.port.map(Ok)
-        .unwrap_or_else(|| allocate_port(&options.name))?;
+        .unwrap_or_else(|| allocate_port(&name))?;
 
     let info = if cfg!(windows) {
-        windows::create_instance(options, port, &paths)?;
+        windows::create_instance(options, &name, port, &paths)?;
         InstanceInfo {
-            name: options.name.clone(),
+            name: name.clone(),
             installation: None,
             port,
             start_conf: options.start_conf,
@@ -53,7 +87,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         let query = Query::from_options(options.nightly, &options.version)?;
         let inst = install::version(&query).context("error installing EdgeDB")?;
         let info = InstanceInfo {
-            name: options.name.clone(),
+            name: name.clone(),
             installation: Some(inst),
             port,
             start_conf: options.start_conf,
@@ -70,22 +104,22 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
 
     match (create_service(&info), options.start_conf) {
         (Ok(()), StartConf::Manual) => {
-            echo!("Instance", options.name.emphasize(), "is ready.");
+            echo!("Instance", name.emphasize(), "is ready.");
             eprintln!("You can start it manually via: \n  \
                 edgedb instance start [--foreground] {}",
-                options.name);
+                name);
         }
         (Ok(()), StartConf::Auto) => {
-            echo!("Instance", options.name.emphasize(), "is up and running.");
+            echo!("Instance", name.emphasize(), "is up and running.");
             echo!("To connect to the instance run:");
-            echo!("  edgedb -I", options.name);
+            echo!("  edgedb -I", name);
         }
         (Err(e), _) => {
             eprintln!("Bootstrapping complete, \
                 but there was an error creating the service: {:#}", e);
             eprintln!("You can start it manually via: \n  \
                 edgedb instance start {}",
-                options.name);
+                name);
             return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
         }
     }

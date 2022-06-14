@@ -9,7 +9,7 @@ use crate::commands::ExitCode;
 use crate::platform::{home_dir, get_current_uid, data_dir};
 use crate::platform::{current_exe};
 use crate::portable::local::{InstanceInfo, log_file, runstate_dir};
-use crate::portable::options::{StartConf, Logs};
+use crate::portable::options::{StartConf, Logs, instance_arg};
 use crate::portable::status::Service;
 use crate::print::{self, echo, Highlight};
 use crate::process;
@@ -402,6 +402,7 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
     if options.follow {
         cmd.arg("-F");
     }
-    cmd.arg(log_file(&options.name)?);
+    let name = instance_arg(&options.name, &options.instance)?;
+    cmd.arg(log_file(name)?);
     cmd.no_proxy().run()
 }

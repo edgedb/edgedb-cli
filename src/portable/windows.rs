@@ -24,7 +24,7 @@ use crate::portable::control;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstanceInfo, Paths, write_json};
-use crate::portable::options::{self, Logs, StartConf};
+use crate::portable::options::{self, Logs, StartConf, instance_arg};
 use crate::portable::project;
 use crate::portable::repository::{self, download, PackageHash, PackageInfo};
 use crate::portable::status::{self, Service};
@@ -160,7 +160,8 @@ fn path_to_linux(path: &Path) -> anyhow::Result<String> {
     Ok(result)
 }
 
-pub fn create_instance(options: &options::Create, port: u16, paths: &Paths)
+pub fn create_instance(options: &options::Create, name: &str,
+                       port: u16, paths: &Paths)
     -> anyhow::Result<()>
 {
     let wsl = ensure_wsl()?;
@@ -176,12 +177,13 @@ pub fn create_instance(options: &options::Create, port: u16, paths: &Paths)
     if let Some(dir) = paths.credentials.parent() {
         fs_err::create_dir_all(&dir)?;
     }
-    wsl.copy_out(credentials_linux(&options.name), &paths.credentials)?;
+    wsl.copy_out(credentials_linux(&name), &paths.credentials)?;
 
     Ok(())
 }
 
 pub fn destroy(options: &options::Destroy) -> anyhow::Result<()> {
+    let name = instance_arg(&options.name, &options.instance)?;
     let mut found = false;
     if let Some(wsl) = get_wsl()? {
         let options = options::Destroy {
@@ -200,7 +202,7 @@ pub fn destroy(options: &options::Destroy) -> anyhow::Result<()> {
         }
     }
 
-    let paths = Paths::get(&options.name)?;
+    let paths = Paths::get(&name)?;
     if paths.credentials.exists() {
         found = true;
         log::info!(target: "edgedb::portable::destroy",
@@ -216,7 +218,7 @@ pub fn destroy(options: &options::Destroy) -> anyhow::Result<()> {
         }
     }
     if !found {
-        echo!("No instance named {:?} found", options.name);
+        echo!("No instance named {:?} found", name);
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }
     Ok(())
@@ -635,12 +637,13 @@ pub fn info(options: &options::Info) -> anyhow::Result<()> {
 }
 
 pub fn reset_password(options: &options::ResetPassword) -> anyhow::Result<()> {
+    let name = instance_arg(&options.name, &options.instance)?;
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("instance").arg("reset-password").args(options)
             .run()?;
-        wsl.copy_out(credentials_linux(&options.name),
-                     credentials::path(&options.name)?)?;
+        wsl.copy_out(credentials_linux(name),
+                     credentials::path(name)?)?;
     } else {
         anyhow::bail!("WSL distribution is not installed, \
                        so no EdgeDB instances are present.");
@@ -798,6 +801,7 @@ pub fn list(options: &options::List) -> anyhow::Result<()> {
 }
 
 pub fn upgrade(options: &options::Upgrade) -> anyhow::Result<()> {
+    let name = instance_arg(&options.name, &options.instance)?;
     let wsl = try_get_wsl()?;
     wsl.edgedb()
         .arg("instance")
@@ -805,12 +809,12 @@ pub fn upgrade(options: &options::Upgrade) -> anyhow::Result<()> {
         .args(options)
         .run()?;
     // credentials might be updated on upgrade if we change format somehow
-    wsl.copy_out(credentials_linux(&options.name),
-                 credentials::path(&options.name)?)?;
+    wsl.copy_out(credentials_linux(name), credentials::path(name)?)?;
     Ok(())
 }
 
 pub fn revert(options: &options::Revert) -> anyhow::Result<()> {
+    let name = instance_arg(&options.name, &options.instance)?;
     let wsl = try_get_wsl()?;
     wsl.edgedb()
         .arg("instance")
@@ -818,8 +822,7 @@ pub fn revert(options: &options::Revert) -> anyhow::Result<()> {
         .args(options)
         .run()?;
     // credentials might be updated on upgrade if we change format somehow
-    wsl.copy_out(credentials_linux(&options.name),
-                 credentials::path(&options.name)?)?;
+    wsl.copy_out(credentials_linux(name), credentials::path(name)?)?;
     Ok(())
 }
 

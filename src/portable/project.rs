@@ -567,7 +567,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
     let (instance, svc_result) = if cfg!(windows) {
         let q = repository::Query::from_version(&pkg.version.specific())?;
         windows::create_instance(&options::Create {
-            name: name.into(),
+            name: Some(name.into()),
             nightly: q.is_nightly(),
             version: q.version,
             port: Some(port),
@@ -576,7 +576,8 @@ fn do_init(name: &str, pkg: &PackageInfo,
             default_user: "edgedb".into(),
             cloud: false,
             cloud_org: None,
-        }, port, &paths)?;
+            non_interactive: true,
+        }, name, port, &paths)?;
         let svc_result = create::create_service(&InstanceInfo {
             name: name.into(),
             installation: None,
@@ -1439,7 +1440,8 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
                     to_latest: false,
                     to_version: query.version.clone(),
                     to_nightly: query.is_nightly(),
-                    name: name.clone(),
+                    name: None,
+                    instance: Some(name.clone()),
                     verbose: false,
                     force: options.force,
                     force_dump_restore: options.force,
@@ -1541,7 +1543,8 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
                 to_latest: false,
                 to_version: cfg_ver.version.clone(),
                 to_nightly: cfg_ver.is_nightly(),
-                name: instance_name.into(),
+                name: None,
+                instance: Some(instance_name.into()),
                 verbose: false,
                 force: options.force,
                 force_dump_restore: options.force,

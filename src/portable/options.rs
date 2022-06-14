@@ -5,8 +5,10 @@ use clap::{ValueHint};
 use serde::{Serialize, Deserialize};
 use edgedb_cli_derive::{EdbClap, IntoArgs};
 
+use crate::commands::ExitCode;
 use crate::portable::local::is_valid_name;
 use crate::portable::ver;
+use crate::print::{echo, warn, err_marker};
 use crate::process::{self, IntoArg};
 
 
@@ -122,10 +124,11 @@ pub enum StartConf {
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Create {
-    /// Name of the created instance
+    /// Name of the created instance. Asked interactively if not specified
     #[clap(validator(instance_name_opt))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    #[clap(value_hint=ValueHint::Other)]
+    pub name: Option<String>,
+
     #[clap(long)]
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
@@ -154,14 +157,25 @@ pub struct Create {
     /// Create the EdgeDB Cloud instance under the given organization
     #[clap(long, hide=true)]
     pub cloud_org: Option<String>,
+
+    /// Do not ask questions, assume user wants to delete instance
+    #[clap(long)]
+    pub non_interactive: bool,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Destroy {
     /// Name of the instance to destroy
+    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub name: Option<String>,
+
+    /// Name of the instance to destroy
+    #[clap(short='I', long)]
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub instance: Option<String>,
+
     /// Verbose output
     #[clap(short='v', long, overrides_with="quiet")]
     pub verbose: bool,
@@ -214,17 +228,34 @@ pub struct Link {
 #[clap(long_about = "Unlink from a remote EdgeDB instance.")]
 pub struct Unlink {
     /// Specify the name of the remote instance.
+    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub name: Option<String>,
+
+    /// Specify the name of the remote instance.
+    #[clap(short='I', long)]
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub instance: Option<String>,
+
+    /// Force destroy even if instance is referred to by a project
+    #[clap(long)]
+    pub force: bool,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Start {
     /// Name of the instance to start
+    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub name: Option<String>,
+
+    /// Name of the instance to start
+    #[clap(short='I', long)]
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub instance: Option<String>,
+
     #[clap(long)]
     #[cfg_attr(target_os="linux",
         clap(help="Start the server in the foreground rather than using \
@@ -250,17 +281,29 @@ pub struct Start {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Stop {
     /// Name of the instance to stop
+    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub name: Option<String>,
+
+    /// Name of the instance to restart
+    #[clap(short='I', long)]
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub instance: Option<String>,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Restart {
     /// Name of the instance to restart
+    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(value_hint=ValueHint::Other)]
+    pub name: Option<String>,
+
+    /// Name of the instance to restart
+    #[clap(short='I', long)]
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub instance: Option<String>,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
@@ -296,9 +339,15 @@ pub struct List {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Status {
     /// Name of the instance
+    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub name: Option<String>,
+
+    /// Name of the instance
+    #[clap(short='I', long)]
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub instance: Option<String>,
 
     /// Show current systems service info
     #[clap(long, conflicts_with_all=&["debug", "json", "extended"])]
@@ -326,9 +375,15 @@ pub struct Status {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Logs {
     /// Name of the instance
+    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub name: Option<String>,
+
+    /// Name of the instance
+    #[clap(short='I', long)]
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub instance: Option<String>,
 
     /// Number of lines to show
     #[clap(short='n', long)]
@@ -354,8 +409,15 @@ pub struct Upgrade {
     pub to_nightly: bool,
 
     /// Instance to upgrade
+    #[clap(validator(instance_name_opt), hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub name: Option<String>,
+
+    /// Instance to upgrade
+    #[clap(short='I', long)]
+    #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub instance: Option<String>,
 
     /// Verbose output
     #[clap(short='v', long)]
@@ -375,8 +437,15 @@ pub struct Upgrade {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Revert {
     /// Name of the instance to revert
+    #[clap(validator(instance_name_opt), hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub name: Option<String>,
+
+    /// Name of the instance to revert
+    #[clap(short='I', long)]
+    #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub instance: Option<String>,
 
     /// Do not check if upgrade is in progress
     #[clap(long)]
@@ -390,9 +459,16 @@ pub struct Revert {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct ResetPassword {
     /// Name of the instance to reset
+    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub name: Option<String>,
+
+    /// Name of the instance to reset
+    #[clap(short='I', long)]
     #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: String,
+    pub instance: Option<String>,
+
     /// User to change password for. Default is got from credentials file.
     #[clap(long)]
     pub user: Option<String>,
@@ -473,3 +549,24 @@ pub fn instance_name_opt(name: &str) -> Result<(), String> {
                 (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)".into())
 }
 
+pub fn instance_arg<'x>(positional: &'x Option<String>,
+                        named: &'x Option<String>)
+    -> anyhow::Result<&'x str>
+{
+    if let Some(name) = positional {
+        if named.is_some() {
+            echo!(err_marker(), "Instance name is specified twice \
+                as positional argument and via `-I`. \
+                The latter is preferred.");
+            return Err(ExitCode::new(2).into());
+        }
+        warn(format_args!("Specifying instance name as positional argument is \
+            deprecated. Use `-I {}` instead.", name));
+        return Ok(name);
+    }
+    if let Some(name) = named {
+        return Ok(name);
+    }
+    echo!(err_marker(), "Instance name argument is required, use '-I name'");
+    return Err(ExitCode::new(2).into());
+}
