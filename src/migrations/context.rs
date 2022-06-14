@@ -16,7 +16,7 @@ impl Context {
         } else if let Some(config_dir_path) = project::search_dir(Path::new(".").as_ref()) {
             let config_path = config_dir_path.join("edgedb.toml");
             let config = config::read(&config_path)?;
-            config.project.schema_dir.unwrap_or("./dbschema".into())
+            config.project.schema_dir
         } else {
             "./dbschema".into()
         };
