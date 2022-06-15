@@ -63,9 +63,9 @@ fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
 
 pub fn format_config(version: &Query) -> String {
     return format!("\
-            [edgedb]\n\
-            server-version = {:?}\n\
-        ", version.as_config_value());
+        [edgedb]\n\
+        server-version = {:?}\n\
+    ", version.as_config_value())
 }
 
 #[context("error reading project config `{}`", path.display())]

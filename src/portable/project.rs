@@ -316,11 +316,7 @@ fn link(options: &Init, project_dir: &Path, opts: &crate::options::Options)
     } else {
         ask_existing_instance_name()?
     };
-    let inst = Handle::probe(
-        &name,
-        project_dir,
-        &config.project.schema_dir,
-    )?;
+    let inst = Handle::probe(&name, project_dir,&config.project.schema_dir)?;
     inst.check_version(&ver_query);
     do_link(&inst, options, &stash_dir)
 }
