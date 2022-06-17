@@ -175,6 +175,156 @@ fn initial() -> anyhow::Result<()> {
 }
 
 #[test]
+fn project() -> anyhow::Result<()> {
+    fs::remove_file("tests/migrations/db1/project/priv/dbschema/migrations/00002.edgeql")
+        .ok();
+    fs::remove_file("tests/migrations/db1/project/priv/dbschema/migrations/00003.edgeql")
+        .ok();
+    SERVER.admin_cmd()
+        .arg("database").arg("create").arg("project")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migration").arg("status")
+        .current_dir("tests/migrations/db1/project")
+        .assert().code(3)
+        .stderr(ends_with(
+            "edgedb error: Database is empty. While there are 1 migrations \
+            on the filesystem.\n  Run `edgedb migrate` to apply.\n"));
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
+        .assert().success()
+        .stdout("\"AlwaysAllow\"\n");
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migration").arg("create")
+        .arg("--non-interactive")
+        .current_dir("tests/migrations/db1/project")
+        .assert().code(1).stderr(ends_with(
+            "edgedb error: Database must be updated \
+            to the last migration on the filesystem for `migration create`. \
+            Run:\n  \
+              edgedb migrate\n"));
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migrate")
+        .current_dir("tests/migrations/db1/project")
+        .assert().success()
+        .stderr(contains("Applied \
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
+            (00001.edgeql)\n"))
+        .stderr(contains("Note:"));
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
+        .assert().success()
+        .stdout("\"NeverAllow\"\n");
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migration").arg("status")
+        .current_dir("tests/migrations/db1/project")
+        .assert().success()
+        .stderr(ends_with("Database is up to date. \
+            Last migration: \
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa.\n"));
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migration").arg("create")
+        .arg("--non-interactive")
+        .current_dir("tests/migrations/db1/project")
+        .assert().code(4).stderr(ends_with("No schema changes detected.\n"));
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migration").arg("create")
+        .current_dir("tests/migrations/db1/project")
+        .assert().code(4).stderr(ends_with("No schema changes detected.\n"));
+
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migration").arg("create")
+        .arg("--allow-empty")
+        .current_dir("tests/migrations/db1/project")
+        .assert().code(0)
+        .stderr(ends_with("Created \
+            ./priv/dbschema/migrations/00002.edgeql, \
+            id: m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq\n"));
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migrate")
+        .current_dir("tests/migrations/db1/project")
+        .assert().success()
+        .stderr(ends_with("Applied \
+            m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
+            (00002.edgeql)\n"));
+
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migration").arg("create")
+        .arg("--allow-empty")
+        .arg("--non-interactive")
+        .current_dir("tests/migrations/db1/project")
+        .assert().code(0);
+    SERVER.admin_cmd()
+        .arg("--database=project")
+        .arg("migrate")
+        .current_dir("tests/migrations/db1/project")
+        .assert().success()
+        .stderr(ends_with("Applied \
+            m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
+            (00003.edgeql)\n"));
+
+    // Now test partial migrations
+    SERVER.admin_cmd()
+        .arg("database").arg("create").arg("project_2")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=project_2")
+        .arg("migrate")
+        .current_dir("tests/migrations/db1/project")
+        .arg("--to-revision=m1e5vq3h4oizlsp4a3zge5bqh")
+        .assert().success()
+        .stderr(contains("Applied \
+            m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
+            (00001.edgeql)\n\
+            Applied \
+            m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
+            (00002.edgeql)\n"));
+
+    SERVER.admin_cmd()
+        .arg("--database=project_2")
+        .arg("migrate")
+        .current_dir("tests/migrations/db1/project")
+        .arg("--to-revision=m12bulrbo")
+        .assert().success()
+        .stderr(ends_with("Database is up to date. \
+            Revision m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
+            is the ancestor of the latest \
+            m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq\n"));
+
+    SERVER.admin_cmd()
+        .arg("--database=project_2")
+        .arg("migrate")
+        .current_dir("tests/migrations/db1/project")
+        .arg("--to-revision=m1e5vq3h4oizlsp4a")
+        .assert().success()
+        .stderr(ends_with("Database is up to date. Revision \
+            m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq\n"));
+
+    SERVER.admin_cmd()
+        .arg("--database=project_2")
+        .arg("migrate")
+        .current_dir("tests/migrations/db1/project")
+        .arg("--to-revision=m1wrvvw3lycy")
+        .assert().success()
+        .stderr(ends_with("Applied \
+            m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
+            (00003.edgeql)\n"));
+
+    Ok(())
+}
+
+#[test]
 fn modified1() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db1/modified1/migrations/00002.edgeql")
         .ok();

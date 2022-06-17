@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use fn_error_context::context;
 
@@ -10,11 +10,11 @@ use crate::portable::repository::{Channel, Query};
 use crate::platform::tmp_file_path;
 use crate::print::{self, echo, Highlight};
 
-
 #[derive(serde::Deserialize)]
 #[serde(rename_all="kebab-case")]
 pub struct SrcConfig {
     pub edgedb: SrcEdgedb,
+    pub project: Option<SrcProject>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }
@@ -28,14 +28,30 @@ pub struct SrcEdgedb {
     pub extra: BTreeMap<String, toml::Value>,
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all="kebab-case")]
+pub struct SrcProject {
+    #[serde(default)]
+    pub schema_dir: Option<String>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, toml::Value>,
+}
+
+
 #[derive(Debug)]
 pub struct Config {
     pub edgedb: Edgedb,
+    pub project: Project,
 }
 
 #[derive(Debug)]
 pub struct Edgedb {
     pub server_version: Query,
+}
+
+#[derive(Debug)]
+pub struct Project {
+    pub schema_dir: PathBuf
 }
 
 fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
@@ -52,7 +68,6 @@ pub fn format_config(version: &Query) -> String {
     ", version.as_config_value())
 }
 
-
 #[context("error reading project config `{}`", path.display())]
 pub fn read(path: &Path) -> anyhow::Result<Config> {
     let text = fs::read_to_string(&path)?;
@@ -60,6 +75,7 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
     let val: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
     warn_extra(&val.extra, "");
     warn_extra(&val.edgedb.extra, "edgedb.");
+
     return Ok(Config {
         edgedb: Edgedb {
             server_version: val.edgedb.server_version
@@ -68,7 +84,14 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
                     channel: Channel::Stable,
                     version: None,
                 }),
-        }
+        },
+        project: Project{
+            schema_dir: val.project
+                .map(|p| p.schema_dir)
+                .flatten()
+                .map(|s| s.into())
+                .unwrap_or("dbschema".into())
+        },
     })
 }
 
@@ -131,9 +154,21 @@ mod test {
         [edgedb]\n\
         server-version = \"1.0-beta.2\"\n\
     ";
+    const TOML_BETA2_CUSTOM_SCHEMA_DIR: &str = "\
+        [edgedb]\n\
+        server-version = \"1.0-beta.2\"\n\
+        [project]
+        schema-dir = \"custom-dir\"\n\
+    ";
     const TOML_NIGHTLY: &str = "\
         [edgedb]\n\
         server-version = \"nightly\"\n\
+    ";
+    const TOML_NIGHTLY_CUSTOM_SCHEMA_DIR: &str = "\
+        [edgedb]\n\
+        server-version = \"nightly\"\n\
+        [project]
+        schema-dir = \"custom-dir\"\n\
     ";
 
     const TOML2_BETA1: &str = "\
@@ -148,11 +183,27 @@ mod test {
         server-version = \"1.0-beta.2\" #and here\n\
         other-setting = true\n\
     ";
+    const TOML2_BETA2_CUSTOM_SCHEMA_DIR: &str = "\
+        [edgedb]\n\
+        # some comment\n\
+        server-version = \"1.0-beta.2\" #and here\n\
+        other-setting = true\n\
+        [project]
+        schema-dir = \"custom-dir\"\n\
+    ";
     const TOML2_NIGHTLY: &str = "\
         [edgedb]\n\
         # some comment\n\
         server-version = \"nightly\" #and here\n\
         other-setting = true\n\
+    ";
+    const TOML2_NIGHTLY_CUSTOM_SCHEMA_DIR: &str = "\
+        [edgedb]\n\
+        # some comment\n\
+        server-version = \"nightly\" #and here\n\
+        other-setting = true\n\
+        [project]
+        schema-dir = \"custom-dir\"\n\
     ";
 
     const TOMLI_BETA1: &str = "\
@@ -161,10 +212,17 @@ mod test {
     const TOMLI_BETA2: &str = "\
         edgedb = {server-version = \"1.0-beta.2\"}\n\
     ";
+    const TOMLI_BETA2_CUSTOM_SCHEMA_DIR: &str = "\
+        edgedb = {server-version = \"1.0-beta.2\"}\n\
+        project = {schema-dir = \"custom-dir\"}\n\
+    ";
     const TOMLI_NIGHTLY: &str = "\
         edgedb = {server-version = \"nightly\"}\n\
     ";
-
+    const TOMLI_NIGHTLY_CUSTOM_SCHEMA_DIR: &str = "\
+        edgedb = {server-version = \"nightly\"}\n\
+        project = {schema-dir = \"custom-dir\"}\n\
+    ";
     #[test_case(TOML_BETA1, "1.0-beta.2" => Some(TOML_BETA2.into()))]
     #[test_case(TOML_BETA2, "1.0-beta.2" => None)]
     #[test_case(TOML_NIGHTLY, "1.0-beta.2" => Some(TOML_BETA2.into()))]
@@ -173,6 +231,7 @@ mod test {
     #[test_case(TOML_NIGHTLY, "1.0-beta.1" => Some(TOML_BETA1.into()))]
     #[test_case(TOML_BETA1, "nightly" => Some(TOML_NIGHTLY.into()))]
     #[test_case(TOML_BETA2, "nightly" => Some(TOML_NIGHTLY.into()))]
+    #[test_case(TOML_BETA2_CUSTOM_SCHEMA_DIR, "nightly" => Some(TOML_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
     #[test_case(TOML_NIGHTLY, "nightly" => None)]
 
     #[test_case(TOML2_BETA1, "1.0-beta.2" => Some(TOML2_BETA2.into()))]
@@ -183,6 +242,7 @@ mod test {
     #[test_case(TOML2_NIGHTLY, "1.0-beta.1" => Some(TOML2_BETA1.into()))]
     #[test_case(TOML2_BETA1, "nightly" => Some(TOML2_NIGHTLY.into()))]
     #[test_case(TOML2_BETA2, "nightly" => Some(TOML2_NIGHTLY.into()))]
+    #[test_case(TOML2_BETA2_CUSTOM_SCHEMA_DIR, "nightly" => Some(TOML2_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
     #[test_case(TOML2_NIGHTLY, "nightly" => None)]
 
     #[test_case(TOMLI_BETA1, "1.0-beta.2" => Some(TOMLI_BETA2.into()))]
@@ -193,8 +253,9 @@ mod test {
     #[test_case(TOMLI_NIGHTLY, "1.0-beta.1" => Some(TOMLI_BETA1.into()))]
     #[test_case(TOMLI_BETA1, "nightly" => Some(TOMLI_NIGHTLY.into()))]
     #[test_case(TOMLI_BETA2, "nightly" => Some(TOMLI_NIGHTLY.into()))]
+    #[test_case(TOMLI_BETA2_CUSTOM_SCHEMA_DIR, "nightly"=> Some(TOMLI_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
     #[test_case(TOMLI_NIGHTLY, "nightly" => None)]
-    fn set(src: &str, ver: &str) -> Option<String> {
+    fn modify(src: &str, ver: &str) -> Option<String> {
         toml_set_version(src, &ver.parse().unwrap()).unwrap()
     }
 

@@ -46,7 +46,7 @@ pub async fn status(cli: &mut Connection, _options: &Options,
     status: &ShowStatus)
     -> Result<(), anyhow::Error>
 {
-    let ctx = Context::from_config(&status.cfg);
+    let ctx = Context::from_project_or_config(&status.cfg)?;
     let migrations = migration::read_all(&ctx, true).await?;
     let db_migration: Option<String> = cli.query_row_opt(r###"
             WITH Last := (SELECT schema::Migration
