@@ -25,7 +25,7 @@ import asyncio
 import sys
 import edgedb
 
-assert edgedb.create_client(sys.argv[1]).query_one("SELECT 1+1") == 2
+assert edgedb.create_client(sys.argv[1]).query_single("SELECT 1+1") == 2
 
 async def test_async():
     conn = await edgedb.async_connect(sys.argv[1])
