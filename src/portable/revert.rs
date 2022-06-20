@@ -10,7 +10,7 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::Paths;
-use crate::portable::options::{Revert, StartConf, instance_arg};
+use crate::portable::options::{Revert, instance_arg};
 use crate::portable::status::{instance_status, DataDirectory, BackupStatus};
 use crate::print::{self, echo, Highlight};
 use crate::process;
@@ -54,9 +54,6 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         eprintln!();
         echo!("Currently stored data", "will be lost".emphasize(),
                   "and overwritten by the backup.");
-        if old_inst.start_conf == StartConf::Manual {
-            echo!("Please ensure that server is stopped before proceeeding.");
-        }
         let q = question::Confirm::new_dangerous(
             "Do you really want to revert?");
         if !q.ask()? {
@@ -65,15 +62,13 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         }
     }
 
-    if old_inst.start_conf != StartConf::Manual {
-        if let Err(e) = control::do_stop(name) {
-            print::error(format!("Error stopping service: {:#}", e));
-            if !options.no_confirm {
-                let q = question::Confirm::new("Do you want to proceed?");
-                if !q.ask()? {
-                    print::error("Canceled.");
-                    return Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
-                }
+    if let Err(e) = control::do_stop(&name) {
+        print::error(format!("Error stopping service: {:#}", e));
+        if !options.no_confirm {
+            let q = question::Confirm::new("Do you want to proceed?");
+            if !q.ask()? {
+                print::error("Canceled.");
+                return Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
             }
         }
     }
@@ -87,38 +82,19 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     fs::rename(&paths.backup_dir, &paths.data_dir)?;
 
     let inst = old_inst;
-    let mut exit = None;
     echo!("Starting EdgeDB", inst.get_version()?, "...");
-    match (create::create_service(&inst), inst.start_conf) {
-        (Ok(()), StartConf::Manual) => {
-            echo!("Instance", inst.name.emphasize(), "is reverted to",
-                   inst.get_version()?.emphasize());
-            echo!("You can start it manually via: \n  \
-                edgedb instance start [--foreground] {}",
-                inst.name);
-        }
-        (Ok(()), StartConf::Auto) => {
-            control::do_restart(&inst)?;
-            echo!("Instance", inst.name.emphasize(),
-                   "is successfully reverted to",
-                   inst.get_version()?.emphasize());
-        }
-        (Err(e), _) => {
-            echo!("Revert to", inst.get_version()?.emphasize(),
-                "is complete, \
-                but there was an error creating the service:",
-                format_args!("{:#}", e));
-            echo!("You can start it manually via:\n  \
-                edgedb instance start --foreground", inst.name);
-            exit = Some(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE));
-        }
-    }
+
+    create::create_service(&inst)
+        .map_err(|e| {
+            log::warn!("Error running EdgeDB as a service: {e:#}");
+        }).ok();
+
+    control::do_restart(&inst)?;
+    echo!("Instance", inst.name.emphasize(),
+           "is successfully reverted to",
+           inst.get_version()?.emphasize());
 
     fs::remove_file(paths.data_dir.join("backup.json"))?;
     fs::remove_dir_all(&tmp_path)?;
-    if let Some(err) = exit {
-        Err(err.into())
-    } else {
-        Ok(())
-    }
+    Ok(())
 }

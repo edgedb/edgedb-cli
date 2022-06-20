@@ -8,8 +8,6 @@ use std::process::exit;
 use std::time::Duration;
 
 use anyhow::Context;
-use async_std::io::timeout;
-use async_std::net::TcpStream;
 use async_std::prelude::FutureExt;
 use async_std::stream;
 use async_std::task;
@@ -37,16 +35,10 @@ use crate::table::{self, Table, Row, Cell};
 
 #[derive(Debug)]
 pub enum Service {
+    Ready,
     Running { pid: u32 },
     Failed { exit_code: Option<u16> },
     Inactive { error: String },
-}
-
-#[derive(Debug)]
-pub enum Port {
-    Occupied,
-    Refused,
-    Unknown,
 }
 
 #[derive(Debug)]
@@ -72,7 +64,6 @@ pub struct FullStatus {
     pub service: Service,
     pub instance: anyhow::Result<InstanceInfo>,
     pub reserved_port: Option<u16>,
-    pub port_status: Port,
     pub data_dir: PathBuf,
     pub data_status: DataDirectory,
     pub backup: BackupStatus,
@@ -191,7 +182,6 @@ fn status_from_meta(name: &str, paths: &Paths,
         .unwrap_or_else(|e| Service::Inactive { error: e.to_string() });
     let reserved_port = read_ports().ok()
         .and_then(|map| map.get(name).cloned());
-    let port_status = probe_port(&instance, &reserved_port);
     let data_status = if paths.data_dir.exists() {
         if paths.upgrade_marker.exists() {
             DataDirectory::Upgrading(read_upgrade(&paths.upgrade_marker))
@@ -213,7 +203,6 @@ fn status_from_meta(name: &str, paths: &Paths,
         service,
         instance,
         reserved_port,
-        port_status,
         data_dir: paths.data_dir.clone(),
         data_status,
         backup,
@@ -495,31 +484,6 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
     table.printstd();
 }
 
-pub fn probe_port(inst: &anyhow::Result<InstanceInfo>, reserved: &Option<u16>)
-    -> Port
-{
-    use Port::*;
-
-    let port = match inst.as_ref().ok().map(|m| m.port).or(*reserved) {
-        Some(port) => port,
-        None => return Unknown,
-    };
-    let probe = task::block_on(
-        timeout(Duration::from_secs(1),
-                TcpStream::connect(&("127.0.0.1", port)))
-    );
-    match probe {
-        Ok(_) => Occupied,
-        Err(e) if e.kind() == io::ErrorKind::TimedOut => {
-            // This probably means that server doesn't accept connections but
-            // port is occupied. Unless system is too overloaded.
-            Occupied
-        }
-        Err(e) if e.kind() == io::ErrorKind::ConnectionRefused => Refused,
-        Err(_) => Unknown, // TODO(tailhook) should we show the error?
-    }
-}
-
 impl FullStatus {
     pub fn print_extended_and_exit(&self) -> ! {
         self.print_extended();
@@ -530,6 +494,9 @@ impl FullStatus {
 
         print!("  Status: ");
         match &self.service {
+            Service::Ready => {
+                println!("ready in socket activation mode, not running");
+            }
             Service::Running { pid } => {
                 println!("running, pid {}", pid);
                 println!("  Pid: {}", pid);
@@ -559,7 +526,6 @@ impl FullStatus {
                 if let Ok(version) = inst.get_version() {
                     println!("  Version: {}", version);
                 }
-                println!("  Startup: {}", inst.start_conf);
                 if let Some(port) = self.reserved_port {
                     if inst.port == port {
                         println!("  Port: {}", port);
@@ -575,12 +541,6 @@ impl FullStatus {
                 println!("  Port: {} (reserved)", port);
             },
         }
-
-        println!("  Port status: {}", match &self.port_status {
-            Port::Occupied => "occupied",
-            Port::Refused => "unoccupied",
-            Port::Unknown => "unknown",
-        });
 
         println!("  Data directory: {}", self.data_dir.display());
         println!("  Data status: {}", match &self.data_status {
@@ -627,6 +587,9 @@ impl FullStatus {
     pub fn print_and_exit(&self) -> ! {
         use Service::*;
         match &self.service {
+            Ready => {
+                eprintln!("Ready in socket activation mode, not running");
+            }
             Running { pid } => {
                 eprint!("Running, pid ");
                 println!("{}", pid);
@@ -651,6 +614,7 @@ impl FullStatus {
         use Service::*;
 
         match self.service {
+            Ready => exit(0),
             Running {..} => exit(0),
             Failed {..} => exit(3),
             Inactive {..} => exit(3),
@@ -717,6 +681,7 @@ impl ConnectionStatus {
 
 fn status_str(status: &Service) -> &'static str {
     match status {
+        Service::Ready => "ready",
         Service::Running {..} => "running",
         Service::Failed {..} => "not running",
         Service::Inactive {..} => "inactive",

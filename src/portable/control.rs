@@ -61,13 +61,15 @@ pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
     }
 }
 
-pub fn get_server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
+pub fn get_server_cmd(inst: &InstanceInfo, is_shutdown_supported: bool)
+    -> anyhow::Result<process::Native>
+{
     if cfg!(windows) {
-        windows::server_cmd(&inst.name)
+        windows::server_cmd(&inst.name, is_shutdown_supported)
     } else if cfg!(target_os="macos") {
-        macos::server_cmd(inst)
+        macos::server_cmd(inst, is_shutdown_supported)
     } else if cfg!(target_os="linux") {
-        linux::server_cmd(inst)
+        linux::server_cmd(inst, is_shutdown_supported)
     } else {
         anyhow::bail!("unsupported platform");
     }
@@ -152,7 +154,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     let sock = task::block_on(UnixDatagram::bind(&notify_socket))
         .context("cannot create notify socket")?;
 
-    get_server_cmd(&meta)?
+    get_server_cmd(&meta, false)?
         .env("NOTIFY_SOCKET", &notify_socket)
         .pid_file(&pid_path)
         .log_file(&log_path)?
@@ -255,7 +257,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
                 use std::os::unix::io::AsRawFd;
 
                 set_inheritable(&*lock).context("set inheritable for lock")?;
-                get_server_cmd(&meta)?
+                get_server_cmd(&meta, true)?
                     .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
                     .env("EDGEDB_SERVER_EXTERNAL_LOCK_FD",
                          lock.as_raw_fd().to_string())
@@ -266,7 +268,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
 
             let pid_path = pid_file_path(&meta.name)?;
             #[allow(unused_mut)]
-            let mut res = get_server_cmd(&meta)?
+            let mut res = get_server_cmd(&meta, false)?
                 .env_default("EDGEDB_SERVER_LOG_LEVEL", "info")
                 .pid_file(&pid_path)
                 .no_proxy()
