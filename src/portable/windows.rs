@@ -345,6 +345,15 @@ fn wsl_simple_cmd(wsl: &wslapi::Library, distro: &str, cmd: &str)
     Ok(())
 }
 
+fn utf16_contains(bytes: &[u8], needle: &str) -> bool {
+    use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
+    decode_utf16(bytes.chunks_exact(2)
+                 .map(|a| u16::from_le_bytes([a[0], a[1]])))
+       .map(|r| r.unwrap_or(REPLACEMENT_CHARACTER))
+       .collect::<String>()
+       .contains(needle)
+}
+
 #[cfg(windows)]
 #[context("cannot initialize WSL2 (windows subsystem for linux)")]
 fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
@@ -407,6 +416,28 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
             fs::create_dir_all(&distro_path)?;
             echo!("Initializing WSL distribution...");
+
+            let result = process::Native::new("wsl check", "wsl", "wsl")
+                .arg("--help")
+                .get_output();
+
+            match result {
+                Ok(out) if !utf16_contains(&out.stdout, "--import") => {
+                    return Err(anyhow::anyhow!(
+                        "WSL currently installed is outdated."))
+                        .hint("Please run `wsl --install` under \
+                               administrator privileges for the upgrade.")?;
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(anyhow::anyhow!(
+                        "Error running `wsl` tool: {:#}", e))
+                        .hint("You must be running Windows 10 version 2004 \
+                               and higher (Build 19041 and higher) \
+                               or Windows 11.")?;
+                }
+            }
+
             process::Native::new("wsl import", "wsl", "wsl")
                 .arg("--import")
                 .arg(CURRENT_DISTRO)
