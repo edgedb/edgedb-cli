@@ -564,7 +564,7 @@ fn create_and_start(wsl: &Wsl, name: &str) -> anyhow::Result<()> {
         --distribution {} --user edgedb \
         /usr/bin/edgedb instance start {}",
         &wsl.distribution, &name))?;
-    wsl.edgedb().arg("instance").arg("start").arg(&name).run()?;
+    wsl.edgedb().arg("instance").arg("start").arg("-I").arg(&name).run()?;
     Ok(())
 }
 
@@ -577,7 +577,8 @@ pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
 {
     let wsl = try_get_wsl()?;
     let mut pro = wsl.edgedb();
-    pro.arg("instance").arg("start").arg("--foreground").arg(instance);
+    pro.arg("instance").arg("start").arg("--foreground")
+        .arg("-I").arg(instance);
     let instance = String::from(instance);
     pro.stop_process(move || {
         let mut cmd = async_process::Command::new("wsl");
@@ -585,7 +586,7 @@ pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
         cmd.arg("--distribution").arg(&wsl.distribution);
         cmd.arg("_EDGEDB_FROM_WINDOWS=1");
         cmd.arg("/usr/bin/edgedb");
-        cmd.arg("instance").arg("stop").arg(&instance);
+        cmd.arg("instance").arg("stop").arg("-I").arg(&instance);
         cmd
     });
     Ok(pro)
@@ -594,7 +595,7 @@ pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
 pub fn daemon_start(instance: &str) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     wsl.edgedb()
-        .arg("instance").arg("start").arg(&instance)
+        .arg("instance").arg("start").arg("-I").arg(&instance)
         .no_proxy().run()?;
     Ok(())
 }

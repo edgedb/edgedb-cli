@@ -40,7 +40,7 @@ fn daemon_start(instance: &str) -> anyhow::Result<()> {
         process::Native::new("edgedb cli", "edgedb-cli", &current_exe()?)
             .arg("instance")
             .arg("start")
-            .arg(instance)
+            .arg("-I").arg(instance)
             .arg("--managed-by=edgedb-cli")
             .daemonize_with_stdout()?;
         Ok(())
