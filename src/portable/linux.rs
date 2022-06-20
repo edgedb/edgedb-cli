@@ -8,7 +8,7 @@ use fn_error_context::context;
 use crate::platform::{home_dir, current_exe};
 use crate::portable::destroy::InstanceNotFound;
 use crate::portable::local::{InstanceInfo, runstate_dir, log_file};
-use crate::portable::options::{StartConf, Logs, instance_arg};
+use crate::portable::options::{Logs, instance_arg};
 use crate::portable::status::Service;
 use crate::process;
 
@@ -21,12 +21,16 @@ fn unit_name(name: &str) -> String {
     format!("edgedb-server@{}.service", name)
 }
 
-fn systemd_service_path(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(unit_dir()?.join(unit_name(name)))
+fn socket_name(name: &str) -> String {
+    format!("edgedb-server@{}.socket", name)
 }
 
 pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
-    Ok(vec![systemd_service_path(name)?])
+    let dir = unit_dir()?;
+    Ok(vec![
+       dir.join(unit_name(name)),
+       dir.join(socket_name(name)),
+    ])
 }
 
 
@@ -38,9 +42,15 @@ pub fn create_service(info: &InstanceInfo)
     fs::create_dir_all(&unit_dir)
         .with_context(|| format!("cannot create directory {:?}", unit_dir))?;
     let unit_name = unit_name(name);
+    let socket_name = socket_name(name);
     let unit_path = unit_dir.join(&unit_name);
+    let socket_unit_path = unit_dir.join(&socket_name);
     fs::write(&unit_path, systemd_unit(name, info)?)
         .with_context(|| format!("cannot write {:?}", unit_path))?;
+    if info.get_version()?.specific().major >= 2 {
+        fs::write(&socket_unit_path, systemd_socket(name, info)?)
+            .with_context(|| format!("cannot write {:?}", socket_unit_path))?;
+    }
     if preliminary_detect().is_some() {
         process::Native::new("systemctl", "systemctl", "systemctl")
             .arg("--user")
@@ -48,18 +58,9 @@ pub fn create_service(info: &InstanceInfo)
             .run()
             .map_err(|e| log::warn!("failed to reload systemd daemon: {}", e))
             .ok();
-    }
-    if info.start_conf == StartConf::Auto {
-        process::Native::new("systemctl", "systemctl", "systemctl")
-            .arg("--user")
-            .arg("enable")
-            .arg(&unit_name)
-            .run()?;
-        process::Native::new("systemctl", "systemctl", "systemctl")
-            .arg("--user")
-            .arg("start")
-            .arg(&unit_name)
-            .run()?;
+        start_service(name)?;
+    } else {
+        anyhow::bail!("either systemctl is not found or environment is wrong");
     }
     Ok(())
 }
@@ -91,6 +92,27 @@ WantedBy=default.target
     ))
 }
 
+#[context("cannot compose service file")]
+pub fn systemd_socket(name: &str, info: &InstanceInfo)
+    -> anyhow::Result<String>
+{
+    Ok(format!(r###"
+[Unit]
+Description=EdgeDB Database Service socket, instance {instance_name:?}
+Documentation=https://edgedb.com/
+
+[Socket]
+ListenStream=127.0.0.1:{port}
+FileDescriptorName=edgedb-server
+
+[Install]
+WantedBy=default.target
+    "###,
+        instance_name=name,
+        port=info.port,
+    ))
+}
+
 fn systemd_is_not_found_error(e: &str) -> bool {
     e.contains("Failed to get D-Bus connection") ||
     e.contains("Failed to connect to bus") ||
@@ -102,6 +124,7 @@ fn systemd_is_not_found_error(e: &str) -> bool {
 pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     let mut found = false;
     let svc_name = unit_name(name);
+    let socket_name = socket_name(name);
     log::info!("Stopping service {}", svc_name);
     let mut not_found_error = None;
     let mut cmd = process::Native::new(
@@ -114,6 +137,20 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
         Err((_, e)) if systemd_is_not_found_error(&e) => {
             not_found_error = Some(e);
         }
+        Err((s, e)) => {
+            log::warn!(
+                "Error running systemctl (command-line: {:?}): {}: {}",
+                cmd.command_line(), s, e);
+        }
+    }
+
+    let mut cmd = process::Native::new(
+        "stop socket", "systemctl", "systemctl");
+    cmd.arg("--user");
+    cmd.arg("stop");
+    cmd.arg(&socket_name);
+    match cmd.run_or_stderr()? {
+        Ok(()) => found = true,
         Err((s, e)) => {
             log::warn!(
                 "Error running systemctl (command-line: {:?}): {}: {}",
@@ -137,6 +174,21 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
                 cmd.command_line(), s, e);
         }
     }
+
+    let mut cmd = process::Native::new(
+        "disable socket", "systemctl", "systemctl");
+    cmd.arg("--user");
+    cmd.arg("disable");
+    cmd.arg(&socket_name);
+    match cmd.run_or_stderr()? {
+        Ok(()) => found = true,
+        Err((s, e)) => {
+            log::warn!(
+                "Error running systemctl (command-line: {:?}): {}: {}",
+                cmd.command_line(), s, e);
+        }
+    }
+
     if let Some(e) = not_found_error {
         return Err(InstanceNotFound(anyhow::anyhow!(
             "no instance {:?} found: {}", name, e.trim())).into());
@@ -144,7 +196,9 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     Ok(found)
 }
 
-pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
+pub fn server_cmd(inst: &InstanceInfo, is_shutdown_supported: bool)
+    -> anyhow::Result<process::Native>
+{
     let data_dir = inst.data_dir()?;
     let server_path = inst.server_path()?;
     let mut pro = process::Native::new("edgedb", "edgedb", server_path);
@@ -157,6 +211,9 @@ pub fn server_cmd(inst: &InstanceInfo) -> anyhow::Result<process::Native> {
     if inst.get_version()?.specific().major >= 2 {
         pro.arg("--compiler-pool-mode=on_demand");
         pro.arg("--admin-ui=enabled");
+        if is_shutdown_supported {
+            pro.arg("--auto-shutdown-after=600");
+        }
     }
     Ok(pro)
 }
@@ -197,6 +254,25 @@ fn _detect_systemd(instance: &str) -> Option<PathBuf> {
 }
 
 pub fn start_service(instance: &str) -> anyhow::Result<()> {
+    let socket_name = socket_name(&instance);
+    let socket_file = unit_dir()?.join(&socket_name);
+    if socket_file.exists() {
+        process::Native::new("service start", "systemctl", "systemctl")
+            .arg("--user")
+            .arg("enable")
+            .arg(&socket_name)
+            .run()?;
+        process::Native::new("service start", "systemctl", "systemctl")
+            .arg("--user")
+            .arg("start")
+            .arg(&socket_name)
+            .run()?;
+    }
+    process::Native::new("service start", "systemctl", "systemctl")
+        .arg("--user")
+        .arg("enable")
+        .arg(&unit_name(&instance))
+        .run()?;
     process::Native::new("service start", "systemctl", "systemctl")
         .arg("--user")
         .arg("start")
@@ -206,9 +282,28 @@ pub fn start_service(instance: &str) -> anyhow::Result<()> {
 }
 
 pub fn stop_service(name: &str) -> anyhow::Result<()> {
+    let socket_name = socket_name(name);
+    let socket_file = unit_dir()?.join(&socket_name);
+    if socket_file.exists() {
+        process::Native::new("stop service", "systemctl", "systemctl")
+            .arg("--user")
+            .arg("stop")
+            .arg(&socket_name)
+            .run()?;
+        process::Native::new("stop service", "systemctl", "systemctl")
+            .arg("--user")
+            .arg("disable")
+            .arg(&socket_name)
+            .run()?;
+    }
     process::Native::new("stop service", "systemctl", "systemctl")
         .arg("--user")
         .arg("stop")
+        .arg(unit_name(&name))
+        .run()?;
+    process::Native::new("stop service", "systemctl", "systemctl")
+        .arg("--user")
+        .arg("disable")
         .arg(unit_name(&name))
         .run()?;
     Ok(())
@@ -221,6 +316,24 @@ pub fn restart_service(inst: &InstanceInfo) -> anyhow::Result<()> {
         .arg(unit_name(&inst.name))
         .run()?;
     Ok(())
+}
+
+fn is_ready(name: &str) -> bool {
+    let mut cmd = process::Native::new(
+        "service status", "systemctl", "systemctl");
+    cmd.arg("--user");
+    cmd.arg("show");
+    cmd.arg(socket_name(name));
+    let txt = match cmd.get_stdout_text() {
+        Ok(txt) => txt,
+        Err(_) => return false,
+    };
+    for line in txt.lines() {
+        if let Some(state) = line.strip_prefix("ActiveState=") {
+            return state.trim() == "active";
+        }
+    }
+    return false;
 }
 
 pub fn service_status(name: &str) -> Service {
@@ -257,6 +370,8 @@ pub fn service_status(name: &str) -> Service {
         None | Some(0) => {
             if let Some(error) = load_error {
                 Inactive { error }
+            } else if exit == Some(0) && is_ready(name) {
+                Ready
             } else {
                 Failed { exit_code: exit }
             }

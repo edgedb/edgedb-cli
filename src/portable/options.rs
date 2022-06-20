@@ -136,10 +136,9 @@ pub struct Create {
     #[clap(long)]
     pub port: Option<u16>,
 
-    /// Specifies whether to start EdgeDB automatically
-    #[clap(long, default_value="auto",
-           possible_values=&["auto", "manual"][..])]
-    pub start_conf: StartConf,
+    /// Deprecated. Has no meaning.
+    #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
+    pub start_conf: Option<StartConf>,
 
     /// Default database name (created during initialization, and saved in
     /// credentials file)

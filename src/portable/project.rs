@@ -111,8 +111,8 @@ pub struct Init {
     #[clap(long, validator(instance_name_opt))]
     pub server_instance: Option<String>,
 
-    /// Specifies whether to start EdgeDB automatically
-    #[clap(long, possible_values=&["auto", "manual"][..])]
+    /// Deprecated. Has no action
+    #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
     pub server_start_conf: Option<StartConf>,
 
     /// Skip running migrations
@@ -220,6 +220,13 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
+
+    if options.server_start_conf.is_some() {
+        print::warn("The option `--server-start-conf` is deprecated. \
+                     Use `edgedb instance start/stop` to control \
+                     the instance.");
+    }
+
     match &options.project_dir {
         Some(dir) => {
             let dir = fs::canonicalize(&dir)?;
@@ -430,23 +437,6 @@ fn ask_link_cloud_instance(options: &Init, name: &str) -> anyhow::Result<()> {
     }
 }
 
-fn ask_start_conf(options: &Init) -> anyhow::Result<StartConf> {
-    if let Some(conf) = &options.server_start_conf {
-        return Ok(*conf);
-    }
-    if options.non_interactive {
-        return Ok(StartConf::Auto);
-    }
-    let confirm = question::Confirm::new(
-        "Do you want to start instance automatically on login?"
-    );
-    if confirm.ask()? {
-        Ok(StartConf::Auto)
-    } else {
-        Ok(StartConf::Manual)
-    }
-}
-
 pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::options::CloudOptions)
     -> anyhow::Result<ProjectInfo>
 {
@@ -477,19 +467,11 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
     };
     let (name, exists) = ask_name(project_dir, options)?;
 
-    let start_conf = if exists {
-        if options.server_start_conf.is_some() {
-            log::warn!("Linking to existing instance. \
-                `--server-start-conf` is ignored.");
-        }
+    if exists {
         let inst = Handle::probe(&name, project_dir, &schema_dir)?;
         inst.check_version(&ver_query);
         return do_link(&inst, options, &stash_dir);
-    } else if options.cloud {
-        StartConf::Auto
-    } else {
-        ask_start_conf(options)?
-    };
+    }
 
     echo!("Checking EdgeDB versions...");
 
@@ -550,7 +532,6 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                       if schema_files { "(non-empty)" } else { "(empty)" }),
              &schema_dir_path.display().to_string()),
             ("Installation method", meth),
-            ("Start configuration", start_conf.as_str()),
             ("Version", &pkg.version.to_string()),
             ("Instance name", &name),
         ]);
@@ -559,50 +540,47 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             write_schema_default(&schema_dir)?;
         }
 
-        do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, start_conf, options)
+        do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
     }
 }
 
 fn do_init(name: &str, pkg: &PackageInfo,
-           stash_dir: &Path, project_dir: &Path, schema_dir: &Path, start_conf: StartConf,
-           options: &Init)
+           stash_dir: &Path, project_dir: &Path, schema_dir: &Path, options: &Init)
     -> anyhow::Result<ProjectInfo>
 {
     let port = allocate_port(name)?;
     let paths = Paths::get(&name)?;
 
-    let (instance, svc_result) = if cfg!(windows) {
+    let instance = if cfg!(windows) {
         let q = repository::Query::from_version(&pkg.version.specific())?;
         windows::create_instance(&options::Create {
             name: Some(name.into()),
             nightly: q.is_nightly(),
             version: q.version,
             port: Some(port),
-            start_conf,
+            start_conf: None,
             default_database: "edgedb".into(),
             default_user: "edgedb".into(),
             cloud: false,
             cloud_org: None,
             non_interactive: true,
         }, name, port, &paths)?;
-        let svc_result = create::create_service(&InstanceInfo {
+        create::create_service(&InstanceInfo {
             name: name.into(),
             installation: None,
             port,
-            start_conf,
-        });
-        (InstanceKind::Wsl(WslInfo {}), svc_result)
+        })?;
+        InstanceKind::Wsl(WslInfo {})
     } else {
         let inst = install::package(&pkg).context("error installing EdgeDB")?;
         let info = InstanceInfo {
             name: name.into(),
             installation: Some(inst),
             port,
-            start_conf,
         };
         create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
-        let svc_result = create::create_service(&info);
-        (InstanceKind::Portable(info), svc_result)
+        create::create_service(&info)?;
+        InstanceKind::Portable(info)
     };
 
     write_stash_dir(stash_dir, project_dir, &name)?;
@@ -613,31 +591,10 @@ fn do_init(name: &str, pkg: &PackageInfo,
         schema_dir: schema_dir.into(),
         instance,
     };
-    match (svc_result, start_conf) {
-        (Ok(()), StartConf::Manual) => {
-            if !options.no_migrations {
-                run_and_migrate(&handle)?;
-            }
-            print_initialized(&name, &options.project_dir, start_conf);
-        }
-        (Ok(()), StartConf::Auto) => {
-            if !options.no_migrations {
-                task::block_on(migrate(&handle, false))?;
-            }
-            print_initialized(&name, &options.project_dir, start_conf);
-        }
-        (Err(e), _) => {
-            if !options.no_migrations {
-                run_and_migrate(&handle)?;
-            }
-            echo!("Bootstrapping complete, \
-                but there was an error creating the service:",
-                format_args!("{:#}", e));
-            echo!("You can start it manually via:");
-            echo!("  edgedb instance start", name);
-            return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
-        }
+    if !options.no_migrations {
+        task::block_on(migrate(&handle, false))?;
     }
+    print_initialized(&name, &options.project_dir);
     Ok(ProjectInfo {
         instance_name: name.into(),
         stash_dir: stash_dir.into(),
@@ -674,7 +631,7 @@ fn do_cloud_init(
         };
         task::block_on(migrate(&handle, false))?;
     }
-    print_initialized(&name, &options.project_dir, StartConf::Auto);
+    print_initialized(&name, &options.project_dir);
     Ok(ProjectInfo {
         instance_name: name,
         stash_dir: stash_dir.into(),
@@ -715,10 +672,6 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     let (name, exists) = ask_name(project_dir, options)?;
 
     if exists {
-        if options.server_start_conf.is_some() {
-            log::warn!("Linking to existing instance. \
-                `--server-start-conf` is ignored.");
-        }
         let inst = Handle::probe(&name, project_dir, &schema_dir)?;
         write_config(&config_path,
                      &Query::from_version(&inst.get_version()?.specific())?)?;
@@ -779,7 +732,6 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
         do_cloud_init(name, org, &stash_dir, &project_dir, &schema_dir, options, &client)  // , version)
     } else {
         let pkg = ask_version(options)?;
-        let start_conf = ask_start_conf(options)?;
 
         let meth = if cfg!(windows) {
             "WSL"
@@ -793,7 +745,6 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                       if schema_files { "(non-empty)" } else { "(empty)" }),
              &schema_dir_path.display().to_string()),
             ("Installation method", meth),
-            ("Start configuration", start_conf.as_str()),
             ("Version", &pkg.version.to_string()),
             ("Instance name", &name),
         ]);
@@ -804,7 +755,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             write_schema_default(&schema_dir_path)?;
         }
 
-        do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, start_conf, options)
+        do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
     }
 }
 
@@ -848,12 +799,12 @@ fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
     match &info.instance {
         InstanceKind::Portable(inst) => {
             control::ensure_runstate_dir(&info.name)?;
-            let mut cmd = control::get_server_cmd(inst)?;
+            let mut cmd = control::get_server_cmd(inst, false)?;
             cmd.background_for(migrate(info, false))?;
             Ok(())
         }
         InstanceKind::Wsl(_) => {
-            let mut cmd = windows::server_cmd(&info.name)?;
+            let mut cmd = windows::server_cmd(&info.name, false)?;
             cmd.background_for(migrate(info, false))?;
             Ok(())
         }
@@ -1061,21 +1012,14 @@ fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
     return Ok(false);
 }
 
-fn print_initialized(name: &str, dir_option: &Option<PathBuf>,
-    start_conf: StartConf)
+fn print_initialized(name: &str, dir_option: &Option<PathBuf>)
 {
     print::success("Project initialized.");
-    if start_conf == StartConf::Manual {
-        echo!("To start the server run:");
-        echo!("  edgedb instance start".command_hint(),
-              name.escape_default().command_hint());
+    if let Some(dir) = dir_option {
+        echo!("To connect to", name.emphasize();
+              ", navigate to", dir.display(), "and run `edgedb`");
     } else {
-        if let Some(dir) = dir_option {
-            echo!("To connect to", name.emphasize();
-                  ", navigate to", dir.display(), "and run `edgedb`");
-        } else {
-            echo!("To connect to", name.emphasize(); ", run `edgedb`");
-        }
+        echo!("To connect to", name.emphasize(); ", run `edgedb`");
     }
 }
 

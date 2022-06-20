@@ -157,29 +157,28 @@ fn project_link_and_init_from_non_project_dir() {
 
     Command::new("edgedb").arg("project").arg("init")
         .arg("--non-interactive")
-        .arg("--server-start-conf=manual")
         .arg("--project-dir=tests/proj/project2")
         .assert()
-        .context("proj-dir-project-init-manual", "init project2 manual")
+        .context("proj-dir-project-init-2", "init project2")
         .success();
 
     Command::new("edgedb").arg("project").arg("upgrade")
         .arg("--to-latest").arg("--force")
         .arg("--project-dir=tests/proj/project2")
         .assert()
-        .context("proj-dir-project-upgrade-manual", "upgrade manual project")
+        .context("proj-dir-project-upgrade", "upgrade project2")
         .success();
 
     Command::new("edgedb").arg("instance").arg("status").arg("project2")
         .arg("--extended")
         .assert()
         .context("proj-dir-instance-status", "show extended status")
-        .code(3);
+        .success();
 
     Command::new("edgedb").arg("instance").arg("revert").arg("project2")
         .arg("--no-confirm")
         .assert()
-        .context("proj-dir-project-revert-manual", "revert manual project")
+        .context("proj-dir-project-revert-2", "revert project2")
         .success();
 
     Command::new("edgedb")

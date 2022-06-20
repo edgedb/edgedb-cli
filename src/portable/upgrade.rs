@@ -13,7 +13,7 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
-use crate::portable::options::{Upgrade, StartConf, instance_arg};
+use crate::portable::options::{Upgrade, instance_arg};
 use crate::portable::project;
 use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
@@ -138,29 +138,13 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
     let metapath = inst.data_dir()?.join("instance_info.json");
     write_json(&metapath, "new instance metadata", &inst)?;
 
-    match (create::create_service(&inst), inst.start_conf) {
-        (Ok(()), StartConf::Manual) => {
-            echo!("Instance", inst.name.emphasize(),
-                  "is upgraded to", pkg.version.emphasize());
-            eprintln!("Please restart the server or run: \n  \
-                edgedb instance start [--foreground] {}",
-                inst.name);
-        }
-        (Ok(()), StartConf::Auto) => {
-            control::do_restart(&inst)?;
-            echo!("Instance", inst.name.emphasize(),
-                  "is successfully upgraded to", pkg.version.emphasize());
-        }
-        (Err(e), _) => {
-            echo!("Upgrade to", pkg.version.emphasize(), "is complete, \
-                but there was an error creating the service:",
-                format_args!("{:#}", e));
-            eprintln!("You can start it manually via:\n  \
-                edgedb instance start [--foreground] {}",
-                inst.name);
-            return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
-        }
-    }
+    create::create_service(&inst)
+        .map_err(|e| {
+            log::warn!("Error running EdgeDB as a service: {e:#}");
+        }).ok();
+    control::do_restart(&inst)?;
+    echo!("Instance", inst.name.emphasize(),
+          "is successfully upgraded to", pkg.version.emphasize());
     Ok(())
 }
 
@@ -186,29 +170,13 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
     fs::remove_file(&paths.upgrade_marker)
         .with_context(|| format!("removing {:?}", paths.upgrade_marker))?;
 
-    match (create::create_service(&inst), inst.start_conf) {
-        (Ok(()), StartConf::Manual) => {
-            echo!("Instance", inst.name.emphasize(),
-                  "is upgraded to", pkg.version.emphasize());
-            eprintln!("Please restart the server or run: \n  \
-                edgedb instance start [--foreground] {}",
-                inst.name);
-        }
-        (Ok(()), StartConf::Auto) => {
-            control::do_restart(&inst)?;
-            echo!("Instance", inst.name.emphasize(),
-                   "is successfully upgraded to", pkg.version.emphasize());
-        }
-        (Err(e), _) => {
-            echo!("Upgrade to", pkg.version.emphasize(), "is complete, \
-                but there was an error creating the service:",
-                format_args!("{:#}", e));
-            eprintln!("You can start it manually via:\n  \
-                edgedb instance start --foreground {}",
-                inst.name);
-            return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?
-        }
-    }
+    create::create_service(&inst)
+        .map_err(|e| {
+            log::warn!("Error running EdgeDB as a service: {e:#}");
+        }).ok();
+    control::do_restart(&inst)?;
+    echo!("Instance", inst.name.emphasize(),
+           "is successfully upgraded to", pkg.version.emphasize());
 
     Ok(())
 }
@@ -223,7 +191,7 @@ pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
         log::warn!("Error starting service: {:#}. Trying to start manually.",
             err);
         control::ensure_runstate_dir(&inst.name)?;
-        let mut cmd = control::get_server_cmd(inst)?;
+        let mut cmd = control::get_server_cmd(inst, false)?;
         cmd.background_for(dump_instance(inst, &path))?;
     } else {
         task::block_on(dump_instance(inst, &path))?;
@@ -288,7 +256,7 @@ fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()>
 
     echo!("Restoring the database...");
     control::ensure_runstate_dir(&inst.name)?;
-    let mut cmd = control::get_server_cmd(inst)?;
+    let mut cmd = control::get_server_cmd(inst, false)?;
     control::self_signed_arg(&mut cmd, inst.get_version()?);
     cmd.background_for(async {
         restore_instance(inst, &paths.dump_path).await?;

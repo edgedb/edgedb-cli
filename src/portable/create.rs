@@ -8,12 +8,12 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform;
-use crate::portable::control::{self_signed_arg, ensure_runstate_dir};
+use crate::portable::control::{self, self_signed_arg, ensure_runstate_dir};
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{Paths, InstanceInfo};
 use crate::portable::local::{write_json, allocate_port, is_valid_name};
-use crate::portable::options::{Create, StartConf};
+use crate::portable::options::{Create, Start};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
 use crate::portable::reset_password::{password_hash, generate_password};
@@ -54,6 +54,11 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
+    if options.start_conf.is_some() {
+        print::warn("The option `--start-conf` is deprecated. \
+                     Use `edgedb instance start/stop` to control \
+                     the instance.");
+    }
 
     let name = if let Some(name) = &options.name {
         name.to_owned()
@@ -81,7 +86,6 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
             name: name.clone(),
             installation: None,
             port,
-            start_conf: options.start_conf,
         }
     } else {
         let query = Query::from_options(options.nightly, &options.version)?;
@@ -90,7 +94,6 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
             name: name.clone(),
             installation: Some(inst),
             port,
-            start_conf: options.start_conf,
         };
         bootstrap(&paths, &info,
                   &options.default_database, &options.default_user)?;
@@ -102,27 +105,25 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
         return Ok(())
     }
 
-    match (create_service(&info), options.start_conf) {
-        (Ok(()), StartConf::Manual) => {
-            echo!("Instance", name.emphasize(), "is ready.");
-            eprintln!("You can start it manually via: \n  \
-                edgedb instance start [--foreground] {}",
-                name);
-        }
-        (Ok(()), StartConf::Auto) => {
-            echo!("Instance", name.emphasize(), "is up and running.");
-            echo!("To connect to the instance run:");
-            echo!("  edgedb -I", name);
-        }
-        (Err(e), _) => {
-            eprintln!("Bootstrapping complete, \
-                but there was an error creating the service: {:#}", e);
-            eprintln!("You can start it manually via: \n  \
-                edgedb instance start {}",
-                name);
-            return Err(ExitCode::new(exit_codes::CANNOT_CREATE_SERVICE))?;
+    match create_service(&info) {
+        Ok(()) => {},
+        Err(e) => {
+            log::warn!("Error running EdgeDB as a service: {e:#}");
+            print::warn("EdgeDB will not start on next login. \
+                         Trying to start database in the background...");
+            control::start(&Start {
+                name: Some(info.name.clone()),
+                instance: None,
+                foreground: false,
+                auto_restart: false,
+                managed_by: None,
+            })?;
         }
     }
+
+    echo!("Instance", name.emphasize(), "is up and running.");
+    echo!("To connect to the instance run:");
+    echo!("  edgedb -I", name);
     Ok(())
 }
 

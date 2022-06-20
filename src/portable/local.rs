@@ -12,7 +12,6 @@ use edgedb_client::Builder;
 use crate::bug;
 use crate::credentials;
 use crate::platform::{portable_dir, data_dir, config_dir, cache_dir};
-use crate::portable::options::StartConf;
 use crate::portable::repository::PackageHash;
 use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
@@ -38,7 +37,6 @@ pub struct InstanceInfo {
     pub name: String,
     pub installation: Option<InstallInfo>,
     pub port: u16,
-    pub start_conf: StartConf,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

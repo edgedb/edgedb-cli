@@ -525,13 +525,15 @@ pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
 
 pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
-    fs_err::write(service_file(&info.name)?, format!("wsl \
+    create_and_start(wsl, &info.name)
+}
+
+fn create_and_start(wsl: &Wsl, name: &str) -> anyhow::Result<()> {
+    fs_err::write(service_file(&name)?, format!("wsl \
         --distribution {} --user edgedb \
         /usr/bin/edgedb instance start {}",
-        &wsl.distribution, &info.name))?;
-    if info.start_conf == StartConf::Auto {
-        wsl.edgedb().arg("instance").arg("start").arg(&info.name).run()?;
-    }
+        &wsl.distribution, &name))?;
+    wsl.edgedb().arg("instance").arg("start").arg(&name).run()?;
     Ok(())
 }
 
@@ -539,7 +541,9 @@ pub fn stop_and_disable(_name: &str) -> anyhow::Result<bool> {
     anyhow::bail!("running as a service is not supported on Windows yet");
 }
 
-pub fn server_cmd(instance: &str) -> anyhow::Result<process::Native> {
+pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
+    -> anyhow::Result<process::Native>
+{
     let wsl = try_get_wsl()?;
     let mut pro = wsl.edgedb();
     pro.arg("instance").arg("start").arg("--foreground").arg(instance);
@@ -652,10 +656,9 @@ pub fn reset_password(options: &options::ResetPassword) -> anyhow::Result<()> {
 }
 
 pub fn start(options: &options::Start) -> anyhow::Result<()> {
+    let name = instance_arg(&options.name, &options.instance)?;
     if let Some(wsl) = get_wsl()? {
-        wsl.edgedb()
-            .arg("instance").arg("start").args(options)
-            .run()?;
+        create_and_start(wsl, name)?;
     } else {
         anyhow::bail!("WSL distribution is not installed, \
                        so no EdgeDB instances are present.");
@@ -664,10 +667,15 @@ pub fn start(options: &options::Start) -> anyhow::Result<()> {
 }
 
 pub fn stop(options: &options::Stop) -> anyhow::Result<()> {
+    let name = instance_arg(&options.name, &options.instance)?;
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("instance").arg("stop").args(options)
             .run()?;
+        let service_file = service_file(&name)?;
+        fs::remove_file(&service_file)
+            .map_err(|e| log::warn!("error removing {service_file:?}: {e:#}"))
+            .ok();
     } else {
         anyhow::bail!("WSL distribution is not installed, \
                        so no EdgeDB instances are present.");
