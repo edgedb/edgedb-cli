@@ -8,7 +8,7 @@ use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
-use edgedb_client::Builder;
+use edgedb_client::{Builder, get_project_dir};
 use edgedb_client::credentials::TlsSecurity;
 use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind};
 use edgedb_protocol::model;
@@ -664,9 +664,17 @@ pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
     set_password(tmp, &mut bld)?;
     load_tls_options(tmp, &mut bld)?;
     if !bld.is_initialized() {
-        return Err(anyhow::anyhow!(ClientNoCredentialsError::with_message(
-            "no `edgedb.toml` found and no connection options are specified")))
-            .hint(CONNECTION_ARG_HINT)?;
+        let project_dir = task::block_on(get_project_dir(None, true))?;
+        if project_dir.is_some() {
+            return Err(anyhow::anyhow!(ClientNoCredentialsError::with_message(
+                "project is not initialized \
+                 and no connection options are specified"
+            ))).hint(CONNECTION_ARG_HINT)?;
+        } else {
+            return Err(anyhow::anyhow!(ClientNoCredentialsError::with_message(
+                "no `edgedb.toml` found and no connection options are specified"
+            ))).hint(CONNECTION_ARG_HINT)?;
+        }
     }
     Ok(bld)
 }
