@@ -20,7 +20,8 @@ fn package_no_systemd(tagname: &str, dockerfile: &str)
     run(tagname, r###"
         edgedb server install
         edgedb instance create test1
-    "###).code(2)
+    "###)
+        .success()
         .stderr(contains("Bootstrapping complete"))
         .stderr(contains("start --foreground"));
     Ok(())
