@@ -162,7 +162,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     load_tls_options(&opts.conn_options, &mut builder)?;
 
     let mut creds = builder.as_credentials()?;
-    let mut verifier = Arc::new(
+    let verifier = Arc::new(
         InteractiveCertVerifier {
             inner: rustls::client::WebPkiVerifier::new(
                 builder.root_cert_store()?,
@@ -201,23 +201,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 });
                 builder.pem_certificates(&pem)?;
             }
-            creds = builder.as_credentials()?;
-            verifier = Arc::new(
-                InteractiveCertVerifier {
-                    inner: rustls::client::WebPkiVerifier::new(
-                        builder.root_cert_store()?,
-                        None,
-                    ),
-                    cert_out: Mutex::new(None),
-                    tls_security: creds.tls_security,
-                    system_ca_only: creds.tls_ca.is_none(),
-                    non_interactive: true,
-                    quiet: false,
-                    trust_tls_cert: true,
-                }
-            );
-            task::block_on(Connector::new(Ok(builder))
-                           .connect_with_cert_verifier(verifier.clone()))?;
+            task::block_on(Connector::new(Ok(builder)).connect())?;
         } else {
             return Err(e.into());
         }

@@ -1,9 +1,7 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use async_std::future::{timeout, pending};
 use async_std::prelude::FutureExt;
-use rustls::client::ServerCertVerifier;
 
 use edgedb_client::{Builder, Config};
 use edgedb_client::errors::Error;
@@ -39,15 +37,6 @@ impl Connector {
         Ok(cfg.connect()
             .race(self.print_warning(cfg))
             .await?)
-    }
-
-    pub async fn connect_with_cert_verifier(
-        &self, verifier: Arc<dyn ServerCertVerifier>
-    ) -> anyhow::Result<Connection> {
-        let (_, cfg) = self.params.as_ref().map_err(Clone::clone)?;
-        cfg.connect_with_cert_verifier(verifier)
-            .race(self.print_warning(cfg))
-            .await.map_err(Into::into)
     }
 
     async fn print_warning(&self, cfg: &Config)
