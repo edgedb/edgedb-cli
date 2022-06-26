@@ -37,18 +37,16 @@ assert asyncio.get_event_loop().run_until_complete(test_async()) == 2
 pub fn edbconnect_js() -> &'static str {
     r###"
 const edgedb = require('edgedb')
-edgedb.createClient(process.argv[2])
-.then(function(conn) {
-    return conn.querySingle('SELECT 1+1')
-})
-.then(function(value) {
-    console.assert(value == 2, value)
-    process.exit(0)
-})
-.catch(e => {
-    console.error("Error", e)
-    process.exit(1)
-})
+let client = edgedb.createClient(process.argv[2])
+conn.querySingle('SELECT 1+1')
+    .then(function(value) {
+        console.assert(value == 2, value)
+        process.exit(0)
+    })
+    .catch(e => {
+        console.error("Error", e)
+        process.exit(1)
+    })
     "###
 }
 
