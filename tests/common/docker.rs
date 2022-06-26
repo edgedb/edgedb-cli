@@ -38,7 +38,7 @@ pub fn edbconnect_js() -> &'static str {
     r###"
 const edgedb = require('edgedb')
 let client = edgedb.createClient(process.argv[2])
-conn.querySingle('SELECT 1+1')
+client.querySingle('SELECT 1+1')
     .then(function(value) {
         console.assert(value == 2, value)
         process.exit(0)
