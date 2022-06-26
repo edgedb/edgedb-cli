@@ -22,8 +22,8 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
     "###,
     )
     .success()
-    .stderr(contains("Bootstrapping complete"))
-    .stderr(contains("start --foreground"));
+    .stderr(contains("EdgeDB will not start on next login"))
+    .stderr(contains("up and running"));
     Ok(())
 }
 
