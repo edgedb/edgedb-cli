@@ -9,13 +9,15 @@ use async_std::task;
 use colorful::Colorful;
 use pem;
 use ring::digest;
-use rustls;
+use rustls::client::{ServerCertVerifier, ServerCertVerified, WebPkiVerifier};
 use rustls::{Certificate, ServerName};
-use rustls::client::{ServerCertVerifier, ServerCertVerified};
+use rustls;
+use webpki::TrustAnchor;
 
-use edgedb_client::{Builder};
-use edgedb_client::errors::{Error, PasswordRequired, ClientNoCredentialsError};
 use edgedb_client::credentials::TlsSecurity;
+use edgedb_client::errors::{Error, PasswordRequired, ClientNoCredentialsError};
+use edgedb_client::tls;
+use edgedb_client::{Builder};
 
 use crate::connect::Connector;
 use crate::credentials;
@@ -32,7 +34,7 @@ use crate::tty_password;
 
 
 struct InteractiveCertVerifier {
-    inner: rustls::client::WebPkiVerifier,
+    inner: WebPkiVerifier,
     cert_out: Mutex<Option<Certificate>>,
     tls_security: TlsSecurity,
     system_ca_only: bool,
@@ -50,6 +52,8 @@ impl ServerCertVerifier for InteractiveCertVerifier {
         ocsp_response: &[u8],
         now: SystemTime
     ) -> Result<ServerCertVerified, rustls::Error> {
+        use rustls::Error::InvalidCertificateData;
+
         if let TlsSecurity::Insecure = self.tls_security {
             return Ok(ServerCertVerified::assertion());
         }
@@ -59,27 +63,26 @@ impl ServerCertVerifier for InteractiveCertVerifier {
             Ok(val) => {
                 return Ok(val);
             }
-            Err(e) => {
+            Err(InvalidCertificateData(txt)) if txt.contains("UnknownIssuer")
+            => {
+                // reconstruct Error for easier fallthrough
+                let e = InvalidCertificateData(txt);
+
                 if !self.system_ca_only {
                     // Don't continue if the verification failed when the user
                     // already specified a certificate to trust
                     return Err(e);
                 }
 
-                // TODO(tailhook) check specific error
-
-                /* TODO(tailhook)
                 // Make sure the verification with the to-be-trusted cert
                 // trusted is a success before asking the user
-                let mut roots = RootCertStore::empty();
-                roots.add(&presented_certs[untrusted_index])
-                    .map_err(rustls::Error::WebPKIError)?;
-                let cert = verify_server_cert(&roots, presented_certs)?;
-                if self.verify_hostname(false) {
-                    cert.verify_is_valid_for_dns_name(dns_name)
-                        .map_err(rustls::Error::WebPKIError)?;
-                }
-                */
+                let anchor = TrustAnchor::try_from_cert_der(&end_entity.0)
+                    .map_err(|e| InvalidCertificateData(e.to_string()))?;
+                tls::NoHostnameVerifier::new(vec![anchor.into()])
+                    .verify_server_cert(
+                        end_entity, intermediates, server_name,
+                        scts, ocsp_response, now
+                    )?;
 
                 // Acquire consensus to trust the root of presented_certs chain
                 let fingerprint = digest::digest(
@@ -113,6 +116,7 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                 // Export the cert in PEM format and return verification success
                 *self.cert_out.lock().unwrap() = Some(end_entity.clone());
             }
+            Err(e) => return Err(e),
         }
 
         Ok(ServerCertVerified::assertion())
@@ -164,10 +168,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let mut creds = builder.as_credentials()?;
     let verifier = Arc::new(
         InteractiveCertVerifier {
-            inner: rustls::client::WebPkiVerifier::new(
-                builder.root_cert_store()?,
-                None,
-            ),
+            inner: WebPkiVerifier::new(builder.root_cert_store()?, None),
             cert_out: Mutex::new(None),
             tls_security: creds.tls_security,
             system_ca_only: creds.tls_ca.is_none(),
