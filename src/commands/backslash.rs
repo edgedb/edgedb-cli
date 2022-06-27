@@ -250,6 +250,14 @@ impl<'a> Parser<'a> {
                     span: (offset, offset+char_len),
                 })
             }
+            if value.starts_with("\\-") {
+                return Some(Token {
+                    item: Item::Error {
+                        message: "unexpected `-`, try \\help",
+                    },
+                    span: (offset+1, offset+2),
+                })
+            }
             Item::Command(value)
         } else {
             Item::Argument(value)
