@@ -30,13 +30,17 @@ pub fn dock_ubuntu_jspy(codename: &str) -> String {
         RUN apt-get update && apt-get install -y \
             ca-certificates sudo gnupg2 apt-transport-https curl \
             software-properties-common dbus-user-session \
-            python3-pip npm
+            python3-pip
         RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
         RUN add-apt-repository \
            "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
            $(lsb_release -cs) \
            stable"
-        RUN apt-get update && apt-get install -y docker-ce-cli
+        RUN add-apt-repository \
+            "deb [arch=amd64] https://deb.nodesource.com/node_17.x \
+            $(lsb_release -cs) \
+            main"
+        RUN apt-get update && apt-get install -y docker-ce-cli nodejs
         RUN adduser --uid 1000 --home /home/user1 \
             --shell /bin/bash --ingroup users --gecos "Test User" \
             user1
