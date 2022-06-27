@@ -112,7 +112,7 @@ fn docker(tagname: &str, dockerfile: &str, version: &str)
         .add_bin()?;
     build_image(context, tagname)?;
     run_docker(tagname, &format!(r###"
-            edgedb server install --method=docker {version}
+            edgedb server install {version}
             RUST_LOG=info edgedb instance create test1 {version}
             val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
@@ -139,7 +139,7 @@ fn docker_jspy(tagname: &str, dockerfile: &str, version: &str)
         .add_bin()?;
     build_image(context, tagname)?;
     run_docker(tagname, &format!(r###"
-            edgedb server install --method=docker {version}
+            edgedb server install {version}
             edgedb instance create test1 {version}
             val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
