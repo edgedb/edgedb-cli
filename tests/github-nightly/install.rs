@@ -83,8 +83,8 @@ fn package_jspy(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Resul
             val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
             test "$val" = "2"
-            python3 /usr/bin/edbconnect.py test1
-            node /usr/bin/edbconnect.js test1
+            python3 ./edbconnect.py test1
+            node ./edbconnect.js test1
             edgedb instance logs test1
             timeout 180 edgedb instance destroy test1
             edgedb server uninstall --all --verbose
@@ -154,8 +154,8 @@ fn docker_jspy(tagname: &str, dockerfile: &str, version: &str) -> anyhow::Result
             val=$(edgedb -Itest1 --wait-until-available=60s \
                 query "SELECT 1+1")
             test "$val" = "2"
-            python3 /usr/bin/edbconnect.py test1
-            node /usr/bin/edbconnect.js test1
+            python3 ./edbconnect.py test1
+            node ./edbconnect.js test1
             edgedb instance logs test1
             timeout 180 edgedb instance destroy test1
             edgedb server uninstall --all --verbose
