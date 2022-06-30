@@ -42,11 +42,12 @@ pub fn dock_ubuntu_jspy(codename: &str) -> String {
             --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
             user1
         RUN pip3 install edgedb
-        RUN npm install edgedb
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
-        ADD ./edbconnect.py /usr/bin/edbconnect.py
-        ADD ./edbconnect.js /usr/bin/edbconnect.js
+        ADD ./edbconnect.py /proj/edbconnect.py
+        ADD ./edbconnect.js /proj/edbconnect.js
+        WORKDIR /proj
+        RUN npm install edgedb
     "###, codename=codename)
 }
 
