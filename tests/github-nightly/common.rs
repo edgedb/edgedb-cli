@@ -32,6 +32,7 @@ pub fn dock_ubuntu_jspy(codename: &str) -> String {
            "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
            $(lsb_release -cs) \
            stable"
+        RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add -
         RUN add-apt-repository \
             "deb [arch=amd64] https://deb.nodesource.com/node_17.x \
             $(lsb_release -cs) \
