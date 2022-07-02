@@ -45,6 +45,7 @@ fn value_to_string(v: &Value) -> Result<String, anyhow::Error> {
         | Array(_)
         | Set(_)
         | Tuple(_)
+        | Range {..}
         => {
             Err(anyhow::anyhow!(
                 "Complex objects like {:?} cannot be printed tab-separated",
