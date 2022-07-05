@@ -1,6 +1,7 @@
 use async_std::task;
 
 use crate::cloud;
+use crate::commands;
 use crate::options::Options;
 use crate::portable::project::ProjectCommand;
 use crate::portable::options::{ServerCommand, ServerInstanceCommand};
@@ -65,6 +66,8 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Unlink(c) => link::unlink(c),
         Status(c) if cfg!(windows) => windows::status(c),
         Status(c) => status::status(c),
+        _UIToken(c) if cfg!(windows) => windows::ui_token(&c.instance),
+        _UIToken(c) => commands::ui_token(&c.instance),
     }
 }
 

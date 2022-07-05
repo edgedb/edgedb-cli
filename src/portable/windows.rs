@@ -866,6 +866,21 @@ pub fn revert(options: &options::Revert) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn get_ui_token(name: &str) -> anyhow::Result<String> {
+    let wsl = try_get_wsl()?;
+    let token = wsl.edgedb()
+        .arg("instance")
+        .arg("ui-token")
+        .arg(name)
+        .get_stdout_text()?;
+    Ok(token)
+}
+
+pub fn ui_token(name: &str) -> anyhow::Result<()> {
+    println!("{}", get_ui_token(name)?);
+    Ok(())
+}
+
 pub fn get_instance_info(name: &str) -> anyhow::Result<String> {
     let wsl = try_get_wsl()?;
     wsl.read_text_file(format!(

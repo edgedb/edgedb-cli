@@ -57,6 +57,8 @@ pub enum InstanceCommand {
     Revert(Revert),
     /// Reset password for a user in the instance
     ResetPassword(ResetPassword),
+    #[edb(hide=true)]
+    _UIToken(UIToken),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -487,6 +489,15 @@ pub struct ResetPassword {
     /// Do not print any messages, only indicate success by exit status
     #[clap(long)]
     pub quiet: bool,
+}
+
+#[derive(EdbClap, IntoArgs, Debug, Clone)]
+pub struct UIToken {
+    /// Name of the instance to generate UI token
+    #[clap(short='I', long)]
+    #[clap(validator(instance_name_opt))]
+    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub instance: String,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
