@@ -57,6 +57,7 @@ pub enum InstanceCommand {
     Revert(Revert),
     /// Reset password for a user in the instance
     ResetPassword(ResetPassword),
+    #[clap(name="_ui_token")]
     #[edb(hide=true)]
     _UIToken(UIToken),
 }

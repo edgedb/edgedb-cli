@@ -870,7 +870,7 @@ pub fn get_ui_token(name: &str) -> anyhow::Result<String> {
     let wsl = try_get_wsl()?;
     let token = wsl.edgedb()
         .arg("instance")
-        .arg("ui-token")
+        .arg("_ui_token")
         .arg(name)
         .get_stdout_text()?;
     Ok(token)
