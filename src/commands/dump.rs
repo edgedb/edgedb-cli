@@ -127,7 +127,12 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     loop {
         let msg = seq.message().await?;
         match msg {
-            ServerMessage::CommandComplete(..) => {
+            ServerMessage::CommandComplete0(..) => {
+                seq.expect_ready().await?;
+                break;
+            }
+            ServerMessage::CommandComplete1(d) => {
+                seq.process_complete(&d)?;
                 seq.expect_ready().await?;
                 break;
             }

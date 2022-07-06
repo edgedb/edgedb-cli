@@ -230,9 +230,15 @@ async fn wait_response(reader: &mut Reader<'_>, start: Instant)
     loop {
         let msg = reader.message().await?;
         match msg {
-            ServerMessage::CommandComplete(_) => {
+            ServerMessage::CommandComplete0(_) => {
                 log::info!(target: "edgedb::restore",
                     "Complete in {:?}", start.elapsed());
+                break;
+            }
+            ServerMessage::CommandComplete1(..) => {
+                log::info!(target: "edgedb::restore",
+                    "Complete in {:?}", start.elapsed());
+                // TODO(tailhook) process state from command_complete
                 break;
             }
             ServerMessage::ErrorResponse(err) => {
