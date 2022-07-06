@@ -1,4 +1,6 @@
+use std::env;
 use std::fs;
+use std::path::PathBuf;
 
 use ring::rand::SecureRandom;
 use ring::signature::KeyPair;
@@ -48,7 +50,10 @@ fn generate_jwt(name: &str) -> anyhow::Result<String> {
     let rng = rand::SystemRandom::new();
 
     let data_dir = if name == "_localdev" {
-        data_dir()?.parent().unwrap().join("_localdev")
+        match env::var("EDGEDB_SERVER_DEV_DIR") {
+            Ok(path) => PathBuf::from(path),
+            Err(_) => data_dir()?.parent().unwrap().join("_localdev")
+        }
     } else {
         instance_data_dir(name)?
     };
