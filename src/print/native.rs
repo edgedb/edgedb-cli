@@ -220,6 +220,39 @@ impl FormatExt for Value {
                 })
             }
             V::Enum(v) => prn.const_enum(&**v),
+            V::Range { lower, upper, inc_lower, inc_upper, empty } => {
+                prn.call("range", |prn| {
+                    lower.format(prn)?;
+                    prn.comma()?;
+
+                    if !*empty {
+                        upper.format(prn)?;
+                        prn.comma()?;
+                    }
+
+                    // These fields are all optional, so we omit them
+                    // when they have the default values.
+                    if *inc_lower {
+                        prn.tuple_field("inc_lower")?;
+                        prn.const_bool(inc_lower)?;
+                        prn.comma()?;
+                    }
+
+                    if *inc_lower {
+                        prn.tuple_field("inc_upper")?;
+                        prn.const_bool(inc_upper)?;
+                        prn.comma()?;
+                    }
+
+                    if *empty {
+                        prn.tuple_field("empty")?;
+                        prn.const_bool(empty)?;
+                        prn.comma()?;
+                    }
+
+                    Ok(())
+                })
+            }
         }
     }
 }

@@ -42,6 +42,8 @@ pub trait Formatter {
         where F: FnMut(&mut Self) -> Result<Self::Error>;
     fn named_tuple<F>(&mut self, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;
+    fn call<F>(&mut self, name: &str, f: F) -> Result<Self::Error>
+        where F: FnMut(&mut Self) -> Result<Self::Error>;
     fn comma(&mut self) -> Result<Self::Error>;
     fn ellipsis(&mut self) -> Result<Self::Error>;
     fn object_field(&mut self, f: &str, linkprop: bool) -> Result<Self::Error>;
@@ -182,6 +184,17 @@ impl<T: Output> Formatter for Printer<T> {
         self.delimit()?;
         self.block(
             self.styler.apply(Style::TupleLiteral, "("),
+            f,
+            self.styler.apply(Style::TupleLiteral, ")"),
+        )?;
+        Ok(())
+    }
+    fn call<F>(&mut self, name: &str, f: F) -> Result<Self::Error>
+        where F: FnMut(&mut Self) -> Result<Self::Error>
+    {
+        self.delimit()?;
+        self.block(
+            self.styler.apply(Style::TupleLiteral, &format!("{}(", name)),
             f,
             self.styler.apply(Style::TupleLiteral, ")"),
         )?;
