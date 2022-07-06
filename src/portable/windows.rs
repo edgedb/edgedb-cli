@@ -873,7 +873,7 @@ pub fn get_ui_token(name: &str) -> anyhow::Result<String> {
         .arg("_ui_token")
         .arg(name)
         .get_stdout_text()?;
-    Ok(token)
+    Ok(token.trim().into())
 }
 
 pub fn ui_token(name: &str) -> anyhow::Result<()> {

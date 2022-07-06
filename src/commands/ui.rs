@@ -1,5 +1,4 @@
 use std::fs;
-use std::io::Read;
 
 use ring::rand::SecureRandom;
 use ring::signature::KeyPair;
@@ -54,9 +53,7 @@ fn generate_jwt(name: &str) -> anyhow::Result<String> {
         instance_data_dir(name)?
     };
 
-    let mut buffer = Vec::new();
-    let mut f = fs::File::open(data_dir.join("edbjwskeys.pem"))?;
-    f.read_to_end(&mut buffer)?;
+    let buffer = fs::read(data_dir.join("edbjwskeys.pem"))?;
     let pem = pem::parse(buffer)?;
     let jws = signature::EcdsaKeyPair::from_pkcs8(
         &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
@@ -80,9 +77,7 @@ fn generate_jwt(name: &str) -> anyhow::Result<String> {
         base64::encode_config(signature, base64::URL_SAFE_NO_PAD),
     );
 
-    let mut buffer = Vec::new();
-    let mut f = fs::File::open(data_dir.join("edbjwekeys.pem"))?;
-    f.read_to_end(&mut buffer)?;
+    let buffer = fs::read(data_dir.join("edbjwekeys.pem"))?;
     let pem = pem::parse(buffer)?;
     let jwe = signature::EcdsaKeyPair::from_pkcs8(
         &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
@@ -93,7 +88,7 @@ fn generate_jwt(name: &str) -> anyhow::Result<String> {
     let pub_key =
         agreement::UnparsedPublicKey::new(&agreement::ECDH_P256, jwe.public_key().as_ref());
     let epk = priv_key.compute_public_key()?.as_ref().to_vec();
-    let cek = agreement::agree_ephemeral(priv_key, &pub_key, ExitCode::new(1), |key_material| {
+    let cek = agreement::agree_ephemeral(priv_key, &pub_key, (), |key_material| {
         let mut ctx = digest::Context::new(&digest::SHA256);
         ctx.update(&[0, 0, 0, 1]);
         ctx.update(key_material);
@@ -103,6 +98,8 @@ fn generate_jwt(name: &str) -> anyhow::Result<String> {
         ctx.update(&[0, 0, 0, 0]); // PartyVInfo
         ctx.update(&[0, 0, 1, 0]); // SuppPubInfo (bitsize=256)
         Ok(ctx.finish())
+    }).map_err(|_| {
+        anyhow::anyhow!("Error occurred deriving key for JWT")
     })?;
     let enc_key = aead::LessSafeKey::new(aead::UnboundKey::new(&aead::AES_256_GCM, cek.as_ref())?);
     let x = base64::encode_config(&epk[1..33], base64::URL_SAFE_NO_PAD);

@@ -59,7 +59,7 @@ pub enum InstanceCommand {
     ResetPassword(ResetPassword),
     #[clap(name="_ui_token")]
     #[edb(hide=true)]
-    _UIToken(UIToken),
+    UIToken(UIToken),
 }
 
 #[derive(EdbClap, Clone, Debug)]
