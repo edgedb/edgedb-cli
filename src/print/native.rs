@@ -224,8 +224,11 @@ impl FormatExt for Value {
                 prn.call("range", |prn| {
                     lower.format(prn)?;
                     prn.comma()?;
-                    upper.format(prn)?;
-                    prn.comma()?;
+
+                    if !*empty {
+                        upper.format(prn)?;
+                        prn.comma()?;
+                    }
 
                     // These fields are all optional, so we omit them
                     // when they have the default values.
