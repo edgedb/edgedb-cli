@@ -1150,7 +1150,7 @@ dependencies = [
  "unicode-segmentation",
  "url",
  "urlencoding",
- "uuid",
+ "uuid 0.8.2",
  "wait-timeout",
  "warp",
  "webpki 0.22.0",
@@ -1182,7 +1182,7 @@ dependencies = [
 [[package]]
 name = "edgedb-client"
 version = "0.3.0"
-source = "git+https://github.com/edgedb/edgedb-rust#d7c625098b0620a365d2ecf6c9a79230ee68ed24"
+source = "git+https://github.com/edgedb/edgedb-rust#1cb69c41ecd362c027349eb21c6ccb7af1b3e0c6"
 dependencies = [
  "anyhow",
  "async-std",
@@ -1215,7 +1215,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.3.0"
-source = "git+https://github.com/edgedb/edgedb-rust#d7c625098b0620a365d2ecf6c9a79230ee68ed24"
+source = "git+https://github.com/edgedb/edgedb-rust#1cb69c41ecd362c027349eb21c6ccb7af1b3e0c6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1226,7 +1226,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.2.1"
-source = "git+https://github.com/edgedb/edgedb-rust#d7c625098b0620a365d2ecf6c9a79230ee68ed24"
+source = "git+https://github.com/edgedb/edgedb-rust#1cb69c41ecd362c027349eb21c6ccb7af1b3e0c6"
 dependencies = [
  "bytes",
 ]
@@ -1234,7 +1234,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.3.0"
-source = "git+https://github.com/edgedb/edgedb-rust#d7c625098b0620a365d2ecf6c9a79230ee68ed24"
+source = "git+https://github.com/edgedb/edgedb-rust#1cb69c41ecd362c027349eb21c6ccb7af1b3e0c6"
 dependencies = [
  "bigdecimal",
  "bitflags",
@@ -1244,7 +1244,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "snafu 0.7.0",
- "uuid",
+ "uuid 1.1.2",
 ]
 
 [[package]]
@@ -4070,6 +4070,12 @@ name = "uuid"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+
+[[package]]
+name = "uuid"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd6469f4314d5f1ffec476e05f17cc9a78bc7a27a6a857842170bdf8d6f98d2f"
 
 [[package]]
 name = "value-bag"
