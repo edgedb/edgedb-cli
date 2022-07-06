@@ -120,6 +120,9 @@ impl FormatExt for Value {
             V::RelativeDuration(d) => {
                 prn.typed("cal::relative_duration", d.to_string())
             }
+            V::DateDuration(d) => {
+                prn.typed("cal::date_duration", d.to_string())
+            }
             V::Json(d) => prn.const_string(format!("{:?}", d)),
             V::Set(items) => {
                 prn.set(|prn| {
