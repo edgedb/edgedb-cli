@@ -41,4 +41,4 @@ pub use self::restore::{restore, restore_all};
 pub use self::psql::psql;
 pub use self::exit::ExitCode;
 pub use self::info::info;
-pub use self::ui::show_ui;
+pub use self::ui::{show_ui, ui_token};
