@@ -9,7 +9,7 @@ use ring::{aead, agreement, digest, rand, signature};
 use crate::commands::ExitCode;
 use crate::options::Options;
 use crate::platform::data_dir;
-use crate::portable::local::instance_data_dir;
+use crate::portable::local::{instance_data_dir, InstanceInfo};
 use crate::print;
 
 pub fn show_ui(options: &Options) -> anyhow::Result<()> {
@@ -17,11 +17,14 @@ pub fn show_ui(options: &Options) -> anyhow::Result<()> {
     let builder = connector.get()?;
     let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
     if let Some(instance) = &options.conn_options.instance {
-        match if cfg!(windows) {
-            crate::portable::windows::get_ui_token(instance)
-        } else {
-            generate_jwt(instance)
-        } {
+        if instance != "_localdev" {
+            let inst = InstanceInfo::read(instance)?;
+            if inst.get_version()?.specific().major < 2 {
+                print::error("Instance doesn't have UI to open; consider upgrade it.");
+                return Err(ExitCode::new(1).into())
+            }
+        }
+        match generate_jwt(instance) {
             Ok(token) => {
                 url = format!("{}?authToken={}", url, token);
             }
@@ -39,9 +42,19 @@ pub fn show_ui(options: &Options) -> anyhow::Result<()> {
     }
 }
 
-pub fn ui_token(name: &str) -> anyhow::Result<()> {
-    println!("{}", generate_jwt(name)?);
-    Ok(())
+fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+    let data_dir = if name == "_localdev" {
+        match env::var("EDGEDB_SERVER_DEV_DIR") {
+            Ok(path) => PathBuf::from(path),
+            Err(_) => data_dir()?.parent().unwrap().join("_localdev"),
+        }
+    } else {
+        instance_data_dir(name)?
+    };
+    Ok((
+        fs::read(data_dir.join("edbjwskeys.pem"))?,
+        fs::read(data_dir.join("edbjwekeys.pem"))?,
+    ))
 }
 
 fn generate_jwt(name: &str) -> anyhow::Result<String> {
@@ -49,20 +62,17 @@ fn generate_jwt(name: &str) -> anyhow::Result<String> {
     // with biscuit when the algorithms are supported in biscuit
     let rng = rand::SystemRandom::new();
 
-    let data_dir = if name == "_localdev" {
-        match env::var("EDGEDB_SERVER_DEV_DIR") {
-            Ok(path) => PathBuf::from(path),
-            Err(_) => data_dir()?.parent().unwrap().join("_localdev")
-        }
+    let (jws_pem, jwe_pem) = if cfg!(windows) {
+        let (jws, jwe) = crate::portable::windows::read_jose_keys(name)?;
+        (pem::parse(jws)?, pem::parse(jwe)?)
     } else {
-        instance_data_dir(name)?
+        let (jws, jwe) = read_jose_keys(name)?;
+        (pem::parse(jws)?, pem::parse(jwe)?)
     };
 
-    let buffer = fs::read(data_dir.join("edbjwskeys.pem"))?;
-    let pem = pem::parse(buffer)?;
     let jws = signature::EcdsaKeyPair::from_pkcs8(
         &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
-        pem.contents.as_slice(),
+        jws_pem.contents.as_slice(),
     )?;
     let message = format!(
         "{}.{}",
@@ -82,11 +92,9 @@ fn generate_jwt(name: &str) -> anyhow::Result<String> {
         base64::encode_config(signature, base64::URL_SAFE_NO_PAD),
     );
 
-    let buffer = fs::read(data_dir.join("edbjwekeys.pem"))?;
-    let pem = pem::parse(buffer)?;
     let jwe = signature::EcdsaKeyPair::from_pkcs8(
         &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
-        pem.contents.as_slice(),
+        jwe_pem.contents.as_slice(),
     )?;
 
     let priv_key = agreement::EphemeralPrivateKey::generate(&agreement::ECDH_P256, &rng)?;
