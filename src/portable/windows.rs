@@ -866,19 +866,26 @@ pub fn revert(options: &options::Revert) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn get_ui_token(name: &str) -> anyhow::Result<String> {
+pub fn read_jose_keys(name: &str) -> anyhow::Result<(String, String)> {
     let wsl = try_get_wsl()?;
-    let token = wsl.edgedb()
-        .arg("instance")
-        .arg("_ui_token")
-        .arg(name)
-        .get_stdout_text()?;
-    Ok(token.trim().into())
-}
 
-pub fn ui_token(name: &str) -> anyhow::Result<()> {
-    println!("{}", get_ui_token(name)?);
-    Ok(())
+    let data_dir = if name == "_localdev" {
+        match env::var("EDGEDB_SERVER_DEV_DIR") {
+            Ok(path) => if path.ends_with("/") {
+                path
+            } else {
+                path + "/"
+            },
+            Err(_) => "/home/edgedb/.local/share/edgedb/_localdev/".into(),
+        }
+    } else {
+        format!("/home/edgedb/.local/share/edgedb/data/{}/", name)
+    };
+
+    Ok((
+        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?,
+        wsl.read_text_file(data_dir + "edbjwekeys.pem")?,
+    ))
 }
 
 pub fn get_instance_info(name: &str) -> anyhow::Result<String> {
