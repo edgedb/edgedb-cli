@@ -497,4 +497,7 @@ pub fn self_signed_arg(cmd: &mut process::Native, ver: &ver::Build) {
     } else {
         cmd.arg("--generate-self-signed-cert");
     }
+    if ver.specific().major >= 2 {
+        cmd.arg("--jose-key-mode=generate");
+    }
 }
