@@ -18,9 +18,14 @@ pub fn show_ui(options: &Options) -> anyhow::Result<()> {
     let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
     if let Some(instance) = &options.conn_options.instance {
         if instance != "_localdev" {
-            let inst = InstanceInfo::read(instance)?;
-            if inst.get_version()?.specific().major < 2 {
-                print::error("Instance doesn't have UI to open; consider upgrade it.");
+            let ver = InstanceInfo::read(instance)?.get_version()?.specific();
+            if ver.major < 2 {
+                print::error(format!(
+                    "the specified instance runs EdgeDB v{}, which does not \
+                    include the Web UI; consider upgrading the instance to \
+                    EdgeDB 2.x or later",
+                    ver,
+                ));
                 return Err(ExitCode::new(1).into())
             }
         }
