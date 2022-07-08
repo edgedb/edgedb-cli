@@ -241,7 +241,7 @@ impl FormatExt for Value {
                         prn.comma()?;
                     }
 
-                    if *inc_lower {
+                    if *inc_upper {
                         prn.tuple_field("inc_upper")?;
                         prn.const_bool(inc_upper)?;
                         prn.comma()?;
