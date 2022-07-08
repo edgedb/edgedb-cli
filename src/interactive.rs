@@ -285,7 +285,7 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
             compilation_flags:
                 CompilationFlags::INJECT_OUTPUT_OBJECT_IDS |
                 CompilationFlags::INJECT_OUTPUT_TYPE_NAMES,
-            implicit_limit: state.implicit_limit.map(|x| x as u64),
+            implicit_limit: state.implicit_limit.map(|x| (x+1) as u64),
             output_format: match state.output_format {
                 Default | TabSeparated => IoFormat::Binary,
                 JsonLines | JsonPretty => IoFormat::JsonElements,
@@ -369,7 +369,7 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
             compilation_flags:
                 CompilationFlags::INJECT_OUTPUT_OBJECT_IDS |
                 CompilationFlags::INJECT_OUTPUT_TYPE_NAMES,
-            implicit_limit: state.implicit_limit.map(|x| x as u64),
+            implicit_limit: state.implicit_limit.map(|x| (x+1) as u64),
             output_format: match state.output_format {
                 Default | TabSeparated => IoFormat::Binary,
                 JsonLines | JsonPretty => IoFormat::JsonElements,
