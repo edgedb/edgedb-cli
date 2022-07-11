@@ -13,6 +13,7 @@ use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
 
 use edgedb_client::errors::{ErrorKind, ClientEncodingError};
+use edgedb_client::errors::{StateMismatchError};
 use edgedb_protocol::client_message::ClientMessage;
 use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
 use edgedb_protocol::client_message::{Execute0, Execute1};
@@ -49,6 +50,10 @@ pub struct CleanShutdown;
 #[derive(Debug, thiserror::Error)]
 #[error("QueryError")]
 pub struct QueryError;
+
+#[derive(Debug, thiserror::Error)]
+#[error("State could not be updated automatically")]
+pub struct CantReconcileState;
 
 struct ToDo<'a> {
     tail: &'a str,
@@ -311,6 +316,10 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
             ServerMessage::ErrorResponse(err) => {
                 let err = err.into();
                 print_query_error(&err, statement, state.verbose_errors)?;
+                if err.is::<StateMismatchError>() {
+                    // TODO(tailhook) try updating state first
+                    return Err(CantReconcileState)?;
+                }
                 state.last_error = Some(err.into());
                 seq.err_sync().await?;
                 return Err(QueryError)?;
@@ -898,6 +907,15 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                     state.reconnect()
                         .race(ctrlc.wait_result())
                         .await?;
+                } else if err.is::<CantReconcileState>() {
+                    print::error(err);
+                    echo!("  Hint: This means some migrations or DDL \
+                           statements were run in concurrent connection \
+                           during your interactive session. \
+                           Restarting CLI usually works \
+                           (although, you will need to set globals \
+                           and aliases again)");
+                    return Err(ExitCode::new(10))?;
                 } else if err.is::<CleanShutdown>() {
                     return Err(err)?;
                 } else if let
