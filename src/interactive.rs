@@ -12,8 +12,9 @@ use async_std::channel::{bounded as channel};
 use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
 
+use edgedb_client::client::{EdgeqlStateDesc, EdgeqlState};
 use edgedb_client::errors::{ErrorKind, ClientEncodingError};
-use edgedb_client::errors::{StateMismatchError};
+use edgedb_client::errors::{Error as EdgedbError, StateMismatchError};
 use edgedb_protocol::client_message::ClientMessage;
 use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
 use edgedb_protocol::client_message::{Execute0, Execute1};
@@ -52,8 +53,8 @@ pub struct CleanShutdown;
 pub struct QueryError;
 
 #[derive(Debug, thiserror::Error)]
-#[error("State could not be updated automatically")]
-pub struct CantReconcileState;
+#[error("RetryStateError")]
+pub struct RetryStateError;
 
 struct ToDo<'a> {
     tail: &'a str,
@@ -135,6 +136,8 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         last_version: None,
         connection: None,
         initial_text: "".into(),
+        edgeql_state_desc: EdgeqlStateDesc::uninitialized(),
+        edgeql_state: EdgeqlState::empty(),
     };
     let handle = task::spawn(_main(options, state, cfg));
     prompt::main(repl_wr, control_rd)?;
@@ -160,6 +163,7 @@ pub async fn _main(options: Options, mut state: repl::State, cfg: Config)
     state.set_history_limit(state.history_limit).await?;
     state.connection = Some(conn);
     state.set_idle_transaction_timeout().await?;
+    state.read_state();
     match _interactive_main(&options, &mut state).await {
         Ok(()) => return Ok(()),
         Err(e) => {
@@ -314,12 +318,12 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
                 break data_desc;
             }
             ServerMessage::ErrorResponse(err) => {
-                let err = err.into();
-                print_query_error(&err, statement, state.verbose_errors)?;
+                let err: EdgedbError = err.into();
                 if err.is::<StateMismatchError>() {
-                    // TODO(tailhook) try updating state first
-                    return Err(CantReconcileState)?;
+                    seq.err_sync().await?;
+                    return Err(RetryStateError)?;
                 }
+                print_query_error(&err, statement, state.verbose_errors)?;
                 state.last_error = Some(err.into());
                 seq.err_sync().await?;
                 return Err(QueryError)?;
@@ -885,48 +889,57 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             prompt::Input::Text(inp) => inp,
             prompt::Input::Value(_) => unreachable!(),
         };
-        for item in ToDo::new(&inp) {
-            let result = match item {
-                ToDoItem::Backslash(text) => {
-                    execute_backslash(state, text)
-                        .race(ctrlc.wait_result())
-                        .await
+        'todo: for item in ToDo::new(&inp) {
+            'retry: loop {
+                let result = match item {
+                    ToDoItem::Backslash(text) => {
+                        execute_backslash(state, text)
+                            .race(ctrlc.wait_result())
+                            .await
+                    }
+                    ToDoItem::Query(statement) => {
+                        state.soft_reconnect()
+                            .race(ctrlc.wait_result())
+                            .await
+                        .and(execute_query(options, state, statement)
+                            .race(ctrlc.wait_result())
+                            .await)
+                    }
+                };
+                if let Err(err) = result {
+                    if err.is::<InterruptError>() {
+                        eprintln!("Interrupted.");
+                        state.reconnect()
+                            .race(ctrlc.wait_result())
+                            .await?;
+                    } else if err.is::<CleanShutdown>() {
+                        return Err(err)?;
+                    } else if err.is::<RetryStateError>() {
+                        if state.try_update_state()? {
+                            continue 'retry;
+                        }
+                        print::error(
+                            "State could not be updated automatically");
+                        echo!("  Hint: This means some migrations or DDL \
+                               statements were run in a concurrent \
+                               connection during your interactive \
+                               session. Restarting CLI usually works \
+                               (although, you have to to set globals \
+                               and aliases again)");
+                        return Err(ExitCode::new(10))?;
+                    } else if let
+                        Some(e) = err.downcast_ref::<edgedb_client::Error>()
+                    {
+                        print::edgedb_error(e, state.verbose_errors);
+                    } else if !err.is::<QueryError>() {
+                        print::error(err);
+                    }
+                    // Don't continue next statements on error
+                    break 'todo;
                 }
-                ToDoItem::Query(statement) => {
-                    state.soft_reconnect()
-                        .race(ctrlc.wait_result())
-                        .await
-                    .and(execute_query(options, state, statement)
-                        .race(ctrlc.wait_result())
-                        .await)
-                }
-            };
-            if let Err(err) = result {
-                if err.is::<InterruptError>() {
-                    eprintln!("Interrupted.");
-                    state.reconnect()
-                        .race(ctrlc.wait_result())
-                        .await?;
-                } else if err.is::<CantReconcileState>() {
-                    print::error(err);
-                    echo!("  Hint: This means some migrations or DDL \
-                           statements were run in concurrent connection \
-                           during your interactive session. \
-                           Restarting CLI usually works \
-                           (although, you will need to set globals \
-                           and aliases again)");
-                    return Err(ExitCode::new(10))?;
-                } else if err.is::<CleanShutdown>() {
-                    return Err(err)?;
-                } else if let
-                    Some(e) = err.downcast_ref::<edgedb_client::Error>()
-                {
-                    print::edgedb_error(e, state.verbose_errors);
-                } else if !err.is::<QueryError>() {
-                    print::error(err);
-                }
-                // Don't continue next statements on error
-                break;
+                state.read_state();
+                // only retry on StateMismatchError
+                break 'retry;
             }
         }
     }

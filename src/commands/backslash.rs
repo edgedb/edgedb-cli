@@ -17,7 +17,7 @@ use crate::print;
 use crate::print::style::Styler;
 use crate::prompt;
 use crate::commands::execute;
-use crate::commands::parser::{Backslash, BackslashCmd, Setting};
+use crate::commands::parser::{Backslash, BackslashCmd, Setting, StateParam};
 use crate::table;
 
 
@@ -649,6 +649,37 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             } else {
                 eprintln!("== there is no previous error ==");
             }
+            Ok(Skip)
+        }
+        DebugState(StateParam { base }) => {
+            let (desc, data) = if *base {
+                (prompt.edgeql_state_desc.clone(), prompt.edgeql_state.clone())
+            } else {
+                prompt.connection.as_ref()
+                    .map(|c| (c.get_state_desc(), c.get_state()))
+                    .unwrap_or(
+                        (prompt.edgeql_state_desc.clone(),
+                         prompt.edgeql_state.clone())
+                    )
+            };
+            dbg!(&data);
+            let value = desc.decode(&data)?;
+            eprintln!("Descriptor id: {}", desc.descriptor_id());
+            eprintln!("Data: {:#?}", value);
+            Ok(Skip)
+        }
+        DebugStateDesc(StateParam { base }) => {
+            let desc = if *base {
+                prompt.edgeql_state_desc.clone()
+            } else {
+                prompt.connection.as_ref()
+                    .map(|c| c.get_state_desc())
+                    .unwrap_or(prompt.edgeql_state_desc.clone())
+            };
+            let typedesc = desc.decoded()?;
+            eprintln!("Descriptor id: {}", desc.descriptor_id());
+            eprintln!("Descriptor: {:#?}", typedesc.descriptors());
+            eprintln!("Codec: {:#?}", typedesc.build_codec()?);
             Ok(Skip)
         }
         History => {
