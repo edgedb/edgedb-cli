@@ -127,11 +127,23 @@ pub enum BackslashCmd {
     Common(Common),
     Help,
     LastError,
+    DebugState(StateParam),
+    DebugStateDesc(StateParam),
     History,
     Connect(Connect),
     Edit(Edit),
     Set(SetCommand),
     Exit,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct StateParam {
+    /// Show base state (before the transaction) instead of current transaction
+    /// state
+    ///
+    /// Has no meaning if currently not in transaction
+    #[clap(short='b')]
+    pub base: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]

@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::Context;
 use async_std::channel::{Sender, Receiver, RecvError};
 use colorful::Colorful;
-use edgedb_client::client::Connection;
+use edgedb_client::client::{Connection, EdgeqlStateDesc, EdgeqlState};
 use edgedb_protocol::model::{Duration as EdbDuration};
 use edgedb_protocol::server_message::TransactionState;
 
@@ -64,6 +64,8 @@ pub struct State {
     pub connection: Option<Connection>,
     pub last_version: Option<String>,
     pub initial_text: String,
+    pub edgeql_state_desc: EdgeqlStateDesc,
+    pub edgeql_state: EdgeqlState,
 }
 
 impl PromptRpc {
@@ -92,6 +94,7 @@ impl State {
     pub async fn reconnect(&mut self) -> anyhow::Result<()> {
         let mut conn = self.conn_params.connect().await?;
         let fetched_version = conn.get_version().await?;
+        conn.set_state(self.edgeql_state.clone());
         if self.last_version.as_ref() != Some(&fetched_version) {
             println!("{} {} (repl v{})",
                 "EdgeDB".light_gray(),
@@ -136,6 +139,8 @@ impl State {
         }
         self.conn_params = params;
         self.database = database.into();
+        self.edgeql_state = conn.get_state();
+        self.edgeql_state_desc = conn.get_state_desc();
         self.connection = Some(conn);
         self.set_idle_transaction_timeout().await?;
         Ok(())
@@ -244,6 +249,30 @@ impl State {
             }
             None => false,
         }
+    }
+    pub fn read_state(&mut self) {
+        use TransactionState::NotInTransaction;
+
+        if let Some(conn) = &self.connection {
+            if matches!(conn.transaction_state(), NotInTransaction) {
+                self.edgeql_state = conn.get_state();
+                self.edgeql_state_desc = conn.get_state_desc();
+            }
+        }
+    }
+    pub fn try_update_state(&mut self) -> anyhow::Result<bool> {
+        if let Some(conn) = &mut self.connection {
+            match self.edgeql_state_desc.decode(&self.edgeql_state)? {
+                Some(value) => {
+                    let nstate = conn.get_state_desc().encode(&value)?;
+                    self.edgeql_state = nstate.clone();
+                    conn.set_state(nstate);
+                    return Ok(true)
+                }
+                None => {}
+            }
+        }
+        Ok(false)
     }
 }
 
