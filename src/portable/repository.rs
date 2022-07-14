@@ -502,7 +502,7 @@ impl Query {
             Some(FilterMinor::Alpha(_)) |
             Some(FilterMinor::Beta(_)) |
             Some(FilterMinor::Rc(_))
-            if ver.major == 1 => Ok(Query {
+            if ver.major == 1 || ver.major == 2 => Ok(Query {
                 channel: Channel::Stable,
                 version: Some(ver.clone()),
             }),
@@ -534,7 +534,7 @@ impl Query {
                     minor: Some(FilterMinor::Beta(v)),
                 }),
             }),
-            MinorVersion::Rc(v) if ver.major == 1 => Ok(Query {
+            MinorVersion::Rc(v) if ver.major == 1 || ver.major == 2 => Ok(Query {
                 channel: Channel::Stable,
                 version: Some(ver::Filter {
                     major: ver.major,
@@ -649,12 +649,12 @@ impl Channel {
         match ver.minor {
             ver::MinorVersion::Dev(_) => Ok(Channel::Nightly),
             ver::MinorVersion::Minor(_) => Ok(Channel::Stable),
-            _ if ver.major == 1 => {
+            _ if ver.major == 1 || ver.major == 2 => {
                 // before 1.0 all prereleases go into a stable channel
                 Ok(Channel::Stable)
             }
             _ => {
-                anyhow::bail!("prerelease versions > 1.0 \
+                anyhow::bail!("prerelease versions > 2.0 \
                                are no supported yet");
             }
         }
@@ -663,12 +663,12 @@ impl Channel {
         match ver.minor {
             None => Ok(Channel::Stable),
             Some(ver::FilterMinor::Minor(_)) => Ok(Channel::Stable),
-            Some(_) if ver.major == 1 => {
+            Some(_) if ver.major == 1 || ver.major == 2 => {
                 // before 1.0 all prereleases go into a stable channel
                 Ok(Channel::Stable)
             }
             Some(_) => {
-                anyhow::bail!("prerelease versions > 1.0 \
+                anyhow::bail!("prerelease versions > 2.0 \
                                are no supported yet");
             }
         }
@@ -701,4 +701,3 @@ impl fmt::Display for QueryDisplay<'_> {
         }
     }
 }
-
