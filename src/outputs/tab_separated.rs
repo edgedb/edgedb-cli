@@ -42,6 +42,7 @@ fn value_to_string(v: &Value) -> Result<String, anyhow::Error> {
         | LocalTime(_) // TODO(tailhook)
         | Bytes(_)
         | Object {..}
+        | SparseObject(..)
         | NamedTuple {..}
         | Array(_)
         | Set(_)
