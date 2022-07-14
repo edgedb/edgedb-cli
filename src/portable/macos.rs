@@ -28,7 +28,7 @@ fn plist_path(name: &str) -> anyhow::Result<PathBuf> {
 }
 
 fn get_domain_target() -> String {
-    format!("user/{}", get_current_uid())
+    format!("gui/{}", get_current_uid())
 }
 
 fn launchd_name(name: &str) -> String {
@@ -80,9 +80,6 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
 <dict>
     <key>Label</key>
     <string>edgedb-server-{instance_name}</string>
-
-    <key>LimitLoadToSessionType</key>
-    <string>Background</string>
 
     <key>ProgramArguments</key>
     <array>
