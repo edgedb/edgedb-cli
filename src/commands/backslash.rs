@@ -3,6 +3,7 @@ use std::collections::{BTreeSet, BTreeMap};
 use std::str::FromStr;
 
 use anyhow;
+use async_std::stream;
 use clap::{self, FromArgMatches};
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
@@ -662,10 +663,13 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                          prompt.edgeql_state.clone())
                     )
             };
-            dbg!(&data);
             let value = desc.decode(&data)?;
-            eprintln!("Descriptor id: {}", desc.descriptor_id());
-            eprintln!("Data: {:#?}", value);
+            println!("Descriptor id: {}", desc.descriptor_id());
+            print::native_to_stdout(
+                stream::from_iter([Ok::<_, Error>(value)]),
+                &prompt.print,
+            ).await?;
+            println!();
             Ok(Skip)
         }
         DebugStateDesc(StateParam { base }) => {

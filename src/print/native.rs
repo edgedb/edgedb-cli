@@ -184,6 +184,20 @@ impl FormatExt for Value {
                     Ok(())
                 })
             }
+            V::SparseObject(s) => {
+                prn.object(Some("SparseObject"), |prn| {
+                    for (fld, value) in s.pairs() {
+                        prn.object_field(fld, false)?;
+                        if let Some(value) = value {
+                            value.format(prn)?;
+                        } else {
+                            prn.nil()?;
+                        }
+                        prn.comma()?;
+                    }
+                    Ok(())
+                })
+            }
             V::Tuple(items) => {
                 prn.tuple(|prn| {
                     for item in items {
