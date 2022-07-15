@@ -16,7 +16,7 @@ pub fn show_ui(options: &Options) -> anyhow::Result<()> {
     let connector = options.create_connector()?;
     let builder = connector.get()?;
     let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
-    if let Some(instance) = &options.conn_options.instance {
+    if let Some(instance) = builder.get_instance_name() {
         if instance != "_localdev" {
             let ver = InstanceInfo::read(instance)?.get_version()?.specific();
             if ver.major < 2 {

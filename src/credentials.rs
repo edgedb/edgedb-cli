@@ -60,14 +60,16 @@ pub async fn write(path: &Path, credentials: &Credentials)
 pub fn maybe_update_credentials_file(
     builder: &Builder, ask: bool
 ) -> anyhow::Result<()> {
-    if let Some(instance_name) = builder.get_instance_name_for_creds_update() {
-        let creds_path = path(instance_name)?;
-        if !ask || question::Confirm::new(format!(
-            "The format of the instance credential file at {} is outdated, \
+    if builder.is_creds_file_outdated() {
+        if let Some(instance_name) = builder.get_instance_name() {
+            let creds_path = path(instance_name)?;
+            if !ask || question::Confirm::new(format!(
+                "The format of the instance credential file at {} is outdated, \
              update now?",
-            creds_path.display(),
-        )).ask()? {
-            task::block_on(write(&creds_path, &builder.as_credentials()?))?;
+                creds_path.display(),
+            )).ask()? {
+                task::block_on(write(&creds_path, &builder.as_credentials()?))?;
+            }
         }
     }
     Ok(())
