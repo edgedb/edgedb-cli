@@ -163,7 +163,7 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
 
     reinit_and_restore(&inst, &paths).map_err(|e| {
         print::error(format!("{:#}", e));
-        eprintln!("To undo run:\n  edgedb instance revert {:?}", inst.name);
+        eprintln!("To undo run:\n  edgedb instance revert -I {:?}", inst.name);
         ExitCode::new(exit_codes::NEEDS_REVERT)
     })?;
 

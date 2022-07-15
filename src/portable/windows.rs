@@ -562,7 +562,7 @@ pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
 fn create_and_start(wsl: &Wsl, name: &str) -> anyhow::Result<()> {
     fs_err::write(service_file(&name)?, format!("wsl \
         --distribution {} --user edgedb \
-        /usr/bin/edgedb instance start {}",
+        /usr/bin/edgedb instance start -I {}",
         &wsl.distribution, &name))?;
     wsl.edgedb().arg("instance").arg("start").arg("-I").arg(&name).run()?;
     Ok(())
