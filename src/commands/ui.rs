@@ -38,16 +38,16 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
             }
         }
     }
-    if args.url {
-        print::echo!(url);
-        Ok(())
-    }
-    else if open::that(&url).is_ok() {
-        Ok(())
-    } else {
+    if !args.url && !open::that(&url).is_ok() {
         print::error("Cannot launch browser, please visit URL:");
-        print::echo!("  ", url);
+        println!("{}", url);
         Err(ExitCode::new(1).into())
+    } else {
+        if !args.url {
+            print::success("Opening URL in browser:");
+        }
+        println!("{}", url);
+        Ok(())
     }
 }
 
