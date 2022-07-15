@@ -72,8 +72,8 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         Command::Info => {
             task::block_on(commands::info(&options)).into()
         }
-        Command::UI => {
-            commands::show_ui(&options)
+        Command::UI(c) => {
+            commands::show_ui(&options, c)
         }
         Command::Cloud(c) => {
             cloud_main(c, &options.cloud_options)

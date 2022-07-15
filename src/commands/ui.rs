@@ -7,12 +7,12 @@ use ring::signature::KeyPair;
 use ring::{aead, agreement, digest, rand, signature};
 
 use crate::commands::ExitCode;
-use crate::options::Options;
+use crate::options::{Options, UI};
 use crate::platform::data_dir;
 use crate::portable::local::{instance_data_dir, InstanceInfo};
 use crate::print;
 
-pub fn show_ui(options: &Options) -> anyhow::Result<()> {
+pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     let connector = options.create_connector()?;
     let builder = connector.get()?;
     let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
@@ -38,11 +38,15 @@ pub fn show_ui(options: &Options) -> anyhow::Result<()> {
             }
         }
     }
-    if open::that(&url).is_ok() {
+    if args.url {
+        print::echo!(url);
+        Ok(())
+    }
+    else if open::that(&url).is_ok() {
         Ok(())
     } else {
         print::error("Cannot launch browser, please visit URL:");
-        print::echo!("  {}", url);
+        print::echo!("  ", url);
         Err(ExitCode::new(1).into())
     }
 }
