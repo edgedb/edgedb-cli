@@ -26,7 +26,7 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
                     EdgeDB 2.x or later",
                     ver,
                 ));
-                return Err(ExitCode::new(1).into())
+                return Err(ExitCode::new(2).into())
             }
         }
         match generate_jwt(instance) {
@@ -38,16 +38,23 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
             }
         }
     }
-    if !args.url && !open::that(&url).is_ok() {
-        print::error("Cannot launch browser, please visit URL:");
-        println!("{}", url);
-        Err(ExitCode::new(1).into())
-    } else {
-        if !args.url {
-            print::success("Opening URL in browser:");
-        }
+    if args.print_url {
         println!("{}", url);
         Ok(())
+    } else {
+        match open::that(&url) {
+            Ok(_) => {
+                print::success("Opening URL in browser:");
+                println!("{}", url);
+                Ok(())
+            }
+            Err(e) => {
+                print::error(format!("Cannot launch browser: {:#}", e));
+                print::prompt("Please visit URL:");
+                println!("{}", url);
+                Err(ExitCode::new(1).into())
+            }
+        }
     }
 }
 

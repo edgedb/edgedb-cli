@@ -321,7 +321,7 @@ pub struct Query {
 pub struct UI {
     /// Print URL in console instead of opening in the browser
     #[clap(long)]
-    pub url: bool,
+    pub print_url: bool,
 }
 
 #[derive(Debug, Clone)]
