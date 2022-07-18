@@ -268,9 +268,9 @@ pub enum Command {
     /// Execute EdgeQL queries
     #[edb(inherit(ConnectionOptions))]
     Query(Query),
-    /// Launches the web UI for the EdgeDB instance
-    #[edb(inherit(ConnectionOptions), hide=true)]
-    UI,
+    /// Launch the web UI for the EdgeDB instance
+    #[edb(inherit(ConnectionOptions))]
+    UI(UI),
     /// Show information about the EdgeDB installation
     Info,
     /// Manage project installation
@@ -315,6 +315,13 @@ pub struct Query {
     pub file: Option<String>,
 
     pub queries: Option<Vec<String>>,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct UI {
+    /// Print URL in console instead of opening in the browser
+    #[clap(long)]
+    pub print_url: bool,
 }
 
 #[derive(Debug, Clone)]
