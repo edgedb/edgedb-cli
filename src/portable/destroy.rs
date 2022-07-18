@@ -22,7 +22,7 @@ pub struct InstanceNotFound(#[source] pub anyhow::Error);
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     project::print_instance_in_use_warning(name, project_dirs);
     eprintln!("If you really want to destroy the instance, run:");
-    eprintln!("  edgedb instance destroy {:?} --force", name);
+    eprintln!("  edgedb instance destroy -I {:?} --force", name);
 }
 
 pub fn with_projects(name: &str, force: bool,
