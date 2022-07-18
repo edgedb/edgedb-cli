@@ -509,30 +509,14 @@ pub struct Info {
     pub version: Option<ver::Filter>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum ShowCredentialsType {
-    JSON,
-    InsecureDSN,
-}
-
 #[derive(EdbClap, Clone, Debug)]
 pub struct ShowCredentials {
-    #[clap(long, possible_values=&[
-    "json", "insecure-dsn",
-    ])]
-    pub _type: Option<ShowCredentialsType>
-}
-
-impl FromStr for ShowCredentialsType {
-    type Err = anyhow::Error;
-    fn from_str(v: &str) -> anyhow::Result<ShowCredentialsType> {
-        use ShowCredentialsType::*;
-        match v {
-            "json" => Ok(JSON),
-            "insecure-dsn" => Ok(InsecureDSN),
-            _ => anyhow::bail!("unknown type {:?}", v),
-        }
-    }
+    /// Output in JSON format (password is included in cleartext)
+    #[clap(long)]
+    pub json: bool,
+    /// Output a DSN with password in cleartext
+    #[clap(long)]
+    pub insecure_dsn: bool,
 }
 
 impl FromStr for StartConf {

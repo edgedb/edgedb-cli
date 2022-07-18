@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::io::{stdout, Write};
 use std::path::PathBuf;
 
 use ring::rand::SecureRandom;
@@ -39,7 +40,7 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
         }
     }
     if args.print_url {
-        println!("{}", url);
+        stdout().lock().write_all((url + "\n").as_bytes()).expect("stdout write succeeds");
         Ok(())
     } else {
         match open::that(&url) {
