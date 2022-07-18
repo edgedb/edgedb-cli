@@ -51,7 +51,7 @@ pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
     let cred_path = credentials::path(&inst.name)?;
     if !cred_path.exists() {
         log::warn!("No corresponding credentials file {:?} exists. \
-                    Use `edgedb instance reset-password {}` to create one.",
+                    Use `edgedb instance reset-password -I {}` to create one.",
                     cred_path, inst.name);
     }
     if detect_supervisor(&inst.name) {

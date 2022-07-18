@@ -344,7 +344,7 @@ fn prompt_conn_params(
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     project::print_instance_in_use_warning(name, project_dirs);
     eprintln!("If you really want to unlink the instance, run:");
-    eprintln!("  edgedb instance unlink {:?} --force", name);
+    eprintln!("  edgedb instance unlink -I {:?} --force", name);
 }
 
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
@@ -354,7 +354,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
         return Err(
             anyhow::anyhow!("cannot unlink local instance {:?}.", options.name)
         ).with_hint(|| format!(
-            "use `edgedb instance destroy {}` to remove the instance",
+            "use `edgedb instance destroy -I {}` to remove the instance",
              name))?;
     }
     with_projects(&name, options.force, print_warning, || {

@@ -1528,7 +1528,7 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
             {
                 echo!("New major version is available:",
                       pkg.version.emphasize());
-                echo!("To update `edgedb.toml` and upgrade to this version,
+                echo!("To update `edgedb.toml` and upgrade to this version, \
                        run:\n    edgedb project upgrade --to-latest");
             }
         }
