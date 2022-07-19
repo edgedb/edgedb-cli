@@ -57,6 +57,9 @@ pub enum InstanceCommand {
     Revert(Revert),
     /// Reset password for a user in the instance
     ResetPassword(ResetPassword),
+    /// Echo credentials to connect to the instance
+    #[edb(inherit(crate::options::ConnectionOptions))]
+    Credentials(ShowCredentials),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -506,6 +509,15 @@ pub struct Info {
     pub version: Option<ver::Filter>,
 }
 
+#[derive(EdbClap, Clone, Debug)]
+pub struct ShowCredentials {
+    /// Output in JSON format (password is included in cleartext)
+    #[clap(long)]
+    pub json: bool,
+    /// Output a DSN with password in cleartext
+    #[clap(long)]
+    pub insecure_dsn: bool,
+}
 
 impl FromStr for StartConf {
     type Err = anyhow::Error;
