@@ -10,8 +10,8 @@ pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Resul
     let connector = options.create_connector()?;
     let builder = connector.get()?;
     let creds = builder.as_credentials()?;
-    let result = if c.json {
-        serde_json::to_string_pretty(&creds)?
+    if let Some(result) = if c.json {
+        Some(serde_json::to_string_pretty(&creds)?)
     } else if c.insecure_dsn {
         let mut url = Url::parse(&format!(
             "edgedb://{}@{}:{}",
@@ -35,23 +35,19 @@ pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Resul
             }
             _ => {}
         }
-        url.to_string()
+        Some(url.to_string())
     } else {
-        format!(
-            "Host: {}\n\
-            Port: {}\n\
-            User: {}\n\
-            Password: {}\n\
-            Database: {}\n\
-            TLS Security: {:?}",
-            creds.host.unwrap_or("localhost".into()),
-            creds.port,
-            creds.user,
-            creds.password.map(|_| "<hidden>").unwrap_or("<none>"),
-            creds.database.unwrap_or("<default>".into()),
-            creds.tls_security,
-        )
-    };
-    stdout().lock().write_all((result + "\n").as_bytes()).expect("stdout write succeeds");
+        crate::table::settings(&[
+            ("Host", creds.host.as_deref().unwrap_or("localhost")),
+            ("Port", creds.port.to_string().as_str()),
+            ("User", creds.user.as_str()),
+            ("Password", creds.password.map(|_| "<hidden>").unwrap_or("<none>")),
+            ("Database", creds.database.as_deref().unwrap_or("<default>")),
+            ("TLS Security", format!("{:?}", creds.tls_security).as_str()),
+        ]);
+        None
+    } {
+        stdout().lock().write_all((result + "\n").as_bytes()).expect("stdout write succeeds");
+    }
     Ok(())
 }
