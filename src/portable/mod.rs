@@ -13,6 +13,7 @@ pub mod windows;
 
 mod control;
 mod create;
+mod credentials;
 mod destroy;
 mod info;
 mod install;
