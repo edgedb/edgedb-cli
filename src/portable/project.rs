@@ -31,7 +31,7 @@ use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, Paths, allocate_port, is_valid_name};
-use crate::portable::options::{self, instance_name_opt, StartConf};
+use crate::portable::options::{self, instance_name_opt, StartConf, Start};
 use crate::portable::platform::{optional_docker_check};
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::upgrade;
@@ -579,7 +579,21 @@ fn do_init(name: &str, pkg: &PackageInfo,
             port,
         };
         create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
-        create::create_service(&info)?;
+        match create::create_service(&info) {
+            Ok(()) => {},
+            Err(e) => {
+                log::warn!("Error running EdgeDB as a service: {e:#}");
+                print::warn("EdgeDB will not start on next login. \
+                             Trying to start database in the background...");
+                control::start(&Start {
+                    name: Some(info.name.clone()),
+                    instance: None,
+                    foreground: false,
+                    auto_restart: false,
+                    managed_by: None,
+                })?;
+            }
+        }
         InstanceKind::Portable(info)
     };
 
