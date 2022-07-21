@@ -38,7 +38,7 @@ jobs:
 <% endfor %>
 <% for tgt in targets.macos %>
   build-<< tgt.name >>:
-    runs-on: macos-latest
+    runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
     continue-on-error: true
 
     steps:
@@ -50,15 +50,11 @@ jobs:
 
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
       with:
         profile: minimal
         toolchain: stable
         default: true
-
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: "3.10"
 
     - name: Build
       env:
@@ -212,7 +208,7 @@ jobs:
 <% for tgt in targets.macos %>
   publish-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
-    runs-on: macos-latest
+    runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
 
     steps:
     - uses: actions/download-artifact@v1

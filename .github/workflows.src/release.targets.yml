@@ -48,6 +48,12 @@ targets:
           platform_version: x86_64
           family: generic
 
+        - name: macos-aarch64
+          platform: macos
+          platform_version: aarch64
+          family: generic
+          runs_on: [self-hosted, macOS, ARM64]
+
     win:
        - name: win-x86_64
          platform: win
