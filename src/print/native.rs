@@ -249,7 +249,7 @@ impl FormatExt for Value {
 
                     // These fields are all optional, so we omit them
                     // when they have the default values.
-                    if *inc_lower {
+                    if !*inc_lower {
                         prn.tuple_field("inc_lower")?;
                         prn.const_bool(inc_lower)?;
                         prn.comma()?;
