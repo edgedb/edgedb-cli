@@ -167,7 +167,7 @@ get_architecture() {
             ;;
 
         arm64 | aarch64)
-            _cputype=arm64
+            _cputype=aarch64
             ;;
 
         *)
@@ -176,11 +176,8 @@ get_architecture() {
 
     esac
 
-    if [ "$_cputype" = "arm64" ]; then
-        if [ "$_ostype" = "apple-darwin" ]; then
-            # Rely on Rosetta for now
-            _cputype=x86_64
-        else
+    if [ "$_cputype" = "aarch64" ]; then
+        if [ "$_ostype" != "apple-darwin" ]; then
             err "unsupported CPU architecture: $_cputype"
         fi
     fi
