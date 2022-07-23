@@ -21,7 +21,7 @@ jobs:
 
 <% for tgt in targets.linux %>
   build-<< tgt.name >>:
-    runs-on: ubuntu-latest
+    runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
     needs: prep
 
     steps:
@@ -51,7 +51,7 @@ jobs:
     - uses: actions/upload-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 <% endfor %>
 <% for tgt in targets.macos %>
   build-<< tgt.name >>:
@@ -94,7 +94,7 @@ jobs:
     - uses: actions/upload-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 <% endfor %>
 <% for tgt in targets.win %>
   build-<< tgt.name >>:
@@ -148,12 +148,12 @@ jobs:
       with:
         certificate: "${{ secrets.WIN_CODE_SIGNING_CERT }}"
         certificate-password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
-        folder: artifacts/<< tgt.name >>
+        folder: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - uses: actions/upload-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 <% endfor %>
 <% for tgt in targets.linux %>
   publish-<< tgt.name >>:
@@ -164,13 +164,13 @@ jobs:
     - uses: actions/download-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: << tgt.name >>
+        target: <<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -183,12 +183,13 @@ jobs:
     - name: Prepare docker context
       env:
         CLI_EXECUTABLE: "${{ steps.describe.outputs.install-ref }}"
+        PKG_PLATFORM_FULL: "<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
       run: |
         set -ex -o pipefail
         shopt -s dotglob inherit_errexit nullglob
         mkdir -p tmp
         mkdir -p dockerctx
-        cp artifacts/<< tgt.name >>/*.tar tmp/cli.tar
+        cp artifacts/${PKG_PLATFORM_FULL}/*.tar tmp/cli.tar
         tar -x -f tmp/cli.tar -C tmp/
         cp "tmp/${CLI_EXECUTABLE}" dockerctx/edgedb
         chmod +x dockerctx/edgedb
@@ -233,13 +234,13 @@ jobs:
   publish-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     continue-on-error: true
-    runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - uses: actions/checkout@v1
       with:
@@ -251,16 +252,15 @@ jobs:
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: << tgt.name >>
+        target: <<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-      run: |
-        edgedb-pkg/integration/macos/publish.sh
 <% endfor %>
 <% for tgt in targets.win %>
   publish-<< tgt.name >>:
@@ -271,7 +271,7 @@ jobs:
     - uses: actions/download-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<< tgt.name >>
+        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - uses: actions/checkout@v1
       with:
@@ -283,7 +283,7 @@ jobs:
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: << tgt.name >>
+        target: <<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - name: Publish
       env:
