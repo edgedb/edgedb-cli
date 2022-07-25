@@ -237,33 +237,33 @@ impl FormatExt for Value {
                 })
             }
             V::Enum(v) => prn.const_enum(&**v),
-            V::Range { lower, upper, inc_lower, inc_upper, empty } => {
+            V::Range(rng) => {
                 prn.call("range", |prn| {
-                    lower.format(prn)?;
+                    rng.lower().map(|x| &**x).format(prn)?;
                     prn.comma()?;
 
-                    if !*empty {
-                        upper.format(prn)?;
+                    if !rng.is_empty() {
+                        rng.upper().map(|x| &**x).format(prn)?;
                         prn.comma()?;
                     }
 
                     // These fields are all optional, so we omit them
                     // when they have the default values.
-                    if !*inc_lower {
+                    if !rng.inc_lower() {
                         prn.tuple_field("inc_lower")?;
-                        prn.const_bool(inc_lower)?;
+                        prn.const_bool(rng.inc_lower())?;
                         prn.comma()?;
                     }
 
-                    if *inc_upper {
+                    if rng.inc_upper() {
                         prn.tuple_field("inc_upper")?;
-                        prn.const_bool(inc_upper)?;
+                        prn.const_bool(rng.inc_upper())?;
                         prn.comma()?;
                     }
 
-                    if *empty {
+                    if rng.is_empty() {
                         prn.tuple_field("empty")?;
-                        prn.const_bool(empty)?;
+                        prn.const_bool(rng.is_empty())?;
                         prn.comma()?;
                     }
 
@@ -275,6 +275,15 @@ impl FormatExt for Value {
 }
 
 impl FormatExt for Option<Value> {
+    fn format<F: Formatter>(&self, prn: &mut F) -> Result<F::Error> {
+        match self {
+            Some(v) => v.format(prn),
+            None => prn.nil(),
+        }
+    }
+}
+
+impl FormatExt for Option<&'_ Value> {
     fn format<F: Formatter>(&self, prn: &mut F) -> Result<F::Error> {
         match self {
             Some(v) => v.format(prn),
