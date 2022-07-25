@@ -1,8 +1,8 @@
 use std::env;
-use std::fs;
 use std::io::{stdout, Write};
 use std::path::PathBuf;
 
+use fs_err as fs;
 use ring::rand::SecureRandom;
 use ring::signature::KeyPair;
 use ring::{aead, agreement, digest, rand, signature};
