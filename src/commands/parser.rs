@@ -451,7 +451,10 @@ pub enum ValueParameter {
     ///
     /// When set to `false` user-specified access policies are not applied, so
     /// any queries may be executed.
-    ApplyAccessPolicies(ConfigStr),
+    ApplyAccessPolicies(ConfigBool),
+
+    /// Allow setting user-specified object identifiers
+    AllowUserSpecifiedId(ConfigBool),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -484,6 +487,8 @@ pub enum ConfigParameter {
     AllowBareDdl,
     /// Reset apply_access_policies parameter to `true`
     ApplyAccessPolicies,
+    /// Reset allow_user_specified_id parameter to `false`
+    AllowUserSpecifiedId,
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -499,6 +504,11 @@ pub struct ListenPort {
 #[derive(EdbClap, Clone, Debug)]
 pub struct ConfigStr {
     pub value: String,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct ConfigBool {
+    pub value: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]

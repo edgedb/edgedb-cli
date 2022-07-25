@@ -2,7 +2,7 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
 use edgedb_client::client::Connection;
-use crate::commands::parser::{Configure, ConfigStr};
+use crate::commands::parser::{Configure, ConfigStr, ConfigBool};
 use crate::commands::parser::{AuthParameter};
 
 
@@ -12,6 +12,16 @@ async fn set_string(cli: &mut Connection, name: &str, value: &ConfigStr)
     print::completion(&cli.execute(
         &format!("CONFIGURE INSTANCE SET {} := {}",
             name, quote_string(&value.value))
+    ).await?);
+    Ok(())
+}
+
+async fn set_bool(cli: &mut Connection, name: &str, value: &ConfigBool)
+    -> Result<(), anyhow::Error>
+{
+    print::completion(&cli.execute(
+        &format!("CONFIGURE INSTANCE SET {} := {}",
+            name, if value.value { "true" } else { "false" })
     ).await?);
     Ok(())
 }
@@ -103,7 +113,10 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
             set_string(cli, "allow_bare_ddl", param).await
         }
         C::Set(Set { parameter: S::ApplyAccessPolicies(param) }) => {
-            set_string(cli, "apply_access_policies", param).await
+            set_bool(cli, "apply_access_policies", param).await
+        }
+        C::Set(Set { parameter: S::AllowUserSpecifiedId(param) }) => {
+            set_bool(cli, "allow_user_specified_id", param).await
         }
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
@@ -122,6 +135,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 C::QueryExecutionTimeout => "query_execution_timeout",
                 C::AllowBareDdl => "allow_bare_ddl",
                 C::ApplyAccessPolicies => "apply_access_policies",
+                C::AllowUserSpecifiedId => "allow_user_specified_id",
             };
             print::completion(&cli.execute(
                 &format!("CONFIGURE INSTANCE RESET {}", name)
