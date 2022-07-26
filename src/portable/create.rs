@@ -112,8 +112,8 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
             print::warn("EdgeDB will not start on next login. \
                          Trying to start database in the background...");
             control::start(&Start {
-                name: Some(info.name.clone()),
-                instance: None,
+                name: None,
+                instance: Some(info.name.clone()),
                 foreground: false,
                 auto_restart: false,
                 managed_by: None,

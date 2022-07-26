@@ -237,7 +237,7 @@ fn _detect_systemd(instance: &str) -> Option<PathBuf> {
     let unit_name = unit_name(instance);
     let out = process::Native::new("detect systemd", "systemctl", &path)
         .arg("--user")
-        .arg("is-enabled")
+        .arg("is-active")
         .arg(&unit_name)
         .get_output().ok()?;
     if out.status.success() {
