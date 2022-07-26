@@ -228,7 +228,7 @@ async fn first_migration(cli: &mut Connection, ctx: &Context,
             print::warn("No schema changes detected.");
             return Err(ExitCode::new(4))?;
         }
-        write_migration(ctx, &descr, 1, false).await?;
+        write_migration(ctx, &descr, 1, !options.non_interactive).await?;
         Ok(())
     }.await;
     if cli.is_consistent() {
