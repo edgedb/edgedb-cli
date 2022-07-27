@@ -177,7 +177,7 @@ get_architecture() {
     esac
 
     if [ "$_cputype" = "aarch64" ]; then
-        if [ "$_ostype" != "apple-darwin" && "$_ostype" != "unknown-linux-musl" ]; then
+        if [ "$_ostype" != "apple-darwin" ] && [ "$_ostype" != "unknown-linux-musl" ]; then
             err "unsupported CPU architecture: $_cputype"
         fi
     fi
