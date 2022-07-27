@@ -17,6 +17,8 @@ pub fn get_cli() -> anyhow::Result<&'static str> {
     } else if cfg!(target_arch="aarch64") {
         if cfg!(target_os="macos") {
             return Ok("aarch64-apple-darwin");
+        } else if cfg!(target_os="linux") {
+            return Ok("aarch64-unknown-linux-musl");
         } else {
             anyhow::bail!("unsupported OS on aarch64")
         }
@@ -41,6 +43,8 @@ pub fn get_server() -> anyhow::Result<&'static str> {
     } else if cfg!(target_arch="aarch64") {
         if cfg!(target_os="macos") {
             return Ok("aarch64-apple-darwin");
+        } else if cfg!(target_os="linux") {
+            return Ok("aarch64-unknown-linux-musl");
         } else {
             anyhow::bail!("unsupported OS on aarch64")
         }
