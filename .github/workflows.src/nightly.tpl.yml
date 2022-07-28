@@ -157,7 +157,24 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 <% if tgt.family == "generic" %>
+  publish-docker-<< tgt.name >>:
+    needs: [build-<< tgt.name >>]
+    runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: <<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+
     - name: Prepare docker context
       env:
         CLI_EXECUTABLE: "${{ steps.describe.outputs.install-ref }}"

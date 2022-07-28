@@ -576,6 +576,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+
   publish-debian-stretch-aarch64:
     needs: [build-debian-stretch-aarch64]
     runs-on: ubuntu-latest
@@ -600,6 +601,7 @@ jobs:
         PKG_PLATFORM_VERSION: "stretch"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 
 
   publish-debian-buster-x86_64:
@@ -628,6 +630,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+
   publish-debian-buster-aarch64:
     needs: [build-debian-buster-aarch64]
     runs-on: ubuntu-latest
@@ -652,6 +655,7 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 
 
   publish-debian-bullseye-x86_64:
@@ -680,6 +684,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+
   publish-debian-bullseye-aarch64:
     needs: [build-debian-bullseye-aarch64]
     runs-on: ubuntu-latest
@@ -704,6 +709,7 @@ jobs:
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 
 
   publish-ubuntu-xenial-x86_64:
@@ -732,6 +738,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+
   publish-ubuntu-xenial-aarch64:
     needs: [build-ubuntu-xenial-aarch64]
     runs-on: ubuntu-latest
@@ -756,6 +763,7 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 
 
   publish-ubuntu-bionic-x86_64:
@@ -784,6 +792,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+
   publish-ubuntu-bionic-aarch64:
     needs: [build-ubuntu-bionic-aarch64]
     runs-on: ubuntu-latest
@@ -808,6 +817,7 @@ jobs:
         PKG_PLATFORM_VERSION: "bionic"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 
 
   publish-ubuntu-focal-x86_64:
@@ -836,6 +846,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+
   publish-ubuntu-focal-aarch64:
     needs: [build-ubuntu-focal-aarch64]
     runs-on: ubuntu-latest
@@ -860,6 +871,7 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 
 
   publish-ubuntu-jammy-x86_64:
@@ -888,6 +900,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+
   publish-ubuntu-jammy-aarch64:
     needs: [build-ubuntu-jammy-aarch64]
     runs-on: ubuntu-latest
@@ -912,6 +925,7 @@ jobs:
         PKG_PLATFORM_VERSION: "jammy"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 
 
   publish-centos-7-x86_64:
@@ -940,6 +954,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+
   publish-centos-8-x86_64:
     needs: [build-centos-8-x86_64]
     runs-on: ubuntu-latest
@@ -964,6 +979,7 @@ jobs:
         PKG_PLATFORM_VERSION: "8"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
 
 
   publish-centos-8-aarch64:
@@ -992,6 +1008,7 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
 
+
   publish-linux-x86_64:
     needs: [build-linux-x86_64]
     runs-on: ubuntu-latest
@@ -1016,6 +1033,23 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+
+  publish-docker-linux-x86_64:
+    needs: [build-linux-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linux-x86_64
 
     - name: Prepare docker context
       env:
@@ -1089,6 +1123,23 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+
+  publish-docker-linux-aarch64:
+    needs: [build-linux-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: builds-linux-aarch64
+        path: artifacts/linux-aarch64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linux-aarch64
 
     - name: Prepare docker context
       env:
