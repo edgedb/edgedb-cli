@@ -15,12 +15,13 @@ use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
-use crate::cli::migrate;
+use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
 use crate::options::RawOptions;
 use crate::platform::{current_exe};
 use crate::platform::{home_dir, config_dir, binary_path};
 use crate::portable::project::{self, Init};
+use crate::portable::platform;
 use crate::print::{self, echo};
 use crate::print_markdown;
 use crate::process;
@@ -474,12 +475,11 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         }
     }
 
-    #[cfg(target_os="macos")]
-    if cfg!(target_arch="x86_64") &&
-        crate::portable::platform::is_arm64_hardware()
+    if cfg!(all(target_os="macos", target_arch="x86_64")) &&
+        platform::is_arm64_hardware()
     {
         echo!("EdgeDB now supports native M1 build. Downloading binary...");
-        return crate::cli::upgrade::upgrade_to_arm64();
+        return upgrade::upgrade_to_arm64();
     }
 
     let tmp_path = settings.installation_path.join(".edgedb.tmp");
