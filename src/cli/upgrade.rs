@@ -10,10 +10,11 @@ use fs_err as fs;
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::platform::{home_dir, binary_path, tmp_file_path, current_exe};
+use crate::portable::platform;
+use crate::portable::repository::{self, download, Channel};
+use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
 use crate::process;
-use crate::portable::ver;
-use crate::portable::repository::{self, download, Channel};
 
 
 #[derive(EdbClap, Clone, Debug)]
@@ -114,11 +115,27 @@ pub fn self_version() -> anyhow::Result<ver::Semver> {
         .context("cannot parse cli version")
 }
 
+
 pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     let path = binary_path()?;
     if !_can_upgrade(&path)? {
         anyhow::bail!("Only binary installed at {:?} can be upgraded", path);
     }
+    _main(options, path)
+}
+
+#[cfg(target_os="macos")]
+pub fn upgrade_to_arm64() -> anyhow::Result<()> {
+    _main(&CliUpgrade {
+        verbose: false,
+        quiet: false,
+        force: true,
+        to_nightly: false,
+        to_stable: false,
+    }, binary_path()?)
+}
+
+fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
     let cur_channel = channel();
     let channel = if options.to_stable {
         Channel::Stable
@@ -128,11 +145,22 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
         cur_channel
     };
 
-    let pkg = repository::get_cli_packages(channel)?
+    #[allow(unused_mut)]
+    let mut target_plat = platform::get_cli()?;
+    // Always force upgrade when switching channel
+    #[allow(unused_mut)]
+    let mut force = options.force || cur_channel != channel;
+
+    #[cfg(target_os="macos")]
+    if cfg!(target_arch="x86_64") && platform::is_arm64_hardware() {
+        target_plat = "aarch64-apple-darwin";
+        // Always force upgrade when need to switch platform
+        force = true;
+    }
+
+    let pkg = repository::get_platform_cli_packages(channel, target_plat)?
         .into_iter().max_by(|a, b| a.version.cmp(&b.version))
         .context("cannot find new version")?;
-    // Always force upgrade when switching channel
-    let force = options.force || cur_channel != channel;
     if !force && pkg.version <= self_version()? {
         log::info!("Version is the same. No update needed.");
         if !options.quiet {

@@ -474,6 +474,14 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         }
     }
 
+    #[cfg(target_os="macos")]
+    if cfg!(target_arch="x86_64") &&
+        crate::portable::platform::is_arm64_hardware()
+    {
+        echo!("EdgeDB now supports native M1 build. Downloading binary...");
+        return crate::cli::upgrade::upgrade_to_arm64();
+    }
+
     let tmp_path = settings.installation_path.join(".edgedb.tmp");
     let path = if cfg!(windows) {
         settings.installation_path.join("edgedb.exe")
