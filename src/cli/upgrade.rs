@@ -124,7 +124,6 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     _main(options, path)
 }
 
-#[cfg(target_os="macos")]
 pub fn upgrade_to_arm64() -> anyhow::Result<()> {
     _main(&CliUpgrade {
         verbose: false,
@@ -151,8 +150,9 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
     #[allow(unused_mut)]
     let mut force = options.force || cur_channel != channel;
 
-    #[cfg(target_os="macos")]
-    if cfg!(target_arch="x86_64") && platform::is_arm64_hardware() {
+    if cfg!(all(target_os="macos", target_arch="x86_64")) &&
+        platform::is_arm64_hardware()
+    {
         target_plat = "aarch64-apple-darwin";
         // Always force upgrade when need to switch platform
         force = true;

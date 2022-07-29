@@ -3,6 +3,9 @@ use std::env;
 
 use anyhow::Context;
 
+use crate::process;
+
+
 pub fn get_cli() -> anyhow::Result<&'static str> {
     if cfg!(target_arch="x86_64") {
         if cfg!(target_os="macos") {
@@ -92,29 +95,10 @@ pub fn optional_docker_check() -> anyhow::Result<bool> {
     Ok(false)
 }
 
-#[cfg(target_os="macos")]
 pub fn is_arm64_hardware() -> bool {
-    let mut utsname = libc::utsname {
-        sysname: [0; 256],
-        nodename: [0; 256],
-        release: [0; 256],
-        version: [0; 256],
-        machine: [0; 256],
-    };
-    if unsafe { libc::uname(&mut utsname) } == 1 {
-        log::warn!("Cannot get uname: {}", std::io::Error::last_os_error());
-        return false;
-    }
-    let machine: &[u8] = unsafe { std::mem::transmute(&utsname.machine[..]) };
-    let mend: usize = machine.iter().position(|&b| b == 0).unwrap_or(256);
-    match std::str::from_utf8(&machine[..mend]) {
-        Ok(machine) => {
-            log::debug!("Architecture {:?}", machine);
-            return machine == "arm64";
-        }
-        Err(e) => {
-            log::warn!("Cannot decode machine from uname: {}", e);
-            return false;
-        }
-    }
+    process::Native::new("uname", "uname", "uname")
+        .arg("-m")
+        .get_stdout_text()
+        .map(|t| t.trim() == "arm64")
+        .unwrap_or(false)
 }
