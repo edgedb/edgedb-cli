@@ -690,7 +690,11 @@ pub fn reset_password(options: &options::ResetPassword) -> anyhow::Result<()> {
 pub fn start(options: &options::Start) -> anyhow::Result<()> {
     let name = instance_arg(&options.name, &options.instance)?;
     if let Some(wsl) = get_wsl()? {
-        create_and_start(wsl, name)?;
+        if options.foreground {
+            wsl.edgedb().arg("instance").arg("start").args(options).run()?;
+        } else {
+            create_and_start(wsl, name)?;
+        }
     } else {
         anyhow::bail!("WSL distribution is not installed, \
                        so no EdgeDB instances are present.");
