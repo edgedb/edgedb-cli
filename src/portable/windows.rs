@@ -218,7 +218,7 @@ pub fn destroy(options: &options::Destroy) -> anyhow::Result<()> {
         }
     }
     if !found {
-        echo!("No instance named {:?} found", name);
+        echo!("No instance named", name.emphasize(), "found");
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }
     Ok(())
