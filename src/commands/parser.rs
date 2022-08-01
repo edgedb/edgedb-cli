@@ -561,6 +561,9 @@ pub struct CreateMigration {
     /// Print queries executed
     #[clap(long, hide=true)]
     pub debug_print_queries: bool,
+    /// Shorthand for non_interactive, allow_unsafe, and allow_empty
+    #[clap(long, overrides_with_all = &["non_interactive", "allow_empty", "allow_unsafe"])]
+    pub yolo: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]
