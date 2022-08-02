@@ -7,7 +7,7 @@ use fn_error_context::context;
 
 use crate::commands::ExitCode;
 use crate::platform::{home_dir, get_current_uid, data_dir};
-use crate::platform::{current_exe};
+use crate::platform::{current_exe, detect_ipv6};
 use crate::portable::local::{InstanceInfo, log_file, runstate_dir};
 use crate::portable::options::{Logs, instance_arg};
 use crate::portable::status::Service;
@@ -55,19 +55,29 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
             <key>Sockets</key>
             <dict>
               <key>edgedb-server</key>
-              <dict>
-                <key>SockNodeName</key>
-                <string>127.0.0.1</string>
-                <key>SockServiceName</key>
-                <string>{port}</string>
-                <key>SockType</key>
-                <string>stream</string>
-                <key>SockFamily</key>
-                <string>IPv4</string>
-              </dict>
+              <list>
+                <dict>
+                  <key>SockNodeName</key><string>127.0.0.1</string>
+                  <key>SockServiceName</key><string>{port}</string>
+                  <key>SockType</key><string>stream</string>
+                  <key>SockFamily</key><string>IPv4</string>
+                </dict>
+                {ipv6_listen}
+              </list>
             </dict>
             "###,
             port=info.port,
+            ipv6_listen=if detect_ipv6() {
+                format!("<dict>
+                      <key>SockNodeName</key><string>::1</string>
+                      <key>SockServiceName</key><string>{port}</string>
+                      <key>SockType</key><string>stream</string>
+                      <key>SockFamily</key><string>IPv6</string>
+                    </dict>
+                ", port=info.port)
+            } else {
+                String::new()
+            },
         )
     } else {
         "".into()
