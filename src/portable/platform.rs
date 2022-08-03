@@ -3,8 +3,6 @@ use std::env;
 
 use anyhow::Context;
 
-use crate::process;
-
 
 pub fn get_cli() -> anyhow::Result<&'static str> {
     if cfg!(target_arch="x86_64") {
@@ -95,10 +93,62 @@ pub fn optional_docker_check() -> anyhow::Result<bool> {
     Ok(false)
 }
 
+
+#[cfg(not(target_os="macos"))]
 pub fn is_arm64_hardware() -> bool {
-    process::Native::new("uname", "uname", "uname")
-        .arg("-m")
-        .get_stdout_text()
-        .map(|t| t.trim() == "arm64")
-        .unwrap_or(false)
+    false
+}
+
+#[cfg(target_os="macos")]
+pub fn is_arm64_hardware() -> bool {
+    let mut utsname = libc::utsname {
+        sysname: [0; 256],
+        nodename: [0; 256],
+        release: [0; 256],
+        version: [0; 256],
+        machine: [0; 256],
+    };
+    if unsafe { libc::uname(&mut utsname) } == 1 {
+        log::warn!("Cannot get uname: {}", std::io::Error::last_os_error());
+        return false;
+    }
+    let machine: &[u8] = unsafe { std::mem::transmute(&utsname.machine[..]) };
+    let mend: usize = machine.iter().position(|&b| b == 0).unwrap_or(256);
+    match std::str::from_utf8(&machine[..mend]) {
+        Ok(machine) => {
+            log::debug!("Architecture {:?}", machine);
+
+            // uname returns the emulated architecture
+            if machine != "x86_64" {
+                return false;
+            }
+        }
+        Err(e) => {
+            log::warn!("Cannot decode machine from uname: {}", e);
+            return false;
+        }
+    }
+
+    let mut result: libc::c_int = 0;
+    let mut size: libc::size_t = std::mem::size_of_val(&result);
+    let sname = std::ffi::CString::new("sysctl.proc_translated")
+        .expect("cstring can be created");
+    let sysctl_result = unsafe {
+        libc::sysctlbyname(sname.as_ptr(),
+            &mut result as *mut libc::c_int as *mut libc::c_void,
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if sysctl_result == -1 {
+        let err = std::io::Error::last_os_error();
+        if err.kind() == std::io::ErrorKind::NotFound {
+            return false;
+        }
+        log::warn!("Cannot get sysctl.proc_translated: {:#}", err);
+        return false;
+    }
+    log::debug!("Got sysctl.proc_translated: {:?}", result);
+    return result != 0;
 }
