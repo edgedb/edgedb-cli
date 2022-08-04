@@ -82,6 +82,7 @@ pub fn unpack_file(src: &Path, tgt: &Path,
             bar.set_style(
                 ProgressStyle::default_bar()
                 .template("Unpacking [{bar}] {bytes:>7.dim}/{total_bytes:7}")
+                .expect("template is ok")
                 .progress_chars("=> "));
             let mut decoded = zstd::Decoder::new(io::BufReader::new(
                 bar.wrap_read(src_f)

@@ -945,7 +945,7 @@ fn mk_setting_impl(e: &types::Enum) -> TokenStream {
     let (impl_gen, ty_gen, where_cl) = e.generics.split_for_impl();
     let to_string = e.subcommands.iter().map(|sub| {
         let variant = &sub.ident;
-        let name = ::heck::KebabCase::to_kebab_case(&variant.to_string()[..]);
+        let name = ::heck::ToKebabCase::to_kebab_case(&variant.to_string()[..]);
         quote! {
             #ident::#variant(..) => #name
         }

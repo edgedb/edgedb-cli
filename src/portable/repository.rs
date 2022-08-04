@@ -424,6 +424,7 @@ pub async fn download(dest: impl AsRef<Path>, url: &Url, quiet: bool,
             "{elapsed_precise} [{bar}] \
             {bytes:>7.dim}/{total_bytes:7} \
             {binary_bytes_per_sec:.dim} | ETA: {eta}")
+        .expect("template is ok")
         .progress_chars("=> "));
     let mut hasher = blake2b_simd::State::new();
     let mut buf = [0u8; 16384];
