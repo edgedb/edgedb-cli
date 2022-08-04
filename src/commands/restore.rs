@@ -261,7 +261,7 @@ fn path_to_database_name(path: &Path) -> anyhow::Result<String> {
         .ok_or_else(|| anyhow::anyhow!("invalid dump filename {:?}", path))?;
     let decoded = urlencoding::decode(encoded)
         .with_context(|| format!("failed to decode filename {:?}", path))?;
-    Ok(decoded)
+    Ok(decoded.to_string())
 }
 
 async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {

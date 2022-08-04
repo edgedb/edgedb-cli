@@ -626,13 +626,13 @@ impl Case {
         use Case::*;
 
         match self {
-            CamelCase => heck::CamelCase::to_camel_case(s),
-            SnakeCase => heck::SnakeCase::to_snake_case(s),
-            KebabCase => heck::KebabCase::to_kebab_case(s),
-            ShoutySnakeCase => heck::ShoutySnakeCase::to_shouty_snake_case(s),
-            MixedCase => heck::MixedCase::to_mixed_case(s),
-            TitleCase => heck::TitleCase::to_title_case(s),
-            ShoutyKebabCase => heck::ShoutyKebabCase::to_shouty_kebab_case(s),
+            CamelCase => heck::ToUpperCamelCase::to_upper_camel_case(s),
+            SnakeCase => heck::ToSnakeCase::to_snake_case(s),
+            KebabCase => heck::ToKebabCase::to_kebab_case(s),
+            ShoutySnakeCase => heck::ToShoutySnakeCase::to_shouty_snake_case(s),
+            MixedCase => heck::ToLowerCamelCase::to_lower_camel_case(s),
+            TitleCase => heck::ToTitleCase::to_title_case(s),
+            ShoutyKebabCase => heck::ToShoutyKebabCase::to_shouty_kebab_case(s),
         }
     }
 }

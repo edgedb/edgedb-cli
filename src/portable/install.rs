@@ -126,6 +126,7 @@ fn unpack_package(cache_file: &Path, target_dir: &Path)
     bar.set_style(
         ProgressStyle::default_bar()
         .template("Unpacking [{bar}] {bytes:>7.dim}/{total_bytes:7}")
+        .expect("template is ok")
         .progress_chars("=> "));
     let file = zstd::Decoder::new(io::BufReader::new(bar.wrap_read(file)))?;
     let mut arch = tar::Archive::new(file);
