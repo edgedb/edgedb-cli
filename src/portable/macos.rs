@@ -55,7 +55,7 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
             <key>Sockets</key>
             <dict>
               <key>edgedb-server</key>
-              <list>
+              <array>
                 <dict>
                   <key>SockNodeName</key><string>127.0.0.1</string>
                   <key>SockServiceName</key><string>{port}</string>
@@ -63,7 +63,7 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
                   <key>SockFamily</key><string>IPv4</string>
                 </dict>
                 {ipv6_listen}
-              </list>
+              </array>
             </dict>
             "###,
             port=info.port,
