@@ -5,7 +5,7 @@ use std::path::{PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::platform::{home_dir, current_exe};
+use crate::platform::{home_dir, current_exe, detect_ipv6};
 use crate::portable::destroy::InstanceNotFound;
 use crate::portable::local::{InstanceInfo, runstate_dir, log_file};
 use crate::portable::options::{Logs, instance_arg};
@@ -102,14 +102,20 @@ Description=EdgeDB Database Service socket, instance {instance_name:?}
 Documentation=https://edgedb.com/
 
 [Socket]
-ListenStream=127.0.0.1:{port}
 FileDescriptorName=edgedb-server
+ListenStream=127.0.0.1:{port}
+{ipv6_listen}
 
 [Install]
 WantedBy=default.target
     "###,
         instance_name=name,
         port=info.port,
+        ipv6_listen=if detect_ipv6() {
+            format!("ListenStream=[::1]:{port}", port=info.port)
+        } else {
+            String::new()
+        },
     ))
 }
 

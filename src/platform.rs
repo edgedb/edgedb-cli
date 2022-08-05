@@ -160,3 +160,15 @@ pub fn wsl_dir() -> anyhow::Result<PathBuf> {
 pub fn current_exe() -> anyhow::Result<PathBuf> {
     Ok(env::current_exe()?)
 }
+
+pub fn detect_ipv6() -> bool {
+    std::net::TcpListener::bind(
+        std::net::SocketAddrV6::new(
+            std::net::Ipv6Addr::LOCALHOST,
+            0, // dynamicallly alocated port
+            0, // no flow info
+            0, // no scope id
+        )
+    ).is_ok()
+
+}
