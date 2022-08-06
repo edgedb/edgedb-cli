@@ -322,6 +322,10 @@ pub struct UI {
     /// Print URL in console instead of opening in the browser
     #[clap(long)]
     pub print_url: bool,
+
+    /// Skip checking the instance version, open the UI directly.
+    #[clap(long)]
+    pub skip_version_check: bool,
 }
 
 #[derive(Debug, Clone)]
