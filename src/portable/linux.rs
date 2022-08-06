@@ -318,7 +318,17 @@ pub fn stop_service(name: &str) -> anyhow::Result<()> {
 pub fn restart_service(inst: &InstanceInfo) -> anyhow::Result<()> {
     process::Native::new("restart service", "systemctl", "systemctl")
         .arg("--user")
+        .arg("stop")
+        .arg(unit_name(&inst.name))
+        .run()?;
+    process::Native::new("systemctl", "systemctl", "systemctl")
+        .arg("--user")
         .arg("restart")
+        .arg(socket_name(&inst.name))
+        .run()?;
+    process::Native::new("restart service", "systemctl", "systemctl")
+        .arg("--user")
+        .arg("start")
         .arg(unit_name(&inst.name))
         .run()?;
     Ok(())
