@@ -195,6 +195,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
 
             let mut builder = builder.clone();
             builder.password(&password);
+            creds.password = Some(password);
             if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
                 let pem = pem::encode(&pem::Pem {
                     tag: "CERTIFICATE".into(),
