@@ -22,7 +22,7 @@ use crate::platform::{cache_dir, wsl_dir, config_dir, tmp_file_path};
 use crate::portable::control;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
-use crate::portable::local::{InstanceInfo, Paths, write_json};
+use crate::portable::local::{InstanceInfo, Paths, write_json, NonLocalInstance};
 use crate::portable::options::{self, Logs, StartConf, instance_arg};
 use crate::portable::project;
 use crate::portable::repository::{self, download, PackageHash, PackageInfo};
@@ -886,8 +886,12 @@ pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
     };
 
     Ok((
-        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?.into_bytes(),
-        wsl.read_text_file(data_dir + "edbjwekeys.pem")?.into_bytes(),
+        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")
+            .map_err(NonLocalInstance)?
+            .into_bytes(),
+        wsl.read_text_file(data_dir + "edbjwekeys.pem")
+            .map_err(NonLocalInstance)?
+            .into_bytes(),
     ))
 }
 

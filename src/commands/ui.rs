@@ -16,7 +16,7 @@ use ring::{aead, agreement, digest, rand, signature};
 use crate::commands::ExitCode;
 use crate::options::{Options, UI};
 use crate::platform::data_dir;
-use crate::portable::local::{instance_data_dir, InstanceInfo};
+use crate::portable::local::{instance_data_dir, InstanceInfo, NonLocalInstance};
 use crate::portable::ver::Specific;
 use crate::print;
 
@@ -25,7 +25,7 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     let builder = connector.get()?;
     let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
 
-    if !args.skip_version_check {
+    if !args.no_server_check {
         let version = if let Some(meta) = builder
             .get_instance_name()
             .map(InstanceInfo::try_read)
@@ -47,11 +47,7 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     }
 
     if let Some(instance) = builder.get_instance_name() {
-        match if cfg!(windows) {
-            crate::portable::windows::read_jose_keys(instance)
-        } else {
-            read_jose_keys(instance)
-        } {
+        match read_jose_keys(instance) {
             Ok(keys) => match generate_jwt(keys) {
                 Ok(token) => {
                     url = format!("{}?authToken={}", url, token);
@@ -60,12 +56,12 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
                     print::warn(format!("Cannot generate authToken: {:#}", e));
                 }
             },
+            Err(e) if e.is::<NonLocalInstance>() => {
+                // Continue without token for remote instances
+                log::debug!("Assuming local instance because: {:#}", e);
+            }
             Err(e) => {
-                // Ignore the error assuming it's a remote instance
-                log::debug!(
-                    "Cannot find JOSE key files ({:#}), assuming remote instance.",
-                    e,
-                )
+                print::warn(format!("Cannot read JOSE key files: {:#})", e));
             }
         }
     }
@@ -97,31 +93,45 @@ async fn _get_remote_version(builder: &Builder) -> anyhow::Result<String> {
 }
 
 async fn get_remote_version(builder: &Builder) -> anyhow::Result<Specific> {
-    let ver = timeout(Duration::from_secs(15), _get_remote_version(builder))
+    match timeout(Duration::from_secs(15), _get_remote_version(builder))
         .race(async {
             task::sleep(Duration::from_millis(300)).await;
             if atty::is(atty::Stream::Stderr) {
-                eprintln!("{}", "Trying to connect...");
+                eprintln!("{}", "Trying to connect for server version check...");
             }
             async_std::future::pending().await
         })
-        .await??;
-    Ok(Specific::from_str(&ver)?)
+        .await
+    {
+        Ok(Ok(ver)) => Ok(Specific::from_str(&ver)?),
+        Ok(Err(e)) => Err(e),
+        Err(_) => {
+            print::error("Server version check timed out.");
+            print::echo!("  Add --no-server-check to skip this check.");
+            Err(ExitCode::new(3).into())
+        }
+    }
 }
 
 fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
-    let data_dir = if name == "_localdev" {
-        match env::var("EDGEDB_SERVER_DEV_DIR") {
-            Ok(path) => PathBuf::from(path),
-            Err(_) => data_dir()?.parent().unwrap().join("_localdev"),
-        }
+    if cfg!(windows) {
+        crate::portable::windows::read_jose_keys(name)
     } else {
-        instance_data_dir(name)?
-    };
-    Ok((
-        fs::read(data_dir.join("edbjwskeys.pem"))?,
-        fs::read(data_dir.join("edbjwekeys.pem"))?,
-    ))
+        let data_dir = if name == "_localdev" {
+            match env::var("EDGEDB_SERVER_DEV_DIR") {
+                Ok(path) => PathBuf::from(path),
+                Err(_) => data_dir()?.parent().unwrap().join("_localdev"),
+            }
+        } else {
+            instance_data_dir(name)?
+        };
+        Ok((
+            fs::read(data_dir.join("edbjwskeys.pem"))
+                .map_err(|e| NonLocalInstance(anyhow::anyhow!(e)))?,
+            fs::read(data_dir.join("edbjwekeys.pem"))
+                .map_err(|e| NonLocalInstance(anyhow::anyhow!(e)))?,
+        ))
+    }
 }
 
 fn generate_jwt<B: AsRef<[u8]>>(keys: (B, B)) -> anyhow::Result<String> {

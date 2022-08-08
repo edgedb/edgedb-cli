@@ -323,9 +323,9 @@ pub struct UI {
     #[clap(long)]
     pub print_url: bool,
 
-    /// Skip checking the instance version, open the UI directly.
+    /// Don't check the server version of the instance
     #[clap(long)]
-    pub skip_version_check: bool,
+    pub no_server_check: bool,
 }
 
 #[derive(Debug, Clone)]
