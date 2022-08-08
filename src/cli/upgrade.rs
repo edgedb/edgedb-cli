@@ -3,7 +3,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use async_std::task;
 use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use fs_err as fs;
@@ -172,7 +171,7 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
 
     let down_path = path.with_extension("download");
     let tmp_path = tmp_file_path(&path);
-    task::block_on(download(&down_path, &pkg.url, options.quiet, true))?;
+    download(&down_path, &pkg.url, options.quiet)?;
     unpack_file(&down_path, &tmp_path, pkg.compression)?;
 
     let backup_path = path.with_extension("backup");
