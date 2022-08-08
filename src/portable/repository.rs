@@ -1,14 +1,12 @@
 use std::cmp::min;
 use std::env;
 use std::fmt;
-use std::iter;
 use std::time::Duration;
 
 use anyhow::Context;
 use async_std::fs;
-use async_std::io::{ReadExt, WriteExt};
+use async_std::io::{WriteExt};
 use async_std::path::Path;
-use async_std::task;
 use async_std::prelude::FutureExt;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -21,7 +19,6 @@ use crate::portable::ver;
 use crate::portable::windows;
 
 
-const MAX_ATTEMPTS: u32 = 10;
 pub const USER_AGENT: &str = "edgedb";
 static PKG_ROOT: OnceCell<Url> = OnceCell::new();
 
@@ -107,16 +104,6 @@ pub enum PackageHash {
     Unknown(Box<str>),
 }
 
-#[derive(Debug, thiserror::Error)]
-#[error("HTTP error: {0}")]
-pub struct HttpError(surf::Error);
-
-#[derive(Debug, thiserror::Error)]
-#[error("HTTP failure: {} {}",
-        self.0.status(), self.0.status().canonical_reason())]
-pub struct HttpFailure(surf::Response);
-
-
 impl PackageType {
     fn as_ext(&self) -> &str {
         match self {
@@ -144,85 +131,27 @@ fn pkg_root() -> anyhow::Result<&'static Url> {
     })
 }
 
-fn retry_seconds() -> impl Iterator<Item=u64> {
-    [5, 15, 30, 60].iter().cloned().chain(iter::repeat(60))
-}
-
-pub async fn get_header(original_url: &Url, permanent_warning: bool)
-    -> anyhow::Result<surf::Response>
-{
-    use surf::StatusCode::{self, MovedPermanently, PermanentRedirect};
-    use surf::StatusCode::{TooManyRequests};
-
-    let mut url = original_url.clone();
-    let mut attempt = 0;
-    let mut retry = retry_seconds();
-
-    loop {
-
-        log::info!("Fetching JSON at {}", url);
-        match surf::get(&url).header("User-Agent", USER_AGENT).await {
-            Ok(res) if res.status().is_success() => {
-                break Ok(res);
-            }
-            Ok(res) if res.status().is_redirection() => {
-                let location = match res.header("Location") {
-                    Some(val) => val.last().as_str(),
-                    None => anyhow::bail!("unexpected redirect kind {}",
-                                          res.status()),
-                };
-                log::debug!("Redirecting on {} to {}", res.status(), location);
-                let new_url = match Url::parse(location) {
-                    Ok(url) => url,
-                    Err(url::ParseError::RelativeUrlWithoutBase) => {
-                        url.join(location)?
-                    }
-                    Err(e) => return Err(e)?,
-                };
-                if permanent_warning &&
-                   matches!(res.status(), MovedPermanently | PermanentRedirect)
-                {
-                    log::warn!("Location {} permanently moved to {}.",
-                               url, new_url);
-                }
-                url = new_url;
-            }
-            Ok(res) if res.status().is_server_error() ||
-                       res.status() == TooManyRequests
-            => {
-                let secs = retry.next().unwrap();
-                log::warn!("Error fetching {}: {}. Will retry in {} seconds.",
-                           url, res.status(), secs);
-                task::sleep(Duration::from_secs(secs)).await;
-            }
-            Ok(res) if res.status() == StatusCode::NotFound
-                => return Err(NotFound.into()),
-            Ok(res) => return Err(HttpFailure(res))?,
-            Err(e) => return Err(HttpError(e))?,
-        }
-        attempt += 1;
-        if attempt > MAX_ATTEMPTS {
-            anyhow::bail!("too many attempts");
-        }
-    }
-}
-
 async fn _get_json<T>(url: &Url) -> Result<T, anyhow::Error>
     where T: serde::de::DeserializeOwned,
 {
-    let body_bytes = get_header(url, true).await?
-        .body_bytes().await.map_err(HttpError)?;
+    log::info!("Fetching JSON at {}", url);
+    let body_bytes = reqwest::Client::new().get(url.clone())
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .send().await?
+        .error_for_status()?
+        .bytes().await?;
 
     let jd = &mut serde_json::Deserializer::from_slice(&body_bytes);
     Ok(serde_path_to_error::deserialize(jd)?)
 }
 
 #[context("failed to fetch JSON at URL: {}", url)]
+#[tokio::main]
 async fn get_json<T>(url: &Url) -> Result<T, anyhow::Error>
     where T: serde::de::DeserializeOwned,
 {
     _get_json(url).race(async {
-        task::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
         if atty::is(atty::Stream::Stderr) {
             eprintln!("Fetching {} takes too long. Common reasons are:",
                       url);
@@ -331,7 +260,7 @@ pub fn get_platform_cli_packages(channel: Channel, platform: &str)
         Stable => format!("/archive/.jsonindexes/{}.json", platform),
         Nightly => format!("/archive/.jsonindexes/{}.nightly.json", platform),
     })?;
-    let data: RepositoryData = match task::block_on(get_json(&url)) {
+    let data: RepositoryData = match get_json(&url) {
         Ok(data) => data,
         Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
         Err(e) => return Err(e),
@@ -360,7 +289,7 @@ fn get_platform_server_packages(channel: Channel, platform: &str)
         Stable => format!("/archive/.jsonindexes/{}.json", platform),
         Nightly => format!("/archive/.jsonindexes/{}.nightly.json", platform),
     })?;
-    let data: RepositoryData = match task::block_on(get_json(&url)) {
+    let data: RepositoryData = match get_json(&url) {
         Ok(data) => data,
         Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
         Err(e) => return Err(e),
@@ -401,19 +330,22 @@ pub fn get_specific_package(version: &ver::Specific)
 }
 
 #[context("failed to download file at URL: {}", url)]
-pub async fn download(dest: impl AsRef<Path>, url: &Url, quiet: bool,
-                      permanent_warning: bool)
+#[tokio::main]
+pub async fn download(dest: impl AsRef<Path>, url: &Url, quiet: bool)
     -> Result<blake2b_simd::Hash, anyhow::Error>
 {
     let dest = dest.as_ref();
     log::info!("Downloading {} -> {}", url, dest.display());
-    let mut body = get_header(url, permanent_warning).await?.take_body();
+    let mut req = reqwest::Client::new().get(url.clone())
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .send().await?
+        .error_for_status()?;
     let mut out = fs::File::create(dest).await
         .with_context(|| format!("writing {:?}", dest.display()))?;
 
     let bar = if quiet {
         ProgressBar::hidden()
-    } else if let Some(len) = body.len() {
+    } else if let Some(len) = req.content_length() {
         ProgressBar::new(len as u64)
     } else {
         ProgressBar::new_spinner()
@@ -426,15 +358,10 @@ pub async fn download(dest: impl AsRef<Path>, url: &Url, quiet: bool,
             {binary_bytes_per_sec:.dim} | ETA: {eta}")
         .progress_chars("=> "));
     let mut hasher = blake2b_simd::State::new();
-    let mut buf = [0u8; 16384];
-    loop {
-        let bytes = body.read(&mut buf).await?;
-        if bytes == 0 {
-            break;
-        }
-        out.write_all(&buf[..bytes]).await?;
-        hasher.update(&buf[..bytes]);
-        bar.inc(bytes as u64);
+    while let Some(chunk) = req.chunk().await? {
+        out.write_all(&chunk[..]).await?;
+        hasher.update(&chunk[..]);
+        bar.inc(chunk.len() as u64);
     }
     bar.finish();
 
