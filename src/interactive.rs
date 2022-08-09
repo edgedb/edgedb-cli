@@ -287,13 +287,15 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
 
     let start = Instant::now();
     let mut seq = cli.start_sequence().await?;
+    let mut compilation_flags = CompilationFlags::INJECT_OUTPUT_OBJECT_IDS;
+    if state.display_typenames {
+        compilation_flags |= CompilationFlags::INJECT_OUTPUT_TYPE_NAMES;
+    }
     seq.send_messages(&[
         ClientMessage::Parse(Parse {
             annotations: HashMap::new(),
             allowed_capabilities: Capabilities::ALL,
-            compilation_flags:
-                CompilationFlags::INJECT_OUTPUT_OBJECT_IDS |
-                CompilationFlags::INJECT_OUTPUT_TYPE_NAMES,
+            compilation_flags,
             implicit_limit: state.implicit_limit.map(|x| (x+1) as u64),
             output_format: match state.output_format {
                 Default | TabSeparated => IoFormat::Binary,
@@ -379,9 +381,7 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
         ClientMessage::Execute1(Execute1 {
             annotations: HashMap::new(),
             allowed_capabilities: Capabilities::ALL,
-            compilation_flags:
-                CompilationFlags::INJECT_OUTPUT_OBJECT_IDS |
-                CompilationFlags::INJECT_OUTPUT_TYPE_NAMES,
+            compilation_flags,
             implicit_limit: state.implicit_limit.map(|x| (x+1) as u64),
             output_format: match state.output_format {
                 Default | TabSeparated => IoFormat::Binary,
