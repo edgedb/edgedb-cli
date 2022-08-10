@@ -11,6 +11,7 @@ use crate::commands::ExitCode;
 use crate::options::{Options, UI};
 use crate::platform::data_dir;
 use crate::portable::local::{instance_data_dir, NonLocalInstance};
+use crate::portable::repository::USER_AGENT;
 use crate::print;
 
 pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
@@ -29,7 +30,8 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
                 );
                 return Err(ExitCode::new(2).into());
             }
-            Ok(_) => {
+            Ok(status) => {
+                log::info!("GET {} returned status code {}", url, status);
                 print::error(
                     "the specified EdgeDB server is not serving Web UI \
                     correctly; check server log for details.",
@@ -90,7 +92,11 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn open_url(url: &str) -> Result<reqwest::Response, reqwest::Error> {
-    reqwest::Client::new().get(url).send().await
+    reqwest::Client::new()
+        .get(url)
+        .header(reqwest::header::USER_AGENT, USER_AGENT)
+        .send()
+        .await
 }
 
 fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
@@ -105,11 +111,12 @@ fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
         } else {
             instance_data_dir(name)?
         };
+        if !data_dir.exists() {
+            anyhow::bail!(NonLocalInstance);
+        }
         Ok((
-            fs::read(data_dir.join("edbjwskeys.pem"))
-                .map_err(|e| NonLocalInstance(anyhow::anyhow!(e)))?,
-            fs::read(data_dir.join("edbjwekeys.pem"))
-                .map_err(|e| NonLocalInstance(anyhow::anyhow!(e)))?,
+            fs::read(data_dir.join("edbjwskeys.pem"))?,
+            fs::read(data_dir.join("edbjwekeys.pem"))?,
         ))
     }
 }

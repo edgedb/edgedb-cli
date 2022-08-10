@@ -342,4 +342,4 @@ pub fn is_valid_name(name: &str) -> bool {
 
 #[derive(Debug, thiserror::Error)]
 #[error("Not a local instance")]
-pub struct NonLocalInstance(#[source] pub anyhow::Error);
+pub struct NonLocalInstance;

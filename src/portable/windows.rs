@@ -112,6 +112,17 @@ impl Wsl {
             .get_stdout_text()
     }
 
+    fn check_path_exist(&self, linux_path: impl AsRef<str>) -> bool
+    {
+        process::Native::new("ls file", "wsl", "wsl")
+            .arg("--user").arg("edgedb")
+            .arg("--distribution").arg(&self.distribution)
+            .arg("ls")
+            .arg(linux_path.as_ref())
+            .run()
+            .is_ok()
+    }
+
     #[cfg(not(windows))]
     fn copy_out(&self, _src: impl AsRef<str>, _destination: impl AsRef<Path>)
         -> anyhow::Result<()>
@@ -885,13 +896,12 @@ pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
         format!("/home/edgedb/.local/share/edgedb/data/{}/", name)
     };
 
+    if !wsl.check_path_exist(&data_dir) {
+        anyhow::bail!(NonLocalInstance);
+    }
     Ok((
-        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")
-            .map_err(NonLocalInstance)?
-            .into_bytes(),
-        wsl.read_text_file(data_dir + "edbjwekeys.pem")
-            .map_err(NonLocalInstance)?
-            .into_bytes(),
+        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?.into_bytes(),
+        wsl.read_text_file(data_dir + "edbjwekeys.pem")?.into_bytes(),
     ))
 }
 
