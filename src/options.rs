@@ -323,7 +323,7 @@ pub struct UI {
     #[clap(long)]
     pub print_url: bool,
 
-    /// Don't check the server version of the instance
+    /// Don't probe the UI endpoint of the server instance
     #[clap(long)]
     pub no_server_check: bool,
 }

@@ -1,13 +1,7 @@
 use std::env;
 use std::io::{stdout, Write};
 use std::path::PathBuf;
-use std::str::FromStr;
-use std::time::Duration;
 
-use async_std::future::timeout;
-use async_std::prelude::FutureExt;
-use async_std::task;
-use edgedb_client::Builder;
 use fs_err as fs;
 use ring::rand::SecureRandom;
 use ring::signature::KeyPair;
@@ -16,8 +10,7 @@ use ring::{aead, agreement, digest, rand, signature};
 use crate::commands::ExitCode;
 use crate::options::{Options, UI};
 use crate::platform::data_dir;
-use crate::portable::local::{instance_data_dir, InstanceInfo, NonLocalInstance};
-use crate::portable::ver::Specific;
+use crate::portable::local::{instance_data_dir, NonLocalInstance};
 use crate::print;
 
 pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
@@ -26,23 +19,30 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
 
     if !args.no_server_check {
-        let version = if let Some(meta) = builder
-            .get_instance_name()
-            .map(InstanceInfo::try_read)
-            .unwrap_or(Ok(None))?
-        {
-            meta.get_version()?.specific()
-        } else {
-            task::block_on(get_remote_version(builder))?
-        };
-        if version.major < 2 {
-            print::error(format!(
-                "the specified instance runs EdgeDB v{}, which does not \
-                include the Web UI; consider upgrading the instance to \
-                EdgeDB 2.x or later",
-                version,
-            ));
-            return Err(ExitCode::new(2).into());
+        match open_url(&url).map(|r| r.status()) {
+            Ok(reqwest::StatusCode::OK) => (),
+            Ok(reqwest::StatusCode::NOT_FOUND) => {
+                print::error("the specified EdgeDB server is not serving Web UI.");
+                print::echo!(
+                    "  If you have EdgeDB 2.0 and above, try to run the \
+                    server with `--admin-ui=enabled`."
+                );
+                return Err(ExitCode::new(2).into());
+            }
+            Ok(_) => {
+                print::error(
+                    "the specified EdgeDB server is not serving Web UI \
+                    correctly; check server log for details.",
+                );
+                return Err(ExitCode::new(3).into());
+            }
+            Err(e) => {
+                print::error(format!(
+                    "cannot connect to the specified EdgeDB server: {:#}",
+                    e,
+                ));
+                return Err(ExitCode::new(4).into());
+            }
         }
     }
 
@@ -88,29 +88,9 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     }
 }
 
-async fn _get_remote_version(builder: &Builder) -> anyhow::Result<String> {
-    Ok(builder.build()?.connect().await?.get_version().await?)
-}
-
-async fn get_remote_version(builder: &Builder) -> anyhow::Result<Specific> {
-    match timeout(Duration::from_secs(15), _get_remote_version(builder))
-        .race(async {
-            task::sleep(Duration::from_millis(300)).await;
-            if atty::is(atty::Stream::Stderr) {
-                eprintln!("{}", "Trying to connect for server version check...");
-            }
-            async_std::future::pending().await
-        })
-        .await
-    {
-        Ok(Ok(ver)) => Ok(Specific::from_str(&ver)?),
-        Ok(Err(e)) => Err(e),
-        Err(_) => {
-            print::error("Server version check timed out.");
-            print::echo!("  Add --no-server-check to skip this check.");
-            Err(ExitCode::new(3).into())
-        }
-    }
+#[tokio::main]
+async fn open_url(url: &str) -> Result<reqwest::Response, reqwest::Error> {
+    reqwest::Client::new().get(url).send().await
 }
 
 fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
