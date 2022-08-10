@@ -376,6 +376,11 @@ pub fn get_server_package(query: &Query)
     -> anyhow::Result<Option<PackageInfo>>
 {
     let plat = platform::get_server()?;
+    if cfg!(all(target_arch="aarch64", target_os="macos")) &&
+        query.version.as_ref().map(|v| v.major == 1).unwrap_or(false)
+    {
+        return get_platform_server_package(query, "x86_64-apple-darwin");
+    }
     get_platform_server_package(query, plat)
 }
 
@@ -394,7 +399,15 @@ pub fn get_specific_package(version: &ver::Specific)
     -> anyhow::Result<Option<PackageInfo>>
 {
     let channel = Channel::from_version(version)?;
-    let pkg = get_server_packages(channel)?.into_iter()
+    let all = if
+        cfg!(all(target_arch="aarch64", target_os="macos")) &&
+        version.major == 1
+    {
+        get_platform_server_packages(channel, "x86_64-apple-darwin")?
+    } else {
+        get_server_packages(channel)?
+    };
+    let pkg = all.into_iter()
         .filter(|pkg| &pkg.version.specific() == version)
         .next();
     Ok(pkg)
