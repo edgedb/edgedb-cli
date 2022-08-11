@@ -103,7 +103,7 @@ fd-lock = "3.0.2"
 zip = "0.6.2"
 libflate = "1.1.1"
 open = "3.0.2"
-tokio = {version="1.20.1", features=["macros", "rt"]}
+tokio = {version="1.20.1", features=["macros", "rt", "rt-multi-thread"]}
 
 [dev-dependencies]
 assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
