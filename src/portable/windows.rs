@@ -22,7 +22,7 @@ use crate::platform::{cache_dir, wsl_dir, config_dir, tmp_file_path};
 use crate::portable::control;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
-use crate::portable::local::{InstanceInfo, Paths, write_json};
+use crate::portable::local::{InstanceInfo, Paths, write_json, NonLocalInstance};
 use crate::portable::options::{self, Logs, StartConf, instance_arg};
 use crate::portable::project;
 use crate::portable::repository::{self, download, PackageHash, PackageInfo};
@@ -110,6 +110,17 @@ impl Wsl {
             .arg("cat")
             .arg(linux_path.as_ref())
             .get_stdout_text()
+    }
+
+    fn check_path_exist(&self, linux_path: impl AsRef<str>) -> bool
+    {
+        process::Native::new("ls file", "wsl", "wsl")
+            .arg("--user").arg("edgedb")
+            .arg("--distribution").arg(&self.distribution)
+            .arg("ls")
+            .arg(linux_path.as_ref())
+            .run()
+            .is_ok()
     }
 
     #[cfg(not(windows))]
@@ -869,7 +880,7 @@ pub fn revert(options: &options::Revert) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn read_jose_keys(name: &str) -> anyhow::Result<(String, String)> {
+pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
     let wsl = try_get_wsl()?;
 
     let data_dir = if name == "_localdev" {
@@ -885,9 +896,12 @@ pub fn read_jose_keys(name: &str) -> anyhow::Result<(String, String)> {
         format!("/home/edgedb/.local/share/edgedb/data/{}/", name)
     };
 
+    if !wsl.check_path_exist(&data_dir) {
+        anyhow::bail!(NonLocalInstance);
+    }
     Ok((
-        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?,
-        wsl.read_text_file(data_dir + "edbjwekeys.pem")?,
+        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?.into_bytes(),
+        wsl.read_text_file(data_dir + "edbjwekeys.pem")?.into_bytes(),
     ))
 }
 
