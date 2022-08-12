@@ -322,6 +322,10 @@ pub struct UI {
     /// Print URL in console instead of opening in the browser
     #[clap(long)]
     pub print_url: bool,
+
+    /// Don't probe the UI endpoint of the server instance
+    #[clap(long)]
+    pub no_server_check: bool,
 }
 
 #[derive(Debug, Clone)]
