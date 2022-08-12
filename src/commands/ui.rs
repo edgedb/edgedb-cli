@@ -19,54 +19,85 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     let builder = connector.get()?;
     let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
 
-    if !args.no_server_check {
-        match open_url(&url).map(|r| r.status()) {
-            Ok(reqwest::StatusCode::OK) => (),
-            Ok(reqwest::StatusCode::NOT_FOUND) => {
-                print::error("the specified EdgeDB server is not serving Web UI.");
-                print::echo!(
-                    "  If you have EdgeDB 2.0 and above, try to run the \
-                    server with `--admin-ui=enabled`."
-                );
-                return Err(ExitCode::new(2).into());
-            }
-            Ok(status) => {
-                log::info!("GET {} returned status code {}", url, status);
-                print::error(
-                    "the specified EdgeDB server is not serving Web UI \
-                    correctly; check server log for details.",
-                );
-                return Err(ExitCode::new(3).into());
-            }
-            Err(e) => {
-                print::error(format!(
-                    "cannot connect to the specified EdgeDB server: {:#}",
-                    e,
-                ));
-                return Err(ExitCode::new(4).into());
-            }
-        }
-    }
-
+    let mut token = None;
+    let mut is_remote = true;
     if let Some(instance) = builder.get_instance_name() {
         match read_jose_keys(instance) {
             Ok(keys) => match generate_jwt(keys) {
-                Ok(token) => {
-                    url = format!("{}?authToken={}", url, token);
+                Ok(t) => {
+                    is_remote = false;
+                    token = Some(t);
                 }
                 Err(e) => {
+                    is_remote = false;
                     print::warn(format!("Cannot generate authToken: {:#}", e));
                 }
             },
             Err(e) if e.is::<NonLocalInstance>() => {
                 // Continue without token for remote instances
-                log::debug!("Assuming local instance because: {:#}", e);
+                log::debug!("Assuming remote instance because: {:#}", e);
             }
             Err(e) => {
                 print::warn(format!("Cannot read JOSE key files: {:#})", e));
             }
         }
     }
+
+    if args.no_server_check {
+        // We'll always use HTTP if --no-server-check is specified, depending on
+        // the server to redirect to HTTPS if necessary.
+    } else {
+        let mut use_https = false;
+        if is_remote {
+            let https_url = "https".to_owned() + url.strip_prefix("http").unwrap();
+            match open_url(&https_url).map(|r| r.status()) {
+                Ok(reqwest::StatusCode::OK) => {
+                    url = https_url;
+                    use_https = true;
+                }
+                Ok(status) => {
+                    log::debug!(
+                        "GET {} returned status code {}, retry HTTP.",
+                        https_url,
+                        status
+                    );
+                }
+                Err(e) => {
+                    log::debug!("GET {} failed: {:#}", https_url, e);
+                }
+            }
+        }
+        if !use_https {
+            match open_url(&url).map(|r| r.status()) {
+                Ok(reqwest::StatusCode::OK) => (),
+                Ok(reqwest::StatusCode::NOT_FOUND) => {
+                    print::error("the specified EdgeDB server is not serving Web UI.");
+                    print::echo!(
+                        "  If you have EdgeDB 2.0 and above, try to run the \
+                        server with `--admin-ui=enabled`."
+                    );
+                    return Err(ExitCode::new(2).into());
+                }
+                Ok(status) => {
+                    log::info!("GET {} returned status code {}", url, status);
+                    print::error(
+                        "the specified EdgeDB server is not serving Web UI \
+                        correctly; check server log for details.",
+                    );
+                    return Err(ExitCode::new(3).into());
+                }
+                Err(e) => {
+                    print::error(format!("cannot connect to {}: {:#}", url, e,));
+                    return Err(ExitCode::new(4).into());
+                }
+            }
+        }
+    }
+
+    if let Some(token) = token {
+        url = format!("{}?authToken={}", url, token);
+    }
+
     if args.print_url {
         stdout()
             .lock()
