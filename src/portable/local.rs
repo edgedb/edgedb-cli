@@ -339,3 +339,7 @@ pub fn is_valid_name(name: &str) -> bool {
     }
     return true;
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Not a local instance")]
+pub struct NonLocalInstance;
