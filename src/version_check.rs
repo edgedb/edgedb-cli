@@ -33,6 +33,14 @@ fn negative_cache_age() -> Duration {
 }
 
 
+impl Cache {
+    fn channel_matches(&self, chan: &repository::Channel) -> bool {
+        self.version.as_ref()
+            .map(|v| cli::upgrade::channel_of(&v.to_string()) == *chan)
+            .unwrap_or(false)
+    }
+}
+
 fn read_cache(dir: &Path) -> anyhow::Result<Cache> {
     let file = fs::File::open(dir.join("version_check.json"))?;
     Ok(serde_json::from_reader(file)?)
@@ -59,8 +67,11 @@ fn newer_warning(ver: &ver::Semver) {
 
 fn _check(cache_dir: &Path, strict: bool) -> anyhow::Result<()> {
     let self_version = cli::upgrade::self_version()?;
+    let channel = cli::upgrade::channel();
     match read_cache(cache_dir) {
-        Ok(cache) if cache.expires > SystemTime::now() => {
+        Ok(cache) if cache.expires > SystemTime::now()
+                  && cache.channel_matches(&channel)
+        => {
             log::debug!("Cached version {:?}", cache.version);
             if let Some(ver) = cache.version {
                 if self_version < ver {
@@ -78,7 +89,7 @@ fn _check(cache_dir: &Path, strict: bool) -> anyhow::Result<()> {
         }
     }
     let timestamp = SystemTime::now();
-    let pkg = repository::get_cli_packages(cli::upgrade::channel())?
+    let pkg = repository::get_cli_packages(channel)?
         .into_iter()
         .map(|pkg| pkg.version)
         .max();
