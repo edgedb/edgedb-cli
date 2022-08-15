@@ -101,12 +101,16 @@ pub fn unpack_file(src: &Path, tgt: &Path,
 
 }
 
-pub fn channel() -> repository::Channel {
-    if env!("CARGO_PKG_VERSION").contains("-dev.") {
+pub fn channel_of(ver: &str) -> repository::Channel {
+    if ver.contains("-dev.") {
         Channel::Nightly
     } else {
         Channel::Stable
     }
+}
+
+pub fn channel() -> repository::Channel {
+    channel_of(env!("CARGO_PKG_VERSION"))
 }
 
 pub fn self_version() -> anyhow::Result<ver::Semver> {
