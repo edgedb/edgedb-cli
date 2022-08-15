@@ -123,7 +123,10 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn open_url(url: &str) -> Result<reqwest::Response, reqwest::Error> {
-    reqwest::Client::new()
+    reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_hostnames(true)
+        .build()?
         .get(url)
         .header(reqwest::header::USER_AGENT, USER_AGENT)
         .send()

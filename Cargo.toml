@@ -57,7 +57,7 @@ log = "0.4.8"
 env_logger = "0.9.0"
 os-release = "0.1.0"
 surf = {version="2.2.0", features=["h1-client"], default-features=false}
-reqwest = {version="0.11.11", features=["json"]}
+reqwest = {version="0.11.11", features=["json", "native-tls"]}
 native-tls = {version="0.2.4"}
 thiserror = "1.0.16"
 which = {version="4", default-features=false}
