@@ -51,7 +51,7 @@ jobs:
     - uses: actions/upload-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 <% endfor %>
 <% for tgt in targets.macos %>
   build-<< tgt.name >>:
@@ -164,7 +164,7 @@ jobs:
     - uses: actions/download-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - name: Describe
       id: describe
