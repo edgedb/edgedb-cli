@@ -544,7 +544,7 @@ jobs:
     - uses: actions/upload-artifact@v1
       with:
         name: builds-linux-x86_64
-        path: artifacts/linux-x86_64
+        path: artifacts/linuxmusl-x86_64
 
   build-linux-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
@@ -577,7 +577,7 @@ jobs:
     - uses: actions/upload-artifact@v1
       with:
         name: builds-linux-aarch64
-        path: artifacts/linux-aarch64
+        path: artifacts/linuxmusl-aarch64
 
 
   build-macos-x86_64:
@@ -1155,13 +1155,13 @@ jobs:
     - uses: actions/download-artifact@v1
       with:
         name: builds-linux-x86_64
-        path: artifacts/linux-x86_64
+        path: artifacts/linuxmusl-x86_64
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: linux-x86_64
+        target: linuxmusl-x86_64
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -1174,7 +1174,7 @@ jobs:
     - name: Prepare docker context
       env:
         CLI_EXECUTABLE: "${{ steps.describe.outputs.install-ref }}"
-        PKG_PLATFORM_FULL: "linux-x86_64"
+        PKG_PLATFORM_FULL: "linuxmusl-x86_64"
       run: |
         set -ex -o pipefail
         shopt -s dotglob inherit_errexit nullglob
@@ -1196,7 +1196,7 @@ jobs:
     - name: Publish docker image
       uses: docker/build-push-action@v2
       env:
-        PKG_PLATFORM_FULL: "linux-x86_64"
+        PKG_PLATFORM_FULL: "linuxmusl-x86_64"
       with:
         push: true
         context: dockerctx
@@ -1206,7 +1206,7 @@ jobs:
 
     - name: Update docker manifest
       env:
-        PKG_PLATFORM_FULL: "linux-x86_64"
+        PKG_PLATFORM_FULL: "linuxmusl-x86_64"
         PKG_PLATFORM_VERSION: "x86_64"
       run: |
         if docker manifest inspect edgedb/edgedb-cli:latest >/dev/null 2>&1; then
@@ -1229,13 +1229,13 @@ jobs:
     - uses: actions/download-artifact@v1
       with:
         name: builds-linux-aarch64
-        path: artifacts/linux-aarch64
+        path: artifacts/linuxmusl-aarch64
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: linux-aarch64
+        target: linuxmusl-aarch64
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -1248,7 +1248,7 @@ jobs:
     - name: Prepare docker context
       env:
         CLI_EXECUTABLE: "${{ steps.describe.outputs.install-ref }}"
-        PKG_PLATFORM_FULL: "linux-aarch64"
+        PKG_PLATFORM_FULL: "linuxmusl-aarch64"
       run: |
         set -ex -o pipefail
         shopt -s dotglob inherit_errexit nullglob
@@ -1270,7 +1270,7 @@ jobs:
     - name: Publish docker image
       uses: docker/build-push-action@v2
       env:
-        PKG_PLATFORM_FULL: "linux-aarch64"
+        PKG_PLATFORM_FULL: "linuxmusl-aarch64"
       with:
         push: true
         context: dockerctx
@@ -1280,7 +1280,7 @@ jobs:
 
     - name: Update docker manifest
       env:
-        PKG_PLATFORM_FULL: "linux-aarch64"
+        PKG_PLATFORM_FULL: "linuxmusl-aarch64"
         PKG_PLATFORM_VERSION: "aarch64"
       run: |
         if docker manifest inspect edgedb/edgedb-cli:latest >/dev/null 2>&1; then
