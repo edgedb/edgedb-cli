@@ -179,6 +179,9 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+<% if tgt.platform_libc %>
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
+<% endif %>
 <% if tgt.family == "generic" %>
     - name: Prepare docker context
       env:
