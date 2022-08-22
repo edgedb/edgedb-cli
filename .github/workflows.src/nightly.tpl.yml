@@ -34,7 +34,7 @@ jobs:
     - uses: actions/upload-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 <% endfor %>
 <% for tgt in targets.macos %>
   build-<< tgt.name >>:
@@ -141,13 +141,13 @@ jobs:
     - uses: actions/download-artifact@v1
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: <<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        target: <<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -157,11 +157,14 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+<% if tgt.platform_libc %>
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
+<% endif %>
 <% if tgt.family == "generic" %>
     - name: Prepare docker context
       env:
         CLI_EXECUTABLE: "${{ steps.describe.outputs.install-ref }}"
-        PKG_PLATFORM_FULL: "<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
+        PKG_PLATFORM_FULL: "<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
       run: |
         set -ex -o pipefail
         shopt -s dotglob inherit_errexit nullglob
@@ -183,7 +186,7 @@ jobs:
     - name: Publish docker image
       uses: docker/build-push-action@v2
       env:
-        PKG_PLATFORM_FULL: "<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
+        PKG_PLATFORM_FULL: "<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
       with:
         push: true
         context: dockerctx
@@ -191,7 +194,7 @@ jobs:
 
     - name: Update docker manifest
       env:
-        PKG_PLATFORM_FULL: "<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
+        PKG_PLATFORM_FULL: "<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
         PKG_PLATFORM_VERSION: "<<tgt.platform_version>>"
       run: |
         if docker manifest inspect edgedb/edgedb-cli:nightly >/dev/null 2>&1; then
