@@ -170,7 +170,7 @@ jobs:
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: <<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        target: <<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -183,7 +183,7 @@ jobs:
     - name: Prepare docker context
       env:
         CLI_EXECUTABLE: "${{ steps.describe.outputs.install-ref }}"
-        PKG_PLATFORM_FULL: "<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
+        PKG_PLATFORM_FULL: "<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
       run: |
         set -ex -o pipefail
         shopt -s dotglob inherit_errexit nullglob
@@ -205,7 +205,7 @@ jobs:
     - name: Publish docker image
       uses: docker/build-push-action@v2
       env:
-        PKG_PLATFORM_FULL: "<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
+        PKG_PLATFORM_FULL: "<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
       with:
         push: true
         context: dockerctx
@@ -215,7 +215,7 @@ jobs:
 
     - name: Update docker manifest
       env:
-        PKG_PLATFORM_FULL: "<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
+        PKG_PLATFORM_FULL: "<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
         PKG_PLATFORM_VERSION: "<<tgt.platform_version>>"
       run: |
         if docker manifest inspect edgedb/edgedb-cli:latest >/dev/null 2>&1; then
