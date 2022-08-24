@@ -63,8 +63,7 @@ fn initial() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n"))
-        .stderr(contains("Note:"));
+            (00001.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
         .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
@@ -213,8 +212,7 @@ fn project() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n"))
-        .stderr(contains("Note:"));
+            (00001.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=project")
         .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
