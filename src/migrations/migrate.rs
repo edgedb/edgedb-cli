@@ -12,7 +12,7 @@ use crate::commands::parser::Migrate;
 use crate::migrations::timeout;
 use crate::migrations::context::Context;
 use crate::migrations::migration::{self, MigrationFile};
-use crate::print::{self, echo, Highlight};
+use crate::print;
 use crate::error_display::print_query_error;
 
 
@@ -201,8 +201,6 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
                 CONFIGURE CURRENT DATABASE SET allow_bare_ddl :=
                     cfg::AllowBareDDL.NeverAllow;
             "#).await?;
-            echo!("Note: adding first migration disables DDL. \
-                   More info: https://edgedb.com/p/bare_ddl".fade());
         }
     }
     return Ok(())
