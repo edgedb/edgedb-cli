@@ -80,10 +80,10 @@ pub struct ConnectionOptions {
     #[clap(conflicts_with_all=&["dsn", "credentials_file", "instance"])]
     pub port: Option<u16>,
 
-    /// Unix socket dir or path to unix socket for the EdgeDB connection
+    /// A path to a unix socket for the EdgeDB connection
     ///
-    /// When dir is specified here, path to the unix socket also depends on
-    /// `--port` and `--admin` parameters.
+    /// When the supplied path is a directory, the actual path will be
+    /// computed using the `--port` and `--admin` parameters.
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(value_hint=ValueHint::AnyPath)]
     #[clap(hide=true)]
