@@ -570,11 +570,11 @@ pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 fn create_and_start(wsl: &Wsl, name: &str) -> anyhow::Result<()> {
+    wsl.edgedb().arg("instance").arg("start").arg("-I").arg(&name).run()?;
     fs_err::write(service_file(&name)?, format!("wsl \
         --distribution {} --user edgedb \
         /usr/bin/edgedb instance start -I {}",
         &wsl.distribution, &name))?;
-    wsl.edgedb().arg("instance").arg("start").arg("-I").arg(&name).run()?;
     Ok(())
 }
 
@@ -715,13 +715,13 @@ pub fn start(options: &options::Start) -> anyhow::Result<()> {
 pub fn stop(options: &options::Stop) -> anyhow::Result<()> {
     let name = instance_arg(&options.name, &options.instance)?;
     if let Some(wsl) = get_wsl()? {
-        wsl.edgedb()
-            .arg("instance").arg("stop").args(options)
-            .run()?;
         let service_file = service_file(&name)?;
         fs::remove_file(&service_file)
             .map_err(|e| log::warn!("error removing {service_file:?}: {e:#}"))
             .ok();
+        wsl.edgedb()
+            .arg("instance").arg("stop").args(options)
+            .run()?;
     } else {
         anyhow::bail!("WSL distribution is not installed, \
                        so no EdgeDB instances are present.");
