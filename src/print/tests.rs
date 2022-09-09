@@ -3,9 +3,10 @@ use std::convert::TryFrom;
 use std::str::FromStr;
 use std::pin::Pin;
 
-use async_std::task;
 use async_std::stream::Stream;
+use async_std::task;
 use bigdecimal::BigDecimal;
+use bytes::Bytes;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model::Datetime;
@@ -317,13 +318,13 @@ fn str() {
 #[test]
 fn bytes() {
     assert_eq!(
-        test_format(&[Value::Bytes(b"hello".to_vec())]).unwrap(),
+        test_format(&[Value::Bytes(Bytes::from_static(b"hello"))]).unwrap(),
         "{b'hello'}");
     assert_eq!(
-        test_format(&[Value::Bytes(b"a\nb".to_vec())]).unwrap(),
+        test_format(&[Value::Bytes(Bytes::from_static(b"a\nb"))]).unwrap(),
         "{b'a\\nb'}");
     assert_eq!(
-        test_format(&[Value::Bytes(b"a'b".to_vec())]).unwrap(),
+        test_format(&[Value::Bytes(Bytes::from_static(b"a'b"))]).unwrap(),
         r"{b'a\'b'}");
 }
 

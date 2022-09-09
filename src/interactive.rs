@@ -12,14 +12,14 @@ use async_std::channel::{bounded as channel};
 use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
 
-use edgedb_client::client::{EdgeqlStateDesc, EdgeqlState};
 use edgedb_client::errors::{ErrorKind, ClientEncodingError};
 use edgedb_client::errors::{Error as EdgedbError, StateMismatchError};
 use edgedb_protocol::client_message::ClientMessage;
 use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
 use edgedb_protocol::client_message::{Execute0, Execute1};
 use edgedb_protocol::client_message::{Parse, Prepare, IoFormat, Cardinality};
-use edgedb_protocol::common::{Capabilities, CompilationFlags};
+use edgedb_protocol::common::{Capabilities, CompilationFlags, State};
+use edgedb_protocol::common::{RawTypedesc};
 use edgedb_protocol::model::Duration;
 use edgedb_protocol::query_arg::{Encoder, QueryArgs};
 use edgedb_protocol::server_message::ServerMessage;
@@ -136,8 +136,8 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         last_version: None,
         connection: None,
         initial_text: "".into(),
-        edgeql_state_desc: EdgeqlStateDesc::uninitialized(),
-        edgeql_state: EdgeqlState::empty(),
+        edgeql_state_desc: RawTypedesc::uninitialized(),
+        edgeql_state: State::empty(),
     };
     let handle = task::spawn(_main(options, state, cfg));
     prompt::main(repl_wr, control_rd)?;
@@ -303,8 +303,7 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
                 Json => IoFormat::Json,
             },
             expected_cardinality: Cardinality::Many,
-            state_typedesc_id: seq.get_state_typedesc_id(),
-            state_data: seq.get_state_data(),
+            state: seq.get_state().clone(),
             command_text: String::from(statement),
         }),
         ClientMessage::Flush,
@@ -390,10 +389,9 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
             },
             expected_cardinality: Cardinality::Many,
             command_text: String::from(statement),
-            state_typedesc_id: seq.get_state_typedesc_id(),
-            state_data: seq.get_state_data(),
-            input_typedesc_id: data_description.input_typedesc_id,
-            output_typedesc_id: data_description.output_typedesc_id,
+            state: seq.get_state().clone(),
+            input_typedesc_id: data_description.input.id,
+            output_typedesc_id: data_description.output.id,
             arguments: arguments.freeze(),
         }),
         ClientMessage::Sync,

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::codec;
-use edgedb_protocol::descriptors::{InputTypedesc, Descriptor};
+use edgedb_protocol::descriptors::{Typedesc, Descriptor};
 use crate::repl;
 use crate::prompt;
 use crate::prompt::variable::{self, VariableInput};
@@ -14,7 +14,7 @@ use crate::prompt::variable::{self, VariableInput};
 pub struct Canceled;
 
 
-pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
+pub async fn input_variables(desc: &Typedesc, state: &mut repl::PromptRpc)
     -> Result<Value, anyhow::Error>
 {
     // only for protocol < 0.12
@@ -66,7 +66,7 @@ pub async fn input_variables(desc: &InputTypedesc, state: &mut repl::PromptRpc)
     }
 }
 
-async fn input_item(name: &str, mut item: &Descriptor, all: &InputTypedesc,
+async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
     state: &mut repl::PromptRpc, optional: bool)
     -> Result<Option<Value>, anyhow::Error>
 {

@@ -7,6 +7,7 @@ use anyhow::Context as _;
 use colorful::Colorful;
 use bigdecimal::BigDecimal;
 use edgedb_protocol::value::Value;
+use edgedb_protocol::model;
 use num_bigint::ToBigInt;
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
@@ -150,7 +151,9 @@ impl VariableInput for Json {
             Err(e) if e.classify()  == serde_json::error::Category::Eof
             => Err(Error::Incomplete),
             Err(e) => Err(no_pos_err(e)),
-            Ok(_) => Ok(Value::Json(input.into())),
+            Ok(_) => Ok(Value::Json(unsafe {
+                model::Json::new_unchecked(input.into())
+            })),
         }
     }
 }
