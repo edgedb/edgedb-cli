@@ -663,8 +663,10 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                          prompt.edgeql_state.clone())
                     )
             };
-            let value = desc.decode(&data)?;
-            println!("Descriptor id: {}", desc.descriptor_id());
+            let desc = desc.decode()?;
+            let codec = desc.build_codec()?;
+            let value = codec.decode(&data.data)?;
+            println!("Descriptor id: {}", desc.id());
             print::native_to_stdout(
                 stream::from_iter([Ok::<_, Error>(value)]),
                 &prompt.print,
@@ -680,8 +682,8 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                     .map(|c| c.get_state_desc())
                     .unwrap_or(prompt.edgeql_state_desc.clone())
             };
-            let typedesc = desc.decoded()?;
-            eprintln!("Descriptor id: {}", desc.descriptor_id());
+            let typedesc = desc.decode()?;
+            eprintln!("Descriptor id: {}", desc.id);
             eprintln!("Descriptor: {:#?}", typedesc.descriptors());
             eprintln!("Codec: {:#?}", typedesc.build_codec()?);
             Ok(Skip)

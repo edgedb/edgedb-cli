@@ -3,8 +3,10 @@ use std::time::Duration;
 
 use anyhow::Context;
 use async_std::channel::{Sender, Receiver, RecvError};
+use bytes::BytesMut;
 use colorful::Colorful;
-use edgedb_client::client::{Connection, EdgeqlStateDesc, EdgeqlState};
+use edgedb_client::client::Connection;
+use edgedb_protocol::common::{State as EdgeqlState, RawTypedesc};
 use edgedb_protocol::model::{Duration as EdbDuration};
 use edgedb_protocol::server_message::TransactionState;
 
@@ -64,7 +66,7 @@ pub struct State {
     pub connection: Option<Connection>,
     pub last_version: Option<String>,
     pub initial_text: String,
-    pub edgeql_state_desc: EdgeqlStateDesc,
+    pub edgeql_state_desc: RawTypedesc,
     pub edgeql_state: EdgeqlState,
 }
 
@@ -262,14 +264,22 @@ impl State {
     }
     pub fn try_update_state(&mut self) -> anyhow::Result<bool> {
         if let Some(conn) = &mut self.connection {
-            match self.edgeql_state_desc.decode(&self.edgeql_state)? {
-                Some(value) => {
-                    let nstate = conn.get_state_desc().encode(&value)?;
-                    self.edgeql_state = nstate.clone();
-                    conn.set_state(nstate);
-                    return Ok(true)
-                }
-                None => {}
+            if self.edgeql_state.data.len() > 0 {
+                let desc = self.edgeql_state_desc.decode()?;
+                let codec = desc.build_codec()?;
+                let value = codec.decode(&self.edgeql_state.data)?;
+
+                let desc = conn.get_state_desc().decode()?;
+                let codec = desc.build_codec()?;
+                let mut buf = BytesMut::with_capacity(
+                    self.edgeql_state.data.len());
+                codec.encode(&mut buf, &value)?;
+                self.edgeql_state = EdgeqlState {
+                    typedesc_id: desc.id().clone(),
+                    data: buf.freeze(),
+                };
+                conn.set_state(self.edgeql_state.clone());
+                return Ok(true)
             }
         }
         Ok(false)
