@@ -494,7 +494,7 @@ pub struct ResetPassword {
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Info {
-    /// Display only the server binary path
+    /// Display only the server binary path (a shortcut to `--get bin-path`)
     #[clap(long)]
     pub bin_path: bool,
     /// Output in JSON format
@@ -507,6 +507,14 @@ pub struct Info {
     pub nightly: bool,
     #[clap(long, conflicts_with="nightly")]
     pub version: Option<ver::Filter>,
+
+    #[clap(long, possible_values=&[
+        "bin-path",
+    ][..])]
+    /// Get specific value:
+    ///
+    /// * `bin-path` -- Path to the server binary
+    pub get: Option<String>,
 }
 
 #[derive(EdbClap, Clone, Debug)]

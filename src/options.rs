@@ -275,7 +275,7 @@ pub enum Command {
     #[edb(inherit(ConnectionOptions))]
     UI(UI),
     /// Show information about the EdgeDB installation
-    Info,
+    Info(Info),
     /// Manage project installation
     #[edb(expand_help)]
     Project(project::ProjectCommand),
@@ -329,6 +329,23 @@ pub struct UI {
     /// Don't probe the UI endpoint of the server instance
     #[clap(long)]
     pub no_server_check: bool,
+}
+
+#[derive(EdbClap, Debug, Clone)]
+pub struct Info {
+   #[clap(long, possible_values=&[
+        "config-dir",
+        "cache-dir",
+        "data-dir",
+        "service-dir",
+    ][..])]
+    /// Get specific value:
+    ///
+    /// * `config-dir` -- Base configuration directory
+    /// * `cache-dir` -- Base cache directory
+    /// * `data-dir` -- Base data directory
+    /// * `service-dir` -- Directory where supervisor/startup files are placed
+    pub get: Option<String>,
 }
 
 #[derive(Debug, Clone)]
