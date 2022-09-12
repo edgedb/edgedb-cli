@@ -149,13 +149,21 @@ pub struct Info {
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// Display only the instance name
+    /// Display only the instance name (shortcut to `--get instance-name`)
     #[clap(long)]
     pub instance_name: bool,
 
     /// Output in JSON format
     #[clap(long)]
     pub json: bool,
+
+    #[clap(long, possible_values=&[
+        "instance-name",
+    ][..])]
+    /// Get specific value:
+    ///
+    /// * `instance-name` -- Name of the listance the project is linked to
+    pub get: Option<String>,
 }
 
 #[derive(EdbClap, Debug, Clone)]
@@ -1258,11 +1266,18 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
     }
     let instance_name = fs::read_to_string(stash_dir.join("instance-name"))?;
 
-    if options.instance_name {
-        if options.json {
-            println!("{}", serde_json::to_string(&instance_name)?);
-        } else {
-            println!("{}", instance_name);
+    let item = options.get.as_deref()
+        .or(options.instance_name.then(|| "instance-name"));
+    if let Some(item) = item {
+        match item {
+            "instance-name" => {
+                if options.json {
+                    println!("{}", serde_json::to_string(&instance_name)?);
+                } else {
+                    println!("{}", instance_name);
+                }
+            }
+            _ => unreachable!(),
         }
     } else if options.json {
         println!("{}", serde_json::to_string_pretty(&JsonInfo {

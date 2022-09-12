@@ -550,14 +550,17 @@ fn try_get_wsl() -> anyhow::Result<&'static Wsl> {
     }
 }
 
-fn service_file(instance: &str) -> anyhow::Result<PathBuf> {
+pub fn startup_dir() -> anyhow::Result<PathBuf> {
     Ok(dirs::data_dir().context("cannot determine data directory")?
         .join("Microsoft")
         .join("Windows")
         .join("Start Menu")
         .join("Programs")
-        .join("Startup")
-        .join(format!("edgedb-server-{}.cmd", instance)))
+        .join("Startup"))
+}
+
+fn service_file(instance: &str) -> anyhow::Result<PathBuf> {
+    Ok(startup_dir()?.join(format!("edgedb-server-{}.cmd", instance)))
 }
 
 pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {

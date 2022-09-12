@@ -25,14 +25,23 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
     let inst = all.into_iter().filter(|item| query.matches(&item.version))
         .max_by_key(|item| item.version.specific())
         .context("cannot find installed packages maching your criteria")?;
-    if options.bin_path {
-        let path = inst.server_path()?;
-        if options.json {
-            let path = path.to_str()
-                .context("cannot convert path to a string")?;
-            println!("{}", serde_json::to_string(path)?);
-        } else {
-            println!("{}", path.display());
+
+    let item = options.get.as_deref()
+        .or(options.bin_path.then(|| "bin-path"));
+    if let Some(item) = item {
+        match item {
+            "bin-path" => {
+                let path = inst.server_path()?;
+                if options.json {
+                    let path = path.to_str()
+                        .context("cannot convert path to a string")?;
+                    println!("{}", serde_json::to_string(path)?);
+                } else {
+                    println!("{}", path.display());
+                }
+
+            }
+            _ => unreachable!(),
         }
     } else if options.json {
         println!("{}", serde_json::to_string_pretty(&JsonInfo {
