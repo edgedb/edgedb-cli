@@ -30,7 +30,7 @@ use crate::portable::create;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::install;
-use crate::portable::local::{InstanceInfo, Paths, allocate_port, is_valid_name};
+use crate::portable::local::{InstanceInfo, Paths, allocate_port, is_valid_instance_name};
 use crate::portable::options::{self, instance_name_opt, StartConf, Start};
 use crate::portable::platform::{optional_docker_check};
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
@@ -126,10 +126,6 @@ pub struct Init {
     /// Run in non-interactive mode (accepting all defaults)
     #[clap(long)]
     pub non_interactive: bool,
-
-    /// Use EdgeDB Cloud to initialize this project
-    #[clap(long, hide=true)]
-    pub cloud: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
@@ -232,7 +228,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             let dir = fs::canonicalize(&dir)?;
             if dir.join("edgedb.toml").exists() {
                 if options.link {
-                    link(options, &dir, opts)?
+                    link(options, &dir)?
                 } else {
                     init_existing(options, &dir, &opts.cloud_options)?
                 }
@@ -253,7 +249,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             if let Some(dir) = search_dir(&base_dir) {
                 let dir = fs::canonicalize(&dir)?;
                 if options.link {
-                    link(options, &dir, opts)?
+                    link(options, &dir)?
                 } else {
                     init_existing(options, &dir, &opts.cloud_options)?
                 }
@@ -290,7 +286,7 @@ fn ask_existing_instance_name() -> anyhow::Result<String> {
     }
 }
 
-fn link(options: &Init, project_dir: &Path, opts: &crate::options::Options)
+fn link(options: &Init, project_dir: &Path)
     -> anyhow::Result<ProjectInfo>
 {
     echo!("Found `edgedb.toml` in", project_dir.display());
@@ -306,20 +302,14 @@ fn link(options: &Init, project_dir: &Path, opts: &crate::options::Options)
     let ver_query = config.edgedb.server_version;
 
     let name = if let Some(name) = &options.server_instance {
-        if options.cloud {
-            let client = CloudClient::new(&opts.cloud_options)?;
-            task::block_on(crate::cloud::ops::link_existing_cloud_instance(
-                &client, name,
-            ))?
+        if name.contains("/") {
+            anyhow::bail!(format!("Cloud instances can not be linked\nconnect to this instance with\n    edgedb -I {}", name))
         }
         name.clone()
     } else if options.non_interactive {
         anyhow::bail!("Existing instance name should be specified \
                        with `--server-instance` argument when linking project \
                        in non-interactive mode")
-    } else if options.cloud {
-        let client = CloudClient::new(&opts.cloud_options)?;
-        task::block_on(crate::cloud::ops::ask_link_existing_cloud_instance(&client))?
     } else {
         ask_existing_instance_name()?
     };
@@ -396,7 +386,7 @@ fn ask_name(dir: &Path, options: &Init) -> anyhow::Result<(String, bool)> {
     q.default(&default_name);
     loop {
         let target_name = q.ask()?;
-        if !is_valid_name(&target_name) {
+        if !is_valid_instance_name(&target_name) {
             print::error("Instance name must be a valid identifier, \
                          (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
             continue;
@@ -475,7 +465,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
     echo!("Checking EdgeDB versions...");
 
-    if options.cloud {
+    if name.contains("/") {
         let mut client = CloudClient::new(cloud_options)?;
         if !client.is_logged_in {
             if !options.non_interactive {
@@ -491,12 +481,11 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             }
             client.ensure_authenticated(false)?;
         };
-        let org = task::block_on(ask_cloud_org(&client, options))?;
+        let (org, inst) = crate::cloud::ops::split_cloud_instance_name(&name)?;
         if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
-            &name, &client,
+            &inst, &org, &client,
         ))? {
             ask_link_cloud_instance(options, &name)?;
-            task::block_on(crate::cloud::ops::link_existing_cloud_instance(&client, &name))?;
             let inst = Handle::probe(&name, project_dir, &schema_dir)?;
             inst.check_version(&ver_query);
             return do_link(&inst, options, &stash_dir);
@@ -561,8 +550,6 @@ fn do_init(name: &str, pkg: &PackageInfo,
             start_conf: None,
             default_database: "edgedb".into(),
             default_user: "edgedb".into(),
-            cloud: false,
-            cloud_org: None,
             non_interactive: true,
         }, name, port, &paths)?;
         create::create_service(&InstanceInfo {
@@ -627,7 +614,7 @@ fn do_cloud_init(
 ) -> anyhow::Result<ProjectInfo> {
     let instance = crate::cloud::ops::CloudInstanceCreate {
         name: name.clone(),
-        org,
+        org: org.clone(),
         // version: Some(version),
         // default_database: None,
         // default_user: None,
@@ -635,19 +622,20 @@ fn do_cloud_init(
     task::block_on(
         crate::cloud::ops::create_cloud_instance(client, &instance)
     )?;
-    write_stash_dir(stash_dir, project_dir, &name)?;
+    let full_name = format!("{}/{}", org, name);
+    write_stash_dir(stash_dir, project_dir, &full_name)?;
     if !options.no_migrations {
         let handle = Handle {
-            name: name.clone(),
+            name: full_name.clone(),
             schema_dir: schema_dir.into(),
             instance: InstanceKind::Remote,
             project_dir: project_dir.into(),
         };
         task::block_on(migrate(&handle, false))?;
     }
-    print_initialized(&name, &options.project_dir);
+    print_initialized(&full_name, &options.project_dir);
     Ok(ProjectInfo {
-        instance_name: name,
+        instance_name: full_name,
         stash_dir: stash_dir.into(),
     })
 }
@@ -697,7 +685,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
 
     echo!("Checking EdgeDB versions...");
 
-    if options.cloud {
+    if name.contains("/") {
         let mut client = CloudClient::new(&opts.cloud_options)?;
         if !client.is_logged_in {
             if !options.non_interactive {
@@ -713,12 +701,11 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             }
             client.ensure_authenticated(false)?;
         };
-        let org = task::block_on(ask_cloud_org(&client, options))?;
+        let (org, inst) = crate::cloud::ops::split_cloud_instance_name(&name)?;
         if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
-            &name, &client,
+            &inst, &org, &client,
         ))? {
             ask_link_cloud_instance(options, &name)?;
-            task::block_on(crate::cloud::ops::link_existing_cloud_instance(&client, &name))?;
             let inst = Handle::probe(&name, project_dir, &schema_dir)?;
             write_config(&config_path,
                          &Query::from_version(&inst.get_version()?.specific())?)?;
@@ -743,7 +730,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             write_schema_default(&schema_dir_path)?;
         }
 
-        do_cloud_init(name, org, &stash_dir, &project_dir, &schema_dir, options, &client)  // , version)
+        do_cloud_init(inst, org, &stash_dir, &project_dir, &schema_dir, options, &client)  // , version)
     } else {
         let pkg = ask_version(options)?;
 
@@ -1126,19 +1113,6 @@ fn ask_cloud_version(options: &Init) -> anyhow::Result<String> {
         if let Some(version) = &options.server_version {
             default_version = version.display().to_string();
             q.default(&default_version);
-        }
-        Ok(q.ask()?)
-    }
-}
-
-async fn ask_cloud_org(client: &CloudClient, options: &Init) -> anyhow::Result<String> {
-    let orgs: Vec<crate::cloud::ops::Org> = client.get("orgs/").await?;
-    if options.non_interactive {
-        Ok(orgs.into_iter().next().unwrap().id)
-    } else {
-        let mut q = question::Numeric::new("Choose an organization:");
-        for org in orgs {
-            q.option(org.name, org.id);
         }
         Ok(q.ask()?)
     }

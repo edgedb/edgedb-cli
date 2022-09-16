@@ -25,7 +25,7 @@ use crate::hint::{HintedError, HintExt};
 use crate::options::{Options, ConnectionOptions};
 use crate::options::{conn_params, load_tls_options};
 use crate::portable::destroy::with_projects;
-use crate::portable::local::{InstanceInfo, is_valid_name};
+use crate::portable::local::{InstanceInfo, is_valid_instance_name};
 use crate::portable::options::{Link, Unlink, instance_arg};
 use crate::portable::project;
 use crate::print;
@@ -152,7 +152,16 @@ fn is_no_credentials_error(mut e: &anyhow::Error) -> bool {
 }
 
 pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
-    let mut builder = match conn_params(&opts.conn_options) {
+    if let Some(name) = cmd.name.clone() {
+        if name.contains("/") {
+            anyhow::bail!(
+                "cloud instances cannot be linked\
+                \nTo connect run:\
+                \n  edgedb -I {}", name);
+        }
+    }
+
+    let mut builder = match conn_params(&opts) {
         Ok(builder) => builder,
         Err(e) if is_no_credentials_error(&e) => {
             Builder::uninitialized()
@@ -229,7 +238,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                     let name = question::String::new(
                         "Specify a new instance name for the remote server"
                     ).default(&default).ask()?;
-                    if !is_valid_name(&name) {
+                    if !is_valid_instance_name(&name) {
                         print::error(
                             "Instance name must be a valid identifier, \
                              (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");

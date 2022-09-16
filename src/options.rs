@@ -52,6 +52,7 @@ pub struct ConnectionOptions {
     /// Local instance name created with `edgedb instance create` to connect to
     /// (overrides host and port)
     #[clap(short='I', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(validator(crate::portable::options::instance_or_cloud_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub instance: Option<String>,
 
@@ -608,7 +609,7 @@ impl Options {
     }
 
     pub fn create_connector(&self) -> anyhow::Result<Connector> {
-        Ok(Connector::new(conn_params(&self.conn_options)))
+        Ok(Connector::new(conn_params(&self)))
     }
 }
 
@@ -630,7 +631,8 @@ fn set_password(options: &ConnectionOptions, builder: &mut Builder)
     Ok(())
 }
 
-pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
+pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
+    let tmp = &opts.conn_options;
     let mut bld = Builder::uninitialized();
     if let Some(path) = &tmp.unix_path {
         bld.unix_path(path, tmp.port, tmp.admin);
@@ -652,7 +654,15 @@ pub fn conn_params(tmp: &ConnectionOptions) -> anyhow::Result<Builder> {
         task::block_on(bld.read_dsn(dsn))?;
         bld.read_extra_env_vars()?;
     } else if let Some(instance) = &tmp.instance {
-        task::block_on(bld.read_instance(instance))?;
+        if instance.contains("/") {
+            let (org, inst_name) = crate::cloud::ops::split_cloud_instance_name(&instance)?;
+            let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
+            let inst = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
+                    &inst_name, &org, &client))?;
+            bld.credentials(&inst.expect("missing instance").as_credentials()?)?;
+        } else {
+            task::block_on(bld.read_instance(instance))?;
+        }
         bld.read_extra_env_vars()?;
     } else if let Some(file_path) = &tmp.credentials_file {
         task::block_on(bld.read_credentials(file_path))?;
