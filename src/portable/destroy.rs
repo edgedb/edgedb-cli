@@ -104,14 +104,6 @@ fn do_destroy(options: &Destroy, opts: &Options, name: &str)
     }
     if paths.credentials.exists(){
         found = true;
-        if let Err(e) = crate::cloud::ops::try_to_destroy(&paths.credentials, opts) {
-            let msg = format!("Failed to destroy EdgeDB Cloud instance: {:#}", e);
-            if options.force {
-                print::warn(msg);
-            } else {
-                anyhow::bail!(msg);
-            }
-        }
         log::info!("Removing credentials file {:?}", &paths.credentials);
         fs::remove_file(&paths.credentials)?;
     }
@@ -136,6 +128,19 @@ fn do_destroy(options: &Destroy, opts: &Options, name: &str)
         found = true;
         log::info!("Removing upgrade marker {:?}", paths.upgrade_marker);
         fs::remove_file(&paths.upgrade_marker)?;
+    }
+    if name.contains("/") {
+        found = true;
+        log::info!("Removing cloud instance {}", name);
+        let (org_slug, inst_name) = crate::cloud::ops::split_cloud_instance_name(name)?;
+        if let Err(e) = crate::cloud::ops::try_to_destroy(&inst_name, &org_slug, opts) {
+            let msg = format!("Failed to destroy EdgeDB Cloud instance: {:#}", e);
+            if options.force {
+                print::warn(msg);
+            } else {
+                anyhow::bail!(msg);
+            }
+        }
     }
     if found {
         Ok(())

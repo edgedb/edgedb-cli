@@ -409,7 +409,6 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             no_migrations: false,
             link: false,
             server_start_conf: None,
-            cloud: false,
         };
         let options = crate::options::CloudOptions {
             cloud_base_url: None,

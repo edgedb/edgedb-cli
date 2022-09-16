@@ -5,6 +5,7 @@ use async_std::task;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
+use crate::cloud;
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform;
@@ -12,7 +13,7 @@ use crate::portable::control::{self, self_signed_arg, ensure_runstate_dir};
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{Paths, InstanceInfo};
-use crate::portable::local::{write_json, allocate_port, is_valid_name};
+use crate::portable::local::{write_json, allocate_port, is_valid_instance_name};
 use crate::portable::options::{Create, Start};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
@@ -31,7 +32,7 @@ fn ask_name() -> anyhow::Result<String> {
         let name = question::String::new(
             "Specify a name for the new instance"
         ).ask()?;
-        if !is_valid_name(&name) {
+        if !is_valid_instance_name(&name) {
             echo!(err_marker(),
                 "Instance name must be a valid identifier, \
                  (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
@@ -47,27 +48,31 @@ fn ask_name() -> anyhow::Result<String> {
 }
 
 
-pub fn create(options: &Create) -> anyhow::Result<()> {
+pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
         print::error(
             "`edgedb instance create` in a Docker container is not supported.",
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
-    if options.start_conf.is_some() {
+    if cmd.start_conf.is_some() {
         print::warn("The option `--start-conf` is deprecated. \
                      Use `edgedb instance start/stop` to control \
                      the instance.");
     }
 
-    let name = if let Some(name) = &options.name {
+    let name = if let Some(name) = &cmd.name {
         name.to_owned()
-    } else if options.non_interactive {
+    } else if cmd.non_interactive {
         echo!(err_marker(), "Instance name is required \
                              in non-interactive mode");
         return Err(ExitCode::new(2).into());
     } else {
         ask_name()?
+    };
+
+    if name.contains("/") {
+        return task::block_on(cloud::ops::create(cmd, opts));
     };
 
     let paths = Paths::get(&name)?;
@@ -77,18 +82,18 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
                               to remove remains of unused instance",
                               name))?;
 
-    let port = options.port.map(Ok)
+    let port = cmd.port.map(Ok)
         .unwrap_or_else(|| allocate_port(&name))?;
 
     let info = if cfg!(windows) {
-        windows::create_instance(options, &name, port, &paths)?;
+        windows::create_instance(cmd, &name, port, &paths)?;
         InstanceInfo {
             name: name.clone(),
             installation: None,
             port,
         }
     } else {
-        let query = Query::from_options(options.nightly, &options.version)?;
+        let query = Query::from_options(cmd.nightly, &cmd.version)?;
         let inst = install::version(&query).context("error installing EdgeDB")?;
         let info = InstanceInfo {
             name: name.clone(),
@@ -96,7 +101,7 @@ pub fn create(options: &Create) -> anyhow::Result<()> {
             port,
         };
         bootstrap(&paths, &info,
-                  &options.default_database, &options.default_user)?;
+                  &cmd.default_database, &cmd.default_user)?;
         info
     };
 
