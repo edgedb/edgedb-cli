@@ -9,7 +9,7 @@ use crate::commands::parser::MigrationEdit;
 use crate::migrations::context::Context;
 use crate::migrations::migration::{read_names, file_num};
 use crate::migrations::grammar::parse_migration;
-use crate::platform::tmp_file_path;
+use crate::platform::{tmp_file_path, spawn_editor};
 
 
 pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
@@ -24,6 +24,10 @@ pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
         .max_by(|(an, _), (bn, _)| an.cmp(bn))
         .ok_or_else(|| anyhow::anyhow!("no migration exists. \
                                        Run `edgedb migration create`"))?;
+
+    if !options.non_interactive {
+        spawn_editor(path.as_ref()).await?;
+    }
 
     let text = fs::read_to_string(&path).await?;
     let migration = parse_migration(&text)?;
