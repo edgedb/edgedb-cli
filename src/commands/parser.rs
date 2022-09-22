@@ -99,6 +99,12 @@ pub enum MigrationCmd {
     Status(ShowStatus),
     /// Show all migration versions
     Log(MigrationLog),
+    /// Edit migration file
+    ///
+    /// Invokes $EDITOR on the last migration file, and then fixes migration id
+    /// after editor exits. Usually should be used for
+    /// migrations that haven't been applied yet.
+    Edit(MigrationEdit),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -616,6 +622,19 @@ pub struct MigrationLog {
     /// Show maximum N revisions (default is unlimited)
     #[clap(long)]
     pub limit: Option<usize>,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct MigrationEdit {
+    #[clap(flatten)]
+    pub cfg: MigrationConfig,
+
+    /// Do not check migration within the database connection
+    #[clap(long)]
+    pub no_check: bool,
+    /// Fix migration id non-interactively, and don't run editor
+    #[clap(long)]
+    pub non_interactive: bool,
 }
 
 impl SettingBool {

@@ -151,7 +151,7 @@ fn migration<'a>()
     use Statement::*;
 
     kw("CREATE").and(ident("MIGRATION"))
-        .with(kind(Kind::Ident))
+        .with((position(), kind(Kind::Ident)))
         .skip(ident("ONTO"))
         .and(kind(Kind::Ident))
         .and(between(kind(Kind::OpenBrace), kind(Kind::CloseBrace),
@@ -160,10 +160,13 @@ fn migration<'a>()
         .skip(kind(Kind::Semicolon))
         .skip(eof())
     .and_then(|((id, parent_id), brace_block)| -> Result<_, Error<'_>> {
+        let (id_start, id) = id;
+        let id_end = id_start.offset as usize + id.value.len();
         let (start, statements, end) = brace_block;
         let mut m = Migration {
             message: None,
             id: id.value.into(),
+            id_range: (id_start.offset as usize, id_end),
             parent_id: parent_id.value.into(),
             text_range: (start.offset as usize, end.offset as usize),
         };

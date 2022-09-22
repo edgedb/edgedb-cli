@@ -26,13 +26,20 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             };
             directory_check::check_and_warn();
             match cmd {
+                // Process commands that don't need connection first
                 Common::Migration(
                     Migration { subcommand: MigrationCmd::Log(mlog), .. }
                 ) if mlog.from_fs => {
-                    // no need for connection
-                    task::block_on(
-                        migrations::log_fs(&cmdopt, &mlog)).into()
+                    task::block_on(migrations::log_fs(&cmdopt, &mlog)).into()
                 }
+                Common::Migration(
+                    Migration { subcommand: MigrationCmd::Edit(params), .. }
+                ) if params.no_check => {
+                    task::block_on(
+                        migrations::edit_no_check(&cmdopt, &params)
+                    ).into()
+                }
+                // Otherwise connect
                 cmd => {
                     task::block_on(async {
                         let mut conn = cmdopt.conn_params.connect().await?;

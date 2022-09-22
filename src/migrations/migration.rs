@@ -1,8 +1,9 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::ffi::OsStr;
 
-use async_std::io;
+use anyhow::Context as _;
 use async_std::fs;
+use async_std::io;
 use async_std::path::{Path, PathBuf};
 use async_std::stream::StreamExt;
 use edgeql_parser::hash::{self, Hasher};
@@ -18,6 +19,7 @@ use crate::migrations::grammar::parse_migration;
 pub struct Migration {
     pub message: Option<String>,
     pub id: String,
+    pub id_range: (usize, usize),
     pub parent_id: String,
     pub text_range: (usize, usize),
 }
@@ -42,12 +44,26 @@ pub fn hashing_error(_source: &str, e: hash::Error) -> anyhow::Error {
     }
 }
 
-fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
-    if migration.id.starts_with("m1") {
-        let mut hasher = Hasher::start_migration(&migration.parent_id);
-        let txt = &text[migration.text_range.0..migration.text_range.1];
+impl Migration {
+    pub fn expected_id(&self, text: &str) -> anyhow::Result<String> {
+        let mut hasher = Hasher::start_migration(&self.parent_id);
+        let txt = &text[self.text_range.0..self.text_range.1];
         hasher.add_source(txt).map_err(|e| hashing_error(txt, e))?;
         let id = hasher.make_migration_id();
+        Ok(id)
+    }
+    pub fn replace_id(&self, text: &str, new_id: &str) -> String {
+        let mut s = String::with_capacity(text.len());
+        s.push_str(&text[..self.id_range.0]);
+        s.push_str(new_id);
+        s.push_str(&text[self.id_range.1..]);
+        return s;
+    }
+}
+
+fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
+    if migration.id.starts_with("m1") {
+        let id = migration.expected_id(text)?;
         if id != migration.id {
             anyhow::bail!("migration name should be `{computed}` \
                 but `{file}` is used instead.\n\
@@ -77,22 +93,23 @@ async fn read_file(path: &Path, validate_hashes:bool)
     return Ok(data)
 }
 
-fn file_num(path: &Path) -> Option<u64> {
-    path.file_stem().and_then(|x| x.to_str()).and_then(|x| x.parse().ok())
+pub async fn read_names(ctx: &Context) -> anyhow::Result<Vec<PathBuf>> {
+    let dir = ctx.schema_dir.join("migrations");
+    _read_names(dir.as_ref()).await
+        .with_context(|| {
+            format!("could not list migrations in {}", dir.display())
+        })
 }
 
-#[context("could not read migrations in {}", dir.display())]
-async fn _read_all(dir: &Path, validate_hashes: bool)
-    -> anyhow::Result<LinkedHashMap<String, MigrationFile>>
-{
+async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     let mut dir = match fs::read_dir(dir).await {
         Ok(dir) => dir,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            return Ok(LinkedHashMap::new());
+            return Ok(Vec::new());
         }
         Err(e) => Err(e)?,
     };
-    let mut all = HashMap::new();
+    let mut result = Vec::new();
     while let Some(item) = dir.next().await.transpose()? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
@@ -101,7 +118,21 @@ async fn _read_all(dir: &Path, validate_hashes: bool)
         {
             continue;
         }
-        let path = item.path();
+        result.push(item.path());
+    }
+    Ok(result)
+}
+
+pub fn file_num(path: &Path) -> Option<u64> {
+    path.file_stem().and_then(|x| x.to_str()).and_then(|x| x.parse().ok())
+}
+
+#[context("could not read migrations in {}", dir.display())]
+async fn _read_all(dir: &Path, validate_hashes: bool)
+    -> anyhow::Result<LinkedHashMap<String, MigrationFile>>
+{
+    let mut all = HashMap::new();
+    for path in _read_names(dir).await? {
         let data = read_file(&path, validate_hashes).await?;
         match all.entry(data.parent_id.clone()) {
             Entry::Vacant(v) => {
@@ -190,6 +221,7 @@ mod test {
         "###;
         let migr = Migration {
             id: "m124".into(),
+            id_range: (30, 34),
             parent_id: "initial".into(),
             message: None,
             text_range: (62, 62),
@@ -214,6 +246,7 @@ mod test {
         let migr = Migration {
             id: "m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq"
                 .into(),
+            id_range: (0, 0),
             parent_id: "initial".into(),
             message: None,
             text_range: (156, 156),
@@ -239,6 +272,7 @@ mod test {
         let migr = Migration {
             id: "m1fvpcra5cxntkss3k2to2yfu7pit3t3owesvdw2nysqvvpihdiszq"
                 .into(),
+            id_range: (0, 0),
             parent_id: "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq"
                 .into(),
             message: None,
@@ -270,6 +304,7 @@ mod test {
         let migr = Migration {
             id: "m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq"
                 .into(),
+            id_range: (0, 0),
             parent_id: "initial".into(),
             message: None,
             text_range: (160, 191),
@@ -293,6 +328,7 @@ mod test {
                 path: filename.into(),
                 data: Migration {
                     id: id.into(),
+                    id_range: (0, 0),
                     parent_id: parent.into(),
                     message: None,
                     text_range: (0, 0),
