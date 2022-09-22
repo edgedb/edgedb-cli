@@ -172,3 +172,20 @@ pub fn detect_ipv6() -> bool {
     ).is_ok()
 
 }
+
+pub async fn spawn_editor(path: &Path) -> anyhow::Result<()> {
+
+    let editor = env::var("EDGEDB_EDITOR")
+        .or_else(|_| env::var("EDITOR"))
+        .unwrap_or_else(|_| String::from("vim"));
+    let mut items = editor.split_whitespace();
+    let mut cmd = async_std::process::Command::new(items.next().unwrap());
+    cmd.args(items);
+    cmd.arg(&path);
+    let res = cmd.status().await?;
+    if res.success() {
+        return Ok(());
+    } else {
+        Err(anyhow::anyhow!("editor exited with: {}", res))
+    }
+}
