@@ -16,6 +16,10 @@ static THEME: once_cell::sync::Lazy<Theme> = once_cell::sync::Lazy::new(|| {
                                        bold: true, underline: false }),
             title: Some(Style { color: Color::White,
                                 bold: true, underline: true }),
+            deleted: Some(Style { color: Color::Red,
+                                  bold: false, underline: false }),
+            added: Some(Style { color: Color::Green,
+                                bold: false, underline: false }),
         }
     } else {
         Theme {
@@ -24,6 +28,8 @@ static THEME: once_cell::sync::Lazy<Theme> = once_cell::sync::Lazy::new(|| {
             emphasize: None,
             command_hint: None,
             title: None,
+            deleted: None,
+            added: None,
         }
     }
 });
@@ -42,6 +48,8 @@ struct Theme {
     command_hint: Option<Style>,
     #[allow(dead_code)]
     title: Option<Style>,
+    added: Option<Style>,
+    deleted: Option<Style>,
 }
 
 pub struct Colored<T> {
@@ -78,6 +86,18 @@ pub trait Highlight: fmt::Display + Sized {
     fn command_hint(self) -> Colored<Self> {
         Colored {
             style: theme().command_hint,
+            value: self,
+        }
+    }
+    fn deleted(self) -> Colored<Self> {
+        Colored {
+            style: theme().deleted,
+            value: self,
+        }
+    }
+    fn added(self) -> Colored<Self> {
+        Colored {
+            style: theme().added,
             value: self,
         }
     }
