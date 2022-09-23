@@ -1102,6 +1102,7 @@ dependencies = [
  "crossbeam-utils",
  "crossterm",
  "ctrlc",
+ "difference",
  "dirs 4.0.0",
  "downcast-rs",
  "edgedb-cli-derive",

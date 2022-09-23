@@ -2,15 +2,71 @@ use edgedb_client::client::Connection;
 
 use async_std::fs;
 use async_std::path::Path;
+use blocking::unblock;
+use difference::{Difference, Changeset};
 
-use crate::print::{echo, Highlight};
 use crate::commands::Options;
 use crate::commands::parser::MigrationEdit;
 use crate::migrations::context::Context;
-use crate::migrations::migration::{read_names, file_num};
 use crate::migrations::grammar::parse_migration;
+use crate::migrations::migration::{read_names, file_num};
 use crate::platform::{tmp_file_path, spawn_editor};
+use crate::print::{echo, err_marker, Highlight};
+use crate::question::Choice;
+use crate::error_display::print_query_error;
 
+
+#[derive(Copy, Clone)]
+enum OldAction {
+    Restore,
+    Replace,
+    Diff
+}
+
+#[derive(Copy, Clone)]
+enum InvalidAction {
+    Edit,
+    Diff,
+    Abort,
+    Restore,
+}
+
+#[derive(Copy, Clone)]
+enum FailAction {
+    Edit,
+    Force,
+    Diff,
+    Abort,
+    Restore,
+}
+
+fn print_diff(path1: &Path, data1: &str, path2: &Path, data2: &str) {
+    println!("--- {}", path1.display());
+    println!("+++ {}", path2.display());
+    let changeset = Changeset::new(data1, data2, "\n");
+    let n1 = data1.split("\n").count();
+    let n2 = data2.split("\n").count();
+    println!("@@ -1,{} +1,{}", n1, n2);
+    for item in &changeset.diffs {
+        match item {
+            Difference::Same(block) => {
+                for line in block.split("\n") {
+                    println!(" {}", line);
+                }
+            }
+            Difference::Add(block) => {
+                for line in block.split("\n") {
+                    println!("+{}", line.added());
+                }
+            }
+            Difference::Rem(block) => {
+                for line in block.split("\n") {
+                    println!("-{}", line.deleted());
+                }
+            }
+        }
+    }
+}
 
 pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
     -> Result<(), anyhow::Error>
@@ -47,12 +103,188 @@ pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
     Ok(())
 }
 
-pub async fn edit(_cli: &mut Connection,
-                  common: &Options, options: &MigrationEdit)
-    -> Result<(), anyhow::Error>
+async fn check_migration(cli: &mut Connection, text: &str)
+    -> anyhow::Result<()>
 {
-    // TODO(tailhook)
-    edit_no_check(common, options).await
+    cli.execute("START TRANSACTION").await?;
+    let res = cli.execute(&text).await.map_err(|err| {
+        match print_query_error(&err, &text, false) {
+            Ok(()) => err.into(),
+            Err(err) => err,
+        }
+    });
+    cli.execute("ABORT").await.ok();
+    return res.map(|_| ());
+}
+
+
+pub async fn edit(cli: &mut Connection,
+                  _common: &Options, options: &MigrationEdit)
+    -> anyhow::Result<()>
+{
+    let ctx = Context::from_project_or_config(&options.cfg)?;
+    // TODO(tailhook) do we have to make the full check of whether there are no
+    // gaps and parent revisions are okay?
+    let (n, path) = cli.ping_while(read_names(&ctx)).await?
+        .into_iter()
+        .filter_map(|p| file_num(&p).map(|n| (n, p)))
+        .max_by(|(an, _), (bn, _)| an.cmp(bn))
+        .ok_or_else(|| anyhow::anyhow!("no migration exists. \
+                                       Run `edgedb migration create`"))?;
+
+    if options.non_interactive {
+        let text = cli.ping_while(fs::read_to_string(&path)).await?;
+        let migration = parse_migration(&text)?;
+        let new_id = migration.expected_id(&text)?;
+        let new_data = migration.replace_id(&text, &new_id);
+        check_migration(cli, &new_data).await?;
+
+        if migration.id != new_id {
+            cli.ping_while(async {
+                let tmp_file = tmp_file_path(path.as_ref());
+                if Path::new(&tmp_file).exists().await {
+                    fs::remove_file(&tmp_file).await?;
+                }
+                fs::write(&tmp_file, &new_data).await?;
+                fs::rename(&tmp_file, &path).await?;
+                anyhow::Ok(())
+            }).await?;
+            echo!("Updated migration id to", new_id.emphasize());
+        } else {
+            echo!("Id", migration.id.emphasize(), "is already correct.");
+        }
+    } else {
+        let temp_path = path.parent().unwrap()
+            .join(format!(".editing.{}.edgeql", n));
+        if cli.ping_while(temp_path.exists()).await {
+            loop {
+                let mut q = Choice::new(
+                    "Previously edited file exists. Restore?");
+                q.option(OldAction::Restore, &["y", "yes"],
+                         format!("use previously edited {:?}", temp_path));
+                q.option(OldAction::Replace, &["n", "no"],
+                         format!("use original {:?} instead", path));
+                q.option(OldAction::Diff, &["d", "diff"], "show diff");
+                match cli.ping_while(unblock(move || q.ask())).await? {
+                    OldAction::Restore => break,
+                    OldAction::Replace => {
+                        cli.ping_while(fs::copy(&path, &temp_path)).await?;
+                        break;
+                    }
+                    OldAction::Diff => {
+                        cli.ping_while(async {
+                            let path = path.clone();
+                            let temp_path = temp_path.clone();
+                            let normal = fs::read_to_string(&path).await?;
+                            let modif = fs::read_to_string(&temp_path).await?;
+                            unblock(move || {
+                                print_diff(&path, &normal, &temp_path, &modif);
+                            }).await;
+                            anyhow::Ok(())
+                        }).await?;
+                    }
+                }
+            }
+        } else {
+            cli.ping_while(fs::copy(&path, &temp_path)).await?;
+        }
+        'edit: loop {
+            cli.ping_while(spawn_editor(temp_path.as_ref())).await?;
+            let new_data =
+                cli.ping_while(fs::read_to_string(&temp_path)).await?;
+            let migration = match parse_migration(&new_data) {
+                Ok(migr) => migr,
+                Err(e) => {
+                    echo!(err_marker(), "error parsing file:", e);
+                    loop {
+                        let mut q = Choice::new("Edit again?");
+                        q.option(InvalidAction::Edit, &["y", "yes"][..],
+                                 "edit the file again");
+                        q.option(InvalidAction::Diff, &["d", "diff"][..],
+                                 "show diff");
+                        q.option(InvalidAction::Restore, &["r", "restore"][..],
+                                 "restore original and abort");
+                        q.option(InvalidAction::Abort, &["q", "quit"][..],
+                                 "abort and keep temporary file");
+                        match cli.ping_while(unblock(move || q.ask())).await? {
+                            InvalidAction::Edit => continue 'edit,
+                            InvalidAction::Diff => {
+                                cli.ping_while(async {
+                                    let path = path.clone();
+                                    let temp_path = temp_path.clone();
+                                    let new_data = new_data.clone();
+                                    let data = fs::read_to_string(&path).await?;
+                                    unblock(move || {
+                                        print_diff(&path, &data,
+                                                   &temp_path, &new_data);
+                                    }).await;
+                                    anyhow::Ok(())
+                                }).await?;
+                            }
+                            InvalidAction::Restore => {
+                                fs::copy(&path, &temp_path).await?;
+                                anyhow::bail!("Restored");
+                            }
+                            InvalidAction::Abort => {
+                                anyhow::bail!("Aborted!");
+                            }
+                        }
+                    }
+                }
+            };
+            let new_id = migration.expected_id(&new_data)?;
+            if migration.id != new_id {
+                let new_data = migration.replace_id(&new_data, &new_id);
+                fs::write(&temp_path, &new_data).await?;
+                echo!("Updated migration id to", new_id.emphasize());
+            } else {
+                echo!("Id", migration.id.emphasize(), "is already correct.");
+            }
+            match check_migration(cli, &new_data).await {
+                Ok(()) => {}
+                Err(e) => {
+                    echo!(err_marker(), "error checking migration:", e);
+                    loop {
+                        let mut q = Choice::new("Edit again?");
+                        q.option(FailAction::Edit, &["y", "yes"][..],
+                                 "edit the file again");
+                        q.option(FailAction::Force, &["f", "force"][..],
+                                 "force overwrite and quit");
+                        q.option(FailAction::Diff, &["d", "diff"][..],
+                                 "show diff");
+                        q.option(FailAction::Restore, &["r", "restore"][..],
+                                 "restore original and abort");
+                        q.option(FailAction::Abort, &["q", "quit"][..],
+                                 "abort and keep temporary file for later");
+                        match unblock(move || q.ask()).await? {
+                            FailAction::Edit => continue 'edit,
+                            FailAction::Force => {
+                                fs::rename(&temp_path, &path).await?;
+                                anyhow::bail!("Done. Replaced {:?} with \
+                                               possibly invalid migration.",
+                                               std::path::Path::new(&path));
+                            }
+                            FailAction::Diff => {
+                                let data = fs::read_to_string(&path).await?;
+                                print_diff(&path, &data,
+                                           &temp_path, &new_data);
+                            }
+                            FailAction::Restore => {
+                                fs::copy(&path, &temp_path).await?;
+                                anyhow::bail!("Restored");
+                            }
+                            FailAction::Abort => {
+                                anyhow::bail!("Aborted!");
+                            }
+                        }
+                    }
+                }
+            }
+            fs::rename(&temp_path, &path).await?;
+            break;
+        }
+    }
+    Ok(())
 }
 
 #[test]
