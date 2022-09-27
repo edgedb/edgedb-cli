@@ -1,6 +1,9 @@
+use std::collections::btree_set;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
+use std::iter::Peekable;
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -101,19 +104,41 @@ fn _read_ports(path: &Path) -> anyhow::Result<BTreeMap<String, u16>> {
     Ok(serde_json::from_str(&data)?)
 }
 
-fn next_min_port(port_map: &BTreeMap<String, u16>) -> u16 {
-    if port_map.len() == 0 {
-        return MIN_PORT;
-    }
-    let port_set: BTreeSet<u16> = port_map.values().cloned().collect();
-    let mut prev = MIN_PORT - 1;
-    for port in port_set {
-        if port > prev+1 {
-            return prev + 1;
+struct NextMinPort{
+    reserved: Peekable<btree_set::IntoIter<u16>>,
+    prev: u16,
+}
+
+impl NextMinPort {
+    fn search(port_map: &BTreeMap<String, u16>) -> NextMinPort {
+        NextMinPort {
+            reserved: port_map.values().cloned().collect::<BTreeSet<_>>()
+                .into_iter().peekable(),
+            prev: MIN_PORT - 1,
         }
-        prev = port;
     }
-    return prev+1;
+}
+
+impl Iterator for NextMinPort {
+    type Item = u16;
+    fn next(&mut self) -> Option<u16> {
+        loop {
+            if let Some(&next) = self.reserved.peek() {
+                if next > self.prev + 1 {
+                    self.prev += 1;
+                    return Some(self.prev);
+                } else {
+                    self.reserved.next();
+                    self.prev = next;
+                    continue;
+                }
+            } else {
+                let result = self.prev.checked_add(1);
+                self.prev = self.prev.saturating_add(1);
+                return result;
+            }
+        }
+    }
 }
 
 pub fn allocate_port(name: &str) -> anyhow::Result<u16> {
@@ -122,10 +147,32 @@ pub fn allocate_port(name: &str) -> anyhow::Result<u16> {
     if let Some(port) = port_map.get(name) {
         return Ok(*port);
     }
-    let port = next_min_port(&port_map);
-    port_map.insert(name.to_string(), port);
-    write_json(&port_file, "ports mapping", &port_map)?;
-    Ok(port)
+    for port in NextMinPort::search(&port_map) {
+        match TcpListener::bind(("127.0.0.1", port)) {
+            Ok(_) => {},
+            Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
+                log::debug!("Address 127.0.0.1:{} is already in use", port);
+                continue;
+            }
+            Err(e) => {
+                log::warn!("Error checking port 127.0.0.1:{}: {:#}", port, e);
+            }
+        }
+        match TcpListener::bind(("::1", port)) {
+            Ok(_) => {}
+            Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
+                log::debug!("Address [::1]:{} is already in use", port);
+                continue;
+            }
+            Err(e) => {
+                log::warn!("Error checking port [::1]:{}: {:#}", port, e);
+            }
+        }
+        port_map.insert(name.to_string(), port);
+        write_json(&port_file, "ports mapping", &port_map)?;
+        return Ok(port);
+    }
+    anyhow::bail!("Cannot find unused port");
 }
 
 #[context("cannot write {} file {}", title, path.display())]
@@ -357,3 +404,13 @@ pub fn is_valid_org_name(name: &str) -> bool {
 #[derive(Debug, thiserror::Error)]
 #[error("Not a local instance")]
 pub struct NonLocalInstance;
+
+#[test]
+fn test_min_port() {
+    assert_eq!(
+        NextMinPort::search(
+            &vec![("a".into(), 10700), ("b".into(), 10702)].into_iter().collect()
+        ).take(3).collect::<Vec<_>>(),
+        vec![10701, 10703, 10704],
+    );
+}
