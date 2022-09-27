@@ -15,6 +15,15 @@ use crate::print::{self, echo, Highlight};
 use crate::process;
 
 
+enum Status {
+    Ready,
+    Running { pid: u32 },
+    Failed { exit_code: Option<u16> },
+    Inactive { error: String },
+    NotLoaded,
+}
+
+
 pub fn plist_dir() -> anyhow::Result<PathBuf> {
     Ok(home_dir()?.join("Library/LaunchAgents"))
 }
@@ -180,31 +189,44 @@ fn bootout(name: &str) -> anyhow::Result<()> {
 }
 
 pub fn is_service_loaded(name: &str) -> bool {
-    match service_status(name) {
-        Service::Inactive {..} => false,
+    match _service_status(name) {
+        Status::NotLoaded => false,
         _ => true,
     }
 }
 
 pub fn service_status(name: &str) -> Service {
-    use Service::*;
+    match _service_status(name) {
+        Status::Ready => Service::Ready,
+        Status::Running { pid } => Service::Running { pid },
+        Status::Failed { exit_code } => Service::Failed { exit_code },
+        Status::Inactive { error } => Service::Inactive { error },
+        Status::NotLoaded => {
+            Service::Inactive { error: "Service is not loaded".into() }
+        }
+    }
+}
 
-    let list = process::Native::new("service list", "launchctl", "launchctl")
+fn _service_status(name: &str) -> Status {
+    use Status::*;
+
+    let list = process::Native::new("service info", "launchctl", "launchctl")
             .arg("print")
             .arg(launchd_name(&name))
             .get_output();
     let output = match list {
         Ok(output) => output,
         Err(e) => {
-            return Service::Inactive {
+            return Inactive {
                 error: format!("cannot determine service status: {:#}", e),
             }
         }
     };
     if !output.status.success() {
-    return Service::Inactive {
-        error: String::from_utf8_lossy(&output.stderr).into(),
-    }
+        log::debug!("`launchctl print {}` errored out with {:?}. \
+                      Assuming service is not loaded.",
+                    launchd_name(&name), output.stderr);
+        return NotLoaded;
     }
     let mut pid: Option<u32> = None;
     let mut exit_code: Option<u16> = None;
@@ -216,12 +238,13 @@ pub fn service_status(name: &str) -> Service {
                 match value.parse() {
                     Ok(value) => pid = Some(value),
                     Err(_) => {
-                    log::warn!("launchctl returned invalid pid: {}", value);
+                        log::warn!("launchctl returned invalid pid: {}",
+                                   value);
                     }
                 }
             }
             Some(("state", "waiting")) => {
-                return Service::Ready;
+                return Status::Ready;
             }
             Some(("last exit code", value)) => {
                 match value.parse() {
