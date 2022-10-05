@@ -96,7 +96,6 @@ pub async fn find_cloud_instance_by_name(
     client: &CloudClient,
 ) -> anyhow::Result<Option<CloudInstance>> {
     let instance: CloudInstance = client.get(format!("orgs/{}/instances/{}", org, inst)).await?;
-    println!("{:?}", instance);
     Ok(Some(instance))
 }
 
