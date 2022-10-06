@@ -2,16 +2,16 @@ use std::cmp::min;
 use std::env;
 use std::fmt;
 use std::time::Duration;
+use std::future;
+use std::path::Path;
 
 use anyhow::Context;
-use async_std::fs;
-use async_std::io::{WriteExt};
-use async_std::path::Path;
-use async_std::prelude::FutureExt;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
 use once_cell::sync::OnceCell;
 use serde::{ser, de, Serialize, Deserialize};
+use tokio::fs;
+use tokio::io::{AsyncWriteExt};
 use url::Url;
 
 use crate::portable::platform;
@@ -150,22 +150,25 @@ async fn _get_json<T>(url: &Url) -> Result<T, anyhow::Error>
 async fn get_json<T>(url: &Url) -> Result<T, anyhow::Error>
     where T: serde::de::DeserializeOwned,
 {
-    _get_json(url).race(async {
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        if atty::is(atty::Stream::Stderr) {
-            eprintln!("Fetching {} takes too long. Common reasons are:",
-                      url);
-            eprintln!("  1. Your internet connectivity is slow");
-            eprintln!("  2. Firewall blocks internet access to this resource");
-            if windows::is_in_wsl() {
-                eprintln!("Note: EdgeDB CLI tool is running in \
-                           Windows Subsystem for Linux (WSL).");
-                eprintln!("  Consider adding Windows Defender Firewall \
-                          rule for WSL.");
+    tokio::select! {
+        res = _get_json(url) => res,
+        _ = async {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            if atty::is(atty::Stream::Stderr) {
+                eprintln!("Fetching {} takes too long. Common reasons are:",
+                          url);
+                eprintln!("  1. Your internet connectivity is slow");
+                eprintln!("  2. Firewall blocks internet access to this resource");
+                if windows::is_in_wsl() {
+                    eprintln!("Note: EdgeDB CLI tool is running in \
+                               Windows Subsystem for Linux (WSL).");
+                    eprintln!("  Consider adding Windows Defender Firewall \
+                              rule for WSL.");
+                }
             }
-        }
-        async_std::future::pending().await
-    }).await
+            future::pending().await
+        } => unreachable!(),
+    }
 }
 
 fn filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
