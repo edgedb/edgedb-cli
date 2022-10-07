@@ -114,7 +114,7 @@ jobs:
 
   portable-tests-macos:
     runs-on: macos-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     strategy:
       matrix:
         test: [portable_smoke, portable_project, portable_project_dir]
@@ -188,3 +188,22 @@ jobs:
         with:
           command: test
           args: --test=${{ matrix.test }} --features portable_tests
+
+  test-bin-installable:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@master
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: "--path=. --root=$TMPDIR"
