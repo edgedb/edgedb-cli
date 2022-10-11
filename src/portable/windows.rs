@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 use std::env;
+use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -76,6 +77,13 @@ impl Wsl {
         pro.arg("--user").arg("edgedb");
         pro.arg("--distribution").arg(&self.distribution);
         pro.arg("_EDGEDB_FROM_WINDOWS=1");
+        if let Some(log_env) = env::var_os("RUST_LOG") {
+            let mut pair =
+                OsString::with_capacity("RUST_LOG=".len() + log_env.len());
+            pair.push("RUST_LOG=");
+            pair.push(log_env);
+            pro.arg(pair);
+        }
         pro.arg("/usr/bin/edgedb");
         pro.no_proxy();
         return pro
