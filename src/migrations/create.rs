@@ -105,7 +105,7 @@ struct Refused;
 #[error("split migration")]
 struct SplitMigration;
 
-async fn execute(cli: &mut Connection, text: impl AsRef<str>)
+pub async fn execute(cli: &mut Connection, text: impl AsRef<str>)
     -> Result<(), Error>
 {
     if !cli.is_consistent() {
@@ -118,7 +118,7 @@ async fn execute(cli: &mut Connection, text: impl AsRef<str>)
     Ok(())
 }
 
-async fn query_row<R>(cli: &mut Connection, text: &str)
+pub async fn query_row<R>(cli: &mut Connection, text: &str)
     -> Result<R, Error>
     where R: Queryable
 {

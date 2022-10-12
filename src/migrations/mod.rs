@@ -1,5 +1,6 @@
 mod context;
 mod create;
+mod dev_mode;
 mod edit;
 mod grammar;
 mod log;

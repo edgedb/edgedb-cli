@@ -10,6 +10,7 @@ use crate::commands::Options;
 use crate::commands::ExitCode;
 use crate::commands::parser::Migrate;
 use crate::migrations::timeout;
+use crate::migrations::dev_mode;
 use crate::migrations::context::Context;
 use crate::migrations::migration::{self, MigrationFile};
 use crate::print;
@@ -57,6 +58,9 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     -> Result<(), anyhow::Error>
 {
     let ctx = Context::from_project_or_config(&migrate.cfg)?;
+    if migrate.dev_mode {
+        return dev_mode::migrate(cli, ctx, migrate).await;
+    }
 
     let mut migrations = migration::read_all(&ctx, true).await?;
     let db_migration: Option<String> = cli.query_row_opt(r###"

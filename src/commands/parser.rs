@@ -587,6 +587,13 @@ pub struct Migrate {
     /// revisions are applied on top.
     #[clap(long)]
     pub to_revision: Option<String>,
+
+    /// Apply current schema changes on top of what's in the migration history
+    ///
+    /// This is commonly used to apply schema temporarily before doing
+    /// `migration create` for testing purposes.
+    #[clap(long, hide=true)]
+    pub dev_mode: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]
