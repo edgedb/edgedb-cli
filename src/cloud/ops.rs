@@ -1,6 +1,3 @@
-use std::collections::HashMap;
-use std::fs;
-use std::io;
 use std::time::{Duration, Instant};
 
 use async_std::task;
@@ -12,9 +9,9 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::options::CloudOptions;
 use crate::portable::local::is_valid_instance_name;
+use crate::portable::status::{RemoteStatus, RemoteType, ConnectionStatus};
 use crate::print::{self, echo, err_marker, Highlight};
 use crate::question;
-use crate::table::{self, Cell, Row, Table};
 
 const INSTANCE_CREATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
 const INSTANCE_CREATION_POLLING_INTERVAL : Duration = Duration::from_secs(1);
@@ -40,35 +37,19 @@ impl CloudInstance {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
-struct InstanceStatus {
-    cloud_instance: CloudInstance,
-    credentials: Option<Credentials>,
-    instance_name: Option<String>,
-}
-
-impl InstanceStatus {
-    fn from_cloud_instance(cloud_instance: CloudInstance) -> Self {
-        Self {
-            cloud_instance,
-            credentials: None,
-            instance_name: None,
-        }
-    }
-
-    fn print_extended(&self) {
-        println!("{}:", self.cloud_instance.name);
-
-        println!("  Status: {}", self.cloud_instance.status);
-        println!("  ID: {}", self.cloud_instance.id);
-        if let Some(name) = &self.instance_name {
-            println!("  Local Instance: {}", name);
-        }
-        if let Some(creds) = &self.credentials {
-            if let Some(dsn) = &creds.cloud_original_dsn {
-                println!("  DSN: {}", dsn);
-            }
-        }
+impl RemoteStatus {
+    fn from_cloud_instance(cloud_instance: &CloudInstance) -> anyhow::Result<Self> {
+        Ok(Self {
+            name: format!("{}/{}", cloud_instance.org_slug, cloud_instance.name),
+            type_: RemoteType::Cloud {
+                instance_id: cloud_instance.id.clone(),
+            },
+            credentials: cloud_instance.as_credentials()?,
+            version: None,
+            connection: ConnectionStatus::Cloud {
+                status: cloud_instance.status.clone(),
+            },
+        })
     }
 }
 
@@ -230,65 +211,21 @@ pub fn try_to_destroy(
     Ok(())
 }
 
-pub async fn list(
-    cmd: &crate::portable::options::List,
-    opts: &crate::options::Options,
-) -> anyhow::Result<()> {
-    let client = CloudClient::new(&opts.cloud_options)?;
+pub async fn list(client: CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
     client.ensure_authenticated(false)?;
     let cloud_instances: Vec<CloudInstance> = client.get("instances/").await?;
-    let mut instances = cloud_instances
-        .into_iter()
-        .map(|inst| (inst.id.clone(), InstanceStatus::from_cloud_instance(inst)))
-        .collect::<HashMap<String, InstanceStatus>>();
-    for name in credentials::all_instance_names()? {
-        let file = io::BufReader::new(fs::File::open(credentials::path(&name)?)?);
-        let creds: Credentials = serde_json::from_reader(file)?;
-        if let Some(id) = &creds.cloud_instance_id {
-            if let Some(instance) = instances.get_mut(id) {
-                (*instance).instance_name = Some(name);
-                (*instance).credentials = Some(creds);
+    let mut rv = Vec::new();
+    for cloud_instance in cloud_instances {
+        match RemoteStatus::from_cloud_instance(&cloud_instance) {
+            Ok(status) => rv.push(status),
+            Err(e) => {
+                log::warn!(
+                    "Cannot check cloud instance {}/{}: {:#}",
+                    cloud_instance.org_slug,
+                    cloud_instance.name,
+                    e);
             }
         }
     }
-    if instances.is_empty() {
-        if cmd.json {
-            println!("[]");
-        } else if !cmd.quiet {
-            print::warn("No instances found");
-        }
-        return Ok(());
-    }
-    if cmd.json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&instances.into_values().collect::<Vec<_>>())?
-        );
-    } else if cmd.debug {
-        for instance in instances.values() {
-            println!("{:#?}", instance);
-        }
-    } else if cmd.extended {
-        for instance in instances.values() {
-            instance.print_extended();
-        }
-    } else {
-        let mut table = Table::new();
-        table.set_format(*table::FORMAT);
-        table.set_titles(Row::new(
-            ["Kind", "Name", "Status"]
-                .iter()
-                .map(|x| table::header_cell(x))
-                .collect(),
-        ));
-        for instance in instances.values() {
-            table.add_row(Row::new(vec![
-                Cell::new("cloud"),
-                Cell::new(&format!("{}/{}", instance.cloud_instance.org_slug, instance.cloud_instance.name)),
-                Cell::new(&instance.cloud_instance.status),
-            ]));
-        }
-        table.printstd();
-    }
-    Ok(())
+    Ok(rv)
 }

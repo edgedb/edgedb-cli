@@ -12,11 +12,12 @@ use async_std::prelude::FutureExt;
 use async_std::stream;
 use async_std::task;
 use fn_error_context::context;
-use futures_util::StreamExt;
+use futures_util::{StreamExt, try_join};
 use humantime::format_duration;
 
 use edgedb_client::{Builder, credentials::Credentials};
 
+use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::format;
@@ -77,6 +78,9 @@ pub enum ConnectionStatus {
     Connected,
     Refused,
     TimedOut,
+    Cloud {
+        status: String,
+    },
     Error(anyhow::Error),
 }
 
@@ -354,41 +358,68 @@ pub fn list_local<'x>(dir: &'x Path)
     }))
 }
 
-pub fn get_remote(visited: &BTreeSet<String>)
-    -> anyhow::Result<Vec<RemoteStatus>>
-{
+async fn get_remote_async(instances: Vec<String>) -> anyhow::Result<Vec<RemoteStatus>> {
+    let mut result: Vec<_> = stream::from_iter(instances)
+        .map(|name| async move {
+            _remote_status(&name, false)
+                .await
+                .map_err(|e| log::warn!("Cannot check remote instance {:?}: {:#}", name, e))
+                .ok()
+        })
+        .buffer_unordered(100)
+        .flat_map(|x| stream::from_iter(x))
+        .collect().await;
+    result.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(result)
+}
+
+async fn get_remote_and_cloud(
+    instances: Vec<String>,
+    cloud_client: CloudClient,
+) -> anyhow::Result<Vec<RemoteStatus>> {
+    let (remote, cloud) = try_join!(
+        get_remote_async(instances),
+        crate::cloud::ops::list(cloud_client),
+    )?;
+    Ok(remote.into_iter().chain(cloud.into_iter()).collect())
+}
+
+pub fn get_remote(
+    visited: &BTreeSet<String>,
+    opts: &crate::options::Options,
+) -> anyhow::Result<Vec<RemoteStatus>> {
+    let cloud_client = CloudClient::new(&opts.cloud_options)?;
     let instances: Vec<_> = credentials::all_instance_names()?
         .into_iter()
         .filter(|name| !visited.contains(name))
         .collect();
     let num = instances.len();
-    let mut result: Vec<_> = task::block_on(
-        intermediate_feedback(
-            stream::from_iter(instances)
-                .map(|name| async move {
-                    _remote_status(&name, false).await
-                    .map_err(|e| {
-                        log::warn!(
-                            "Cannot check remote instance {:?}: {:#}",
-                            name,
-                            e);
-                    }).ok()
-                })
-                .buffer_unordered(100)
-                .flat_map(|x| stream::from_iter(x))
-                .collect(),
-            || format!("Checking {} remote instances...", num),
+    if cloud_client.is_logged_in {
+        task::block_on(
+            intermediate_feedback(
+                get_remote_and_cloud(instances, cloud_client),
+                || {
+                    if num > 0 {
+                        format!("Checking cloud and {} remote instances...", num)
+                    } else {
+                        format!("Checking cloud instances...")
+                    }
+                },
+            )
         )
-    );
-    result.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(result)
+    } else if num > 0 {
+        task::block_on(
+            intermediate_feedback(
+                get_remote_async(instances),
+                || format!("Checking {} remote instances...", num),
+            )
+        )
+    } else {
+        Ok(Vec::new())
+    }
 }
 
 pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()> {
-    if options.cloud {
-        return task::block_on(crate::cloud::ops::list(options, opts));
-    }
-
     let mut visited = BTreeSet::new();
     let mut local = Vec::new();
     let data_dir = data_dir()?;
@@ -410,7 +441,7 @@ pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        get_remote(&visited)?
+        get_remote(&visited, opts)?
     };
 
     if local.is_empty() && remote.is_empty() {
@@ -625,20 +656,27 @@ impl FullStatus {
 impl RemoteStatus {
     pub fn print_extended(&self) {
         println!("{}:", self.name);
-        if let RemoteType::Cloud { instance_id } = &self.type_ {
+        let is_cloud = if let RemoteType::Cloud { instance_id } = &self.type_ {
             println!("  Cloud Instance ID: {}", instance_id);
-        }
+            true
+        } else {
+            false
+        };
         println!("  Status: {}", self.connection.as_str());
-        println!("  Credentials: exist");
+        if !is_cloud {
+            println!("  Credentials: exist");
+        }
         println!("  Version: {}",
             self.version.as_ref().map_or("unknown", |x| &x[..]));
         let creds = &self.credentials;
         println!("  Host: {}",
             creds.host.as_ref().map_or("localhost", |x| &x[..]));
         println!("  Port: {}", creds.port);
-        println!("  User: {}", creds.user);
-        println!("  Database: {}",
-            creds.database.as_ref().map_or("edgedb", |x| &x[..]));
+        if !is_cloud {
+            println!("  User: {}", creds.user);
+            println!("  Database: {}",
+                     creds.database.as_ref().map_or("edgedb", |x| &x[..]));
+        }
         if let ConnectionStatus::Error(e) = &self.connection {
             println!("  Connection error: {:#}", e);
         }
@@ -669,11 +707,12 @@ impl RemoteStatus {
 }
 
 impl ConnectionStatus {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             ConnectionStatus::Connected => "up",
             ConnectionStatus::Refused => "refused",
             ConnectionStatus::TimedOut => "timed out",
+            ConnectionStatus::Cloud { status } => status,
             ConnectionStatus::Error(..) => "error",
         }
     }

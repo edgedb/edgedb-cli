@@ -45,7 +45,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         ResetPassword(c) if cfg!(windows) => windows::reset_password(c),
         ResetPassword(c) => reset_password::reset_password(c),
         Link(c) => link::link(c, &options),
-        List(c) if cfg!(windows) => windows::list(c),
+        List(c) if cfg!(windows) => windows::list(c, options),
         List(c) => status::list(c, options),
         Upgrade(c) => upgrade::upgrade(c),
         Start(c) if cfg!(windows) => windows::start(c),
