@@ -152,6 +152,17 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         }
         return Ok(());
     }
+    apply_migrations(cli, &migrations, migrate).await?;
+    if db_migration.is_none() {
+        disable_ddl(cli).await?;
+    }
+    return Ok(())
+}
+
+pub async fn apply_migrations(cli: &mut Connection,
+    migrations: &LinkedHashMap<String, MigrationFile>, migrate: &Migrate)
+    -> anyhow::Result<()>
+{
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     let transaction = async {
         cli.execute("START TRANSACTION").await?;
@@ -169,7 +180,7 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
                     eprintln!(
                         "{} {} ({})",
                         "Applied".bold().light_green(),
-                        migration.data.id.bold().white(),
+                        migration.data.id[..].bold().white(),
                         Path::new(migration.path.file_name().unwrap()).display(),
                     );
                 } else {
@@ -190,22 +201,24 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     } else {
         transaction?;
     };
-    if db_migration.is_none() {
-        let ddl_setting = cli.query_row(r#"
-            SELECT exists(
-                SELECT prop := (
-                        SELECT schema::ObjectType
-                        FILTER .name = 'cfg::DatabaseConfig'
-                    ).properties.name
-                FILTER prop = "allow_bare_ddl"
-            )
-        "#, &()).await?;
-        if ddl_setting {
-            cli.execute(r#"
-                CONFIGURE CURRENT DATABASE SET allow_bare_ddl :=
-                    cfg::AllowBareDDL.NeverAllow;
-            "#).await?;
-        }
+    Ok(())
+}
+
+pub async fn disable_ddl(cli: &mut Connection) -> Result<(), anyhow::Error> {
+    let ddl_setting = cli.query_row(r#"
+        SELECT exists(
+            SELECT prop := (
+                    SELECT schema::ObjectType
+                    FILTER .name = 'cfg::DatabaseConfig'
+                ).properties.name
+            FILTER prop = "allow_bare_ddl"
+        )
+    "#, &()).await?;
+    if ddl_setting {
+        cli.execute(r#"
+            CONFIGURE CURRENT DATABASE SET allow_bare_ddl :=
+                cfg::AllowBareDDL.NeverAllow;
+        "#).await?;
     }
-    return Ok(())
+    Ok(())
 }

@@ -585,7 +585,7 @@ pub struct Migrate {
     /// If this revision is applied, the command is no-op. The command
     /// ensures that this revision present, but it's not an error if more
     /// revisions are applied on top.
-    #[clap(long)]
+    #[clap(long, conflicts_with="dev_mode")]
     pub to_revision: Option<String>,
 
     /// Apply current schema changes on top of what's in the migration history
