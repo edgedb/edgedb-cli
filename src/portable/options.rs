@@ -399,13 +399,13 @@ pub struct Upgrade {
     pub to_nightly: bool,
 
     /// Instance to upgrade
-    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(validator(instance_or_cloud_name_opt), hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub name: Option<String>,
 
     /// Instance to upgrade
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
+    #[clap(validator(instance_or_cloud_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
     pub instance: Option<String>,
 

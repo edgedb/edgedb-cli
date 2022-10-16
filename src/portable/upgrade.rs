@@ -7,6 +7,7 @@ use async_std::task;
 use fn_error_context::context;
 
 use crate::commands::{self, ExitCode};
+use crate::cloud;
 use crate::connect::Connector;
 use crate::portable::control;
 use crate::portable::create;
@@ -86,28 +87,34 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
     Ok(())
 }
 
-pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
+    let name = instance_arg(&cmd.name, &cmd.instance)?;
+
+    let is_cloud_instance = name.contains("/");
+    if is_cloud_instance {
+        return task::block_on(cloud::ops::upgrade(cmd, opts))
+    }
+
     let inst = InstanceInfo::read(name)?;
     let inst_ver = inst.get_version()?.specific();
-    let ver_option = options.to_latest || options.to_nightly ||
-        options.to_version.is_some();
+    let ver_option = cmd.to_latest || cmd.to_nightly ||
+        cmd.to_version.is_some();
     let ver_query = if ver_option {
-        Query::from_options(options.to_nightly, &options.to_version)?
+        Query::from_options(cmd.to_nightly, &cmd.to_version)?
     } else {
         Query::from_version(&inst_ver)?
     };
-    check_project(name, options.force, &ver_query)?;
+    check_project(name, cmd.force, &ver_query)?;
 
     if cfg!(windows) {
-        return windows::upgrade(options);
+        return windows::upgrade(cmd);
     }
 
     let pkg = repository::get_server_package(&ver_query)?
         .context("no package found according to your criteria")?;
     let pkg_ver = pkg.version.specific();
 
-    if pkg_ver <= inst_ver && !options.force {
+    if pkg_ver <= inst_ver && !cmd.force {
         echo!("Latest version found", pkg.version.to_string() + ",",
               "current instance version is",
               inst.get_version()?.emphasize().to_string() + ".",
@@ -115,12 +122,13 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    let inst = InstanceInfo::read(name)?;
     // When force is used we might upgrade to the same version, so
     // we rely on presence of the version specifying options instead to
     // define how we want upgrade to be performed. This is mostly useful
     // for tests.
-    if pkg_ver.is_compatible(&inst_ver) && !(options.force && ver_option) &&
-        !options.force_dump_restore
+    if pkg_ver.is_compatible(&inst_ver) && !(cmd.force && ver_option) &&
+        !cmd.force_dump_restore
     {
         upgrade_compatible(inst, pkg)
     } else {
