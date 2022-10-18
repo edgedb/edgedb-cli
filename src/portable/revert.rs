@@ -10,7 +10,7 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::Paths;
-use crate::portable::options::{Revert, instance_arg};
+use crate::portable::options::{Revert, instance_arg, InstanceName};
 use crate::portable::status::{instance_status, DataDirectory, BackupStatus};
 use crate::print::{self, echo, Highlight};
 use crate::process;
@@ -20,7 +20,10 @@ use crate::question;
 pub fn revert(options: &Revert) -> anyhow::Result<()> {
     use BackupStatus::*;
 
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let status = instance_status(name)?;
     let (backup_info, old_inst) = match status.backup {
         Absent => anyhow::bail!("cannot find backup directory to revert"),

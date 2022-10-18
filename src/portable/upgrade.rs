@@ -13,7 +13,7 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
-use crate::portable::options::{Upgrade, instance_arg};
+use crate::portable::options::{Upgrade, instance_arg, InstanceName};
 use crate::portable::project;
 use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
@@ -87,7 +87,10 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
 }
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let inst = InstanceInfo::read(name)?;
     let inst_ver = inst.get_version()?.specific();
     let ver_option = options.to_latest || options.to_nightly ||

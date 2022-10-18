@@ -26,7 +26,7 @@ use crate::options::{Options, ConnectionOptions};
 use crate::options::{conn_params, load_tls_options};
 use crate::portable::destroy::with_projects;
 use crate::portable::local::{InstanceInfo, is_valid_instance_name};
-use crate::portable::options::{Link, Unlink, instance_arg};
+use crate::portable::options::{Link, Unlink, instance_arg, InstanceName};
 use crate::portable::project;
 use crate::print;
 use crate::question;
@@ -152,13 +152,11 @@ fn is_no_credentials_error(mut e: &anyhow::Error) -> bool {
 }
 
 pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
-    if let Some(name) = cmd.name.clone() {
-        if name.contains("/") {
-            anyhow::bail!(
-                "cloud instances cannot be linked\
-                \nTo connect run:\
-                \n  edgedb -I {}", name);
-        }
+    if matches!(cmd.name, Some(InstanceName::Cloud { .. })) {
+        anyhow::bail!(
+            "cloud instances cannot be linked\
+            \nTo connect run:\
+            \n  edgedb -I {}", cmd.name.as_ref().unwrap());
     }
 
     let mut builder = match conn_params(&opts) {
@@ -225,7 +223,8 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     }
 
     let (cred_path, instance_name) = match &cmd.name {
-        Some(name) => (credentials::path(name)?, name.clone()),
+        Some(InstanceName::Local(name)) => (credentials::path(name)?, name.clone()),
+        Some(InstanceName::Cloud { .. }) => unreachable!(),
         None => {
             let default = gen_default_instance_name(builder.display_addr());
             if cmd.non_interactive {
@@ -358,11 +357,20 @@ pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
 }
 
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        inst_name => {
+            return Err(
+                anyhow::anyhow!("cannot unlink cloud instance {}.", inst_name)
+            ).with_hint(|| format!(
+                "use `edgedb instance destroy -I {}` to remove the instance",
+                inst_name))?;
+        }
+    };
     let inst = InstanceInfo::try_read(name)?;
     if inst.is_some() {
         return Err(
-            anyhow::anyhow!("cannot unlink local instance {:?}.", options.name)
+            anyhow::anyhow!("cannot unlink local instance {:?}.", name)
         ).with_hint(|| format!(
             "use `edgedb instance destroy -I {}` to remove the instance",
              name))?;

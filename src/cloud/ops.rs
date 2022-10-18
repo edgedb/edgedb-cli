@@ -6,12 +6,9 @@ use edgedb_client::credentials::Credentials;
 use edgedb_client::Builder;
 
 use crate::cloud::client::CloudClient;
-use crate::commands::ExitCode;
-use crate::credentials;
 use crate::options::CloudOptions;
-use crate::portable::local::is_valid_instance_name;
 use crate::portable::status::{RemoteStatus, RemoteType};
-use crate::print::{self, echo, err_marker, Highlight};
+use crate::print;
 use crate::question;
 
 const INSTANCE_CREATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
@@ -124,80 +121,24 @@ pub async fn create_cloud_instance(
     Ok(())
 }
 
-fn ask_name() -> anyhow::Result<String> {
-    let instances = credentials::all_instance_names()?;
-    loop {
-        let name = question::String::new(
-            "Specify a name for the new instance"
-        ).ask()?;
-        if !is_valid_instance_name(&name) {
-            echo!(err_marker(),
-                "Instance name must be a valid identifier, \
-                 (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
-            continue;
-        }
-        if instances.contains(&name) {
-            echo!(err_marker(),
-                "Instance", name.emphasize(), "already exists.");
-            continue;
-        }
-        return Ok(name);
-    }
-}
-
-pub fn split_cloud_instance_name(name: &str) -> anyhow::Result<(String, String)> {
-    let mut splitter = name.splitn(2, '/');
-    match splitter.next() {
-        None => unreachable!(),
-        Some("") => anyhow::bail!("empty instance name"),
-        Some(org) => match splitter.next() {
-            None => anyhow::bail!("cloud instance must be in the form ORG/INST"),
-            Some("") => anyhow::bail!("invalid instance name: missing instance"),
-            Some(inst) => Ok((String::from(org), String::from(inst))),
-        },
-    }
-}
-
-pub async fn create(
-    cmd: &crate::portable::options::Create,
-    opts: &crate::options::Options,
-) -> anyhow::Result<()> {
-    let client = CloudClient::new(&opts.cloud_options)?;
-    client.ensure_authenticated(false)?;
-
-    let name = if let Some(name) = &cmd.name {
-        name.to_owned()
-    } else if cmd.non_interactive {
-        echo!(err_marker(), "Instance name is required \
-                             in non-interactive mode");
-        return Err(ExitCode::new(2).into());
-    } else {
-        ask_name()?
-    };
-
-    let (org, inst_name) = split_cloud_instance_name(&name)?;
-    let instance = CloudInstanceCreate {
-        name: inst_name.clone(),
-        org,
-        // version: Some(format!("{}", version.display())),
-        // default_database: Some(cmd.default_database.clone()),
-        // default_user: Some(cmd.default_user.clone()),
-    };
-    create_cloud_instance(&client, &instance).await?;
-    print::echo!(
-        "EdgeDB Cloud instance",
-        name.emphasize(),
-        "is up and running."
+pub async fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
+    let mut q = question::Confirm::new(
+        "You're not authenticated to the EdgeDB Cloud yet, login now?",
     );
-    print::echo!("To connect to the instance run:");
-    print::echo!("  edgedb -I", name);
-    Ok(())
+    if q.default(true).ask()? {
+        crate::cloud::auth::do_login(&client).await?;
+        client.reinit()?;
+        client.ensure_authenticated()?;
+        Ok(())
+    } else {
+        anyhow::bail!("Aborted.");
+    }
 }
 
 async fn destroy(name: &str, org: &str, options: &CloudOptions) -> anyhow::Result<()> {
     log::info!("Destroying EdgeDB Cloud instance: {}/{}", name, org);
     let client = CloudClient::new(options)?;
-    client.ensure_authenticated(false)?;
+    client.ensure_authenticated()?;
     let _: CloudInstance = client.delete(format!("orgs/{}/instances/{}", org, name)).await?;
     Ok(())
 }
@@ -212,7 +153,7 @@ pub fn try_to_destroy(
 }
 
 pub async fn list(client: CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
-    client.ensure_authenticated(false)?;
+    client.ensure_authenticated()?;
     let cloud_instances: Vec<CloudInstance> = timeout(
         Duration::from_secs(30), client.get("instances/")
     ).await??;
