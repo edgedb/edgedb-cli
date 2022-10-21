@@ -24,6 +24,7 @@ use crate::hint::HintExt;
 use crate::markdown;
 use crate::portable::project;
 use crate::portable;
+use crate::portable::options::InstanceName;
 use crate::print;
 use crate::repl::OutputFormat;
 use crate::tty_password;
@@ -53,7 +54,7 @@ pub struct ConnectionOptions {
     /// (overrides host and port)
     #[clap(short='I', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<portable::options::InstanceName>,
+    pub instance: Option<InstanceName>,
 
     /// DSN for EdgeDB to connect to (overrides all other options
     /// except password)
@@ -671,14 +672,14 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.read_extra_env_vars()?;
     } else if let Some(instance) = &tmp.instance {
         match instance {
-            portable::options::InstanceName::Cloud { org_slug, name } => {
+            InstanceName::Cloud { org_slug, name } => {
                 let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
                 client.ensure_authenticated()?;
                 let inst = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
                     name, org_slug, &client))?;
                 bld.credentials(&inst.expect("missing instance").as_credentials()?)?;
             }
-            portable::options::InstanceName::Local(instance) => {
+            InstanceName::Local(instance) => {
                 task::block_on(bld.read_instance(instance))?;
             }
         }
