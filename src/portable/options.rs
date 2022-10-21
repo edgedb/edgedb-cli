@@ -320,10 +320,6 @@ pub struct List {
     //  Currently needed for WSL
     #[clap(long, hide=true)]
     pub quiet: bool,
-
-    /// List EdgeDB Cloud instances
-    #[clap(long, hide=true)]
-    pub cloud: bool,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]

@@ -796,7 +796,7 @@ pub fn status(options: &options::Status) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn list(options: &options::List) -> anyhow::Result<()> {
+pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
     if options.debug || options.extended {
         let inner_opts = options::List {
             quiet: true,
@@ -833,7 +833,7 @@ pub fn list(options: &options::List) -> anyhow::Result<()> {
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        status::get_remote(&visited)?
+        status::get_remote(&visited, opts)?
     };
 
     if local.is_empty() && remote.is_empty() {
