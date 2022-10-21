@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use async_std::task;
 use edgedb_client::credentials::Credentials;
 use edgedb_client::Builder;
+use indicatif::ProgressBar;
 
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -16,8 +17,9 @@ use crate::print::{self, echo, err_marker, Highlight};
 use crate::question;
 use crate::table::{self, Cell, Row, Table};
 
-const INSTANCE_OPERATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
-const INSTANCE_OPERATION_POLLING_INTERVAL : Duration = Duration::from_secs(1);
+const OPERATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
+const POLLING_INTERVAL: Duration = Duration::from_secs(1);
+const SPINNER_TICK: Duration = Duration::from_millis(100);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudInstance {
@@ -105,17 +107,17 @@ pub async fn find_cloud_instance_by_name(
     Ok(Some(instance))
 }
 
-async fn wait_instance_available_after_opertion(
+async fn wait_instance_available_after_operation(
     mut instance: CloudInstance,
     client: &CloudClient,
-    quiet: bool,
     operation: &str,
 ) -> anyhow::Result<CloudInstance> {
-    if !quiet && instance.status == operation {
-        print::echo!("Waiting for result of EdgeDB Cloud instance", operation, "...");
-    }
+    let spinner = ProgressBar::new_spinner()
+        .with_message(format!("Waiting for the result of EdgeDB Cloud instance {}...", operation));
+    spinner.enable_steady_tick(SPINNER_TICK);
+
     let url = format!("orgs/{}/instances/{}", instance.org_slug, instance.name);
-    let deadline = Instant::now() + INSTANCE_OPERATION_WAIT_TIME;
+    let deadline = Instant::now() + OPERATION_WAIT_TIME;
     while Instant::now() < deadline {
         if instance.status != "available" && instance.status != operation {
             anyhow::bail!(
@@ -125,7 +127,7 @@ async fn wait_instance_available_after_opertion(
             );
         }
         if instance.status == operation {
-            task::sleep(INSTANCE_OPERATION_POLLING_INTERVAL).await;
+            task::sleep(POLLING_INTERVAL).await;
             instance = client.get(&url).await?;
         } else {
             break;
@@ -141,17 +143,15 @@ async fn wait_instance_available_after_opertion(
 async fn wait_instance_create(
     instance: CloudInstance,
     client: &CloudClient,
-    quiet: bool,
 ) -> anyhow::Result<CloudInstance> {
-    wait_instance_available_after_opertion(instance, client, quiet, "creating").await
+    wait_instance_available_after_operation(instance, client, "creating").await
 }
 
 async fn wait_instance_upgrade(
     instance: CloudInstance,
     client: &CloudClient,
-    quiet: bool,
 ) -> anyhow::Result<CloudInstance> {
-    wait_instance_available_after_opertion(instance, client, quiet, "upgrading").await
+    wait_instance_available_after_operation(instance, client, "upgrading").await
 }
 
 pub async fn create_cloud_instance(
@@ -162,7 +162,7 @@ pub async fn create_cloud_instance(
     let instance: CloudInstance = client
         .post(url, serde_json::to_value(instance)?)
         .await?;
-    wait_instance_create(instance, client, false).await?;
+    wait_instance_create(instance, client).await?;
     Ok(())
 }
 
@@ -174,7 +174,7 @@ pub async fn upgrade_cloud_instance(
     let instance: CloudInstance = client
         .put(url, serde_json::to_value(instance)?)
         .await?;
-    wait_instance_upgrade(instance, client, false).await?;
+    wait_instance_upgrade(instance, client).await?;
     Ok(())
 }
 
