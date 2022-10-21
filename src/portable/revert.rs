@@ -21,7 +21,13 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     use BackupStatus::*;
 
     let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
+        InstanceName::Local(name) => {
+            if cfg!(windows) {
+                return crate::portable::windows::revert(options, name);
+            } else {
+                name
+            }
+        },
         InstanceName::Cloud { .. } => todo!(),
     };
     let status = instance_status(name)?;

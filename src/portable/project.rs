@@ -422,7 +422,7 @@ async fn ask_name(
                 inst.is_some()
             }
         };
-        if !exists {
+        if exists {
             anyhow::bail!(format!("Instance {:?} already exists, \
                                to link project with it pass `--link` \
                                flag explicitly", default_name.to_string()))
@@ -1456,7 +1456,7 @@ pub fn update_toml(
                     verbose: false,
                     force: options.force,
                     force_dump_restore: options.force,
-                })?;
+                }, &inst.name)?;
             } else {
                 // When force is used we might upgrade to the same version, but
                 // since some selector like `--to-latest` was specified we
@@ -1565,7 +1565,7 @@ pub fn upgrade_instance(
                 verbose: false,
                 force: options.force,
                 force_dump_restore: options.force,
-            })?;
+            }, &inst.name)?;
         } else {
             // When force is used we might upgrade to the same version, but
             // since some selector like `--to-latest` was specified we assume

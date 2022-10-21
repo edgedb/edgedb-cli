@@ -40,7 +40,13 @@ fn read_credentials(path: &Path) -> anyhow::Result<Credentials> {
 
 pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
+        InstanceName::Local(name) => {
+            if cfg!(windows) {
+                return crate::portable::windows::reset_password(options, name);
+            } else {
+                name
+            }
+        },
         InstanceName::Cloud { .. } => todo!(),
     };
     let credentials_file = credentials::path(name)?;

@@ -211,7 +211,13 @@ fn set_inheritable(file: &impl std::os::unix::io::AsRawFd)
 
 pub fn start(options: &Start) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
+        InstanceName::Local(name) => {
+            if cfg!(windows) {
+                return windows::start(options, name);
+            } else {
+                name
+            }
+        },
         InstanceName::Cloud { .. } => todo!(),
     };
     let meta = InstanceInfo::read(name)?;
@@ -383,7 +389,13 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
 
 pub fn stop(options: &Stop) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
+        InstanceName::Local(name) => {
+            if cfg!(windows) {
+                return windows::stop(options, name);
+            } else {
+                name
+            }
+        },
         InstanceName::Cloud { .. } => todo!(),
     };
     let meta = InstanceInfo::read(name)?;

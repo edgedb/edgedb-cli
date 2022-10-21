@@ -137,11 +137,14 @@ fn destroy_local(name: &str) -> anyhow::Result<()> {
 fn do_destroy(
     options: &Destroy, opts: &Options, name: &InstanceName
 ) -> anyhow::Result<()> {
-    if cfg!(windows) {
-        return windows::destroy(options);
-    }
     match name {
-        InstanceName::Local(name) => destroy_local(name),
+        InstanceName::Local(name) => {
+            if cfg!(windows) {
+                windows::destroy(options, name)
+            } else {
+                destroy_local(name)
+            }
+        },
         InstanceName::Cloud { org_slug, name: inst_name } => {
             log::info!("Removing cloud instance {}", name);
             if let Err(e) = crate::cloud::ops::try_to_destroy(

@@ -87,10 +87,13 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
 }
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
+    match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => upgrade_local(options, name),
         InstanceName::Cloud { .. } => todo!(),
-    };
+    }
+}
+
+fn upgrade_local(options: &Upgrade, name: &str) -> anyhow::Result<()> {
     let inst = InstanceInfo::read(name)?;
     let inst_ver = inst.get_version()?.specific();
     let ver_option = options.to_latest || options.to_nightly ||
@@ -103,7 +106,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     check_project(name, options.force, &ver_query)?;
 
     if cfg!(windows) {
-        return windows::upgrade(options);
+        return windows::upgrade(options, name);
     }
 
     let pkg = repository::get_server_package(&ver_query)?

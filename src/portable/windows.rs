@@ -200,11 +200,7 @@ pub fn create_instance(options: &options::Create, name: &str,
     Ok(())
 }
 
-pub fn destroy(options: &options::Destroy) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => todo!(),
-    };
+pub fn destroy(options: &options::Destroy, name: &str) -> anyhow::Result<()> {
     let mut found = false;
     if let Some(wsl) = get_wsl()? {
         let options = options::Destroy {
@@ -696,11 +692,9 @@ pub fn info(options: &options::Info) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn reset_password(options: &options::ResetPassword) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => todo!(),
-    };
+pub fn reset_password(
+    options: &options::ResetPassword, name: &str
+) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("instance").arg("reset-password").args(options)
@@ -714,11 +708,7 @@ pub fn reset_password(options: &options::ResetPassword) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn start(options: &options::Start) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => todo!(),
-    };
+pub fn start(options: &options::Start, name: &str) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         if options.foreground {
             wsl.edgedb().arg("instance").arg("start").args(options).run()?;
@@ -732,11 +722,7 @@ pub fn start(options: &options::Start) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn stop(options: &options::Stop) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => todo!(),
-    };
+pub fn stop(options: &options::Stop, name: &str) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         let service_file = service_file(name)?;
         fs::remove_file(&service_file)
@@ -877,11 +863,7 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
     Ok(())
 }
 
-pub fn upgrade(options: &options::Upgrade) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => todo!(),
-    };
+pub fn upgrade(options: &options::Upgrade, name: &str) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     wsl.edgedb()
         .arg("instance")
@@ -893,11 +875,7 @@ pub fn upgrade(options: &options::Upgrade) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn revert(options: &options::Revert) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => todo!(),
-    };
+pub fn revert(options: &options::Revert, name: &str) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     wsl.edgedb()
         .arg("instance")
