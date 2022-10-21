@@ -78,9 +78,6 @@ pub enum ConnectionStatus {
     Connected,
     Refused,
     TimedOut,
-    Cloud {
-        status: String,
-    },
     Error(anyhow::Error),
 }
 
@@ -98,7 +95,8 @@ pub struct RemoteStatus {
     pub type_: RemoteType,
     pub credentials: Credentials,
     pub version: Option<String>,
-    pub connection: ConnectionStatus,
+    pub connection: Option<ConnectionStatus>,
+    pub instance_status: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -111,6 +109,8 @@ pub struct JsonStatus {
     pub service_status: Option<String>,
     #[serde(skip_serializing_if="Option::is_none")]
     pub remote_status: Option<String>,
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub instance_status: Option<String>,
     #[serde(skip_serializing_if="Option::is_none")]
     pub cloud_instance_id: Option<String>,
 }
@@ -289,7 +289,8 @@ async fn _remote_status(name: &str, quiet: bool)
         },
         credentials,
         version,
-        connection,
+        connection: Some(connection),
+        instance_status: None,
     })
 }
 
@@ -327,10 +328,14 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
             serde_json::to_string_pretty(&status.json())
                 .expect("status is json-serializable"),
         );
-    } else if let ConnectionStatus::Error(e) = &status.connection {
+    } else if let Some(ConnectionStatus::Error(e)) = &status.connection {
         print::error(e);
+    } else if let Some(conn_status) = &status.connection {
+        println!("{}", conn_status.as_str());
+    } else if let Some(inst_status) = &status.instance_status {
+        println!("{}", inst_status);
     } else {
-        println!("{}", status.connection.as_str());
+        println!("unknown");
     }
     status.exit()
 }
@@ -509,7 +514,11 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
                    status.credentials.port)),
             Cell::new(&status.version.as_ref()
                 .map(|m| m.to_string()).as_deref().unwrap_or("?".into())),
-            Cell::new(status.connection.as_str()),
+            Cell::new(if let Some(conn_status) = &status.connection {
+                conn_status.as_str()
+            } else {
+                status.instance_status.as_deref().unwrap_or("unknown")
+            }),
         ]));
     }
     table.printstd();
@@ -606,6 +615,7 @@ impl FullStatus {
                 .map(|v| v.to_string()),
             service_status: Some(status_str(&self.service).to_string()),
             remote_status: None,
+            instance_status: None,
             cloud_instance_id: None,
         }
     }
@@ -662,7 +672,12 @@ impl RemoteStatus {
         } else {
             false
         };
-        println!("  Status: {}", self.connection.as_str());
+        if let Some(conn_status) = &self.connection {
+            println!("  Connection Status: {}", conn_status.as_str());
+        }
+        if let Some(inst_status) = &self.instance_status {
+            println!("  Instance Status: {}", inst_status);
+        }
         if !is_cloud {
             println!("  Credentials: exist");
         }
@@ -677,7 +692,7 @@ impl RemoteStatus {
             println!("  Database: {}",
                      creds.database.as_ref().map_or("edgedb", |x| &x[..]));
         }
-        if let ConnectionStatus::Error(e) = &self.connection {
+        if let Some(ConnectionStatus::Error(e)) = &self.connection {
             println!("  Connection error: {:#}", e);
         }
     }
@@ -688,7 +703,8 @@ impl RemoteStatus {
             port: Some(self.credentials.port),
             version: self.version.clone(),
             service_status: None,
-            remote_status: Some(self.connection.as_str().to_string()),
+            remote_status: self.connection.as_ref().map(|s| s.as_str().to_string()),
+            instance_status: self.instance_status.clone(),
             cloud_instance_id: if let RemoteType::Cloud { instance_id } = &self.type_ {
                 Some(instance_id.clone())
             } else {
@@ -698,21 +714,23 @@ impl RemoteStatus {
     }
 
     pub fn exit(&self) -> ! {
-        if matches!(self.connection, ConnectionStatus::Connected) {
-            exit(0)
-        } else {
-            exit(3)
+        match &self.connection {
+            Some(ConnectionStatus::Connected) => exit(0),
+            Some(_) => exit(3),
+            None => match &self.instance_status {
+                Some(_) => exit(0),
+                None => exit(4),
+            }
         }
     }
 }
 
 impl ConnectionStatus {
-    pub fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &'static str {
         match self {
             ConnectionStatus::Connected => "up",
             ConnectionStatus::Refused => "refused",
             ConnectionStatus::TimedOut => "timed out",
-            ConnectionStatus::Cloud { status } => status,
             ConnectionStatus::Error(..) => "error",
         }
     }

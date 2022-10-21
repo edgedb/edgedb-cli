@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use async_std::future::timeout;
 use async_std::task;
 use edgedb_client::credentials::Credentials;
 use edgedb_client::Builder;
@@ -9,7 +10,7 @@ use crate::commands::ExitCode;
 use crate::credentials;
 use crate::options::CloudOptions;
 use crate::portable::local::is_valid_instance_name;
-use crate::portable::status::{RemoteStatus, RemoteType, ConnectionStatus};
+use crate::portable::status::{RemoteStatus, RemoteType};
 use crate::print::{self, echo, err_marker, Highlight};
 use crate::question;
 
@@ -46,9 +47,8 @@ impl RemoteStatus {
             },
             credentials: cloud_instance.as_credentials()?,
             version: None,
-            connection: ConnectionStatus::Cloud {
-                status: cloud_instance.status.clone(),
-            },
+            connection: None,
+            instance_status: Some(cloud_instance.status.clone()),
         })
     }
 }
@@ -213,7 +213,9 @@ pub fn try_to_destroy(
 
 pub async fn list(client: CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
     client.ensure_authenticated(false)?;
-    let cloud_instances: Vec<CloudInstance> = client.get("instances/").await?;
+    let cloud_instances: Vec<CloudInstance> = timeout(
+        Duration::from_secs(30), client.get("instances/")
+    ).await??;
     let mut rv = Vec::new();
     for cloud_instance in cloud_instances {
         match RemoteStatus::from_cloud_instance(&cloud_instance) {
