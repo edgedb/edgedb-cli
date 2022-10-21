@@ -38,7 +38,7 @@ async fn ask_name(
         let inst_name = match InstanceName::from_str(&name) {
             Ok(name) => name,
             Err(e) => {
-                echo!(err_marker(), e);
+                print::error(e);
                 continue;
             }
         };
