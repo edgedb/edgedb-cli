@@ -133,7 +133,7 @@ async fn wait_instance_available_after_operation(
             break;
         }
     }
-    if instance.dsn != "" {
+    if instance.dsn != "" && instance.status == "available" {
         Ok(instance)
     } else {
         anyhow::bail!("Timed out.")
