@@ -113,7 +113,9 @@ async fn check_migration(cli: &mut Connection, text: &str)
             Err(err) => err,
         }
     });
-    cli.execute("ABORT").await.ok();
+    cli.execute("ROLLBACK").await
+        .map_err(|e| log::warn!("Error rolling back the transaction: {:#}", e))
+        .ok();
     return res.map(|_| ());
 }
 
@@ -190,7 +192,7 @@ pub async fn edit(cli: &mut Connection,
         }
         'edit: loop {
             cli.ping_while(spawn_editor(temp_path.as_ref())).await?;
-            let new_data =
+            let mut new_data =
                 cli.ping_while(fs::read_to_string(&temp_path)).await?;
             let migration = match parse_migration(&new_data) {
                 Ok(migr) => migr,
@@ -234,7 +236,7 @@ pub async fn edit(cli: &mut Connection,
             };
             let new_id = migration.expected_id(&new_data)?;
             if migration.id != new_id {
-                let new_data = migration.replace_id(&new_data, &new_id);
+                new_data = migration.replace_id(&new_data, &new_id);
                 fs::write(&temp_path, &new_data).await?;
                 echo!("Updated migration id to", new_id.emphasize());
             } else {
