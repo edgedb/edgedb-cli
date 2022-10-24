@@ -42,21 +42,17 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
     match &cmd.subcommand {
         Create(c) => create::create(c, options),
         Destroy(c) => destroy::destroy(c, options),
-        ResetPassword(c) if cfg!(windows) => windows::reset_password(c),
         ResetPassword(c) => reset_password::reset_password(c),
         Link(c) => link::link(c, &options),
         List(c) if cfg!(windows) => windows::list(c, options),
         List(c) => status::list(c, options),
         Upgrade(c) => upgrade::upgrade(c),
-        Start(c) if cfg!(windows) => windows::start(c),
         Start(c) => control::start(c),
-        Stop(c) if cfg!(windows) => windows::stop(c),
         Stop(c) => control::stop(c),
         Restart(c) if cfg!(windows) => windows::restart(c),
         Restart(c) => control::restart(c),
         Logs(c) if cfg!(windows) => windows::logs(c),
         Logs(c) => control::logs(c),
-        Revert(c) if cfg!(windows) => windows::revert(c),
         Revert(c) => revert::revert(c),
         Unlink(c) => link::unlink(c),
         Status(c) if cfg!(windows) => windows::status(c),
@@ -69,9 +65,9 @@ pub fn project_main(cmd: &ProjectCommand, options: &Options) -> anyhow::Result<(
     use crate::portable::project::Command::*;
 
     match &cmd.subcommand {
-        Init(c) => project::init(c, &options),
+        Init(c) => project::init(c, options),
         Unlink(c) => project::unlink(c, options),
         Info(c) => project::info(c),
-        Upgrade(c) => project::upgrade(c),
+        Upgrade(c) => project::upgrade(c, options),
     }
 }

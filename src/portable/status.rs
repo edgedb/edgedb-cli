@@ -26,7 +26,7 @@ use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::local::{read_ports, is_valid_instance_name, lock_file};
-use crate::portable::options::{Status, List, instance_arg};
+use crate::portable::options::{Status, List, instance_arg, InstanceName};
 use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, echo, Highlight};
@@ -125,7 +125,10 @@ pub fn status(options: &Status) -> anyhow::Result<()> {
 }
 
 fn external_status(options: &Status) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let ref meta = InstanceInfo::read(name)?;
     if cfg!(windows) {
         windows::external_status(meta)
@@ -222,7 +225,10 @@ pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
 }
 
 fn normal_status(options: &Status) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let meta = InstanceInfo::try_read(name).transpose();
     if let Some(meta) = meta {
         let paths = Paths::get(name)?;
@@ -309,7 +315,11 @@ async fn intermediate_feedback<F, D>(future: F, text: impl FnOnce() -> D)
 }
 
 pub fn remote_status(options: &Status) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => unreachable!("remote_status got cloud instance")
+    };
+
     let status = task::block_on(
         intermediate_feedback(
             _remote_status(name, options.quiet),

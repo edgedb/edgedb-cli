@@ -24,7 +24,7 @@ use crate::portable::control;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstanceInfo, Paths, write_json, NonLocalInstance};
-use crate::portable::options::{self, Logs, StartConf, instance_arg};
+use crate::portable::options::{self, Logs, StartConf, instance_arg, InstanceName};
 use crate::portable::project;
 use crate::portable::repository::{self, download, PackageHash, PackageInfo};
 use crate::portable::status::{self, Service};
@@ -200,8 +200,7 @@ pub fn create_instance(options: &options::Create, name: &str,
     Ok(())
 }
 
-pub fn destroy(options: &options::Destroy) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+pub fn destroy(options: &options::Destroy, name: &str) -> anyhow::Result<()> {
     let mut found = false;
     if let Some(wsl) = get_wsl()? {
         let options = options::Destroy {
@@ -220,7 +219,7 @@ pub fn destroy(options: &options::Destroy) -> anyhow::Result<()> {
         }
     }
 
-    let paths = Paths::get(&name)?;
+    let paths = Paths::get(name)?;
     if paths.credentials.exists() {
         found = true;
         log::info!(target: "edgedb::portable::destroy",
@@ -693,8 +692,9 @@ pub fn info(options: &options::Info) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn reset_password(options: &options::ResetPassword) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+pub fn reset_password(
+    options: &options::ResetPassword, name: &str
+) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
             .arg("instance").arg("reset-password").args(options)
@@ -708,8 +708,7 @@ pub fn reset_password(options: &options::ResetPassword) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn start(options: &options::Start) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+pub fn start(options: &options::Start, name: &str) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         if options.foreground {
             wsl.edgedb().arg("instance").arg("start").args(options).run()?;
@@ -723,10 +722,9 @@ pub fn start(options: &options::Start) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn stop(options: &options::Stop) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+pub fn stop(options: &options::Stop, name: &str) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
-        let service_file = service_file(&name)?;
+        let service_file = service_file(name)?;
         fs::remove_file(&service_file)
             .map_err(|e| log::warn!("error removing {service_file:?}: {e:#}"))
             .ok();
@@ -865,8 +863,7 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
     Ok(())
 }
 
-pub fn upgrade(options: &options::Upgrade) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+pub fn upgrade(options: &options::Upgrade, name: &str) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     wsl.edgedb()
         .arg("instance")
@@ -878,8 +875,7 @@ pub fn upgrade(options: &options::Upgrade) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn revert(options: &options::Revert) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+pub fn revert(options: &options::Revert, name: &str) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     wsl.edgedb()
         .arg("instance")

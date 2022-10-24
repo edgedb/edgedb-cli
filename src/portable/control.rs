@@ -10,7 +10,7 @@ use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform::current_exe;
 use crate::portable::local::{InstanceInfo, runstate_dir, open_lock, lock_file};
-use crate::portable::options::{Start, Stop, Restart, Logs, instance_arg};
+use crate::portable::options::{Start, Stop, Restart, Logs, instance_arg, InstanceName};
 use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
 use crate::process;
@@ -210,7 +210,16 @@ fn set_inheritable(file: &impl std::os::unix::io::AsRawFd)
 }
 
 pub fn start(options: &Start) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => {
+            if cfg!(windows) {
+                return windows::start(options, name);
+            } else {
+                name
+            }
+        },
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let meta = InstanceInfo::read(name)?;
     ensure_runstate_dir(&meta.name)?;
     if options.foreground || options.managed_by.is_some() {
@@ -379,7 +388,16 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
 }
 
 pub fn stop(options: &Stop) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => {
+            if cfg!(windows) {
+                return windows::stop(options, name);
+            } else {
+                name
+            }
+        },
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let meta = InstanceInfo::read(name)?;
     do_stop(&meta.name)
 }
@@ -474,7 +492,10 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn restart(options: &Restart) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let meta = InstanceInfo::read(name)?;
     do_restart(&meta)
 }

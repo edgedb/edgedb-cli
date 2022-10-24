@@ -13,7 +13,7 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
-use crate::portable::options::{Upgrade, instance_arg};
+use crate::portable::options::{Upgrade, instance_arg, InstanceName};
 use crate::portable::project;
 use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
@@ -87,7 +87,13 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
 }
 
 pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => upgrade_local(options, name),
+        InstanceName::Cloud { .. } => todo!(),
+    }
+}
+
+fn upgrade_local(options: &Upgrade, name: &str) -> anyhow::Result<()> {
     let inst = InstanceInfo::read(name)?;
     let inst_ver = inst.get_version()?.specific();
     let ver_option = options.to_latest || options.to_nightly ||
@@ -100,7 +106,7 @@ pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
     check_project(name, options.force, &ver_query)?;
 
     if cfg!(windows) {
-        return windows::upgrade(options);
+        return windows::upgrade(options, name);
     }
 
     let pkg = repository::get_server_package(&ver_query)?

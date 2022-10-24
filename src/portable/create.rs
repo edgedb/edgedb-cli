@@ -1,4 +1,5 @@
 use std::fs;
+use std::str::FromStr;
 
 use anyhow::Context;
 use async_std::task;
@@ -13,8 +14,8 @@ use crate::portable::control::{self, self_signed_arg, ensure_runstate_dir};
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{Paths, InstanceInfo};
-use crate::portable::local::{write_json, allocate_port, is_valid_instance_name};
-use crate::portable::options::{Create, Start};
+use crate::portable::local::{write_json, allocate_port};
+use crate::portable::options::{Create, InstanceName, Start};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query};
 use crate::portable::reset_password::{password_hash, generate_password};
@@ -26,24 +27,40 @@ use crate::question;
 use edgedb_client::credentials::Credentials;
 
 
-fn ask_name() -> anyhow::Result<String> {
+async fn ask_name(
+    cloud_client: &mut cloud::client::CloudClient
+) -> anyhow::Result<InstanceName> {
     let instances = credentials::all_instance_names()?;
     loop {
         let name = question::String::new(
             "Specify a name for the new instance"
         ).ask()?;
-        if !is_valid_instance_name(&name) {
-            echo!(err_marker(),
-                "Instance name must be a valid identifier, \
-                 (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
-            continue;
+        let inst_name = match InstanceName::from_str(&name) {
+            Ok(name) => name,
+            Err(e) => {
+                print::error(e);
+                continue;
+            }
+        };
+        let exists = match &inst_name {
+            InstanceName::Local(name) => instances.contains(name),
+            InstanceName::Cloud { org_slug, name} => {
+                if !cloud_client.is_logged_in {
+                    if let Err(e) = cloud::ops::prompt_cloud_login(cloud_client).await {
+                        print::error(e);
+                        continue;
+                    }
+                }
+                cloud::ops::find_cloud_instance_by_name(
+                    name, org_slug, cloud_client
+                ).await?.is_some()
+            }
+        };
+        if exists {
+            echo!(err_marker(), "Instance", name.emphasize(), "already exists.");
+        } else {
+            return Ok(inst_name);
         }
-        if instances.contains(&name) {
-            echo!(err_marker(),
-                "Instance", name.emphasize(), "already exists.");
-            continue;
-        }
-        return Ok(name);
     }
 }
 
@@ -61,18 +78,38 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
                      the instance.");
     }
 
-    let name = if let Some(name) = &cmd.name {
+    let mut client = cloud::client::CloudClient::new(&opts.cloud_options)?;
+    let inst_name = if let Some(name) = &cmd.name {
         name.to_owned()
     } else if cmd.non_interactive {
         echo!(err_marker(), "Instance name is required \
                              in non-interactive mode");
         return Err(ExitCode::new(2).into());
     } else {
-        ask_name()?
+        task::block_on(ask_name(&mut client))?
     };
 
-    if name.contains("/") {
-        return task::block_on(cloud::ops::create(cmd, opts));
+    let name = match inst_name.clone() {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { org_slug, name } => {
+            client.ensure_authenticated()?;
+            let instance = cloud::ops::CloudInstanceCreate {
+                name: name.clone(),
+                org: org_slug,
+                // version: Some(format!("{}", version.display())),
+                // default_database: Some(cmd.default_database.clone()),
+                // default_user: Some(cmd.default_user.clone()),
+            };
+            task::block_on(cloud::ops::create_cloud_instance(&client, &instance))?;
+            echo!(
+                "EdgeDB Cloud instance",
+                inst_name,
+                "is up and running."
+            );
+            echo!("To connect to the instance run:");
+            echo!("  edgedb -I", name);
+            return Ok(())
+        }
     };
 
     let paths = Paths::get(&name)?;
@@ -118,7 +155,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
                          Trying to start database in the background...");
             control::start(&Start {
                 name: None,
-                instance: Some(info.name.clone()),
+                instance: Some(inst_name),
                 foreground: false,
                 auto_restart: false,
                 managed_by: None,

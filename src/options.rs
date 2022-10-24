@@ -24,6 +24,7 @@ use crate::hint::HintExt;
 use crate::markdown;
 use crate::portable::project;
 use crate::portable;
+use crate::portable::options::InstanceName;
 use crate::print;
 use crate::repl::OutputFormat;
 use crate::tty_password;
@@ -52,9 +53,8 @@ pub struct ConnectionOptions {
     /// Local instance name created with `edgedb instance create` to connect to
     /// (overrides host and port)
     #[clap(short='I', long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(validator(crate::portable::options::instance_or_cloud_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 
     /// DSN for EdgeDB to connect to (overrides all other options
     /// except password)
@@ -671,14 +671,17 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         task::block_on(bld.read_dsn(dsn))?;
         bld.read_extra_env_vars()?;
     } else if let Some(instance) = &tmp.instance {
-        if instance.contains("/") {
-            let (org, inst_name) = crate::cloud::ops::split_cloud_instance_name(&instance)?;
-            let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
-            let inst = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
-                    &inst_name, &org, &client))?;
-            bld.credentials(&inst.expect("missing instance").as_credentials()?)?;
-        } else {
-            task::block_on(bld.read_instance(instance))?;
+        match instance {
+            InstanceName::Cloud { org_slug, name } => {
+                let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
+                client.ensure_authenticated()?;
+                let inst = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
+                    name, org_slug, &client))?;
+                bld.credentials(&inst.expect("missing instance").as_credentials()?)?;
+            }
+            InstanceName::Local(instance) => {
+                task::block_on(bld.read_instance(instance))?;
+            }
         }
         bld.read_extra_env_vars()?;
     } else if let Some(file_path) = &tmp.credentials_file {
