@@ -225,7 +225,7 @@ pub fn try_to_destroy(
     Ok(())
 }
 
-pub async fn list(client: CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
+pub async fn list(client: &CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
     client.ensure_authenticated()?;
     let cloud_instances: Vec<CloudInstance> = timeout(
         Duration::from_secs(30), client.get("instances/")

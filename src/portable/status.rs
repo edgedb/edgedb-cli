@@ -8,6 +8,7 @@ use std::process::exit;
 use std::time::Duration;
 
 use anyhow::Context;
+use async_std::future::TimeoutError;
 use async_std::prelude::FutureExt;
 use async_std::stream;
 use async_std::task;
@@ -384,13 +385,24 @@ async fn get_remote_async(instances: Vec<String>) -> anyhow::Result<Vec<RemoteSt
     Ok(result)
 }
 
+async fn get_cloud(cloud_client: &CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
+    match crate::cloud::ops::list(cloud_client).await {
+        Ok(rv) => Ok(rv),
+        Err(e) if e.is::<TimeoutError>() => {
+            print::warn("Timed out getting cloud instances.");
+            Ok(Vec::new())
+        }
+        Err(e) => Err(e),
+    }
+}
+
 async fn get_remote_and_cloud(
     instances: Vec<String>,
-    cloud_client: CloudClient,
+    cloud_client: &CloudClient,
 ) -> anyhow::Result<Vec<RemoteStatus>> {
     let (remote, cloud) = try_join!(
         get_remote_async(instances),
-        crate::cloud::ops::list(cloud_client),
+        get_cloud(cloud_client),
     )?;
     Ok(remote.into_iter().chain(cloud.into_iter()).collect())
 }
@@ -408,7 +420,7 @@ pub fn get_remote(
     if cloud_client.is_logged_in {
         task::block_on(
             intermediate_feedback(
-                get_remote_and_cloud(instances, cloud_client),
+                get_remote_and_cloud(instances, &cloud_client),
                 || {
                     if num > 0 {
                         format!("Checking cloud and {} remote instances...", num)
