@@ -14,7 +14,7 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
-use crate::portable::options::{Upgrade, instance_arg};
+use crate::portable::options::{Upgrade, instance_arg, InstanceName};
 use crate::portable::project;
 use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
@@ -88,13 +88,13 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
 }
 
 pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let name = instance_arg(&cmd.name, &cmd.instance)?;
-
-    let is_cloud_instance = name.contains("/");
-    if is_cloud_instance {
-        return task::block_on(cloud::ops::upgrade(cmd, opts))
+    match instance_arg(&cmd.name, &cmd.instance)? {
+        InstanceName::Local(name) => upgrade_local(cmd, name),
+        InstanceName::Cloud { org_slug: org, name } => upgrade_cloud(org, name, opts),
     }
+}
 
+fn upgrade_local(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     let inst = InstanceInfo::read(name)?;
     let inst_ver = inst.get_version()?.specific();
     let ver_option = cmd.to_latest || cmd.to_nightly ||
@@ -107,7 +107,7 @@ pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<
     check_project(name, cmd.force, &ver_query)?;
 
     if cfg!(windows) {
-        return windows::upgrade(cmd);
+        return windows::upgrade(cmd, name);
     }
 
     let pkg = repository::get_server_package(&ver_query)?
@@ -134,6 +134,16 @@ pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<
     } else {
         upgrade_incompatible(inst, pkg)
     }
+}
+
+fn upgrade_cloud(org: &str, name: &str, opts: &crate::options::Options) -> anyhow::Result<()> {
+    task::block_on(cloud::ops::upgrade(org, name, opts))?;
+    print::echo!(
+        "EdgeDB Cloud instance",
+        format!("{}/{}", org, name).emphasize(),
+        "is successfully upgraded.",
+    );
+    Ok(())
 }
 
 pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)

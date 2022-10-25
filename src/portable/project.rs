@@ -8,6 +8,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use async_std::task;
+use blocking::unblock;
 use clap::{ValueHint};
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
@@ -30,8 +31,8 @@ use crate::portable::create;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::install;
-use crate::portable::local::{InstanceInfo, Paths, allocate_port, is_valid_instance_name};
-use crate::portable::options::{self, instance_name_opt, StartConf, Start};
+use crate::portable::local::{InstanceInfo, Paths, allocate_port};
+use crate::portable::options::{self, StartConf, Start, InstanceName};
 use crate::portable::platform::{optional_docker_check};
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::upgrade;
@@ -108,8 +109,8 @@ pub struct Init {
     pub link: bool,
 
     /// Specifies the EdgeDB server instance to be associated with the project
-    #[clap(long, validator(instance_name_opt))]
-    pub server_instance: Option<String>,
+    #[clap(long)]
+    pub server_instance: Option<InstanceName>,
 
     /// Deprecated. Has no action
     #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
@@ -193,9 +194,9 @@ pub struct Upgrade {
     pub force: bool,
 }
 
-pub struct Handle {
+pub struct Handle<'a> {
     name: String,
-    instance: InstanceKind,
+    instance: InstanceKind<'a>,
     project_dir: PathBuf,
     schema_dir: PathBuf,
 }
@@ -203,10 +204,15 @@ pub struct Handle {
 pub struct WslInfo {
 }
 
-pub enum InstanceKind {
+pub enum InstanceKind<'a> {
     Remote,
     Portable(InstanceInfo),
     Wsl(WslInfo),
+    Cloud {
+        org_slug: String,
+        name: String,
+        cloud_client: &'a CloudClient,
+    },
 }
 
 #[derive(serde::Serialize)]
@@ -236,7 +242,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             let dir = fs::canonicalize(&dir)?;
             if dir.join("edgedb.toml").exists() {
                 if options.link {
-                    link(options, &dir)?
+                    link(options, &dir, &opts.cloud_options)?
                 } else {
                     init_existing(options, &dir, &opts.cloud_options)?
                 }
@@ -257,7 +263,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             if let Some(dir) = search_dir(&base_dir) {
                 let dir = fs::canonicalize(&dir)?;
                 if options.link {
-                    link(options, &dir)?
+                    link(options, &dir, &opts.cloud_options)?
                 } else {
                     init_existing(options, &dir, &opts.cloud_options)?
                 }
@@ -277,26 +283,51 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     Ok(())
 }
 
-fn ask_existing_instance_name() -> anyhow::Result<String> {
+async fn ask_existing_instance_name(
+    cloud_client: &mut CloudClient
+) -> anyhow::Result<InstanceName> {
     let instances = credentials::all_instance_names()?;
 
-    let mut q =
-        question::String::new("Specify the name of EdgeDB instance \
-                               to link with this project");
     loop {
-        let target_name = q.ask()?;
+        let mut q =
+            question::String::new("Specify the name of EdgeDB instance \
+                                   to link with this project");
+        let target_name = unblock(move || q.ask()).await?;
 
-        if instances.contains(&target_name) {
-            return Ok(target_name);
+        let inst_name = match InstanceName::from_str(&target_name) {
+            Ok(name) => name,
+            Err(e) => {
+                print::error(e);
+                continue;
+            }
+        };
+        let exists = match &inst_name {
+            InstanceName::Local(name) => instances.contains(name),
+            InstanceName::Cloud { org_slug, name } => {
+                if !cloud_client.is_logged_in {
+                    if let Err(e) = crate::cloud::ops::prompt_cloud_login(
+                        cloud_client
+                    ).await {
+                        print::error(e);
+                        continue;
+                    }
+                }
+                crate::cloud::ops::find_cloud_instance_by_name(
+                    name, org_slug, cloud_client
+                ).await?.is_some()
+            }
+        };
+        if exists {
+            return Ok(inst_name);
         } else {
             print::error(format!("Instance {:?} doesn't exist", target_name));
         }
     }
 }
 
-fn link(options: &Init, project_dir: &Path)
-    -> anyhow::Result<ProjectInfo>
-{
+fn link(
+    options: &Init, project_dir: &Path, cloud_options: &crate::options::CloudOptions
+) -> anyhow::Result<ProjectInfo> {
     echo!("Found `edgedb.toml` in", project_dir.display());
     echo!("Linking project...");
 
@@ -309,19 +340,17 @@ fn link(options: &Init, project_dir: &Path)
     let config = config::read(&config_path)?;
     let ver_query = config.edgedb.server_version;
 
+    let mut client = CloudClient::new(cloud_options)?;
     let name = if let Some(name) = &options.server_instance {
-        if name.contains("/") {
-            anyhow::bail!(format!("Cloud instances can not be linked\nconnect to this instance with\n    edgedb -I {}", name))
-        }
         name.clone()
     } else if options.non_interactive {
         anyhow::bail!("Existing instance name should be specified \
                        with `--server-instance` argument when linking project \
                        in non-interactive mode")
     } else {
-        ask_existing_instance_name()?
+        task::block_on(ask_existing_instance_name(&mut client))?
     };
-    let inst = Handle::probe(&name, project_dir,&config.project.schema_dir)?;
+    let inst = Handle::probe(&name, project_dir, &config.project.schema_dir, &client)?;
     inst.check_version(&ver_query);
     do_link(&inst, options, &stash_dir)
 }
@@ -352,7 +381,9 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     })
 }
 
-fn ask_name(dir: &Path, options: &Init) -> anyhow::Result<(String, bool)> {
+async fn ask_name(
+    dir: &Path, options: &Init, cloud_client: &mut CloudClient
+) -> anyhow::Result<(InstanceName, bool)> {
     let instances = credentials::all_instance_names()?;
     let default_name = if let Some(name) = &options.server_instance {
         name.clone()
@@ -376,61 +407,71 @@ fn ask_name(dir: &Path, options: &Init) -> anyhow::Result<(String, bool)> {
             name = format!("{}_{:04}",
                 stem, thread_rng().gen_range(0..10000));
         }
-        name
+        InstanceName::Local(name)
     };
     if options.non_interactive {
-        if instances.contains(&default_name) {
+        let exists = match &default_name {
+            InstanceName::Local(name) => instances.contains(name),
+            InstanceName::Cloud { org_slug, name } => {
+                cloud_client.ensure_authenticated()?;
+                let inst = crate::cloud::ops::find_cloud_instance_by_name(
+                    name,
+                    org_slug,
+                    cloud_client,
+                ).await?;
+                inst.is_some()
+            }
+        };
+        if exists {
             anyhow::bail!(format!("Instance {:?} already exists, \
-                           to link project with it pass `--link` \
-                           flag explicitly",
-                           default_name))
+                               to link project with it pass `--link` \
+                               flag explicitly", default_name.to_string()))
         }
-
-        return Ok((default_name, false))
+        return Ok((default_name, false));
     }
-    let mut q = question::String::new(
-        "Specify the name of EdgeDB instance to use with this project"
-    );
-    q.default(&default_name);
     loop {
-        let target_name = q.ask()?;
-        if !is_valid_instance_name(&target_name) {
-            print::error("Instance name must be a valid identifier, \
-                         (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
-            continue;
-        }
-        if instances.contains(&target_name) {
+        let default_name_clone = default_name.clone();
+        let target_name = unblock(move || {
+            let mut q = question::String::new(
+                "Specify the name of EdgeDB instance to use with this project"
+            );
+            let default_name_str = default_name_clone.to_string();
+            q.default(&default_name_str).ask()
+        }).await?;
+        let inst_name = match InstanceName::from_str(&target_name) {
+            Ok(name) => name,
+            Err(e) => {
+                print::error(e);
+                continue;
+            }
+        };
+        let exists = match &inst_name {
+            InstanceName::Local(name) => instances.contains(name),
+            InstanceName::Cloud { org_slug, name } => {
+                if !cloud_client.is_logged_in {
+                    if let Err(e) = crate::cloud::ops::prompt_cloud_login(
+                        cloud_client
+                    ).await {
+                        print::error(e);
+                        continue;
+                    }
+                }
+                crate::cloud::ops::find_cloud_instance_by_name(
+                    name, org_slug, cloud_client
+                ).await?.is_some()
+            }
+        };
+        if exists {
             let confirm = question::Confirm::new(
                 format!("Do you want to use existing instance {:?} \
                          for the project?",
                          target_name)
             );
             if confirm.ask()? {
-                return Ok((target_name, true));
+                return Ok((inst_name, true));
             }
         } else {
-            return Ok((target_name, false))
-        }
-    }
-}
-
-fn ask_link_cloud_instance(options: &Init, name: &str) -> anyhow::Result<()> {
-    if options.non_interactive {
-        anyhow::bail!(format!(
-                    "Cloud instance {:?} already exists, \
-                           to link project with it pass `--link` \
-                           flag explicitly",
-                    name
-                ));
-    } else {
-        let confirm = question::Confirm::new(format!(
-            "Do you want to use existing Cloud instance {:?} for the project?",
-            name
-        ));
-        if confirm.ask()? {
-            Ok(())
-        } else {
-            anyhow::bail!("Aborted.");
+            return Ok((inst_name, false))
         }
     }
 }
@@ -463,81 +504,68 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
     } else {
         config.edgedb.server_version
     };
-    let (name, exists) = ask_name(project_dir, options)?;
+    let mut client = CloudClient::new(cloud_options)?;
+    let (name, exists) = task::block_on(ask_name(project_dir, options, &mut client))?;
 
     if exists {
-        let inst = Handle::probe(&name, project_dir, &schema_dir)?;
+        let inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
         inst.check_version(&ver_query);
         return do_link(&inst, options, &stash_dir);
     }
 
     echo!("Checking EdgeDB versions...");
 
-    if name.contains("/") {
-        let mut client = CloudClient::new(cloud_options)?;
-        if !client.is_logged_in {
-            if !options.non_interactive {
-                let mut q = question::Confirm::new(
-                    "You're not authenticated to the EdgeDB Cloud yet, login now?",
-                );
-                if q.default(true).ask()? {
-                    task::block_on(crate::cloud::auth::do_login(&client))?;
-                    client = CloudClient::new(cloud_options)?;
-                } else {
-                    anyhow::bail!("Aborted.");
-                }
+    match &name {
+        InstanceName::Cloud { org_slug, name } => {
+            table::settings(&[
+                ("Project directory", &project_dir.display().to_string()),
+                ("Project config", &config_path.display().to_string()),
+                (&format!("Schema dir {}",
+                          if schema_files { "(non-empty)" } else { "(empty)" }),
+                 &schema_dir_path.display().to_string()),
+                // ("Version", &format!("{:?}", version)),
+                ("Instance name", &name.to_string()),
+            ]);
+
+            if !schema_files {
+                write_schema_default(&schema_dir)?;
             }
-            client.ensure_authenticated(false)?;
-        };
-        let (org, inst) = crate::cloud::ops::split_cloud_instance_name(&name)?;
-        if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
-            &inst, &org, &client,
-        ))? {
-            ask_link_cloud_instance(options, &name)?;
-            let inst = Handle::probe(&name, project_dir, &schema_dir)?;
-            inst.check_version(&ver_query);
-            return do_link(&inst, options, &stash_dir);
+            do_cloud_init(
+                name.to_owned(),
+                org_slug.to_owned(),
+                &stash_dir,
+                &project_dir,
+                &schema_dir,
+                options,
+                &client)
         }
-        table::settings(&[
-            ("Project directory", &project_dir.display().to_string()),
-            ("Project config", &config_path.display().to_string()),
-            (&format!("Schema dir {}",
-                      if schema_files { "(non-empty)" } else { "(empty)" }),
-             &schema_dir_path.display().to_string()),
-            // ("Version", &format!("{:?}", version)),
-            ("Instance name", &name),
-        ]);
-        if !schema_files {
-            write_schema_default(&schema_dir)?;
+        InstanceName::Local(name) => {
+            let pkg = repository::get_server_package(&ver_query)?
+                .with_context(||
+                    format!("cannot find package matching {}", ver_query.display()))?;
+
+            let meth = if cfg!(windows) {
+                "WSL"
+            } else {
+                "portable package"
+            };
+            table::settings(&[
+                ("Project directory", &project_dir.display().to_string()),
+                ("Project config", &config_path.display().to_string()),
+                (&format!("Schema dir {}",
+                          if schema_files { "(non-empty)" } else { "(empty)" }),
+                 &schema_dir_path.display().to_string()),
+                ("Installation method", meth),
+                ("Version", &pkg.version.to_string()),
+                ("Instance name", name),
+            ]);
+
+            if !schema_files {
+                write_schema_default(&schema_dir)?;
+            }
+
+            do_init(name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
         }
-
-        do_cloud_init(name, org, &stash_dir, &project_dir, &schema_dir, options, &client)  // , version)
-    } else {
-        let pkg = repository::get_server_package(&ver_query)?
-            .with_context(||
-                format!("cannot find package matching {}", ver_query.display()))?;
-
-        let meth = if cfg!(windows) {
-            "WSL"
-        } else {
-            "portable package"
-        };
-        table::settings(&[
-            ("Project directory", &project_dir.display().to_string()),
-            ("Project config", &config_path.display().to_string()),
-            (&format!("Schema dir {}",
-                      if schema_files { "(non-empty)" } else { "(empty)" }),
-             &schema_dir_path.display().to_string()),
-            ("Installation method", meth),
-            ("Version", &pkg.version.to_string()),
-            ("Instance name", &name),
-        ]);
-
-        if !schema_files {
-            write_schema_default(&schema_dir)?;
-        }
-
-        do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
     }
 }
 
@@ -547,11 +575,12 @@ fn do_init(name: &str, pkg: &PackageInfo,
 {
     let port = allocate_port(name)?;
     let paths = Paths::get(&name)?;
+    let inst_name = InstanceName::Local(name.to_owned());
 
     let instance = if cfg!(windows) {
         let q = repository::Query::from_version(&pkg.version.specific())?;
         windows::create_instance(&options::Create {
-            name: Some(name.into()),
+            name: Some(inst_name.clone()),
             nightly: q.is_nightly(),
             version: q.version,
             port: Some(port),
@@ -582,7 +611,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
                              Trying to start database in the background...");
                 control::start(&Start {
                     name: None,
-                    instance: Some(info.name.clone()),
+                    instance: Some(inst_name.clone()),
                     foreground: false,
                     auto_restart: false,
                     managed_by: None,
@@ -679,10 +708,11 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     let schema_dir_path = project_dir.join(schema_dir);
     let schema_files = find_schema_files(&schema_dir)?;
 
-    let (name, exists) = ask_name(project_dir, options)?;
+    let mut client = CloudClient::new(&opts.cloud_options)?;
+    let (inst_name, exists) = task::block_on(ask_name(project_dir, options, &mut client))?;
 
     if exists {
-        let inst = Handle::probe(&name, project_dir, &schema_dir)?;
+        let inst = Handle::probe(&inst_name, project_dir, &schema_dir, &client)?;
         write_config(&config_path,
                      &Query::from_version(&inst.get_version()?.specific())?)?;
         if !schema_files {
@@ -693,78 +723,63 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
 
     echo!("Checking EdgeDB versions...");
 
-    if name.contains("/") {
-        let mut client = CloudClient::new(&opts.cloud_options)?;
-        if !client.is_logged_in {
-            if !options.non_interactive {
-                let mut q = question::Confirm::new(
-                    "You're not authenticated to the EdgeDB Cloud yet, login now?",
-                );
-                if q.default(true).ask()? {
-                    task::block_on(crate::cloud::auth::do_login(&client))?;
-                    client = CloudClient::new(&opts.cloud_options)?;
-                } else {
-                    anyhow::bail!("Aborted.");
-                }
-            }
-            client.ensure_authenticated(false)?;
-        };
-        let (org, inst) = crate::cloud::ops::split_cloud_instance_name(&name)?;
-        if let Some(_instance) = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
-            &inst, &org, &client,
-        ))? {
-            ask_link_cloud_instance(options, &name)?;
-            let inst = Handle::probe(&name, project_dir, &schema_dir)?;
-            write_config(&config_path,
-                         &Query::from_version(&inst.get_version()?.specific())?)?;
+    match &inst_name {
+        InstanceName::Cloud { org_slug, name } => {
+            client.ensure_authenticated()?;
+            let version = ask_cloud_version(options)?;
+            table::settings(&[
+                ("Project directory", &project_dir.display().to_string()),
+                ("Project config", &config_path.display().to_string()),
+                (&format!("Schema dir {}",
+                          if schema_files { "(non-empty)" } else { "(empty)" }),
+                 &schema_dir_path.display().to_string()),
+                ("Version", &format!("{:?}", version)),
+                ("Instance name", &name),
+            ]);
+            let ver_query = Query::from_str(&version)?;
+            write_config(&config_path, &ver_query)?;
             if !schema_files {
                 write_schema_default(&schema_dir_path)?;
             }
-            return do_link(&inst, options, &stash_dir);
+
+            do_cloud_init(
+                name.to_owned(),
+                org_slug.to_owned(),
+                &stash_dir,
+                &project_dir,
+                &schema_dir,
+                options,
+                &client,
+                // version,
+            )
         }
-        let version = ask_cloud_version(options)?;
-        table::settings(&[
-            ("Project directory", &project_dir.display().to_string()),
-            ("Project config", &config_path.display().to_string()),
-            (&format!("Schema dir {}",
-                      if schema_files { "(non-empty)" } else { "(empty)" }),
-             &schema_dir_path.display().to_string()),
-            ("Version", &format!("{:?}", version)),
-            ("Instance name", &name),
-        ]);
-        let ver_query = Query::from_str(&version)?;
-        write_config(&config_path, &ver_query)?;
-        if !schema_files {
-            write_schema_default(&schema_dir_path)?;
+        InstanceName::Local(name) => {
+            let pkg = ask_version(options)?;
+
+            let meth = if cfg!(windows) {
+                "WSL"
+            } else {
+                "portable package"
+            };
+            table::settings(&[
+                ("Project directory", &project_dir.display().to_string()),
+                ("Project config", &config_path.display().to_string()),
+                (&format!("Schema dir {}",
+                          if schema_files { "(non-empty)" } else { "(empty)" }),
+                 &schema_dir_path.display().to_string()),
+                ("Installation method", meth),
+                ("Version", &pkg.version.to_string()),
+                ("Instance name", &name),
+            ]);
+
+            let ver_query = Query::from_version(&pkg.version.specific())?;
+            write_config(&config_path, &ver_query)?;
+            if !schema_files {
+                write_schema_default(&schema_dir_path)?;
+            }
+
+            do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
         }
-
-        do_cloud_init(inst, org, &stash_dir, &project_dir, &schema_dir, options, &client)  // , version)
-    } else {
-        let pkg = ask_version(options)?;
-
-        let meth = if cfg!(windows) {
-            "WSL"
-        } else {
-            "portable package"
-        };
-        table::settings(&[
-            ("Project directory", &project_dir.display().to_string()),
-            ("Project config", &config_path.display().to_string()),
-            (&format!("Schema dir {}",
-                      if schema_files { "(non-empty)" } else { "(empty)" }),
-             &schema_dir_path.display().to_string()),
-            ("Installation method", meth),
-            ("Version", &pkg.version.to_string()),
-            ("Instance name", &name),
-        ]);
-
-        let ver_query = Query::from_version(&pkg.version.specific())?;
-        write_config(&config_path, &ver_query)?;
-        if !schema_files {
-            write_schema_default(&schema_dir_path)?;
-        }
-
-        do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
     }
 }
 
@@ -821,6 +836,7 @@ fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
             anyhow::bail!("remote instance is not running, \
                           cannot run migrations");
         }
+        InstanceKind::Cloud { .. } => todo!(),
     }
 }
 
@@ -838,10 +854,11 @@ fn start(handle: &Handle) -> anyhow::Result<()> {
             anyhow::bail!("remote instance is not running, \
                           cannot run migrations");
         }
+        InstanceKind::Cloud { .. } => todo!(),
     }
 }
 
-async fn migrate(inst: &Handle, ask_for_running: bool)
+async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
     -> anyhow::Result<()>
 {
     use crate::commands::Options;
@@ -878,7 +895,7 @@ async fn migrate(inst: &Handle, ask_for_running: bool)
                     Retry);
                 q.option("Skip migrations.",
                     Skip);
-                match q.ask()? {
+                match unblock(move || q.ask()).await? {
                     Service => match start(inst) {
                         Ok(()) => continue,
                         Err(e) => {
@@ -939,36 +956,63 @@ fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
     Ok(())
 }
 
-impl InstanceKind {
+impl InstanceKind<'_> {
     fn is_local(&self) -> bool {
         match self {
             InstanceKind::Wsl(_) => true,
             InstanceKind::Portable(_) => true,
             InstanceKind::Remote => false,
+            InstanceKind::Cloud { .. } => false,
         }
     }
 }
 
-impl Handle {
-    pub fn probe(name: &str, project_dir: &Path, schema_dir: &Path) -> anyhow::Result<Handle> {
-        if let Some(info) = InstanceInfo::try_read(name)? {
-            return Ok(Handle {
-                name: name.into(),
-                instance: InstanceKind::Portable(info),
+impl Handle<'_> {
+    pub fn probe<'a>(
+        name: &InstanceName,
+        project_dir: &Path,
+        schema_dir: &Path,
+        cloud_client: &'a CloudClient,
+    ) -> anyhow::Result<Handle<'a>> {
+        match name {
+            InstanceName::Local(name) => match InstanceInfo::try_read(name)? {
+                Some(info) => Ok(Handle {
+                    name: name.into(),
+                    instance: InstanceKind::Portable(info),
+                    project_dir: project_dir.into(),
+                    schema_dir: schema_dir.into(),
+                }),
+                None => Ok(Handle {
+                    name: name.into(),
+                    instance: InstanceKind::Remote,
+                    project_dir: project_dir.into(),
+                    schema_dir: schema_dir.into(),
+                })
+            }
+            InstanceName::Cloud { org_slug, name: inst_name } => Ok(Handle {
+                name: name.to_string(),
+                instance: InstanceKind::Cloud {
+                    org_slug: org_slug.to_owned(),
+                    name: inst_name.to_owned(),
+                    cloud_client,
+                },
                 project_dir: project_dir.into(),
                 schema_dir: schema_dir.into(),
-            });
-        };
-        Ok(Handle {
-            name: name.into(),
-            instance: InstanceKind::Remote,
-            project_dir: project_dir.into(),
-            schema_dir: schema_dir.into(),
-        })
+            })
+        }
     }
     pub async fn get_builder(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::uninitialized();
-        builder.read_instance(&self.name).await?;
+        if let InstanceKind::Cloud { org_slug, name, cloud_client } = &self.instance {
+            let inst = crate::cloud::ops::find_cloud_instance_by_name(name, org_slug, cloud_client)
+                .await?
+                .with_context(|| {
+                    format!("Instance {}/{} doesn't exist any more", org_slug, name)
+                })?;
+            builder.credentials(&inst.as_credentials()?)?;
+        } else {
+            builder.read_instance(&self.name).await?;
+        }
         Ok(builder)
     }
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {
@@ -1159,9 +1203,9 @@ fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
 }
 
 #[context("cannot read instance name of {:?}", stash_dir)]
-fn instance_name(stash_dir: &Path) -> anyhow::Result<String> {
+fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
     let inst = fs::read_to_string(&stash_dir.join("instance-name"))?;
-    Ok(inst.trim().into())
+    Ok(InstanceName::from_str(inst.trim())?)
 }
 
 pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Result<()> {
@@ -1181,18 +1225,19 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
             if !options.non_interactive {
                 let q = question::Confirm::new_dangerous(
                     format!("Do you really want to unlink \
-                             and delete instance {:?}?", inst.trim())
+                             and delete instance {}?", inst)
                 );
                 if !q.ask()? {
                     print::error("Canceled.");
                     return Ok(())
                 }
             }
-            let mut project_dirs = find_project_dirs(&inst)?;
+            let inst_name = inst.to_string();
+            let mut project_dirs = find_project_dirs(&inst_name)?;
             if project_dirs.len() > 1 {
                 project_dirs.iter().position(|d| d == &stash_path)
                     .map(|pos| project_dirs.remove(pos));
-                destroy::print_warning(&inst, &project_dirs);
+                destroy::print_warning(&inst_name, &project_dirs);
                 return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
             }
             if options.destroy_server_instance {
@@ -1353,16 +1398,18 @@ pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
 
-pub fn upgrade(options: &Upgrade) -> anyhow::Result<()> {
+pub fn upgrade(options: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
     if options.to_version.is_some() || options.to_nightly || options.to_latest
     {
-        update_toml(&options)
+        update_toml(options, opts)
     } else {
-        upgrade_instance(&options)
+        upgrade_instance(options, opts)
     }
 }
 
-pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
+pub fn update_toml(
+    options: &Upgrade, opts: &crate::options::Options
+) -> anyhow::Result<()> {
     let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
     let config_path = root.join("edgedb.toml");
     let config = config::read(&config_path)?;
@@ -1387,12 +1434,14 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
               "to initialize an instance.");
     } else {
         let name = instance_name(&stash_dir)?;
-        let inst = Handle::probe(&name, &root, &schema_dir)?;
+        let client = CloudClient::new(&opts.cloud_options)?;
+        let inst = Handle::probe(&name, &root, &schema_dir, &client)?;
         let inst = match inst.instance {
             InstanceKind::Remote
                 => anyhow::bail!("remote instances cannot be upgraded"),
             InstanceKind::Portable(inst) => inst,
             InstanceKind::Wsl(_) => todo!(),
+            InstanceKind::Cloud { .. } => todo!(),
         };
         let inst_ver = inst.get_version()?.specific();
 
@@ -1407,7 +1456,7 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
                     verbose: false,
                     force: options.force,
                     force_dump_restore: options.force,
-                })?;
+                }, &inst.name)?;
             } else {
                 // When force is used we might upgrade to the same version, but
                 // since some selector like `--to-latest` was specified we
@@ -1430,7 +1479,8 @@ pub fn update_toml(options: &Upgrade) -> anyhow::Result<()> {
             if config::modify(&config_path, &config_version)? {
                 echo!("Remember to commit it to version control.");
             }
-            print_other_project_warning(&name, &root, &query)?;
+            let name_str = name.to_string();
+            print_other_project_warning(&name_str, &root, &query)?;
         } else {
             echo!("Latest version found", pkg.version.to_string() + ",",
                   "current instance version is",
@@ -1474,7 +1524,9 @@ fn print_other_project_warning(name: &str, project_path: &Path,
     Ok(())
 }
 
-pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
+pub fn upgrade_instance(
+    options: &Upgrade, opts: &crate::options::Options
+) -> anyhow::Result<()> {
     let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
     let config_path = root.join("edgedb.toml");
     let config = config::read(&config_path)?;
@@ -1487,12 +1539,14 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
     }
 
     let instance_name = instance_name(&stash_dir)?;
-    let inst = Handle::probe(&instance_name, &root, &schema_dir)?;
+    let client = CloudClient::new(&opts.cloud_options)?;
+    let inst = Handle::probe(&instance_name, &root, &schema_dir, &client)?;
     let inst = match inst.instance {
         InstanceKind::Remote
             => anyhow::bail!("remote instances cannot be upgraded"),
         InstanceKind::Portable(inst) => inst,
         InstanceKind::Wsl(_) => todo!(),
+        InstanceKind::Cloud { .. } => todo!(),
     };
     let inst_ver = inst.get_version()?.specific();
 
@@ -1511,7 +1565,7 @@ pub fn upgrade_instance(options: &Upgrade) -> anyhow::Result<()> {
                 verbose: false,
                 force: options.force,
                 force_dump_restore: options.force,
-            })?;
+            }, &inst.name)?;
         } else {
             // When force is used we might upgrade to the same version, but
             // since some selector like `--to-latest` was specified we assume

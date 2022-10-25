@@ -7,7 +7,7 @@ use crate::options::Options;
 use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local;
-use crate::portable::options::{Destroy, instance_arg};
+use crate::portable::options::{Destroy, instance_arg, InstanceName};
 use crate::portable::project;
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
@@ -48,10 +48,11 @@ pub fn with_projects(name: &str, force: bool,
 
 pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
     let name = instance_arg(&options.name, &options.instance)?;
-    with_projects(&name, options.force, print_warning, || {
+    let name_str = name.to_string();
+    with_projects(&name_str, options.force, print_warning, || {
         if !options.force && !options.non_interactive {
             let q = question::Confirm::new_dangerous(
-                format!("Do you really want to delete instance {:?}?", name)
+                format!("Do you really want to delete instance {:?}?", name_str)
             );
             if !q.ask()? {
                 print::error("Canceled.");
@@ -68,17 +69,12 @@ pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
         }
     })?;
     if !options.quiet {
-        echo!("Instance", name.emphasize(), "is successfully deleted.");
+        echo!("Instance", name_str.emphasize(), "is successfully deleted.");
     }
     Ok(())
 }
 
-fn do_destroy(options: &Destroy, opts: &Options, name: &str)
-    -> anyhow::Result<()>
-{
-    if cfg!(windows) {
-        return windows::destroy(options);
-    }
+fn destroy_local(name: &str) -> anyhow::Result<()> {
     let paths = local::Paths::get(name)?;
     log::debug!("Paths {:?}", paths);
     let mut found = false;
@@ -129,19 +125,6 @@ fn do_destroy(options: &Destroy, opts: &Options, name: &str)
         log::info!("Removing upgrade marker {:?}", paths.upgrade_marker);
         fs::remove_file(&paths.upgrade_marker)?;
     }
-    if name.contains("/") {
-        found = true;
-        log::info!("Removing cloud instance {}", name);
-        let (org_slug, inst_name) = crate::cloud::ops::split_cloud_instance_name(name)?;
-        if let Err(e) = crate::cloud::ops::try_to_destroy(&inst_name, &org_slug, opts) {
-            let msg = format!("Failed to destroy EdgeDB Cloud instance: {:#}", e);
-            if options.force {
-                print::warn(msg);
-            } else {
-                anyhow::bail!(msg);
-            }
-        }
-    }
     if found {
         Ok(())
     } else if let Some(e) = not_found_err {
@@ -151,10 +134,38 @@ fn do_destroy(options: &Destroy, opts: &Options, name: &str)
     }
 }
 
-pub fn force_by_name(name: &str, options: &Options) -> anyhow::Result<()> {
+fn do_destroy(
+    options: &Destroy, opts: &Options, name: &InstanceName
+) -> anyhow::Result<()> {
+    match name {
+        InstanceName::Local(name) => {
+            if cfg!(windows) {
+                windows::destroy(options, name)
+            } else {
+                destroy_local(name)
+            }
+        },
+        InstanceName::Cloud { org_slug, name: inst_name } => {
+            log::info!("Removing cloud instance {}", name);
+            if let Err(e) = crate::cloud::ops::try_to_destroy(
+                &inst_name, &org_slug, opts
+            ) {
+                let msg = format!("Failed to destroy EdgeDB Cloud instance: {:#}", e);
+                if options.force {
+                    print::warn(msg);
+                } else {
+                    anyhow::bail!(msg);
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+pub fn force_by_name(name: &InstanceName, options: &Options) -> anyhow::Result<()> {
     do_destroy(&Destroy {
         name: None,
-        instance: Some(name.to_string()),
+        instance: Some(name.clone()),
         verbose: false,
         force: true,
         quiet: false,

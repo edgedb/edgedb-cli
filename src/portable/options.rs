@@ -125,12 +125,20 @@ pub enum StartConf {
     Manual,
 }
 
+#[derive(Clone, Debug)]
+pub enum InstanceName {
+    Local(String),
+    Cloud {
+        org_slug: String,
+        name: String,
+    },
+}
+
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Create {
     /// Name of the created instance. Asked interactively if not specified
-    #[clap(validator(instance_or_cloud_name_opt))]
     #[clap(value_hint=ValueHint::Other)]
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     #[clap(long)]
     pub nightly: bool,
@@ -160,15 +168,14 @@ pub struct Create {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Destroy {
     /// Name of the instance to destroy
-    #[clap(validator(instance_or_cloud_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Name of the instance to destroy
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 
     /// Verbose output
     #[clap(short='v', long, overrides_with="quiet")]
@@ -193,9 +200,8 @@ assign an instance name to simplify future connections.")]
 pub struct Link {
     /// Specify a new instance name for the remote server. If not
     /// present, the name will be interactively asked.
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Run in non-interactive mode (accepting all defaults)
     #[clap(long)]
@@ -218,15 +224,14 @@ pub struct Link {
 #[clap(long_about = "Unlink from a remote EdgeDB instance.")]
 pub struct Unlink {
     /// Specify the name of the remote instance.
-    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Specify the name of the remote instance.
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 
     /// Force destroy even if instance is referred to by a project
     #[clap(long)]
@@ -236,15 +241,14 @@ pub struct Unlink {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Start {
     /// Name of the instance to start
-    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Name of the instance to start
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 
     #[clap(long)]
     #[cfg_attr(target_os="linux",
@@ -271,29 +275,27 @@ pub struct Start {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Stop {
     /// Name of the instance to stop
-    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Name of the instance to restart
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Restart {
     /// Name of the instance to restart
-    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Name of the instance to restart
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
@@ -320,24 +322,19 @@ pub struct List {
     //  Currently needed for WSL
     #[clap(long, hide=true)]
     pub quiet: bool,
-
-    /// List EdgeDB Cloud instances
-    #[clap(long, hide=true)]
-    pub cloud: bool,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Status {
     /// Name of the instance
-    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Name of the instance
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 
     /// Show current systems service info
     #[clap(long, conflicts_with_all=&["debug", "json", "extended"])]
@@ -365,15 +362,14 @@ pub struct Status {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Logs {
     /// Name of the instance
-    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Name of the instance
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 
     /// Number of lines to show
     #[clap(short='n', long)]
@@ -399,15 +395,14 @@ pub struct Upgrade {
     pub to_nightly: bool,
 
     /// Instance to upgrade
-    #[clap(validator(instance_or_cloud_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Instance to upgrade
     #[clap(short='I', long)]
-    #[clap(validator(instance_or_cloud_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 
     /// Verbose output
     #[clap(short='v', long)]
@@ -427,15 +422,14 @@ pub struct Upgrade {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Revert {
     /// Name of the instance to revert
-    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Name of the instance to revert
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 
     /// Do not check if upgrade is in progress
     #[clap(long)]
@@ -449,15 +443,14 @@ pub struct Revert {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct ResetPassword {
     /// Name of the instance to reset
-    #[clap(validator(instance_name_opt), hide=true)]
+    #[clap(hide=true)]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub name: Option<String>,
+    pub name: Option<InstanceName>,
 
     /// Name of the instance to reset
     #[clap(short='I', long)]
-    #[clap(validator(instance_name_opt))]
     #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
-    pub instance: Option<String>,
+    pub instance: Option<InstanceName>,
 
     /// User to change password for. Default is got from credentials file.
     #[clap(long)]
@@ -548,41 +541,59 @@ impl fmt::Display for StartConf {
     }
 }
 
-pub fn instance_name_opt(name: &str) -> Result<(), String> {
-    if is_valid_instance_name(&name) {
-        return Ok(())
-    }
-    return Err("instance name must be a valid identifier, \
-                (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)".into())
-}
-
-pub fn instance_or_cloud_name_opt(name: &str) -> Result<(), String> {
-    if is_valid_instance_name(&name) {
-        return Ok(())
-    }
-    if !name.contains("/") {
-        return Err("instance name must be a valid identifier, \
-            regex: ^[a-zA-Z_][a-zA-Z_0-9]*$ or a cloud instance name ORG/INST.".into())
-    }
-    match crate::cloud::ops::split_cloud_instance_name(&name) {
-        Ok((org_slug, inst_name)) => {
-            if !is_valid_instance_name(&inst_name) {
-                return Err(format!("instance name \"{}\" must be a valid identifier, \
-                    regex: ^[a-zA-Z_][a-zA-Z_0-9]*$", inst_name).into())
-            }
-            if !is_valid_org_name(&org_slug) {
-                return Err(format!("org name \"{}\" must be a valid identifier, \
-                    regex: ^[a-zA-Z0-9][a-zA-Z0-9-]{{0,38}}$", org_slug).into())
-            }
-            return Ok(())
-        },
-        Err(e) => Err(format!("invalid cloud instance name: {}", e)),
+impl fmt::Display for InstanceName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InstanceName::Local(name) => name.fmt(f),
+            InstanceName::Cloud { org_slug, name } => write!(f, "{}/{}", org_slug, name),
+        }
     }
 }
 
-pub fn instance_arg<'x>(positional: &'x Option<String>,
-                        named: &'x Option<String>)
-    -> anyhow::Result<&'x str>
+impl FromStr for InstanceName {
+    type Err = anyhow::Error;
+    fn from_str(name: &str) -> anyhow::Result<InstanceName> {
+        if let Some((org_slug, name)) = name.split_once('/') {
+            if !is_valid_instance_name(name) {
+                anyhow::bail!(
+                    "instance name \"{}\" must be a valid identifier, \
+                     regex: ^[a-zA-Z_][a-zA-Z_0-9]*$",
+                    name,
+                );
+            }
+            if !is_valid_org_name(org_slug) {
+                anyhow::bail!(
+                    "org name \"{}\" must be a valid identifier, \
+                     regex: ^[a-zA-Z0-9][a-zA-Z0-9-]{{0,38}}$",
+                    org_slug,
+                );
+            }
+            Ok(InstanceName::Cloud {
+                org_slug: org_slug.into(),
+                name: name.into(),
+            })
+        } else {
+            if !is_valid_instance_name(name) {
+                anyhow::bail!(
+                    "instance name must be a valid identifier, \
+                     regex: ^[a-zA-Z_][a-zA-Z_0-9]*$ or \
+                     a cloud instance name ORG/INST."
+                );
+            }
+            Ok(InstanceName::Local(name.into()))
+        }
+    }
+}
+
+impl IntoArg for &InstanceName {
+    fn add_arg(self, process: &mut process::Native) {
+        process.arg(self.to_string());
+    }
+}
+
+pub fn instance_arg<'x>(positional: &'x Option<InstanceName>,
+                        named: &'x Option<InstanceName>)
+                        -> anyhow::Result<&'x InstanceName>
 {
     if let Some(name) = positional {
         if named.is_some() {

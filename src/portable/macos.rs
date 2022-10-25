@@ -9,7 +9,7 @@ use crate::commands::ExitCode;
 use crate::platform::{home_dir, get_current_uid, data_dir};
 use crate::platform::{current_exe, detect_ipv6};
 use crate::portable::local::{InstanceInfo, log_file, runstate_dir};
-use crate::portable::options::{Logs, instance_arg};
+use crate::portable::options::{Logs, instance_arg, InstanceName};
 use crate::portable::status::Service;
 use crate::print::{self, echo, Highlight};
 use crate::process;
@@ -423,6 +423,10 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn logs(options: &Logs) -> anyhow::Result<()> {
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let mut cmd = process::Native::new("log", "tail", "tail");
     if let Some(n) = options.tail {
         cmd.arg("-n").arg(n.to_string());
@@ -430,7 +434,6 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
     if options.follow {
         cmd.arg("-F");
     }
-    let name = instance_arg(&options.name, &options.instance)?;
     cmd.arg(log_file(name)?);
     cmd.no_proxy().run()
 }

@@ -21,7 +21,7 @@ mod link;
 mod list_versions;
 mod reset_password;
 mod revert;
-mod status;
+pub mod status;
 mod uninstall;
 mod upgrade;
 pub mod project;

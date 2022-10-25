@@ -7,10 +7,8 @@ use std::time::Duration;
 
 use surf::http::auth::{AuthenticationScheme, Authorization};
 
-use crate::commands::ExitCode;
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
-use crate::print;
 
 const EDGEDB_CLOUD_BASE_URL: &str = "https://free-tier0.ovh-us-west-2.edgedb.cloud";
 const EDGEDB_CLOUD_API_VERSION: &str = "/v1/";
@@ -35,11 +33,19 @@ pub struct CloudClient {
     client: surf::Client,
     pub is_logged_in: bool,
     pub base_url: String,
+    options_access_token: Option<String>,
+    options_base_url: Option<String>,
 }
 
 impl CloudClient {
     pub fn new(options: &CloudOptions) -> anyhow::Result<Self> {
-        let access_token = if let Some(access_token) = &options.cloud_access_token {
+        Self::new_inner(&options.cloud_access_token, &options.cloud_base_url)
+    }
+
+    fn new_inner(
+        options_access_token: &Option<String>, options_base_url: &Option<String>
+    ) -> anyhow::Result<Self> {
+        let access_token = if let Some(access_token) = options_access_token {
             Some(access_token.into())
         } else {
             match fs::read_to_string(cloud_config_file()?) {
@@ -54,8 +60,7 @@ impl CloudClient {
                 }
             }
         };
-        let base_url = options
-            .cloud_base_url
+        let base_url = options_base_url
             .as_deref()
             .unwrap_or(
                 env::var("EDGEDB_CLOUD_BASE_URL")
@@ -79,17 +84,24 @@ impl CloudClient {
             client: config.try_into()?,
             is_logged_in,
             base_url,
+            options_access_token: options_access_token.clone(),
+            options_base_url: options_base_url.clone(),
         })
     }
 
-    pub fn ensure_authenticated(&self, quiet: bool) -> anyhow::Result<()> {
+    pub fn reinit(&mut self) -> anyhow::Result<()> {
+        *self = Self::new_inner(
+            &self.options_access_token,
+            &self.options_base_url,
+        )?;
+        Ok(())
+    }
+
+    pub fn ensure_authenticated(&self) -> anyhow::Result<()> {
         if self.is_logged_in {
             Ok(())
         } else {
-            if !quiet {
-                print::error("Run `edgedb cloud login` first.");
-            }
-            Err(ExitCode::new(9).into())
+            anyhow::bail!("Run `edgedb cloud login` first.")
         }
     }
 

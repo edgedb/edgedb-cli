@@ -8,7 +8,7 @@ use fn_error_context::context;
 use crate::platform::{home_dir, current_exe, detect_ipv6};
 use crate::portable::destroy::InstanceNotFound;
 use crate::portable::local::{InstanceInfo, runstate_dir, log_file};
-use crate::portable::options::{Logs, instance_arg};
+use crate::portable::options::{Logs, instance_arg, InstanceName};
 use crate::portable::status::Service;
 use crate::process;
 
@@ -409,7 +409,10 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn logs(options: &Logs) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => todo!(),
+    };
     if detect_systemd(&name) {
         let mut cmd = process::Native::new(
             "logs", "journalctl", "journalctl");

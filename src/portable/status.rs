@@ -12,11 +12,12 @@ use async_std::prelude::FutureExt;
 use async_std::stream;
 use async_std::task;
 use fn_error_context::context;
-use futures_util::StreamExt;
+use futures_util::{StreamExt, try_join};
 use humantime::format_duration;
 
 use edgedb_client::{Builder, credentials::Credentials};
 
+use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::format;
@@ -25,7 +26,7 @@ use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::local::{read_ports, is_valid_instance_name, lock_file};
-use crate::portable::options::{Status, List, instance_arg};
+use crate::portable::options::{Status, List, instance_arg, InstanceName};
 use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, echo, Highlight};
@@ -94,7 +95,8 @@ pub struct RemoteStatus {
     pub type_: RemoteType,
     pub credentials: Credentials,
     pub version: Option<String>,
-    pub connection: ConnectionStatus,
+    pub connection: Option<ConnectionStatus>,
+    pub instance_status: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -107,6 +109,8 @@ pub struct JsonStatus {
     pub service_status: Option<String>,
     #[serde(skip_serializing_if="Option::is_none")]
     pub remote_status: Option<String>,
+    #[serde(skip_serializing_if="Option::is_none")]
+    pub instance_status: Option<String>,
     #[serde(skip_serializing_if="Option::is_none")]
     pub cloud_instance_id: Option<String>,
 }
@@ -121,7 +125,10 @@ pub fn status(options: &Status) -> anyhow::Result<()> {
 }
 
 fn external_status(options: &Status) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let ref meta = InstanceInfo::read(name)?;
     if cfg!(windows) {
         windows::external_status(meta)
@@ -218,7 +225,10 @@ pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
 }
 
 fn normal_status(options: &Status) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => todo!(),
+    };
     let meta = InstanceInfo::try_read(name).transpose();
     if let Some(meta) = meta {
         let paths = Paths::get(name)?;
@@ -285,7 +295,8 @@ async fn _remote_status(name: &str, quiet: bool)
         },
         credentials,
         version,
-        connection,
+        connection: Some(connection),
+        instance_status: None,
     })
 }
 
@@ -304,7 +315,11 @@ async fn intermediate_feedback<F, D>(future: F, text: impl FnOnce() -> D)
 }
 
 pub fn remote_status(options: &Status) -> anyhow::Result<()> {
-    let name = instance_arg(&options.name, &options.instance)?;
+    let name = match instance_arg(&options.name, &options.instance)? {
+        InstanceName::Local(name) => name,
+        InstanceName::Cloud { .. } => unreachable!("remote_status got cloud instance")
+    };
+
     let status = task::block_on(
         intermediate_feedback(
             _remote_status(name, options.quiet),
@@ -323,10 +338,14 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
             serde_json::to_string_pretty(&status.json())
                 .expect("status is json-serializable"),
         );
-    } else if let ConnectionStatus::Error(e) = &status.connection {
+    } else if let Some(ConnectionStatus::Error(e)) = &status.connection {
         print::error(e);
+    } else if let Some(conn_status) = &status.connection {
+        println!("{}", conn_status.as_str());
+    } else if let Some(inst_status) = &status.instance_status {
+        println!("{}", inst_status);
     } else {
-        println!("{}", status.connection.as_str());
+        println!("unknown");
     }
     status.exit()
 }
@@ -354,41 +373,68 @@ pub fn list_local<'x>(dir: &'x Path)
     }))
 }
 
-pub fn get_remote(visited: &BTreeSet<String>)
-    -> anyhow::Result<Vec<RemoteStatus>>
-{
+async fn get_remote_async(instances: Vec<String>) -> anyhow::Result<Vec<RemoteStatus>> {
+    let mut result: Vec<_> = stream::from_iter(instances)
+        .map(|name| async move {
+            _remote_status(&name, false)
+                .await
+                .map_err(|e| log::warn!("Cannot check remote instance {:?}: {:#}", name, e))
+                .ok()
+        })
+        .buffer_unordered(100)
+        .flat_map(|x| stream::from_iter(x))
+        .collect().await;
+    result.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(result)
+}
+
+async fn get_remote_and_cloud(
+    instances: Vec<String>,
+    cloud_client: CloudClient,
+) -> anyhow::Result<Vec<RemoteStatus>> {
+    let (remote, cloud) = try_join!(
+        get_remote_async(instances),
+        crate::cloud::ops::list(cloud_client),
+    )?;
+    Ok(remote.into_iter().chain(cloud.into_iter()).collect())
+}
+
+pub fn get_remote(
+    visited: &BTreeSet<String>,
+    opts: &crate::options::Options,
+) -> anyhow::Result<Vec<RemoteStatus>> {
+    let cloud_client = CloudClient::new(&opts.cloud_options)?;
     let instances: Vec<_> = credentials::all_instance_names()?
         .into_iter()
         .filter(|name| !visited.contains(name))
         .collect();
     let num = instances.len();
-    let mut result: Vec<_> = task::block_on(
-        intermediate_feedback(
-            stream::from_iter(instances)
-                .map(|name| async move {
-                    _remote_status(&name, false).await
-                    .map_err(|e| {
-                        log::warn!(
-                            "Cannot check remote instance {:?}: {:#}",
-                            name,
-                            e);
-                    }).ok()
-                })
-                .buffer_unordered(100)
-                .flat_map(|x| stream::from_iter(x))
-                .collect(),
-            || format!("Checking {} remote instances...", num),
+    if cloud_client.is_logged_in {
+        task::block_on(
+            intermediate_feedback(
+                get_remote_and_cloud(instances, cloud_client),
+                || {
+                    if num > 0 {
+                        format!("Checking cloud and {} remote instances...", num)
+                    } else {
+                        format!("Checking cloud instances...")
+                    }
+                },
+            )
         )
-    );
-    result.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(result)
+    } else if num > 0 {
+        task::block_on(
+            intermediate_feedback(
+                get_remote_async(instances),
+                || format!("Checking {} remote instances...", num),
+            )
+        )
+    } else {
+        Ok(Vec::new())
+    }
 }
 
 pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()> {
-    if options.cloud {
-        return task::block_on(crate::cloud::ops::list(options, opts));
-    }
-
     let mut visited = BTreeSet::new();
     let mut local = Vec::new();
     let data_dir = data_dir()?;
@@ -410,7 +456,7 @@ pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        get_remote(&visited)?
+        get_remote(&visited, opts)?
     };
 
     if local.is_empty() && remote.is_empty() {
@@ -478,7 +524,11 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
                    status.credentials.port)),
             Cell::new(&status.version.as_ref()
                 .map(|m| m.to_string()).as_deref().unwrap_or("?".into())),
-            Cell::new(status.connection.as_str()),
+            Cell::new(if let Some(conn_status) = &status.connection {
+                conn_status.as_str()
+            } else {
+                status.instance_status.as_deref().unwrap_or("unknown")
+            }),
         ]));
     }
     table.printstd();
@@ -575,6 +625,7 @@ impl FullStatus {
                 .map(|v| v.to_string()),
             service_status: Some(status_str(&self.service).to_string()),
             remote_status: None,
+            instance_status: None,
             cloud_instance_id: None,
         }
     }
@@ -625,21 +676,33 @@ impl FullStatus {
 impl RemoteStatus {
     pub fn print_extended(&self) {
         println!("{}:", self.name);
-        if let RemoteType::Cloud { instance_id } = &self.type_ {
+        let is_cloud = if let RemoteType::Cloud { instance_id } = &self.type_ {
             println!("  Cloud Instance ID: {}", instance_id);
+            true
+        } else {
+            false
+        };
+        if let Some(conn_status) = &self.connection {
+            println!("  Connection Status: {}", conn_status.as_str());
         }
-        println!("  Status: {}", self.connection.as_str());
-        println!("  Credentials: exist");
+        if let Some(inst_status) = &self.instance_status {
+            println!("  Instance Status: {}", inst_status);
+        }
+        if !is_cloud {
+            println!("  Credentials: exist");
+        }
         println!("  Version: {}",
             self.version.as_ref().map_or("unknown", |x| &x[..]));
         let creds = &self.credentials;
         println!("  Host: {}",
             creds.host.as_ref().map_or("localhost", |x| &x[..]));
         println!("  Port: {}", creds.port);
-        println!("  User: {}", creds.user);
-        println!("  Database: {}",
-            creds.database.as_ref().map_or("edgedb", |x| &x[..]));
-        if let ConnectionStatus::Error(e) = &self.connection {
+        if !is_cloud {
+            println!("  User: {}", creds.user);
+            println!("  Database: {}",
+                     creds.database.as_ref().map_or("edgedb", |x| &x[..]));
+        }
+        if let Some(ConnectionStatus::Error(e)) = &self.connection {
             println!("  Connection error: {:#}", e);
         }
     }
@@ -650,7 +713,8 @@ impl RemoteStatus {
             port: Some(self.credentials.port),
             version: self.version.clone(),
             service_status: None,
-            remote_status: Some(self.connection.as_str().to_string()),
+            remote_status: self.connection.as_ref().map(|s| s.as_str().to_string()),
+            instance_status: self.instance_status.clone(),
             cloud_instance_id: if let RemoteType::Cloud { instance_id } = &self.type_ {
                 Some(instance_id.clone())
             } else {
@@ -660,10 +724,13 @@ impl RemoteStatus {
     }
 
     pub fn exit(&self) -> ! {
-        if matches!(self.connection, ConnectionStatus::Connected) {
-            exit(0)
-        } else {
-            exit(3)
+        match &self.connection {
+            Some(ConnectionStatus::Connected) => exit(0),
+            Some(_) => exit(3),
+            None => match &self.instance_status {
+                Some(_) => exit(0),
+                None => exit(4),
+            }
         }
     }
 }
