@@ -46,7 +46,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Link(c) => link::link(c, &options),
         List(c) if cfg!(windows) => windows::list(c, options),
         List(c) => status::list(c, options),
-        Upgrade(c) => upgrade::upgrade(c),
+        Upgrade(c) => upgrade::upgrade(c, options),
         Start(c) => control::start(c),
         Stop(c) => control::stop(c),
         Restart(c) if cfg!(windows) => windows::restart(c),

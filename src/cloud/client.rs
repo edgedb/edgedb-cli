@@ -142,6 +142,14 @@ impl CloudClient {
         self.request(self.client.post(uri).body(body)).await
     }
 
+    pub async fn put<T: serde::de::DeserializeOwned>(
+        &self,
+        uri: impl AsRef<str>,
+        body: impl Into<surf::Body>,
+    ) -> anyhow::Result<T> {
+        self.request(self.client.put(uri).body(body)).await
+    }
+
     pub async fn delete<T: serde::de::DeserializeOwned>(
         &self,
         uri: impl AsRef<str>,

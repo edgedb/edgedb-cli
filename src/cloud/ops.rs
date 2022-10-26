@@ -4,15 +4,16 @@ use async_std::future::timeout;
 use async_std::task;
 use edgedb_client::credentials::Credentials;
 use edgedb_client::Builder;
+use indicatif::ProgressBar;
 
 use crate::cloud::client::CloudClient;
 use crate::options::CloudOptions;
 use crate::portable::status::{RemoteStatus, RemoteType};
-use crate::print;
 use crate::question;
 
-const INSTANCE_CREATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
-const INSTANCE_CREATION_POLLING_INTERVAL : Duration = Duration::from_secs(1);
+const OPERATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
+const POLLING_INTERVAL: Duration = Duration::from_secs(1);
+const SPINNER_TICK: Duration = Duration::from_millis(100);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudInstance {
@@ -68,6 +69,12 @@ pub struct CloudInstanceCreate {
     // pub default_user: Option<String>,
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct CloudInstanceUpgrade {
+    pub name: String,
+    pub org: String,
+}
+
 pub async fn find_cloud_instance_by_name(
     inst: &str,
     org: &str,
@@ -77,36 +84,51 @@ pub async fn find_cloud_instance_by_name(
     Ok(Some(instance))
 }
 
-async fn wait_instance_create(
+async fn wait_instance_available_after_operation(
     mut instance: CloudInstance,
     client: &CloudClient,
-    quiet: bool,
+    operation: &str,
 ) -> anyhow::Result<CloudInstance> {
-    if !quiet && instance.status == "creating" {
-        print::echo!("Waiting for EdgeDB Cloud instance creation...");
-    }
+    let spinner = ProgressBar::new_spinner()
+        .with_message(format!("Waiting for the result of EdgeDB Cloud instance {}...", operation));
+    spinner.enable_steady_tick(SPINNER_TICK);
+
     let url = format!("orgs/{}/instances/{}", instance.org_slug, instance.name);
-    let deadline = Instant::now() + INSTANCE_CREATION_WAIT_TIME;
+    let deadline = Instant::now() + OPERATION_WAIT_TIME;
     while Instant::now() < deadline {
-        if instance.dsn != "" {
-            return Ok(instance);
-        }
-        if instance.status != "available" && instance.status != "creating" {
+        if instance.status != "available" && instance.status != operation {
             anyhow::bail!(
-                "Failed to create EdgeDB Cloud instance: {}",
+                "Failed to wait for EdgeDB Cloud instance to become available after {} an instance: {}",
+                operation,
                 instance.status
             );
         }
-        if instance.status == "creating" {
-            task::sleep(INSTANCE_CREATION_POLLING_INTERVAL).await;
+        if instance.status == operation {
+            task::sleep(POLLING_INTERVAL).await;
+            instance = client.get(&url).await?;
+        } else {
+            break;
         }
-        instance = client.get(&url).await?;
     }
-    if instance.dsn != "" {
+    if instance.dsn != "" && instance.status == "available" {
         Ok(instance)
     } else {
         anyhow::bail!("Timed out.")
     }
+}
+
+async fn wait_instance_create(
+    instance: CloudInstance,
+    client: &CloudClient,
+) -> anyhow::Result<CloudInstance> {
+    wait_instance_available_after_operation(instance, client, "creating").await
+}
+
+async fn wait_instance_upgrade(
+    instance: CloudInstance,
+    client: &CloudClient,
+) -> anyhow::Result<CloudInstance> {
+    wait_instance_available_after_operation(instance, client, "upgrading").await
 }
 
 pub async fn create_cloud_instance(
@@ -117,7 +139,19 @@ pub async fn create_cloud_instance(
     let instance: CloudInstance = client
         .post(url, serde_json::to_value(instance)?)
         .await?;
-    wait_instance_create(instance, client, false).await?;
+    wait_instance_create(instance, client).await?;
+    Ok(())
+}
+
+pub async fn upgrade_cloud_instance(
+    client: &CloudClient,
+    instance: &CloudInstanceUpgrade,
+) -> anyhow::Result<()> {
+    let url = format!("orgs/{}/instances/{}", instance.org, instance.name);
+    let instance: CloudInstance = client
+        .put(url, serde_json::to_value(instance)?)
+        .await?;
+    wait_instance_upgrade(instance, client).await?;
     Ok(())
 }
 
@@ -133,6 +167,18 @@ pub async fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> 
     } else {
         anyhow::bail!("Aborted.");
     }
+}
+
+pub async fn upgrade(org: &str, name: &str, opts: &crate::options::Options) -> anyhow::Result<()> {
+    let client = CloudClient::new(&opts.cloud_options)?;
+    client.ensure_authenticated()?;
+
+    let instance = CloudInstanceUpgrade {
+        org: org.to_string(),
+        name: name.to_string(),
+    };
+    upgrade_cloud_instance(&client, &instance).await?;
+    Ok(())
 }
 
 async fn destroy(name: &str, org: &str, options: &CloudOptions) -> anyhow::Result<()> {
