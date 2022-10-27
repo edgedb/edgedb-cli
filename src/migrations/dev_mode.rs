@@ -1,12 +1,17 @@
 use edgedb_client::client::Connection;
 use linked_hash_map::LinkedHashMap;
 
+use anyhow::Context as _;
+
+use crate::commands::parser::CreateMigration;
 use crate::commands::parser::Migrate;
+use crate::commands::Options;
 use crate::migrations::context::Context;
-use crate::migrations::create::{CurrentMigration};
+use crate::migrations::create::{CurrentMigration, normal_migration};
 use crate::migrations::create::{execute, query_row, execute_start_migration};
+use crate::migrations::migrate::{apply_migrations, apply_migrations_inner};
 use crate::migrations::migration::{self, MigrationFile};
-use crate::migrations::migrate::apply_migrations;
+use crate::migrations::timeout;
 
 pub async fn migrate(cli: &mut Connection, ctx: Context, migrate: &Migrate)
     -> anyhow::Result<()>
@@ -74,10 +79,52 @@ async fn migrate_to_schema(cli: &mut Connection, ctx: &Context)
         // should we do something manually?
         anyhow::bail!("Migration cannot be automatically populated");
     }
-    if descr.confirmed.is_empty() {
-        execute(cli, "ABORT MIGRATION").await?;
-    } else {
-        execute(cli, "COMMIT MIGRATION").await?;
+    execute(cli, "ABORT MIGRATION").await?;
+    if !descr.confirmed.is_empty() {
+        execute(cli, format!(
+        "CREATE MIGRATION {{
+            SET generated_by := schema::MigrationGeneratedBy.DevMode;
+            {}
+        }}", descr.confirmed.join("\n"))).await?;
     }
     Ok(())
+}
+
+async fn create_in_rewrite(ctx: &Context, cli: &mut Connection,
+                           migrations: &LinkedHashMap<String, MigrationFile>,
+                           create: &CreateMigration)
+    -> anyhow::Result<()>
+{
+    apply_migrations_inner(cli, migrations, &Migrate {
+        cfg: create.cfg.clone(),
+        quiet: true,
+        to_revision: None,
+        dev_mode: false,
+    }).await?;
+    normal_migration(cli, ctx, migrations, create).await?;
+    Ok(())
+}
+
+pub async fn create(cli: &mut Connection, ctx: &Context, _options: &Options,
+    create: &CreateMigration)
+    -> anyhow::Result<()>
+{
+    let migrations = migration::read_all(&ctx, true).await?;
+
+    let old_timeout = timeout::inhibit_for_transaction(cli).await?;
+    execute(cli, "START MIGRATION REWRITE").await?;
+
+    let res = create_in_rewrite(ctx, cli, &migrations, create).await;
+    let drop_res = if cli.is_consistent() {
+        execute(cli, "ABORT MIGRATION REWRITE").await
+            .context("migration rewrite cleanup")
+    } else {
+        Ok(())
+    };
+    let timeo_res = if cli.is_consistent() {
+        timeout::restore_for_transaction(cli, old_timeout).await
+    } else {
+        Ok(())
+    };
+    res.and(drop_res).and(timeo_res)
 }

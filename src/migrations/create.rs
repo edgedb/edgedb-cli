@@ -29,14 +29,15 @@ use crate::commands::{Options, ExitCode};
 use crate::error_display::print_query_error;
 use crate::highlight;
 use crate::migrations::context::Context;
+use crate::migrations::dev_mode;
 use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::print_error::print_migration_error;
 use crate::migrations::prompt;
-use crate::migrations::timeout;
 use crate::migrations::source_map::{Builder, SourceMap};
+use crate::migrations::timeout;
 use crate::platform::tmp_file_name;
-use crate::print;
 use crate::print::style::Styler;
+use crate::print;
 use crate::question;
 
 const SAFE_CONFIDENCE: f64 = 0.99999;
@@ -550,20 +551,30 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
     Ok(())
 }
 
-pub async fn create(cli: &mut Connection, _options: &Options,
+pub async fn create(cli: &mut Connection, options: &Options,
     create: &CreateMigration)
     -> anyhow::Result<()>
 {
     let ctx = Context::from_project_or_config(&create.cfg)?;
-    let migrations = migration::read_all(&ctx, true).await?;
 
+    // TODO(tailhook) older edgedb versions
+    let dev_num = query_row::<i64>(cli, "SELECT count((
+        SELECT schema::Migration
+        FILTER .generated_by = schema::MigrationGeneratedBy.DevMode
+    ))").await?;
+    if dev_num > 0 {
+        log::info!("Detected dev-mode migrations");
+        return dev_mode::create(cli, &ctx, options, create).await;
+    }
+
+    let migrations = migration::read_all(&ctx, true).await?;
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     // This decision must be done early on because of the bug in EdgeDB:
     //   https://github.com/edgedb/edgedb/issues/3958
     let exec = if migrations.len() == 0 {
         first_migration(cli, &ctx, create).await
     } else {
-        normal_migration(cli, &ctx, migrations, create).await
+        normal_migration(cli, &ctx, &migrations, create).await
     };
     if cli.is_consistent() {
         let timeout = timeout::restore_for_transaction(cli, old_timeout).await;
@@ -573,9 +584,9 @@ pub async fn create(cli: &mut Connection, _options: &Options,
     }
 }
 
-async fn normal_migration(cli: &mut Connection, ctx: &Context,
-                          migrations: LinkedHashMap<String, MigrationFile>,
-                          create: &CreateMigration)
+pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
+                              migrations: &LinkedHashMap<String, MigrationFile>,
+                              create: &CreateMigration)
     -> anyhow::Result<()>
 {
     execute_start_migration(&ctx, cli).await?;

@@ -166,34 +166,18 @@ pub async fn apply_migrations(cli: &mut Connection,
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     let transaction = async {
         cli.execute("START TRANSACTION").await?;
-        for (_, migration) in migrations {
-            let data = fs::read_to_string(&migration.path).await
-                .context("error re-reading migration file")?;
-            cli.execute(&data).await.map_err(|err| {
-                match print_query_error(&err, &data, false) {
-                    Ok(()) => ExitCode::new(1).into(),
-                    Err(err) => err,
+        match apply_migrations_inner(cli, migrations, migrate).await {
+            Ok(()) => {
+                cli.execute("COMMIT").await?;
+                Ok(())
+            }
+            Err(e) => {
+                if cli.is_consistent() {
+                    cli.execute("ROLLBACK").await.ok();
                 }
-            })?;
-            if !migrate.quiet {
-                if print::use_color() {
-                    eprintln!(
-                        "{} {} ({})",
-                        "Applied".bold().light_green(),
-                        migration.data.id[..].bold().white(),
-                        Path::new(migration.path.file_name().unwrap()).display(),
-                    );
-                } else {
-                    eprintln!(
-                        "Applied {} ({})",
-                        migration.data.id,
-                        Path::new(migration.path.file_name().unwrap()).display(),
-                    );
-                }
+                Err(e)
             }
         }
-        cli.execute("COMMIT").await?;
-        Ok(())
     }.await;
     if cli.is_consistent() {
         let timeout = timeout::restore_for_transaction(cli, old_timeout).await;
@@ -201,6 +185,39 @@ pub async fn apply_migrations(cli: &mut Connection,
     } else {
         transaction?;
     };
+    Ok(())
+}
+
+pub async fn apply_migrations_inner(cli: &mut Connection,
+    migrations: &LinkedHashMap<String, MigrationFile>, migrate: &Migrate)
+    -> anyhow::Result<()>
+{
+    for (_, migration) in migrations {
+        let data = fs::read_to_string(&migration.path).await
+            .context("error re-reading migration file")?;
+        cli.execute(&data).await.map_err(|err| {
+            match print_query_error(&err, &data, false) {
+                Ok(()) => ExitCode::new(1).into(),
+                Err(err) => err,
+            }
+        })?;
+        if !migrate.quiet {
+            if print::use_color() {
+                eprintln!(
+                    "{} {} ({})",
+                    "Applied".bold().light_green(),
+                    migration.data.id[..].bold().white(),
+                    Path::new(migration.path.file_name().unwrap()).display(),
+                );
+            } else {
+                eprintln!(
+                    "Applied {} ({})",
+                    migration.data.id,
+                    Path::new(migration.path.file_name().unwrap()).display(),
+                );
+            }
+        }
+    }
     Ok(())
 }
 
