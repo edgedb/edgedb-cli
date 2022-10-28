@@ -166,7 +166,7 @@ pub async fn apply_migrations(cli: &mut Connection,
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     let transaction = async {
         cli.execute("START TRANSACTION").await?;
-        match apply_migrations_inner(cli, migrations, migrate).await {
+        match apply_migrations_inner(cli, migrations, migrate.quiet).await {
             Ok(()) => {
                 cli.execute("COMMIT").await?;
                 Ok(())
@@ -189,7 +189,7 @@ pub async fn apply_migrations(cli: &mut Connection,
 }
 
 pub async fn apply_migrations_inner(cli: &mut Connection,
-    migrations: &LinkedHashMap<String, MigrationFile>, migrate: &Migrate)
+    migrations: &LinkedHashMap<String, MigrationFile>, quiet: bool)
     -> anyhow::Result<()>
 {
     for (_, migration) in migrations {
@@ -201,7 +201,7 @@ pub async fn apply_migrations_inner(cli: &mut Connection,
                 Err(err) => err,
             }
         })?;
-        if !migrate.quiet {
+        if !quiet {
             if print::use_color() {
                 eprintln!(
                     "{} {} ({})",
