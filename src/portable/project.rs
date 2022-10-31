@@ -496,10 +496,14 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
     let schema_dir = config.project.schema_dir;
     let schema_dir_path = project_dir.join(&schema_dir);
     let schema_dir_path =
-        fs::canonicalize(&schema_dir_path)
-            .with_context(|| {
-                format!("failed to canonicalize dir {:?}", schema_dir_path)
-            })?;
+        if schema_dir_path.exists() {
+            fs::canonicalize(&schema_dir_path)
+                .with_context(|| {
+                    format!("failed to canonicalize dir {:?}", schema_dir_path)
+                })?
+        } else {
+            schema_dir_path
+        };
     let schema_files = find_schema_files(&schema_dir_path)?;
 
     let ver_query = if let Some(sver) = &options.server_version {
