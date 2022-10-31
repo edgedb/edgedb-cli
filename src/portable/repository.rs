@@ -521,6 +521,14 @@ impl Query {
     pub fn is_nightly(&self) -> bool {
         matches!(self.channel, Channel::Nightly)
     }
+    pub fn is_nonrecursive_access_policies_supported(&self) -> bool {
+        self.is_nightly() ||
+            self.version.as_ref().map(|f| match (f.major, f.minor) {
+                (1, _) => false,
+                (2, Some(v)) if v < ver::FilterMinor::Minor(6) => false,
+                _ => true
+            }).unwrap_or(true)
+    }
 }
 
 impl Serialize for PackageHash {

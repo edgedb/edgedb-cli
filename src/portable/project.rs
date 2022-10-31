@@ -44,11 +44,14 @@ use crate::table;
 
 
 
-
 const DEFAULT_ESDL: &str = "\
     module default {\n\
     \n\
     }\n\
+";
+
+const FUTURES_ESDL: &str = "\
+    using future nonrecursive_access_policies;\n\
 ";
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -528,7 +531,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             ]);
 
             if !schema_files {
-                write_schema_default(&schema_dir)?;
+                write_schema_default(&schema_dir, &ver_query)?;
             }
             do_cloud_init(
                 name.to_owned(),
@@ -561,7 +564,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             ]);
 
             if !schema_files {
-                write_schema_default(&schema_dir)?;
+                write_schema_default(&schema_dir, &ver_query)?;
             }
 
             do_init(name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
@@ -713,10 +716,10 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
 
     if exists {
         let inst = Handle::probe(&inst_name, project_dir, &schema_dir, &client)?;
-        write_config(&config_path,
-                     &Query::from_version(&inst.get_version()?.specific())?)?;
+        let ver = Query::from_version(&inst.get_version()?.specific())?;
+        write_config(&config_path, &ver)?;
         if !schema_files {
-            write_schema_default(&schema_dir_path)?;
+            write_schema_default(&schema_dir_path, &ver)?;
         }
         return do_link(&inst, options, &stash_dir);
     };
@@ -739,7 +742,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             let ver_query = Query::from_str(&version)?;
             write_config(&config_path, &ver_query)?;
             if !schema_files {
-                write_schema_default(&schema_dir_path)?;
+                write_schema_default(&schema_dir_path, &ver_query)?;
             }
 
             do_cloud_init(
@@ -775,7 +778,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             let ver_query = Query::from_version(&pkg.version.specific())?;
             write_config(&config_path, &ver_query)?;
             if !schema_files {
-                write_schema_default(&schema_dir_path)?;
+                write_schema_default(&schema_dir_path, &ver_query)?;
             }
 
             do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
@@ -1077,7 +1080,7 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>)
 }
 
 #[context("cannot create default schema in `{}`", dir.display())]
-fn write_schema_default(dir: &Path) -> anyhow::Result<()> {
+fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
     fs::create_dir_all(&dir)?;
     fs::create_dir_all(&dir.join("migrations"))?;
     let default = dir.join("default.esdl");
@@ -1085,6 +1088,13 @@ fn write_schema_default(dir: &Path) -> anyhow::Result<()> {
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, DEFAULT_ESDL)?;
     fs::rename(&tmp, &default)?;
+    if version.is_nonrecursive_access_policies_supported() {
+        let futures = dir.join("futures.esdl");
+        let tmp = tmp_file_path(&futures);
+        fs::remove_file(&tmp).ok();
+        fs::write(&tmp, FUTURES_ESDL)?;
+        fs::rename(&tmp, &futures)?;
+    };
     Ok(())
 }
 

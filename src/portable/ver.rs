@@ -36,7 +36,7 @@ pub struct Filter {
     pub minor: Option<FilterMinor>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum FilterMinor {
     Alpha(u32),
     Beta(u32),
