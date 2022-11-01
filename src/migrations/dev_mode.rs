@@ -2,25 +2,36 @@ use edgedb_client::client::Connection;
 use linked_hash_map::LinkedHashMap;
 
 use anyhow::Context as _;
+use once_cell::sync::Lazy;
 
+use crate::commands::Options;
 use crate::commands::parser::CreateMigration;
 use crate::commands::parser::Migrate;
-use crate::commands::Options;
 use crate::migrations::context::Context;
 use crate::migrations::create::{CurrentMigration, normal_migration};
 use crate::migrations::create::{execute, query_row, execute_start_migration};
 use crate::migrations::migrate::{apply_migrations, apply_migrations_inner};
 use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::timeout;
+use crate::portable::ver;
 
 enum Mode {
     Normal { skip: usize },
     Rebase,
 }
 
+const MINIMUM_VERSION: Lazy<ver::Filter> =
+    Lazy::new(|| "3.0-alpha.1".parse().unwrap());
+
 pub async fn migrate(cli: &mut Connection, ctx: Context, migrate: &Migrate)
     -> anyhow::Result<()>
 {
+    let ver = cli.get_version().await?.parse::<ver::Build>()
+        .context("cannot parse server version")?;
+    if !ver.is_nightly() || MINIMUM_VERSION.matches(&ver) {
+        anyhow::bail!(
+            "Dev mode is not supported on EdgeDB {}. Please upgrade.", ver);
+    }
     let mut migrations = migration::read_all(&ctx, true).await?;
     let db_migration = get_db_migration(cli).await?;
     match select_mode(cli, &migrations, db_migration.as_deref()).await? {
