@@ -51,6 +51,9 @@ const DEFAULT_ESDL: &str = "\
 ";
 
 const FUTURES_ESDL: &str = "\
+    # Disable the application of access policies within access policies\n\
+    # themselves. This behavior will become the default in EdgeDB 3.0.\n\
+    # See: https://www.edgedb.com/docs/reference/ddl/access_policies#nonrecursive\n\
     using future nonrecursive_access_policies;\n\
 ";
 
