@@ -672,3 +672,45 @@ edgedb error: cannot proceed until .esdl files are fixed
 "###));
     Ok(())
 }
+
+#[test]
+fn dev_mode() -> anyhow::Result<()> {
+    fs::remove_file("tests/migrations/db4/modified1/00001.edgeql")
+        .ok();
+    fs::remove_file("tests/migrations/db4/created1/00002.edgeql")
+        .ok();
+    SERVER.admin_cmd()
+        .arg("database").arg("create").arg("db4")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db4")
+        .arg("migrate").arg("--dev-mode")
+        .arg("--schema-dir=tests/migrations/db4/initial")
+        .env("NO_COLOR", "1")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db4")
+        .arg("migrate").arg("--dev-mode")
+        .arg("--schema-dir=tests/migrations/db4/modified1")
+        .env("NO_COLOR", "1")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db4")
+        .arg("migration").arg("create").arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db4/modified1")
+        .env("NO_COLOR", "1")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db4")
+        .arg("migrate").arg("--dev-mode")
+        .arg("--schema-dir=tests/migrations/db4/created1")
+        .env("NO_COLOR", "1")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db4")
+        .arg("migration").arg("create").arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db4/created1")
+        .env("NO_COLOR", "1")
+        .assert().success();
+    Ok(())
+}
