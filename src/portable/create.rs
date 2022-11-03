@@ -107,7 +107,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
                 "is up and running."
             );
             echo!("To connect to the instance run:");
-            echo!("  edgedb -I", name);
+            echo!("  edgedb -I", inst_name);
             return Ok(())
         }
     };
