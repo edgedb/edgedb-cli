@@ -1,3 +1,10 @@
+[workspace]
+members = [
+    ".",
+    "edgedb-client",
+    "edgedb-cli-derive",
+]
+
 [package]
 name = "edgedb-cli"
 license = "MIT/Apache-2.0"
