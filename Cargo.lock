@@ -1106,7 +1106,7 @@ dependencies = [
  "dirs 4.0.0",
  "downcast-rs",
  "edgedb-cli-derive",
- "edgedb-client",
+ "edgedb-client 0.3.0 (git+https://github.com/edgedb/edgedb-rust)",
  "edgedb-derive",
  "edgedb-protocol",
  "edgeql-parser",
@@ -1202,6 +1202,39 @@ dependencies = [
  "syn",
  "termimad",
  "trybuild",
+]
+
+[[package]]
+name = "edgedb-client"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "async-std",
+ "async-trait",
+ "bytes",
+ "dirs 4.0.0",
+ "edgedb-derive",
+ "edgedb-errors",
+ "edgedb-protocol",
+ "env_logger 0.9.0",
+ "futures-util",
+ "log",
+ "rand 0.8.5",
+ "rustls 0.20.6",
+ "rustls-native-certs",
+ "rustls-pemfile 0.3.0",
+ "scram",
+ "serde",
+ "serde_json",
+ "sha1 0.10.1",
+ "snafu",
+ "tls-api",
+ "tls-api-not-tls",
+ "tls-api-rustls",
+ "typemap",
+ "url",
+ "webpki 0.22.0",
+ "webpki-roots",
 ]
 
 [[package]]
