@@ -73,6 +73,7 @@ pub struct Connection {
     pub(crate) mode: Mode,
     pub(crate) state_desc: RawTypedesc,
     pub(crate) state: State,
+    pub(crate) server_version: Option<String>,
 }
 
 pub(crate) struct PartialState<'a> {
@@ -844,8 +845,12 @@ impl Connection {
         return seq._process_exec().await;
     }
 
-    pub async fn get_version(&mut self) -> Result<String, Error> {
-        self.query_row("SELECT sys::get_version_as_str()", &()).await
-        .context("cannot fetch database version")
+    pub async fn get_version(&mut self) -> Result<&str, Error> {
+        if self.server_version.is_some() {
+            return Ok(self.server_version.as_deref().unwrap());
+        }
+        let ver = self.query_row("SELECT sys::get_version_as_str()", &()).await
+            .context("cannot fetch database version")?;
+        Ok(self.server_version.insert(ver))
     }
 }

@@ -251,7 +251,7 @@ fn normal_status(options: &Status) -> anyhow::Result<()> {
 async fn try_get_version(creds: &Credentials) -> anyhow::Result<String> {
     let mut builder = Builder::uninitialized();
     builder.credentials(creds)?;
-    Ok(builder.build()?.connect().await?.get_version().await?)
+    Ok(builder.build()?.connect().await?.get_version().await?.to_owned())
 }
 
 async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus)

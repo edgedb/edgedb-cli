@@ -557,14 +557,16 @@ pub async fn create(cli: &mut Connection, options: &Options,
 {
     let ctx = Context::from_project_or_config(&create.cfg)?;
 
-    // TODO(tailhook) older edgedb versions
-    let dev_num = query_row::<i64>(cli, "SELECT count((
-        SELECT schema::Migration
-        FILTER .generated_by = schema::MigrationGeneratedBy.DevMode
-    ))").await?;
-    if dev_num > 0 {
-        log::info!("Detected dev-mode migrations");
-        return dev_mode::create(cli, &ctx, options, create).await;
+    if dev_mode::check_client(cli).await? {
+        // TODO(tailhook) older edgedb versions
+        let dev_num = query_row::<i64>(cli, "SELECT count((
+            SELECT schema::Migration
+            FILTER .generated_by = schema::MigrationGeneratedBy.DevMode
+        ))").await?;
+        if dev_num > 0 {
+            log::info!("Detected dev-mode migrations");
+            return dev_mode::create(cli, &ctx, options, create).await;
+        }
     }
 
     let migrations = migration::read_all(&ctx, true).await?;

@@ -285,3 +285,12 @@ impl Ord for Semver {
         a.cmp(&b)
     }
 }
+
+pub async fn check_client(cli: &mut edgedb_client::client::Connection,
+                    minimum_version: &Filter)
+    -> anyhow::Result<bool>
+{
+    let ver = cli.get_version().await?.parse::<Build>()
+        .context("cannot parse server version")?;
+    return Ok(ver.is_nightly() || minimum_version.matches(&ver));
+}
