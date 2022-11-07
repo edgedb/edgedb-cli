@@ -10,6 +10,7 @@ use crate::commands::Options;
 use crate::commands::ExitCode;
 use crate::commands::parser::Migrate;
 use crate::migrations::timeout;
+use crate::migrations::dev_mode;
 use crate::migrations::context::Context;
 use crate::migrations::migration::{self, MigrationFile};
 use crate::print;
@@ -57,6 +58,9 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     -> Result<(), anyhow::Error>
 {
     let ctx = Context::from_project_or_config(&migrate.cfg)?;
+    if migrate.dev_mode {
+        return dev_mode::migrate(cli, ctx, migrate).await;
+    }
 
     let mut migrations = migration::read_all(&ctx, true).await?;
     let db_migration: Option<String> = cli.query_row_opt(r###"
@@ -148,37 +152,32 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         }
         return Ok(());
     }
+    apply_migrations(cli, &migrations, migrate).await?;
+    if db_migration.is_none() {
+        disable_ddl(cli).await?;
+    }
+    return Ok(())
+}
+
+pub async fn apply_migrations(cli: &mut Connection,
+    migrations: &LinkedHashMap<String, MigrationFile>, migrate: &Migrate)
+    -> anyhow::Result<()>
+{
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     let transaction = async {
         cli.execute("START TRANSACTION").await?;
-        for (_, migration) in migrations {
-            let data = fs::read_to_string(&migration.path).await
-                .context("error re-reading migration file")?;
-            cli.execute(&data).await.map_err(|err| {
-                match print_query_error(&err, &data, false) {
-                    Ok(()) => ExitCode::new(1).into(),
-                    Err(err) => err,
+        match apply_migrations_inner(cli, migrations, migrate.quiet).await {
+            Ok(()) => {
+                cli.execute("COMMIT").await?;
+                Ok(())
+            }
+            Err(e) => {
+                if cli.is_consistent() {
+                    cli.execute("ROLLBACK").await.ok();
                 }
-            })?;
-            if !migrate.quiet {
-                if print::use_color() {
-                    eprintln!(
-                        "{} {} ({})",
-                        "Applied".bold().light_green(),
-                        migration.data.id.bold().white(),
-                        Path::new(migration.path.file_name().unwrap()).display(),
-                    );
-                } else {
-                    eprintln!(
-                        "Applied {} ({})",
-                        migration.data.id,
-                        Path::new(migration.path.file_name().unwrap()).display(),
-                    );
-                }
+                Err(e)
             }
         }
-        cli.execute("COMMIT").await?;
-        Ok(())
     }.await;
     if cli.is_consistent() {
         let timeout = timeout::restore_for_transaction(cli, old_timeout).await;
@@ -186,22 +185,57 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     } else {
         transaction?;
     };
-    if db_migration.is_none() {
-        let ddl_setting = cli.query_row(r#"
-            SELECT exists(
-                SELECT prop := (
-                        SELECT schema::ObjectType
-                        FILTER .name = 'cfg::DatabaseConfig'
-                    ).properties.name
-                FILTER prop = "allow_bare_ddl"
-            )
-        "#, &()).await?;
-        if ddl_setting {
-            cli.execute(r#"
-                CONFIGURE CURRENT DATABASE SET allow_bare_ddl :=
-                    cfg::AllowBareDDL.NeverAllow;
-            "#).await?;
+    Ok(())
+}
+
+pub async fn apply_migrations_inner(cli: &mut Connection,
+    migrations: &LinkedHashMap<String, MigrationFile>, quiet: bool)
+    -> anyhow::Result<()>
+{
+    for (_, migration) in migrations {
+        let data = fs::read_to_string(&migration.path).await
+            .context("error re-reading migration file")?;
+        cli.execute(&data).await.map_err(|err| {
+            match print_query_error(&err, &data, false) {
+                Ok(()) => ExitCode::new(1).into(),
+                Err(err) => err,
+            }
+        })?;
+        if !quiet {
+            if print::use_color() {
+                eprintln!(
+                    "{} {} ({})",
+                    "Applied".bold().light_green(),
+                    migration.data.id[..].bold().white(),
+                    Path::new(migration.path.file_name().unwrap()).display(),
+                );
+            } else {
+                eprintln!(
+                    "Applied {} ({})",
+                    migration.data.id,
+                    Path::new(migration.path.file_name().unwrap()).display(),
+                );
+            }
         }
     }
-    return Ok(())
+    Ok(())
+}
+
+pub async fn disable_ddl(cli: &mut Connection) -> Result<(), anyhow::Error> {
+    let ddl_setting = cli.query_row(r#"
+        SELECT exists(
+            SELECT prop := (
+                    SELECT schema::ObjectType
+                    FILTER .name = 'cfg::DatabaseConfig'
+                ).properties.name
+            FILTER prop = "allow_bare_ddl"
+        )
+    "#, &()).await?;
+    if ddl_setting {
+        cli.execute(r#"
+            CONFIGURE CURRENT DATABASE SET allow_bare_ddl :=
+                cfg::AllowBareDDL.NeverAllow;
+        "#).await?;
+    }
+    Ok(())
 }

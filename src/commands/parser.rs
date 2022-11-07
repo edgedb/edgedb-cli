@@ -585,8 +585,15 @@ pub struct Migrate {
     /// If this revision is applied, the command is no-op. The command
     /// ensures that this revision present, but it's not an error if more
     /// revisions are applied on top.
-    #[clap(long)]
+    #[clap(long, conflicts_with="dev_mode")]
     pub to_revision: Option<String>,
+
+    /// Apply current schema changes on top of what's in the migration history
+    ///
+    /// This is commonly used to apply schema temporarily before doing
+    /// `migration create` for testing purposes.
+    #[clap(long, hide=true)]
+    pub dev_mode: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]

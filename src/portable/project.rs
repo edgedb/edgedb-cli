@@ -944,6 +944,7 @@ async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
             },
             quiet: false,
             to_revision: None,
+            dev_mode: false,
         }).await?;
     Ok(())
 }
