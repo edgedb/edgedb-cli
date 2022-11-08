@@ -34,3 +34,10 @@ fn strict_version_check() {
         .success();
 }
 
+#[test]
+fn list_indexes() {
+    SERVER.admin_cmd()
+        .arg("list")
+        .arg("indexes")
+        .assert().success();
+}

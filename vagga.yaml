@@ -118,8 +118,6 @@ commands:
     description: Run edgedb repl to locally run edgdeb
     container: ubuntu
     run: [cargo, run, --bin, edgedb, --features=dev_mode, '--']
-    environ:
-      EDGEDB_HOST: '/work/tmp/run-local'
 
   server: !Command
     description: Run edgedb server command
@@ -247,8 +245,6 @@ containers:
       HOME: /work/target
       CARGO_HOME: /work/target
       RUST_BACKTRACE: 1
-      EDGEDB_HOST: '/work/tmp/run'
-      EDGEDB_MAJOR_VERSION: 1-rc2
 
   test_install:
     setup:

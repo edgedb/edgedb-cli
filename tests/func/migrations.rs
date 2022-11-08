@@ -66,6 +66,14 @@ fn initial() -> anyhow::Result<()> {
             (00001.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
+        .arg("migration").arg("log")
+        .arg("--from-db")
+        .arg("--newest-first")
+        .arg("--limit=1")
+        .assert().code(0)
+        .stdout("m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa\n");
+    SERVER.admin_cmd()
+        .arg("--database=initial")
         .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
         .assert().success()
         .stdout("\"NeverAllow\"\n");
