@@ -150,9 +150,9 @@ pub async fn _main(options: Options, mut state: repl::State, cfg: Config)
 {
     let mut conn = state.conn_params.connect().await?;
     let fetched_version = conn.get_version().await?;
-    echo!("EdgeDB".light_gray(), fetched_version[..].light_gray(),
+    echo!("EdgeDB".light_gray(), fetched_version.light_gray(),
         format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade());
-    state.last_version = Some(fetched_version);
+    state.last_version = Some(fetched_version.to_owned());
     if let Some(config_path) = &cfg.file_name {
         echo!(
             format_args!("Applied {} configuration file",

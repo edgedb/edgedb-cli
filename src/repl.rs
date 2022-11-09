@@ -96,14 +96,14 @@ impl State {
     pub async fn reconnect(&mut self) -> anyhow::Result<()> {
         let mut conn = self.conn_params.connect().await?;
         let fetched_version = conn.get_version().await?;
-        conn.set_state(self.edgeql_state.clone());
-        if self.last_version.as_ref() != Some(&fetched_version) {
+        if self.last_version.as_deref() != Some(fetched_version) {
             println!("{} {} (repl v{})",
                 "EdgeDB".light_gray(),
                 fetched_version[..].light_gray(),
                 env!("CARGO_PKG_VERSION"));
-            self.last_version = Some(fetched_version);
+            self.last_version = Some(fetched_version.to_owned());
         }
+        conn.set_state(self.edgeql_state.clone());
         self.database = self.conn_params.get()?.get_database().into();
         self.connection = Some(conn);
         self.set_idle_transaction_timeout().await?;
@@ -132,12 +132,12 @@ impl State {
         params.modify(|p| { p.database(database); })?;
         let mut conn = params.connect().await?;
         let fetched_version = conn.get_version().await?;
-        if self.last_version.as_ref() != Some(&fetched_version) {
+        if self.last_version.as_deref() != Some(fetched_version) {
             println!("{} {} (repl v{})",
                 "EdgeDB".light_gray(),
                 fetched_version[..].light_gray(),
                 env!("CARGO_PKG_VERSION"));
-            self.last_version = Some(fetched_version);
+            self.last_version = Some(fetched_version.to_owned());
         }
         self.conn_params = params;
         self.database = database.into();

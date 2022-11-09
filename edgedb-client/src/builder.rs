@@ -1240,6 +1240,7 @@ impl Config {
             state_desc: RawTypedesc::uninitialized(),
             state: State::empty(),
             version: version.clone(),
+            server_version: None,
         };
         let mut seq = conn.start_sequence().await?;
         let mut params = HashMap::new();

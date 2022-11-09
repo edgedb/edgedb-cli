@@ -23,14 +23,17 @@ enum Mode {
 const MINIMUM_VERSION: Lazy<ver::Filter> =
     Lazy::new(|| "3.0-alpha.1".parse().unwrap());
 
+pub async fn check_client(cli: &mut Connection) -> anyhow::Result<bool> {
+    ver::check_client(cli, &*MINIMUM_VERSION).await
+}
+
 pub async fn migrate(cli: &mut Connection, ctx: Context, migrate: &Migrate)
     -> anyhow::Result<()>
 {
-    let ver = cli.get_version().await?.parse::<ver::Build>()
-        .context("cannot parse server version")?;
-    if !ver.is_nightly() || MINIMUM_VERSION.matches(&ver) {
+    if !check_client(cli).await? {
         anyhow::bail!(
-            "Dev mode is not supported on EdgeDB {}. Please upgrade.", ver);
+            "Dev mode is not supported on EdgeDB {}. Please upgrade.",
+            cli.get_version().await?);
     }
     let mut migrations = migration::read_all(&ctx, true).await?;
     let db_migration = get_db_migration(cli).await?;
