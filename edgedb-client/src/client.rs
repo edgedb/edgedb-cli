@@ -583,7 +583,7 @@ impl<'a> Sequence<'a> {
             ClientMessage::Parse(Parse {
                 annotations: HashMap::new(),
                 allowed_capabilities: Capabilities::ALL,
-                compilation_flags: CompilationFlags::INJECT_OUTPUT_OBJECT_IDS,
+                compilation_flags: CompilationFlags::empty(),
                 implicit_limit: None,
                 output_format: bld.io_format,
                 expected_cardinality: bld.cardinality,
@@ -625,7 +625,7 @@ impl<'a> Sequence<'a> {
             ClientMessage::Execute1(Execute1 {
                 annotations: HashMap::new(),
                 allowed_capabilities: Capabilities::ALL,
-                compilation_flags: CompilationFlags::INJECT_OUTPUT_OBJECT_IDS,
+                compilation_flags: CompilationFlags::empty(),
                 implicit_limit: None,
                 output_format: bld.io_format,
                 expected_cardinality: bld.cardinality,
@@ -691,7 +691,7 @@ impl Connection {
             ClientMessage::Execute1(Execute1 {
                 annotations: HashMap::new(),
                 allowed_capabilities: Capabilities::ALL,
-                compilation_flags: CompilationFlags::INJECT_OUTPUT_OBJECT_IDS,
+                compilation_flags: CompilationFlags::empty(),
                 implicit_limit: None,
                 output_format: IoFormat::None,
                 expected_cardinality: Cardinality::Many,

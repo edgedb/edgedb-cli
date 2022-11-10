@@ -55,8 +55,8 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
             cons_on := '.' ++ I[IS Constraint].subject.name,
             cons_of := I[Is Constraint].subject[IS Pointer]
                 .<pointers[IS Source].name,
-            cons_of_of := I[Is Constraint].subject[IS Pointer]
-                .<properties[IS Source].<links[IS Source].name,
+            cons_of_of := I[Is Constraint].subject[IS Property]
+                .<pointers[IS Link].<pointers[IS Source].name,
         }} {{
             expr := .cons_on ?? .expr,
             is_implicit := EXISTS .cons_on,

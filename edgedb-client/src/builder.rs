@@ -1265,6 +1265,7 @@ impl Config {
             // TODO(tailhook) record extensions
             msg = seq.message().await?;
         }
+        log::info!("Protocol version {:?}", version);
         match msg {
             ServerMessage::Authentication(Authentication::Ok) => {}
             ServerMessage::Authentication(Authentication::Sasl { methods })
