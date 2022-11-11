@@ -1,15 +1,16 @@
 use async_std::task;
 
-use crate::cli;
 use crate::cli::directory_check;
+use crate::cli;
 use crate::cloud::main::cloud_main;
-use crate::options::{Options, Command};
 use crate::commands::parser::{Common, MigrationCmd, Migration};
 use crate::commands;
 use crate::migrations;
+use crate::non_interactive;
+use crate::options::{Options, Command};
 use crate::portable;
 use crate::print::style::Styler;
-use crate::non_interactive;
+use crate::watch;
 
 
 pub fn main(options: Options) -> Result<(), anyhow::Error> {
@@ -84,6 +85,9 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::Cloud(c) => {
             cloud_main(c, &options.cloud_options)
+        }
+        Command::Watch(c) => {
+            watch::watch(&options, c)
         }
     }
 }
