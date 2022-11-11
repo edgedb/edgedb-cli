@@ -75,6 +75,22 @@ pub struct CloudInstanceUpgrade {
     pub org: String,
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all="snake_case")]
+pub enum OperationStatus {
+    InProgress,
+    Failed,
+    Completed
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CloudOperation {
+    pub id: String,
+    pub status: OperationStatus,
+    pub message: String,
+}
+
+
 pub async fn find_cloud_instance_by_name(
     inst: &str,
     org: &str,
@@ -85,31 +101,40 @@ pub async fn find_cloud_instance_by_name(
 }
 
 async fn wait_instance_available_after_operation(
-    mut instance: CloudInstance,
+    mut operation: CloudOperation,
+    org: &str,
+    name: &str,
     client: &CloudClient,
-    operation: &str,
+    operation_type: &str,
 ) -> anyhow::Result<CloudInstance> {
     let spinner = ProgressBar::new_spinner()
-        .with_message(format!("Waiting for the result of EdgeDB Cloud instance {}...", operation));
+        .with_message(format!("Waiting for the result of EdgeDB Cloud instance {}...", operation_type));
     spinner.enable_steady_tick(SPINNER_TICK);
 
-    let url = format!("orgs/{}/instances/{}", instance.org_slug, instance.name);
+    let url = format!("operations/{}", operation.id);
     let deadline = Instant::now() + OPERATION_WAIT_TIME;
     while Instant::now() < deadline {
-        if instance.status != "available" && instance.status != operation {
-            anyhow::bail!(
-                "Failed to wait for EdgeDB Cloud instance to become available after {} an instance: {}",
-                operation,
-                instance.status
-            );
-        }
-        if instance.status == operation {
-            task::sleep(POLLING_INTERVAL).await;
-            instance = client.get(&url).await?;
-        } else {
-            break;
+        match operation.status {
+            OperationStatus::Failed => {
+                anyhow::bail!(
+                    "Failed to wait for EdgeDB Cloud instance to become available after {} an instance: {}",
+                    operation_type,
+                    operation.message,
+                );
+            },
+            OperationStatus::InProgress => {
+                task::sleep(POLLING_INTERVAL).await;
+                operation = client.get(&url).await?;
+            }
+            OperationStatus::Completed => {
+                break;
+            }
         }
     }
+
+    let url = format!("orgs/{}/instances/{}", org, name);
+    let instance: CloudInstance = client.get(&url).await?;
+
     if instance.dsn != "" && instance.status == "available" {
         Ok(instance)
     } else {
@@ -118,17 +143,21 @@ async fn wait_instance_available_after_operation(
 }
 
 async fn wait_instance_create(
-    instance: CloudInstance,
+    operation: CloudOperation,
+    org: &str,
+    name: &str,
     client: &CloudClient,
 ) -> anyhow::Result<CloudInstance> {
-    wait_instance_available_after_operation(instance, client, "creating").await
+    wait_instance_available_after_operation(operation, org, name, client, "creating").await
 }
 
 async fn wait_instance_upgrade(
-    instance: CloudInstance,
+    operation: CloudOperation,
+    org: &str,
+    name: &str,
     client: &CloudClient,
 ) -> anyhow::Result<CloudInstance> {
-    wait_instance_available_after_operation(instance, client, "upgrading").await
+    wait_instance_available_after_operation(operation, org, name, client, "upgrading").await
 }
 
 pub async fn create_cloud_instance(
@@ -136,10 +165,10 @@ pub async fn create_cloud_instance(
     instance: &CloudInstanceCreate,
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances", instance.org);
-    let instance: CloudInstance = client
+    let operation: CloudOperation = client
         .post(url, serde_json::to_value(instance)?)
         .await?;
-    wait_instance_create(instance, client).await?;
+    wait_instance_create(operation, &instance.org, &instance.name, client).await?;
     Ok(())
 }
 
@@ -148,10 +177,10 @@ pub async fn upgrade_cloud_instance(
     instance: &CloudInstanceUpgrade,
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances/{}", instance.org, instance.name);
-    let instance: CloudInstance = client
+    let operation: CloudOperation = client
         .put(url, serde_json::to_value(instance)?)
         .await?;
-    wait_instance_upgrade(instance, client).await?;
+    wait_instance_upgrade(operation, &instance.org, &instance.name, client).await?;
     Ok(())
 }
 
@@ -185,7 +214,7 @@ async fn destroy(name: &str, org: &str, options: &CloudOptions) -> anyhow::Resul
     log::info!("Destroying EdgeDB Cloud instance: {}/{}", name, org);
     let client = CloudClient::new(options)?;
     client.ensure_authenticated()?;
-    let _: CloudInstance = client.delete(format!("orgs/{}/instances/{}", org, name)).await?;
+    let _: CloudOperation = client.delete(format!("orgs/{}/instances/{}", org, name)).await?;
     Ok(())
 }
 
