@@ -71,7 +71,7 @@ fn print_diff(path1: &Path, data1: &str, path2: &Path, data2: &str) {
 pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
     -> Result<(), anyhow::Error>
 {
-    let ctx = Context::from_project_or_config(&options.cfg)?;
+    let ctx = Context::from_project_or_config(&options.cfg, false)?;
     // TODO(tailhook) do we have to make the full check of whether there are no
     // gaps and parent revisions are okay?
     let (_n, path) = read_names(&ctx).await?
@@ -124,7 +124,7 @@ pub async fn edit(cli: &mut Connection,
                   _common: &Options, options: &MigrationEdit)
     -> anyhow::Result<()>
 {
-    let ctx = Context::from_project_or_config(&options.cfg)?;
+    let ctx = Context::from_project_or_config(&options.cfg, false)?;
     // TODO(tailhook) do we have to make the full check of whether there are no
     // gaps and parent revisions are okay?
     let (n, path) = cli.ping_while(read_names(&ctx)).await?

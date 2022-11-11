@@ -555,7 +555,7 @@ pub async fn create(cli: &mut Connection, options: &Options,
     create: &CreateMigration)
     -> anyhow::Result<()>
 {
-    let ctx = Context::from_project_or_config(&create.cfg)?;
+    let ctx = Context::from_project_or_config(&create.cfg, false)?;
 
     if dev_mode::check_client(cli).await? {
         // TODO(tailhook) older edgedb versions

@@ -6,7 +6,6 @@ use once_cell::sync::Lazy;
 
 use crate::commands::Options;
 use crate::commands::parser::CreateMigration;
-use crate::commands::parser::Migrate;
 use crate::migrations::context::Context;
 use crate::migrations::create::{CurrentMigration, normal_migration};
 use crate::migrations::create::{execute, query_row, execute_start_migration};
@@ -23,12 +22,29 @@ enum Mode {
 const MINIMUM_VERSION: Lazy<ver::Filter> =
     Lazy::new(|| "3.0-alpha.1".parse().unwrap());
 
+mod ddl {  // Just for nice log filter
+    use super::{execute, Connection};
+
+    pub async fn apply_statements(cli: &mut Connection, items: &[String])
+        -> anyhow::Result<()>
+    {
+        execute(cli, format!(
+            "CREATE MIGRATION {{
+                SET generated_by := schema::MigrationGeneratedBy.DevMode;
+                {}
+            }}", items.join("\n"))).await?;
+        for ddl_statement in items {
+            log::info!("{}", ddl_statement);
+        }
+        Ok(())
+    }
+}
+
 pub async fn check_client(cli: &mut Connection) -> anyhow::Result<bool> {
     ver::check_client(cli, &*MINIMUM_VERSION).await
 }
 
-pub async fn migrate(cli: &mut Connection, ctx: Context, migrate: &Migrate)
-    -> anyhow::Result<()>
+pub async fn migrate(cli: &mut Connection, ctx: &Context) -> anyhow::Result<()>
 {
     if !check_client(cli).await? {
         anyhow::bail!(
@@ -44,7 +60,7 @@ pub async fn migrate(cli: &mut Connection, ctx: Context, migrate: &Migrate)
                 migrations.pop_front();
             }
             if !migrations.is_empty() {
-                apply_migrations(cli, &migrations, migrate).await?;
+                apply_migrations(cli, &migrations, &ctx).await?;
             }
             log::info!("Calculating schema diff.");
             migrate_to_schema(cli, &ctx).await?;
@@ -116,11 +132,7 @@ async fn migrate_to_schema(cli: &mut Connection, ctx: &Context)
     }
     execute(cli, "ABORT MIGRATION").await?;
     if !descr.confirmed.is_empty() {
-        execute(cli, format!(
-        "CREATE MIGRATION {{
-            SET generated_by := schema::MigrationGeneratedBy.DevMode;
-            {}
-        }}", descr.confirmed.join("\n"))).await?;
+        ddl::apply_statements(cli, &descr.confirmed).await?;
     }
     Ok(())
 }
@@ -145,11 +157,7 @@ async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
         }
         execute(cli, "ABORT MIGRATION").await?;
         if !descr.confirmed.is_empty() {
-            execute(cli, format!(
-            "CREATE MIGRATION {{
-                SET generated_by := schema::MigrationGeneratedBy.DevMode;
-                {}
-            }}", descr.confirmed.join("\n"))).await?;
+            ddl::apply_statements(cli, &descr.confirmed).await?;
         }
         Ok(())
     }.await;
