@@ -81,11 +81,13 @@ targets:
           platform_version: x86_64
           platform_libc: musl
           family: generic
+          docker_arch: linux/amd64
         - name: linux-aarch64
           platform: linux
           platform_version: aarch64
           platform_libc: musl
           family: generic
+          docker_arch: linux/arm64
           runs_on: [self-hosted, linux, arm64]
 
     macos:
@@ -93,6 +95,7 @@ targets:
           platform: macos
           platform_version: x86_64
           family: generic
+          runs_on: [self-hosted, macOS, X64]
         - name: macos-aarch64
           platform: macos
           platform_version: aarch64
