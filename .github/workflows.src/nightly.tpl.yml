@@ -10,14 +10,31 @@ on:
       - nightly
 
 jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.whichver.outputs.branch }}
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Determine package version
+      shell: bash
+      run: |
+        branch=${GITHUB_REF#refs/heads/}
+        echo branch="${branch}" >> $GITHUB_OUTPUT
+      id: whichver
+
 <% for tgt in targets.linux %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
+    needs: prep
 
     steps:
     - name: Build
-      uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/build/<< plat_id >>@master
       env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
@@ -31,22 +48,23 @@ jobs:
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
 <% endif %>
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<< plat_id >>/
 <% endfor %>
 <% for tgt in targets.macos %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
-    continue-on-error: true
+    needs: prep
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
-        path: edgedb-cli/edgedb-pkg
+        path: edgedb-pkg
 
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
@@ -58,6 +76,7 @@ jobs:
 
     - name: Build
       env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
@@ -69,22 +88,23 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<< plat_id >>/
 <% endfor %>
 <% for tgt in targets.win %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
     runs-on: windows-2019
-    continue-on-error: true
+    needs: prep
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
-        path: edgedb-cli/edgedb-pkg
+        path: edgedb-pkg
 
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
@@ -94,7 +114,7 @@ jobs:
         default: true
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: "3.10"
 
@@ -105,6 +125,7 @@ jobs:
 
     - name: Build
       env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
@@ -125,29 +146,30 @@ jobs:
       with:
         certificate: "${{ secrets.WIN_CODE_SIGNING_CERT }}"
         certificate-password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
-        folder: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        folder: artifacts/<< plat_id >>/
 
-    - uses: actions/upload-artifact@v1
+    - uses: actions/upload-artifact@v3
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<< plat_id >>
 <% endfor %>
 <% for tgt in targets.linux %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   publish-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v3
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<< plat_id >>/
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: <<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        target: << plat_id >>
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -160,77 +182,61 @@ jobs:
 <% if tgt.platform_libc %>
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
 <% endif %>
-<% if tgt.family == "generic" %>
-    - name: Prepare docker context
-      env:
-        CLI_EXECUTABLE: "${{ steps.describe.outputs.install-ref }}"
-        PKG_PLATFORM_FULL: "<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
-      run: |
-        set -ex -o pipefail
-        shopt -s dotglob inherit_errexit nullglob
-        mkdir -p tmp
-        mkdir -p dockerctx
-        cp artifacts/${PKG_PLATFORM_FULL}/*.tar tmp/cli.tar
-        tar -x -f tmp/cli.tar -C tmp/
-        cp "tmp/${CLI_EXECUTABLE}" dockerctx/edgedb
-        chmod +x dockerctx/edgedb
-        printf 'FROM scratch\nADD edgedb /usr/bin/\nENTRYPOINT ["/usr/bin/edgedb"]\n' \
-          >dockerctx/Dockerfile
 
-    - name: Login to Docker Hub
-      uses: docker/login-action@v1
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-
-    - name: Publish docker image
-      uses: docker/build-push-action@v2
-      env:
-        PKG_PLATFORM_FULL: "<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
-      with:
-        push: true
-        context: dockerctx
-        tags: "edgedb/edgedb-cli:${{ env.PKG_PLATFORM_FULL }}-nightly"
-
-    - name: Update docker manifest
-      env:
-        PKG_PLATFORM_FULL: "<<tgt.platform>><< "{}".format(tgt.platform_libc) if tgt.platform_libc >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>"
-        PKG_PLATFORM_VERSION: "<<tgt.platform_version>>"
-      run: |
-        if docker manifest inspect edgedb/edgedb-cli:nightly >/dev/null 2>&1; then
-          docker manifest create --amend \
-            edgedb/edgedb-cli:nightly \
-            edgedb/edgedb-cli:${{ env.PKG_PLATFORM_FULL }}-nightly
-        else
-          docker manifest create \
-            edgedb/edgedb-cli:nightly \
-            edgedb/edgedb-cli:${{ env.PKG_PLATFORM_FULL }}-nightly
-        fi
-        docker manifest push edgedb/edgedb-cli:nightly
-<% endif %>
-<% endfor %>
-<% for tgt in targets.macos %>
-  publish-<< tgt.name >>:
-    needs: [build-<< tgt.name >>]
-    runs-on: ubuntu-latest
+  check-published-<< tgt.name >>:
+    needs: [publish-<< tgt.name >>]
+    runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v3
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
-
-    - uses: actions/checkout@v1
-      with:
-        repository: edgedb/edgedb-pkg
-        ref: master
-        path: edgedb-cli/edgedb-pkg
+        path: artifacts/<< plat_id >>
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: <<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        target: << plat_id >>
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/<< plat_id >>@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "<< tgt.platform >>"
+        PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version: "${{ steps.describe.outputs.version }}"
+      version-core: "${{ steps.describe.outputs.version-core }}"
+      install-ref: "${{ steps.describe.outputs.install-ref }}"
+<% endfor %>
+<% for tgt in targets.macos %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
+  publish-<< tgt.name >>:
+    needs: [build-<< tgt.name >>]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: builds-<< tgt.name >>
+        path: artifacts/<< plat_id >>
+
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: << plat_id >>
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -242,27 +248,28 @@ jobs:
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 <% endfor %>
 <% for tgt in targets.win %>
+<% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   publish-<< tgt.name >>:
     needs: [build-<< tgt.name >>]
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v1
+    - uses: actions/download-artifact@v3
       with:
         name: builds-<< tgt.name >>
-        path: artifacts/<<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        path: artifacts/<< plat_id >>
 
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
       with:
         repository: edgedb/edgedb-pkg
         ref: master
-        path: edgedb-cli/edgedb-pkg
+        path: edgedb-pkg
 
     - name: Describe
       id: describe
       uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
       with:
-        target: <<tgt.platform>><< "-{}".format(tgt.platform_version) if tgt.platform_version >>
+        target: << plat_id >>
 
     - name: Publish
       uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
@@ -273,3 +280,82 @@ jobs:
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 <% endfor %>
+<% set docker_tgts = targets.linux | selectattr("docker_arch") | list %>
+<% if docker_tgts %>
+  publish-docker:
+    needs:
+      <% for tgt in docker_tgts %>
+      - check-published-<< tgt.name >>
+      <% endfor %>
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Prepare docker context
+      run: |
+        mkdir -p dockerctx
+        cat >dockerctx/Dockerfile <% raw %><<'EOF'<% endraw %>
+        FROM alpine:3 AS download
+        <%- for tgt in docker_tgts %>
+        ARG install_ref_<< tgt.platform_version >>
+        <%- endfor %>
+        RUN apk add --no-cache \
+          bash \
+          wget \
+          tar \
+          zstd
+        SHELL ["/bin/bash", "-c"]
+        RUN \
+          set -eEx -o pipefail \
+          && shopt -s dotglob inherit_errexit nullglob \
+          && plat_id="$(arch)-unknown-linux-musl" \
+          && install_ref_var="install_ref_$(arch)" \
+          && install_ref="${!install_ref_var}" \
+          && url="https://packages.edgedb.com/archive/${plat_id}.nightly/${install_ref}" \
+          && ( \
+              for i in $(seq 1 30); do [[ $i -gt 1 ]] && sleep 30; \
+                  wget --secure-protocol=PFS --https-only "${url}" \
+              && s=0 && break || s=$?; done; exit $s \
+          ) \
+          && artifact=$(basename "${install_ref}") \
+          && if ! [ -e "${artifact}" ]; then \
+              echo ::error "Downloaded something, but '${artifact}' does not exist." ; \
+              exit 1 ; \
+          fi \
+          && ( \
+            case "${artifact}" in \
+              *.zst) \
+                cp -a "${artifact}" "/tmp/" \
+                cd "/tmp/" \
+                zstd -d "${artifact}" -o "edgedb" \
+                ;; \
+              *) \
+                cp -a "${artifact}" "/tmp/edgedb" \
+                ;; \
+            esac \
+          ) \
+          && chmod +x /tmp/edgedb
+
+        FROM scratch
+        COPY --from=download /tmp/edgedb /usr/bin/edgedb
+        ENTRYPOINT ["/usr/bin/edgedb"]
+        EOF
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Publish Docker Image
+      uses: elgohr/Publish-Docker-Github-Action@v4
+      with:
+        name: edgedb/edgedb-cli
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        tags: nightly
+        workdir: dockerctx
+        buildargs: <% for tgt in docker_tgts -%>
+          install_ref_<< tgt.platform_version >>=${{ needs.check-published-<< tgt.name >>.outputs.install-ref }},
+          <%- endfor %>
+        platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
+<% endif %>
