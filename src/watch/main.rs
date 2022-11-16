@@ -35,7 +35,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand)
         migration: migrations::Context::for_watch(&project_dir)?,
         last_error: false,
     };
-    log::info!("Monitoring project dir: {:?}", project_dir);
+    log::info!("Initialized in a project dir: {:?}", project_dir);
     task::block_on(ctx.do_update())?;
     let (tx, rx) = watch::channel(());
     let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
@@ -46,6 +46,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand)
     })?;
     watch.watch(&project_dir.join("edgedb.toml"), RecursiveMode::NonRecursive)?;
     watch.watch(&project_dir.join("dbschema"), RecursiveMode::Recursive)?;
+    eprintln!("Initialized. Monitoring {:?}.", project_dir);
     task::block_on(watch_loop(rx, ctx))?;
     Ok(())
 }
@@ -104,11 +105,6 @@ impl WatchContext {
                 }
             }
             Err(e) => {
-                // TODO(tailhook) differentiate between temporary errors and
-                // errors of user schema or migration errors
-                // TODO(tailhook) use database erroring mechanism to notify
-                // users
-                // TODO(tailhook) better print syntax errors maybe?
                 eprintln!("Schema migration error: {e:#}");
                 // TODO(tailhook) probably only print if error doesn't match
                 self.last_error = true;
