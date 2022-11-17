@@ -887,7 +887,7 @@ pub fn revert(options: &options::Revert, name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Option<Vec<u8>>)> {
     let wsl = try_get_wsl()?;
 
     let data_dir = if name == "_localdev" {
@@ -908,7 +908,7 @@ pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
     }
     Ok((
         wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?.into_bytes(),
-        wsl.read_text_file(data_dir + "edbjwekeys.pem")?.into_bytes(),
+        wsl.read_text_file(data_dir + "edbjwekeys.pem").ok().map(String::into_bytes),
     ))
 }
 
