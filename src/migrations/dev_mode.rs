@@ -2,6 +2,7 @@ use edgedb_client::client::Connection;
 use linked_hash_map::LinkedHashMap;
 
 use anyhow::Context as _;
+use indicatif::ProgressBar;
 use once_cell::sync::Lazy;
 
 use crate::commands::Options;
@@ -44,7 +45,8 @@ pub async fn check_client(cli: &mut Connection) -> anyhow::Result<bool> {
     ver::check_client(cli, &*MINIMUM_VERSION).await
 }
 
-pub async fn migrate(cli: &mut Connection, ctx: &Context) -> anyhow::Result<()>
+pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar)
+    -> anyhow::Result<()>
 {
     if !check_client(cli).await? {
         anyhow::bail!(
@@ -60,15 +62,19 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context) -> anyhow::Result<()>
                 migrations.pop_front();
             }
             if !migrations.is_empty() {
+                bar.set_message("applying migrations");
                 apply_migrations(cli, &migrations, &ctx).await?;
             }
+            bar.set_message("calculating diff");
             log::info!("Calculating schema diff.");
             migrate_to_schema(cli, &ctx).await?;
         }
         Mode::Rebase => {
             log::info!("Calculating schema diff.");
+            bar.set_message("calculating diff");
             migrate_to_schema(cli, &ctx).await?;
             log::info!("Now rebasing on top of filesystem migrations.");
+            bar.set_message("rebasing migrations");
             rebase_to_schema(cli, &ctx, &migrations).await?;
         }
     }

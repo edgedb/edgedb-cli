@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 use async_std::future::timeout;
 use async_std::task;
 use edgedb_client::{get_project_dir};
+use indicatif::ProgressBar;
 use notify::{RecursiveMode, Watcher};
 use tokio::sync::watch;
 
@@ -95,13 +96,18 @@ async fn watch_loop(mut rx: watch::Receiver<()>, mut ctx: WatchContext)
 
 impl WatchContext {
     async fn do_update(&mut self) -> anyhow::Result<()> {
+        let bar = ProgressBar::new_spinner();
+        bar.enable_steady_tick(Duration::from_millis(100));
         // TODO(tailhook) check edgedb version
+        bar.set_message("connecting");
         let mut cli = self.connector.connect().await?;
-        match dev_mode::migrate(&mut cli, &self.migration).await {
+        let result = dev_mode::migrate(&mut cli, &self.migration, &bar).await;
+        bar.finish_and_clear();
+        match result {
             Ok(()) => {
                 if self.last_error {
                     self.last_error = false;
-                    eprintln!("Error resolved. Schema is up to date now.");
+                    eprintln!("Resolved. Schema is up to date now.");
                 }
             }
             Err(e) => {
