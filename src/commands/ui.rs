@@ -3,9 +3,7 @@ use std::io::{stdout, Write};
 use std::path::PathBuf;
 
 use fs_err as fs;
-use ring::rand::SecureRandom;
-use ring::signature::KeyPair;
-use ring::{aead, agreement, digest, rand, signature};
+use ring::{rand, signature};
 
 use crate::commands::ExitCode;
 use crate::options::{Options, UI};
@@ -133,7 +131,7 @@ async fn open_url(url: &str) -> Result<reqwest::Response, reqwest::Error> {
         .await
 }
 
-fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+fn read_jose_keys(name: &str) -> anyhow::Result<Vec<u8>> {
     if cfg!(windows) {
         crate::portable::windows::read_jose_keys(name)
     } else {
@@ -148,20 +146,14 @@ fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
         if !data_dir.exists() {
             anyhow::bail!(NonLocalInstance);
         }
-        Ok((
-            fs::read(data_dir.join("edbjwskeys.pem"))?,
-            fs::read(data_dir.join("edbjwekeys.pem"))?,
-        ))
+        Ok(fs::read(data_dir.join("edbjwskeys.pem"))?)
     }
 }
 
-fn generate_jwt<B: AsRef<[u8]>>(keys: (B, B)) -> anyhow::Result<String> {
-    // Replace this ES256/ECDH-ES implementation using raw ring
-    // with biscuit when the algorithms are supported in biscuit
+fn generate_jwt<B: AsRef<[u8]>>(keys: B) -> anyhow::Result<String> {
     let rng = rand::SystemRandom::new();
 
-    let jws_pem = pem::parse(keys.0)?;
-    let jwe_pem = pem::parse(keys.1)?;
+    let jws_pem = pem::parse(keys)?;
 
     let jws = signature::EcdsaKeyPair::from_pkcs8(
         &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
@@ -179,59 +171,9 @@ fn generate_jwt<B: AsRef<[u8]>>(keys: (B, B)) -> anyhow::Result<String> {
         ),
     );
     let signature = jws.sign(&rng, message.as_bytes())?;
-    let signed_token = format!(
+    Ok(format!(
         "{}.{}",
         message,
         base64::encode_config(signature, base64::URL_SAFE_NO_PAD),
-    );
-
-    let jwe = signature::EcdsaKeyPair::from_pkcs8(
-        &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
-        jwe_pem.contents.as_slice(),
-    )?;
-
-    let priv_key = agreement::EphemeralPrivateKey::generate(&agreement::ECDH_P256, &rng)?;
-    let pub_key =
-        agreement::UnparsedPublicKey::new(&agreement::ECDH_P256, jwe.public_key().as_ref());
-    let epk = priv_key.compute_public_key()?.as_ref().to_vec();
-    let cek = agreement::agree_ephemeral(priv_key, &pub_key, (), |key_material| {
-        let mut ctx = digest::Context::new(&digest::SHA256);
-        ctx.update(&[0, 0, 0, 1]);
-        ctx.update(key_material);
-        ctx.update(&[0, 0, 0, 7]); // AlgorithmID
-        ctx.update(b"A256GCM");
-        ctx.update(&[0, 0, 0, 0]); // PartyUInfo
-        ctx.update(&[0, 0, 0, 0]); // PartyVInfo
-        ctx.update(&[0, 0, 1, 0]); // SuppPubInfo (bitsize=256)
-        Ok(ctx.finish())
-    })
-    .map_err(|_| anyhow::anyhow!("Error occurred deriving key for JWT"))?;
-    let enc_key = aead::LessSafeKey::new(aead::UnboundKey::new(&aead::AES_256_GCM, cek.as_ref())?);
-    let x = base64::encode_config(&epk[1..33], base64::URL_SAFE_NO_PAD);
-    let y = base64::encode_config(&epk[33..], base64::URL_SAFE_NO_PAD);
-    let protected = format!(
-        "{{\
-            \"alg\":\"ECDH-ES\",\"enc\":\"A256GCM\",\"epk\":{{\
-                \"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"{}\",\"y\":\"{}\"\
-            }}\
-        }}",
-        x, y
-    );
-    let protected = base64::encode_config(protected.as_bytes(), base64::URL_SAFE_NO_PAD);
-    let mut nonce = vec![0; 96 / 8];
-    rng.fill(&mut nonce)?;
-    let mut in_out = signed_token.as_bytes().to_vec();
-    let tag = enc_key.seal_in_place_separate_tag(
-        aead::Nonce::try_assume_unique_for_key(&nonce)?,
-        aead::Aad::from(protected.clone()),
-        &mut in_out,
-    )?;
-
-    Ok(format!(
-        "{}..{}.{}.{}",
-        protected,
-        base64::encode_config(nonce, base64::URL_SAFE_NO_PAD),
-        base64::encode_config(in_out, base64::URL_SAFE_NO_PAD),
-        base64::encode_config(tag.as_ref(), base64::URL_SAFE_NO_PAD),
     ))
 }
