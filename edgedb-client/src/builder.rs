@@ -696,8 +696,6 @@ impl Builder {
             tls_ca: self.pem.clone(),
             tls_security: self.tls_security,
             file_outdated: false,
-            cloud_instance_id: None,
-            cloud_original_dsn: None,
         })
     }
     /// Get the `host` this builder is configured to connect to.
