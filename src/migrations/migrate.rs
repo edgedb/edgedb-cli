@@ -4,6 +4,7 @@ use async_std::path::Path;
 use async_std::stream::StreamExt;
 use colorful::Colorful;
 use edgedb_client::client::Connection;
+use indicatif::ProgressBar;
 use linked_hash_map::LinkedHashMap;
 
 use crate::commands::Options;
@@ -59,7 +60,8 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
 {
     let ctx = Context::from_project_or_config(&migrate.cfg, migrate.quiet)?;
     if migrate.dev_mode {
-        return dev_mode::migrate(cli, &ctx).await;
+        // TODO(tailhook) figure out progressbar in non-quiet mode
+        return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
     }
     let mut migrations = migration::read_all(&ctx, true).await?;
     let db_migration: Option<String> = cli.query_row_opt(r###"
