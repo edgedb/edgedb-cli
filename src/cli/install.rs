@@ -411,7 +411,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             server_start_conf: None,
         };
         let options = crate::options::CloudOptions {
-            cloud_base_url: None,
+            cloud_dns_zone: None,
             cloud_access_token: None,
         };
         let dir = fs::canonicalize(&dir)

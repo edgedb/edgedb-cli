@@ -11,8 +11,7 @@ use surf::http::auth::{AuthenticationScheme, Authorization};
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
 
-const EDGEDB_CLOUD_BASE_URL: &str = "https://free-tier0.ovh-us-west-2.edgedb.cloud";
-const EDGEDB_CLOUD_DEFAULT_DNS_ZONE: &str = "ovh-us-west-2.edgedb.cloud";
+const EDGEDB_CLOUD_DEFAULT_DNS_ZONE: &str = "aws.edgedb.cloud";
 const EDGEDB_CLOUD_API_VERSION: &str = "/v1/";
 const EDGEDB_CLOUD_API_TIMEOUT: u64 = 10;
 
@@ -42,18 +41,18 @@ pub struct CloudClient {
     pub is_logged_in: bool,
     pub base_url: String,
     options_access_token: Option<String>,
-    options_base_url: Option<String>,
-    dns_zone: Option<String>,
+    options_dns_zone: Option<String>,
+    dns_zone: String,
     pub access_token: Option<String>,
 }
 
 impl CloudClient {
     pub fn new(options: &CloudOptions) -> anyhow::Result<Self> {
-        Self::new_inner(&options.cloud_access_token, &options.cloud_base_url)
+        Self::new_inner(&options.cloud_access_token, &options.cloud_dns_zone)
     }
 
     fn new_inner(
-        options_access_token: &Option<String>, options_base_url: &Option<String>
+        options_access_token: &Option<String>, options_dns_zone: &Option<String>
     ) -> anyhow::Result<Self> {
         let access_token = if let Some(access_token) = options_access_token {
             Some(access_token.into())
@@ -70,28 +69,23 @@ impl CloudClient {
                 }
             }
         };
-        let base_url = options_base_url
-            .as_deref()
-            .unwrap_or(
-                env::var("EDGEDB_CLOUD_BASE_URL")
-                    .as_deref()
-                    .unwrap_or(EDGEDB_CLOUD_BASE_URL),
-            )
-            .to_string();
+        let mut dns_zone = options_dns_zone
+            .clone()
+            .or_else(|| env::var("EDGEDB_CLOUD_DNS_ZONE").ok());
         let mut config = surf::Config::new()
-            .set_base_url(surf::Url::parse(&base_url)?.join(EDGEDB_CLOUD_API_VERSION)?)
             .set_timeout(Some(Duration::from_secs(EDGEDB_CLOUD_API_TIMEOUT)));
         let is_logged_in;
-        let dns_zone;
         if let Some(access_token) = access_token.clone() {
-            let claims_b64 = access_token
-                .splitn(3, ".")
-                .skip(1)
-                .next()
-                .context("Illegal JWT token")?;
-            let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)?;
-            let claims: Claims = serde_json::from_slice(&claims)?;
-            dns_zone = claims.issuer;
+            if dns_zone.is_none() {
+                let claims_b64 = access_token
+                    .splitn(3, ".")
+                    .skip(1)
+                    .next()
+                    .context("Illegal JWT token")?;
+                let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)?;
+                let claims: Claims = serde_json::from_slice(&claims)?;
+                dns_zone = claims.issuer;
+            }
 
             let auth = Authorization::new(AuthenticationScheme::Bearer, access_token);
             config = config
@@ -99,15 +93,18 @@ impl CloudClient {
                 .map_err(HttpError)?;
             is_logged_in = true;
         } else {
-            dns_zone = None;
             is_logged_in = false;
         }
+        let dns_zone = dns_zone.unwrap_or(EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string());
+        let base_url = format!("https://api.g.{dns_zone}");
+        config = config
+            .set_base_url(surf::Url::parse(&base_url)?.join(EDGEDB_CLOUD_API_VERSION)?);
         Ok(Self {
             client: config.try_into()?,
             is_logged_in,
             base_url,
             options_access_token: options_access_token.clone(),
-            options_base_url: options_base_url.clone(),
+            options_dns_zone: options_dns_zone.clone(),
             dns_zone,
             access_token,
         })
@@ -116,7 +113,7 @@ impl CloudClient {
     pub fn reinit(&mut self) -> anyhow::Result<()> {
         *self = Self::new_inner(
             &self.options_access_token,
-            &self.options_base_url,
+            &self.options_dns_zone,
         )?;
         Ok(())
     }
@@ -185,11 +182,7 @@ impl CloudClient {
         let msg = format!("{}/{}", org, inst);
         let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
         let dns_bucket = format!("c-{:x}", checksum % 9900);
-        let dns_zone = self
-            .dns_zone
-            .as_deref()
-            .unwrap_or(EDGEDB_CLOUD_DEFAULT_DNS_ZONE);
-        format!("{}.{}.{}.i.{}", inst, org, dns_bucket, dns_zone)
+        format!("{}.{}.{}.i.{}", inst, org, dns_bucket, self.dns_zone)
     }
 }
 
