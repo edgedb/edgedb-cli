@@ -5,12 +5,14 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use anyhow::Context;
 use surf::http::auth::{AuthenticationScheme, Authorization};
 
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
 
 const EDGEDB_CLOUD_BASE_URL: &str = "https://free-tier0.ovh-us-west-2.edgedb.cloud";
+const EDGEDB_CLOUD_DEFAULT_DNS_ZONE: &str = "ovh-us-west-2.edgedb.cloud";
 const EDGEDB_CLOUD_API_VERSION: &str = "/v1/";
 const EDGEDB_CLOUD_API_TIMEOUT: u64 = 10;
 
@@ -29,12 +31,20 @@ pub struct CloudConfig {
     pub access_token: Option<String>,
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct Claims {
+    #[serde(rename = "iss", skip_serializing_if = "Option::is_none")]
+    issuer: Option<String>,
+}
+
 pub struct CloudClient {
     client: surf::Client,
     pub is_logged_in: bool,
     pub base_url: String,
     options_access_token: Option<String>,
     options_base_url: Option<String>,
+    dns_zone: Option<String>,
+    pub access_token: Option<String>,
 }
 
 impl CloudClient {
@@ -71,21 +81,35 @@ impl CloudClient {
         let mut config = surf::Config::new()
             .set_base_url(surf::Url::parse(&base_url)?.join(EDGEDB_CLOUD_API_VERSION)?)
             .set_timeout(Some(Duration::from_secs(EDGEDB_CLOUD_API_TIMEOUT)));
-        let is_logged_in = if let Some(access_token) = access_token {
-            let auth = Authorization::new(AuthenticationScheme::Bearer, access_token.into());
+        let is_logged_in;
+        let dns_zone;
+        if let Some(access_token) = access_token.clone() {
+            let claims_b64 = access_token
+                .splitn(3, ".")
+                .skip(1)
+                .next()
+                .context("Illegal JWT token")?;
+            let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)?;
+            let claims: Claims = serde_json::from_slice(&claims)?;
+            dns_zone = claims.issuer;
+
+            let auth = Authorization::new(AuthenticationScheme::Bearer, access_token);
             config = config
                 .add_header(auth.name(), auth.value())
                 .map_err(HttpError)?;
-            true
+            is_logged_in = true;
         } else {
-            false
-        };
+            dns_zone = None;
+            is_logged_in = false;
+        }
         Ok(Self {
             client: config.try_into()?,
             is_logged_in,
             base_url,
             options_access_token: options_access_token.clone(),
             options_base_url: options_base_url.clone(),
+            dns_zone,
+            access_token,
         })
     }
 
@@ -155,6 +179,17 @@ impl CloudClient {
         uri: impl AsRef<str>,
     ) -> anyhow::Result<T> {
         self.request(self.client.delete(uri)).await
+    }
+
+    pub fn get_cloud_host(&self, org: &str, inst: &str) -> String {
+        let msg = format!("{}/{}", org, inst);
+        let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
+        let dns_bucket = format!("c-{:x}", checksum % 9900);
+        let dns_zone = self
+            .dns_zone
+            .as_deref()
+            .unwrap_or(EDGEDB_CLOUD_DEFAULT_DNS_ZONE);
+        format!("{}.{}.{}.i.{}", inst, org, dns_bucket, dns_zone)
     }
 }
 

@@ -675,9 +675,8 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
             InstanceName::Cloud { org_slug, name } => {
                 let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
                 client.ensure_authenticated()?;
-                let inst = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
-                    name, org_slug, &client))?;
-                bld.credentials(&inst.expect("missing instance").as_credentials()?)?;
+                bld.host_port(Some(client.get_cloud_host(org_slug, name)), None);
+                bld.token(client.access_token.unwrap());
             }
             InstanceName::Local(instance) => {
                 task::block_on(bld.read_instance(instance))?;
