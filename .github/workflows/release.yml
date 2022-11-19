@@ -611,17 +611,11 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
-      id: whichver
-
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
       if: false
       with:
-        profile: minimal
         toolchain: stable
-        default: true
 
     - name: Build
       env:
@@ -654,17 +648,11 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - name: Determine package version
-      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
-      id: whichver
-
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
       if: false
       with:
-        profile: minimal
         toolchain: stable
-        default: true
 
     - name: Build
       env:
@@ -699,11 +687,9 @@ jobs:
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
       with:
-        profile: minimal
         toolchain: stable
-        default: true
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -732,11 +718,11 @@ jobs:
       uses: elprans/gha-setup-vcpp-build-tools@v1
 
     - name: Sign
-      uses: elprans/gha-win-code-sign@v1
+      uses: dlemstra/code-sign-action@913a13539bc1e64662db7eaa1e591f201f6b2bb6
       with:
         certificate: "${{ secrets.WIN_CODE_SIGNING_CERT }}"
-        certificate-password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
-        folder: artifacts/win-x86_64
+        password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
+        folder: "artifacts/win-x86_64/"
 
     - uses: actions/upload-artifact@v3
       with:
@@ -1965,6 +1951,7 @@ jobs:
           && chmod +x /tmp/edgedb
 
         FROM scratch
+        COPY --from=download /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
         COPY --from=download /tmp/edgedb /usr/bin/edgedb
         ENTRYPOINT ["/usr/bin/edgedb"]
         EOF
@@ -1985,7 +1972,7 @@ jobs:
               break
             fi
             echo "$resp" | jq -r '."results"[]["name"]'
-          done | grep "^[[:digit:]]\+.*"
+          done | grep "^[[:digit:]]\+.*" || :
         )
 
         tags=( "$VERSION_CORE" )
@@ -2008,7 +1995,7 @@ jobs:
       uses: docker/setup-buildx-action@v2
 
     - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@v4
+      uses: elgohr/Publish-Docker-Github-Action@742a180fa47f3adfb5115902ae4955acc6ad769b
       with:
         name: edgedb/edgedb-cli
         username: ${{ secrets.DOCKER_USERNAME }}
