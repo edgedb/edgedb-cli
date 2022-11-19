@@ -16,7 +16,7 @@ jobs:
       shell: bash
       run: |
         branch=${GITHUB_REF#refs/heads/}
-        echo ::set-output name=branch::"${branch}"
+        echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
 
@@ -1816,7 +1816,6 @@ jobs:
 
   publish-macos-x86_64:
     needs: [build-macos-x86_64]
-    continue-on-error: true
     runs-on: ubuntu-latest
 
     steps:
@@ -1848,7 +1847,6 @@ jobs:
 
   publish-macos-aarch64:
     needs: [build-macos-aarch64]
-    continue-on-error: true
     runs-on: ubuntu-latest
 
     steps:
@@ -1881,7 +1879,7 @@ jobs:
 
   publish-win-x86_64:
     needs: [build-win-x86_64]
-    runs-on: windows-2019
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/download-artifact@v3
@@ -1902,14 +1900,12 @@ jobs:
         target: win-x86_64
 
     - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "win"
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
-      shell: bash
-      run: |
-        edgedb-pkg/integration/win/publish.sh
 
 
 
@@ -1975,6 +1971,7 @@ jobs:
     - env:
         VERSION: "${{ needs.check-published-linux-x86_64.outputs.version }}"
         VERSION_CORE: "${{ needs.check-published-linux-x86_64.outputs.version-core }}"
+        PKG_SUBDIST: ""
       id: tags
       run: |
         set -e
@@ -1991,12 +1988,14 @@ jobs:
           done | grep "^[[:digit:]]\+.*"
         )
 
-        tags=( "$VERSION_CORE" "$VERSION" )
+        tags=( "$VERSION_CORE" )
 
-        top=$(printf "%s\n%s\n" "$VERSION" "$repo_tags" \
-              | sort --version-sort --reverse | head -n 1)
-        if [ "$top" == "$VERSION" ]; then
-          tags+=( "latest" )
+        if [ -z "$PKG_SUBDIST" ]; then
+          top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+                | sort --version-sort --reverse | head -n 1)
+          if [ "$top" == "$VERSION_CORE" ]; then
+            tags+=( "latest" )
+          fi
         fi
 
         IFS=,
