@@ -31,6 +31,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
       env:
@@ -55,6 +61,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-stretch@master
       env:
@@ -79,6 +91,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
@@ -103,6 +121,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-buster@master
       env:
@@ -127,6 +151,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
@@ -151,6 +181,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
       env:
@@ -175,6 +211,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
       env:
@@ -199,6 +241,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-xenial@master
       env:
@@ -223,6 +271,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
@@ -247,6 +301,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-bionic@master
       env:
@@ -271,6 +331,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
@@ -295,6 +361,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-focal@master
       env:
@@ -319,6 +391,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
@@ -343,6 +421,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-jammy@master
       env:
@@ -367,6 +451,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-7@master
       env:
@@ -391,6 +481,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
@@ -415,6 +511,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/centos-8@master
       env:
@@ -439,6 +541,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-x86_64@master
       env:
@@ -467,6 +575,12 @@ jobs:
     needs: prep
 
     steps:
+    - uses: actions/checkout@v3
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/linuxmusl-aarch64@master
       env:
@@ -501,6 +615,10 @@ jobs:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
+
+    - name: Determine package version
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
+      id: whichver
 
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
@@ -540,6 +658,10 @@ jobs:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
+
+    - name: Determine package version
+      run: edgedb-pkg/integration/determine-version.py $GITHUB_REF
+      id: whichver
 
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
@@ -585,7 +707,7 @@ jobs:
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: "stable"
+        toolchain: stable
         default: true
 
     - name: Set up Python
@@ -619,7 +741,7 @@ jobs:
       with:
         certificate: "${{ secrets.WIN_CODE_SIGNING_CERT }}"
         certificate-password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
-        folder: artifacts/win-x86_64/
+        folder: artifacts/win-x86_64
 
     - uses: actions/upload-artifact@v3
       with:
@@ -662,7 +784,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-debian-stretch-x86_64
-        path: artifacts/debian-stretch
+        path: artifacts/debian-stretch/
 
     - name: Describe
       id: describe
@@ -720,7 +842,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-debian-stretch-aarch64
-        path: artifacts/debian-stretch
+        path: artifacts/debian-stretch/
 
     - name: Describe
       id: describe
@@ -778,7 +900,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-debian-buster-x86_64
-        path: artifacts/debian-buster
+        path: artifacts/debian-buster/
 
     - name: Describe
       id: describe
@@ -836,7 +958,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-debian-buster-aarch64
-        path: artifacts/debian-buster
+        path: artifacts/debian-buster/
 
     - name: Describe
       id: describe
@@ -894,7 +1016,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-debian-bullseye-x86_64
-        path: artifacts/debian-bullseye
+        path: artifacts/debian-bullseye/
 
     - name: Describe
       id: describe
@@ -952,7 +1074,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-debian-bullseye-aarch64
-        path: artifacts/debian-bullseye
+        path: artifacts/debian-bullseye/
 
     - name: Describe
       id: describe
@@ -1010,7 +1132,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-xenial-x86_64
-        path: artifacts/ubuntu-xenial
+        path: artifacts/ubuntu-xenial/
 
     - name: Describe
       id: describe
@@ -1068,7 +1190,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-xenial-aarch64
-        path: artifacts/ubuntu-xenial
+        path: artifacts/ubuntu-xenial/
 
     - name: Describe
       id: describe
@@ -1126,7 +1248,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-bionic-x86_64
-        path: artifacts/ubuntu-bionic
+        path: artifacts/ubuntu-bionic/
 
     - name: Describe
       id: describe
@@ -1184,7 +1306,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-bionic-aarch64
-        path: artifacts/ubuntu-bionic
+        path: artifacts/ubuntu-bionic/
 
     - name: Describe
       id: describe
@@ -1242,7 +1364,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-focal-x86_64
-        path: artifacts/ubuntu-focal
+        path: artifacts/ubuntu-focal/
 
     - name: Describe
       id: describe
@@ -1300,7 +1422,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-focal-aarch64
-        path: artifacts/ubuntu-focal
+        path: artifacts/ubuntu-focal/
 
     - name: Describe
       id: describe
@@ -1358,7 +1480,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-jammy-x86_64
-        path: artifacts/ubuntu-jammy
+        path: artifacts/ubuntu-jammy/
 
     - name: Describe
       id: describe
@@ -1416,7 +1538,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-ubuntu-jammy-aarch64
-        path: artifacts/ubuntu-jammy
+        path: artifacts/ubuntu-jammy/
 
     - name: Describe
       id: describe
@@ -1474,7 +1596,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-centos-7-x86_64
-        path: artifacts/centos-7
+        path: artifacts/centos-7/
 
     - name: Describe
       id: describe
@@ -1532,7 +1654,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-centos-8-x86_64
-        path: artifacts/centos-8
+        path: artifacts/centos-8/
 
     - name: Describe
       id: describe
@@ -1590,7 +1712,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-centos-8-aarch64
-        path: artifacts/centos-8
+        path: artifacts/centos-8/
 
     - name: Describe
       id: describe
@@ -1650,7 +1772,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-linux-x86_64
-        path: artifacts/linuxmusl-x86_64
+        path: artifacts/linuxmusl-x86_64/
 
     - name: Describe
       id: describe
@@ -1710,7 +1832,7 @@ jobs:
     - uses: actions/download-artifact@v3
       with:
         name: builds-linux-aarch64
-        path: artifacts/linuxmusl-aarch64
+        path: artifacts/linuxmusl-aarch64/
 
     - name: Describe
       id: describe
@@ -1833,6 +1955,7 @@ jobs:
 
 
 
+
   publish-docker:
     needs:
       
@@ -1891,6 +2014,38 @@ jobs:
         COPY --from=download /tmp/edgedb /usr/bin/edgedb
         ENTRYPOINT ["/usr/bin/edgedb"]
         EOF
+    - env:
+        VERSION: "${{ needs.check-published-linux-x86_64.outputs.version }}"
+        VERSION_CORE: "${{ needs.check-published-linux-x86_64.outputs.version-core }}"
+        PKG_SUBDIST: "nightly"
+      id: tags
+      run: |
+        set -e
+
+        url='https://registry.hub.docker.com/v2/repositories/edgedb/edgedb-cli/tags?page_size=100'
+        repo_tags=$(
+          while [ -n "$url" ]; do
+            resp=$(curl -L -s "$url")
+            url=$(echo "$resp" | jq -r ".next")
+            if [ "$url" = "null" ] || [ -z "$url" ]; then
+              break
+            fi
+            echo "$resp" | jq -r '."results"[]["name"]'
+          done | grep "^[[:digit:]]\+.*"
+        )
+
+        tags=( "$VERSION_CORE" )
+
+        if [ -z "$PKG_SUBDIST" ]; then
+          top=$(printf "%s\n%s\n" "$VERSION_CORE" "$repo_tags" \
+                | sort --version-sort --reverse | head -n 1)
+          if [ "$top" == "$VERSION_CORE" ]; then
+            tags+=( "latest" )
+          fi
+        fi
+
+        IFS=,
+        echo "tags=${tags[*]}" >> $GITHUB_OUTPUT
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
