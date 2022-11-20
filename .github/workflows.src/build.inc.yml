@@ -310,6 +310,7 @@
         mkdir -p dockerctx
         cat >dockerctx/Dockerfile <% raw %><<'EOF'<% endraw %>
         FROM alpine:3 AS download
+        ARG subdist
         <%- for tgt in docker_tgts %>
         ARG install_ref_<< tgt.platform_version >>
         <%- endfor %>
@@ -324,9 +325,10 @@
           set -eEx -o pipefail \
           && shopt -s dotglob inherit_errexit nullglob \
           && plat_id="$(arch)-unknown-linux-musl" \
+          && if [ -n "$subdist" ]; then plat_id+=".${subdist}"; fi \
           && install_ref_var="install_ref_$(arch)" \
           && install_ref="${!install_ref_var}" \
-          && url="https://packages.edgedb.com/archive/${plat_id}.nightly/${install_ref}" \
+          && url="https://packages.edgedb.com/archive/${plat_id}/${install_ref}" \
           && ( \
               for i in $(seq 1 30); do [[ $i -gt 1 ]] && sleep 30; \
                   wget --secure-protocol=PFS --https-only "${url}" \
@@ -409,7 +411,7 @@
         workdir: dockerctx
         buildargs: <% for tgt in docker_tgts -%>
           install_ref_<< tgt.platform_version >>=${{ needs.check-published-<< tgt.name >>.outputs.install-ref }},
-          <%- endfor %>
+          <%- endfor %>subdist=<< subdist >>
         platforms: << docker_tgts|map(attribute="docker_arch")|join(",") >>
 <% endif %>
 <%- endmacro %>
