@@ -1957,10 +1957,12 @@ jobs:
         mkdir -p dockerctx
         cat >dockerctx/Dockerfile <<'EOF'
         FROM alpine:3 AS download
+        ARG subdist
         ARG install_ref_x86_64
         ARG install_ref_aarch64
         RUN apk add --no-cache \
           bash \
+          ca-certificates \
           wget \
           tar \
           zstd
@@ -1969,9 +1971,10 @@ jobs:
           set -eEx -o pipefail \
           && shopt -s dotglob inherit_errexit nullglob \
           && plat_id="$(arch)-unknown-linux-musl" \
+          && if [ -n "$subdist" ]; then plat_id+=".${subdist}"; fi \
           && install_ref_var="install_ref_$(arch)" \
           && install_ref="${!install_ref_var}" \
-          && url="https://packages.edgedb.com/archive/${plat_id}.nightly/${install_ref}" \
+          && url="https://packages.edgedb.com/archive/${plat_id}/${install_ref}" \
           && ( \
               for i in $(seq 1 30); do [[ $i -gt 1 ]] && sleep 30; \
                   wget --secure-protocol=PFS --https-only "${url}" \
@@ -2048,6 +2051,6 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
         tags: nightly
         workdir: dockerctx
-        buildargs: install_ref_x86_64=${{ needs.check-published-linux-x86_64.outputs.install-ref }},install_ref_aarch64=${{ needs.check-published-linux-aarch64.outputs.install-ref }},
+        buildargs: install_ref_x86_64=${{ needs.check-published-linux-x86_64.outputs.install-ref }},install_ref_aarch64=${{ needs.check-published-linux-aarch64.outputs.install-ref }},subdist=nightly
         platforms: linux/amd64,linux/arm64
 
