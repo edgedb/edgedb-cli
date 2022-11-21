@@ -39,6 +39,7 @@
         <%- endif %>
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_ARCH: "<< tgt.arch >>"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 <% if tgt.family == "generic" %>
@@ -84,6 +85,7 @@
         <%- endif %>
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_ARCH: "<< tgt.arch >>"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
@@ -136,6 +138,7 @@
         <%- endif %>
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        PKG_PLATFORM_ARCH: "<< tgt.arch >>"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
