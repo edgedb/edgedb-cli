@@ -195,10 +195,11 @@ pub struct ConnectionOptions {
 #[derive(EdbClap, Clone, Debug)]
 #[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
 pub struct CloudOptions {
-    /// Specify the EdgeDB Cloud DNS zone, default to aws.edgedb.cloud
-    #[clap(long, name="NAME", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    /// Specify the EdgeDB Cloud API endpoint, default to the current logged-in
+    /// server, or https://api.g.aws.edgedb.cloud if unauthorized
+    #[clap(long, name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
-    pub cloud_dns_zone: Option<String>,
+    pub cloud_api_endpoint: Option<String>,
 
     /// Specify the EdgeDB Cloud API access token to use, instead of loading
     /// the access token from the remembered authentication.

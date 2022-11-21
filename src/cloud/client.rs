@@ -39,20 +39,20 @@ struct Claims {
 pub struct CloudClient {
     client: surf::Client,
     pub is_logged_in: bool,
-    pub base_url: String,
+    pub api_endpoint: String,
     options_access_token: Option<String>,
-    options_dns_zone: Option<String>,
+    options_api_endpoint: Option<String>,
     dns_zone: String,
     pub access_token: Option<String>,
 }
 
 impl CloudClient {
     pub fn new(options: &CloudOptions) -> anyhow::Result<Self> {
-        Self::new_inner(&options.cloud_access_token, &options.cloud_dns_zone)
+        Self::new_inner(&options.cloud_access_token, &options.cloud_api_endpoint)
     }
 
     fn new_inner(
-        options_access_token: &Option<String>, options_dns_zone: &Option<String>
+        options_access_token: &Option<String>, options_api_endpoint: &Option<String>
     ) -> anyhow::Result<Self> {
         let access_token = if let Some(access_token) = options_access_token {
             Some(access_token.into())
@@ -69,23 +69,19 @@ impl CloudClient {
                 }
             }
         };
-        let mut dns_zone = options_dns_zone
-            .clone()
-            .or_else(|| env::var("EDGEDB_CLOUD_DNS_ZONE").ok());
         let mut config = surf::Config::new()
             .set_timeout(Some(Duration::from_secs(EDGEDB_CLOUD_API_TIMEOUT)));
         let is_logged_in;
+        let dns_zone;
         if let Some(access_token) = access_token.clone() {
-            if dns_zone.is_none() {
-                let claims_b64 = access_token
-                    .splitn(3, ".")
-                    .skip(1)
-                    .next()
-                    .context("Illegal JWT token")?;
-                let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)?;
-                let claims: Claims = serde_json::from_slice(&claims)?;
-                dns_zone = claims.issuer;
-            }
+            let claims_b64 = access_token
+                .splitn(3, ".")
+                .skip(1)
+                .next()
+                .context("Illegal JWT token")?;
+            let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)?;
+            let claims: Claims = serde_json::from_slice(&claims)?;
+            dns_zone = claims.issuer;
 
             let auth = Authorization::new(AuthenticationScheme::Bearer, access_token);
             config = config
@@ -93,18 +89,22 @@ impl CloudClient {
                 .map_err(HttpError)?;
             is_logged_in = true;
         } else {
+            dns_zone = None;
             is_logged_in = false;
         }
-        let dns_zone = dns_zone.unwrap_or(EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string());
-        let base_url = format!("https://api.g.{dns_zone}");
+        let dns_zone = dns_zone.unwrap_or_else(|| EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string());
+        let api_endpoint = options_api_endpoint
+            .clone()
+            .or_else(|| env::var("EDGEDB_CLOUD_API_ENDPOINT").ok())
+            .unwrap_or_else(|| format!("https://api.g.{dns_zone}"));
         config = config
-            .set_base_url(surf::Url::parse(&base_url)?.join(EDGEDB_CLOUD_API_VERSION)?);
+            .set_base_url(surf::Url::parse(&api_endpoint)?.join(EDGEDB_CLOUD_API_VERSION)?);
         Ok(Self {
             client: config.try_into()?,
             is_logged_in,
-            base_url,
+            api_endpoint,
             options_access_token: options_access_token.clone(),
-            options_dns_zone: options_dns_zone.clone(),
+            options_api_endpoint: options_api_endpoint.clone(),
             dns_zone,
             access_token,
         })
@@ -113,7 +113,7 @@ impl CloudClient {
     pub fn reinit(&mut self) -> anyhow::Result<()> {
         *self = Self::new_inner(
             &self.options_access_token,
-            &self.options_dns_zone,
+            &self.options_api_endpoint,
         )?;
         Ok(())
     }
