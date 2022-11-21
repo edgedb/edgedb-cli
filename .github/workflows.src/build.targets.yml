@@ -4,77 +4,94 @@ targets:
           platform: debian
           platform_version: stretch
           family: debian
+          arch: x86_64
         - name: debian-stretch-aarch64
           platform: debian
           platform_version: stretch
           family: debian
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: debian-buster-x86_64
           platform: debian
           platform_version: buster
           family: debian
+          arch: x86_64
         - name: debian-buster-aarch64
           platform: debian
           platform_version: buster
           family: debian
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: debian-bullseye-x86_64
           platform: debian
           platform_version: bullseye
           family: debian
+          arch: x86_64
         - name: debian-bullseye-aarch64
           platform: debian
           platform_version: bullseye
           family: debian
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: ubuntu-xenial-x86_64
           platform: ubuntu
           platform_version: xenial
           family: debian
+          arch: x86_64
         - name: ubuntu-xenial-aarch64
           platform: ubuntu
           platform_version: xenial
           family: debian
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: ubuntu-bionic-x86_64
           platform: ubuntu
           platform_version: bionic
           family: debian
+          arch: x86_64
         - name: ubuntu-bionic-aarch64
           platform: ubuntu
           platform_version: bionic
           family: debian
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: ubuntu-focal-x86_64
           platform: ubuntu
           platform_version: focal
           family: debian
+          arch: x86_64
         - name: ubuntu-focal-aarch64
           platform: ubuntu
           platform_version: focal
           family: debian
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: ubuntu-jammy-x86_64
           platform: ubuntu
           platform_version: jammy
           family: debian
+          arch: x86_64
         - name: ubuntu-jammy-aarch64
           platform: ubuntu
           platform_version: jammy
           family: debian
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: centos-7-x86_64
           platform: centos
           platform_version: 7
           family: redhat
+          arch: x86_64
         - name: centos-8-x86_64
           platform: centos
           platform_version: 8
           family: redhat
+          arch: x86_64
         - name: centos-8-aarch64
           platform: centos
           platform_version: 8
           family: redhat
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: linux-x86_64
           platform: linux
@@ -82,12 +99,14 @@ targets:
           platform_libc: musl
           family: generic
           docker_arch: linux/amd64
+          arch: x86_64
         - name: linux-aarch64
           platform: linux
           platform_version: aarch64
           platform_libc: musl
           family: generic
           docker_arch: linux/arm64
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
 
     macos:
@@ -96,13 +115,16 @@ targets:
           platform_version: x86_64
           family: generic
           runs_on: [self-hosted, macOS, X64]
+          arch: x86_64
         - name: macos-aarch64
           platform: macos
           platform_version: aarch64
           family: generic
+          arch: aarch64
           runs_on: [self-hosted, macOS, ARM64]
 
     win:
        - name: win-x86_64
          platform: win
          platform_version: x86_64
+         arch: x86_64
