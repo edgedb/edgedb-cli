@@ -625,7 +625,7 @@ jobs:
 
 
   build-macos-x86_64:
-    runs-on: ['self-hosted', 'macOS', 'X64']
+    runs-on: macos-latest
     needs: prep
 
     steps:
@@ -637,7 +637,7 @@ jobs:
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
-      if: false
+      if: true
       with:
         toolchain: stable
 
