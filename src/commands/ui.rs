@@ -12,6 +12,7 @@ use crate::options::{Options, UI};
 use crate::platform::data_dir;
 use crate::portable::local::{instance_data_dir, NonLocalInstance};
 use crate::portable::repository::USER_AGENT;
+use crate::portable::status;
 use crate::print;
 
 pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
@@ -23,14 +24,22 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     let mut is_remote = true;
     if let Some(instance) = builder.get_instance_name() {
         match read_jose_keys(instance) {
-            Ok(keys) => match generate_jwt(keys) {
-                Ok(t) => {
-                    is_remote = false;
-                    token = Some(t);
-                }
-                Err(e) => {
-                    is_remote = false;
-                    print::warn(format!("Cannot generate authToken: {:#}", e));
+            Ok(keys) => {
+                let is_new = status::instance_status(instance)
+                    .ok()
+                    .and_then(|v| v.json().version)
+                    .as_deref()
+                    .map(|v| v >= "3.0")
+                    .unwrap_or(true);
+                match generate_jwt(keys, is_new) {
+                    Ok(t) => {
+                        is_remote = false;
+                        token = Some(t);
+                    }
+                    Err(e) => {
+                        is_remote = false;
+                        print::warn(format!("Cannot generate authToken: {:#}", e));
+                    }
                 }
             },
             Err(e) if e.is::<NonLocalInstance>() => {
@@ -133,7 +142,7 @@ async fn open_url(url: &str) -> Result<reqwest::Response, reqwest::Error> {
         .await
 }
 
-fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, anyhow::Result<Vec<u8>>)> {
     if cfg!(windows) {
         crate::portable::windows::read_jose_keys(name)
     } else {
@@ -150,18 +159,17 @@ fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
         }
         Ok((
             fs::read(data_dir.join("edbjwskeys.pem"))?,
-            fs::read(data_dir.join("edbjwekeys.pem"))?,
+            fs::read(data_dir.join("edbjwekeys.pem")).map_err(|e| anyhow::anyhow!(e)),
         ))
     }
 }
 
-fn generate_jwt<B: AsRef<[u8]>>(keys: (B, B)) -> anyhow::Result<String> {
+fn generate_jwt<B: AsRef<[u8]>>(keys: (B, anyhow::Result<B>), is_new: bool) -> anyhow::Result<String> {
     // Replace this ES256/ECDH-ES implementation using raw ring
     // with biscuit when the algorithms are supported in biscuit
     let rng = rand::SystemRandom::new();
 
     let jws_pem = pem::parse(keys.0)?;
-    let jwe_pem = pem::parse(keys.1)?;
 
     let jws = signature::EcdsaKeyPair::from_pkcs8(
         &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
@@ -185,6 +193,11 @@ fn generate_jwt<B: AsRef<[u8]>>(keys: (B, B)) -> anyhow::Result<String> {
         base64::encode_config(signature, base64::URL_SAFE_NO_PAD),
     );
 
+    if is_new {
+        return Ok(format!("edbt_{}", signed_token));
+    }
+
+    let jwe_pem = pem::parse(keys.1?)?;
     let jwe = signature::EcdsaKeyPair::from_pkcs8(
         &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
         jwe_pem.contents.as_slice(),
