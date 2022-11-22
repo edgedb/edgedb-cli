@@ -255,7 +255,7 @@ async fn try_get_version(creds: &Credentials) -> anyhow::Result<String> {
     Ok(builder.build()?.connect().await?.get_version().await?.to_owned())
 }
 
-async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus)
+pub async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus)
 {
     use async_std::future::timeout;
     match timeout(Duration::from_secs(2), try_get_version(creds)).await {
@@ -335,12 +335,12 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
             serde_json::to_string_pretty(&status.json())
                 .expect("status is json-serializable"),
         );
+    } else if let Some(inst_status) = &status.instance_status {
+        println!("{}", inst_status);
     } else if let Some(ConnectionStatus::Error(e)) = &status.connection {
         print::error(e);
     } else if let Some(conn_status) = &status.connection {
         println!("{}", conn_status.as_str());
-    } else if let Some(inst_status) = &status.instance_status {
-        println!("{}", inst_status);
     } else {
         println!("unknown");
     }
@@ -599,11 +599,13 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
                    status.credentials.port)),
             Cell::new(&status.version.as_ref()
                 .map(|m| m.to_string()).as_deref().unwrap_or("?".into())),
-            Cell::new(if let Some(conn_status) = &status.connection {
-                conn_status.as_str()
-            } else {
-                status.instance_status.as_deref().unwrap_or("unknown")
-            }),
+            Cell::new(
+                status
+                    .instance_status
+                    .as_deref()
+                    .or(status.connection.as_ref().map(|s| s.as_str()))
+                    .unwrap_or("unknown"),
+            ),
         ]));
     }
     table.printstd();

@@ -11,7 +11,7 @@ use indicatif::ProgressBar;
 
 use crate::cloud::client::CloudClient;
 use crate::options::CloudOptions;
-use crate::portable::status::{RemoteStatus, RemoteType};
+use crate::portable::status::{RemoteStatus, RemoteType, try_connect};
 use crate::question;
 
 const OPERATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
@@ -30,23 +30,35 @@ pub struct CloudInstance {
 }
 
 impl CloudInstance {
-    pub fn as_credentials(&self) -> anyhow::Result<Credentials> {
-        let mut creds = task::block_on(Builder::uninitialized().read_dsn(&self.dsn))?.as_credentials()?;
+    pub fn as_credentials(&self, client: &CloudClient) -> anyhow::Result<Credentials> {
+        let mut builder = Builder::uninitialized();
+        builder
+            .host_port(
+                Some(client.get_cloud_host(&self.org_slug, &self.name)),
+                None,
+            )
+            .token(client.access_token.clone().unwrap());
+        let mut creds = builder.as_credentials()?;
         creds.tls_ca = self.tls_ca.clone();
         Ok(creds)
     }
 }
 
 impl RemoteStatus {
-    fn from_cloud_instance(cloud_instance: &CloudInstance) -> anyhow::Result<Self> {
+    async fn from_cloud_instance(
+        cloud_instance: &CloudInstance,
+        client: &CloudClient
+    ) -> anyhow::Result<Self> {
+        let credentials = cloud_instance.as_credentials(client)?;
+        let (version, connection) = try_connect(&credentials).await;
         Ok(Self {
             name: format!("{}/{}", cloud_instance.org_slug, cloud_instance.name),
             type_: RemoteType::Cloud {
                 instance_id: cloud_instance.id.clone(),
             },
-            credentials: cloud_instance.as_credentials()?,
-            version: None,
-            connection: None,
+            credentials,
+            version,
+            connection: Some(connection),
             instance_status: Some(cloud_instance.status.clone()),
         })
     }
@@ -240,7 +252,7 @@ pub async fn list(
             .context("failed with Cloud API")?;
     let mut rv = Vec::new();
     for cloud_instance in cloud_instances {
-        match RemoteStatus::from_cloud_instance(&cloud_instance) {
+        match RemoteStatus::from_cloud_instance(&cloud_instance, client).await {
             Ok(status) => rv.push(status),
             Err(e) => {
                 err_tx
