@@ -5,12 +5,13 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use anyhow::Context;
 use surf::http::auth::{AuthenticationScheme, Authorization};
 
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
 
-const EDGEDB_CLOUD_BASE_URL: &str = "https://free-tier0.ovh-us-west-2.edgedb.cloud";
+const EDGEDB_CLOUD_DEFAULT_DNS_ZONE: &str = "aws.edgedb.cloud";
 const EDGEDB_CLOUD_API_VERSION: &str = "/v1/";
 const EDGEDB_CLOUD_API_TIMEOUT: u64 = 10;
 
@@ -29,21 +30,29 @@ pub struct CloudConfig {
     pub access_token: Option<String>,
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct Claims {
+    #[serde(rename = "iss", skip_serializing_if = "Option::is_none")]
+    issuer: Option<String>,
+}
+
 pub struct CloudClient {
     client: surf::Client,
     pub is_logged_in: bool,
-    pub base_url: String,
+    pub api_endpoint: String,
     options_access_token: Option<String>,
-    options_base_url: Option<String>,
+    options_api_endpoint: Option<String>,
+    dns_zone: String,
+    pub access_token: Option<String>,
 }
 
 impl CloudClient {
     pub fn new(options: &CloudOptions) -> anyhow::Result<Self> {
-        Self::new_inner(&options.cloud_access_token, &options.cloud_base_url)
+        Self::new_inner(&options.cloud_access_token, &options.cloud_api_endpoint)
     }
 
     fn new_inner(
-        options_access_token: &Option<String>, options_base_url: &Option<String>
+        options_access_token: &Option<String>, options_api_endpoint: &Option<String>
     ) -> anyhow::Result<Self> {
         let access_token = if let Some(access_token) = options_access_token {
             Some(access_token.into())
@@ -60,39 +69,51 @@ impl CloudClient {
                 }
             }
         };
-        let base_url = options_base_url
-            .as_deref()
-            .unwrap_or(
-                env::var("EDGEDB_CLOUD_BASE_URL")
-                    .as_deref()
-                    .unwrap_or(EDGEDB_CLOUD_BASE_URL),
-            )
-            .to_string();
         let mut config = surf::Config::new()
-            .set_base_url(surf::Url::parse(&base_url)?.join(EDGEDB_CLOUD_API_VERSION)?)
             .set_timeout(Some(Duration::from_secs(EDGEDB_CLOUD_API_TIMEOUT)));
-        let is_logged_in = if let Some(access_token) = access_token {
-            let auth = Authorization::new(AuthenticationScheme::Bearer, access_token.into());
+        let is_logged_in;
+        let dns_zone;
+        if let Some(access_token) = access_token.clone() {
+            let claims_b64 = access_token
+                .splitn(3, ".")
+                .skip(1)
+                .next()
+                .context("Illegal JWT token")?;
+            let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)?;
+            let claims: Claims = serde_json::from_slice(&claims)?;
+            dns_zone = claims.issuer;
+
+            let auth = Authorization::new(AuthenticationScheme::Bearer, access_token);
             config = config
                 .add_header(auth.name(), auth.value())
                 .map_err(HttpError)?;
-            true
+            is_logged_in = true;
         } else {
-            false
-        };
+            dns_zone = None;
+            is_logged_in = false;
+        }
+        let dns_zone = dns_zone.unwrap_or_else(|| EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string());
+        let api_endpoint = options_api_endpoint
+            .clone()
+            .or_else(|| env::var("EDGEDB_CLOUD_API_ENDPOINT").ok())
+            .unwrap_or_else(|| format!("https://api.g.{dns_zone}"));
+        config = config
+            .set_base_url(surf::Url::parse(&api_endpoint)?.join(EDGEDB_CLOUD_API_VERSION)?);
         Ok(Self {
             client: config.try_into()?,
             is_logged_in,
-            base_url,
+            api_endpoint,
             options_access_token: options_access_token.clone(),
-            options_base_url: options_base_url.clone(),
+            options_api_endpoint: options_api_endpoint.clone(),
+            dns_zone,
+            access_token,
         })
     }
 
     pub fn reinit(&mut self) -> anyhow::Result<()> {
         *self = Self::new_inner(
             &self.options_access_token,
-            &self.options_base_url,
+            &self.options_api_endpoint,
         )?;
         Ok(())
     }
@@ -155,6 +176,13 @@ impl CloudClient {
         uri: impl AsRef<str>,
     ) -> anyhow::Result<T> {
         self.request(self.client.delete(uri)).await
+    }
+
+    pub fn get_cloud_host(&self, org: &str, inst: &str) -> String {
+        let msg = format!("{}/{}", org, inst);
+        let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
+        let dns_bucket = format!("c-{:x}", checksum % 9900);
+        format!("{}.{}.{}.i.{}", inst, org, dns_bucket, self.dns_zone)
     }
 }
 

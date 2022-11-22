@@ -196,15 +196,15 @@ pub struct ConnectionOptions {
 #[derive(EdbClap, Clone, Debug)]
 #[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
 pub struct CloudOptions {
-    /// Specify the base URL for EdgeDB Cloud API access, default is
-    /// https://free-tier0.ovh-us-west-2.edgedb.cloud
+    /// Specify the EdgeDB Cloud API endpoint, default to the current logged-in
+    /// server, or https://api.g.aws.edgedb.cloud if unauthorized
     #[clap(long, name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
-    pub cloud_base_url: Option<String>,
+    pub cloud_api_endpoint: Option<String>,
 
     /// Specify the EdgeDB Cloud API access token to use, instead of loading
     /// the access token from the remembered authentication.
-    #[clap(long, name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    #[clap(long, name="TOKEN", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub cloud_access_token: Option<String>,
 }
@@ -679,9 +679,8 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
             InstanceName::Cloud { org_slug, name } => {
                 let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
                 client.ensure_authenticated()?;
-                let inst = task::block_on(crate::cloud::ops::find_cloud_instance_by_name(
-                    name, org_slug, &client))?;
-                bld.credentials(&inst.expect("missing instance").as_credentials()?)?;
+                bld.host_port(Some(client.get_cloud_host(org_slug, name)), None);
+                bld.token(client.access_token.unwrap());
             }
             InstanceName::Local(instance) => {
                 task::block_on(bld.read_instance(instance))?;

@@ -30,8 +30,6 @@ impl CloudInstance {
     pub fn as_credentials(&self) -> anyhow::Result<Credentials> {
         let mut creds = task::block_on(Builder::uninitialized().read_dsn(&self.dsn))?.as_credentials()?;
         creds.tls_ca = self.tls_ca.clone();
-        creds.cloud_instance_id = Some(self.id.clone());
-        creds.cloud_original_dsn = Some(self.dsn.clone());
         Ok(creds)
     }
 }

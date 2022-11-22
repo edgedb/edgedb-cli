@@ -288,11 +288,7 @@ async fn _remote_status(name: &str, quiet: bool)
     let (version, connection) = try_connect(&credentials).await;
     return Ok(RemoteStatus {
         name: name.into(),
-        type_: if let Some(instance_id) = &credentials.cloud_instance_id {
-            RemoteType::Cloud { instance_id: instance_id.clone() }
-        } else {
-            RemoteType::Remote
-        },
+        type_: RemoteType::Remote,
         credentials,
         version,
         connection: Some(connection),

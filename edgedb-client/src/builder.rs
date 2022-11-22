@@ -62,6 +62,7 @@ pub struct Builder {
     admin: bool,
     user: String,
     password: Option<String>,
+    token: Option<String>,
     database: String,
     pem: Option<String>,
     tls_security: TlsSecurity,
@@ -88,6 +89,7 @@ pub(crate) struct ConfigInner {
     pub admin: bool,
     pub user: String,
     pub password: Option<String>,
+    pub token: Option<String>,
     pub database: String,
     pub verifier: Arc<dyn ServerCertVerifier>,
     #[allow(dead_code)] // TODO(tailhook) maybe for errors
@@ -641,6 +643,7 @@ impl Builder {
             admin: false,
             user: "edgedb".into(),
             password: None,
+            token: None,
             database: "edgedb".into(),
             tls_security: TlsSecurity::Default,
             pem: None,
@@ -662,6 +665,7 @@ impl Builder {
             admin: false,
             user: "edgedb".into(),
             password: None,
+            token: None,
             database: "edgedb".into(),
             tls_security: TlsSecurity::Default,
             pem: None,
@@ -696,8 +700,6 @@ impl Builder {
             tls_ca: self.pem.clone(),
             tls_security: self.tls_security,
             file_outdated: false,
-            cloud_instance_id: None,
-            cloud_original_dsn: None,
         })
     }
     /// Get the `host` this builder is configured to connect to.
@@ -815,6 +817,11 @@ impl Builder {
     /// Set the password for SCRAM authentication.
     pub fn password(&mut self, password: impl Into<String>) -> &mut Self {
         self.password = Some(password.into());
+        self
+    }
+    /// Set the token for JWT authentication.
+    pub fn token(&mut self, token: impl Into<String>) -> &mut Self {
+        self.token = Some(token.into());
         self
     }
     /// Set the database name.
@@ -976,6 +983,7 @@ impl Builder {
             admin: self.admin,
             user: self.user.clone(),
             password: self.password.clone(),
+            token: self.token.clone(),
             database: self.database.clone(),
             verifier,
             instance_name: self.instance_name.clone(),
@@ -1246,6 +1254,9 @@ impl Config {
         let mut params = HashMap::new();
         params.insert(String::from("user"), self.0.user.clone());
         params.insert(String::from("database"), self.0.database.clone());
+        if let Some(token) = self.0.token.clone() {
+            params.insert(String::from("token"), token);
+        }
 
         let (major_ver, minor_ver) = version.version_tuple();
         seq.send_messages(&[
