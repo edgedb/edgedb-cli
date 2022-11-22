@@ -88,7 +88,7 @@ pub async fn log_fs(_common: &Options, options: &MigrationLog)
 {
     assert!(options.from_fs);
 
-    let ctx = Context::from_project_or_config(&options.cfg)?;
+    let ctx = Context::from_project_or_config(&options.cfg, false)?;
     let migrations = migration::read_all(&ctx, true).await?;
     let limit = options.limit.unwrap_or(migrations.len());
     if options.newest_first {

@@ -28,6 +28,7 @@ use crate::portable::options::InstanceName;
 use crate::print;
 use crate::repl::OutputFormat;
 use crate::tty_password;
+use crate::watch::options::WatchCommand;
 
 pub mod describe;
 
@@ -300,6 +301,9 @@ pub enum Command {
     /// EdgeDB Cloud authentication
     #[edb(inherit(CloudOptions), hide=true)]
     Cloud(CloudCommand),
+    /// EdgeDB Cloud authentication
+    #[edb(inherit(CloudOptions), hide=true)]
+    Watch(WatchCommand),
 }
 
 #[derive(EdbClap, Clone, Debug)]

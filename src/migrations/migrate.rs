@@ -4,6 +4,7 @@ use async_std::path::Path;
 use async_std::stream::StreamExt;
 use colorful::Colorful;
 use edgedb_client::client::Connection;
+use indicatif::ProgressBar;
 use linked_hash_map::LinkedHashMap;
 
 use crate::commands::Options;
@@ -57,11 +58,11 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     migrate: &Migrate)
     -> Result<(), anyhow::Error>
 {
-    let ctx = Context::from_project_or_config(&migrate.cfg)?;
+    let ctx = Context::from_project_or_config(&migrate.cfg, migrate.quiet)?;
     if migrate.dev_mode {
-        return dev_mode::migrate(cli, ctx, migrate).await;
+        // TODO(tailhook) figure out progressbar in non-quiet mode
+        return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
     }
-
     let mut migrations = migration::read_all(&ctx, true).await?;
     let db_migration: Option<String> = cli.query_row_opt(r###"
             WITH Last := (SELECT schema::Migration
@@ -152,7 +153,7 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         }
         return Ok(());
     }
-    apply_migrations(cli, &migrations, migrate).await?;
+    apply_migrations(cli, &migrations, &ctx).await?;
     if db_migration.is_none() {
         disable_ddl(cli).await?;
     }
@@ -160,13 +161,13 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
 }
 
 pub async fn apply_migrations(cli: &mut Connection,
-    migrations: &LinkedHashMap<String, MigrationFile>, migrate: &Migrate)
+    migrations: &LinkedHashMap<String, MigrationFile>, ctx: &Context)
     -> anyhow::Result<()>
 {
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     let transaction = async {
         cli.execute("START TRANSACTION").await?;
-        match apply_migrations_inner(cli, migrations, migrate.quiet).await {
+        match apply_migrations_inner(cli, migrations, ctx.quiet).await {
             Ok(()) => {
                 cli.execute("COMMIT").await?;
                 Ok(())
