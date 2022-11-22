@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use async_std::future::timeout;
 use async_std::task;
 use edgedb_client::credentials::Credentials;
@@ -227,9 +228,11 @@ pub fn try_to_destroy(
 
 pub async fn list(client: &CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
     client.ensure_authenticated()?;
-    let cloud_instances: Vec<CloudInstance> = timeout(
-        Duration::from_secs(30), client.get("instances/")
-    ).await??;
+    let cloud_instances: Vec<CloudInstance> =
+        timeout(Duration::from_secs(30), client.get("instances/"))
+            .await
+            .or_else(|_| anyhow::bail!("timed out with Cloud API"))?
+            .context("failed with Cloud API")?;
     let mut rv = Vec::new();
     for cloud_instance in cloud_instances {
         match RemoteStatus::from_cloud_instance(&cloud_instance) {

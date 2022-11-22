@@ -828,11 +828,11 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
         .map(|v| v.name.clone())
         .collect::<BTreeSet<_>>();
 
-    let remote = if options.no_remote {
-        Vec::new()
-    } else {
-        status::get_remote(&visited, opts)?
-    };
+    let mut remote = Vec::new();
+    let mut remote_err = Ok(());
+    if !options.no_remote {
+        remote_err = status::get_remote(&mut remote, &visited, opts);
+    }
 
     if local.is_empty() && remote.is_empty() {
         if options.json {
@@ -858,6 +858,9 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
         )?);
     } else {
         status::print_table(&local, &remote);
+    }
+    if let Err(e) = remote_err {
+        print::warn(format!("{}", e));
     }
 
     Ok(())

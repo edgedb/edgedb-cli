@@ -8,12 +8,11 @@ use std::process::exit;
 use std::time::Duration;
 
 use anyhow::Context;
-use async_std::future::TimeoutError;
 use async_std::prelude::FutureExt;
 use async_std::stream;
 use async_std::task;
 use fn_error_context::context;
-use futures_util::{StreamExt, try_join};
+use futures_util::{StreamExt, join};
 use humantime::format_duration;
 
 use edgedb_client::{Builder, credentials::Credentials};
@@ -370,7 +369,7 @@ pub fn list_local<'x>(dir: &'x Path)
     }))
 }
 
-async fn get_remote_async(instances: Vec<String>) -> anyhow::Result<Vec<RemoteStatus>> {
+async fn get_remote_async(instances: Vec<String>) -> Vec<RemoteStatus> {
     let mut result: Vec<_> = stream::from_iter(instances)
         .map(|name| async move {
             _remote_status(&name, false)
@@ -382,35 +381,35 @@ async fn get_remote_async(instances: Vec<String>) -> anyhow::Result<Vec<RemoteSt
         .flat_map(|x| stream::from_iter(x))
         .collect().await;
     result.sort_by(|a, b| a.name.cmp(&b.name));
-    Ok(result)
-}
-
-async fn get_cloud(cloud_client: &CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
-    match crate::cloud::ops::list(cloud_client).await {
-        Ok(rv) => Ok(rv),
-        Err(e) if e.is::<TimeoutError>() => {
-            print::warn("Timed out getting cloud instances.");
-            Ok(Vec::new())
-        }
-        Err(e) => Err(e),
-    }
+    result
 }
 
 async fn get_remote_and_cloud(
+    result: &mut Vec<RemoteStatus>,
     instances: Vec<String>,
     cloud_client: &CloudClient,
-) -> anyhow::Result<Vec<RemoteStatus>> {
-    let (remote, cloud) = try_join!(
+) -> anyhow::Result<()> {
+    let (remote, cloud) = join!(
         get_remote_async(instances),
-        get_cloud(cloud_client),
-    )?;
-    Ok(remote.into_iter().chain(cloud.into_iter()).collect())
+        crate::cloud::ops::list(cloud_client),
+    );
+    match cloud {
+        Ok(v) => {
+            *result = remote.into_iter().chain(v.into_iter()).collect();
+            Ok(())
+        }
+        Err(e) => {
+            *result = remote;
+            Err(e)
+        }
+    }
 }
 
 pub fn get_remote(
+    result: &mut Vec<RemoteStatus>,
     visited: &BTreeSet<String>,
     opts: &crate::options::Options,
-) -> anyhow::Result<Vec<RemoteStatus>> {
+) -> anyhow::Result<()> {
     let cloud_client = CloudClient::new(&opts.cloud_options)?;
     let instances: Vec<_> = credentials::all_instance_names()?
         .into_iter()
@@ -420,7 +419,7 @@ pub fn get_remote(
     if cloud_client.is_logged_in {
         task::block_on(
             intermediate_feedback(
-                get_remote_and_cloud(instances, &cloud_client),
+                get_remote_and_cloud(result, instances, &cloud_client),
                 || {
                     if num > 0 {
                         format!("Checking cloud and {} remote instances...", num)
@@ -429,17 +428,16 @@ pub fn get_remote(
                     }
                 },
             )
-        )
+        )?;
     } else if num > 0 {
-        task::block_on(
+        *result = task::block_on(
             intermediate_feedback(
                 get_remote_async(instances),
                 || format!("Checking {} remote instances...", num),
             )
-        )
-    } else {
-        Ok(Vec::new())
+        );
     }
+    Ok(())
 }
 
 pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()> {
@@ -461,11 +459,11 @@ pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()
         }
         local.sort_by(|a, b| a.name.cmp(&b.name));
     }
-    let remote = if options.no_remote {
-        Vec::new()
-    } else {
-        get_remote(&visited, opts)?
-    };
+    let mut remote = Vec::new();
+    let mut remote_err = Ok(());
+    if !options.no_remote {
+        remote_err = get_remote(&mut remote, &visited, opts);
+    }
 
     if local.is_empty() && remote.is_empty() {
         if options.json {
@@ -500,8 +498,12 @@ pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()
         let local_json = local.iter().map(|s| s.json()).collect::<Vec<_>>();
         print_table(&local_json, &remote);
     }
-
-    Ok(())
+    if let Err(e) = remote_err {
+        print::warn(format!("Error: {:#}", e));
+        Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
+    } else {
+        Ok(())
+    }
 }
 
 pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
