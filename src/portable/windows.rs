@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
 
 use anyhow::Context;
+use async_std::task;
 use fn_error_context::context;
+use futures::channel::mpsc;
+use futures_util::SinkExt;
 use libflate::gzip;
 use once_cell::sync::{Lazy, OnceCell};
 use url::Url;
@@ -794,7 +797,7 @@ pub fn status(options: &options::Status) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>> {
     if options.debug || options.extended {
         let inner_opts = options::List {
             quiet: true,
@@ -824,23 +827,49 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
     } else {
         Vec::new()
     };
+    Ok(local)
+}
+
+pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+    task::block_on(list_async(options, opts))
+}
+
+async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+    let (mut tx, rx) = mpsc::unbounded();
+    let local = match list_local(options) {
+        Ok(local) => local,
+        Err(e) => {
+            tx.send(e).await?;
+            Vec::new()
+        }
+    };
     let visited = local.iter()
         .map(|v| v.name.clone())
         .collect::<BTreeSet<_>>();
 
-    let mut remote = Vec::new();
-    let mut remote_err = Ok(());
-    if !options.no_remote {
-        remote_err = status::get_remote(&mut remote, &visited, opts);
-    }
+    let remote = if options.no_remote {
+        Vec::new()
+    } else {
+        match status::get_remote(&visited, opts, tx.clone()).await {
+            Ok(remote) => remote,
+            Err(e) => {
+                tx.send(e).await?;
+                Vec::new()
+            }
+        }
+    };
 
     if local.is_empty() && remote.is_empty() {
-        if options.json {
-            println!("[]");
-        } else if !options.quiet {
-            print::warn("No instances found");
+        return if status::print_errors(rx, false).await {
+            Err(ExitCode::new(1).into())
+        } else {
+            if options.json {
+                println!("[]");
+            } else if !options.quiet {
+                print::warn("No instances found");
+            }
+            Ok(())
         }
-        return Ok(());
     }
     if options.debug {
         for status in remote {
@@ -859,11 +888,12 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
     } else {
         status::print_table(&local, &remote);
     }
-    if let Err(e) = remote_err {
-        print::warn(format!("{}", e));
-    }
 
-    Ok(())
+    if status::print_errors(rx, true).await {
+        Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
+    } else {
+        Ok(())
+    }
 }
 
 pub fn upgrade(options: &options::Upgrade, name: &str) -> anyhow::Result<()> {

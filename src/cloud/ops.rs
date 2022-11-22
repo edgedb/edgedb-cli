@@ -3,6 +3,8 @@ use std::time::{Duration, Instant};
 use anyhow::Context;
 use async_std::future::timeout;
 use async_std::task;
+use futures::channel::mpsc;
+use futures_util::SinkExt;
 use edgedb_client::credentials::Credentials;
 use edgedb_client::Builder;
 use indicatif::ProgressBar;
@@ -226,7 +228,10 @@ pub fn try_to_destroy(
     Ok(())
 }
 
-pub async fn list(client: &CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
+pub async fn list(
+    client: &CloudClient,
+    mut err_tx: mpsc::UnboundedSender<anyhow::Error>,
+) -> anyhow::Result<Vec<RemoteStatus>> {
     client.ensure_authenticated()?;
     let cloud_instances: Vec<CloudInstance> =
         timeout(Duration::from_secs(30), client.get("instances/"))
@@ -238,11 +243,12 @@ pub async fn list(client: &CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
         match RemoteStatus::from_cloud_instance(&cloud_instance) {
             Ok(status) => rv.push(status),
             Err(e) => {
-                log::warn!(
-                    "Cannot check cloud instance {}/{}: {:#}",
-                    cloud_instance.org_slug,
-                    cloud_instance.name,
-                    e);
+                err_tx
+                    .send(e.context(format!(
+                        "probing {}/{}",
+                        cloud_instance.org_slug, cloud_instance.name
+                    )))
+                    .await?;
             }
         }
     }
