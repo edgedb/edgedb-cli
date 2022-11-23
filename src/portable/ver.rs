@@ -34,6 +34,7 @@ pub enum MinorVersion {
 pub struct Filter {
     pub major: u32,
     pub minor: Option<FilterMinor>,
+    pub exact: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
@@ -55,12 +56,23 @@ static SPECIFIC: Lazy<Regex> = Lazy::new(|| {
 });
 
 static FILTER: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^(\d+)(?:\.0-(alpha|beta|rc)\.(\d+)|\.(\d+))?$"#)
-        .unwrap()
+    Regex::new(r#"(?x)
+        ^(?P<marker>=)?
+        (?P<major>\d+)
+        (?:
+             \.0-(?P<dev>alpha|beta|rc)\.(?P<dev_num>\d+) |
+             \.(?P<minor>\d+)
+        )?$
+    "#).unwrap()
 });
 static OLD_FILTER: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^(\d+)(?:(?:\.0)?-(alpha|beta|rc)\.?(\d+)|\.(\d+))?$"#)
-        .unwrap()
+    Regex::new(r#"(?x)
+        ^(?P<major>\d+)
+        (?:
+            (?:\.0)?-(?P<dev>alpha|beta|rc)\.?(?P<dev_num>\d+) |
+            \.(?P<minor>\d+)
+        )?$
+    "#).unwrap()
 });
 
 impl FromStr for Build {
@@ -109,17 +121,20 @@ impl FromStr for Filter {
                      `1.15`, `7`, `3.0-rc.1`"),
             }
         };
-        let major = m.get(1).unwrap().as_str().parse()?;
-        let g3 = m.get(3).map(|m| m.as_str().parse()).transpose()?;
-        let minor = match m.get(2).map(|m| m.as_str()) {
+        let major = m.name("major").unwrap().as_str().parse()?;
+        let g3 = m.name("dev_num").map(|m| m.as_str().parse()).transpose()?;
+        let minor = match m.name("dev").map(|m| m.as_str()) {
             Some("alpha") => g3.map(FilterMinor::Alpha),
             Some("beta") => g3.map(FilterMinor::Beta),
             Some("rc") => g3.map(FilterMinor::Rc),
             Some(_) => unreachable!(),
-            None => m.get(4).map(|m| m.as_str().parse()).transpose()?
+            None => m.name("minor").map(|m| m.as_str().parse()).transpose()?
                     .map(FilterMinor::Minor),
         };
-        let result = Filter { major, minor };
+        let exact = m.name("marker")
+            .map(|m| m.as_str() == "=").unwrap_or(false)
+            && minor.is_some();
+        let result = Filter { major, minor, exact };
         if deprecated {
             log::warn!("Version numbers spelled as {:?} are deprecated. \
                         Use: {:?}.", value, result.to_string());
@@ -137,7 +152,9 @@ impl IntoArg for &Filter {
 impl fmt::Display for Filter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use FilterMinor::*;
-
+        if self.exact {
+            f.write_str("=")?;
+        }
         match self.minor {
             None => write!(f, "{}", self.major),
             Some(Alpha(v)) => write!(f, "{}.0-alpha.{}", self.major, v),
@@ -170,27 +187,39 @@ impl Filter {
             return false;
         }
 
-        match (spec.minor, self.minor.unwrap_or(Q::Minor(0))) {
-            // dev releases can't be matched
-            (M::Dev(_), _) => false,
-            // minor releases are upgradeable
-            (M::Minor(v), Q::Minor(q)) => v >= q,
-            // Special-case before 1.0, to treat all prereleases as major
-            (M::Minor(_), _) if spec.major == 1 => false,
-            (M::Alpha(v), Q::Alpha(q)) if spec.major == 1 => v == q,
-            (M::Beta(v), Q::Beta(q)) if spec.major == 1 => v == q,
-            (M::Rc(v), Q::Rc(q)) if spec.major == 1 => v == q,
-            (_, _) if spec.major == 1 => false,
-            // stable versions match prerelease pattern
-            (M::Minor(_), _) => true,
-            // prerelease versions match as >=
-            (M::Alpha(v), Q::Alpha(q)) => v >= q,
-            (M::Beta(_), Q::Alpha(_)) => true,
-            (M::Rc(_), Q::Alpha(_)) => true,
-            (M::Beta(v), Q::Beta(q))  => v >= q,
-            (M::Rc(_), Q::Beta(_)) => true,
-            (M::Rc(v), Q::Rc(q)) => v >= q,
-            (_, _) => false,
+        if self.exact {
+            match (spec.minor, self.minor.unwrap_or(Q::Minor(0))) {
+                // dev releases can't be matched
+                (M::Dev(_), _) => false,
+                (M::Minor(v), Q::Minor(q)) => v == q,
+                (M::Alpha(v), Q::Alpha(q)) => v == q,
+                (M::Beta(v), Q::Beta(q)) => v == q,
+                (M::Rc(v), Q::Rc(q)) => v == q,
+                (_, _) => false,
+            }
+        } else {
+            match (spec.minor, self.minor.unwrap_or(Q::Minor(0))) {
+                // dev releases can't be matched
+                (M::Dev(_), _) => false,
+                // minor releases are upgradeable
+                (M::Minor(v), Q::Minor(q)) => v >= q,
+                // Special-case before 1.0, to treat all prereleases as major
+                (M::Minor(_), _) if spec.major == 1 => false,
+                (M::Alpha(v), Q::Alpha(q)) if spec.major == 1 => v == q,
+                (M::Beta(v), Q::Beta(q)) if spec.major == 1 => v == q,
+                (M::Rc(v), Q::Rc(q)) if spec.major == 1 => v == q,
+                (_, _) if spec.major == 1 => false,
+                // stable versions match prerelease pattern
+                (M::Minor(_), _) => true,
+                // prerelease versions match as >=
+                (M::Alpha(v), Q::Alpha(q)) => v >= q,
+                (M::Beta(_), Q::Alpha(_)) => true,
+                (M::Rc(_), Q::Alpha(_)) => true,
+                (M::Beta(v), Q::Beta(q))  => v >= q,
+                (M::Rc(_), Q::Beta(_)) => true,
+                (M::Rc(v), Q::Rc(q)) => v >= q,
+                (_, _) => false,
+            }
         }
     }
 }
@@ -293,4 +322,28 @@ pub async fn check_client(cli: &mut edgedb_client::client::Connection,
     let ver = cli.get_version().await?.parse::<Build>()
         .context("cannot parse server version")?;
     return Ok(ver.is_nightly() || minimum_version.matches(&ver));
+}
+
+#[test]
+fn filter() {
+    assert_eq!("2".parse::<Filter>().unwrap(), Filter {
+        major: 2,
+        minor: None,
+        exact: false,
+    });
+    assert_eq!("2.3".parse::<Filter>().unwrap(), Filter {
+        major: 2,
+        minor: Some(FilterMinor::Minor(3)),
+        exact: false,
+    });
+    assert_eq!("=2.3".parse::<Filter>().unwrap(), Filter {
+        major: 2,
+        minor: Some(FilterMinor::Minor(3)),
+        exact: true,
+    });
+    assert_eq!("=2".parse::<Filter>().unwrap(), Filter {
+        major: 2,
+        minor: None,
+        exact: false,
+    });
 }

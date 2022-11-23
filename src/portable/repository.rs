@@ -469,6 +469,7 @@ impl Query {
                 version: Some(ver::Filter {
                     major: ver.major,
                     minor: Some(FilterMinor::Alpha(v)),
+                    exact: false,
                 }),
             }),
             MinorVersion::Beta(v) if ver.major == 1 => Ok(Query {
@@ -476,6 +477,7 @@ impl Query {
                 version: Some(ver::Filter {
                     major: ver.major,
                     minor: Some(FilterMinor::Beta(v)),
+                    exact: false,
                 }),
             }),
             MinorVersion::Rc(v) if ver.major == 1 || ver.major == 2 => Ok(Query {
@@ -483,6 +485,7 @@ impl Query {
                 version: Some(ver::Filter {
                     major: ver.major,
                     minor: Some(FilterMinor::Rc(v)),
+                    exact: false,
                 }),
             }),
             MinorVersion::Minor(v) => Ok(Query {
@@ -490,6 +493,7 @@ impl Query {
                 version: Some(ver::Filter {
                     major: ver.major,
                     minor: Some(FilterMinor::Minor(v)),
+                    exact: false,
                 }),
             }),
             MinorVersion::Alpha(_) |
