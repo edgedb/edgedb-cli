@@ -9,7 +9,10 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
 
 use anyhow::Context;
+use async_std::task;
 use fn_error_context::context;
+use futures::channel::mpsc;
+use futures_util::SinkExt;
 use libflate::gzip;
 use once_cell::sync::{Lazy, OnceCell};
 use url::Url;
@@ -794,7 +797,7 @@ pub fn status(options: &options::Status) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>> {
     if options.debug || options.extended {
         let inner_opts = options::List {
             quiet: true,
@@ -824,6 +827,22 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
     } else {
         Vec::new()
     };
+    Ok(local)
+}
+
+pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+    task::block_on(list_async(options, opts))
+}
+
+async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+    let (mut tx, rx) = mpsc::unbounded();
+    let local = match list_local(options) {
+        Ok(local) => local,
+        Err(e) => {
+            tx.send(e).await?;
+            Vec::new()
+        }
+    };
     let visited = local.iter()
         .map(|v| v.name.clone())
         .collect::<BTreeSet<_>>();
@@ -831,16 +850,26 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        status::get_remote(&visited, opts)?
+        match status::get_remote(&visited, opts, tx.clone()).await {
+            Ok(remote) => remote,
+            Err(e) => {
+                tx.send(e).await?;
+                Vec::new()
+            }
+        }
     };
 
     if local.is_empty() && remote.is_empty() {
-        if options.json {
-            println!("[]");
-        } else if !options.quiet {
-            print::warn("No instances found");
+        if status::print_errors(rx, false).await {
+            return Err(ExitCode::new(1).into());
+        } else {
+            if options.json {
+                println!("[]");
+            } else if !options.quiet {
+                print::warn("No instances found");
+            }
+            return Ok(());
         }
-        return Ok(());
     }
     if options.debug {
         for status in remote {
@@ -860,7 +889,11 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
         status::print_table(&local, &remote);
     }
 
-    Ok(())
+    if status::print_errors(rx, true).await {
+        Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
+    } else {
+        Ok(())
+    }
 }
 
 pub fn upgrade(options: &options::Upgrade, name: &str) -> anyhow::Result<()> {
@@ -887,9 +920,7 @@ pub fn revert(options: &options::Revert, name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
-    let wsl = try_get_wsl()?;
-
+fn get_instance_data_dir(name: &str, wsl: &Wsl) -> anyhow::Result<String> {
     let data_dir = if name == "_localdev" {
         match env::var("EDGEDB_SERVER_DEV_DIR") {
             Ok(path) => if path.ends_with("/") {
@@ -906,6 +937,20 @@ pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
     if !wsl.check_path_exist(&data_dir) {
         anyhow::bail!(NonLocalInstance);
     }
+
+    Ok(data_dir)
+}
+
+pub fn read_jws_key(name: &str) -> anyhow::Result<Vec<u8>> {
+    let wsl = try_get_wsl()?;
+    let data_dir = get_instance_data_dir(name, wsl)?;
+    let rv = wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?;
+    Ok(rv.into_bytes())
+}
+
+pub fn read_jose_keys_legacy(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+    let wsl = try_get_wsl()?;
+    let data_dir = get_instance_data_dir(name, wsl)?;
     Ok((
         wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?.into_bytes(),
         wsl.read_text_file(data_dir + "edbjwekeys.pem")?.into_bytes(),

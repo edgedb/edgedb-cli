@@ -518,6 +518,7 @@ impl Builder {
         self.tls_security = credentials.tls_security;
         self.pem = credentials.tls_ca.clone();
         self.initialized = true;
+        self.token = credentials.token.clone();
         Ok(self)
     }
 
@@ -700,6 +701,7 @@ impl Builder {
             tls_ca: self.pem.clone(),
             tls_security: self.tls_security,
             file_outdated: false,
+            token: self.token.clone(),
         })
     }
     /// Get the `host` this builder is configured to connect to.

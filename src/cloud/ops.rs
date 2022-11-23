@@ -1,14 +1,17 @@
 use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use async_std::future::timeout;
 use async_std::task;
+use futures::channel::mpsc;
+use futures_util::SinkExt;
 use edgedb_client::credentials::Credentials;
 use edgedb_client::Builder;
 use indicatif::ProgressBar;
 
 use crate::cloud::client::CloudClient;
 use crate::options::CloudOptions;
-use crate::portable::status::{RemoteStatus, RemoteType};
+use crate::portable::status::{RemoteStatus, RemoteType, try_connect};
 use crate::question;
 
 const OPERATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
@@ -27,23 +30,35 @@ pub struct CloudInstance {
 }
 
 impl CloudInstance {
-    pub fn as_credentials(&self) -> anyhow::Result<Credentials> {
-        let mut creds = task::block_on(Builder::uninitialized().read_dsn(&self.dsn))?.as_credentials()?;
+    pub fn as_credentials(&self, client: &CloudClient) -> anyhow::Result<Credentials> {
+        let mut builder = Builder::uninitialized();
+        builder
+            .host_port(
+                Some(client.get_cloud_host(&self.org_slug, &self.name)),
+                None,
+            )
+            .token(client.access_token.clone().unwrap());
+        let mut creds = builder.as_credentials()?;
         creds.tls_ca = self.tls_ca.clone();
         Ok(creds)
     }
 }
 
 impl RemoteStatus {
-    fn from_cloud_instance(cloud_instance: &CloudInstance) -> anyhow::Result<Self> {
+    async fn from_cloud_instance(
+        cloud_instance: &CloudInstance,
+        client: &CloudClient
+    ) -> anyhow::Result<Self> {
+        let credentials = cloud_instance.as_credentials(client)?;
+        let (version, connection) = try_connect(&credentials).await;
         Ok(Self {
             name: format!("{}/{}", cloud_instance.org_slug, cloud_instance.name),
             type_: RemoteType::Cloud {
                 instance_id: cloud_instance.id.clone(),
             },
-            credentials: cloud_instance.as_credentials()?,
-            version: None,
-            connection: None,
+            credentials,
+            version,
+            connection: Some(connection),
             instance_status: Some(cloud_instance.status.clone()),
         })
     }
@@ -225,21 +240,27 @@ pub fn try_to_destroy(
     Ok(())
 }
 
-pub async fn list(client: CloudClient) -> anyhow::Result<Vec<RemoteStatus>> {
+pub async fn list(
+    client: &CloudClient,
+    mut err_tx: mpsc::UnboundedSender<anyhow::Error>,
+) -> anyhow::Result<Vec<RemoteStatus>> {
     client.ensure_authenticated()?;
-    let cloud_instances: Vec<CloudInstance> = timeout(
-        Duration::from_secs(30), client.get("instances/")
-    ).await??;
+    let cloud_instances: Vec<CloudInstance> =
+        timeout(Duration::from_secs(30), client.get("instances/"))
+            .await
+            .or_else(|_| anyhow::bail!("timed out with Cloud API"))?
+            .context("failed with Cloud API")?;
     let mut rv = Vec::new();
     for cloud_instance in cloud_instances {
-        match RemoteStatus::from_cloud_instance(&cloud_instance) {
+        match RemoteStatus::from_cloud_instance(&cloud_instance, client).await {
             Ok(status) => rv.push(status),
             Err(e) => {
-                log::warn!(
-                    "Cannot check cloud instance {}/{}: {:#}",
-                    cloud_instance.org_slug,
-                    cloud_instance.name,
-                    e);
+                err_tx
+                    .send(e.context(format!(
+                        "probing {}/{}",
+                        cloud_instance.org_slug, cloud_instance.name
+                    )))
+                    .await?;
             }
         }
     }

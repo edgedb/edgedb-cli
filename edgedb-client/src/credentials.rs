@@ -26,6 +26,7 @@ pub struct Credentials {
     pub tls_ca: Option<String>,
     pub tls_security: TlsSecurity,
     pub(crate) file_outdated: bool,
+    pub token: Option<String>,
 }
 
 
@@ -66,6 +67,7 @@ impl Default for Credentials {
             tls_ca: None,
             tls_security: TlsSecurity::Default,
             file_outdated: false,
+            token: None,
         }
     }
 }
@@ -150,6 +152,7 @@ impl<'de> Deserialize<'de> for Credentials {
                 ),
                 file_outdated: creds.tls_verify_hostname.is_some() &&
                     creds.tls_security.is_none(),
+                token: None,
             })
         }
     }
