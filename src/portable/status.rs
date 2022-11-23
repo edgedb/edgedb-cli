@@ -382,7 +382,7 @@ async fn get_remote_async(
                     Ok(status) => {
                         if let Some(ConnectionStatus::Error(e)) = &status.connection {
                             err_tx
-                                .send(anyhow::anyhow!("probing {}: {:#}", name, e))
+                                .send(anyhow::anyhow!("probing \"{}\": {:#}", name, e))
                                 .await
                                 .expect("err_tx send");
                         }
@@ -390,7 +390,7 @@ async fn get_remote_async(
                     },
                     Err(e) => {
                         err_tx
-                            .send(e.context(format!("probing {}", name)))
+                            .send(e.context(format!("probing \"{}\"", name)))
                             .await
                             .expect("err_tx send");
                         None
@@ -561,11 +561,10 @@ pub async fn print_errors(mut rx: mpsc::UnboundedReceiver<anyhow::Error>, is_war
     let mut rv = false;
     while let Some(e) = rx.next().await {
         rv = true;
-        let err = format!("Error: {:#}", e);
         if is_warning {
-            print::warn(err);
+            print::warn(format!("Warning: {:#}", e));
         } else {
-            print::error(err);
+            print::error(e);
         }
     }
     rv

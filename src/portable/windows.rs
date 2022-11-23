@@ -860,15 +860,15 @@ async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::R
     };
 
     if local.is_empty() && remote.is_empty() {
-        return if status::print_errors(rx, false).await {
-            Err(ExitCode::new(1).into())
+        if status::print_errors(rx, false).await {
+            return Err(ExitCode::new(1).into());
         } else {
             if options.json {
                 println!("[]");
             } else if !options.quiet {
                 print::warn("No instances found");
             }
-            Ok(())
+            return Ok(());
         }
     }
     if options.debug {
@@ -920,9 +920,7 @@ pub fn revert(options: &options::Revert, name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, anyhow::Result<Vec<u8>>)> {
-    let wsl = try_get_wsl()?;
-
+fn get_instance_data_dir(name: &str, wsl: &Wsl) -> anyhow::Result<String> {
     let data_dir = if name == "_localdev" {
         match env::var("EDGEDB_SERVER_DEV_DIR") {
             Ok(path) => if path.ends_with("/") {
@@ -939,9 +937,23 @@ pub fn read_jose_keys(name: &str) -> anyhow::Result<(Vec<u8>, anyhow::Result<Vec
     if !wsl.check_path_exist(&data_dir) {
         anyhow::bail!(NonLocalInstance);
     }
+
+    Ok(data_dir)
+}
+
+pub fn read_jws_key(name: &str) -> anyhow::Result<Vec<u8>> {
+    let wsl = try_get_wsl()?;
+    let data_dir = get_instance_data_dir(name, wsl)?;
+    let rv = wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?;
+    Ok(rv.into_bytes())
+}
+
+pub fn read_jose_keys_legacy(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
+    let wsl = try_get_wsl()?;
+    let data_dir = get_instance_data_dir(name, wsl)?;
     Ok((
         wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?.into_bytes(),
-        wsl.read_text_file(data_dir + "edbjwekeys.pem").map(|d| d.into_bytes()),
+        wsl.read_text_file(data_dir + "edbjwekeys.pem")?.into_bytes(),
     ))
 }
 
