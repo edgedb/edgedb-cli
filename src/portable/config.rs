@@ -160,6 +160,14 @@ mod test {
         [project]
         schema-dir = \"custom-dir\"\n\
     ";
+    const TOML_2_3: &str = "\
+        [edgedb]\n\
+        server-version = \"2.3\"\n\
+    ";
+    const TOML_2_3_EXACT: &str = "\
+        [edgedb]\n\
+        server-version = \"=2.3\"\n\
+    ";
     const TOML_NIGHTLY: &str = "\
         [edgedb]\n\
         server-version = \"nightly\"\n\
@@ -233,6 +241,7 @@ mod test {
     #[test_case(TOML_BETA2, "nightly" => Some(TOML_NIGHTLY.into()))]
     #[test_case(TOML_BETA2_CUSTOM_SCHEMA_DIR, "nightly" => Some(TOML_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
     #[test_case(TOML_NIGHTLY, "nightly" => None)]
+    #[test_case(TOML_2_3, "=2.3" => Some(TOML_2_3_EXACT.into()))]
 
     #[test_case(TOML2_BETA1, "1.0-beta.2" => Some(TOML2_BETA2.into()))]
     #[test_case(TOML2_BETA2, "1.0-beta.2" => None)]

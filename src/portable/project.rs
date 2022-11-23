@@ -764,7 +764,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             )
         }
         InstanceName::Local(name) => {
-            let pkg = ask_version(options)?;
+            let (ver_query, pkg) = ask_version(options)?;
 
             let meth = if cfg!(windows) {
                 "WSL"
@@ -782,7 +782,6 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                 ("Instance name", &name),
             ]);
 
-            let ver_query = Query::from_version(&pkg.version.specific())?;
             write_config(&config_path, &ver_query)?;
             if !schema_files {
                 write_schema_default(&schema_dir_path, &ver_query)?;
@@ -1116,13 +1115,29 @@ fn write_config(path: &Path, version: &Query) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn ask_version(options: &Init) -> anyhow::Result<PackageInfo> {
+fn parse_ver_and_find(value: &str)
+    -> anyhow::Result<Option<(Query, PackageInfo)>>
+{
+    let filter = value.parse()?;
+    let query = Query::from_filter(&filter)?;
+    if let Some(pkg) = repository::get_server_package(&query)? {
+        Ok(Some((query, pkg)))
+    } else {
+        Ok(None)
+    }
+}
+
+fn ask_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
     let ver_query = options.server_version.clone().unwrap_or(Query::stable());
     if options.non_interactive || options.server_version.is_some() {
         let pkg = repository::get_server_package(&ver_query)?
             .with_context(|| format!("no package matching {} found",
                                      ver_query.display()))?;
-        return Ok(pkg);
+        if options.server_version.is_some() {
+            return Ok((ver_query, pkg));
+        } else {
+            return Ok((Query::from_version(&pkg.version.specific())?, pkg));
+        }
     }
     let default = repository::get_server_package(&ver_query)?;
     let default_ver = if let Some(pkg) = &default {
@@ -1139,7 +1154,7 @@ fn ask_version(options: &Init) -> anyhow::Result<PackageInfo> {
         let value = value.trim();
         if value == "nightly" {
             match repository::get_server_package(&Query::nightly()) {
-                Ok(Some(pkg)) => return Ok(pkg),
+                Ok(Some(pkg)) => return Ok((Query::nightly(), pkg)),
                 Ok(None) => {
                     print::error("No nightly versions found");
                     continue;
@@ -1152,11 +1167,8 @@ fn ask_version(options: &Init) -> anyhow::Result<PackageInfo> {
                 }
             }
         } else {
-            let pkg = value.parse()
-                .and_then(|f| Query::from_filter(&f))
-                .and_then(|v| repository::get_server_package(&v));
-            match pkg {
-                Ok(Some(pkg)) => return Ok(pkg),
+            match parse_ver_and_find(&value) {
+                Ok(Some(pair)) => return Ok(pair),
                 Ok(None) => {
                     print::error("No matching packages found");
                     print_versions("Available versions")?;
