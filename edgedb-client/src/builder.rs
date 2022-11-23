@@ -1209,6 +1209,7 @@ impl Config {
             }
             Address::Unix(path) => {
                 #[cfg(windows)] {
+                    let _ = path;
                     return Err(ClientError::with_message(
                         "Unix socket are not supported on windows",
                     ));
