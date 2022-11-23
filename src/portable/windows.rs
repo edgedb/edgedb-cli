@@ -860,6 +860,7 @@ async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::R
     };
 
     if local.is_empty() && remote.is_empty() {
+        drop(tx);
         if status::print_errors(rx, false).await {
             return Err(ExitCode::new(1).into());
         } else {
@@ -889,6 +890,7 @@ async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::R
         status::print_table(&local, &remote);
     }
 
+    drop(tx);
     if status::print_errors(rx, true).await {
         Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
     } else {
