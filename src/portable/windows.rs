@@ -11,14 +11,14 @@ use std::time::{SystemTime, Duration};
 use anyhow::Context;
 use async_std::task;
 use fn_error_context::context;
-use futures::channel::mpsc;
-use futures_util::SinkExt;
 use libflate::gzip;
 use once_cell::sync::{Lazy, OnceCell};
 use url::Url;
 
+use crate::async_util;
 use crate::bug;
 use crate::cli::upgrade::{self, self_version};
+use crate::collect::Collector;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::hint::HintExt;
@@ -835,11 +835,11 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
 }
 
 async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
-    let (mut tx, rx) = mpsc::unbounded();
+    let errors = Collector::new();
     let local = match list_local(options) {
         Ok(local) => local,
         Err(e) => {
-            tx.send(e).await?;
+            errors.add(e);
             Vec::new()
         }
     };
@@ -850,18 +850,17 @@ async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::R
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        match status::get_remote(&visited, opts, tx.clone()).await {
+        match status::get_remote(&visited, opts, &errors).await {
             Ok(remote) => remote,
             Err(e) => {
-                tx.send(e).await?;
+                errors.add(e);
                 Vec::new()
             }
         }
     };
 
     if local.is_empty() && remote.is_empty() {
-        drop(tx);
-        if status::print_errors(rx, false).await {
+        if status::print_errors(&errors.list(), false).await {
             return Err(ExitCode::new(1).into());
         } else {
             if options.json {
@@ -890,8 +889,7 @@ async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::R
         status::print_table(&local, &remote);
     }
 
-    drop(tx);
-    if status::print_errors(rx, true).await {
+    if status::print_errors(&errors.list(), true).await {
         Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
     } else {
         Ok(())
