@@ -12,13 +12,13 @@ use async_std::prelude::FutureExt;
 use async_std::stream;
 use async_std::task;
 use fn_error_context::context;
-use futures::channel::mpsc;
-use futures_util::{StreamExt, join, SinkExt};
+use futures_util::{StreamExt, join};
 use humantime::format_duration;
 
 use edgedb_client::{Builder, credentials::Credentials};
 
 use crate::cloud::client::CloudClient;
+use crate::collect::Collector;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::format;
@@ -372,27 +372,26 @@ pub fn list_local<'x>(dir: &'x Path)
 
 async fn get_remote_async(
     instances: Vec<String>,
-    err_tx: mpsc::UnboundedSender<anyhow::Error>,
+    errors: &Collector<anyhow::Error>,
 ) -> anyhow::Result<Vec<RemoteStatus>> {
     let mut result: Vec<_> = stream::from_iter(instances)
         .map(|name| {
-            let mut err_tx = err_tx.clone();
             async move {
                 match _remote_status(&name, false).await {
                     Ok(status) => {
                         if let Some(ConnectionStatus::Error(e)) = &status.connection {
-                            err_tx
-                                .send(anyhow::anyhow!("probing \"{}\": {:#}", name, e))
-                                .await
-                                .expect("err_tx send");
+                            errors.add(
+                                // Can't use `e.context()` because can't clone
+                                // the error
+                                anyhow::anyhow!("probing {:?}: {:#}", name, e)
+                            );
                         }
                         Some(status)
-                    },
+                    }
                     Err(e) => {
-                        err_tx
-                            .send(e.context(format!("probing \"{}\"", name)))
-                            .await
-                            .expect("err_tx send");
+                        errors.add(
+                            e.context(format!("probing {:?}", name))
+                        );
                         None
                     }
                 }
@@ -408,23 +407,23 @@ async fn get_remote_async(
 async fn get_remote_and_cloud(
     instances: Vec<String>,
     cloud_client: &CloudClient,
-    mut err_tx: mpsc::UnboundedSender<anyhow::Error>,
+    errors: &Collector<anyhow::Error>,
 ) -> anyhow::Result<Vec<RemoteStatus>> {
     match join!(
-        get_remote_async(instances, err_tx.clone()),
-        crate::cloud::ops::list(cloud_client, err_tx.clone()),
+        get_remote_async(instances, errors),
+        crate::cloud::ops::list(cloud_client, errors),
     ) {
         (Ok(remote), Ok(cloud)) => Ok(remote.into_iter().chain(cloud.into_iter()).collect()),
         (Ok(remote), Err(e)) => {
-            err_tx.send(e).await?;
+            errors.add(e);
             Ok(remote)
         }
         (Err(e), Ok(cloud)) => {
-            err_tx.send(e).await?;
+            errors.add(e);
             Ok(cloud)
         }
         (Err(er), Err(ec)) => {
-            err_tx.send(ec).await?;
+            errors.add(ec);
             Err(er)
         }
     }
@@ -433,7 +432,7 @@ async fn get_remote_and_cloud(
 pub async fn get_remote(
     visited: &BTreeSet<String>,
     opts: &crate::options::Options,
-    err_tx: mpsc::UnboundedSender<anyhow::Error>,
+    errors: &Collector<anyhow::Error>,
 ) -> anyhow::Result<Vec<RemoteStatus>> {
     let cloud_client = CloudClient::new(&opts.cloud_options)?;
     let instances: Vec<_> = credentials::all_instance_names()?
@@ -443,7 +442,7 @@ pub async fn get_remote(
     let num = instances.len();
     if cloud_client.is_logged_in {
         intermediate_feedback(
-            get_remote_and_cloud(instances, &cloud_client, err_tx),
+            get_remote_and_cloud(instances, &cloud_client, errors),
             || {
                 if num > 0 {
                     format!("Checking cloud and {} remote instances...", num)
@@ -454,7 +453,7 @@ pub async fn get_remote(
         ).await
     } else if num > 0 {
         intermediate_feedback(
-            get_remote_async(instances, err_tx),
+            get_remote_async(instances, errors),
             || format!("Checking {} remote instances...", num),
         ).await
     } else {
@@ -488,12 +487,12 @@ fn list_local_status(visited: &mut BTreeSet<String>) -> anyhow::Result<Vec<FullS
 }
 
 async fn list_async(options: &List, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let (mut tx, rx) = mpsc::unbounded();
+    let errors = Collector::new();
     let mut visited = BTreeSet::new();
     let local = match list_local_status(&mut visited) {
         Ok(local) => local,
         Err(e) => {
-            tx.send(e).await?;
+            errors.add(e);
             Vec::new()
         }
     };
@@ -501,18 +500,17 @@ async fn list_async(options: &List, opts: &crate::options::Options) -> anyhow::R
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        match get_remote(&visited, opts, tx.clone()).await {
+        match get_remote(&visited, opts, &errors).await {
             Ok(remote) => remote,
             Err(e) => {
-                tx.send(e).await?;
+                errors.add(e);
                 Vec::new()
             }
         }
     };
 
     if local.is_empty() && remote.is_empty() {
-        drop(tx);
-        return if print_errors(rx, false).await {
+        return if print_errors(&errors.list(), false).await {
             Err(ExitCode::new(1).into())
         } else {
             if options.json {
@@ -549,25 +547,22 @@ async fn list_async(options: &List, opts: &crate::options::Options) -> anyhow::R
         print_table(&local_json, &remote);
     }
 
-    drop(tx);
-    if print_errors(rx, true).await {
+    if print_errors(&errors.list(), true).await {
         Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
     } else {
         Ok(())
     }
 }
 
-pub async fn print_errors(mut rx: mpsc::UnboundedReceiver<anyhow::Error>, is_warning: bool) -> bool {
-    let mut rv = false;
-    while let Some(e) = rx.next().await {
-        rv = true;
+pub async fn print_errors(errs: &[anyhow::Error], is_warning: bool) -> bool {
+    for e in errs {
         if is_warning {
             print::warn(format!("Warning: {:#}", e));
         } else {
             print::error(e);
         }
     }
-    rv
+    !errs.is_empty()
 }
 
 pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
