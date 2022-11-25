@@ -57,7 +57,7 @@ impl CloudClient {
         let access_token = if let Some(access_token) = options_access_token {
             Some(access_token.into())
         } else {
-            match fs::read_to_string(cloud_config_file()?) {
+            match fs::read_to_string(cloud_config_file(None)?) {
                 Ok(data) if data.is_empty() => None,
                 Ok(data) => {
                     let config: CloudConfig = serde_json::from_str(&data)?;
@@ -186,6 +186,8 @@ impl CloudClient {
     }
 }
 
-pub fn cloud_config_file() -> anyhow::Result<PathBuf> {
-    Ok(config_dir()?.join("cloud.json"))
+pub fn cloud_config_file(profile: Option<String>) -> anyhow::Result<PathBuf> {
+    Ok(config_dir()?
+        .join("cloud-credentials")
+        .join(format!("{}.json", profile.as_deref().unwrap_or("default"))))
 }

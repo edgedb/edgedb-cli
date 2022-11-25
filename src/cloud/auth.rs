@@ -47,7 +47,7 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
                 token: Some(token),
             }) => {
                 write_json(
-                    &cloud_config_file()?,
+                    &cloud_config_file(None)?,
                     "cloud config",
                     &CloudConfig {
                         access_token: Some(token),
@@ -72,7 +72,7 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
 
 pub async fn logout(_c: &options::Logout) -> anyhow::Result<()> {
     write_json(
-        &cloud_config_file()?,
+        &cloud_config_file(None)?,
         "cloud config",
         &CloudConfig { access_token: None },
     )?;
