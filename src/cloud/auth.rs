@@ -1,8 +1,10 @@
+use std::io;
 use std::time::{Duration, Instant};
 
 use async_std::task;
+use fs_err as fs;
 
-use crate::cloud::client::{cloud_config_file, CloudClient, CloudConfig};
+use crate::cloud::client::{cloud_config_dir, cloud_config_file, CloudClient, CloudConfig};
 use crate::cloud::options;
 use crate::options::CloudOptions;
 use crate::portable::local::write_json;
@@ -47,7 +49,7 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
                 token: Some(secret_key),
             }) => {
                 write_json(
-                    &cloud_config_file(None)?,
+                    &cloud_config_file(&client.profile)?,
                     "cloud config",
                     &CloudConfig {
                         secret_key: Some(secret_key),
@@ -70,12 +72,36 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
     )
 }
 
-pub async fn logout(_c: &options::Logout) -> anyhow::Result<()> {
-    write_json(
-        &cloud_config_file(None)?,
-        "cloud config",
-        &CloudConfig { secret_key: None },
-    )?;
-    print::success("You're now logged out from EdgeDB Cloud.");
+pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()> {
+    if c.all_profiles {
+        let cloud_creds = cloud_config_dir()?;
+        let dir_entries = match fs::read_dir(cloud_creds.clone()) {
+            Ok(d) => d,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => anyhow::bail!(e),
+        };
+        for item in dir_entries {
+            let item = item?;
+            if let Ok(filename) = item.file_name().into_string() {
+                write_json(
+                    &cloud_creds.join(filename),
+                    "cloud config",
+                    &CloudConfig { secret_key: None },
+                )?;
+            }
+        }
+        print::success("You're now logged out from EdgeDB Cloud.");
+    } else {
+        let client = CloudClient::new(options)?;
+        write_json(
+            &cloud_config_file(&client.profile)?,
+            "cloud config",
+            &CloudConfig { secret_key: None },
+        )?;
+        print::success(format!(
+            "You're now logged out from EdgeDB Cloud for profile \"{}\".",
+            client.profile.as_deref().unwrap_or("default")
+        ));
+    }
     Ok(())
 }

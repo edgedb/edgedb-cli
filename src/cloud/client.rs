@@ -41,23 +41,38 @@ pub struct CloudClient {
     pub is_logged_in: bool,
     pub api_endpoint: String,
     options_secret_key: Option<String>,
+    options_profile: Option<String>,
     options_api_endpoint: Option<String>,
     dns_zone: String,
     pub secret_key: Option<String>,
+    pub profile: Option<String>,
 }
 
 impl CloudClient {
     pub fn new(options: &CloudOptions) -> anyhow::Result<Self> {
-        Self::new_inner(&options.cloud_secret_key, &options.cloud_api_endpoint)
+        Self::new_inner(
+            &options.cloud_secret_key,
+            &options.cloud_profile,
+            &options.cloud_api_endpoint,
+        )
     }
 
     fn new_inner(
-        options_secret_key: &Option<String>, options_api_endpoint: &Option<String>
+        options_secret_key: &Option<String>,
+        options_profile: &Option<String>,
+        options_api_endpoint: &Option<String>,
     ) -> anyhow::Result<Self> {
+        let profile = options_profile
+            .clone()
+            .or_else(|| env::var("EDGEDB_CLOUD_PROFILE").ok());
         let secret_key = if let Some(secret_key) = options_secret_key {
             Some(secret_key.into())
+        } else if let Ok(secret_key) = env::var("EDGEDB_CLOUD_SECRET_KEY") {
+            Some(secret_key)
+        } else if let Ok(secret_key) = env::var("EDGEDB_SECRET_KEY") {
+            Some(secret_key)
         } else {
-            match fs::read_to_string(cloud_config_file(None)?) {
+            match fs::read_to_string(cloud_config_file(&profile)?) {
                 Ok(data) if data.is_empty() => None,
                 Ok(data) => {
                     let config: CloudConfig = serde_json::from_str(&data)?;
@@ -104,15 +119,18 @@ impl CloudClient {
             is_logged_in,
             api_endpoint,
             options_secret_key: options_secret_key.clone(),
+            options_profile: options_profile.clone(),
             options_api_endpoint: options_api_endpoint.clone(),
             dns_zone,
             secret_key,
+            profile,
         })
     }
 
     pub fn reinit(&mut self) -> anyhow::Result<()> {
         *self = Self::new_inner(
             &self.options_secret_key,
+            &self.options_profile,
             &self.options_api_endpoint,
         )?;
         Ok(())
@@ -186,8 +204,10 @@ impl CloudClient {
     }
 }
 
-pub fn cloud_config_file(profile: Option<String>) -> anyhow::Result<PathBuf> {
-    Ok(config_dir()?
-        .join("cloud-credentials")
-        .join(format!("{}.json", profile.as_deref().unwrap_or("default"))))
+pub fn cloud_config_file(profile: &Option<String>) -> anyhow::Result<PathBuf> {
+    Ok(cloud_config_dir()?.join(format!("{}.json", profile.as_deref().unwrap_or("default"))))
+}
+
+pub fn cloud_config_dir() -> anyhow::Result<PathBuf> {
+    Ok(config_dir()?.join("cloud-credentials"))
 }

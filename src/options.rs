@@ -212,6 +212,11 @@ pub struct CloudOptions {
     #[clap(long, name="SECRET_KEY", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub cloud_secret_key: Option<String>,
+
+    /// Specify the authenticated EdgeDB Cloud profile, default is "default".
+    #[clap(long, name="PROFILE", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    #[clap(hide=true)]
+    pub cloud_profile: Option<String>,
 }
 
 /// Use the `edgedb` command-line tool to spin up local instances,

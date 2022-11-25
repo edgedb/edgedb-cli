@@ -24,5 +24,6 @@ pub struct Login {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Logout {
-
+    #[clap(long)]
+    pub all_profiles: bool,
 }

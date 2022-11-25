@@ -13,7 +13,7 @@ pub fn cloud_main(cmd: &CloudCommand, options: &CloudOptions) -> anyhow::Result<
             task::block_on(auth::login(c, options))
         }
         Logout(c) => {
-            task::block_on(auth::logout(c))
+            auth::logout(c, options)
         }
     }
 }
