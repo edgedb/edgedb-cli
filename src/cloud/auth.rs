@@ -44,13 +44,13 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
             Ok(UserSession {
                 id: _,
                 auth_url: _,
-                token: Some(token),
+                token: Some(secret_key),
             }) => {
                 write_json(
                     &cloud_config_file(None)?,
                     "cloud config",
                     &CloudConfig {
-                        access_token: Some(token),
+                        secret_key: Some(secret_key),
                     },
                 )?;
                 print::success("Successfully authenticated to EdgeDB Cloud.");
@@ -74,7 +74,7 @@ pub async fn logout(_c: &options::Logout) -> anyhow::Result<()> {
     write_json(
         &cloud_config_file(None)?,
         "cloud config",
-        &CloudConfig { access_token: None },
+        &CloudConfig { secret_key: None },
     )?;
     print::success("You're now logged out from EdgeDB Cloud.");
     Ok(())

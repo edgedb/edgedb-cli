@@ -207,11 +207,11 @@ pub struct CloudOptions {
     #[clap(hide=true)]
     pub cloud_api_endpoint: Option<String>,
 
-    /// Specify the EdgeDB Cloud API access token to use, instead of loading
-    /// the access token from the remembered authentication.
-    #[clap(long, name="TOKEN", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    /// Specify the EdgeDB Cloud API secret key to use, instead of loading
+    /// the secret key from the remembered authentication.
+    #[clap(long, name="SECRET_KEY", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
-    pub cloud_access_token: Option<String>,
+    pub cloud_secret_key: Option<String>,
 }
 
 /// Use the `edgedb` command-line tool to spin up local instances,
@@ -702,7 +702,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
                 let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
                 client.ensure_authenticated()?;
                 bld.host_port(Some(client.get_cloud_host(org_slug, name)), None)?;
-                bld.secret_key(client.access_token.unwrap());
+                bld.secret_key(client.secret_key.unwrap());
             }
             InstanceName::Local(instance) => {
                 task::block_on(bld.read_instance(instance))?;

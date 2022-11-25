@@ -412,7 +412,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
         };
         let options = crate::options::CloudOptions {
             cloud_api_endpoint: None,
-            cloud_access_token: None,
+            cloud_secret_key: None,
         };
         let dir = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
