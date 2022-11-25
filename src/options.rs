@@ -119,6 +119,11 @@ pub struct ConnectionOptions {
     #[clap(hide=true)]
     pub password_from_stdin: bool,
 
+    /// Secret key to authenticate with
+    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[clap(hide=true)]
+    pub secret_key: Option<String>,
+
     /// Certificate to match server against
     ///
     /// This might either be full self-signed server certificate or certificate
@@ -680,7 +685,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
                 let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
                 client.ensure_authenticated()?;
                 bld.host_port(Some(client.get_cloud_host(org_slug, name)), None);
-                bld.token(client.access_token.unwrap());
+                bld.secret_key(client.access_token.unwrap());
             }
             InstanceName::Local(instance) => {
                 task::block_on(bld.read_instance(instance))?;
@@ -707,6 +712,9 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
     }
     if let Some(val) = tmp.connect_timeout {
         bld.connect_timeout(val);
+    }
+    if let Some(val) = &tmp.secret_key {
+        bld.secret_key(val);
     }
     set_password(tmp, &mut bld)?;
     load_tls_options(tmp, &mut bld)?;

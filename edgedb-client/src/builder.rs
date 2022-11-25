@@ -62,7 +62,7 @@ pub struct Builder {
     admin: bool,
     user: String,
     password: Option<String>,
-    token: Option<String>,
+    secret_key: Option<String>,
     database: String,
     pem: Option<String>,
     tls_security: TlsSecurity,
@@ -89,7 +89,7 @@ pub(crate) struct ConfigInner {
     pub admin: bool,
     pub user: String,
     pub password: Option<String>,
-    pub token: Option<String>,
+    pub secret_key: Option<String>,
     pub database: String,
     pub verifier: Arc<dyn ServerCertVerifier>,
     #[allow(dead_code)] // TODO(tailhook) maybe for errors
@@ -400,6 +400,7 @@ impl Builder {
     /// * `EDGEDB_DATABASE`
     /// * `EDGEDB_USER`
     /// * `EDGEDB_PASSWORD`
+    /// * `EDGEDB_SECRET_KEY`
     ///
     /// Then the value of that environment variable will be used to set just
     /// the parameter matching that environment variable.
@@ -425,6 +426,9 @@ impl Builder {
         }
         if let Some(password) = get_env("EDGEDB_PASSWORD")? {
             self.password = Some(password);
+        }
+        if let Some(secret_key) = get_env("EDGEDB_SECRET_KEY")? {
+            self.secret_key = Some(secret_key);
         }
         if let Some(sec) = get_env("EDGEDB_CLIENT_TLS_SECURITY")? {
             self.tls_security = match &sec[..] {
@@ -512,13 +516,13 @@ impl Builder {
         self.admin = false;
         self.user = credentials.user.clone();
         self.password = credentials.password.clone();
+        self.secret_key = credentials.secret_key.clone();
         self.database = credentials.database.clone()
                 .unwrap_or_else(|| "edgedb".into());
         self.creds_file_outdated = credentials.file_outdated;
         self.tls_security = credentials.tls_security;
         self.pem = credentials.tls_ca.clone();
         self.initialized = true;
-        self.token = credentials.token.clone();
         Ok(self)
     }
 
@@ -644,7 +648,7 @@ impl Builder {
             admin: false,
             user: "edgedb".into(),
             password: None,
-            token: None,
+            secret_key: None,
             database: "edgedb".into(),
             tls_security: TlsSecurity::Default,
             pem: None,
@@ -666,7 +670,7 @@ impl Builder {
             admin: false,
             user: "edgedb".into(),
             password: None,
-            token: None,
+            secret_key: None,
             database: "edgedb".into(),
             tls_security: TlsSecurity::Default,
             pem: None,
@@ -697,11 +701,11 @@ impl Builder {
             port: *port,
             user: self.user.clone(),
             password: self.password.clone(),
+            secret_key: self.secret_key.clone(),
             database: Some( self.database.clone()),
             tls_ca: self.pem.clone(),
             tls_security: self.tls_security,
             file_outdated: false,
-            token: self.token.clone(),
         })
     }
     /// Get the `host` this builder is configured to connect to.
@@ -821,9 +825,9 @@ impl Builder {
         self.password = Some(password.into());
         self
     }
-    /// Set the token for JWT authentication.
-    pub fn token(&mut self, token: impl Into<String>) -> &mut Self {
-        self.token = Some(token.into());
+    /// Set the secret key for JWT authentication.
+    pub fn secret_key(&mut self, secret_key: impl Into<String>) -> &mut Self {
+        self.secret_key = Some(secret_key.into());
         self
     }
     /// Set the database name.
@@ -985,7 +989,7 @@ impl Builder {
             admin: self.admin,
             user: self.user.clone(),
             password: self.password.clone(),
-            token: self.token.clone(),
+            secret_key: self.secret_key.clone(),
             database: self.database.clone(),
             verifier,
             instance_name: self.instance_name.clone(),
@@ -1257,8 +1261,8 @@ impl Config {
         let mut params = HashMap::new();
         params.insert(String::from("user"), self.0.user.clone());
         params.insert(String::from("database"), self.0.database.clone());
-        if let Some(token) = self.0.token.clone() {
-            params.insert(String::from("token"), token);
+        if let Some(secret_key) = self.0.secret_key.clone() {
+            params.insert(String::from("token"), secret_key);
         }
 
         let (major_ver, minor_ver) = version.version_tuple();

@@ -37,7 +37,7 @@ impl CloudInstance {
                 Some(client.get_cloud_host(&self.org_slug, &self.name)),
                 None,
             )
-            .token(client.access_token.clone().unwrap());
+            .secret_key(client.access_token.clone().unwrap());
         let mut creds = builder.as_credentials()?;
         creds.tls_ca = self.tls_ca.clone();
         Ok(creds)
