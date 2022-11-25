@@ -22,11 +22,11 @@ pub struct Credentials {
     pub port: u16,
     pub user: String,
     pub password: Option<String>,
+    pub secret_key: Option<String>,
     pub database: Option<String>,
     pub tls_ca: Option<String>,
     pub tls_security: TlsSecurity,
     pub(crate) file_outdated: bool,
-    pub token: Option<String>,
 }
 
 
@@ -63,11 +63,11 @@ impl Default for Credentials {
             port: 5656,
             user: "edgedb".into(),
             password: None,
+            secret_key: None,
             database: None,
             tls_ca: None,
             tls_security: TlsSecurity::Default,
             file_outdated: false,
-            token: None,
         }
     }
 }
@@ -141,6 +141,7 @@ impl<'de> Deserialize<'de> for Credentials {
                 port: creds.port,
                 user: creds.user,
                 password: creds.password,
+                secret_key: None,
                 database: creds.database,
                 tls_ca: creds.tls_ca.or(creds.tls_cert_data.clone()),
                 tls_security: creds.tls_security.unwrap_or(
@@ -152,7 +153,6 @@ impl<'de> Deserialize<'de> for Credentials {
                 ),
                 file_outdated: creds.tls_verify_hostname.is_some() &&
                     creds.tls_security.is_none(),
-                token: None,
             })
         }
     }
