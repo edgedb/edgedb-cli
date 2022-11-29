@@ -280,6 +280,15 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
                 });
             });
         }
+        ParserKind::ValueEnum => {
+            let ty = &field.ty;
+            modifiers.extend(quote! {
+                #arg = #arg.possible_values(
+                    <#ty as ::clap::ValueEnum>::value_variants().iter()
+                    .flat_map(|v| ::clap::ValueEnum::to_possible_value(v))
+                );
+            });
+        }
         _ => {}
     }
     // The arbitrary options must be added in the end so that e.g. explicit
@@ -484,6 +493,7 @@ fn get_parser(fld: &types::Field, matches: &syn::Ident) -> TokenStream {
             TryFromStr => quote!(std::str::FromStr::from_str),
             FromOsStr => quote!(std::convert::From::from),
             TryFromOsStr => quote!(std::convert::TryFrom::try_from),
+            ValueEnum => quote!((|v| ::clap::ValueEnum::from_str(v, false))),
             FromOccurrences | FromFlag
             => syn::Error::new(fld.parse.span,
                 "parser is incompatible with field type"
@@ -502,7 +512,7 @@ fn get_parser(fld: &types::Field, matches: &syn::Ident) -> TokenStream {
                 .map(|v| v.into_iter().map(#func).collect())
                 .unwrap_or_else(Vec::new)
             },
-            TryFromStr => quote! {
+            TryFromStr | ValueEnum => quote! {
                 #matches.values_of(stringify!(#field_name))
                 .map(|v| {
                     v.into_iter().map(|v| #func(v).unwrap()).collect()
@@ -542,7 +552,7 @@ fn get_parser(fld: &types::Field, matches: &syn::Ident) -> TokenStream {
                 #matches.value_of_os(stringify!(#field_name))
                 .map(#func)
             },
-            TryFromStr => quote! {
+            TryFromStr | ValueEnum => quote! {
                 #matches.value_of(stringify!(#field_name))
                 .map(|v| #func(v).expect("already validated"))
             },

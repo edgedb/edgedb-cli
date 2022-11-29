@@ -179,17 +179,40 @@ pub struct Upgrade {
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// Upgrade to a latest stable version
+    /// Upgrade specified instance to the latest version
     #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_testing", "to_nightly", "to_channel",
+    ])]
     pub to_latest: bool,
 
-    /// Upgrade to a specified major version
+    /// Upgrade specified instance to a specified version
     #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_testing", "to_latest", "to_nightly", "to_channel",
+    ])]
     pub to_version: Option<ver::Filter>,
 
-    /// Upgrade to a latest nightly version
+    /// Upgrade specified instance to a latest nightly version
     #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_latest", "to_testing", "to_channel",
+    ])]
     pub to_nightly: bool,
+
+    /// Upgrade specified instance to a latest testing version
+    #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_latest", "to_nightly", "to_channel",
+    ])]
+    pub to_testing: bool,
+
+    /// Upgrade specified instance to a latest testing version
+    #[clap(long, value_enum)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_latest", "to_nightly", "to_testing",
+    ])]
+    pub to_channel: Option<Channel>,
 
     /// Verbose output
     #[clap(short='v', long)]
@@ -591,7 +614,8 @@ fn do_init(name: &str, pkg: &PackageInfo,
         let q = repository::Query::from_version(&pkg.version.specific())?;
         windows::create_instance(&options::Create {
             name: Some(inst_name.clone()),
-            nightly: q.is_nightly(),
+            nightly: false,
+            channel: q.cli_channel(),
             version: q.version,
             port: Some(port),
             start_conf: None,
@@ -1428,25 +1452,33 @@ pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
 
-pub fn upgrade(options: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
-    if options.to_version.is_some() || options.to_nightly || options.to_latest
-    {
-        update_toml(options, opts)
+pub fn upgrade(options: &Upgrade, opts: &crate::options::Options)
+    -> anyhow::Result<()>
+{
+    let (query, version_set) = Query::from_options(
+        repository::QueryOptions {
+            nightly: options.to_nightly,
+            stable: options.to_latest,
+            testing: options.to_testing,
+            version: options.to_version.as_ref(),
+            channel: options.to_channel,
+        },
+        || Ok(Query::stable()))?;
+    if version_set {
+        update_toml(options, opts, query)
     } else {
         upgrade_instance(options, opts)
     }
 }
 
 pub fn update_toml(
-    options: &Upgrade, opts: &crate::options::Options
+    options: &Upgrade, opts: &crate::options::Options, query: Query,
 ) -> anyhow::Result<()> {
     let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
     let config_path = root.join("edgedb.toml");
     let config = config::read(&config_path)?;
     let schema_dir = config.project.schema_dir;
 
-    // This assumes to_version.is_some() || to_nightly || to_latest
-    let query = Query::from_options(options.to_nightly, &options.to_version)?;
     let pkg = repository::get_server_package(&query)?.with_context(||
         format!("cannot find package matching {}", query.display()))?;
     let pkg_ver = pkg.version.specific();
@@ -1480,7 +1512,9 @@ pub fn update_toml(
                 windows::upgrade(&options::Upgrade {
                     to_latest: false,
                     to_version: query.version.clone(),
-                    to_nightly: query.is_nightly(),
+                    to_channel: None,
+                    to_testing: false,
+                    to_nightly: false,
                     name: None,
                     instance: Some(name.clone()),
                     verbose: false,
@@ -1589,7 +1623,9 @@ pub fn upgrade_instance(
             windows::upgrade(&options::Upgrade {
                 to_latest: false,
                 to_version: cfg_ver.version.clone(),
-                to_nightly: cfg_ver.is_nightly(),
+                to_channel: None,
+                to_nightly: false,
+                to_testing: false,
                 name: None,
                 instance: Some(instance_name.into()),
                 verbose: false,

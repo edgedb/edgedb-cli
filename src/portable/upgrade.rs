@@ -49,6 +49,7 @@ pub fn print_project_upgrade_command(version: &Query,
                 "--to-latest".into()
             },
             Channel::Nightly => "--to-nightly".into(),
+            Channel::Testing => "--to-testing".into(),
         },
         if current_project.as_ref().map_or(false, |p| p == project_dir) {
             "".into()
@@ -97,13 +98,16 @@ pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<
 fn upgrade_local(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     let inst = InstanceInfo::read(name)?;
     let inst_ver = inst.get_version()?.specific();
-    let ver_option = cmd.to_latest || cmd.to_nightly ||
-        cmd.to_version.is_some();
-    let ver_query = if ver_option {
-        Query::from_options(cmd.to_nightly, &cmd.to_version)?
-    } else {
-        Query::from_version(&inst_ver)?
-    };
+    let (ver_query, ver_option) = Query::from_options(
+        repository::QueryOptions {
+            stable: cmd.to_latest,
+            nightly: cmd.to_nightly,
+            testing: cmd.to_testing,
+            channel: cmd.to_channel,
+            version: cmd.to_version.as_ref(),
+        },
+        || Query::from_version(&inst_ver),
+    )?;
     check_project(name, cmd.force, &ver_query)?;
 
     if cfg!(windows) {

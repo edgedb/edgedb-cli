@@ -125,6 +125,12 @@ impl IntoArg for &String {
     }
 }
 
+impl IntoArg for &str {
+    fn add_arg(self, process: &mut Native) {
+        process.arg(self);
+    }
+}
+
 impl IntoArg for &u16 {
     fn add_arg(self, process: &mut Native) {
         process.arg(self.to_string());
