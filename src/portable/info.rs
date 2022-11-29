@@ -2,7 +2,7 @@ use anyhow::Context;
 
 use crate::portable::local;
 use crate::portable::options::Info;
-use crate::portable::repository::Query;
+use crate::portable::repository::{Query, QueryOptions};
 use crate::portable::ver;
 use crate::table;
 
@@ -16,11 +16,18 @@ struct JsonInfo<'a> {
 
 
 pub fn info(options: &Info) -> anyhow::Result<()> {
-    if !options.nightly && !options.latest && !options.version.is_some() {
-        anyhow::bail!("One of `--latest`, `--nightly`, `--version=` required");
-    }
     // note this assumes that latest is set if no nightly and version
-    let query = Query::from_options(options.nightly, &options.version)?;
+    let (query, _) = Query::from_options(
+        QueryOptions {
+            stable: options.latest,
+            nightly: options.nightly,
+            testing: false,
+            channel: options.channel,
+            version: options.version.as_ref(),
+        },
+        || anyhow::bail!("One of `--latest`, `--channel=`, \
+                         `--version=` required")
+    )?;
     let all = local::get_installed()?;
     let inst = all.into_iter().filter(|item| query.matches(&item.version))
         .max_by_key(|item| item.version.specific())
