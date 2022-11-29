@@ -83,6 +83,7 @@ pub enum ParserKind {
     TryFromOsStr,
     FromOccurrences,
     FromFlag,
+    ValueEnum,
 }
 
 #[derive(Debug, Clone)]
@@ -219,6 +220,13 @@ impl Parse for FieldAttr {
         } else if lookahead.peek(kw::inheritable) {
             let _kw: kw::inheritable = input.parse()?;
             Ok(Inheritable)
+        } else if lookahead.peek(kw::value_enum) {
+            let _kw: kw::value_enum = input.parse()?;
+            Ok(Parse(CliParse {
+                kind: ParserKind::ValueEnum,
+                parser: None,
+                span: input.span(),
+            }))
         } else if lookahead.peek(syn::Ident) {
             let name: syn::Ident = input.parse()?;
             let lookahead = input.lookahead1();

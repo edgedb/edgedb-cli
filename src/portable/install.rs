@@ -14,6 +14,7 @@ use crate::portable::local::{InstallInfo, write_json};
 use crate::portable::options::Install;
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{PackageInfo, PackageHash, Query, download};
+use crate::portable::repository::{QueryOptions};
 use crate::portable::repository::{get_server_package, get_specific_package};
 use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
@@ -154,7 +155,15 @@ pub fn install(options: &Install) -> anyhow::Result<()> {
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
-    let query = Query::from_options(options.nightly, &options.version)?;
+    let (query, _) = Query::from_options(QueryOptions {
+            nightly: options.nightly,
+            stable: false,
+            testing: false,
+            channel: options.channel,
+            version: options.version.as_ref(),
+        },
+        || Ok(Query::stable()),
+    )?;
     version(&query)?;
     Ok(())
 }

@@ -17,7 +17,7 @@ use crate::portable::local::{Paths, InstanceInfo};
 use crate::portable::local::{write_json, allocate_port};
 use crate::portable::options::{Create, InstanceName, Start};
 use crate::portable::platform::optional_docker_check;
-use crate::portable::repository::{Query};
+use crate::portable::repository::{Query, QueryOptions};
 use crate::portable::reset_password::{password_hash, generate_password};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, echo, err_marker, Highlight};
@@ -130,7 +130,16 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
             port,
         }
     } else {
-        let query = Query::from_options(cmd.nightly, &cmd.version)?;
+        let (query, _) = Query::from_options(
+            QueryOptions {
+                nightly: cmd.nightly,
+                testing: false,
+                channel: cmd.channel,
+                version: cmd.version.as_ref(),
+                stable: false,
+            },
+            || anyhow::Ok(Query::stable()),
+        )?;
         let inst = install::version(&query).context("error installing EdgeDB")?;
         let info = InstanceInfo {
             name: name.clone(),
