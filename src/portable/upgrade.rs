@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::time::{SystemTime, Duration};
 
 use anyhow::Context;
@@ -91,7 +92,7 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
 pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
     match instance_arg(&cmd.name, &cmd.instance)? {
         InstanceName::Local(name) => upgrade_local(cmd, name),
-        InstanceName::Cloud { org_slug: org, name } => upgrade_cloud(org, name, opts),
+        InstanceName::Cloud { org_slug: org, name } => upgrade_cloud(cmd, org, name, opts),
     }
 }
 
@@ -140,8 +141,44 @@ fn upgrade_local(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     }
 }
 
-fn upgrade_cloud(org: &str, name: &str, opts: &crate::options::Options) -> anyhow::Result<()> {
-    task::block_on(cloud::ops::upgrade(org, name, opts))?;
+fn upgrade_cloud(cmd: &Upgrade, org: &str, name: &str, opts: &crate::options::Options) -> anyhow::Result<()> {
+    let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
+    client.ensure_authenticated()?;
+
+    let inst = task::block_on(cloud::ops::find_cloud_instance_by_name(name, org, &client))?
+        .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
+
+    let inst_ver = ver::Specific::from_str(&inst.version)?;
+    let (ver_query, _) = Query::from_options(
+        repository::QueryOptions {
+            stable: cmd.to_latest,
+            nightly: cmd.to_nightly,
+            testing: cmd.to_testing,
+            channel: cmd.to_channel,
+            version: cmd.to_version.as_ref(),
+        },
+        || Query::from_version(&inst_ver),
+    )?;
+
+    let pkg = repository::get_server_package(&ver_query)?
+        .context("no package found according to your criteria")?;
+    let pkg_ver = pkg.version.specific();
+
+    if pkg_ver <= inst_ver && !cmd.force {
+        echo!("Latest version found", pkg.version.to_string() + ",",
+            "current instance version is",
+            inst.version.emphasize().to_string() + ".",
+            "Already up to date.");
+        return Ok(());
+    }
+
+    let request = cloud::ops::CloudInstanceUpgrade {
+        org: org.to_string(),
+        name: name.to_string(),
+        version: pkg_ver.to_string(),
+    };
+    task::block_on(cloud::ops::upgrade_cloud_instance(&client, &request))?;
+
     print::echo!(
         "EdgeDB Cloud instance",
         format!("{}/{}", org, name).emphasize(),

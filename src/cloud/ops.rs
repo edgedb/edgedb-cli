@@ -24,6 +24,7 @@ pub struct CloudInstance {
     org_slug: String,
     dsn: String,
     status: String,
+    pub version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     tls_ca: Option<String>,
 }
@@ -73,8 +74,7 @@ pub struct Org {
 pub struct CloudInstanceCreate {
     pub name: String,
     pub org: String,
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // pub version: Option<String>,
+    pub version: String,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub default_database: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -85,6 +85,7 @@ pub struct CloudInstanceCreate {
 pub struct CloudInstanceUpgrade {
     pub name: String,
     pub org: String,
+    pub version: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -174,25 +175,25 @@ async fn wait_instance_upgrade(
 
 pub async fn create_cloud_instance(
     client: &CloudClient,
-    instance: &CloudInstanceCreate,
+    request: &CloudInstanceCreate,
 ) -> anyhow::Result<()> {
-    let url = format!("orgs/{}/instances", instance.org);
+    let url = format!("orgs/{}/instances", request.org);
     let operation: CloudOperation = client
-        .post(url, serde_json::to_value(instance)?)
+        .post(url, serde_json::to_value(request)?)
         .await?;
-    wait_instance_create(operation, &instance.org, &instance.name, client).await?;
+    wait_instance_create(operation, &request.org, &request.name, client).await?;
     Ok(())
 }
 
 pub async fn upgrade_cloud_instance(
     client: &CloudClient,
-    instance: &CloudInstanceUpgrade,
+    request: &CloudInstanceUpgrade,
 ) -> anyhow::Result<()> {
-    let url = format!("orgs/{}/instances/{}", instance.org, instance.name);
+    let url = format!("orgs/{}/instances/{}", request.org, request.name);
     let operation: CloudOperation = client
-        .put(url, serde_json::to_value(instance)?)
+        .put(url, serde_json::to_value(request)?)
         .await?;
-    wait_instance_upgrade(operation, &instance.org, &instance.name, client).await?;
+    wait_instance_upgrade(operation, &request.org, &request.name, client).await?;
     Ok(())
 }
 
@@ -208,18 +209,6 @@ pub async fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> 
     } else {
         anyhow::bail!("Aborted.");
     }
-}
-
-pub async fn upgrade(org: &str, name: &str, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let client = CloudClient::new(&opts.cloud_options)?;
-    client.ensure_authenticated()?;
-
-    let instance = CloudInstanceUpgrade {
-        org: org.to_string(),
-        name: name.to_string(),
-    };
-    upgrade_cloud_instance(&client, &instance).await?;
-    Ok(())
 }
 
 async fn destroy(name: &str, org: &str, options: &CloudOptions) -> anyhow::Result<()> {

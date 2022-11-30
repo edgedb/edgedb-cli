@@ -17,7 +17,7 @@ use crate::portable::local::{Paths, InstanceInfo};
 use crate::portable::local::{write_json, allocate_port};
 use crate::portable::options::{Create, InstanceName, Start};
 use crate::portable::platform::optional_docker_check;
-use crate::portable::repository::{Query, QueryOptions};
+use crate::portable::repository::{self, Query, QueryOptions};
 use crate::portable::reset_password::{password_hash, generate_password};
 use crate::portable::{windows, linux, macos};
 use crate::print::{self, echo, err_marker, Highlight};
@@ -92,22 +92,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     let name = match inst_name.clone() {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { org_slug, name } => {
-            client.ensure_authenticated()?;
-            let instance = cloud::ops::CloudInstanceCreate {
-                name: name.clone(),
-                org: org_slug,
-                // version: Some(format!("{}", version.display())),
-                // default_database: Some(cmd.default_database.clone()),
-                // default_user: Some(cmd.default_user.clone()),
-            };
-            task::block_on(cloud::ops::create_cloud_instance(&client, &instance))?;
-            echo!(
-                "EdgeDB Cloud instance",
-                inst_name,
-                "is up and running."
-            );
-            echo!("To connect to the instance run:");
-            echo!("  edgedb -I", inst_name);
+            create_cloud(cmd, &org_slug, &name, &client)?;
             return Ok(())
         }
     };
@@ -176,6 +161,45 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     echo!("To connect to the instance run:");
     echo!("  edgedb -I", name);
     Ok(())
+}
+
+fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client::CloudClient) -> anyhow::Result<()> {
+    let inst_name = InstanceName::Cloud {
+        org_slug: org_slug.to_string(),
+        name: name.to_string(),
+    };
+    let (query, _) = Query::from_options(
+        QueryOptions {
+            nightly: cmd.nightly,
+            testing: false,
+            channel: cmd.channel,
+            version: cmd.version.as_ref(),
+            stable: false,
+        },
+        || anyhow::Ok(Query::stable()),
+    )?;
+
+    let pkg = repository::get_server_package(&query)?
+        .with_context(||
+            format!("cannot find package matching {}", query.display()))?;
+
+    let pkg_ver = pkg.version.specific();
+
+    client.ensure_authenticated()?;
+    let request = cloud::ops::CloudInstanceCreate {
+        name: name.to_string(),
+        org: org_slug.to_string(),
+        version: pkg_ver.to_string(),
+    };
+    task::block_on(cloud::ops::create_cloud_instance(&client, &request))?;
+    echo!(
+        "EdgeDB Cloud instance",
+        inst_name,
+        "is up and running."
+    );
+    echo!("To connect to the instance run:");
+    echo!("  edgedb -I", inst_name);
+    return Ok(())
 }
 
 pub fn bootstrap_script(database: &str, user: &str, password: &str) -> String {
