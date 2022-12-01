@@ -3,6 +3,8 @@ use std::default::Default;
 
 use serde::{de, ser, Serialize, Deserialize};
 
+use crate::errors::{Error, ErrorKind};
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all="snake_case")]
@@ -53,6 +55,23 @@ struct CredentialsCompat {
 
 fn default_port() -> u16 {
     5656
+}
+
+
+impl TlsSecurity {
+    pub fn from_str(val: &str) -> Result<Self, Error> {
+        match val {
+            "default" => Ok(TlsSecurity::Default),
+            "insecure" => Ok(TlsSecurity::Insecure),
+            "no_host_verification" => Ok(TlsSecurity::NoHostVerification),
+            "strict" => Ok(TlsSecurity::Strict),
+            _ => Err(crate::errors::ClientError::with_message(format!(
+                "Invalid value {:?}. \
+                Options: default, insecure, no_host_verification, strict.",
+                val,
+            ))),
+        }
+    }
 }
 
 
