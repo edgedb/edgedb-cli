@@ -44,6 +44,7 @@ use crate::errors::{ClientConnectionFailedError, AuthenticationError};
 use crate::errors::{ClientError, ClientConnectionFailedTemporarilyError};
 use crate::errors::{ClientNoCredentialsError, ProtocolEncodingError};
 use crate::errors::{Error, ErrorKind, PasswordRequired, ResultExt};
+use crate::errors::InterfaceError;
 use crate::server_params::{PostgresAddress, SystemConfig};
 use crate::tls;
 
@@ -112,6 +113,12 @@ pub(crate) enum Address {
 }
 
 struct DisplayAddr<'a>(Option<&'a Address>);
+
+struct DSN {
+    url: url::Url,
+    admin: bool,
+    query: HashMap<String, String>,
+}
 
 pub async fn timeout<F, T>(dur: Duration, f: F) -> Result<T, Error>
     where F: Future<Output = Result<T, Error>>,
@@ -322,6 +329,171 @@ impl fmt::Display for DisplayAddr<'_> {
     }
 }
 
+impl DSN {
+    fn new(dsn: &str) -> Result<Self, Error> {
+        let admin = dsn.starts_with("edgedbadmin://");
+        if !dsn.starts_with("edgedb://") && !admin {
+            return Err(ClientError::with_message(format!(
+                "String {:?} is not a valid DSN",
+                dsn,
+            )));
+        };
+        let url = url::Url::parse(dsn).map_err(|e| {
+            ClientError::with_source(e).context(format!("cannot parse DSN {:?}", dsn))
+        })?;
+        let query = url
+            .query_pairs()
+            .into_owned()
+            .into_iter()
+            .collect::<HashMap<_, _>>();
+        Ok(Self { url, admin, query })
+    }
+
+    async fn get_value<T>(
+        &mut self,
+        key: &'static str,
+        mut v: Option<T>,
+        conv: impl FnOnce(String) -> Result<T, Error>,
+        default: impl FnOnce() -> T,
+    ) -> Result<T, Error> {
+        let v_query = self.query.remove(key);
+        let k_env = format!("{key}_env");
+        let v_env = self.query.remove(k_env.as_str());
+        let k_file = format!("{key}_file");
+        let v_file = self.query.remove(k_file.as_str());
+        let mut key_used = key;
+        let mut rv = None;
+
+        if v.is_none() {
+            key_used = key;
+            rv = v_query;
+        } else if v_query.is_some() {
+            return Err(InterfaceError::with_message(format!(
+                "redundant query in DSN: {key}"
+            )));
+        }
+        if v.is_none() && rv.is_none() {
+            if let Some(env_name) = v_env {
+                key_used = &k_env;
+                rv = get_env(&env_name)?;
+            }
+        } else if v_env.is_some() {
+            return Err(InterfaceError::with_message(format!(
+                "redundant query in DSN: {k_env}"
+            )));
+        }
+        if v.is_none() && rv.is_none() {
+            if let Some(file_path) = v_file {
+                key_used = &k_file;
+                rv = Some(
+                    fs::read_to_string(Path::new(&file_path))
+                        .await
+                        .map_err(|e| {
+                            ClientError::with_source(e)
+                                .context(format!("error reading {k_file}={file_path}"))
+                        })?,
+                );
+            }
+        } else if v_file.is_some() {
+            return Err(InterfaceError::with_message(format!(
+                "redundant query in DSN: {k_file}"
+            )));
+        }
+        if v.is_none() {
+            if let Some(rv) = rv {
+                let rv = conv(rv).with_context(|| {
+                    format!("failed to parse value of query parameter {}", key_used)
+                })?;
+                v = Some(rv);
+            }
+        }
+        Ok(v.unwrap_or_else(default))
+    }
+
+    async fn retrieve_host(&mut self, default: impl ToString) -> Result<String, Error> {
+        if let Some(url::Host::Ipv6(host)) = self.url.host() {
+            // async-std uses raw IPv6 address without "[]"
+            Ok(host.to_string())
+        } else {
+            self.get_value(
+                "host",
+                self.url.host_str().map(|s| s.to_owned()),
+                |s| Ok(s),
+                || default.to_string(),
+            ).await
+        }
+    }
+
+    async fn retrieve_port(&mut self, default: u16) -> Result<u16, Error> {
+        self.get_value(
+            "port",
+            self.url.port(),
+            |s| {
+                s.parse()
+                    .map_err(|e| InterfaceError::with_source(e).context("invalid port"))
+            },
+            || default,
+        ).await
+    }
+
+    async fn retrieve_user(&mut self, default: impl ToString) -> Result<String, Error> {
+        let username = self.url.username();
+        let v = if username.is_empty() {
+            None
+        } else {
+            Some(username.to_owned())
+        };
+        self.get_value("user", v, |s| Ok(s), || default.to_string()).await
+    }
+
+    async fn retrieve_password(&mut self) -> Result<Option<String>, Error> {
+        let v = self.url.password().map(|s| Some(s.to_owned()));
+        self.get_value("password", v, |s| Ok(Some(s)), || None).await
+    }
+
+    async fn retrieve_database(&mut self, default: impl ToString) -> Result<String, Error> {
+        let v = self.url.path().strip_prefix("/").map(|s| s.to_owned());
+        self.get_value("database", v, |s| Ok(s), || default.to_string()).await
+    }
+
+    async fn retrieve_secret_key(&mut self) -> Result<Option<String>, Error> {
+        self.get_value("secret_key", None, |s| Ok(Some(s)), || None).await
+    }
+
+    async fn retrieve_tls_ca_file(&mut self) -> Result<Option<String>, Error> {
+        self.get_value("tls_ca_file", None, |s| Ok(Some(s)), || None).await
+    }
+
+    async fn retrieve_tls_security(&mut self) -> Result<Option<TlsSecurity>, Error> {
+        self.get_value(
+            "tls_security",
+            None,
+            |s| TlsSecurity::from_str(&s).map(|s| Some(s)),
+            || None,
+        ).await
+    }
+
+    async fn retrieve_wait_until_available(&mut self) -> Result<Option<Duration>, Error> {
+        self.get_value(
+            "wait_until_available",
+            None,
+            |s| {
+                s.parse::<model::Duration>()
+                    .map_err(ClientError::with_source)
+                    .and_then(|d| match d.is_negative() {
+                        false => Ok(d.abs_duration()),
+                        true => Err(ClientError::with_message(
+                            "negative durations are unsupported",
+                        )),
+                    })
+                    .map(|rv| Some(rv))
+            },
+            || None,
+        ).await
+    }
+}
+
+
 impl Builder {
 
     /// Initializes a Builder using environment variables or project config.
@@ -431,21 +603,8 @@ impl Builder {
             self.secret_key = Some(secret_key);
         }
         if let Some(sec) = get_env("EDGEDB_CLIENT_TLS_SECURITY")? {
-            self.tls_security = match &sec[..] {
-                "default" => TlsSecurity::Default,
-                "insecure" => TlsSecurity::Insecure,
-                "no_host_verification" => TlsSecurity::NoHostVerification,
-                "strict" => TlsSecurity::Strict,
-                _ => {
-                    return Err(ClientError::with_message(
-                        format!("Invalid value {:?} for env var \
-                                EDGEDB_CLIENT_TLS_SECURITY. \
-                                Options: default, insecure, \
-                                no_host_verification, strict.",
-                                sec)
-                    ));
-                }
-            };
+            self.tls_security = TlsSecurity::from_str(&sec)
+                .with_context(|| "invalid env var EDGEDB_CLIENT_TLS_SECURITY")?;
         }
         let tls_ca = get_env("EDGEDB_TLS_CA")?;
         if let Some(tls_ca_file) = get_env("EDGEDB_TLS_CA_FILE")? {
@@ -606,32 +765,28 @@ impl Builder {
     /// and overwrite all the credentials. However, `insecure_dev_mode`, pools
     /// sizes, and timeouts are kept intact.
     pub async fn read_dsn(&mut self, dsn: &str) -> Result<&mut Self, Error> {
-        let admin = dsn.starts_with("edgedbadmin://");
-        if !dsn.starts_with("edgedb://") && !admin {
-            return Err(ClientError::with_message(format!(
-                "String {:?} is not a valid DSN", dsn)));
-        };
-        let url = url::Url::parse(dsn)
-            .map_err(|e| ClientError::with_source(e)
-                .context(format!("cannot parse DSN {:?}", dsn)))?;
+        let mut dsn = DSN::new(dsn)?;
         self.reset_compound();
-        let host = if let Some(url::Host::Ipv6(host)) = url.host() {
-            // async-std uses raw IPv6 address without "[]"
-            host.to_string()
-        } else {
-            url.host_str().unwrap_or(DEFAULT_HOST).to_owned()
-        };
-        let port = url.port().unwrap_or(DEFAULT_PORT);
+        let host = dsn.retrieve_host(DEFAULT_HOST).await?;
+        let port = dsn.retrieve_port(DEFAULT_PORT).await?;
         self.address = Address::Tcp((host, port));
-        self.admin = admin;
-        self.user = if url.username().is_empty() {
-            "edgedb".to_owned()
-        } else {
-            url.username().to_owned()
-        };
-        self.password = url.password().map(|s| s.to_owned());
-        self.database = url.path().strip_prefix("/")
-                .unwrap_or("edgedb").to_owned();
+        self.admin = dsn.admin;
+        self.user = dsn.retrieve_user("edgedb").await?;
+        self.password = dsn.retrieve_password().await?;
+        self.database = dsn.retrieve_database("edgedb").await?;
+        self.secret_key = dsn.retrieve_secret_key().await?;
+        if let Some(tls_ca_file) = dsn.retrieve_tls_ca_file().await? {
+            let pem = fs::read_to_string(Path::new(&tls_ca_file))
+                .await
+                .map_err(|e| ClientError::with_source(e).context("error reading TLS CA file"))?;
+            self.pem_certificates(&pem)?;
+        }
+        if let Some(s) = dsn.retrieve_tls_security().await? {
+            self.tls_security = s;
+        }
+        if let Some(d) = dsn.retrieve_wait_until_available().await? {
+            self.wait = d;
+        }
         self.initialized = true;
         Ok(self)
     }
