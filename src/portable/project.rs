@@ -548,6 +548,10 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
     echo!("Checking EdgeDB versions...");
 
+    let pkg = repository::get_server_package(&ver_query)?
+        .with_context(||
+            format!("cannot find package matching {}", ver_query.display()))?;
+
     match &name {
         InstanceName::Cloud { org_slug, name } => {
             table::settings(&[
@@ -556,7 +560,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
                  &schema_dir_path.display().to_string()),
-                // ("Version", &format!("{:?}", version)),
+                ("Version", &pkg.version.to_string()),
                 ("Instance name", &name.to_string()),
             ]);
 
@@ -569,14 +573,11 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                 &stash_dir,
                 &project_dir,
                 &schema_dir,
+                &pkg.version.specific(),
                 options,
                 &client)
         }
         InstanceName::Local(name) => {
-            let pkg = repository::get_server_package(&ver_query)?
-                .with_context(||
-                    format!("cannot find package matching {}", ver_query.display()))?;
-
             let meth = if cfg!(windows) {
                 "WSL"
             } else {
@@ -679,19 +680,19 @@ fn do_cloud_init(
     stash_dir: &Path,
     project_dir: &Path,
     schema_dir: &Path,
+    version: &ver::Specific,
     options: &Init,
     client: &CloudClient,
-    // version: String,
 ) -> anyhow::Result<ProjectInfo> {
-    let instance = crate::cloud::ops::CloudInstanceCreate {
+    let request = crate::cloud::ops::CloudInstanceCreate {
         name: name.clone(),
         org: org.clone(),
-        // version: Some(version),
+        version: version.to_string(),
         // default_database: None,
         // default_user: None,
     };
     task::block_on(
-        crate::cloud::ops::create_cloud_instance(client, &instance)
+        crate::cloud::ops::create_cloud_instance(client, &request)
     )?;
     let full_name = format!("{}/{}", org, name);
     write_stash_dir(stash_dir, project_dir, &full_name)?;
@@ -757,6 +758,8 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
 
     echo!("Checking EdgeDB versions...");
 
+    let (ver_query, pkg) = ask_version(options)?;
+
     match &inst_name {
         InstanceName::Cloud { org_slug, name } => {
             client.ensure_authenticated()?;
@@ -767,7 +770,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
                  &schema_dir_path.display().to_string()),
-                ("Version", &format!("{:?}", version)),
+                ("Version", &pkg.version.to_string()),
                 ("Instance name", &name),
             ]);
             let ver_query = Query::from_str(&version)?;
@@ -782,14 +785,12 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                 &stash_dir,
                 &project_dir,
                 &schema_dir,
+                &pkg.version.specific(),
                 options,
                 &client,
-                // version,
             )
         }
         InstanceName::Local(name) => {
-            let (ver_query, pkg) = ask_version(options)?;
-
             let meth = if cfg!(windows) {
                 "WSL"
             } else {
