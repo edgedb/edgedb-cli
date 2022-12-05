@@ -16,6 +16,8 @@ jobs:
       branch: ${{ steps.whichver.outputs.branch }}
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
 
     - name: Determine package version
       shell: bash

@@ -21,7 +21,7 @@ use futures_util::AsyncReadExt;
 use rand::{thread_rng, Rng};
 use rustls::client::ServerCertVerifier;
 use scram::ScramClient;
-use serde_json::from_slice;
+use serde_json::{from_slice, json};
 use sha1::Digest;
 use tls_api::{TlsConnectorBox, TlsConnector as _, TlsConnectorBuilder as _};
 use tls_api::{TlsStream, TlsStreamDyn as _};
@@ -1160,6 +1160,25 @@ impl Builder {
             Address::Unix(path) => Ok(Some(path.clone())),
             Address::Tcp(_) => Ok(None),
         }
+    }
+
+    /// Generate debug JSON string
+    #[cfg(feature="unstable")]
+    pub fn to_json(&self) -> String {
+        json!({
+            "address": match &self.address {
+                Address::Tcp((host, port)) => json!([host, port]),
+                Address::Unix(path) => json!(path.to_str().unwrap()),
+            },
+            "database": self.database,
+            "user": self.user,
+            "password": self.password,
+            "secret_key": self.secret_key,
+            "tlsCAData": self.pem,
+            "tlsSecurity": self.build().unwrap().0.tls_security,
+            "serverSettings": {},
+            "waitUntilAvailable": self.wait.as_micros() as i64,
+        }).to_string()
     }
 }
 

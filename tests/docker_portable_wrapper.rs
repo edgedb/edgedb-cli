@@ -99,6 +99,7 @@ fn dockerfile() -> String {
 #[test_case("portable_smoke")]
 #[test_case("portable_project")]
 #[test_case("portable_project_dir")]
+#[test_case("portable_shared")]
 fn run_test(name: &'static str) {
     let file_name = TEST_EXECUTABLES.get(name).unwrap()
         .file_name().unwrap()
