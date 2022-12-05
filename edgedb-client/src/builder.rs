@@ -114,10 +114,10 @@ pub(crate) enum Address {
 
 struct DisplayAddr<'a>(Option<&'a Address>);
 
-struct Dsn {
-    url: url::Url,
+struct DsnHelper<'a> {
+    url: &'a url::Url,
     admin: bool,
-    query: HashMap<String, String>,
+    query: HashMap<Cow<'a, str>, Cow<'a, str>>,
 }
 
 pub async fn timeout<F, T>(dur: Duration, f: F) -> Result<T, Error>
@@ -329,21 +329,18 @@ impl fmt::Display for DisplayAddr<'_> {
     }
 }
 
-impl Dsn {
-    fn from_str(dsn: &str) -> Result<Self, Error> {
-        let admin = dsn.starts_with("edgedbadmin://");
-        if !dsn.starts_with("edgedb://") && !admin {
+impl<'a> DsnHelper<'a> {
+    fn from_url(url: &'a url::Url) -> Result<Self, Error> {
+        let scheme = url.scheme();
+        let admin = scheme == "edgedbadmin";
+        if !admin && scheme != "edgedb" {
             return Err(ClientError::with_message(format!(
-                "String {:?} is not a valid DSN",
-                dsn,
+                "{:?} is not a valid DSN scheme",
+                scheme,
             )));
         };
-        let url = url::Url::parse(dsn).map_err(|e| {
-            ClientError::with_source(e).context(format!("cannot parse DSN {:?}", dsn))
-        })?;
         let query = url
             .query_pairs()
-            .into_owned()
             .into_iter()
             .collect::<HashMap<_, _>>();
         Ok(Self { url, admin, query })
@@ -357,9 +354,9 @@ impl Dsn {
     ) -> Result<Option<T>, Error> {
         let v_query = self.query.remove(key);
         let k_env = format!("{key}_env");
-        let v_env = self.query.remove(&k_env);
+        let v_env = self.query.remove(k_env.as_str());
         let k_file = format!("{key}_file");
-        let v_file = self.query.remove(&k_file);
+        let v_file = self.query.remove(k_file.as_str());
 
         let defined_param_names = vec![
             v.as_ref().map(|_| format!("{key} of URL")),
@@ -380,7 +377,7 @@ impl Dsn {
         if v.is_some() {
             Ok(v)
         } else if let Some(val) = v_query {
-            conv(val)
+            conv(val.to_string())
                 .map(|rv| Some(rv))
                 .with_context(|| format!("failed to parse value of query {key}"))
         } else if let Some(env_name) = v_env {
@@ -391,7 +388,7 @@ impl Dsn {
                 .map(|rv| Some(rv))
                 .with_context(|| format!("failed to parse value of {k_env}: {env_name}"))
         } else if let Some(file_path) = v_file {
-            let val = fs::read_to_string(Path::new(&file_path))
+            let val = fs::read_to_string(Path::new(file_path.as_ref()))
                 .await
                 .map_err(|e| {
                     ClientError::with_source(e)
@@ -748,7 +745,10 @@ impl Builder {
     /// and overwrite all the credentials. However, `insecure_dev_mode`, pools
     /// sizes, and timeouts are kept intact.
     pub async fn read_dsn(&mut self, dsn: &str) -> Result<&mut Self, Error> {
-        let mut dsn = Dsn::from_str(dsn)?;
+        let url = url::Url::parse(dsn).map_err(|e| {
+            ClientError::with_source(e).context(format!("cannot parse DSN {:?}", dsn))
+        })?;
+        let mut dsn = DsnHelper::from_url(&url)?;
         self.reset_compound();
         let host = dsn.retrieve_host(DEFAULT_HOST).await?;
         let port = dsn.retrieve_port(DEFAULT_PORT).await?;
