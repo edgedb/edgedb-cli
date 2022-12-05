@@ -114,7 +114,7 @@ pub(crate) enum Address {
 
 struct DisplayAddr<'a>(Option<&'a Address>);
 
-struct DSN {
+struct Dsn {
     url: url::Url,
     admin: bool,
     query: HashMap<String, String>,
@@ -329,8 +329,8 @@ impl fmt::Display for DisplayAddr<'_> {
     }
 }
 
-impl DSN {
-    fn new(dsn: &str) -> Result<Self, Error> {
+impl Dsn {
+    fn from_str(dsn: &str) -> Result<Self, Error> {
         let admin = dsn.starts_with("edgedbadmin://");
         if !dsn.starts_with("edgedb://") && !admin {
             return Err(ClientError::with_message(format!(
@@ -349,65 +349,55 @@ impl DSN {
         Ok(Self { url, admin, query })
     }
 
-    async fn get_value<T>(
+    async fn retrieve_value<T>(
         &mut self,
         key: &'static str,
-        mut v: Option<T>,
+        v: Option<T>,
         conv: impl FnOnce(String) -> Result<T, Error>,
         default: impl FnOnce() -> T,
     ) -> Result<T, Error> {
         let v_query = self.query.remove(key);
         let k_env = format!("{key}_env");
-        let v_env = self.query.remove(k_env.as_str());
+        let v_env = self.query.remove(&k_env);
         let k_file = format!("{key}_file");
-        let v_file = self.query.remove(k_file.as_str());
-        let mut key_used = key;
-        let mut rv = None;
+        let v_file = self.query.remove(&k_file);
 
-        if v.is_none() {
-            key_used = key;
-            rv = v_query;
-        } else if v_query.is_some() {
+        let defined_param_names = vec![
+            v.as_ref().map(|_| format!("{key} of URL")),
+            v_query.as_ref().map(|_| format!("query {key}")),
+            v_env.as_ref().map(|_| format!("query {k_env}")),
+            v_file.as_ref().map(|_| format!("query {k_file}")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+        if defined_param_names.len() > 1 {
             return Err(InterfaceError::with_message(format!(
-                "redundant query in DSN: {key}"
+                "{key} defined multiple times: {}",
+                defined_param_names.join(", "),
             )));
         }
-        if v.is_none() && rv.is_none() {
-            if let Some(env_name) = v_env {
-                key_used = &k_env;
-                rv = get_env(&env_name)?;
-            }
-        } else if v_env.is_some() {
-            return Err(InterfaceError::with_message(format!(
-                "redundant query in DSN: {k_env}"
-            )));
-        }
-        if v.is_none() && rv.is_none() {
-            if let Some(file_path) = v_file {
-                key_used = &k_file;
-                rv = Some(
-                    fs::read_to_string(Path::new(&file_path))
-                        .await
-                        .map_err(|e| {
-                            ClientError::with_source(e)
-                                .context(format!("error reading {k_file}={file_path}"))
-                        })?,
-                );
-            }
-        } else if v_file.is_some() {
-            return Err(InterfaceError::with_message(format!(
-                "redundant query in DSN: {k_file}"
-            )));
-        }
-        if v.is_none() {
-            if let Some(rv) = rv {
-                let rv = conv(rv).with_context(|| {
-                    format!("failed to parse value of query parameter {}", key_used)
+
+        if let Some(rv) = v {
+            Ok(rv)
+        } else if let Some(val) = v_query {
+            conv(val).with_context(|| format!("failed to parse value of query {key}"))
+        } else if let Some(env_name) = v_env {
+            let val = get_env(&env_name)?.ok_or(ClientError::with_message(format!(
+                "{k_env}: {env_name} is not set"
+            )))?;
+            conv(val).with_context(|| format!("failed to parse value of {k_env}: {env_name}"))
+        } else if let Some(file_path) = v_file {
+            let val = fs::read_to_string(Path::new(&file_path))
+                .await
+                .map_err(|e| {
+                    ClientError::with_source(e)
+                        .context(format!("error reading {k_file}: {file_path}"))
                 })?;
-                v = Some(rv);
-            }
+            conv(val).with_context(|| format!("failed to parse content of {k_file}: {file_path}"))
+        } else {
+            Ok(default())
         }
-        Ok(v.unwrap_or_else(default))
     }
 
     async fn retrieve_host(&mut self, default: impl ToString) -> Result<String, Error> {
@@ -415,7 +405,7 @@ impl DSN {
             // async-std uses raw IPv6 address without "[]"
             Ok(host.to_string())
         } else {
-            self.get_value(
+            self.retrieve_value(
                 "host",
                 self.url.host_str().map(|s| s.to_owned()),
                 |s| Ok(s),
@@ -425,7 +415,7 @@ impl DSN {
     }
 
     async fn retrieve_port(&mut self, default: u16) -> Result<u16, Error> {
-        self.get_value(
+        self.retrieve_value(
             "port",
             self.url.port(),
             |s| {
@@ -443,29 +433,29 @@ impl DSN {
         } else {
             Some(username.to_owned())
         };
-        self.get_value("user", v, |s| Ok(s), || default.to_string()).await
+        self.retrieve_value("user", v, |s| Ok(s), || default.to_string()).await
     }
 
     async fn retrieve_password(&mut self) -> Result<Option<String>, Error> {
         let v = self.url.password().map(|s| Some(s.to_owned()));
-        self.get_value("password", v, |s| Ok(Some(s)), || None).await
+        self.retrieve_value("password", v, |s| Ok(Some(s)), || None).await
     }
 
     async fn retrieve_database(&mut self, default: impl ToString) -> Result<String, Error> {
         let v = self.url.path().strip_prefix("/").map(|s| s.to_owned());
-        self.get_value("database", v, |s| Ok(s), || default.to_string()).await
+        self.retrieve_value("database", v, |s| Ok(s), || default.to_string()).await
     }
 
     async fn retrieve_secret_key(&mut self) -> Result<Option<String>, Error> {
-        self.get_value("secret_key", None, |s| Ok(Some(s)), || None).await
+        self.retrieve_value("secret_key", None, |s| Ok(Some(s)), || None).await
     }
 
     async fn retrieve_tls_ca_file(&mut self) -> Result<Option<String>, Error> {
-        self.get_value("tls_ca_file", None, |s| Ok(Some(s)), || None).await
+        self.retrieve_value("tls_ca_file", None, |s| Ok(Some(s)), || None).await
     }
 
     async fn retrieve_tls_security(&mut self) -> Result<Option<TlsSecurity>, Error> {
-        self.get_value(
+        self.retrieve_value(
             "tls_security",
             None,
             |s| TlsSecurity::from_str(&s).map(|s| Some(s)),
@@ -474,7 +464,7 @@ impl DSN {
     }
 
     async fn retrieve_wait_until_available(&mut self) -> Result<Option<Duration>, Error> {
-        self.get_value(
+        self.retrieve_value(
             "wait_until_available",
             None,
             |s| {
@@ -765,7 +755,7 @@ impl Builder {
     /// and overwrite all the credentials. However, `insecure_dev_mode`, pools
     /// sizes, and timeouts are kept intact.
     pub async fn read_dsn(&mut self, dsn: &str) -> Result<&mut Self, Error> {
-        let mut dsn = DSN::new(dsn)?;
+        let mut dsn = Dsn::from_str(dsn)?;
         self.reset_compound();
         let host = dsn.retrieve_host(DEFAULT_HOST).await?;
         let port = dsn.retrieve_port(DEFAULT_PORT).await?;
