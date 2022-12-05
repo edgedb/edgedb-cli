@@ -2,6 +2,7 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use anyhow::Context;
 use anymap::AnyMap;
 use async_std::task;
 use atty;
@@ -685,7 +686,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         }
         bld.read_extra_env_vars()?;
     } else if let Some(dsn) = &tmp.dsn {
-        task::block_on(bld.read_dsn(dsn))?;
+        task::block_on(bld.read_dsn(dsn)).context("invalid DSN")?;
         bld.read_extra_env_vars()?;
     } else if let Some(instance) = &tmp.instance {
         match instance {
