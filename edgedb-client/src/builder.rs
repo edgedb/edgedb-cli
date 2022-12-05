@@ -1093,15 +1093,31 @@ impl Builder {
                 Run `edgedb project init` or use environment variables \
                 to configure connection."));
         }
+        let tls_security;
         let verifier = match self.tls_security {
-            _ if self.insecure() => Arc::new(tls::NullVerifier) as Verifier,
-            Insecure => Arc::new(tls::NullVerifier) as Verifier,
+            _ if self.insecure() => {
+                match self.tls_security {
+                    Default => {
+                        tls_security = Insecure;
+                    }
+                    ts => {
+                        tls_security = ts;
+                    }
+                }
+                Arc::new(tls::NullVerifier) as Verifier
+            },
+            Insecure => {
+                tls_security = self.tls_security;
+                Arc::new(tls::NullVerifier) as Verifier
+            },
             NoHostVerification => {
+                tls_security = self.tls_security;
                 Arc::new(tls::NoHostnameVerifier::new(
                         self.trust_anchors()?
                 )) as Verifier
             }
             Strict => {
+                tls_security = self.tls_security;
                 Arc::new(rustls::client::WebPkiVerifier::new(
                     self._root_cert_store()?,
                     None,
@@ -1109,11 +1125,13 @@ impl Builder {
             }
             Default => match self.pem {
                 Some(_) => {
+                    tls_security = NoHostVerification;
                     Arc::new(tls::NoHostnameVerifier::new(
                             self.trust_anchors()?
                     )) as Verifier
                 }
                 None => {
+                    tls_security = Strict;
                     Arc::new(rustls::client::WebPkiVerifier::new(
                         self._root_cert_store()?,
                         None,
@@ -1133,7 +1151,7 @@ impl Builder {
             instance_name: self.instance_name.clone(),
             wait: self.wait,
             connect_timeout: self.connect_timeout,
-            tls_security: self.tls_security,
+            tls_security,
             insecure_dev_mode: self.insecure_dev_mode,
 
             // Pool configuration
@@ -1281,19 +1299,6 @@ impl Config {
         Ok(conn)
     }
 
-
-    fn do_verify_hostname(&self) -> Option<bool> {
-        use TlsSecurity::*;
-        if self.0.insecure_dev_mode {
-            return Some(false);
-        }
-        match self.0.tls_security {
-            Insecure => Some(false),
-            NoHostVerification => Some(false),
-            Strict => Some(true),
-            Default => None,
-        }
-    }
     /// Return a single connection.
     #[cfg(feature="unstable")]
     pub async fn connect(&self) -> Result<Connection, Error> {
@@ -1301,9 +1306,8 @@ impl Config {
     }
 
     pub(crate) async fn private_connect(&self) -> Result<Connection, Error> {
-        let verify_host = self.do_verify_hostname();
-        match (&self.0.address, verify_host) {
-            (Address::Tcp((host, _)), Some(true))
+        match (&self.0.address, self.0.tls_security) {
+            (Address::Tcp((host, _)), TlsSecurity::Strict)
                 if IpAddr::from_str(host).is_ok() => {
                     return Err(ClientError::with_message(
                         "Cannot use `verify_hostname` or system \
