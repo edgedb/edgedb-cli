@@ -59,7 +59,8 @@ fn default_port() -> u16 {
 
 
 impl TlsSecurity {
-    pub fn from_str(val: &str) -> Result<Self, Error> {
+    pub fn from_str(val: impl AsRef<str>) -> Result<Self, Error> {
+        let val = val.as_ref();
         match val {
             "default" => Ok(TlsSecurity::Default),
             "insecure" => Ok(TlsSecurity::Insecure),

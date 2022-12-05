@@ -354,8 +354,7 @@ impl Dsn {
         key: &'static str,
         v: Option<T>,
         conv: impl FnOnce(String) -> Result<T, Error>,
-        default: impl FnOnce() -> T,
-    ) -> Result<T, Error> {
+    ) -> Result<Option<T>, Error> {
         let v_query = self.query.remove(key);
         let k_env = format!("{key}_env");
         let v_env = self.query.remove(&k_env);
@@ -378,15 +377,19 @@ impl Dsn {
             )));
         }
 
-        if let Some(rv) = v {
-            Ok(rv)
+        if v.is_some() {
+            Ok(v)
         } else if let Some(val) = v_query {
-            conv(val).with_context(|| format!("failed to parse value of query {key}"))
+            conv(val)
+                .map(|rv| Some(rv))
+                .with_context(|| format!("failed to parse value of query {key}"))
         } else if let Some(env_name) = v_env {
             let val = get_env(&env_name)?.ok_or(ClientError::with_message(format!(
                 "{k_env}: {env_name} is not set"
             )))?;
-            conv(val).with_context(|| format!("failed to parse value of {k_env}: {env_name}"))
+            conv(val)
+                .map(|rv| Some(rv))
+                .with_context(|| format!("failed to parse value of {k_env}: {env_name}"))
         } else if let Some(file_path) = v_file {
             let val = fs::read_to_string(Path::new(&file_path))
                 .await
@@ -394,9 +397,11 @@ impl Dsn {
                     ClientError::with_source(e)
                         .context(format!("error reading {k_file}: {file_path}"))
                 })?;
-            conv(val).with_context(|| format!("failed to parse content of {k_file}: {file_path}"))
+            conv(val)
+                .map(|rv| Some(rv))
+                .with_context(|| format!("failed to parse content of {k_file}: {file_path}"))
         } else {
-            Ok(default())
+            Ok(None)
         }
     }
 
@@ -405,25 +410,19 @@ impl Dsn {
             // async-std uses raw IPv6 address without "[]"
             Ok(host.to_string())
         } else {
-            self.retrieve_value(
-                "host",
-                self.url.host_str().map(|s| s.to_owned()),
-                |s| Ok(s),
-                || default.to_string(),
-            ).await
+            self.retrieve_value("host", self.url.host_str().map(|s| s.to_owned()), |s| Ok(s))
+                .await
+                .map(|rv| rv.unwrap_or_else(|| default.to_string()))
         }
     }
 
     async fn retrieve_port(&mut self, default: u16) -> Result<u16, Error> {
-        self.retrieve_value(
-            "port",
-            self.url.port(),
-            |s| {
-                s.parse()
-                    .map_err(|e| InterfaceError::with_source(e).context("invalid port"))
-            },
-            || default,
-        ).await
+        self.retrieve_value("port", self.url.port(), |s| {
+            s.parse()
+                .map_err(|e| InterfaceError::with_source(e).context("invalid port"))
+        })
+        .await
+        .map(|rv| rv.unwrap_or(default))
     }
 
     async fn retrieve_user(&mut self, default: impl ToString) -> Result<String, Error> {
@@ -433,53 +432,47 @@ impl Dsn {
         } else {
             Some(username.to_owned())
         };
-        self.retrieve_value("user", v, |s| Ok(s), || default.to_string()).await
+        self.retrieve_value("user", v, |s| Ok(s))
+            .await
+            .map(|rv| rv.unwrap_or_else(|| default.to_string()))
     }
 
     async fn retrieve_password(&mut self) -> Result<Option<String>, Error> {
-        let v = self.url.password().map(|s| Some(s.to_owned()));
-        self.retrieve_value("password", v, |s| Ok(Some(s)), || None).await
+        let v = self.url.password().map(|s| s.to_owned());
+        self.retrieve_value("password", v, |s| Ok(s)).await
     }
 
     async fn retrieve_database(&mut self, default: impl ToString) -> Result<String, Error> {
         let v = self.url.path().strip_prefix("/").map(|s| s.to_owned());
-        self.retrieve_value("database", v, |s| Ok(s), || default.to_string()).await
+        self.retrieve_value("database", v, |s| Ok(s))
+            .await
+            .map(|rv| rv.unwrap_or_else(|| default.to_string()))
     }
 
     async fn retrieve_secret_key(&mut self) -> Result<Option<String>, Error> {
-        self.retrieve_value("secret_key", None, |s| Ok(Some(s)), || None).await
+        self.retrieve_value("secret_key", None, |s| Ok(s)).await
     }
 
     async fn retrieve_tls_ca_file(&mut self) -> Result<Option<String>, Error> {
-        self.retrieve_value("tls_ca_file", None, |s| Ok(Some(s)), || None).await
+        self.retrieve_value("tls_ca_file", None, |s| Ok(s)).await
     }
 
     async fn retrieve_tls_security(&mut self) -> Result<Option<TlsSecurity>, Error> {
-        self.retrieve_value(
-            "tls_security",
-            None,
-            |s| TlsSecurity::from_str(&s).map(|s| Some(s)),
-            || None,
-        ).await
+        self.retrieve_value("tls_security", None, TlsSecurity::from_str).await
     }
 
     async fn retrieve_wait_until_available(&mut self) -> Result<Option<Duration>, Error> {
-        self.retrieve_value(
-            "wait_until_available",
-            None,
-            |s| {
-                s.parse::<model::Duration>()
-                    .map_err(ClientError::with_source)
-                    .and_then(|d| match d.is_negative() {
-                        false => Ok(d.abs_duration()),
-                        true => Err(ClientError::with_message(
-                            "negative durations are unsupported",
-                        )),
-                    })
-                    .map(|rv| Some(rv))
-            },
-            || None,
-        ).await
+        self.retrieve_value("wait_until_available", None, |s| {
+            s.parse::<model::Duration>()
+                .map_err(ClientError::with_source)
+                .and_then(|d| match d.is_negative() {
+                    false => Ok(d.abs_duration()),
+                    true => Err(ClientError::with_message(
+                        "negative durations are unsupported",
+                    )),
+                })
+        })
+        .await
     }
 }
 
