@@ -33,6 +33,19 @@ fn main() {
     ]);
     let error_mapping = HashMap::from([
         ("invalid_dsn", "invalid DSN"),
+        ("env_not_found", "is not set"),
+        (
+            "invalid_tls_security",
+            "((EDGEDB_CLIENT_TLS_SECURITY|tls_security).*(mutually exclusive|Invalid value)|\
+            Unsupported TLS security)"
+        ),
+        ("file_not_found", "No such file or directory"),
+        ("invalid_host", "invalid host"),
+        ("invalid_port", "(Invalid value.*for.*port|invalid port)"),
+        ("invalid_dsn_or_instance_name", "invalid DSN"),
+        ("invalid_user", "invalid user"),
+        ("invalid_database", "invalid database"),
+        ("invalid_credentials_file", "cannot read credentials file"),
     ]);
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
@@ -87,11 +100,34 @@ fn main() {
             _ => None,
         };
         let result = case.get("result").map(|r| r.to_string());
+
         write!(
             testcase,
             r#"
 #[cfg(feature="portable_tests")]
 #[test]
+"#
+        );
+
+        // servo/rust-url#424
+        if let Some(opts) = &opts {
+            if let Some(dsn) = opts.get("dsn") {
+                if let Some(dsn) = dsn.as_str() {
+                    if dsn.contains("%25eth0") {
+                        write!(
+                            testcase,
+                            r#"
+#[should_panic]
+"#
+                        );
+                    }
+                }
+            }
+        }
+
+        write!(
+            testcase,
+            r#"
 fn connection_{i}() {{
 "#
         );
@@ -111,10 +147,11 @@ fn connection_{i}() {{
                 } else if key == "serverSettings" {
                     continue 'testcase;
                 } else if key == "password" {
-                    let argv = value.as_str().unwrap();
+                    let argv = format!("{}\n", value.as_str().unwrap());
                     write!(
                         buf,
                         r#"
+        .arg("--password-from-stdin")
         .write_stdin({argv:?})"#,
                     );
                     continue;
@@ -236,7 +273,7 @@ fn connection_{i}() {{
                 r#"
         .assert()
         .failure()
-        .stderr(predicates::str::contains({error:?}));
+        .stderr(predicates::str::is_match({error:?}).unwrap());
 }}"#,
             );
         }

@@ -2,16 +2,15 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use anyhow::Context;
 use anymap::AnyMap;
 use async_std::task;
 use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
-use edgedb_client::{Builder, get_project_dir};
+use edgedb_client::{Builder, get_project_dir, SkipFields};
 use edgedb_client::credentials::TlsSecurity;
-use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind};
+use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind, ResultExt};
 use edgedb_protocol::model;
 use fs_err as fs;
 
@@ -686,7 +685,16 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         }
         bld.read_extra_env_vars()?;
     } else if let Some(dsn) = &tmp.dsn {
-        task::block_on(bld.read_dsn(dsn)).context("invalid DSN")?;
+        let skip = SkipFields {
+            user: tmp.user.is_some(),
+            database: tmp.database.is_some(),
+            wait_until_available: tmp.wait_until_available.is_some(),
+            secret_key: tmp.secret_key.is_some(),
+            password: tmp.password || tmp.password_from_stdin || tmp.no_password,
+            tls_ca_file: tmp.tls_ca_file.is_some(),
+            tls_security: tmp.tls_security.is_some() || tmp.tls_verify_hostname || tmp.no_tls_verify_hostname,
+        };
+        task::block_on(bld.read_dsn(dsn, skip)).context("invalid DSN")?;
         bld.read_extra_env_vars()?;
     } else if let Some(instance) = &tmp.instance {
         match instance {

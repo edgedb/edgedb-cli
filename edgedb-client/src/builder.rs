@@ -84,6 +84,25 @@ pub struct Builder {
 #[derive(Clone)]
 pub struct Config(pub(crate) Arc<ConfigInner>);
 
+/// Skip reading specified fields
+#[derive(Default)]
+pub struct SkipFields {
+    ///
+    pub user: bool,
+    ///
+    pub database: bool,
+    ///
+    pub wait_until_available: bool,
+    ///
+    pub secret_key: bool,
+    ///
+    pub password: bool,
+    ///
+    pub tls_ca_file: bool,
+    ///
+    pub tls_security: bool,
+}
+
 pub(crate) struct ConfigInner {
     pub address: Address,
     #[allow(dead_code)] // TODO(tailhook) for cli only
@@ -440,7 +459,13 @@ impl<'a> DsnHelper<'a> {
     }
 
     async fn retrieve_database(&mut self, default: impl ToString) -> Result<String, Error> {
-        let v = self.url.path().strip_prefix("/").map(|s| s.to_owned());
+        let v = self.url.path().strip_prefix("/").and_then(|s| {
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.to_owned())
+            }
+        });
         self.retrieve_value("database", v, |s| Ok(s))
             .await
             .map(|rv| rv.unwrap_or_else(|| default.to_string()))
@@ -567,8 +592,18 @@ impl Builder {
         } else if let Some(instance) = get_env("EDGEDB_INSTANCE")? {
             self.read_instance(&instance).await?;
         } else if let Some(dsn) = get_env("EDGEDB_DSN")? {
-            self.read_dsn(&dsn).await.map_err(|e|
-                e.context("cannot parse env var EDGEDB_DNS"))?;
+            let skip = SkipFields {
+                user: get_env("EDGEDB_USER")?.is_some(),
+                database: get_env("EDGEDB_DATABASE")?.is_some(),
+                wait_until_available: false,
+                secret_key: get_env("EDGEDB_SECRET_KEY")?.is_some(),
+                password: get_env("EDGEDB_PASSWORD")?.is_some(),
+                tls_ca_file: get_env("EDGEDB_TLS_CA")?.is_some()
+                    || get_env("EDGEDB_TLS_CA_FILE")?.is_some(),
+                tls_security: get_env("EDGEDB_CLIENT_TLS_SECURITY")?.is_some(),
+            };
+            self.read_dsn(&dsn, skip).await.map_err(|e|
+                e.context("cannot parse env var EDGEDB_DSN"))?;
         }
         if let Some(database) = get_env("EDGEDB_DATABASE")? {
             self.database = database;
@@ -611,12 +646,26 @@ impl Builder {
         if let Some(mode) = get_env("EDGEDB_CLIENT_SECURITY")? {
             self.insecure_dev_mode = match &mode[..] {
                 "default" => false,
+                "strict" => {
+                    if !matches!(
+                        self.tls_security,
+                        TlsSecurity::Strict | TlsSecurity::Default
+                    ) {
+                        return Err(ClientError::with_message(format!(
+                            "EDGEDB_CLIENT_SECURITY={:?} and \
+                            EDGEDB_CLIENT_TLS_SECURITY={} are mutually exclusive",
+                            mode,
+                            serde_json::to_string(&self.tls_security).unwrap(),
+                        )));
+                    }
+                    false
+                }
                 "insecure_dev_mode" => true,
                 _ => {
                     return Err(ClientError::with_message(
                         format!("Invalid value {:?} for env var \
                                 EDGEDB_CLIENT_SECURITY. \
-                                Options: default, insecure_dev_mode.",
+                                Options: default, strict, insecure_dev_mode.",
                                 mode)
                     ));
                 }
@@ -744,7 +793,7 @@ impl Builder {
     /// This will mark the builder as initialized (if reading is successful)
     /// and overwrite all the credentials. However, `insecure_dev_mode`, pools
     /// sizes, and timeouts are kept intact.
-    pub async fn read_dsn(&mut self, dsn: &str) -> Result<&mut Self, Error> {
+    pub async fn read_dsn(&mut self, dsn: &str, skip: SkipFields) -> Result<&mut Self, Error> {
         let url = url::Url::parse(dsn).map_err(|e| {
             ClientError::with_source(e).context(format!("cannot parse DSN {:?}", dsn))
         })?;
@@ -754,21 +803,37 @@ impl Builder {
         let port = dsn.retrieve_port(DEFAULT_PORT).await?;
         self.address = Address::Tcp((host, port));
         self.admin = dsn.admin;
-        self.user = dsn.retrieve_user("edgedb").await?;
-        self.password = dsn.retrieve_password().await?;
-        self.database = dsn.retrieve_database("edgedb").await?;
-        self.secret_key = dsn.retrieve_secret_key().await?;
-        if let Some(tls_ca_file) = dsn.retrieve_tls_ca_file().await? {
-            let pem = fs::read_to_string(Path::new(&tls_ca_file))
-                .await
-                .map_err(|e| ClientError::with_source(e).context("error reading TLS CA file"))?;
-            self.pem_certificates(&pem)?;
+        if !skip.user {
+            self.user = dsn.retrieve_user("edgedb").await?;
         }
-        if let Some(s) = dsn.retrieve_tls_security().await? {
-            self.tls_security = s;
+        if !skip.password {
+            self.password = dsn.retrieve_password().await?;
         }
-        if let Some(d) = dsn.retrieve_wait_until_available().await? {
-            self.wait = d;
+        if !skip.database {
+            self.database = dsn.retrieve_database("edgedb").await?;
+        }
+        if !skip.secret_key {
+            self.secret_key = dsn.retrieve_secret_key().await?;
+        }
+        if !skip.tls_ca_file {
+            if let Some(tls_ca_file) = dsn.retrieve_tls_ca_file().await? {
+                let pem = fs::read_to_string(Path::new(&tls_ca_file))
+                    .await
+                    .map_err(|e| {
+                        ClientError::with_source(e).context("error reading TLS CA file")
+                    })?;
+                self.pem_certificates(&pem)?;
+            }
+        }
+        if !skip.tls_security {
+            if let Some(s) = dsn.retrieve_tls_security().await? {
+                self.tls_security = s;
+            }
+        }
+        if !skip.wait_until_available {
+            if let Some(d) = dsn.retrieve_wait_until_available().await? {
+                self.wait = d;
+            }
         }
         self.initialized = true;
         Ok(self)
@@ -1092,6 +1157,15 @@ impl Builder {
                 "EdgeDB connection options are not initialized. \
                 Run `edgedb project init` or use environment variables \
                 to configure connection."));
+        }
+        if self.get_host().is_empty() {
+            return Err(ClientError::with_message("invalid host: empty string"));
+        }
+        if self.get_user().is_empty() {
+            return Err(ClientError::with_message("invalid user: empty string"));
+        }
+        if self.get_database().is_empty() {
+            return Err(ClientError::with_message("invalid database: empty string"));
         }
         let tls_security;
         let verifier = match self.tls_security {
@@ -1661,7 +1735,7 @@ fn read_credentials() {
 fn display() {
     let mut bld = Builder::uninitialized();
     async_std::task::block_on(
-        bld.read_dsn("edgedb://localhost:1756")).unwrap();
+        bld.read_dsn("edgedb://localhost:1756", SkipFields::default())).unwrap();
     assert!(matches!(
         &bld.address,
         Address::Tcp((host, 1756)) if host == "localhost"
@@ -1685,7 +1759,8 @@ fn display() {
 fn from_dsn() {
     let mut bld = Builder::uninitialized();
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://user1:EiPhohl7@edb-0134.elb.us-east-2.amazonaws.com/db2"
+        "edgedb://user1:EiPhohl7@edb-0134.elb.us-east-2.amazonaws.com/db2",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,
@@ -1698,7 +1773,8 @@ fn from_dsn() {
 
     let mut bld = Builder::uninitialized();
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://user2@edb-0134.elb.us-east-2.amazonaws.com:1756/db2"
+        "edgedb://user2@edb-0134.elb.us-east-2.amazonaws.com:1756/db2",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,
@@ -1711,7 +1787,8 @@ fn from_dsn() {
 
     // Tests overriding
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://edb-0134.elb.us-east-2.amazonaws.com:1756"
+        "edgedb://edb-0134.elb.us-east-2.amazonaws.com:1756",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,
@@ -1723,7 +1800,8 @@ fn from_dsn() {
     assert_eq!(bld.password, None);
 
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://user3:123123@[::1]:5555/abcdef"
+        "edgedb://user3:123123@[::1]:5555/abcdef",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,
@@ -1739,7 +1817,8 @@ fn from_dsn() {
 fn from_dsn_ipv6_scoped_address() {
     let mut bld = Builder::uninitialized();
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://user3@[fe80::1ff:fe23:4567:890a%25eth0]:3000/ab"
+        "edgedb://user3@[fe80::1ff:fe23:4567:890a%25eth0]:3000/ab",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,
