@@ -3,7 +3,7 @@
 use std::fmt::{Display, Formatter};
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use assert_cmd::Command;
 use edgedb_protocol::model::Duration;
 use predicates::Predicate;
@@ -74,10 +74,7 @@ impl Drop for MockFile {
 
 fn mock_file(path: &str, content: &str) -> MockFile {
     let path = PathBuf::from(path);
-    let parent = path.parent().unwrap();
-    if !parent.exists() {
-        fs::create_dir_all(parent).expect(&format!("mkdir -p {parent:?}"));
-    }
+    ensure_dir(&path.parent().unwrap());
     fs::write(&path, content).expect(&format!("write {path:?}"));
     MockFile { path }
 }
@@ -118,6 +115,12 @@ fn mock_project(
         symlink(&path, &link_file).unwrap();
     }
     vec![project_path_file, instance_name_file, MockFile { path: link_file }]
+}
+
+fn ensure_dir(path: &Path) {
+    if !path.exists() {
+        fs::create_dir_all(path).expect(&format!("mkdir -p {path:?}"));
+    }
 }
 
 fn expect(result: Value) -> ResultPredicate {

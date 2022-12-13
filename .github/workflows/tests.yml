@@ -142,6 +142,8 @@ jobs:
 
       - run: |
           sudo cp target/debug/edgedb /usr/local/bin/
+          mkdir home_edgedb
+          sudo mv home_edgedb /Users/edgedb
 
       - uses: actions-rs/cargo@v1
         with:

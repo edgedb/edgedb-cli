@@ -238,6 +238,12 @@ fn connection_{i}() {{
         if let Some(cwd) = fs.get("cwd") {
             let cwd = cwd.as_str().unwrap();
             write!(
+                testcase,
+                r#"
+    ensure_dir(&PathBuf::from({cwd:?}));
+    "#,
+            );
+            write!(
                 buf,
                 r#"
         .current_dir({cwd:?})"#,

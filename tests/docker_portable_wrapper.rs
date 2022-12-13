@@ -89,6 +89,7 @@ fn dockerfile() -> String {
         RUN adduser --uid 1000 --home /home/user1 \
             --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
             user1
+        RUN mkdir /home/edgedb && chown user1 /home/edgedb
         ADD ./edgedb /usr/bin/edgedb
         ADD ./tests /tests
         RUN chown -R user1 /tests/proj
@@ -108,6 +109,7 @@ fn run_test(name: &'static str) {
     let script = format!(r###"
         export XDG_RUNTIME_DIR=/run/user/1000
         export EDGEDB_INSTALL_IN_DOCKER=allow
+        export RUST_TEST_THREADS=1
 
         /lib/systemd/systemd --user &
         exec /tests/{file_name}
