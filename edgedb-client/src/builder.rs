@@ -522,7 +522,7 @@ impl Builder {
            get_env("EDGEDB_DSN")?.is_none() &&
            get_env("EDGEDB_CONFIGURATION_FILE")?.is_none()
         {
-            builder.read_project(None, false).await?;
+            builder.read_project(None, true).await?;
         }
 
         builder.read_env_vars().await?;

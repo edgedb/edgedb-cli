@@ -55,6 +55,7 @@ fn main() {
         ),
         ("multiple_compound_opts", "(cannot be used with|provided more than once)"),
         ("multiple_compound_env", "multiple compound env vars found"),
+        ("exclusive_options", "provided more than once"),
     ]);
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
