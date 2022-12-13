@@ -41,11 +41,20 @@ fn main() {
         ),
         ("file_not_found", "No such file or directory"),
         ("invalid_host", "invalid host"),
-        ("invalid_port", "(Invalid value.*for.*port|invalid port)"),
+        (
+            "invalid_port",
+            "(Invalid value.*for.*port|invalid port|cannot parse env var EDGEDB_PORT)",
+        ),
         ("invalid_dsn_or_instance_name", "invalid DSN"),
         ("invalid_user", "invalid user"),
         ("invalid_database", "invalid database"),
         ("invalid_credentials_file", "cannot read credentials file"),
+        (
+            "no_options_or_toml",
+            "no `edgedb.toml` found and no connection options are specified",
+        ),
+        ("multiple_compound_opts", "(cannot be used with|provided more than once)"),
+        ("multiple_compound_env", "multiple compound env vars found"),
     ]);
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
@@ -109,20 +118,35 @@ fn main() {
 "#
         );
 
-        // servo/rust-url#424
+        let mut should_panic = false;
         if let Some(opts) = &opts {
             if let Some(dsn) = opts.get("dsn") {
                 if let Some(dsn) = dsn.as_str() {
+                    // servo/rust-url#424
                     if dsn.contains("%25eth0") {
-                        write!(
-                            testcase,
-                            r#"
-#[should_panic]
-"#
-                        );
+                        should_panic = true;
+                    } else if dsn.starts_with("edgedbadmin://") {
+                        should_panic = true;
+                    } else if dsn.contains("host=/") {
+                        should_panic = true;
                     }
                 }
             }
+            if let Some(host) = opts.get("host") {
+                if let Some(host) = host.as_str() {
+                    if host.starts_with("/") {
+                        should_panic = true;
+                    }
+                }
+            }
+        }
+        if should_panic {
+            write!(
+                testcase,
+                r#"
+#[should_panic]
+"#
+            );
         }
 
         write!(
@@ -235,6 +259,15 @@ fn connection_{i}() {{
                         testcase,
                         r#"
     let _file_{i} = mock_file({path:?}, {content:?});
+    "#,
+                    );
+                } else if let Some(d) = value.as_object() {
+                    let instance_name = d.get("instance-name").unwrap().as_str().unwrap();
+                    let project_path = d.get("project-path").unwrap().as_str().unwrap();
+                    write!(
+                        testcase,
+                        r#"
+    let _file_{i} = mock_project({path:?}, {instance_name:?}, {project_path:?});
     "#,
                     );
                 }

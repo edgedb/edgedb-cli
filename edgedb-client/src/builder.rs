@@ -350,18 +350,17 @@ impl fmt::Display for DisplayAddr<'_> {
 
 impl<'a> DsnHelper<'a> {
     fn from_url(url: &'a url::Url) -> Result<Self, Error> {
-        let scheme = url.scheme();
-        let admin = scheme == "edgedbadmin";
-        if !admin && scheme != "edgedb" {
-            return Err(ClientError::with_message(format!(
-                "{:?} is not a valid DSN scheme",
-                scheme,
-            )));
-        };
-        let query = url
-            .query_pairs()
-            .into_iter()
-            .collect::<HashMap<_, _>>();
+        let admin = url.scheme() == "edgedbadmin";
+        let mut query = HashMap::new();
+        for (k, v) in url.query_pairs() {
+            if query.contains_key(&k) {
+                return Err(ClientError::with_message(format!(
+                    "{k:?} is defined multiple times in the DSN query"
+                )));
+            } else {
+                query.insert(k, v);
+            }
+        }
         Ok(Self { url, admin, query })
     }
 
@@ -466,9 +465,11 @@ impl<'a> DsnHelper<'a> {
                 Some(s.to_owned())
             }
         });
-        self.retrieve_value("database", v, |s| Ok(s))
-            .await
-            .map(|rv| rv.unwrap_or_else(|| default.to_string()))
+        self.retrieve_value("database", v, |s| {
+            Ok(s.strip_prefix("/").unwrap_or(&s).into())
+        })
+        .await
+        .map(|rv| rv.unwrap_or_else(|| default.to_string()))
     }
 
     async fn retrieve_secret_key(&mut self) -> Result<Option<String>, Error> {
@@ -585,17 +586,36 @@ impl Builder {
     /// The `insecure_dev_mode` and connection parameters are never modified by
     /// this function for now.
     pub async fn read_env_vars(&mut self) -> Result<&mut Self, Error> {
-        if let Some((host, port)) = get_host_port()? {
+        let host_port = get_host_port()?;
+        let creds_file = get_env("EDGEDB_CREDENTIALS_FILE")?;
+        let instance = get_env("EDGEDB_INSTANCE")?;
+        let dsn = get_env("EDGEDB_DSN")?;
+        let compound_env_names = vec![
+            host_port.as_ref().map(|_| "EDGEDB_HOST/EDGEDB_PORT"),
+            creds_file.as_ref().map(|_| "EDGEDB_CREDENTIALS_FILE"),
+            instance.as_ref().map(|_| "EDGEDB_INSTANCE"),
+            dsn.as_ref().map(|_| "EDGEDB_DSN"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+        if compound_env_names.len() > 1 {
+            return Err(ClientError::with_message(format!(
+                "multiple compound env vars found: {:?}",
+                compound_env_names
+            )));
+        }
+        if let Some((host, port)) = host_port {
             self.host_port(host, port);
-        } else if let Some(path) = get_env("EDGEDB_CREDENTIALS_FILE")? {
+        } else if let Some(path) = creds_file {
             self.read_credentials(path).await?;
-        } else if let Some(instance) = get_env("EDGEDB_INSTANCE")? {
+        } else if let Some(instance) = instance {
             self.read_instance(&instance).await?;
-        } else if let Some(dsn) = get_env("EDGEDB_DSN")? {
+        } else if let Some(dsn) = dsn {
             let skip = SkipFields {
                 user: get_env("EDGEDB_USER")?.is_some(),
                 database: get_env("EDGEDB_DATABASE")?.is_some(),
-                wait_until_available: false,
+                wait_until_available: get_env("EDGEDB_WAIT_UNTIL_AVAILABLE")?.is_some(),
                 secret_key: get_env("EDGEDB_SECRET_KEY")?.is_some(),
                 password: get_env("EDGEDB_PASSWORD")?.is_some(),
                 tls_ca_file: get_env("EDGEDB_TLS_CA")?.is_some()
@@ -616,6 +636,17 @@ impl Builder {
         }
         if let Some(secret_key) = get_env("EDGEDB_SECRET_KEY")? {
             self.secret_key = Some(secret_key);
+        }
+        if let Some(wait) = get_env("EDGEDB_WAIT_UNTIL_AVAILABLE")? {
+            self.wait = wait.parse::<model::Duration>()
+                .map_err(ClientError::with_source)
+                .and_then(|d| match d.is_negative() {
+                    false => Ok(d.abs_duration()),
+                    true => Err(ClientError::with_message(
+                        "negative durations are unsupported")),
+                })
+                .context("Invalid value {:?} for env var \
+                          EDGEDB_WAIT_UNTIL_AVAILABLE.")?;
         }
         if let Some(sec) = get_env("EDGEDB_CLIENT_TLS_SECURITY")? {
             self.tls_security = TlsSecurity::from_str(&sec)
@@ -670,17 +701,6 @@ impl Builder {
                     ));
                 }
             };
-        }
-        if let Some(wait) = get_env("EDGEDB_WAIT_UNTIL_AVAILABLE")? {
-            self.wait = wait.parse::<model::Duration>()
-                .map_err(ClientError::with_source)
-                .and_then(|d| match d.is_negative() {
-                    false => Ok(d.abs_duration()),
-                    true => Err(ClientError::with_message(
-                        "negative durations are unsupported")),
-                })
-                .context("Invalid value {:?} for env var \
-                          EDGEDB_WAIT_UNTIL_AVAILABLE.")?;
         }
         Ok(self)
     }
@@ -794,6 +814,12 @@ impl Builder {
     /// and overwrite all the credentials. However, `insecure_dev_mode`, pools
     /// sizes, and timeouts are kept intact.
     pub async fn read_dsn(&mut self, dsn: &str, skip: SkipFields) -> Result<&mut Self, Error> {
+        if !dsn.starts_with("edgedb://") && !dsn.starts_with("edgedbadmin://") {
+            return Err(ClientError::with_message(format!(
+                "String {:?} is not a valid DSN",
+                dsn,
+            )));
+        };
         let url = url::Url::parse(dsn).map_err(|e| {
             ClientError::with_source(e).context(format!("cannot parse DSN {:?}", dsn))
         })?;
@@ -1158,14 +1184,20 @@ impl Builder {
                 Run `edgedb project init` or use environment variables \
                 to configure connection."));
         }
-        if self.get_host().is_empty() {
+        let host = self.get_host();
+        if host.is_empty() {
             return Err(ClientError::with_message("invalid host: empty string"));
+        } else if host.contains(",") {
+            return Err(ClientError::with_message("invalid host: multiple hosts"));
         }
         if self.get_user().is_empty() {
             return Err(ClientError::with_message("invalid user: empty string"));
         }
         if self.get_database().is_empty() {
             return Err(ClientError::with_message("invalid database: empty string"));
+        }
+        if self.get_port() == 0 {
+            return Err(ClientError::with_message("invalid port: 0"));
         }
         let tls_security;
         let verifier = match self.tls_security {
