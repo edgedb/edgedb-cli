@@ -68,6 +68,7 @@ pub struct Builder {
     pem: Option<String>,
     tls_security: TlsSecurity,
     instance_name: Option<String>,
+    con_params: HashMap<String, String>,
 
     initialized: bool,
     wait: Duration,
@@ -119,6 +120,7 @@ pub(crate) struct ConfigInner {
     pub tls_security: TlsSecurity,
     #[allow(dead_code)] // TODO(tailhook) maybe for future things
     pub insecure_dev_mode: bool,
+    pub con_params: HashMap<String, String>,
 
     // Pool configuration
     pub max_connections: usize,
@@ -497,6 +499,13 @@ impl<'a> DsnHelper<'a> {
         })
         .await
     }
+
+    fn remaining_queries(&self) -> HashMap<String, String> {
+        self.query
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
 }
 
 
@@ -829,38 +838,55 @@ impl Builder {
         let port = dsn.retrieve_port(DEFAULT_PORT).await?;
         self.address = Address::Tcp((host, port));
         self.admin = dsn.admin;
-        if !skip.user {
-            self.user = dsn.retrieve_user("edgedb").await?;
+        let user = dsn.retrieve_user("edgedb").await;
+        if skip.user {
+            user.ok();
+        } else {
+            self.user = user?;
         }
-        if !skip.password {
-            self.password = dsn.retrieve_password().await?;
+        let password = dsn.retrieve_password().await;
+        if skip.password {
+            password.ok();
+        } else {
+            self.password = password?;
         }
-        if !skip.database {
-            self.database = dsn.retrieve_database("edgedb").await?;
+        let database = dsn.retrieve_database("edgedb").await;
+        if skip.database {
+            database.ok();
+        } else {
+            self.database = database?;
         }
-        if !skip.secret_key {
-            self.secret_key = dsn.retrieve_secret_key().await?;
+        let secret_key = dsn.retrieve_secret_key().await;
+        if skip.secret_key {
+            secret_key.ok();
+        } else {
+            self.secret_key = secret_key?;
         }
-        if !skip.tls_ca_file {
-            if let Some(tls_ca_file) = dsn.retrieve_tls_ca_file().await? {
-                let pem = fs::read_to_string(Path::new(&tls_ca_file))
-                    .await
-                    .map_err(|e| {
-                        ClientError::with_source(e).context("error reading TLS CA file")
-                    })?;
-                self.pem_certificates(&pem)?;
-            }
+        let tls_ca_file = dsn.retrieve_tls_ca_file().await;
+        if skip.tls_ca_file {
+            tls_ca_file.ok();
+        } else if let Some(tls_ca_file) = tls_ca_file? {
+            let pem = fs::read_to_string(Path::new(&tls_ca_file))
+                .await
+                .map_err(|e| {
+                    ClientError::with_source(e).context("error reading TLS CA file")
+                })?;
+            self.pem_certificates(&pem)?;
         }
-        if !skip.tls_security {
-            if let Some(s) = dsn.retrieve_tls_security().await? {
-                self.tls_security = s;
-            }
+        let tls_security = dsn.retrieve_tls_security().await;
+        if skip.tls_security {
+            tls_security.ok();
+        } else if let Some(s) = tls_security? {
+            self.tls_security = s;
         }
-        if !skip.wait_until_available {
-            if let Some(d) = dsn.retrieve_wait_until_available().await? {
-                self.wait = d;
-            }
+
+        let wait_until_available = dsn.retrieve_wait_until_available().await;
+        if skip.wait_until_available {
+            wait_until_available.ok();
+        } else if let Some(d) = wait_until_available? {
+            self.wait = d;
         }
+        self.con_params = dsn.remaining_queries();
         self.initialized = true;
         Ok(self)
     }
@@ -882,6 +908,7 @@ impl Builder {
             tls_security: TlsSecurity::Default,
             pem: None,
             instance_name: None,
+            con_params: HashMap::new(),
 
             wait: DEFAULT_WAIT,
             connect_timeout: DEFAULT_CONNECT_TIMEOUT,
@@ -904,6 +931,7 @@ impl Builder {
             tls_security: TlsSecurity::Default,
             pem: None,
             instance_name: None,
+            con_params: HashMap::new(),
 
             initialized: false,
             // keep old values
@@ -1259,6 +1287,7 @@ impl Builder {
             connect_timeout: self.connect_timeout,
             tls_security,
             insecure_dev_mode: self.insecure_dev_mode,
+            con_params: self.con_params.clone(),
 
             // Pool configuration
             max_connections: self.max_connections,
@@ -1300,7 +1329,7 @@ impl Builder {
             "secret_key": self.secret_key,
             "tlsCAData": self.pem,
             "tlsSecurity": self.build().unwrap().0.tls_security,
-            "serverSettings": {},
+            "serverSettings": self.con_params,
             "waitUntilAvailable": self.wait.as_micros() as i64,
         }).to_string()
     }
@@ -1525,7 +1554,7 @@ impl Config {
             server_version: None,
         };
         let mut seq = conn.start_sequence().await?;
-        let mut params = HashMap::new();
+        let mut params = self.0.con_params.clone();
         params.insert(String::from("user"), self.0.user.clone());
         params.insert(String::from("database"), self.0.database.clone());
         if let Some(secret_key) = self.0.secret_key.clone() {
