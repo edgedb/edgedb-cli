@@ -1,6 +1,7 @@
 use std::io;
 use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use async_std::task;
 use fs_err as fs;
 
@@ -82,26 +83,24 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
         };
         for item in dir_entries {
             let item = item?;
-            if let Ok(filename) = item.file_name().into_string() {
-                write_json(
-                    &cloud_creds.join(filename),
-                    "cloud config",
-                    &CloudConfig { secret_key: None },
-                )?;
-            }
+            fs::remove_file(cloud_creds.join(item.file_name()))?;
         }
         print::success("You're now logged out from EdgeDB Cloud.");
     } else {
         let client = CloudClient::new(options)?;
-        write_json(
-            &cloud_config_file(&client.profile)?,
-            "cloud config",
-            &CloudConfig { secret_key: None },
-        )?;
-        print::success(format!(
-            "You're now logged out from EdgeDB Cloud for profile \"{}\".",
-            client.profile.as_deref().unwrap_or("default")
-        ));
+        let path = cloud_config_file(&client.profile)?;
+        if path.exists() {
+            fs::remove_file(path).with_context(|| "failed to logout")?;
+            print::success(format!(
+                "You're now logged out from EdgeDB Cloud for profile \"{}\".",
+                client.profile.as_deref().unwrap_or("default")
+            ));
+        } else {
+            print::warn(format!(
+                "You're already logged out from EdgeDB Cloud for profile \"{}\".",
+                client.profile.as_deref().unwrap_or("default")
+            ));
+        }
     }
     Ok(())
 }
