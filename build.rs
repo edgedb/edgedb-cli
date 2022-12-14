@@ -46,7 +46,7 @@ fn main() {
             "invalid_port",
             "(Invalid value.*for.*port|invalid port|cannot parse env var EDGEDB_PORT)",
         ),
-        ("invalid_dsn_or_instance_name", "invalid DSN"),
+        ("invalid_dsn_or_instance_name", "(invalid DSN|Invalid value.*for.*instance)"),
         ("invalid_user", "invalid user"),
         ("invalid_database", "invalid database"),
         ("invalid_credentials_file", "cannot read credentials file"),
@@ -57,6 +57,8 @@ fn main() {
         ("multiple_compound_opts", "(cannot be used with|provided more than once)"),
         ("multiple_compound_env", "multiple compound env vars found"),
         ("exclusive_options", "provided more than once"),
+        ("credentials_file_not_found", "credentials file.*could not read"),
+        ("project_not_initialised", "error reading project settings")
     ]);
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
