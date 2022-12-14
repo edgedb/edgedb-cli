@@ -21,6 +21,7 @@ fn main() {
         ("credentialsFile", "--credentials-file"),
         ("credentials", "--credentials-file"),
         ("dsn", "--dsn"),
+        ("instance", "--instance"),
         ("host", "--host"),
         ("port", "--port"),
         ("database", "--database"),
