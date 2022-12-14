@@ -1044,7 +1044,7 @@ impl Handle<'_> {
                 .with_context(|| {
                     format!("Instance {}/{} doesn't exist any more", org_slug, name)
                 })?;
-            builder.credentials(&inst.as_credentials(cloud_client)?)?;
+            builder.credentials(&inst.as_credentials(cloud_client).await?)?;
         } else {
             builder.read_instance(&self.name).await?;
         }

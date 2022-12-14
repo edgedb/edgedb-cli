@@ -704,10 +704,18 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
     } else if let Some(instance) = &tmp.instance {
         match instance {
             InstanceName::Cloud { org_slug, name } => {
-                let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
-                client.ensure_authenticated()?;
-                bld.host_port(Some(client.get_cloud_host(org_slug, name)), None)?;
-                bld.secret_key(client.secret_key.unwrap());
+                // read_instance() would use secret_key or cloud_profile for
+                // cloud instance. It's a hack here to pre-read the secret_key,
+                // the code later must set secret_key back to what we got here,
+                // if secret_key is ever overwritten after read_instance().
+                if let Some(secret_key) = &tmp.secret_key {
+                    bld.secret_key(secret_key);
+                } else if let Some(secret_key) = &opts.cloud_options.cloud_secret_key {
+                    bld.secret_key(secret_key);
+                }
+                task::block_on(bld.read_instance(&format!("{org_slug}/{name}")))
+                    .map_err(anyhow::Error::from)
+                    .hint("Have you logged in? (Run `edgedb cloud login`)")?;
             }
             InstanceName::Local(instance) => {
                 task::block_on(bld.read_instance(instance))?;
@@ -718,6 +726,11 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         task::block_on(bld.read_credentials(file_path))?;
         bld.read_extra_env_vars()?;
     } else {
+        if let Some(secret_key) = &tmp.secret_key {
+            // This is a hack needed by Builder::from_env() when the project is
+            // linked to a cloud instance and we want to overwrite secret_key.
+            env::set_var("EDGEDB_SECRET_KEY", secret_key);
+        }
         bld = task::block_on(Builder::from_env())?;
     };
     if tmp.admin {

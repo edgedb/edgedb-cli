@@ -43,7 +43,6 @@ pub struct CloudClient {
     options_secret_key: Option<String>,
     options_profile: Option<String>,
     options_api_endpoint: Option<String>,
-    dns_zone: String,
     pub secret_key: Option<String>,
     pub profile: Option<String>,
 }
@@ -121,7 +120,6 @@ impl CloudClient {
             options_secret_key: options_secret_key.clone(),
             options_profile: options_profile.clone(),
             options_api_endpoint: options_api_endpoint.clone(),
-            dns_zone,
             secret_key,
             profile,
         })
@@ -194,13 +192,6 @@ impl CloudClient {
         uri: impl AsRef<str>,
     ) -> anyhow::Result<T> {
         self.request(self.client.delete(uri)).await
-    }
-
-    pub fn get_cloud_host(&self, org: &str, inst: &str) -> String {
-        let msg = format!("{}/{}", org, inst);
-        let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
-        let dns_bucket = format!("c-{:x}", checksum % 9900);
-        format!("{}.{}.{}.i.{}", inst, org, dns_bucket, self.dns_zone)
     }
 }
 

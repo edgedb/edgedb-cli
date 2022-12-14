@@ -53,6 +53,7 @@ pub const DEFAULT_WAIT: Duration = Duration::from_secs(30);
 pub const DEFAULT_POOL_SIZE: usize = 10;
 pub const DEFAULT_HOST: &str = "localhost";
 pub const DEFAULT_PORT: u16 = 5656;
+const EDGEDB_CLOUD_DEFAULT_DNS_ZONE: &str = "aws.edgedb.cloud";
 
 type Verifier = Arc<dyn ServerCertVerifier>;
 
@@ -83,6 +84,7 @@ pub struct Builder {
     connect_timeout: Duration,
     client_security: ClientSecurity,
     creds_file_outdated: bool,
+    cloud_profile: Option<String>,
 
     // Pool configuration
     pub(crate) max_connections: usize,
@@ -148,6 +150,27 @@ struct DsnHelper<'a> {
     admin: bool,
     query: HashMap<Cow<'a, str>, Cow<'a, str>>,
 }
+
+#[derive(Clone, Debug)]
+enum InstanceName {
+    Local(String),
+    Cloud {
+        org_slug: String,
+        name: String,
+    },
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CloudConfig {
+    pub secret_key: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct Claims {
+    #[serde(rename = "iss", skip_serializing_if = "Option::is_none")]
+    issuer: Option<String>,
+}
+
 
 pub async fn timeout<F, T>(dur: Duration, f: F) -> Result<T, Error>
     where F: Future<Output = Result<T, Error>>,
@@ -345,6 +368,69 @@ fn is_valid_instance_name(name: &str) -> bool {
     return true;
 }
 
+fn is_valid_org_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphanumeric() => {}
+        _ => return false,
+    }
+    for c in chars {
+        if !c.is_ascii_alphanumeric() && c != '-' {
+            return false;
+        }
+    }
+    return true;
+}
+
+impl fmt::Display for InstanceName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InstanceName::Local(name) => name.fmt(f),
+            InstanceName::Cloud { org_slug, name } => write!(f, "{}/{}", org_slug, name),
+        }
+    }
+}
+
+impl FromStr for InstanceName {
+    type Err = Error;
+    fn from_str(name: &str) -> Result<InstanceName, Error> {
+        if let Some((org_slug, name)) = name.split_once('/') {
+            if !is_valid_instance_name(name) {
+                return Err(ClientError::with_message(format!(
+                    "instance name \"{}\" must be a valid identifier, \
+                     regex: ^[a-zA-Z_][a-zA-Z_0-9]*$",
+                    name,
+                )));
+            }
+            if !is_valid_org_name(org_slug) {
+                return Err(ClientError::with_message(format!(
+                    "org name \"{}\" must be a valid identifier, \
+                     regex: ^[a-zA-Z0-9][a-zA-Z0-9-]{{0,38}}$",
+                    org_slug,
+                )));
+            }
+            Ok(InstanceName::Cloud {
+                org_slug: org_slug.into(),
+                name: name.into(),
+            })
+        } else {
+            if !is_valid_instance_name(name) {
+                return Err(ClientError::with_message(format!(
+                    "instance name must be a valid identifier, \
+                     regex: ^[a-zA-Z_][a-zA-Z_0-9]*$ or \
+                     a cloud instance name ORG/INST."
+                )));
+            }
+            Ok(InstanceName::Local(name.into()))
+        }
+    }
+}
+
+fn cloud_config_file(profile: &str) -> anyhow::Result<PathBuf> {
+    Ok(config_dir()?
+        .join("cloud-credentials")
+        .join(format!("{}.json", profile)))
+}
 
 impl fmt::Display for DisplayAddr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -568,6 +654,17 @@ impl Builder {
                 .map_err(|e| ClientError::with_source(e).context(
                     format!("error reading project settings {:?}", dir)
                 ))?;
+            // read_instance() would use secret_key and cloud_profile for cloud
+            // instances, so read them from env vars here first.
+            // Note: even though we may set secret_key to the one from env var,
+            // the outer code may still overwrite it back to what we are using
+            // here correctly. This kind of setting secret_key multiple times
+            // back and forth is very confusing, and it should be set only once
+            // based on priority, and read_instance() should be the last step.
+            if instance.contains("/") {
+                self.secret_key = get_env("EDGEDB_SECRET_KEY")?;
+                self.cloud_profile = get_env("EDGEDB_CLOUD_PROFILE")?;
+            }
             self.read_instance(instance.trim()).await?;
 
         }
@@ -627,6 +724,19 @@ impl Builder {
         } else if let Some(path) = creds_file {
             self.read_credentials(path).await?;
         } else if let Some(instance) = instance {
+            // read_instance() would use secret_key and cloud_profile for cloud
+            // instances, so read them from env vars here first if they are not
+            // already set in higher-level layers like explicit options.
+            // Note: even though we may set secret_key to the one from env var,
+            // the outer code may still overwrite it back to what we are using
+            // here correctly. This kind of setting secret_key multiple times
+            // back and forth is very confusing, and it should be set only once
+            // based on priority, and read_instance() should be the last step.
+            if instance.contains("/") {
+                if self.secret_key.is_none() {
+                    self.secret_key = get_env("EDGEDB_SECRET_KEY")?;
+                }
+            }
             self.read_instance(&instance).await?;
         } else if let Some(dsn) = dsn {
             let skip = SkipFields {
@@ -771,14 +881,54 @@ impl Builder {
     pub async fn read_instance(&mut self, name: &str)
         -> Result<&mut Self, Error>
     {
-        if !is_valid_instance_name(name) {
-            return Err(ClientError::with_message(format!(
-                "instance name {:?} contains unsupported characters", name)));
+        let name = InstanceName::from_str(name)?;
+        match &name {
+            InstanceName::Local(name) => {
+                self.read_credentials(
+                    config_dir()?
+                        .join("credentials")
+                        .join(format!("{}.json", name)),
+                )
+                .await?;
+            }
+            InstanceName::Cloud { org_slug, name } => {
+                let secret_key = if let Some(secret_key) = &self.secret_key {
+                    secret_key.clone()
+                } else {
+                    let profile = self
+                        .cloud_profile
+                        .as_deref()
+                        .map(|s| Ok(s.to_string()))
+                        .or_else(|| get_env("EDGEDB_CLOUD_PROFILE").transpose())
+                        .unwrap_or_else(|| Ok(String::from("default")))?;
+                    let path = cloud_config_file(&profile)?;
+                    let data = fs::read(path).await
+                        .map_err(ClientError::with_source)?;
+                    let config: CloudConfig = from_slice(&data)
+                        .map_err(ClientError::with_source)?;
+                    config.secret_key
+                };
+                let claims_b64 = secret_key
+                    .splitn(3, ".")
+                    .skip(1)
+                    .next()
+                    .ok_or(ClientError::with_message("Illegal JWT token"))?;
+                let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)
+                    .map_err(ClientError::with_source)?;
+                let claims: Claims = from_slice(&claims)
+                    .map_err(ClientError::with_source)?;
+                let dns_zone = claims
+                    .issuer
+                    .unwrap_or_else(|| EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string());
+                let msg = format!("{}/{}", org_slug, name);
+                let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
+                let dns_bucket = format!("c-{:x}", checksum % 9900);
+                let host = format!("{}.{}.{}.i.{}", name, org_slug, dns_bucket, dns_zone);
+                self.host_port(Some(host), None)?;
+                self.secret_key(secret_key);
+            }
         }
-        self.read_credentials(
-            config_dir()?.join("credentials").join(format!("{}.json", name))
-        ).await?;
-        self.instance_name = Some(name.into());
+        self.instance_name = Some(name.to_string());
         Ok(self)
     }
 
@@ -912,6 +1062,7 @@ impl Builder {
             initialized: false,
             client_security: ClientSecurity::Default,
             creds_file_outdated: false,
+            cloud_profile: None,
 
             max_connections: DEFAULT_POOL_SIZE,
         }
@@ -936,6 +1087,7 @@ impl Builder {
             connect_timeout: self.connect_timeout,
             client_security: self.client_security,
             creds_file_outdated: false,
+            cloud_profile: None,
 
             max_connections: self.max_connections,
         };
@@ -1099,6 +1251,11 @@ impl Builder {
     /// Set the secret key for JWT authentication.
     pub fn secret_key(&mut self, secret_key: impl Into<String>) -> &mut Self {
         self.secret_key = Some(secret_key.into());
+        self
+    }
+    /// Set the EdgeDB Cloud profile name to locate instances.
+    pub fn cloud_profile(&mut self, cloud_profile: impl Into<String>) -> &mut Self {
+        self.cloud_profile = Some(cloud_profile.into());
         self
     }
     /// Set the database name.
