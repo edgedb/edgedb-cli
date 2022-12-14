@@ -39,7 +39,7 @@ fn main() {
             "((EDGEDB_CLIENT_TLS_SECURITY|tls_security).*(mutually exclusive|Invalid value)|\
             Unsupported TLS security)"
         ),
-        ("file_not_found", "No such file or directory"),
+        ("file_not_found", "(No such file or directory|cannot find the path)"),
         ("invalid_host", "invalid host"),
         (
             "invalid_port",
@@ -94,7 +94,7 @@ fn main() {
             .get("fs")
             .and_then(|v| v.as_object())
             .unwrap_or_else(|| &empty_map);
-        let _platform = match case.get("platform").and_then(|p| p.as_str()) {
+        let platform = match case.get("platform").and_then(|p| p.as_str()) {
             Some("macos") => {
                 write!(testcase, "#[cfg(target_os=\"macos\")]");
                 Some(Platform::MacOS)
@@ -237,7 +237,10 @@ fn connection_{i}() {{
             }
         }
         if let Some(cwd) = fs.get("cwd") {
-            let cwd = cwd.as_str().unwrap();
+            let mut cwd = cwd.as_str().unwrap().to_string();
+            if matches!(platform, Some(Platform::Windows)) {
+                cwd = cwd.replace("Users\\edgedb", "Users\\runneradmin");
+            }
             write!(
                 testcase,
                 r#"
@@ -250,17 +253,23 @@ fn connection_{i}() {{
         .current_dir({cwd:?})"#,
             );
         }
-        if let Some(home) = fs.get("homedir") {
-            let home = home.as_str().unwrap();
-            write!(
-                buf,
-                r#"
+        if !matches!(platform, Some(Platform::Windows)) {
+            if let Some(home) = fs.get("homedir") {
+                let home = home.as_str().unwrap();
+                write!(
+                    buf,
+                    r#"
         .env("HOME", {home:?})"#,
-            );
+                );
+            }
         }
         if let Some(files) = fs.get("files") {
             let files = files.as_object().unwrap();
             for (i, (path, value)) in files.iter().enumerate() {
+                let mut path = path.clone();
+                if matches!(platform, Some(Platform::Windows)) {
+                    path = path.replace("Users\\edgedb", "Users\\runneradmin");
+                }
                 if let Some(content) = value.as_str() {
                     write!(
                         testcase,
@@ -270,7 +279,11 @@ fn connection_{i}() {{
                     );
                 } else if let Some(d) = value.as_object() {
                     let instance_name = d.get("instance-name").unwrap().as_str().unwrap();
-                    let project_path = d.get("project-path").unwrap().as_str().unwrap();
+                    let mut project_path =
+                        d.get("project-path").unwrap().as_str().unwrap().to_string();
+                    if matches!(platform, Some(Platform::Windows)) {
+                        project_path = project_path.replace("Users\\edgedb", "Users\\runneradmin");
+                    }
                     write!(
                         testcase,
                         r#"
