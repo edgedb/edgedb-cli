@@ -63,12 +63,17 @@ impl Display for ResultPredicate {
 }
 
 struct MockFile {
-    path: PathBuf
+    path: PathBuf,
+    is_dir: bool,
 }
 
 impl Drop for MockFile {
     fn drop(&mut self) {
-        fs::remove_file(&self.path).unwrap();
+        if self.is_dir {
+            fs::remove_dir(&self.path).expect(&format!("rmdir {:?}", self.path));
+        } else {
+            fs::remove_file(&self.path).expect(&format!("rm {:?}", self.path));
+        }
     }
 }
 
@@ -76,7 +81,7 @@ fn mock_file(path: &str, content: &str) -> MockFile {
     let path = PathBuf::from(path);
     ensure_dir(&path.parent().unwrap());
     fs::write(&path, content).expect(&format!("write {path:?}"));
-    MockFile { path }
+    MockFile { path, is_dir: false }
 }
 
 fn mock_project(
@@ -104,17 +109,20 @@ fn mock_project(
         instance_name,
     );
     let link_file = project_dir.join("project-link");
+    let is_dir;
     #[cfg(windows)]
     {
         use std::os::windows::fs::symlink_dir;
         symlink_dir(&path, &link_file).unwrap();
+        is_dir = true;
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::symlink;
         symlink(&path, &link_file).unwrap();
+        is_dir = false;
     }
-    vec![project_path_file, instance_name_file, MockFile { path: link_file }]
+    vec![project_path_file, instance_name_file, MockFile { path: link_file, is_dir }]
 }
 
 fn ensure_dir(path: &Path) {
