@@ -90,12 +90,13 @@ fn mock_project(
     project_path: &str,
 ) -> Vec<MockFile> {
     let path = PathBuf::from(project_path);
+    let canon = fs::canonicalize(&path).unwrap();
     #[cfg(windows)]
-    let bytes = path.to_str().unwrap().as_bytes();
+    let bytes = canon.to_str().unwrap().as_bytes();
     #[cfg(unix)]
     let bytes = {
         use std::os::unix::ffi::OsStrExt;
-        path.as_os_str().as_bytes()
+        canon.as_os_str().as_bytes()
     };
     let hash = hex::encode(sha1::Sha1::new_with_prefix(bytes).finalize());
     let project_dir = project_dir.replace("${HASH}", &hash);
