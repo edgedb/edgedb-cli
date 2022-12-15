@@ -1417,7 +1417,7 @@ impl Config {
         params.insert(String::from("user"), self.0.user.clone());
         params.insert(String::from("database"), self.0.database.clone());
         if let Some(secret_key) = self.0.secret_key.clone() {
-            params.insert(String::from("token"), secret_key);
+            params.insert(String::from("secret_key"), secret_key);
         }
 
         let (major_ver, minor_ver) = version.version_tuple();
