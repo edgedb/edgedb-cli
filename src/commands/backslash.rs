@@ -44,7 +44,7 @@ const HELP: &str = r###"
 Introspection
   (options: -v = verbose, -s = show system objects, -c = case-sensitive match)
   \d [-v] NAME             describe schema object
-  \ds, \describe-schema    describe the whole schema
+  \ds, \describe schema    describe the whole schema
   \l, \list databases      list databases
   \ls [-sc] [PATTERN]      list scalar types
                            (alias: \list scalars)
