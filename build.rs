@@ -30,7 +30,7 @@ fn main() {
         ("tlsCA", "--tls-ca-file"),
         ("tlsCAFile", "--tls-ca-file"),
         ("waitUntilAvailable", "--wait-until-available"),
-        ("secret_key", "--secret-key"),
+        ("secretKey", "--secret-key"),
     ]);
     let error_mapping = HashMap::from([
         ("invalid_dsn", "invalid DSN"),
@@ -58,7 +58,9 @@ fn main() {
         ("multiple_compound_env", "multiple compound env vars found"),
         ("exclusive_options", "provided more than once"),
         ("credentials_file_not_found", "credentials file.*could not read"),
-        ("project_not_initialised", "error reading project settings")
+        ("project_not_initialised", "error reading project settings"),
+        ("secret_key_not_found", "Run `edgedb cloud login`"),
+        ("invalid_secret_key", "Illegal JWT token"),
     ]);
 
     let out_dir = env::var_os("OUT_DIR").unwrap();

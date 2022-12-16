@@ -1462,7 +1462,7 @@ impl Builder {
             "database": self.database,
             "user": self.user,
             "password": self.password,
-            // "secret_key": self.secret_key,
+            "secretKey": self.secret_key,
             "tlsCAData": self.pem,
             "tlsSecurity": self.build().unwrap().0.tls_security,
             "serverSettings": self.con_params,
