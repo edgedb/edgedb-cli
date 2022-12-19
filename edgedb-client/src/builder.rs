@@ -56,6 +56,14 @@ pub const DEFAULT_PORT: u16 = 5656;
 
 type Verifier = Arc<dyn ServerCertVerifier>;
 
+/// Client security mode.
+#[derive(Debug, Clone, Copy)]
+pub enum ClientSecurity {
+    InsecureDevMode,
+    Strict,
+    Default,
+}
+
 /// A builder used to create connections.
 #[derive(Debug, Clone)]
 pub struct Builder {
@@ -73,7 +81,7 @@ pub struct Builder {
     initialized: bool,
     wait: Duration,
     connect_timeout: Duration,
-    insecure_dev_mode: bool,
+    client_security: ClientSecurity,
     creds_file_outdated: bool,
 
     // Pool configuration
@@ -119,7 +127,7 @@ pub(crate) struct ConfigInner {
     pub connect_timeout: Duration,
     pub tls_security: TlsSecurity,
     #[allow(dead_code)] // TODO(tailhook) maybe for future things
-    pub insecure_dev_mode: bool,
+    pub client_security: ClientSecurity,
     pub con_params: HashMap<String, String>,
 
     // Pool configuration
@@ -592,7 +600,7 @@ impl Builder {
     /// Then the value of that environment variable will be used to set just
     /// the parameter matching that environment variable.
     ///
-    /// The `insecure_dev_mode` and connection parameters are never modified by
+    /// The `client_security` and connection parameters are never modified by
     /// this function for now.
     pub async fn read_env_vars(&mut self) -> Result<&mut Self, Error> {
         let host_port = get_host_port()?;
@@ -683,24 +691,12 @@ impl Builder {
     }
     /// Read environment variables that aren't credentials
     pub fn read_extra_env_vars(&mut self) -> Result<&mut Self, Error> {
+        use ClientSecurity::*;
         if let Some(mode) = get_env("EDGEDB_CLIENT_SECURITY")? {
-            self.insecure_dev_mode = match &mode[..] {
-                "default" => false,
-                "strict" => {
-                    if !matches!(
-                        self.tls_security,
-                        TlsSecurity::Strict | TlsSecurity::Default
-                    ) {
-                        return Err(ClientError::with_message(format!(
-                            "EDGEDB_CLIENT_SECURITY={:?} and \
-                            EDGEDB_CLIENT_TLS_SECURITY={} are mutually exclusive",
-                            mode,
-                            serde_json::to_string(&self.tls_security).unwrap(),
-                        )));
-                    }
-                    false
-                }
-                "insecure_dev_mode" => true,
+            self.client_security = match &mode[..] {
+                "default" => Default,
+                "strict" => Strict,
+                "insecure_dev_mode" => InsecureDevMode,
                 _ => {
                     return Err(ClientError::with_message(
                         format!("Invalid value {:?} for env var \
@@ -770,7 +766,7 @@ impl Builder {
     /// instead if possible.
     ///
     /// This will mark the builder as initialized (if reading is successful)
-    /// and overwrite all credentials. However, `insecure_dev_mode`, pools
+    /// and overwrite all credentials. However, `client_security`, pools
     /// sizes, and timeouts are kept intact.
     pub async fn read_instance(&mut self, name: &str)
         -> Result<&mut Self, Error>
@@ -789,7 +785,7 @@ impl Builder {
     /// Read credentials from a file.
     ///
     /// This will mark the builder as initialized (if reading is successful)
-    /// and overwrite all credentials. However, `insecure_dev_mode`, pools
+    /// and overwrite all credentials. However, `client_security`, pools
     /// sizes, and timeouts are kept intact.
     pub async fn read_credentials(&mut self, path: impl AsRef<Path>)
         -> Result<&mut Self, Error>
@@ -820,7 +816,7 @@ impl Builder {
     /// arguments named `*_file`).
     ///
     /// This will mark the builder as initialized (if reading is successful)
-    /// and overwrite all the credentials. However, `insecure_dev_mode`, pools
+    /// and overwrite all the credentials. However, `client_security`, pools
     /// sizes, and timeouts are kept intact.
     pub async fn read_dsn(&mut self, dsn: &str, skip: SkipFields) -> Result<&mut Self, Error> {
         if !dsn.starts_with("edgedb://") && !dsn.starts_with("edgedbadmin://") {
@@ -914,7 +910,7 @@ impl Builder {
             wait: DEFAULT_WAIT,
             connect_timeout: DEFAULT_CONNECT_TIMEOUT,
             initialized: false,
-            insecure_dev_mode: false,
+            client_security: ClientSecurity::Default,
             creds_file_outdated: false,
 
             max_connections: DEFAULT_POOL_SIZE,
@@ -938,7 +934,7 @@ impl Builder {
             // keep old values
             wait: self.wait,
             connect_timeout: self.connect_timeout,
-            insecure_dev_mode: self.insecure_dev_mode,
+            client_security: self.client_security,
             creds_file_outdated: false,
 
             max_connections: self.max_connections,
@@ -989,7 +985,7 @@ impl Builder {
     /// default of `localhost` and `5656` respectively.
     ///
     /// This will mark the builder as initialized and overwrite all the
-    /// credentials. However, `insecure_dev_mode`, pools sizes, and timeouts
+    /// credentials. However, `client_security`, pools sizes, and timeouts
     /// are kept intact.
     pub fn host_port(&mut self,
         host: Option<impl Into<String>>, port: Option<u16>)
@@ -1172,11 +1168,12 @@ impl Builder {
         self
     }
 
-    /// Enables insecure dev mode.
+    /// Modifies the client security mode.
     ///
-    /// This disables certificate validation entirely.
-    pub fn insecure_dev_mode(&mut self, value: bool) -> &mut Self {
-        self.insecure_dev_mode = value;
+    /// InsecureDevMode changes tls_security only from Default to Insecure
+    /// Strict ensures tls_security is also Strict
+    pub fn client_security(&mut self, value: ClientSecurity) -> &mut Self {
+        self.client_security = value;
         self
     }
 
@@ -1187,11 +1184,6 @@ impl Builder {
         } else {
             DisplayAddr(None)
         }
-    }
-
-    fn insecure(&self) -> bool {
-        use TlsSecurity::Insecure;
-        self.insecure_dev_mode || self.tls_security == Insecure
     }
 
     fn trust_anchors(&self) -> Result<Vec<tls::OwnedTrustAnchor>, Error> {
@@ -1236,51 +1228,29 @@ impl Builder {
                 Run `edgedb project init` or use environment variables \
                 to configure connection."));
         }
-        let tls_security;
-        let verifier = match self.tls_security {
-            _ if self.insecure() => {
-                match self.tls_security {
-                    Default => {
-                        tls_security = Insecure;
-                    }
-                    ts => {
-                        tls_security = ts;
-                    }
-                }
-                Arc::new(tls::NullVerifier) as Verifier
-            },
-            Insecure => {
-                tls_security = self.tls_security;
-                Arc::new(tls::NullVerifier) as Verifier
-            },
-            NoHostVerification => {
-                tls_security = self.tls_security;
-                Arc::new(tls::NoHostnameVerifier::new(
-                        self.trust_anchors()?
-                )) as Verifier
+        let tls_security = match (self.client_security, self.tls_security) {
+            (ClientSecurity::Strict, Insecure | NoHostVerification) => {
+                return Err(ClientError::with_message(format!(
+                    "client_security=strict and tls_security={} don't comply",
+                    serde_json::to_string(&self.tls_security).unwrap(),
+                )));
             }
-            Strict => {
-                tls_security = self.tls_security;
-                Arc::new(rustls::client::WebPkiVerifier::new(
-                    self._root_cert_store()?,
-                    None,
-                )) as Verifier
-            }
-            Default => match self.pem {
-                Some(_) => {
-                    tls_security = NoHostVerification;
-                    Arc::new(tls::NoHostnameVerifier::new(
-                            self.trust_anchors()?
-                    )) as Verifier
-                }
-                None => {
-                    tls_security = Strict;
-                    Arc::new(rustls::client::WebPkiVerifier::new(
-                        self._root_cert_store()?,
-                        None,
-                    )) as Verifier
-                }
-            },
+            (ClientSecurity::Strict, _) => Strict,
+            (ClientSecurity::InsecureDevMode, Default) => Insecure,
+            (_, Default) if self.pem.is_none() => Strict,
+            (_, Default) => NoHostVerification,
+            (_, ts) => ts,
+        };
+        let verifier = match tls_security {
+            Insecure => Arc::new(tls::NullVerifier) as Verifier,
+            NoHostVerification => Arc::new(tls::NoHostnameVerifier::new(
+                self.trust_anchors()?
+            )) as Verifier,
+            Strict => Arc::new(rustls::client::WebPkiVerifier::new(
+                self._root_cert_store()?,
+                None,
+            )) as Verifier,
+            Default => unreachable!(),
         };
 
         Ok(Config(Arc::new(ConfigInner {
@@ -1295,7 +1265,7 @@ impl Builder {
             wait: self.wait,
             connect_timeout: self.connect_timeout,
             tls_security,
-            insecure_dev_mode: self.insecure_dev_mode,
+            client_security: self.client_security,
             con_params: self.con_params.clone(),
 
             // Pool configuration

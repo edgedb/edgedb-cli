@@ -37,7 +37,7 @@ fn main() {
         ("env_not_found", "is not set"),
         (
             "invalid_tls_security",
-            "((EDGEDB_CLIENT_TLS_SECURITY|tls_security).*(mutually exclusive|Invalid value)|\
+            "((EDGEDB_CLIENT_TLS_SECURITY|tls_security).*(don't comply|Invalid value)|\
             Unsupported TLS security)"
         ),
         ("file_not_found", "(No such file or directory|cannot find the path)"),
