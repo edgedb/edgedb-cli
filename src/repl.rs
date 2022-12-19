@@ -129,7 +129,7 @@ impl State {
     }
     pub async fn try_connect(&mut self, database: &str) -> anyhow::Result<()> {
         let mut params = self.conn_params.clone();
-        params.modify(|p| { p.database(database); })?;
+        params.modify(|p| { p.database(database).unwrap(); })?;
         let mut conn = params.connect().await?;
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_deref() != Some(fetched_version) {

@@ -722,7 +722,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.user(user)?;
     }
     if let Some(database) = &tmp.database {
-        bld.database(database);
+        bld.database(database)?;
     }
     if let Some(val) = tmp.wait_until_available {
         bld.wait_until_available(val);

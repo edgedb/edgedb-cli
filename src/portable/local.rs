@@ -355,7 +355,7 @@ impl InstanceInfo {
         let mut builder = Builder::uninitialized();
         builder.unix_path(runstate_dir(&self.name)?, Some(self.port), true);
         builder.user("edgedb")?;
-        builder.database("edgedb");
+        builder.database("edgedb")?;
         Ok(builder)
     }
 }

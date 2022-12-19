@@ -338,13 +338,13 @@ fn prompt_conn_params(
             )?;
         }
         if let Some(database) = &options.database {
-            builder.database(database);
+            builder.database(database)?;
         } else {
             builder.database(
                 question::String::new("Specify the database name")
                     .default(builder.get_database())
                     .ask()?
-            );
+            )?;
         }
     }
     Ok(())

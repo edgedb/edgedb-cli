@@ -855,7 +855,7 @@ impl Builder {
         if skip.database {
             database.ok();
         } else {
-            self.database = database?;
+            self.database(database?)?;
         }
         let secret_key = dsn.retrieve_secret_key().await;
         if skip.secret_key {
@@ -1106,9 +1106,15 @@ impl Builder {
         self
     }
     /// Set the database name.
-    pub fn database(&mut self, database: impl Into<String>) -> &mut Self {
-        self.database = database.into();
-        self
+    pub fn database(&mut self, database: impl Into<String>) -> Result<&mut Self, Error> {
+        let database = database.into();
+        if database.is_empty() {
+            return Err(InvalidArgumentError::with_message(
+                "invalid database: empty string"
+            ));
+        }
+        self.database = database;
+        Ok(self)
     }
     /// Get the database name.
     pub fn get_database(&self) -> &str {
@@ -1229,9 +1235,6 @@ impl Builder {
                 "EdgeDB connection options are not initialized. \
                 Run `edgedb project init` or use environment variables \
                 to configure connection."));
-        }
-        if self.get_database().is_empty() {
-            return Err(ClientError::with_message("invalid database: empty string"));
         }
         let tls_security;
         let verifier = match self.tls_security {
