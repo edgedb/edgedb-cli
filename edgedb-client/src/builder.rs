@@ -369,7 +369,7 @@ impl<'a> DsnHelper<'a> {
     async fn retrieve_value<T>(
         &mut self,
         key: &'static str,
-        v: Option<T>,
+        v_from_url: Option<T>,
         conv: impl FnOnce(String) -> Result<T, Error>,
     ) -> Result<Option<T>, Error> {
         let v_query = self.query.remove(key);
@@ -379,7 +379,7 @@ impl<'a> DsnHelper<'a> {
         let v_file = self.query.remove(k_file.as_str());
 
         let defined_param_names = vec![
-            v.as_ref().map(|_| format!("{key} of URL")),
+            v_from_url.as_ref().map(|_| format!("{key} of URL")),
             v_query.as_ref().map(|_| format!("query {key}")),
             v_env.as_ref().map(|_| format!("query {k_env}")),
             v_file.as_ref().map(|_| format!("query {k_file}")),
@@ -394,8 +394,8 @@ impl<'a> DsnHelper<'a> {
             )));
         }
 
-        if v.is_some() {
-            Ok(v)
+        if v_from_url.is_some() {
+            Ok(v_from_url)
         } else if let Some(val) = v_query {
             conv(val.to_string())
                 .map(|rv| Some(rv))
