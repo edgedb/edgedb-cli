@@ -326,7 +326,7 @@ fn prompt_conn_params(
                 .parse()?
         }
         if options.host.is_none() || options.port.is_none() {
-            builder.host_port(Some(host), Some(port));
+            builder.host_port(Some(host), Some(port))?;
         }
         if let Some(user) = &options.user {
             builder.user(user);

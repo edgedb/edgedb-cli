@@ -680,7 +680,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
                 bld.unix_path(host, tmp.port, tmp.admin);
             }
             _ => {
-                bld.host_port(tmp.host.clone(), tmp.port);
+                bld.host_port(tmp.host.clone(), tmp.port)?;
             }
         }
         bld.read_extra_env_vars()?;
@@ -701,7 +701,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
             InstanceName::Cloud { org_slug, name } => {
                 let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
                 client.ensure_authenticated()?;
-                bld.host_port(Some(client.get_cloud_host(org_slug, name)), None);
+                bld.host_port(Some(client.get_cloud_host(org_slug, name)), None)?;
                 bld.secret_key(client.access_token.unwrap());
             }
             InstanceName::Local(instance) => {

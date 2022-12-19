@@ -44,7 +44,7 @@ use crate::errors::{ClientConnectionFailedError, AuthenticationError};
 use crate::errors::{ClientError, ClientConnectionFailedTemporarilyError};
 use crate::errors::{ClientNoCredentialsError, ProtocolEncodingError};
 use crate::errors::{Error, ErrorKind, PasswordRequired, ResultExt};
-use crate::errors::InterfaceError;
+use crate::errors::{InterfaceError, InvalidArgumentError};
 use crate::server_params::{PostgresAddress, SystemConfig};
 use crate::tls;
 
@@ -615,7 +615,7 @@ impl Builder {
             )));
         }
         if let Some((host, port)) = host_port {
-            self.host_port(host, port);
+            self.host_port(host, port)?;
         } else if let Some(path) = creds_file {
             self.read_credentials(path).await?;
         } else if let Some(instance) = instance {
@@ -836,7 +836,8 @@ impl Builder {
         self.reset_compound();
         let host = dsn.retrieve_host(DEFAULT_HOST).await?;
         let port = dsn.retrieve_port(DEFAULT_PORT).await?;
-        self.address = Address::Tcp((host, port));
+        self.host_port(Some(host), Some(port))?;
+        self.initialized = false;  // we're not done yet
         self.admin = dsn.admin;
         let user = dsn.retrieve_user("edgedb").await;
         if skip.user {
@@ -992,15 +993,26 @@ impl Builder {
     /// are kept intact.
     pub fn host_port(&mut self,
         host: Option<impl Into<String>>, port: Option<u16>)
-        -> &mut Self
+        -> Result<&mut Self, Error>
     {
+        let host = host.map_or_else(|| DEFAULT_HOST.into(), |h| h.into());
+        let port = port.unwrap_or(DEFAULT_PORT);
+        if host.is_empty() {
+            return Err(InvalidArgumentError::with_message(
+                "invalid host: empty string"
+            ));
+        } else if host.contains(",") {
+            return Err(InvalidArgumentError::with_message(
+                "invalid host: multiple hosts"
+            ));
+        }
+        if port == 0 {
+            return Err(InvalidArgumentError::with_message("invalid port: 0"));
+        }
         self.reset_compound();
-        self.address = Address::Tcp((
-            host.map_or_else(|| DEFAULT_HOST.into(), |h| h.into()),
-            port.unwrap_or(DEFAULT_PORT),
-        ));
+        self.address = Address::Tcp((host, port));
         self.initialized = true;
-        self
+        Ok(self)
     }
 
     #[cfg(feature="admin_socket")]
@@ -1212,20 +1224,11 @@ impl Builder {
                 Run `edgedb project init` or use environment variables \
                 to configure connection."));
         }
-        let host = self.get_host();
-        if host.is_empty() {
-            return Err(ClientError::with_message("invalid host: empty string"));
-        } else if host.contains(",") {
-            return Err(ClientError::with_message("invalid host: multiple hosts"));
-        }
         if self.get_user().is_empty() {
             return Err(ClientError::with_message("invalid user: empty string"));
         }
         if self.get_database().is_empty() {
             return Err(ClientError::with_message("invalid database: empty string"));
-        }
-        if self.get_port() == 0 {
-            return Err(ClientError::with_message("invalid port: 0"));
         }
         let tls_security;
         let verifier = match self.tls_security {
