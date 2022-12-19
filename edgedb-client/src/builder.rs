@@ -843,7 +843,7 @@ impl Builder {
         if skip.user {
             user.ok();
         } else {
-            self.user = user?;
+            self.user(user?)?;
         }
         let password = dsn.retrieve_password().await;
         if skip.password {
@@ -1085,9 +1085,15 @@ impl Builder {
         &self.user
     }
     /// Set the user name for SCRAM authentication.
-    pub fn user(&mut self, user: impl Into<String>) -> &mut Self {
-        self.user = user.into();
-        self
+    pub fn user(&mut self, user: impl Into<String>) -> Result<&mut Self, Error> {
+        let user = user.into();
+        if user.is_empty() {
+            return Err(InvalidArgumentError::with_message(
+                "invalid user: empty string"
+            ));
+        }
+        self.user = user;
+        Ok(self)
     }
     /// Set the password for SCRAM authentication.
     pub fn password(&mut self, password: impl Into<String>) -> &mut Self {
@@ -1223,9 +1229,6 @@ impl Builder {
                 "EdgeDB connection options are not initialized. \
                 Run `edgedb project init` or use environment variables \
                 to configure connection."));
-        }
-        if self.get_user().is_empty() {
-            return Err(ClientError::with_message("invalid user: empty string"));
         }
         if self.get_database().is_empty() {
             return Err(ClientError::with_message("invalid database: empty string"));

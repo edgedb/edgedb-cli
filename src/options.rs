@@ -719,7 +719,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.admin()?;
     }
     if let Some(user) = &tmp.user {
-        bld.user(user);
+        bld.user(user)?;
     }
     if let Some(database) = &tmp.database {
         bld.database(database);

@@ -329,13 +329,13 @@ fn prompt_conn_params(
             builder.host_port(Some(host), Some(port))?;
         }
         if let Some(user) = &options.user {
-            builder.user(user);
+            builder.user(user)?;
         } else {
             builder.user(
                 question::String::new("Specify the database user")
                     .default(builder.get_user())
                     .ask()?
-            );
+            )?;
         }
         if let Some(database) = &options.database {
             builder.database(database);
