@@ -72,11 +72,19 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
 });
 
 extern fn delete_docker_image() {
-    Command::new("docker")
+    std::process::Command::new("docker")
         .arg("image")
         .arg("rm")
         .arg("edgedb_test_portable")
-        .unwrap();
+        .output()
+        .map_or_else(
+            |e| println!("docker image rm failed: {:?}", e),
+            |o| {
+                if !o.status.success() {
+                    println!("docker image rm failed: {:?}", o)
+                }
+            },
+        );
 }
 
 fn dockerfile() -> String {
