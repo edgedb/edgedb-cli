@@ -354,8 +354,8 @@ impl InstanceInfo {
     pub async fn admin_conn_params(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::uninitialized();
         builder.unix_path(runstate_dir(&self.name)?, Some(self.port), true);
-        builder.user("edgedb");
-        builder.database("edgedb");
+        builder.user("edgedb")?;
+        builder.database("edgedb")?;
         Ok(builder)
     }
 }

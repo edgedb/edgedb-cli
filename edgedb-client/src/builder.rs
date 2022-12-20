@@ -21,7 +21,7 @@ use futures_util::AsyncReadExt;
 use rand::{thread_rng, Rng};
 use rustls::client::ServerCertVerifier;
 use scram::ScramClient;
-use serde_json::from_slice;
+use serde_json::{from_slice, json};
 use sha1::Digest;
 use tls_api::{TlsConnectorBox, TlsConnector as _, TlsConnectorBuilder as _};
 use tls_api::{TlsStream, TlsStreamDyn as _};
@@ -44,7 +44,7 @@ use crate::errors::{ClientConnectionFailedError, AuthenticationError};
 use crate::errors::{ClientError, ClientConnectionFailedTemporarilyError};
 use crate::errors::{ClientNoCredentialsError, ProtocolEncodingError};
 use crate::errors::{Error, ErrorKind, PasswordRequired, ResultExt};
-use crate::errors::InterfaceError;
+use crate::errors::{InterfaceError, InvalidArgumentError};
 use crate::server_params::{PostgresAddress, SystemConfig};
 use crate::tls;
 
@@ -55,6 +55,14 @@ pub const DEFAULT_HOST: &str = "localhost";
 pub const DEFAULT_PORT: u16 = 5656;
 
 type Verifier = Arc<dyn ServerCertVerifier>;
+
+/// Client security mode.
+#[derive(Debug, Clone, Copy)]
+pub enum ClientSecurity {
+    InsecureDevMode,
+    Strict,
+    Default,
+}
 
 /// A builder used to create connections.
 #[derive(Debug, Clone)]
@@ -68,11 +76,12 @@ pub struct Builder {
     pem: Option<String>,
     tls_security: TlsSecurity,
     instance_name: Option<String>,
+    con_params: HashMap<String, String>,
 
     initialized: bool,
     wait: Duration,
     connect_timeout: Duration,
-    insecure_dev_mode: bool,
+    client_security: ClientSecurity,
     creds_file_outdated: bool,
 
     // Pool configuration
@@ -83,6 +92,25 @@ pub struct Builder {
 /// Use [`Builder`][] to create an instance
 #[derive(Clone)]
 pub struct Config(pub(crate) Arc<ConfigInner>);
+
+/// Skip reading specified fields
+#[derive(Default)]
+pub struct SkipFields {
+    ///
+    pub user: bool,
+    ///
+    pub database: bool,
+    ///
+    pub wait_until_available: bool,
+    ///
+    pub secret_key: bool,
+    ///
+    pub password: bool,
+    ///
+    pub tls_ca_file: bool,
+    ///
+    pub tls_security: bool,
+}
 
 pub(crate) struct ConfigInner {
     pub address: Address,
@@ -99,7 +127,8 @@ pub(crate) struct ConfigInner {
     pub connect_timeout: Duration,
     pub tls_security: TlsSecurity,
     #[allow(dead_code)] // TODO(tailhook) maybe for future things
-    pub insecure_dev_mode: bool,
+    pub client_security: ClientSecurity,
+    pub con_params: HashMap<String, String>,
 
     // Pool configuration
     pub max_connections: usize,
@@ -114,10 +143,10 @@ pub(crate) enum Address {
 
 struct DisplayAddr<'a>(Option<&'a Address>);
 
-struct DSN {
-    url: url::Url,
+struct DsnHelper<'a> {
+    url: &'a url::Url,
     admin: bool,
-    query: HashMap<String, String>,
+    query: HashMap<Cow<'a, str>, Cow<'a, str>>,
 }
 
 pub async fn timeout<F, T>(dur: Duration, f: F) -> Result<T, Error>
@@ -329,85 +358,76 @@ impl fmt::Display for DisplayAddr<'_> {
     }
 }
 
-impl DSN {
-    fn new(dsn: &str) -> Result<Self, Error> {
-        let admin = dsn.starts_with("edgedbadmin://");
-        if !dsn.starts_with("edgedb://") && !admin {
-            return Err(ClientError::with_message(format!(
-                "String {:?} is not a valid DSN",
-                dsn,
-            )));
-        };
-        let url = url::Url::parse(dsn).map_err(|e| {
-            ClientError::with_source(e).context(format!("cannot parse DSN {:?}", dsn))
-        })?;
-        let query = url
-            .query_pairs()
-            .into_owned()
-            .into_iter()
-            .collect::<HashMap<_, _>>();
+impl<'a> DsnHelper<'a> {
+    fn from_url(url: &'a url::Url) -> Result<Self, Error> {
+        let admin = url.scheme() == "edgedbadmin";
+        let mut query = HashMap::new();
+        for (k, v) in url.query_pairs() {
+            if query.contains_key(&k) {
+                return Err(ClientError::with_message(format!(
+                    "{k:?} is defined multiple times in the DSN query"
+                )));
+            } else {
+                query.insert(k, v);
+            }
+        }
         Ok(Self { url, admin, query })
     }
 
-    async fn get_value<T>(
+    async fn retrieve_value<T>(
         &mut self,
         key: &'static str,
-        mut v: Option<T>,
+        v_from_url: Option<T>,
         conv: impl FnOnce(String) -> Result<T, Error>,
-        default: impl FnOnce() -> T,
-    ) -> Result<T, Error> {
+    ) -> Result<Option<T>, Error> {
         let v_query = self.query.remove(key);
         let k_env = format!("{key}_env");
         let v_env = self.query.remove(k_env.as_str());
         let k_file = format!("{key}_file");
         let v_file = self.query.remove(k_file.as_str());
-        let mut key_used = key;
-        let mut rv = None;
 
-        if v.is_none() {
-            key_used = key;
-            rv = v_query;
-        } else if v_query.is_some() {
+        let defined_param_names = vec![
+            v_from_url.as_ref().map(|_| format!("{key} of URL")),
+            v_query.as_ref().map(|_| format!("query {key}")),
+            v_env.as_ref().map(|_| format!("query {k_env}")),
+            v_file.as_ref().map(|_| format!("query {k_file}")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+        if defined_param_names.len() > 1 {
             return Err(InterfaceError::with_message(format!(
-                "redundant query in DSN: {key}"
+                "{key} defined multiple times: {}",
+                defined_param_names.join(", "),
             )));
         }
-        if v.is_none() && rv.is_none() {
-            if let Some(env_name) = v_env {
-                key_used = &k_env;
-                rv = get_env(&env_name)?;
-            }
-        } else if v_env.is_some() {
-            return Err(InterfaceError::with_message(format!(
-                "redundant query in DSN: {k_env}"
-            )));
-        }
-        if v.is_none() && rv.is_none() {
-            if let Some(file_path) = v_file {
-                key_used = &k_file;
-                rv = Some(
-                    fs::read_to_string(Path::new(&file_path))
-                        .await
-                        .map_err(|e| {
-                            ClientError::with_source(e)
-                                .context(format!("error reading {k_file}={file_path}"))
-                        })?,
-                );
-            }
-        } else if v_file.is_some() {
-            return Err(InterfaceError::with_message(format!(
-                "redundant query in DSN: {k_file}"
-            )));
-        }
-        if v.is_none() {
-            if let Some(rv) = rv {
-                let rv = conv(rv).with_context(|| {
-                    format!("failed to parse value of query parameter {}", key_used)
+
+        if v_from_url.is_some() {
+            Ok(v_from_url)
+        } else if let Some(val) = v_query {
+            conv(val.to_string())
+                .map(|rv| Some(rv))
+                .with_context(|| format!("failed to parse value of query {key}"))
+        } else if let Some(env_name) = v_env {
+            let val = get_env(&env_name)?.ok_or(ClientError::with_message(format!(
+                "{k_env}: {env_name} is not set"
+            )))?;
+            conv(val)
+                .map(|rv| Some(rv))
+                .with_context(|| format!("failed to parse value of {k_env}: {env_name}"))
+        } else if let Some(file_path) = v_file {
+            let val = fs::read_to_string(Path::new(file_path.as_ref()))
+                .await
+                .map_err(|e| {
+                    ClientError::with_source(e)
+                        .context(format!("error reading {k_file}: {file_path}"))
                 })?;
-                v = Some(rv);
-            }
+            conv(val)
+                .map(|rv| Some(rv))
+                .with_context(|| format!("failed to parse content of {k_file}: {file_path}"))
+        } else {
+            Ok(None)
         }
-        Ok(v.unwrap_or_else(default))
     }
 
     async fn retrieve_host(&mut self, default: impl ToString) -> Result<String, Error> {
@@ -415,25 +435,19 @@ impl DSN {
             // async-std uses raw IPv6 address without "[]"
             Ok(host.to_string())
         } else {
-            self.get_value(
-                "host",
-                self.url.host_str().map(|s| s.to_owned()),
-                |s| Ok(s),
-                || default.to_string(),
-            ).await
+            self.retrieve_value("host", self.url.host_str().map(|s| s.to_owned()), |s| Ok(s))
+                .await
+                .map(|rv| rv.unwrap_or_else(|| default.to_string()))
         }
     }
 
     async fn retrieve_port(&mut self, default: u16) -> Result<u16, Error> {
-        self.get_value(
-            "port",
-            self.url.port(),
-            |s| {
-                s.parse()
-                    .map_err(|e| InterfaceError::with_source(e).context("invalid port"))
-            },
-            || default,
-        ).await
+        self.retrieve_value("port", self.url.port(), |s| {
+            s.parse()
+                .map_err(|e| InterfaceError::with_source(e).context("invalid port"))
+        })
+        .await
+        .map(|rv| rv.unwrap_or(default))
     }
 
     async fn retrieve_user(&mut self, default: impl ToString) -> Result<String, Error> {
@@ -443,53 +457,62 @@ impl DSN {
         } else {
             Some(username.to_owned())
         };
-        self.get_value("user", v, |s| Ok(s), || default.to_string()).await
+        self.retrieve_value("user", v, |s| Ok(s))
+            .await
+            .map(|rv| rv.unwrap_or_else(|| default.to_string()))
     }
 
     async fn retrieve_password(&mut self) -> Result<Option<String>, Error> {
-        let v = self.url.password().map(|s| Some(s.to_owned()));
-        self.get_value("password", v, |s| Ok(Some(s)), || None).await
+        let v = self.url.password().map(|s| s.to_owned());
+        self.retrieve_value("password", v, |s| Ok(s)).await
     }
 
     async fn retrieve_database(&mut self, default: impl ToString) -> Result<String, Error> {
-        let v = self.url.path().strip_prefix("/").map(|s| s.to_owned());
-        self.get_value("database", v, |s| Ok(s), || default.to_string()).await
+        let v = self.url.path().strip_prefix("/").and_then(|s| {
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.to_owned())
+            }
+        });
+        self.retrieve_value("database", v, |s| {
+            Ok(s.strip_prefix("/").unwrap_or(&s).into())
+        })
+        .await
+        .map(|rv| rv.unwrap_or_else(|| default.to_string()))
     }
 
     async fn retrieve_secret_key(&mut self) -> Result<Option<String>, Error> {
-        self.get_value("secret_key", None, |s| Ok(Some(s)), || None).await
+        self.retrieve_value("secret_key", None, |s| Ok(s)).await
     }
 
     async fn retrieve_tls_ca_file(&mut self) -> Result<Option<String>, Error> {
-        self.get_value("tls_ca_file", None, |s| Ok(Some(s)), || None).await
+        self.retrieve_value("tls_ca_file", None, |s| Ok(s)).await
     }
 
     async fn retrieve_tls_security(&mut self) -> Result<Option<TlsSecurity>, Error> {
-        self.get_value(
-            "tls_security",
-            None,
-            |s| TlsSecurity::from_str(&s).map(|s| Some(s)),
-            || None,
-        ).await
+        self.retrieve_value("tls_security", None, TlsSecurity::from_str).await
     }
 
     async fn retrieve_wait_until_available(&mut self) -> Result<Option<Duration>, Error> {
-        self.get_value(
-            "wait_until_available",
-            None,
-            |s| {
-                s.parse::<model::Duration>()
-                    .map_err(ClientError::with_source)
-                    .and_then(|d| match d.is_negative() {
-                        false => Ok(d.abs_duration()),
-                        true => Err(ClientError::with_message(
-                            "negative durations are unsupported",
-                        )),
-                    })
-                    .map(|rv| Some(rv))
-            },
-            || None,
-        ).await
+        self.retrieve_value("wait_until_available", None, |s| {
+            s.parse::<model::Duration>()
+                .map_err(ClientError::with_source)
+                .and_then(|d| match d.is_negative() {
+                    false => Ok(d.abs_duration()),
+                    true => Err(ClientError::with_message(
+                        "negative durations are unsupported",
+                    )),
+                })
+        })
+        .await
+    }
+
+    fn remaining_queries(&self) -> HashMap<String, String> {
+        self.query
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 }
 
@@ -507,7 +530,7 @@ impl Builder {
            get_env("EDGEDB_DSN")?.is_none() &&
            get_env("EDGEDB_CONFIGURATION_FILE")?.is_none()
         {
-            builder.read_project(None, false).await?;
+            builder.read_project(None, true).await?;
         }
 
         builder.read_env_vars().await?;
@@ -577,18 +600,47 @@ impl Builder {
     /// Then the value of that environment variable will be used to set just
     /// the parameter matching that environment variable.
     ///
-    /// The `insecure_dev_mode` and connection parameters are never modified by
+    /// The `client_security` and connection parameters are never modified by
     /// this function for now.
     pub async fn read_env_vars(&mut self) -> Result<&mut Self, Error> {
-        if let Some((host, port)) = get_host_port()? {
-            self.host_port(host, port);
-        } else if let Some(path) = get_env("EDGEDB_CREDENTIALS_FILE")? {
+        let host_port = get_host_port()?;
+        let creds_file = get_env("EDGEDB_CREDENTIALS_FILE")?;
+        let instance = get_env("EDGEDB_INSTANCE")?;
+        let dsn = get_env("EDGEDB_DSN")?;
+        let compound_env_names = vec![
+            host_port.as_ref().map(|_| "EDGEDB_HOST/EDGEDB_PORT"),
+            creds_file.as_ref().map(|_| "EDGEDB_CREDENTIALS_FILE"),
+            instance.as_ref().map(|_| "EDGEDB_INSTANCE"),
+            dsn.as_ref().map(|_| "EDGEDB_DSN"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+        if compound_env_names.len() > 1 {
+            return Err(ClientError::with_message(format!(
+                "multiple compound env vars found: {:?}",
+                compound_env_names
+            )));
+        }
+        if let Some((host, port)) = host_port {
+            self.host_port(host, port)?;
+        } else if let Some(path) = creds_file {
             self.read_credentials(path).await?;
-        } else if let Some(instance) = get_env("EDGEDB_INSTANCE")? {
+        } else if let Some(instance) = instance {
             self.read_instance(&instance).await?;
-        } else if let Some(dsn) = get_env("EDGEDB_DSN")? {
-            self.read_dsn(&dsn).await.map_err(|e|
-                e.context("cannot parse env var EDGEDB_DNS"))?;
+        } else if let Some(dsn) = dsn {
+            let skip = SkipFields {
+                user: get_env("EDGEDB_USER")?.is_some(),
+                database: get_env("EDGEDB_DATABASE")?.is_some(),
+                wait_until_available: get_env("EDGEDB_WAIT_UNTIL_AVAILABLE")?.is_some(),
+                secret_key: get_env("EDGEDB_SECRET_KEY")?.is_some(),
+                password: get_env("EDGEDB_PASSWORD")?.is_some(),
+                tls_ca_file: get_env("EDGEDB_TLS_CA")?.is_some()
+                    || get_env("EDGEDB_TLS_CA_FILE")?.is_some(),
+                tls_security: get_env("EDGEDB_CLIENT_TLS_SECURITY")?.is_some(),
+            };
+            self.read_dsn(&dsn, skip).await.map_err(|e|
+                e.context("cannot parse env var EDGEDB_DSN"))?;
         }
         if let Some(database) = get_env("EDGEDB_DATABASE")? {
             self.database = database;
@@ -601,6 +653,17 @@ impl Builder {
         }
         if let Some(secret_key) = get_env("EDGEDB_SECRET_KEY")? {
             self.secret_key = Some(secret_key);
+        }
+        if let Some(wait) = get_env("EDGEDB_WAIT_UNTIL_AVAILABLE")? {
+            self.wait = wait.parse::<model::Duration>()
+                .map_err(ClientError::with_source)
+                .and_then(|d| match d.is_negative() {
+                    false => Ok(d.abs_duration()),
+                    true => Err(ClientError::with_message(
+                        "negative durations are unsupported")),
+                })
+                .context("Invalid value {:?} for env var \
+                          EDGEDB_WAIT_UNTIL_AVAILABLE.")?;
         }
         if let Some(sec) = get_env("EDGEDB_CLIENT_TLS_SECURITY")? {
             self.tls_security = TlsSecurity::from_str(&sec)
@@ -628,30 +691,21 @@ impl Builder {
     }
     /// Read environment variables that aren't credentials
     pub fn read_extra_env_vars(&mut self) -> Result<&mut Self, Error> {
+        use ClientSecurity::*;
         if let Some(mode) = get_env("EDGEDB_CLIENT_SECURITY")? {
-            self.insecure_dev_mode = match &mode[..] {
-                "default" => false,
-                "insecure_dev_mode" => true,
+            self.client_security = match &mode[..] {
+                "default" => Default,
+                "strict" => Strict,
+                "insecure_dev_mode" => InsecureDevMode,
                 _ => {
                     return Err(ClientError::with_message(
                         format!("Invalid value {:?} for env var \
                                 EDGEDB_CLIENT_SECURITY. \
-                                Options: default, insecure_dev_mode.",
+                                Options: default, strict, insecure_dev_mode.",
                                 mode)
                     ));
                 }
             };
-        }
-        if let Some(wait) = get_env("EDGEDB_WAIT_UNTIL_AVAILABLE")? {
-            self.wait = wait.parse::<model::Duration>()
-                .map_err(ClientError::with_source)
-                .and_then(|d| match d.is_negative() {
-                    false => Ok(d.abs_duration()),
-                    true => Err(ClientError::with_message(
-                        "negative durations are unsupported")),
-                })
-                .context("Invalid value {:?} for env var \
-                          EDGEDB_WAIT_UNTIL_AVAILABLE.")?;
         }
         Ok(self)
     }
@@ -712,7 +766,7 @@ impl Builder {
     /// instead if possible.
     ///
     /// This will mark the builder as initialized (if reading is successful)
-    /// and overwrite all credentials. However, `insecure_dev_mode`, pools
+    /// and overwrite all credentials. However, `client_security`, pools
     /// sizes, and timeouts are kept intact.
     pub async fn read_instance(&mut self, name: &str)
         -> Result<&mut Self, Error>
@@ -731,7 +785,7 @@ impl Builder {
     /// Read credentials from a file.
     ///
     /// This will mark the builder as initialized (if reading is successful)
-    /// and overwrite all credentials. However, `insecure_dev_mode`, pools
+    /// and overwrite all credentials. However, `client_security`, pools
     /// sizes, and timeouts are kept intact.
     pub async fn read_credentials(&mut self, path: impl AsRef<Path>)
         -> Result<&mut Self, Error>
@@ -762,31 +816,74 @@ impl Builder {
     /// arguments named `*_file`).
     ///
     /// This will mark the builder as initialized (if reading is successful)
-    /// and overwrite all the credentials. However, `insecure_dev_mode`, pools
+    /// and overwrite all the credentials. However, `client_security`, pools
     /// sizes, and timeouts are kept intact.
-    pub async fn read_dsn(&mut self, dsn: &str) -> Result<&mut Self, Error> {
-        let mut dsn = DSN::new(dsn)?;
+    pub async fn read_dsn(&mut self, dsn: &str, skip: SkipFields) -> Result<&mut Self, Error> {
+        if !dsn.starts_with("edgedb://") && !dsn.starts_with("edgedbadmin://") {
+            return Err(ClientError::with_message(format!(
+                "String {:?} is not a valid DSN",
+                dsn,
+            )));
+        };
+        let url = url::Url::parse(dsn).map_err(|e| {
+            ClientError::with_source(e).context(format!("cannot parse DSN {:?}", dsn))
+        })?;
+        let mut dsn = DsnHelper::from_url(&url)?;
         self.reset_compound();
         let host = dsn.retrieve_host(DEFAULT_HOST).await?;
         let port = dsn.retrieve_port(DEFAULT_PORT).await?;
-        self.address = Address::Tcp((host, port));
+        self.host_port(Some(host), Some(port))?;
+        self.initialized = false;  // we're not done yet
         self.admin = dsn.admin;
-        self.user = dsn.retrieve_user("edgedb").await?;
-        self.password = dsn.retrieve_password().await?;
-        self.database = dsn.retrieve_database("edgedb").await?;
-        self.secret_key = dsn.retrieve_secret_key().await?;
-        if let Some(tls_ca_file) = dsn.retrieve_tls_ca_file().await? {
+        let user = dsn.retrieve_user("edgedb").await;
+        if skip.user {
+            user.ok();
+        } else {
+            self.user(user?)?;
+        }
+        let password = dsn.retrieve_password().await;
+        if skip.password {
+            password.ok();
+        } else {
+            self.password = password?;
+        }
+        let database = dsn.retrieve_database("edgedb").await;
+        if skip.database {
+            database.ok();
+        } else {
+            self.database(database?)?;
+        }
+        let secret_key = dsn.retrieve_secret_key().await;
+        if skip.secret_key {
+            secret_key.ok();
+        } else {
+            self.secret_key = secret_key?;
+        }
+        let tls_ca_file = dsn.retrieve_tls_ca_file().await;
+        if skip.tls_ca_file {
+            tls_ca_file.ok();
+        } else if let Some(tls_ca_file) = tls_ca_file? {
             let pem = fs::read_to_string(Path::new(&tls_ca_file))
                 .await
-                .map_err(|e| ClientError::with_source(e).context("error reading TLS CA file"))?;
+                .map_err(|e| {
+                    ClientError::with_source(e).context("error reading TLS CA file")
+                })?;
             self.pem_certificates(&pem)?;
         }
-        if let Some(s) = dsn.retrieve_tls_security().await? {
+        let tls_security = dsn.retrieve_tls_security().await;
+        if skip.tls_security {
+            tls_security.ok();
+        } else if let Some(s) = tls_security? {
             self.tls_security = s;
         }
-        if let Some(d) = dsn.retrieve_wait_until_available().await? {
+
+        let wait_until_available = dsn.retrieve_wait_until_available().await;
+        if skip.wait_until_available {
+            wait_until_available.ok();
+        } else if let Some(d) = wait_until_available? {
             self.wait = d;
         }
+        self.con_params = dsn.remaining_queries();
         self.initialized = true;
         Ok(self)
     }
@@ -808,11 +905,12 @@ impl Builder {
             tls_security: TlsSecurity::Default,
             pem: None,
             instance_name: None,
+            con_params: HashMap::new(),
 
             wait: DEFAULT_WAIT,
             connect_timeout: DEFAULT_CONNECT_TIMEOUT,
             initialized: false,
-            insecure_dev_mode: false,
+            client_security: ClientSecurity::Default,
             creds_file_outdated: false,
 
             max_connections: DEFAULT_POOL_SIZE,
@@ -830,12 +928,13 @@ impl Builder {
             tls_security: TlsSecurity::Default,
             pem: None,
             instance_name: None,
+            con_params: HashMap::new(),
 
             initialized: false,
             // keep old values
             wait: self.wait,
             connect_timeout: self.connect_timeout,
-            insecure_dev_mode: self.insecure_dev_mode,
+            client_security: self.client_security,
             creds_file_outdated: false,
 
             max_connections: self.max_connections,
@@ -886,19 +985,30 @@ impl Builder {
     /// default of `localhost` and `5656` respectively.
     ///
     /// This will mark the builder as initialized and overwrite all the
-    /// credentials. However, `insecure_dev_mode`, pools sizes, and timeouts
+    /// credentials. However, `client_security`, pools sizes, and timeouts
     /// are kept intact.
     pub fn host_port(&mut self,
         host: Option<impl Into<String>>, port: Option<u16>)
-        -> &mut Self
+        -> Result<&mut Self, Error>
     {
+        let host = host.map_or_else(|| DEFAULT_HOST.into(), |h| h.into());
+        let port = port.unwrap_or(DEFAULT_PORT);
+        if host.is_empty() {
+            return Err(InvalidArgumentError::with_message(
+                "invalid host: empty string"
+            ));
+        } else if host.contains(",") {
+            return Err(InvalidArgumentError::with_message(
+                "invalid host: multiple hosts"
+            ));
+        }
+        if port == 0 {
+            return Err(InvalidArgumentError::with_message("invalid port: 0"));
+        }
         self.reset_compound();
-        self.address = Address::Tcp((
-            host.map_or_else(|| DEFAULT_HOST.into(), |h| h.into()),
-            port.unwrap_or(DEFAULT_PORT),
-        ));
+        self.address = Address::Tcp((host, port));
         self.initialized = true;
-        self
+        Ok(self)
     }
 
     #[cfg(feature="admin_socket")]
@@ -971,9 +1081,15 @@ impl Builder {
         &self.user
     }
     /// Set the user name for SCRAM authentication.
-    pub fn user(&mut self, user: impl Into<String>) -> &mut Self {
-        self.user = user.into();
-        self
+    pub fn user(&mut self, user: impl Into<String>) -> Result<&mut Self, Error> {
+        let user = user.into();
+        if user.is_empty() {
+            return Err(InvalidArgumentError::with_message(
+                "invalid user: empty string"
+            ));
+        }
+        self.user = user;
+        Ok(self)
     }
     /// Set the password for SCRAM authentication.
     pub fn password(&mut self, password: impl Into<String>) -> &mut Self {
@@ -986,9 +1102,15 @@ impl Builder {
         self
     }
     /// Set the database name.
-    pub fn database(&mut self, database: impl Into<String>) -> &mut Self {
-        self.database = database.into();
-        self
+    pub fn database(&mut self, database: impl Into<String>) -> Result<&mut Self, Error> {
+        let database = database.into();
+        if database.is_empty() {
+            return Err(InvalidArgumentError::with_message(
+                "invalid database: empty string"
+            ));
+        }
+        self.database = database;
+        Ok(self)
     }
     /// Get the database name.
     pub fn get_database(&self) -> &str {
@@ -1046,11 +1168,12 @@ impl Builder {
         self
     }
 
-    /// Enables insecure dev mode.
+    /// Modifies the client security mode.
     ///
-    /// This disables certificate validation entirely.
-    pub fn insecure_dev_mode(&mut self, value: bool) -> &mut Self {
-        self.insecure_dev_mode = value;
+    /// InsecureDevMode changes tls_security only from Default to Insecure
+    /// Strict ensures tls_security is also Strict
+    pub fn client_security(&mut self, value: ClientSecurity) -> &mut Self {
+        self.client_security = value;
         self
     }
 
@@ -1061,11 +1184,6 @@ impl Builder {
         } else {
             DisplayAddr(None)
         }
-    }
-
-    fn insecure(&self) -> bool {
-        use TlsSecurity::Insecure;
-        self.insecure_dev_mode || self.tls_security == Insecure
     }
 
     fn trust_anchors(&self) -> Result<Vec<tls::OwnedTrustAnchor>, Error> {
@@ -1110,33 +1228,29 @@ impl Builder {
                 Run `edgedb project init` or use environment variables \
                 to configure connection."));
         }
-        let verifier = match self.tls_security {
-            _ if self.insecure() => Arc::new(tls::NullVerifier) as Verifier,
+        let tls_security = match (self.client_security, self.tls_security) {
+            (ClientSecurity::Strict, Insecure | NoHostVerification) => {
+                return Err(ClientError::with_message(format!(
+                    "client_security=strict and tls_security={} don't comply",
+                    serde_json::to_string(&self.tls_security).unwrap(),
+                )));
+            }
+            (ClientSecurity::Strict, _) => Strict,
+            (ClientSecurity::InsecureDevMode, Default) => Insecure,
+            (_, Default) if self.pem.is_none() => Strict,
+            (_, Default) => NoHostVerification,
+            (_, ts) => ts,
+        };
+        let verifier = match tls_security {
             Insecure => Arc::new(tls::NullVerifier) as Verifier,
-            NoHostVerification => {
-                Arc::new(tls::NoHostnameVerifier::new(
-                        self.trust_anchors()?
-                )) as Verifier
-            }
-            Strict => {
-                Arc::new(rustls::client::WebPkiVerifier::new(
-                    self._root_cert_store()?,
-                    None,
-                )) as Verifier
-            }
-            Default => match self.pem {
-                Some(_) => {
-                    Arc::new(tls::NoHostnameVerifier::new(
-                            self.trust_anchors()?
-                    )) as Verifier
-                }
-                None => {
-                    Arc::new(rustls::client::WebPkiVerifier::new(
-                        self._root_cert_store()?,
-                        None,
-                    )) as Verifier
-                }
-            },
+            NoHostVerification => Arc::new(tls::NoHostnameVerifier::new(
+                self.trust_anchors()?
+            )) as Verifier,
+            Strict => Arc::new(rustls::client::WebPkiVerifier::new(
+                self._root_cert_store()?,
+                None,
+            )) as Verifier,
+            Default => unreachable!(),
         };
 
         Ok(Config(Arc::new(ConfigInner {
@@ -1150,8 +1264,9 @@ impl Builder {
             instance_name: self.instance_name.clone(),
             wait: self.wait,
             connect_timeout: self.connect_timeout,
-            tls_security: self.tls_security,
-            insecure_dev_mode: self.insecure_dev_mode,
+            tls_security,
+            client_security: self.client_security,
+            con_params: self.con_params.clone(),
 
             // Pool configuration
             max_connections: self.max_connections,
@@ -1177,6 +1292,25 @@ impl Builder {
             Address::Unix(path) => Ok(Some(path.clone())),
             Address::Tcp(_) => Ok(None),
         }
+    }
+
+    /// Generate debug JSON string
+    #[cfg(feature="unstable")]
+    pub fn to_json(&self) -> String {
+        json!({
+            "address": match &self.address {
+                Address::Tcp((host, port)) => json!([host, port]),
+                Address::Unix(path) => json!(path.to_str().unwrap()),
+            },
+            "database": self.database,
+            "user": self.user,
+            "password": self.password,
+            // "secret_key": self.secret_key,
+            "tlsCAData": self.pem,
+            "tlsSecurity": self.build().unwrap().0.tls_security,
+            "serverSettings": self.con_params,
+            "waitUntilAvailable": self.wait.as_micros() as i64,
+        }).to_string()
     }
 }
 
@@ -1279,19 +1413,6 @@ impl Config {
         Ok(conn)
     }
 
-
-    fn do_verify_hostname(&self) -> Option<bool> {
-        use TlsSecurity::*;
-        if self.0.insecure_dev_mode {
-            return Some(false);
-        }
-        match self.0.tls_security {
-            Insecure => Some(false),
-            NoHostVerification => Some(false),
-            Strict => Some(true),
-            Default => None,
-        }
-    }
     /// Return a single connection.
     #[cfg(feature="unstable")]
     pub async fn connect(&self) -> Result<Connection, Error> {
@@ -1299,9 +1420,8 @@ impl Config {
     }
 
     pub(crate) async fn private_connect(&self) -> Result<Connection, Error> {
-        let verify_host = self.do_verify_hostname();
-        match (&self.0.address, verify_host) {
-            (Address::Tcp((host, _)), Some(true))
+        match (&self.0.address, self.0.tls_security) {
+            (Address::Tcp((host, _)), TlsSecurity::Strict)
                 if IpAddr::from_str(host).is_ok() => {
                     return Err(ClientError::with_message(
                         "Cannot use `verify_hostname` or system \
@@ -1413,7 +1533,7 @@ impl Config {
             server_version: None,
         };
         let mut seq = conn.start_sequence().await?;
-        let mut params = HashMap::new();
+        let mut params = self.0.con_params.clone();
         params.insert(String::from("user"), self.0.user.clone());
         params.insert(String::from("database"), self.0.database.clone());
         if let Some(secret_key) = self.0.secret_key.clone() {
@@ -1655,7 +1775,7 @@ fn read_credentials() {
 fn display() {
     let mut bld = Builder::uninitialized();
     async_std::task::block_on(
-        bld.read_dsn("edgedb://localhost:1756")).unwrap();
+        bld.read_dsn("edgedb://localhost:1756", SkipFields::default())).unwrap();
     assert!(matches!(
         &bld.address,
         Address::Tcp((host, 1756)) if host == "localhost"
@@ -1679,7 +1799,8 @@ fn display() {
 fn from_dsn() {
     let mut bld = Builder::uninitialized();
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://user1:EiPhohl7@edb-0134.elb.us-east-2.amazonaws.com/db2"
+        "edgedb://user1:EiPhohl7@edb-0134.elb.us-east-2.amazonaws.com/db2",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,
@@ -1692,7 +1813,8 @@ fn from_dsn() {
 
     let mut bld = Builder::uninitialized();
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://user2@edb-0134.elb.us-east-2.amazonaws.com:1756/db2"
+        "edgedb://user2@edb-0134.elb.us-east-2.amazonaws.com:1756/db2",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,
@@ -1705,7 +1827,8 @@ fn from_dsn() {
 
     // Tests overriding
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://edb-0134.elb.us-east-2.amazonaws.com:1756"
+        "edgedb://edb-0134.elb.us-east-2.amazonaws.com:1756",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,
@@ -1717,7 +1840,8 @@ fn from_dsn() {
     assert_eq!(bld.password, None);
 
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://user3:123123@[::1]:5555/abcdef"
+        "edgedb://user3:123123@[::1]:5555/abcdef",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,
@@ -1733,7 +1857,8 @@ fn from_dsn() {
 fn from_dsn_ipv6_scoped_address() {
     let mut bld = Builder::uninitialized();
     async_std::task::block_on(bld.read_dsn(
-        "edgedb://user3@[fe80::1ff:fe23:4567:890a%25eth0]:3000/ab"
+        "edgedb://user3@[fe80::1ff:fe23:4567:890a%25eth0]:3000/ab",
+        SkipFields::default(),
     )).unwrap();
     assert!(matches!(
         &bld.address,

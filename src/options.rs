@@ -8,9 +8,9 @@ use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
-use edgedb_client::{Builder, get_project_dir};
+use edgedb_client::{Builder, get_project_dir, SkipFields};
 use edgedb_client::credentials::TlsSecurity;
-use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind};
+use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind, ResultExt};
 use edgedb_protocol::model;
 use fs_err as fs;
 
@@ -234,6 +234,10 @@ pub struct RawOptions {
     #[cfg_attr(not(feature="dev_mode"), clap(hide=true))]
     pub debug_print_codecs: bool,
 
+    #[cfg(feature="portable_tests")]
+    #[clap(long)]
+    pub test_output_conn_params: bool,
+
     /// Print all available connection options
     /// for the interactive shell and subcommands
     #[clap(long)]
@@ -369,6 +373,8 @@ pub struct Options {
     pub debug_print_codecs: bool,
     pub output_format: Option<OutputFormat>,
     pub no_cli_update_check: bool,
+    #[cfg(feature="portable_tests")]
+    pub test_output_conn_params: bool,
 }
 
 fn parse_duration(value: &str) -> anyhow::Result<Duration> {
@@ -631,6 +637,8 @@ impl Options {
                 None
             },
             no_cli_update_check,
+            #[cfg(feature="portable_tests")]
+            test_output_conn_params: tmp.test_output_conn_params,
         })
     }
 
@@ -672,19 +680,28 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
                 bld.unix_path(host, tmp.port, tmp.admin);
             }
             _ => {
-                bld.host_port(tmp.host.clone(), tmp.port);
+                bld.host_port(tmp.host.clone(), tmp.port)?;
             }
         }
         bld.read_extra_env_vars()?;
     } else if let Some(dsn) = &tmp.dsn {
-        task::block_on(bld.read_dsn(dsn))?;
+        let skip = SkipFields {
+            user: tmp.user.is_some(),
+            database: tmp.database.is_some(),
+            wait_until_available: tmp.wait_until_available.is_some(),
+            secret_key: tmp.secret_key.is_some(),
+            password: tmp.password || tmp.password_from_stdin || tmp.no_password,
+            tls_ca_file: tmp.tls_ca_file.is_some(),
+            tls_security: tmp.tls_security.is_some() || tmp.tls_verify_hostname || tmp.no_tls_verify_hostname,
+        };
+        task::block_on(bld.read_dsn(dsn, skip)).context("invalid DSN")?;
         bld.read_extra_env_vars()?;
     } else if let Some(instance) = &tmp.instance {
         match instance {
             InstanceName::Cloud { org_slug, name } => {
                 let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
                 client.ensure_authenticated()?;
-                bld.host_port(Some(client.get_cloud_host(org_slug, name)), None);
+                bld.host_port(Some(client.get_cloud_host(org_slug, name)), None)?;
                 bld.secret_key(client.access_token.unwrap());
             }
             InstanceName::Local(instance) => {
@@ -702,10 +719,10 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.admin()?;
     }
     if let Some(user) = &tmp.user {
-        bld.user(user);
+        bld.user(user)?;
     }
     if let Some(database) = &tmp.database {
-        bld.database(database);
+        bld.database(database)?;
     }
     if let Some(val) = tmp.wait_until_available {
         bld.wait_until_available(val);

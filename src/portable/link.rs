@@ -326,25 +326,25 @@ fn prompt_conn_params(
                 .parse()?
         }
         if options.host.is_none() || options.port.is_none() {
-            builder.host_port(Some(host), Some(port));
+            builder.host_port(Some(host), Some(port))?;
         }
         if let Some(user) = &options.user {
-            builder.user(user);
+            builder.user(user)?;
         } else {
             builder.user(
                 question::String::new("Specify the database user")
                     .default(builder.get_user())
                     .ask()?
-            );
+            )?;
         }
         if let Some(database) = &options.database {
-            builder.database(database);
+            builder.database(database)?;
         } else {
             builder.database(
                 question::String::new("Specify the database name")
                     .default(builder.get_database())
                     .ask()?
-            );
+            )?;
         }
     }
     Ok(())

@@ -27,6 +27,8 @@ jobs:
         edgedb-version: ["nightly"]
     steps:
       - uses: actions/checkout@master
+        with:
+          submodules: true
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -55,6 +57,8 @@ jobs:
         edgedb-version: ["nightly"]
     steps:
       - uses: actions/checkout@master
+        with:
+          submodules: true
 
       - name: Install musl-tools
         run: "sudo apt-get install musl-tools"
@@ -96,6 +100,8 @@ jobs:
       fail-fast: false
     steps:
       - uses: actions/checkout@master
+        with:
+          submodules: true
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -117,10 +123,12 @@ jobs:
     timeout-minutes: 45
     strategy:
       matrix:
-        test: [portable_smoke, portable_project, portable_project_dir]
+        test: [portable_smoke, portable_project, portable_project_dir, portable_shared]
       fail-fast: false
     steps:
       - uses: actions/checkout@master
+        with:
+          submodules: true
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -134,6 +142,8 @@ jobs:
 
       - run: |
           sudo cp target/debug/edgedb /usr/local/bin/
+          mkdir home_edgedb
+          sudo mv home_edgedb /Users/edgedb
 
       - uses: actions-rs/cargo@v1
         with:
@@ -146,13 +156,15 @@ jobs:
     timeout-minutes: 45
     strategy:
       matrix:
-        test: [portable_smoke, portable_project, portable_project_dir]
+        test: [portable_smoke, portable_project, portable_project_dir, portable_shared]
       fail-fast: false
     env:
       _EDGEDB_WSL_DISTRO: Debian
       _EDGEDB_WSL_LINUX_BINARY: ./linux-binary/edgedb
     steps:
       - uses: actions/checkout@master
+        with:
+          submodules: true
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -197,6 +209,8 @@ jobs:
         os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@master
+        with:
+          submodules: true
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
