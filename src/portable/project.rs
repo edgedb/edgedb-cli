@@ -387,7 +387,12 @@ fn link(
 fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     -> anyhow::Result<ProjectInfo>
 {
-    write_stash_dir(&stash_dir, &inst.project_dir, &inst.name)?;
+    let profile = if let InstanceKind::Cloud { cloud_client, .. } = inst.instance {
+        Some(cloud_client.profile.as_deref().unwrap_or("default"))
+    } else {
+        None
+    };
+    write_stash_dir(&stash_dir, &inst.project_dir, &inst.name, profile)?;
 
     if !options.no_migrations {
         task::block_on(migrate(inst, !options.non_interactive))?;
@@ -656,7 +661,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
         InstanceKind::Portable(info)
     };
 
-    write_stash_dir(stash_dir, project_dir, &name)?;
+    write_stash_dir(stash_dir, project_dir, &name, None)?;
 
     let handle = Handle {
         name: name.into(),
@@ -695,7 +700,8 @@ fn do_cloud_init(
         crate::cloud::ops::create_cloud_instance(client, &request)
     )?;
     let full_name = format!("{}/{}", org, name);
-    write_stash_dir(stash_dir, project_dir, &full_name)?;
+    let profile = client.profile.as_deref().or_else(|| Some("default"));
+    write_stash_dir(stash_dir, project_dir, &full_name, profile)?;
     if !options.no_migrations {
         let handle = Handle {
             name: full_name.clone(),
@@ -974,13 +980,19 @@ async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
 }
 
 #[context("error writing project dir {:?}", dir)]
-fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
-    -> anyhow::Result<()>
-{
+fn write_stash_dir(
+    dir: &Path,
+    project_dir: &Path,
+    instance_name: &str,
+    cloud_profile: Option<&str>,
+) -> anyhow::Result<()> {
     let tmp = tmp_file_path(&dir);
     fs::create_dir_all(&tmp)?;
     fs::write(&tmp.join("project-path"), path_bytes(project_dir)?)?;
     fs::write(&tmp.join("instance-name"), instance_name.as_bytes())?;
+    if let Some(profile) = cloud_profile {
+        fs::write(&tmp.join("cloud-profile"), profile.as_bytes())?;
+    }
 
     let lnk = tmp.join("project-link");
     symlink_dir(project_dir, &lnk)

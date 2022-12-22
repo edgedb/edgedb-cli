@@ -664,6 +664,14 @@ impl Builder {
             if instance.contains("/") {
                 self.secret_key = get_env("EDGEDB_SECRET_KEY")?;
                 self.cloud_profile = get_env("EDGEDB_CLOUD_PROFILE")?;
+                if self.secret_key.is_none() && self.cloud_profile.is_none() {
+                    let profile =
+                        fs::read_to_string(stash_path.join("cloud-profile")).await
+                            .map_err(|e| ClientError::with_source(e).context(
+                                format!("error reading project settings {:?}", dir)
+                            ))?;
+                    self.cloud_profile = Some(profile);
+                }
             }
             self.read_instance(instance.trim()).await?;
 

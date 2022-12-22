@@ -88,6 +88,7 @@ fn mock_project(
     project_dir: &str,
     instance_name: &str,
     project_path: &str,
+    cloud_profile: Option<&str>,
 ) -> Vec<MockFile> {
     let path = PathBuf::from(project_path);
     let canon = fs::canonicalize(&path).unwrap();
@@ -123,7 +124,19 @@ fn mock_project(
         symlink(&path, &link_file).unwrap();
         is_dir = false;
     }
-    vec![project_path_file, instance_name_file, MockFile { path: link_file, is_dir }]
+    let mut rv = vec![
+        project_path_file,
+        instance_name_file,
+        MockFile { path: link_file, is_dir },
+    ];
+    if let Some(profile) = cloud_profile {
+        let cloud_profile_file = mock_file(
+            project_dir.join("cloud-profile").to_str().unwrap(),
+            profile,
+        );
+        rv.push(cloud_profile_file);
+    }
+    rv
 }
 
 fn ensure_dir(path: &Path) {
