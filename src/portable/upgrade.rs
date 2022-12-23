@@ -63,7 +63,7 @@ pub fn print_project_upgrade_command(version: &Query,
 fn check_project(name: &str, force: bool, ver_query: &Query)
     -> anyhow::Result<()>
 {
-    let project_dirs = project::find_project_dirs(&name)?;
+    let project_dirs = project::find_project_dirs_by_instance(&name)?;
     if project_dirs.is_empty() {
         return Ok(())
     }

@@ -30,7 +30,7 @@ pub fn with_projects(name: &str, force: bool,
                      f: impl FnOnce() -> anyhow::Result<()>)
     -> anyhow::Result<()>
 {
-    let project_dirs = project::find_project_dirs(&name)?;
+    let project_dirs = project::find_project_dirs_by_instance(&name)?;
     if !force && !project_dirs.is_empty() {
         warn(&name, &project_dirs);
         return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
