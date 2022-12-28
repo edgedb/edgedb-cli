@@ -30,7 +30,7 @@ fn main() {
         ("tlsCA", "--tls-ca-file"),
         ("tlsCAFile", "--tls-ca-file"),
         ("waitUntilAvailable", "--wait-until-available"),
-        ("secret_key", "--secret-key"),
+        ("secretKey", "--secret-key"),
     ]);
     let error_mapping = HashMap::from([
         ("invalid_dsn", "invalid DSN"),
@@ -58,7 +58,9 @@ fn main() {
         ("multiple_compound_env", "multiple compound env vars found"),
         ("exclusive_options", "provided more than once"),
         ("credentials_file_not_found", "credentials file.*could not read"),
-        ("project_not_initialised", "error reading project settings")
+        ("project_not_initialised", "error reading project settings"),
+        ("secret_key_not_found", "Run `edgedb cloud login`"),
+        ("invalid_secret_key", "Illegal JWT token"),
     ]);
 
     let out_dir = env::var_os("OUT_DIR").unwrap();
@@ -282,6 +284,7 @@ fn connection_{i}() {{
                     );
                 } else if let Some(d) = value.as_object() {
                     let instance_name = d.get("instance-name").unwrap().as_str().unwrap();
+                    let cloud_profile = d.get("cloud-profile").map(|n| n.as_str().unwrap());
                     let mut project_path =
                         d.get("project-path").unwrap().as_str().unwrap().to_string();
                     if matches!(platform, Some(Platform::Windows)) {
@@ -290,7 +293,7 @@ fn connection_{i}() {{
                     write!(
                         testcase,
                         r#"
-    let _file_{i} = mock_project({path:?}, {instance_name:?}, {project_path:?});
+    let _file_{i} = mock_project({path:?}, {instance_name:?}, {project_path:?}, {cloud_profile:?});
     "#,
                     );
                 }

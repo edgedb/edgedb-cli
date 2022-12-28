@@ -27,7 +27,7 @@ pub struct HttpError(surf::Error);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudConfig {
-    pub access_token: Option<String>,
+    pub secret_key: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -40,28 +40,42 @@ pub struct CloudClient {
     client: surf::Client,
     pub is_logged_in: bool,
     pub api_endpoint: String,
-    options_access_token: Option<String>,
+    options_secret_key: Option<String>,
+    options_profile: Option<String>,
     options_api_endpoint: Option<String>,
-    dns_zone: String,
-    pub access_token: Option<String>,
+    pub secret_key: Option<String>,
+    pub profile: Option<String>,
 }
 
 impl CloudClient {
     pub fn new(options: &CloudOptions) -> anyhow::Result<Self> {
-        Self::new_inner(&options.cloud_access_token, &options.cloud_api_endpoint)
+        Self::new_inner(
+            &options.cloud_secret_key,
+            &options.cloud_profile,
+            &options.cloud_api_endpoint,
+        )
     }
 
     fn new_inner(
-        options_access_token: &Option<String>, options_api_endpoint: &Option<String>
+        options_secret_key: &Option<String>,
+        options_profile: &Option<String>,
+        options_api_endpoint: &Option<String>,
     ) -> anyhow::Result<Self> {
-        let access_token = if let Some(access_token) = options_access_token {
-            Some(access_token.into())
+        let profile = options_profile
+            .clone()
+            .or_else(|| env::var("EDGEDB_CLOUD_PROFILE").ok());
+        let secret_key = if let Some(secret_key) = options_secret_key {
+            Some(secret_key.into())
+        } else if let Ok(secret_key) = env::var("EDGEDB_CLOUD_SECRET_KEY") {
+            Some(secret_key)
+        } else if let Ok(secret_key) = env::var("EDGEDB_SECRET_KEY") {
+            Some(secret_key)
         } else {
-            match fs::read_to_string(cloud_config_file()?) {
+            match fs::read_to_string(cloud_config_file(&profile)?) {
                 Ok(data) if data.is_empty() => None,
                 Ok(data) => {
                     let config: CloudConfig = serde_json::from_str(&data)?;
-                    config.access_token
+                    config.secret_key
                 }
                 Err(e) if e.kind() == io::ErrorKind::NotFound => None,
                 Err(e) => {
@@ -73,8 +87,8 @@ impl CloudClient {
             .set_timeout(Some(Duration::from_secs(EDGEDB_CLOUD_API_TIMEOUT)));
         let is_logged_in;
         let dns_zone;
-        if let Some(access_token) = access_token.clone() {
-            let claims_b64 = access_token
+        if let Some(secret_key) = secret_key.clone() {
+            let claims_b64 = secret_key
                 .splitn(3, ".")
                 .skip(1)
                 .next()
@@ -83,7 +97,7 @@ impl CloudClient {
             let claims: Claims = serde_json::from_slice(&claims)?;
             dns_zone = claims.issuer;
 
-            let auth = Authorization::new(AuthenticationScheme::Bearer, access_token);
+            let auth = Authorization::new(AuthenticationScheme::Bearer, secret_key);
             config = config
                 .add_header(auth.name(), auth.value())
                 .map_err(HttpError)?;
@@ -103,16 +117,18 @@ impl CloudClient {
             client: config.try_into()?,
             is_logged_in,
             api_endpoint,
-            options_access_token: options_access_token.clone(),
+            options_secret_key: options_secret_key.clone(),
+            options_profile: options_profile.clone(),
             options_api_endpoint: options_api_endpoint.clone(),
-            dns_zone,
-            access_token,
+            secret_key,
+            profile,
         })
     }
 
     pub fn reinit(&mut self) -> anyhow::Result<()> {
         *self = Self::new_inner(
-            &self.options_access_token,
+            &self.options_secret_key,
+            &self.options_profile,
             &self.options_api_endpoint,
         )?;
         Ok(())
@@ -177,15 +193,12 @@ impl CloudClient {
     ) -> anyhow::Result<T> {
         self.request(self.client.delete(uri)).await
     }
-
-    pub fn get_cloud_host(&self, org: &str, inst: &str) -> String {
-        let msg = format!("{}/{}", org, inst);
-        let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
-        let dns_bucket = format!("c-{:x}", checksum % 9900);
-        format!("{}.{}.{}.i.{}", inst, org, dns_bucket, self.dns_zone)
-    }
 }
 
-pub fn cloud_config_file() -> anyhow::Result<PathBuf> {
-    Ok(config_dir()?.join("cloud.json"))
+pub fn cloud_config_file(profile: &Option<String>) -> anyhow::Result<PathBuf> {
+    Ok(cloud_config_dir()?.join(format!("{}.json", profile.as_deref().unwrap_or("default"))))
+}
+
+pub fn cloud_config_dir() -> anyhow::Result<PathBuf> {
+    Ok(config_dir()?.join("cloud-credentials"))
 }

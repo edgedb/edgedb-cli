@@ -63,7 +63,7 @@ pub fn print_project_upgrade_command(version: &Query,
 fn check_project(name: &str, force: bool, ver_query: &Query)
     -> anyhow::Result<()>
 {
-    let project_dirs = project::find_project_dirs(&name)?;
+    let project_dirs = project::find_project_dirs_by_instance(&name)?;
     if project_dirs.is_empty() {
         return Ok(())
     }
@@ -80,7 +80,7 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
         eprintln!("To continue with the upgrade, run:");
     }
     for pd in project_dirs {
-        let pd = project::read_project_real_path(&pd)?;
+        let pd = project::read_project_path(&pd)?;
         print_project_upgrade_command(&ver_query, &current_project, &pd);
     }
     if !force {

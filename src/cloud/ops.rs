@@ -30,14 +30,11 @@ pub struct CloudInstance {
 }
 
 impl CloudInstance {
-    pub fn as_credentials(&self, client: &CloudClient) -> anyhow::Result<Credentials> {
+    pub async fn as_credentials(&self, client: &CloudClient) -> anyhow::Result<Credentials> {
         let mut builder = Builder::uninitialized();
         builder
-            .host_port(
-                Some(client.get_cloud_host(&self.org_slug, &self.name)),
-                None,
-            )?
-            .secret_key(client.access_token.clone().unwrap());
+            .secret_key(client.secret_key.clone().unwrap())
+            .read_instance(&format!("{}/{}", self.org_slug, self.name)).await?;
         let mut creds = builder.as_credentials()?;
         creds.tls_ca = self.tls_ca.clone();
         Ok(creds)
@@ -49,7 +46,7 @@ impl RemoteStatus {
         cloud_instance: &CloudInstance,
         client: &CloudClient
     ) -> anyhow::Result<Self> {
-        let credentials = cloud_instance.as_credentials(client)?;
+        let credentials = cloud_instance.as_credentials(client).await?;
         let (version, connection) = try_connect(&credentials).await;
         Ok(Self {
             name: format!("{}/{}", cloud_instance.org_slug, cloud_instance.name),

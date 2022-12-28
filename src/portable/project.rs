@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::Context;
@@ -166,6 +167,7 @@ pub struct Info {
 
     #[clap(long, possible_values=&[
         "instance-name",
+        "cloud-profile",
     ][..])]
     /// Get specific value:
     ///
@@ -248,6 +250,8 @@ pub enum InstanceKind<'a> {
 #[serde(rename_all="kebab-case")]
 struct JsonInfo<'a> {
     instance_name: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cloud_profile: Option<&'a str>,
     root: &'a Path,
 }
 
@@ -387,7 +391,12 @@ fn link(
 fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     -> anyhow::Result<ProjectInfo>
 {
-    write_stash_dir(&stash_dir, &inst.project_dir, &inst.name)?;
+    let profile = if let InstanceKind::Cloud { cloud_client, .. } = inst.instance {
+        Some(cloud_client.profile.as_deref().unwrap_or("default"))
+    } else {
+        None
+    };
+    write_stash_dir(&stash_dir, &inst.project_dir, &inst.name, profile)?;
 
     if !options.no_migrations {
         task::block_on(migrate(inst, !options.non_interactive))?;
@@ -656,7 +665,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
         InstanceKind::Portable(info)
     };
 
-    write_stash_dir(stash_dir, project_dir, &name)?;
+    write_stash_dir(stash_dir, project_dir, &name, None)?;
 
     let handle = Handle {
         name: name.into(),
@@ -695,7 +704,8 @@ fn do_cloud_init(
         crate::cloud::ops::create_cloud_instance(client, &request)
     )?;
     let full_name = format!("{}/{}", org, name);
-    write_stash_dir(stash_dir, project_dir, &full_name)?;
+    let profile = client.profile.as_deref().or_else(|| Some("default"));
+    write_stash_dir(stash_dir, project_dir, &full_name, profile)?;
     if !options.no_migrations {
         let handle = Handle {
             name: full_name.clone(),
@@ -974,13 +984,19 @@ async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
 }
 
 #[context("error writing project dir {:?}", dir)]
-fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
-    -> anyhow::Result<()>
-{
+fn write_stash_dir(
+    dir: &Path,
+    project_dir: &Path,
+    instance_name: &str,
+    cloud_profile: Option<&str>,
+) -> anyhow::Result<()> {
     let tmp = tmp_file_path(&dir);
     fs::create_dir_all(&tmp)?;
     fs::write(&tmp.join("project-path"), path_bytes(project_dir)?)?;
     fs::write(&tmp.join("instance-name"), instance_name.as_bytes())?;
+    if let Some(profile) = cloud_profile {
+        fs::write(&tmp.join("cloud-profile"), profile.as_bytes())?;
+    }
 
     let lnk = tmp.join("project-link");
     symlink_dir(project_dir, &lnk)
@@ -1044,7 +1060,7 @@ impl Handle<'_> {
                 .with_context(|| {
                     format!("Instance {}/{} doesn't exist any more", org_slug, name)
                 })?;
-            builder.credentials(&inst.as_credentials(cloud_client)?)?;
+            builder.credentials(&inst.as_credentials(cloud_client).await?)?;
         } else {
             builder.read_instance(&self.name).await?;
         }
@@ -1288,7 +1304,7 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
                 }
             }
             let inst_name = inst.to_string();
-            let mut project_dirs = find_project_dirs(&inst_name)?;
+            let mut project_dirs = find_project_dirs_by_instance(&inst_name)?;
             if project_dirs.len() > 1 {
                 project_dirs.iter().position(|d| d == &stash_path)
                     .map(|pos| project_dirs.remove(pos));
@@ -1365,6 +1381,11 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         return Err(ExitCode::new(1).into());
     }
     let instance_name = fs::read_to_string(stash_dir.join("instance-name"))?;
+    let cloud_profile_file = stash_dir.join("cloud-profile");
+    let cloud_profile = cloud_profile_file
+        .exists()
+        .then(|| fs::read_to_string(cloud_profile_file))
+        .transpose()?;
 
     let item = options.get.as_deref()
         .or(options.instance_name.then(|| "instance-name"));
@@ -1377,29 +1398,51 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
                     println!("{}", instance_name);
                 }
             }
+            "cloud-profile" => {
+                if options.json {
+                    println!("{}", serde_json::to_string(&cloud_profile)?);
+                } else if let Some(profile) = cloud_profile {
+                    println!("{}", profile);
+                }
+            }
             _ => unreachable!(),
         }
     } else if options.json {
         println!("{}", serde_json::to_string_pretty(&JsonInfo {
             instance_name: &instance_name,
+            cloud_profile: cloud_profile.as_deref(),
             root: &root,
         })?);
     } else {
-        table::settings(&[
-            ("Instance name", &instance_name),
-            ("Project root", &root.display().to_string()),
-        ]);
+        let root = root.display().to_string();
+        let mut rows = vec![
+            ("Instance name", instance_name.as_str()),
+            ("Project root", root.as_str()),
+        ];
+        if let Some(profile) = cloud_profile.as_deref() {
+            rows.push(("Cloud profile", profile));
+        }
+        table::settings(rows.as_slice());
     }
     Ok(())
 }
 
+pub fn find_project_dirs_by_instance(name: &str) -> anyhow::Result<Vec<PathBuf>> {
+    find_project_stash_dirs("instance-name", |val| name == val, true)
+        .map(|projects| projects.into_values().flatten().collect())
+}
+
 #[context("could not read project dir {:?}", stash_base())]
-pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
-    let mut res = Vec::new();
+pub fn find_project_stash_dirs(
+    get: &str,
+    f: impl Fn(&str) -> bool,
+    verbose: bool,
+) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
+    let mut res = HashMap::new();
     let dir = match fs::read_dir(stash_base()?) {
         Ok(dir) => dir,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            return Ok(Vec::new());
+            return Ok(res);
         }
         Err(e) => return Err(e)?,
     };
@@ -1414,16 +1457,18 @@ pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
             // skip hidden files, most likely .DS_Store (see #689)
             continue;
         }
-        let path = sub_dir.join("instance-name");
-        let inst = match fs::read_to_string(&path) {
-            Ok(inst) => inst,
+        let path = sub_dir.join(get);
+        let value = match fs::read_to_string(&path) {
+            Ok(value) => value.trim().to_string(),
             Err(e) => {
-                log::warn!("Error reading {:?}: {}", path, e);
+                if verbose {
+                    log::warn!("Error reading {:?}: {}", path, e);
+                }
                 continue;
             }
         };
-        if name == inst.trim() {
-            res.push(entry.path());
+        if f(&value) {
+            res.entry(value).or_default().push(entry.path());
         }
     }
     Ok(res)
@@ -1436,7 +1481,7 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
         if project_dirs.len() > 1 { "s" } else { "" },
     ));
     for dir in project_dirs {
-        let dest = match read_project_real_path(dir) {
+        let dest = match read_project_path(dir) {
             Ok(path) => path,
             Err(e) => {
                 print::error(e);
@@ -1448,7 +1493,7 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
 }
 
 #[context("cannot read {:?}", project_dir)]
-pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
+pub fn read_project_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     let bytes = fs::read(&project_dir.join("project-path"))?;
     Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
@@ -1561,8 +1606,8 @@ fn print_other_project_warning(name: &str, project_path: &Path,
     -> anyhow::Result<()>
 {
     let mut project_dirs = Vec::new();
-    for pd in find_project_dirs(name)? {
-        let real_pd = match read_project_real_path(&pd) {
+    for pd in find_project_dirs_by_instance(name)? {
+        let real_pd = match read_project_path(&pd) {
             Ok(path) => path,
             Err(e) => {
                 print::error(e);
