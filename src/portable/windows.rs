@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
 
 use anyhow::Context;
-use async_std::task;
 use fn_error_context::context;
 use libflate::gzip;
 use once_cell::sync::{Lazy, OnceCell};
@@ -604,7 +603,7 @@ pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
         .arg("-I").arg(instance);
     let instance = String::from(instance);
     pro.stop_process(move || {
-        let mut cmd = async_process::Command::new("wsl");
+        let mut cmd = tokio::process::Command::new("wsl");
         cmd.arg("--user").arg("edgedb");
         cmd.arg("--distribution").arg(&wsl.distribution);
         cmd.arg("_EDGEDB_FROM_WINDOWS=1");
@@ -830,11 +829,8 @@ fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>
     Ok(local)
 }
 
-pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
-    task::block_on(list_async(options, opts))
-}
-
-async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+#[tokio::main]
+pub async fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
     let errors = Collector::new();
     let local = match list_local(options) {
         Ok(local) => local,

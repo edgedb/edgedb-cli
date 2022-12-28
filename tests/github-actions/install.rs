@@ -2,7 +2,6 @@ use std::fs;
 use std::io::Write;
 
 use assert_cmd::{Command, assert::Assert};
-use async_std::prelude::FutureExt;
 use tokio::sync::oneshot;
 use warp::Filter;
 use warp::filters::path::path;
@@ -58,12 +57,21 @@ fn github_action_install() -> anyhow::Result<()> {
             .and(warp::filters::path::end())
             .and(warp::fs::file(env!("CARGO_BIN_EXE_edgedb"))));
 
-    let server = warp::serve(routes)
-        .tls()
-        .cert(certs.nginx_cert)
-        .key(certs.nginx_key)
-        .run(([127, 0, 0, 1], 8443))
-        .race(async move { shut_rx.await.ok(); });
+    let certs_serv = certs.clone();
+    let server = async {
+        tokio::select! {
+            _ = warp::serve(routes)
+                .tls()
+                .cert(certs_serv.nginx_cert)
+                .key(certs_serv.nginx_key)
+                .run(([127, 0, 0, 1], 8443))
+            => {},
+            res = shut_rx => {
+                res.ok();
+            }
+        }
+    };
+
 
     let http = tokio.spawn(server);
     std::thread::sleep(std::time::Duration::new(10, 0));

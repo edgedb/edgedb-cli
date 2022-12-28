@@ -1,6 +1,6 @@
 use edgeql_parser::helpers::quote_name;
-use edgedb_client::client::Connection;
-use edgedb_client::server_params::PostgresAddress;
+use crate::connect::Connection;
+use edgedb_tokio::server_params::PostgresAddress;
 
 use crate::commands::{self, Options};
 use crate::commands::parser::{Common, DatabaseCmd, MigrationCmd};
@@ -48,7 +48,7 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             }
         }
         Pgaddr => {
-            match cli.get_param::<PostgresAddress>() {
+            match cli.get_server_param::<PostgresAddress>() {
                 Some(addr) => {
                     println!("{}", serde_json::to_string_pretty(addr)?);
                 }
@@ -82,7 +82,8 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             DatabaseCmd::Create(c) => {
                 print::completion(&cli.execute(
                     &format!("CREATE DATABASE {}",
-                             quote_name(&c.database_name))
+                             quote_name(&c.database_name)),
+                    &(),
                 ).await?);
             }
         }
@@ -100,7 +101,7 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
                 migrations::status(cli, &options, params).await?;
             }
             MigrationCmd::Log(params) => {
-                migrations::log(cli, &options, params).await?;
+                migrations::log_async(cli, &options, params).await?;
             }
             MigrationCmd::Edit(params) => {
                 migrations::edit(cli, &options, params).await?;

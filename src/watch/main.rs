@@ -1,11 +1,10 @@
 use std::time::{Duration, Instant};
 
-use async_std::future::timeout;
-use async_std::task;
-use edgedb_client::{get_project_dir};
+use edgedb_tokio::{get_project_dir};
 use indicatif::ProgressBar;
 use notify::{RecursiveMode, Watcher};
 use tokio::sync::watch;
+use tokio::time::timeout;
 
 use crate::options::Options;
 use crate::connect::Connector;
@@ -25,19 +24,22 @@ struct WatchContext {
 pub fn watch(options: &Options, _watch: &WatchCommand)
     -> anyhow::Result<()>
 {
-    let project_dir = match task::block_on(get_project_dir(None, true))? {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .thread_name("watch")
+        .enable_all()
+        .build()?;
+    let project_dir = match runtime.block_on(get_project_dir(None, true))? {
         Some(proj) => proj,
         None => anyhow::bail!("The `edgedb watch` command currently works \
              on projects only. Run `edgedb project init` first."),
     };
-    //let mut cli = options.conn_params.connect().await?;
     let mut ctx = WatchContext {
-        connector: options.create_connector()?,
+        connector: options.block_on_create_connector()?,
         migration: migrations::Context::for_watch(&project_dir)?,
         last_error: false,
     };
     log::info!("Initialized in a project dir: {:?}", project_dir);
-    task::block_on(ctx.do_update())?;
+    runtime.block_on(ctx.do_update())?;
     let (tx, rx) = watch::channel(());
     let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
         res.map_err(|e| {
@@ -48,7 +50,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand)
     watch.watch(&project_dir.join("edgedb.toml"), RecursiveMode::NonRecursive)?;
     watch.watch(&project_dir.join("dbschema"), RecursiveMode::Recursive)?;
     eprintln!("Initialized. Monitoring {:?}.", project_dir);
-    task::block_on(watch_loop(rx, ctx))?;
+    runtime.block_on(watch_loop(rx, ctx))?;
     Ok(())
 }
 

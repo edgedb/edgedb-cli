@@ -2,7 +2,6 @@ use std::fs;
 use std::str::FromStr;
 
 use anyhow::Context;
-use async_std::task;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
@@ -24,9 +23,10 @@ use crate::print::{self, echo, err_marker, Highlight};
 use crate::process;
 use crate::question;
 
-use edgedb_client::credentials::Credentials;
+use edgedb_tokio::credentials::Credentials;
 
 
+#[tokio::main]
 async fn ask_name(
     cloud_client: &mut cloud::client::CloudClient
 ) -> anyhow::Result<InstanceName> {
@@ -86,7 +86,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
                              in non-interactive mode");
         return Err(ExitCode::new(2).into());
     } else {
-        task::block_on(ask_name(&mut client))?
+        ask_name(&mut client)?
     };
 
     let name = match inst_name.clone() {
@@ -100,7 +100,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
                 // default_database: Some(cmd.default_database.clone()),
                 // default_user: Some(cmd.default_user.clone()),
             };
-            task::block_on(cloud::ops::create_cloud_instance(&client, &instance))?;
+            cloud::ops::create_cloud_instance(&client, &instance)?;
             echo!(
                 "EdgeDB Cloud instance",
                 inst_name,
@@ -244,7 +244,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     creds.database = Some(database.into());
     creds.password = Some(password.into());
     creds.tls_ca = Some(cert);
-    task::block_on(credentials::write(&paths.credentials, &creds))?;
+    credentials::write(&paths.credentials, &creds)?;
 
     Ok(())
 }

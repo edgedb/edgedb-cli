@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use async_std::task;
+use tokio::time::sleep;
 
 use crate::cloud::client::{cloud_config_file, CloudClient, CloudConfig};
 use crate::cloud::options;
@@ -18,6 +18,7 @@ struct UserSession {
     auth_url: String,
 }
 
+#[tokio::main]
 pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
     do_login(&CloudClient::new(options)?).await
 }
@@ -62,7 +63,7 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
             )),
             _ => {}
         }
-        task::sleep(AUTHENTICATION_POLL_INTERVAL).await;
+        sleep(AUTHENTICATION_POLL_INTERVAL).await;
     }
     anyhow::bail!(
         "Authentication is expected to be done in {:?}.",
@@ -70,6 +71,7 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
     )
 }
 
+#[tokio::main]
 pub async fn logout(_c: &options::Logout) -> anyhow::Result<()> {
     write_json(
         &cloud_config_file()?,

@@ -3,14 +3,15 @@ use std::collections::{BTreeSet, BTreeMap};
 use std::str::FromStr;
 
 use anyhow;
-use async_std::stream;
+use futures_lite::stream;
 use clap::{self, FromArgMatches};
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
 use regex::Regex;
 
-use edgedb_client::errors::{Error, display_error_verbose};
-use edgedb_client::model::Duration;
+use edgedb_errors::Error;
+use edgedb_errors::display::display_error_verbose;
+use edgedb_protocol::model::Duration;
 
 use crate::commands::Options;
 use crate::repl;
@@ -653,28 +654,24 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             Ok(Skip)
         }
         DebugState(StateParam { base }) => {
-            let (desc, data) = if *base {
-                (prompt.edgeql_state_desc.clone(), prompt.edgeql_state.clone())
+            let (desc_id, value) = if *base {
+                prompt.get_state_as_value()
             } else {
                 prompt.connection.as_ref()
-                    .map(|c| (c.get_state_desc(), c.get_state()))
-                    .unwrap_or(
-                        (prompt.edgeql_state_desc.clone(),
-                         prompt.edgeql_state.clone())
-                    )
+                    .map(|c| c.get_state_as_value())
+                    .unwrap_or_else(|| prompt.get_state_as_value())
             };
-            let desc = desc.decode()?;
-            let codec = desc.build_codec()?;
-            let value = codec.decode(&data.data)?;
-            println!("Descriptor id: {}", desc.id());
+            println!("Descriptor id: {}", desc_id);
             print::native_to_stdout(
-                stream::from_iter([Ok::<_, Error>(value)]),
+                stream::iter([Ok::<_, Error>(value)]),
                 &prompt.print,
             ).await?;
             println!();
             Ok(Skip)
         }
         DebugStateDesc(StateParam { base }) => {
+            todo!();
+            /*
             let desc = if *base {
                 prompt.edgeql_state_desc.clone()
             } else {
@@ -687,6 +684,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             eprintln!("Descriptor: {:#?}", typedesc.descriptors());
             eprintln!("Codec: {:#?}", typedesc.build_codec()?);
             Ok(Skip)
+            */
         }
         History => {
             prompt.show_history().await?;
@@ -695,7 +693,6 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         Edit(c) => {
             match prompt.spawn_editor(c.entry).await? {
                 | prompt::Input::Text(text) => Ok(Input(text)),
-                | prompt::Input::Value(_) => unreachable!(),
                 | prompt::Input::Interrupt
                 | prompt::Input::Eof => Ok(Skip),
             }

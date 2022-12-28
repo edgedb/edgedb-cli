@@ -76,6 +76,9 @@ pub struct Connection {
     pub(crate) server_version: Option<String>,
 }
 
+trait AssertConn: Send + 'static {}
+impl AssertConn for Connection {}
+
 pub(crate) struct PartialState<'a> {
     pub(crate) mode: &'a mut Mode,
     pub(crate) state_desc: &'a mut RawTypedesc,

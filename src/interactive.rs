@@ -4,16 +4,12 @@ use std::str;
 use std::time::Instant;
 
 use anyhow::{self, Context};
-use async_std::task;
-use async_std::prelude::{StreamExt, FutureExt};
-use async_std::io::stdout;
-use async_std::io::prelude::WriteExt;
-use async_std::channel::{bounded as channel};
+use tokio::sync::mpsc::channel;
 use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
 
-use edgedb_client::errors::{ErrorKind, ClientEncodingError};
-use edgedb_client::errors::{Error as EdgedbError, StateMismatchError};
+use edgedb_errors::{ErrorKind, ClientEncodingError};
+use edgedb_errors::{Error as EdgedbError, StateMismatchError};
 use edgedb_protocol::client_message::ClientMessage;
 use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
 use edgedb_protocol::client_message::{Execute0, Execute1};
@@ -100,8 +96,7 @@ impl<'a> Iterator for ToDo<'a> {
 
 pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
     let (control_wr, control_rd) = channel(1);
-    let (repl_wr, repl_rd) = channel(1);
-    let conn = options.create_connector()?;
+    let conn = options.block_on_create_connector()?;
     let limit = cfg.shell.limit.unwrap_or(100);
     let implicit_limit = if limit != 0 { Some(limit) } else { None };
     let idle_tx_timeout = cfg.shell.idle_transaction_timeout
@@ -117,7 +112,6 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
     let state = repl::State {
         prompt: repl::PromptRpc {
             control: control_wr,
-            data: repl_rd,
         },
         print,
         verbose_errors: cfg.shell.verbose_errors.unwrap_or(false),
@@ -139,9 +133,12 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         edgeql_state_desc: RawTypedesc::uninitialized(),
         edgeql_state: State::empty(),
     };
-    let handle = task::spawn(_main(options, state, cfg));
-    prompt::main(repl_wr, control_rd)?;
-    task::block_on(handle)?;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let handle = runtime.spawn(_main(options, state, cfg));
+    prompt::main(control_rd)?;
+    runtime.block_on(handle)??;
     Ok(())
 }
 
@@ -150,9 +147,9 @@ pub async fn _main(options: Options, mut state: repl::State, cfg: Config)
 {
     let mut conn = state.conn_params.connect().await?;
     let fetched_version = conn.get_version().await?;
-    echo!("EdgeDB".light_gray(), fetched_version.light_gray(),
+    echo!("EdgeDB".light_gray(), fetched_version.to_string().light_gray(),
         format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade());
-    state.last_version = Some(fetched_version.to_owned());
+    state.last_version = Some(fetched_version.clone());
     if let Some(config_path) = &cfg.file_name {
         echo!(
             format_args!("Applied {} configuration file",
@@ -268,8 +265,9 @@ async fn execute_query(options: &Options, state: &mut repl::State,
     statement: &str)
     -> anyhow::Result<()>
 {
-    let cli = state.connection.as_ref().expect("connection established");
-    if cli.protocol().is_1() {
+    let is_1 = state.connection.as_ref().expect("connection established")
+        .protocol().is_1();
+    if is_1 {
         execute_query1(options, state, statement).await
     } else {
         execute_query0(options, state, statement).await
@@ -280,6 +278,8 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
     statement: &str)
     -> anyhow::Result<()>
 {
+    todo!();
+    /*
     use crate::repl::OutputFormat::*;
     use crate::repl::PrintStats::*;
 
@@ -359,6 +359,7 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
     }
 
     let first_part = start.elapsed();
+    // TODO(tailhook) do ping_while
     let input = match input_variables(&indesc, &mut state.prompt).await {
         Ok(input) => input,
         Err(e) => {
@@ -559,12 +560,15 @@ async fn execute_query1(options: &Options, mut state: &mut repl::State,
     }
     state.last_error = None;
     return Ok(());
+    */
 }
 
 async fn execute_query0(options: &Options, mut state: &mut repl::State,
     statement: &str)
     -> anyhow::Result<()>
 {
+    todo!();
+    /*
     use crate::repl::OutputFormat::*;
     use crate::repl::PrintStats::*;
     let start = Instant::now();
@@ -863,6 +867,7 @@ async fn execute_query0(options: &Options, mut state: &mut repl::State,
     }
     state.last_error = None;
     return Ok(());
+    */
 }
 
 async fn _interactive_main(options: &Options, state: &mut repl::State)
@@ -870,46 +875,50 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
 {
     let ctrlc = Interrupt::ctrl_c();
     loop {
-        state.ensure_connection()
-            .race(ctrlc.wait_result())
-            .await?;
+        tokio::select!(
+            _ = state.ensure_connection() => {}
+            res = ctrlc.wait_result() => res?,
+        );
         let cur_initial = replace(&mut state.initial_text, String::new());
         let inp = match state.edgeql_input(&cur_initial).await? {
             prompt::Input::Eof => {
-                state.terminate()
-                    .race(async { ctrlc.wait().await; })
-                    .await;
+                tokio::select!(
+                    _ = state.terminate() => {}
+                    _ = ctrlc.wait() => {}
+                );
                 return Err(CleanShutdown)?;
             }
             prompt::Input::Interrupt => {
                 continue;
             }
             prompt::Input::Text(inp) => inp,
-            prompt::Input::Value(_) => unreachable!(),
         };
         'todo: for item in ToDo::new(&inp) {
             'retry: loop {
                 let result = match item {
                     ToDoItem::Backslash(text) => {
-                        execute_backslash(state, text)
-                            .race(ctrlc.wait_result())
-                            .await
+                        tokio::select!(
+                            res = execute_backslash(state, text) => res,
+                            res = ctrlc.wait_result() => res,
+                        )
                     }
                     ToDoItem::Query(statement) => {
-                        state.soft_reconnect()
-                            .race(ctrlc.wait_result())
-                            .await
-                        .and(execute_query(options, state, statement)
-                            .race(ctrlc.wait_result())
-                            .await)
+                        tokio::select!(
+                            r = state.soft_reconnect() => r,
+                            r = ctrlc.wait_result() => r,
+                        ).and(tokio::select!(
+                            r = execute_query(options, state, statement) => r,
+                            r = ctrlc.wait_result() => r,
+                        ))
                     }
                 };
                 if let Err(err) = result {
                     if err.is::<InterruptError>() {
                         eprintln!("Interrupted.");
-                        state.reconnect()
-                            .race(ctrlc.wait_result())
-                            .await?;
+                        tokio::select!(
+                            _ = state.reconnect() => {}
+                            r = ctrlc.wait_result() => r?,
+                        );
                     } else if err.is::<CleanShutdown>() {
                         return Err(err)?;
                     } else if err.is::<RetryStateError>() {
@@ -926,7 +935,7 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                                and aliases again)");
                         return Err(ExitCode::new(10))?;
                     } else if let
-                        Some(e) = err.downcast_ref::<edgedb_client::Error>()
+                        Some(e) = err.downcast_ref::<edgedb_errors::Error>()
                     {
                         print::edgedb_error(e, state.verbose_errors);
                     } else if !err.is::<QueryError>() {

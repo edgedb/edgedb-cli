@@ -1,19 +1,19 @@
-use edgedb_client::client::Connection;
+use std::path::Path;
 
-use async_std::fs;
-use async_std::path::Path;
-use blocking::unblock;
 use difference::{Difference, Changeset};
+use tokio::fs;
+use tokio::task::spawn_blocking as unblock;
 
 use crate::commands::Options;
 use crate::commands::parser::MigrationEdit;
+use crate::connect::Connection;
+use crate::error_display::print_query_error;
 use crate::migrations::context::Context;
 use crate::migrations::grammar::parse_migration;
 use crate::migrations::migration::{read_names, file_num};
 use crate::platform::{tmp_file_path, spawn_editor};
 use crate::print::{echo, err_marker, Highlight};
 use crate::question::Choice;
-use crate::error_display::print_query_error;
 
 
 #[derive(Copy, Clone)]
@@ -68,6 +68,7 @@ fn print_diff(path1: &Path, data1: &str, path2: &Path, data2: &str) {
     }
 }
 
+#[tokio::main]
 pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
     -> Result<(), anyhow::Error>
 {
@@ -91,7 +92,7 @@ pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
 
     if migration.id != new_id {
         let tmp_file = tmp_file_path(path.as_ref());
-        if Path::new(&tmp_file).exists().await {
+        if fs::metadata(&tmp_file).await.is_ok() {
             fs::remove_file(&tmp_file).await?;
         }
         fs::write(&tmp_file, migration.replace_id(&text, &new_id)).await?;
@@ -106,14 +107,14 @@ pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
 async fn check_migration(cli: &mut Connection, text: &str)
     -> anyhow::Result<()>
 {
-    cli.execute("START TRANSACTION").await?;
-    let res = cli.execute(&text).await.map_err(|err| {
+    cli.execute("START TRANSACTION", &()).await?;
+    let res = cli.execute(&text, &()).await.map_err(|err| {
         match print_query_error(&err, &text, false) {
             Ok(()) => err.into(),
             Err(err) => err,
         }
     });
-    cli.execute("ROLLBACK").await
+    cli.execute("ROLLBACK", &()).await
         .map_err(|e| log::warn!("Error rolling back the transaction: {:#}", e))
         .ok();
     return res.map(|_| ());
@@ -144,7 +145,7 @@ pub async fn edit(cli: &mut Connection,
         if migration.id != new_id {
             cli.ping_while(async {
                 let tmp_file = tmp_file_path(path.as_ref());
-                if Path::new(&tmp_file).exists().await {
+                if fs::metadata(&tmp_file).await.is_ok() {
                     fs::remove_file(&tmp_file).await?;
                 }
                 fs::write(&tmp_file, &new_data).await?;
@@ -158,7 +159,7 @@ pub async fn edit(cli: &mut Connection,
     } else {
         let temp_path = path.parent().unwrap()
             .join(format!(".editing.{}.edgeql", n));
-        if cli.ping_while(temp_path.exists()).await {
+        if cli.ping_while(fs::metadata(&temp_path)).await.is_ok() {
             loop {
                 let mut q = Choice::new(
                     "Previously edited file exists. Restore?");
@@ -167,7 +168,7 @@ pub async fn edit(cli: &mut Connection,
                 q.option(OldAction::Replace, &["n", "no"],
                          format!("use original {:?} instead", path));
                 q.option(OldAction::Diff, &["d", "diff"], "show diff");
-                match cli.ping_while(unblock(move || q.ask())).await? {
+                match cli.ping_while(unblock(move || q.ask())).await?? {
                     OldAction::Restore => break,
                     OldAction::Replace => {
                         cli.ping_while(fs::copy(&path, &temp_path)).await?;
@@ -181,7 +182,7 @@ pub async fn edit(cli: &mut Connection,
                             let modif = fs::read_to_string(&temp_path).await?;
                             unblock(move || {
                                 print_diff(&path, &normal, &temp_path, &modif);
-                            }).await;
+                            }).await?;
                             anyhow::Ok(())
                         }).await?;
                     }
@@ -208,7 +209,7 @@ pub async fn edit(cli: &mut Connection,
                                  "restore original and abort");
                         q.option(InvalidAction::Abort, &["q", "quit"][..],
                                  "abort and keep temporary file");
-                        match cli.ping_while(unblock(move || q.ask())).await? {
+                        match cli.ping_while(unblock(move || q.ask())).await?? {
                             InvalidAction::Edit => continue 'edit,
                             InvalidAction::Diff => {
                                 cli.ping_while(async {
@@ -219,7 +220,7 @@ pub async fn edit(cli: &mut Connection,
                                     unblock(move || {
                                         print_diff(&path, &data,
                                                    &temp_path, &new_data);
-                                    }).await;
+                                    }).await?;
                                     anyhow::Ok(())
                                 }).await?;
                             }
@@ -258,7 +259,7 @@ pub async fn edit(cli: &mut Connection,
                                  "restore original and abort");
                         q.option(FailAction::Abort, &["q", "quit"][..],
                                  "abort and keep temporary file for later");
-                        match unblock(move || q.ask()).await? {
+                        match unblock(move || q.ask()).await?? {
                             FailAction::Edit => continue 'edit,
                             FailAction::Force => {
                                 fs::rename(&temp_path, &path).await?;

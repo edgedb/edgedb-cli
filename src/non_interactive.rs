@@ -1,16 +1,13 @@
 use std::str;
 
 use anyhow::{self, Context};
-use async_std::prelude::StreamExt;
-use async_std::io::{stdin, stdout, Read as AsyncRead};
-use async_std::io::prelude::WriteExt;
-use async_std::fs::{File as AsyncFile};
-
 use bytes::BytesMut;
-use edgedb_client::client::Connection;
-use edgedb_client::errors::NoResultExpected;
+use crate::connect::Connection;
+use edgedb_errors::NoResultExpected;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
+use tokio::fs::{File as AsyncFile};
+use tokio::io::{self, AsyncRead, BufWriter, stdin};
 
 use crate::commands::ExitCode;
 use crate::error_display::print_query_error;
@@ -19,9 +16,11 @@ use crate::options::Query;
 use crate::outputs::tab_separated;
 use crate::print::{self, PrintError};
 use crate::repl::OutputFormat;
-use crate::statement::{ReadStatement, EndOfFile};
+use crate::statement::{read_statement, EndOfFile};
 
-pub async fn main(q: &Query, options: &Options)
+
+#[tokio::main]
+pub async fn noninteractive_main(q: &Query, options: &Options)
     -> Result<(), anyhow::Error>
 {
     // There's some extra complexity here due to the fact that we
@@ -44,13 +43,13 @@ pub async fn main(q: &Query, options: &Options)
 
     if let Some(filename) = &q.file {
         if filename == "-" {
-            interpret_stdin(options, fmt).await?;
+            interpret_file(&mut stdin(), options, fmt).await?;
         } else {
             let mut file = AsyncFile::open(filename).await?;
             interpret_file(&mut file, options, fmt).await?;
         }
     } else if let Some(queries) = &q.queries {
-        let mut conn = options.create_connector()?.connect().await?;
+        let mut conn = options.create_connector().await?.connect().await?;
         for query in queries {
             run_query(&mut conn, query, &options, fmt).await?;
         }
@@ -62,6 +61,7 @@ pub async fn main(q: &Query, options: &Options)
     Ok(())
 }
 
+#[tokio::main]
 pub async fn interpret_stdin(options: &Options, fmt: OutputFormat)
     -> Result<(), anyhow::Error>
 {
@@ -72,10 +72,10 @@ async fn interpret_file<T>(file: &mut T, options: &Options, fmt: OutputFormat)
     -> Result<(), anyhow::Error>
     where T: AsyncRead + Unpin
 {
-    let mut conn = options.create_connector()?.connect().await?;
+    let mut conn = options.create_connector().await?.connect().await?;
     let mut inbuf = BytesMut::with_capacity(8192);
     loop {
-        let stmt = match ReadStatement::new(&mut inbuf, file).await {
+        let stmt = match read_statement(&mut inbuf, file).await {
             Ok(chunk) => chunk,
             Err(e) if e.is::<EndOfFile>() => break,
             Err(e) => return Err(e),
@@ -95,7 +95,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options,
     -> Result<(), anyhow::Error>
 {
     _run_query(conn, stmt, options, fmt).await.map_err(|err| {
-        if let Some(err) = err.downcast_ref::<edgedb_client::errors::Error>() {
+        if let Some(err) = err.downcast_ref::<edgedb_errors::Error>() {
             match print_query_error(&err, stmt, false) {
                 Ok(()) => ExitCode::new(1).into(),
                 Err(e) => e,
@@ -110,6 +110,8 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
     fmt: OutputFormat)
     -> Result<(), anyhow::Error>
 {
+    todo!();
+    /*
     let mut cfg = print::Config::new();
     if let Some((w, _h)) = term_size::dimensions_stdout() {
         cfg.max_width(w);
@@ -210,4 +212,5 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
         }
     }
     Ok(())
+    */
 }

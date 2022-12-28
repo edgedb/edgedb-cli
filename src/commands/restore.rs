@@ -1,21 +1,20 @@
 use std::collections::{HashMap, BTreeSet};
 use std::convert::TryInto;
 use std::ffi::OsString;
+use std::path::Path;
 use std::slice;
 use std::str;
 use std::time::{Instant, Duration};
 
 use anyhow::Context;
-use async_std::path::Path;
-use async_std::fs;
-use async_std::io::{self, Read, prelude::ReadExt};
-use async_std::future::{timeout, pending};
-use async_std::prelude::{FutureExt, StreamExt};
 use bytes::{Bytes, BytesMut, BufMut};
 use fn_error_context::context;
+use tokio::fs;
+use tokio::time::timeout;
+use tokio::io::{self, AsyncRead, AsyncReadExt};
 
-use edgedb_client::errors::{Error, ErrorKind};
-use edgedb_client::errors::{ProtocolOutOfOrderError};
+use edgedb_errors::{Error, ErrorKind};
+use edgedb_errors::{ProtocolOutOfOrderError};
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
 use edgedb_protocol::server_message::ServerMessage;
 use edgeql_parser::helpers::quote_name;
@@ -24,11 +23,10 @@ use edgeql_parser::preparser::{is_empty};
 use crate::commands::Options;
 use crate::commands::list_databases;
 use crate::commands::parser::{Restore as RestoreCmd};
-use edgedb_client::client::{Connection, Writer};
-use edgedb_client::reader::Reader;
-use crate::statement::{ReadStatement, EndOfFile};
+use crate::connect::Connection;
+use crate::statement::{read_statement, EndOfFile};
 
-type Input = Box<dyn Read + Unpin + Send>;
+type Input = Box<dyn AsyncRead + Unpin + Send>;
 
 const MAX_SUPPORTED_DUMP_VER: i64 = 1;
 
@@ -85,21 +83,15 @@ async fn read_packet(input: &mut Input, expected: PacketType)
 
 #[context("error checking if DB is empty")]
 async fn is_non_empty_db(cli: &mut Connection) -> Result<bool, anyhow::Error> {
-    let mut query = cli.query::<i64, _>(r###"SELECT
+    let non_empty = cli.query_required_single::<bool, _>(r###"SELECT
             count(
                 schema::Module
                 FILTER NOT .builtin AND NOT .name = "default"
             ) + count(
                 schema::Object
                 FILTER .name LIKE "default::%"
-            )
+            ) > 0
         "###, &()).await?;
-    let mut non_empty = false;
-    while let Some(num) = query.next().await.transpose()? {
-        if num > 0 {
-            non_empty = true;
-        }
-    }
     return Ok(non_empty);
 }
 
@@ -118,6 +110,7 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
     params: &RestoreCmd)
     -> Result<(), anyhow::Error>
 {
+    /*
     use PacketType::*;
     let RestoreCmd {
         path: ref filename,
@@ -192,8 +185,11 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
         seq.end_clean();
     }
     result
+    */
+    todo!()
 }
 
+/*
 async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
     filename: &Path)
     -> Result<(), anyhow::Error>
@@ -255,6 +251,7 @@ async fn wait_response(reader: &mut Reader<'_>, start: Instant)
     }
     Ok(())
 }
+*/
 
 fn path_to_database_name(path: &Path) -> anyhow::Result<String> {
     let encoded = path.file_stem().and_then(|x| x.to_str())
@@ -269,7 +266,7 @@ async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
     let mut inbuf = BytesMut::with_capacity(8192);
     log::debug!("Restoring init script");
     loop {
-        let stmt = match ReadStatement::new(&mut inbuf, &mut input).await {
+        let stmt = match read_statement(&mut inbuf, &mut input).await {
             Ok(chunk) => chunk,
             Err(e) if e.is::<EndOfFile>() => break,
             Err(e) => return Err(e),
@@ -278,7 +275,7 @@ async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
             .context("can't decode statement")?;
         if !is_empty(stmt) {
             log::trace!("Executing {:?}", stmt);
-            cli.execute(&stmt).await
+            cli.execute(&stmt, &()).await
                 .with_context(|| format!("failed statement {:?}", stmt))?;
         }
     }
@@ -299,11 +296,12 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
         p.wait_until_available(Duration::from_secs(300));
     })?;
     let mut params = params.clone();
-    let existing: BTreeSet<_> = list_databases::get_databases(cli).await?;
+    let dbs = list_databases::get_databases(cli).await?;
+    let existing: BTreeSet<_> = dbs.into_iter().collect();
 
     let dump_ext = OsString::from("dump");
     let mut dir_list = fs::read_dir(&dir).await?;
-    while let Some(entry) = dir_list.next().await.transpose()? {
+    while let Some(entry) = dir_list.next_entry().await? {
         let path = entry.path();
         if path.extension() != Some(&dump_ext) {
             continue;
@@ -312,7 +310,7 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
         log::debug!("Restoring database {:?}", database);
         if !existing.contains(&database) {
             let stmt = format!("CREATE DATABASE {}", quote_name(&database));
-            cli.execute(stmt).await
+            cli.execute(&stmt, &()).await
                 .with_context(|| format!("error creating database {:?}",
                                          database))?;
         }

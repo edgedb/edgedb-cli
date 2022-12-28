@@ -1,21 +1,21 @@
+use std::path::Path;
+
 use anyhow::Context as _;
-use async_std::fs;
-use async_std::path::Path;
-use async_std::stream::StreamExt;
 use colorful::Colorful;
-use edgedb_client::client::Connection;
 use indicatif::ProgressBar;
 use linked_hash_map::LinkedHashMap;
+use tokio::fs;
 
-use crate::commands::Options;
 use crate::commands::ExitCode;
+use crate::commands::Options;
 use crate::commands::parser::Migrate;
-use crate::migrations::timeout;
-use crate::migrations::dev_mode;
-use crate::migrations::context::Context;
-use crate::migrations::migration::{self, MigrationFile};
-use crate::print;
+use crate::connect::Connection;
 use crate::error_display::print_query_error;
+use crate::migrations::context::Context;
+use crate::migrations::dev_mode;
+use crate::migrations::migration::{self, MigrationFile};
+use crate::migrations::timeout;
+use crate::print;
 
 
 fn skip_revisions(migrations: &mut LinkedHashMap<String, MigrationFile>,
@@ -35,16 +35,12 @@ fn skip_revisions(migrations: &mut LinkedHashMap<String, MigrationFile>,
 async fn check_revision_in_db(cli: &mut Connection, prefix: &str)
     -> Result<Option<String>, anyhow::Error>
 {
-    let mut items = cli.query::<String, _>(r###"
+    let mut all_similar = cli.query::<String, _>(r###"
         SELECT name := schema::Migration.name
         FILTER name LIKE <str>$0
         "###,
         &(format!("{}%", prefix),),
     ).await?;
-    let mut all_similar = Vec::new();
-    while let Some(name) = items.next().await.transpose()? {
-        all_similar.push(name);
-    }
     if all_similar.is_empty() {
         return Ok(None);
     }
@@ -64,7 +60,7 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
         return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
     }
     let mut migrations = migration::read_all(&ctx, true).await?;
-    let db_migration: Option<String> = cli.query_row_opt(r###"
+    let db_migration: Option<String> = cli.query_single(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
             SELECT name := Last.name
@@ -166,15 +162,15 @@ pub async fn apply_migrations(cli: &mut Connection,
 {
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     let transaction = async {
-        cli.execute("START TRANSACTION").await?;
+        cli.execute("START TRANSACTION", &()).await?;
         match apply_migrations_inner(cli, migrations, ctx.quiet).await {
             Ok(()) => {
-                cli.execute("COMMIT").await?;
+                cli.execute("COMMIT", &()).await?;
                 Ok(())
             }
             Err(e) => {
                 if cli.is_consistent() {
-                    cli.execute("ROLLBACK").await.ok();
+                    cli.execute("ROLLBACK", &()).await.ok();
                 }
                 Err(e)
             }
@@ -196,7 +192,7 @@ pub async fn apply_migrations_inner(cli: &mut Connection,
     for (_, migration) in migrations {
         let data = fs::read_to_string(&migration.path).await
             .context("error re-reading migration file")?;
-        cli.execute(&data).await.map_err(|err| {
+        cli.execute(&data, &()).await.map_err(|err| {
             match print_query_error(&err, &data, false) {
                 Ok(()) => ExitCode::new(1).into(),
                 Err(err) => err,
@@ -223,7 +219,7 @@ pub async fn apply_migrations_inner(cli: &mut Connection,
 }
 
 pub async fn disable_ddl(cli: &mut Connection) -> Result<(), anyhow::Error> {
-    let ddl_setting = cli.query_row(r#"
+    let ddl_setting = cli.query_required_single(r#"
         SELECT exists(
             SELECT prop := (
                     SELECT schema::ObjectType
@@ -236,7 +232,7 @@ pub async fn disable_ddl(cli: &mut Connection) -> Result<(), anyhow::Error> {
         cli.execute(r#"
             CONFIGURE CURRENT DATABASE SET allow_bare_ddl :=
                 cfg::AllowBareDDL.NeverAllow;
-        "#).await?;
+        "#, &()).await?;
     }
     Ok(())
 }

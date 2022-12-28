@@ -1,11 +1,9 @@
-use async_std::prelude::StreamExt;
-
 use prettytable::{Table, Row, Cell};
 
 use edgedb_derive::Queryable;
 use crate::commands::Options;
 use crate::commands::filter;
-use edgedb_client::client::Connection;
+use crate::connect::Connection;
 use crate::table;
 
 
@@ -43,7 +41,7 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
         ORDER BY .name;
     "###, filter=filter.join(") AND ("));
 
-    let mut items = filter::query::<TypeRow>(cli,
+    let items = filter::query::<TypeRow>(cli,
         &query, pattern, case_sensitive).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let term_width = term_size::dimensions_stdout()
@@ -54,7 +52,7 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
         table.set_titles(Row::new(
             ["Name", "Extending"]
             .iter().map(|x| table::header_cell(x)).collect()));
-        while let Some(item) = items.next().await.transpose()? {
+        for item in items {
             table.add_row(Row::new(vec![
                 Cell::new(&item.name),
                 Cell::new(&textwrap::fill(&item.extending, extending_width)),
@@ -72,7 +70,7 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
             table.printstd();
         }
     } else {
-        while let Some(item) = items.next().await.transpose()? {
+        for item in items {
             println!("{}\t{}", item.name, item.extending);
         }
     }

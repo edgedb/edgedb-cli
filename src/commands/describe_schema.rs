@@ -1,25 +1,21 @@
-use async_std::prelude::StreamExt;
-
 use crate::commands::Options;
-use edgedb_client::client::Connection;
+use crate::connect::Connection;
 use crate::highlight;
 
 
 pub async fn describe_schema(cli: &mut Connection, options: &Options)
     -> Result<(), anyhow::Error>
 {
-    let mut items = cli.query::<String, ()>(
+    let text = cli.query_required_single::<String, ()>(
         "DESCRIBE SCHEMA AS SDL",
         &(),
     ).await?;
-    while let Some(text) = items.next().await.transpose()? {
-        if let Some(ref styler) = options.styler {
-            let mut out = String::with_capacity(text.len());
-            highlight::edgeql(&mut out, &text, styler);
-            println!("{}", out);
-        } else {
-            println!("{}", text);
-        }
+    if let Some(ref styler) = options.styler {
+        let mut out = String::with_capacity(text.len());
+        highlight::edgeql(&mut out, &text, styler);
+        println!("{}", out);
+    } else {
+        println!("{}", text);
     }
     Ok(())
 }

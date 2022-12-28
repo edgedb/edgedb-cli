@@ -1,24 +1,23 @@
 use std::default::Default;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use async_std::path::{Path, PathBuf};
-use async_std::stream::StreamExt;
-use async_std::fs;
-use async_std::io::{self, Write, prelude::WriteExt};
+use tokio::fs;
+use tokio::io::{self, AsyncWrite, AsyncWriteExt};
 use sha1::{Digest};
 
 use edgedb_protocol::client_message::{ClientMessage, Dump};
 use edgedb_protocol::server_message::ServerMessage;
-use edgedb_client::client::Connection;
-use edgedb_client::errors::{Error, ErrorKind, ProtocolOutOfOrderError};
+use edgedb_errors::{Error, ErrorKind, ProtocolOutOfOrderError};
 
-use crate::platform::tmp_file_name;
 use crate::commands::Options;
 use crate::commands::list_databases::get_databases;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
+use crate::connect::Connection;
+use crate::platform::tmp_file_name;
 
 
-type Output = Box<dyn Write + Unpin + Send>;
+type Output = Box<dyn AsyncWrite + Unpin + Send>;
 
 
 pub struct Guard {
@@ -40,7 +39,7 @@ impl Guard {
         } else {
             let tmp_path = filename.with_file_name(
                 tmp_file_name(filename.as_ref()));
-            if tmp_path.exists().await {
+            if fs::metadata(&tmp_path).await.is_ok() {
                 fs::remove_file(&tmp_path).await.ok();
             }
             let tmp_file = fs::File::create(&tmp_path).await
@@ -83,6 +82,7 @@ pub async fn dump(cli: &mut Connection, general: &Options,
 async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     -> Result<(), anyhow::Error>
 {
+    /*
     let mut seq = cli.start_sequence().await?;
     let (mut output, guard) = Guard::open(filename).await?;
     output.write_all(
@@ -163,30 +163,22 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     }
     guard.commit().await?;
     Ok(())
-}
-
-async fn get_text(cli: &mut Connection, query: &str)
-    -> Result<String, anyhow::Error>
-{
-    let mut response = cli.query(query, &()).await?;
-    let text = loop {
-        if let Some(text) = response.next().await.transpose()? {
-            break text;
-        } else {
-            anyhow::bail!("`{}` returned an empty value", query.escape_default());
-        }
-    };
-    anyhow::ensure!(matches!(response.next().await, None),
-        "`{}` returned more than one value", query.escape_default());
-    Ok(text)
+        */
+    todo!();
 }
 
 pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
     -> Result<(), anyhow::Error>
 {
     let databases: Vec<_> = get_databases(cli).await?;
-    let config = get_text(cli, "DESCRIBE SYSTEM CONFIG").await?;
-    let roles = get_text(cli, "DESCRIBE ROLES").await?;
+    let config = cli.query_required_single::<String, _>(
+        "DESCRIBE SYSTEM CONFIG",
+        &(),
+    ).await?;
+    let roles = cli.query_required_single::<String, _>(
+        "DESCRIBE ROLES",
+        &(),
+    ).await?;
 
     fs::create_dir_all(dir).await?;
 

@@ -2,9 +2,9 @@ use std::convert::Infallible;
 use std::convert::TryFrom;
 use std::str::FromStr;
 use std::pin::Pin;
+use std::task;
 
-use async_std::stream::Stream;
-use async_std::task;
+use futures_lite::Stream;
 use bigdecimal::BigDecimal;
 use bytes::Bytes;
 
@@ -43,7 +43,10 @@ fn test_format_cfg<I: FormatExt + Clone + Send + Sync>(items: &[I], config: &Con
     -> Result<String, Infallible>
 {
     let mut out = String::new();
-    task::block_on(
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build().unwrap();
+    runtime.block_on(
         _native_format(UnfusedStream::new(items),
             config, config.max_width.unwrap_or(80), false, &mut out)
     ).unwrap();

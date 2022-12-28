@@ -7,7 +7,7 @@ use crate::portable::repository::USER_AGENT;
 use crate::print;
 
 pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
-    let connector = options.create_connector()?;
+    let connector = options.block_on_create_connector()?;
     let builder = connector.get()?;
     let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
 

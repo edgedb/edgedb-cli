@@ -6,16 +6,14 @@ use std::fmt;
 use std::fs;
 use std::future::{Future, pending};
 use std::path::{Path, PathBuf};
-use std::process::exit;
+use std::process::{exit, Output, ExitStatus, Stdio};
 
 use anyhow::Context;
-use async_process::{Command, Stdio, ExitStatus, Output};
-use async_std::io::prelude::{BufReadExt};
-use async_std::io::{self, Read, ReadExt, BufReader, WriteExt};
-use async_std::prelude::{FutureExt, StreamExt};
-use async_std::task;
 use colorful::{Colorful, Color};
 use once_cell::sync::Lazy;
+use tokio::io::{self, AsyncRead, BufReader, AsyncReadExt, AsyncBufReadExt};
+use tokio::io::{AsyncWriteExt};
+use tokio::process::{Command};
 
 use crate::interrupt;
 use crate::platform::tmp_file_path;
@@ -149,6 +147,14 @@ impl<I: IntoArg, T: IntoIterator<Item=I>> IntoArgs for T {
     }
 }
 
+fn block_on<T>(f: impl Future<Output=anyhow::Result<T>>) -> anyhow::Result<T> {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .thread_name("process-run")
+        .enable_all()
+        .build().context("can make tokio runtime")?;
+    runtime.block_on(f)
+}
+
 impl Native {
     pub fn new(description: impl Into<Cow<'static, str>>,
         marker: impl Into<Cow<'static, str>>,
@@ -243,7 +249,7 @@ impl Native {
     }
 
     pub fn run(&mut self) -> anyhow::Result<()> {
-        let output = task::block_on(self._run(false, false))?;
+        let output = block_on(self._run(false, false))?;
         if output.status.success() {
             Ok(())
         } else {
@@ -252,7 +258,7 @@ impl Native {
         }
     }
     pub fn run_and_exit(&mut self) -> anyhow::Result<()> {
-        let output = task::block_on(self._run(false, false))?;
+        let output = block_on(self._run(false, false))?;
         if let Some(code) = output.status.code() {
             exit(code);
         } else {
@@ -263,7 +269,7 @@ impl Native {
     pub fn run_or_stderr(&mut self)
         -> anyhow::Result<Result<(), (ExitStatus, String)>>
     {
-        let output = task::block_on(self._run(false, true))?;
+        let output = block_on(self._run(false, true))?;
         if output.status.success() {
             Ok(Ok(()))
         } else {
@@ -276,7 +282,7 @@ impl Native {
         }
     }
     pub fn get_stdout_text(&mut self) -> anyhow::Result<String> {
-        let output = task::block_on(self._run(true, false))?;
+        let output = block_on(self._run(true, false))?;
         if output.status.success() {
             let text = String::from_utf8(output.stdout)
                 .with_context(|| format!(
@@ -289,14 +295,14 @@ impl Native {
         }
     }
     pub fn get_output(&mut self) -> anyhow::Result<Output> {
-        task::block_on(self._run(true, true))
+        block_on(self._run(true, true))
     }
 
     /// EOS for stdout here means that process is safefully started.
     /// We return stdout as text just because we can and we might find a
     /// useful case for this later.
     pub fn daemonize_with_stdout(&mut self) -> anyhow::Result<Vec<u8>> {
-        task::block_on(self._daemonize())
+        block_on(self._daemonize())
     }
 
     #[allow(dead_code)]
@@ -304,18 +310,18 @@ impl Native {
         f: impl Future<Output=anyhow::Result<T>>)
         -> anyhow::Result<T>
     {
-        task::block_on(self._background(f))
+        block_on(self._background(f))
     }
     #[allow(dead_code)]
     pub fn feed(&mut self, data: impl AsRef<[u8]>) -> anyhow::Result<()> {
-        task::block_on(self._feed(data.as_ref()))
+        block_on(self._feed(data.as_ref()))
     }
     /// Redirects stdout+stderr into /dev/null and returns status
     pub fn status_only(&mut self) -> anyhow::Result<ExitStatus> {
-        task::block_on(self._status())
+        block_on(self._status())
     }
     pub fn status(&mut self) -> anyhow::Result<ExitStatus> {
-        task::block_on(self._run(false, false)).map(|out| out.status)
+        block_on(self._run(false, false)).map(|out| out.status)
     }
 
     async fn _run(&mut self, capture_out: bool, capture_err: bool)
@@ -335,17 +341,22 @@ impl Native {
             .with_context(|| format!(
                 "{} failed to start (command-line: {:?})",
                 self.description, self.command))?;
-        let pid = child.id();
+        let pid = child.id().expect("process was not awaited");
         write_pid_file(&self.pid_file, pid);
 
         let mark = &self.marker;
         let out = child.stdout.take();
         let err = child.stderr.take();
-        let ((child_result, _), _) = child.status()
-            .join(stdout_loop(mark, out, capture_out.then(|| &mut stdout)))
-            .join(stdout_loop(mark, err, capture_err.then(|| &mut stderr)))
-            .race(self.signal_loop(pid, &term))
-            .await;
+        let child_result = tokio::select! {
+            (child_result, _, _) = async {
+                tokio::join!(
+                    child.wait(),
+                    stdout_loop(mark, out, capture_out.then(|| &mut stdout)),
+                    stdout_loop(mark, err, capture_err.then(|| &mut stderr)),
+                )
+            } => child_result,
+            _ = self.signal_loop(pid, &term) => unreachable!(),
+        };
 
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
@@ -366,15 +377,16 @@ impl Native {
             .with_context(|| format!(
                 "{} failed to start (command-line: {:?})",
                 self.description, self.command))?;
-        let pid = child.id();
+        let pid = child.id().expect("process was not awaited");
         write_pid_file(&self.pid_file, pid);
 
         let mark = &self.marker;
         let out = child.stdout.take();
-        let mut res = async { Err(child.status().await) }
-            .race(async { Ok(stdout_loop(mark, out, Some(&mut stdout)).await) })
-            .race(self.signal_loop(pid, &term))
-            .await;
+        let mut res = tokio::select! {
+            res = child.wait() => Err(res),
+            _ = stdout_loop(mark, out, Some(&mut stdout)) => Ok(()),
+            _ = self.signal_loop(pid, &term) => unreachable!(),
+        };
 
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
@@ -383,7 +395,7 @@ impl Native {
             // After stdout is finished check that process is still alive.
             // This way we figure out whether stdout was intentionally closed
             // or because process is shut down
-            if let Some(exit) = child.try_status().transpose() {
+            if let Some(exit) = child.try_wait().transpose() {
                 res = Err(exit);
             }
         }
@@ -411,11 +423,13 @@ impl Native {
             .with_context(|| format!(
                 "{} failed to start (command-line: {:?})",
                 self.description, self.command))?;
-        let pid = child.id();
+        let pid = child.id().expect("process was not awaited");
         write_pid_file(&self.pid_file, pid);
 
-        let child_result = child.status()
-            .race(self.signal_loop(pid, &term)).await;
+        let child_result = tokio::select! {
+            status = child.wait() => status,
+            _ = self.signal_loop(pid, &term) => unreachable!(),
+        };
 
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
@@ -443,14 +457,19 @@ impl Native {
                 self.description, self.command))?;
         let out = child.stdout.take();
         let err = child.stderr.take();
-        let pid = child.id();
+        let pid = child.id().expect("process was not awaited");
         write_pid_file(&self.pid_file, pid);
 
-        let ((result, _), _) = self.run_and_kill(child, f)
-            .join(stdout_loop(&self.marker, out, None))
-            .join(stdout_loop(&self.marker, err, None))
-            .race(self.signal_loop(pid, &term))
-            .await;
+        let result = tokio::select! {
+            (result, _, _) = async {
+                tokio::join!(
+                    self.run_and_kill(child, f),
+                    stdout_loop(&self.marker, out, None),
+                    stdout_loop(&self.marker, err, None),
+                )
+            } => result,
+            _ = self.signal_loop(pid, &term) => unreachable!(),
+        };
 
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
@@ -470,18 +489,23 @@ impl Native {
             .with_context(|| format!(
                 "{} failed to start (command-line: {:?})",
                 self.description, self.command))?;
-        let pid = child.id();
+        let pid = child.id().expect("process was not awaited");
         write_pid_file(&self.pid_file, pid);
 
         let inp = child.stdin.take().unwrap();
         let out = child.stdout.take();
         let err = child.stderr.take();
-        let ((child_result, _), _) = child.status()
-            .race(feed_data(inp, data))
-            .join(stdout_loop(&self.marker, out, None))
-            .join(stdout_loop(&self.marker, err, None))
-            .race(self.signal_loop(pid, &term))
-            .await;
+        let child_result = tokio::select! {
+            (child_result, _, _) = async {
+                tokio::join!(
+                    child.wait(),
+                    stdout_loop(&self.marker, out, None),
+                    stdout_loop(&self.marker, err, None),
+                )
+            } => child_result,
+            _ = feed_data(inp, data) => unreachable!(),
+            _ = self.signal_loop(pid, &term) => unreachable!(),
+        };
 
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
@@ -511,7 +535,7 @@ impl Native {
     async fn signal_loop<Never>(&self, pid: u32, intr: &interrupt::Interrupt)
         -> Never
     {
-        use async_std::future::timeout;
+        use tokio::time::timeout;
         use signal_hook::consts::signal::{SIGTERM, SIGKILL};
         use std::time::Duration;
 
@@ -569,13 +593,14 @@ impl Native {
         }
     }
 
-    async fn run_and_kill<T>(&self, mut child: async_process::Child,
+    async fn run_and_kill<T>(&self, mut child: tokio::process::Child,
         f: impl Future<Output=anyhow::Result<T>>)
         -> anyhow::Result<T>
     {
-        let result = async { Err(child.status().await) }
-            .race(async { Ok(f.await) })
-            .await;
+        let result = tokio::select! {
+            res = child.wait() => Err(res),
+            res = f => Ok(res),
+        };
         match result {
             Err(process_result) => {
                 process_result
@@ -593,18 +618,18 @@ impl Native {
             Ok(result) => {
                 log::debug!("Stopping {}", self.description);
                 if self.try_stop_process().await.is_ok() {
-                    let status = child.status().await.with_context(|| format!(
+                    let status = child.wait().await.with_context(|| format!(
                         "failed to get status of {} (command-line: {:?})",
                         self.description, self.command))?;
                     log::debug!("Result of {} (background): {}",
                         self.description, status);
                 } else {
                     if cfg!(windows) {
-                        if let Err(e) = child.kill() {
+                        if let Err(e) = child.kill().await {
                             log::error!("Error stopping {}: {}",
                                 self.description, e);
                         }
-                        let status = child.status().await
+                        let status = child.wait().await
                             .with_context(|| format!(
                             "failed to get status of {} (command-line: {:?})",
                             self.description, self.command))?;
@@ -612,10 +637,13 @@ impl Native {
                             self.description, status);
                     }
                     #[cfg(unix)] {
-                        let pid = child.id();
-                        let status = child.status()
-                            .race(kill_child(pid, &self.description))
-                            .await
+                        let pid = child.id().expect("process was not awaited");
+                        let res = tokio::select! {
+                            res = child.wait() => res,
+                            _ = kill_child(pid, &self.description)
+                                => unreachable!(),
+                        };
+                        let status = res
                             .with_context(|| format!(
                                 "failed to get status of {} \
                                 (command-line: {:?})",
@@ -680,7 +708,7 @@ impl Native {
 }
 
 
-async fn stdout_loop(marker: &str, pipe: Option<impl Read+Unpin>,
+async fn stdout_loop(marker: &str, pipe: Option<impl AsyncRead+Unpin>,
     capture_buffer: Option<&mut Vec<u8>>)
 {
     match (pipe, capture_buffer) {
@@ -692,7 +720,7 @@ async fn stdout_loop(marker: &str, pipe: Option<impl Read+Unpin>,
         (Some(pipe), None) => {
             let buf = BufReader::new(pipe);
             let mut lines = buf.lines();
-            while let Some(Ok(line)) = lines.next().await {
+            while let Ok(Some(line)) = lines.next_line().await {
                 if cfg!(windows) {
                     io::stderr().write_all(
                         format!("[{}] {}\r\n", marker, line)
@@ -716,7 +744,7 @@ async fn stdout_loop(marker: &str, pipe: Option<impl Read+Unpin>,
 #[cfg(unix)]
 async fn kill_child<Never>(pid: u32, description: &str) -> Never {
     use signal_hook::consts::signal::{SIGTERM, SIGKILL};
-    use async_std::future::timeout;
+    use tokio::time::timeout;
     use std::time::Duration;
 
     log::debug!("Stopping {}", description);
@@ -734,7 +762,7 @@ async fn kill_child<Never>(pid: u32, description: &str) -> Never {
     wait_forever().await
 }
 
-async fn feed_data<Never>(mut inp: impl io::Write + Unpin, data: &[u8])
+async fn feed_data<Never>(mut inp: impl io::AsyncWrite + Unpin, data: &[u8])
     -> Never
 {
     // Don't care if input is not written,

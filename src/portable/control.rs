@@ -129,9 +129,8 @@ fn pid_file_path(instance: &str) -> anyhow::Result<PathBuf> {
 #[cfg(unix)]
 fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     use std::os::unix::io::AsRawFd;
-    use async_std::future::pending;
-    use async_std::os::unix::net::UnixDatagram;
-    use async_std::task;
+    use std::future::pending;
+    use tokio::net::UnixDatagram;
     use crate::portable::local::log_file;
 
     unsafe { libc::setsid() };
@@ -151,7 +150,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     } if let Some(dir) = notify_socket.parent() {
         fs_err::create_dir_all(dir)?;
     }
-    let sock = task::block_on(UnixDatagram::bind(&notify_socket))
+    let sock = UnixDatagram::bind(&notify_socket)
         .context("cannot create notify socket")?;
 
     get_server_cmd(&meta, false)?

@@ -1,11 +1,10 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use async_std::future::timeout;
-use async_std::task;
-use edgedb_client::credentials::Credentials;
-use edgedb_client::Builder;
+use edgedb_tokio::Builder;
+use edgedb_tokio::credentials::Credentials;
 use indicatif::ProgressBar;
+use tokio::time::{sleep, timeout};
 
 use crate::cloud::client::CloudClient;
 use crate::collect::Collector;
@@ -35,8 +34,9 @@ impl CloudInstance {
             .host_port(
                 Some(client.get_cloud_host(&self.org_slug, &self.name)),
                 None,
-            )
-            .secret_key(client.access_token.clone().unwrap());
+            );
+            // TODO(tailhook) fix secret key
+            //.secret_key(client.access_token.clone().unwrap());
         let mut creds = builder.as_credentials()?;
         creds.tls_ca = self.tls_ca.clone();
         Ok(creds)
@@ -135,7 +135,7 @@ async fn wait_instance_available_after_operation(
                 );
             },
             OperationStatus::InProgress => {
-                task::sleep(POLLING_INTERVAL).await;
+                sleep(POLLING_INTERVAL).await;
                 operation = client.get(&url).await?;
             }
             OperationStatus::Completed => {
@@ -172,6 +172,7 @@ async fn wait_instance_upgrade(
     wait_instance_available_after_operation(operation, org, name, client, "upgrading").await
 }
 
+#[tokio::main]
 pub async fn create_cloud_instance(
     client: &CloudClient,
     instance: &CloudInstanceCreate,
@@ -210,6 +211,7 @@ pub async fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> 
     }
 }
 
+#[tokio::main]
 pub async fn upgrade(org: &str, name: &str, opts: &crate::options::Options) -> anyhow::Result<()> {
     let client = CloudClient::new(&opts.cloud_options)?;
     client.ensure_authenticated()?;
@@ -222,11 +224,16 @@ pub async fn upgrade(org: &str, name: &str, opts: &crate::options::Options) -> a
     Ok(())
 }
 
-async fn destroy(name: &str, org: &str, options: &CloudOptions) -> anyhow::Result<()> {
+#[tokio::main]
+async fn destroy(name: &str, org: &str, options: &CloudOptions)
+    -> anyhow::Result<()>
+{
     log::info!("Destroying EdgeDB Cloud instance: {}/{}", name, org);
     let client = CloudClient::new(options)?;
     client.ensure_authenticated()?;
-    let _: CloudOperation = client.delete(format!("orgs/{}/instances/{}", org, name)).await?;
+    let _: CloudOperation = client.delete(
+        format!("orgs/{}/instances/{}", org, name)
+    ).await?;
     Ok(())
 }
 
@@ -235,7 +242,7 @@ pub fn try_to_destroy(
     org: &str,
     options: &crate::options::Options,
 ) -> anyhow::Result<()> {
-    task::block_on(destroy(name, org, &options.cloud_options))?;
+    destroy(name, org, &options.cloud_options)?;
     Ok(())
 }
 

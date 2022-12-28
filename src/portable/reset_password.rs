@@ -3,15 +3,15 @@ use std::path::Path;
 use std::default::Default;
 use std::num::NonZeroU32;
 
-use async_std::task;
 use base64::display::Base64Display;
 use fn_error_context::context;
 use rand::{Rng, SeedableRng};
 
-use edgedb_client::credentials::Credentials;
+use edgedb_tokio::credentials::Credentials;
 use edgeql_parser::helpers::{quote_string, quote_name};
 
 use crate::credentials;
+use crate::connect::Connection;
 use crate::portable::local::InstanceInfo;
 use crate::portable::options::{ResetPassword, instance_arg, InstanceName};
 use crate::print;
@@ -82,24 +82,28 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     };
 
     let inst = InstanceInfo::read(name)?;
-    task::block_on(async {
-        let conn_params = inst.admin_conn_params().await?;
-        let mut cli = conn_params.build()?.connect().await?;
-        cli.execute(&format!(r###"
-            ALTER ROLE {name} {{
-                SET password := {password};
-            }}"###,
-            name=quote_name(&user),
-            password=quote_string(&password))
-        ).await?;
-        Ok::<_, anyhow::Error>(())
-    })?;
+    tokio::runtime::Builder::new_current_thread().enable_all().build()?
+        .block_on(async {
+            let conn_params = inst.admin_conn_params().await?;
+            let mut cli = Connection::connect(&conn_params.build()?).await?;
+            cli.execute(
+                &format!(r###"
+                    ALTER ROLE {name} {{
+                        SET password := {password};
+                    }}"###,
+                    name=quote_name(&user),
+                    password=quote_string(&password)
+                ),
+                &(),
+            ).await?;
+            Ok::<_, anyhow::Error>(())
+        })?;
 
     if save {
         let mut creds = creds.unwrap_or_else(Default::default);
         creds.user = user.into();
         creds.password = Some(password);
-        task::block_on(credentials::write(&credentials_file, &creds))?;
+        credentials::write(&credentials_file, &creds)?;
     }
     if !options.quiet {
         if save {

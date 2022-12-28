@@ -7,16 +7,15 @@ use std::borrow::Cow;
 use std::str::FromStr;
 
 use anyhow::Context;
-use async_std::task;
-use blocking::unblock;
 use clap::{ValueHint};
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use sha1::Digest;
+use tokio::task::spawn_blocking as unblock;
 
-use edgedb_client::client::Connection;
-use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
+use edgedb_tokio::Builder;
+use crate::connect::Connection;
 
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -289,6 +288,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     Ok(())
 }
 
+#[tokio::main]
 async fn ask_existing_instance_name(
     cloud_client: &mut CloudClient
 ) -> anyhow::Result<InstanceName> {
@@ -298,7 +298,7 @@ async fn ask_existing_instance_name(
         let mut q =
             question::String::new("Specify the name of EdgeDB instance \
                                    to link with this project");
-        let target_name = unblock(move || q.ask()).await?;
+        let target_name = unblock(move || q.ask()).await??;
 
         let inst_name = match InstanceName::from_str(&target_name) {
             Ok(name) => name,
@@ -354,7 +354,7 @@ fn link(
                        with `--server-instance` argument when linking project \
                        in non-interactive mode")
     } else {
-        task::block_on(ask_existing_instance_name(&mut client))?
+        ask_existing_instance_name(&mut client)?
     };
     let inst = Handle::probe(&name, project_dir, &config.project.schema_dir, &client)?;
     inst.check_version(&ver_query);
@@ -367,7 +367,7 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     write_stash_dir(&stash_dir, &inst.project_dir, &inst.name)?;
 
     if !options.no_migrations {
-        task::block_on(migrate(inst, !options.non_interactive))?;
+        migrate(inst, !options.non_interactive)?;
     }
 
     print::success("Project linked");
@@ -387,6 +387,7 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     })
 }
 
+#[tokio::main]
 async fn ask_name(
     dir: &Path, options: &Init, cloud_client: &mut CloudClient
 ) -> anyhow::Result<(InstanceName, bool)> {
@@ -443,7 +444,7 @@ async fn ask_name(
             );
             let default_name_str = default_name_clone.to_string();
             q.default(&default_name_str).ask()
-        }).await?;
+        }).await??;
         let inst_name = match InstanceName::from_str(&target_name) {
             Ok(name) => name,
             Err(e) => {
@@ -515,7 +516,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         config.edgedb.server_version
     };
     let mut client = CloudClient::new(cloud_options)?;
-    let (name, exists) = task::block_on(ask_name(project_dir, options, &mut client))?;
+    let (name, exists) = ask_name(project_dir, options, &mut client)?;
 
     if exists {
         let inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
@@ -640,7 +641,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
         instance,
     };
     if !options.no_migrations {
-        task::block_on(migrate(&handle, false))?;
+        migrate(&handle, false)?;
     }
     print_initialized(&name, &options.project_dir);
     Ok(ProjectInfo {
@@ -666,9 +667,7 @@ fn do_cloud_init(
         // default_database: None,
         // default_user: None,
     };
-    task::block_on(
-        crate::cloud::ops::create_cloud_instance(client, &instance)
-    )?;
+    crate::cloud::ops::create_cloud_instance(client, &instance)?;
     let full_name = format!("{}/{}", org, name);
     write_stash_dir(stash_dir, project_dir, &full_name)?;
     if !options.no_migrations {
@@ -678,7 +677,7 @@ fn do_cloud_init(
             instance: InstanceKind::Remote,
             project_dir: project_dir.into(),
         };
-        task::block_on(migrate(&handle, false))?;
+        migrate(&handle, false)?;
     }
     print_initialized(&full_name, &options.project_dir);
     Ok(ProjectInfo {
@@ -719,7 +718,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     let schema_files = find_schema_files(&schema_dir)?;
 
     let mut client = CloudClient::new(&opts.cloud_options)?;
-    let (inst_name, exists) = task::block_on(ask_name(project_dir, options, &mut client))?;
+    let (inst_name, exists) = ask_name(project_dir, options, &mut client)?;
 
     if exists {
         let inst = Handle::probe(&inst_name, project_dir, &schema_dir, &client)?;
@@ -833,12 +832,12 @@ fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
         InstanceKind::Portable(inst) => {
             control::ensure_runstate_dir(&info.name)?;
             let mut cmd = control::get_server_cmd(inst, false)?;
-            cmd.background_for(migrate(info, false))?;
+            cmd.background_for(migrate_async(info, false))?;
             Ok(())
         }
         InstanceKind::Wsl(_) => {
             let mut cmd = windows::server_cmd(&info.name, false)?;
-            cmd.background_for(migrate(info, false))?;
+            cmd.background_for(migrate_async(info, false))?;
             Ok(())
         }
         InstanceKind::Remote => {
@@ -867,7 +866,14 @@ fn start(handle: &Handle) -> anyhow::Result<()> {
     }
 }
 
+#[tokio::main]
 async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
+    -> anyhow::Result<()>
+{
+    migrate_async(inst, ask_for_running).await
+}
+
+async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
     -> anyhow::Result<()>
 {
     use crate::commands::Options;
@@ -904,7 +910,7 @@ async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
                     Retry);
                 q.option("Skip migrations.",
                     Skip);
-                match unblock(move || q.ask()).await? {
+                match unblock(move || q.ask()).await?? {
                     Service => match start(inst) {
                         Ok(()) => continue,
                         Err(e) => {
@@ -1026,16 +1032,12 @@ impl Handle<'_> {
         Ok(builder)
     }
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {
-        Ok(self.get_builder().await?.build()?.connect().await?)
+        Ok(Connection::connect(&self.get_builder().await?.build()?).await?)
     }
-    pub fn get_version(&self) -> anyhow::Result<ver::Build> {
-        task::block_on(async {
-            let mut conn = self.get_connection().await?;
-            let ver = conn.query_row::<String, _>(r###"
-                SELECT sys::get_version_as_str()
-            "###, &()).await?;
-            Ok(ver.parse()?)
-        })
+    #[tokio::main(flavor="current_thread")]
+    pub async fn get_version(&self) -> anyhow::Result<ver::Build> {
+        let mut conn = self.get_connection().await?;
+        anyhow::Ok(conn.get_version().await?.clone())
     }
     fn check_version(&self, ver_query: &Query) {
         match self.get_version() {

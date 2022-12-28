@@ -6,7 +6,7 @@ use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
 use codespan_reporting::term::{emit};
 use termcolor::{StandardStream, ColorChoice};
 
-use edgedb_client::errors::{Error, InternalServerError};
+use edgedb_errors::{Error, InternalServerError};
 
 use crate::print;
 

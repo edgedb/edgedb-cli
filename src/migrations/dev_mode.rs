@@ -1,4 +1,4 @@
-use edgedb_client::client::Connection;
+use crate::connect::Connection;
 use linked_hash_map::LinkedHashMap;
 
 use anyhow::Context as _;
@@ -94,7 +94,8 @@ async fn select_mode(cli: &mut Connection,
         }
         let last_fs_migration = migrations.back().map(|(id, _)| id.clone());
         if let Some(id) = last_fs_migration {
-            let contains_last_fs_migration: bool = cli.query_row(r###"
+            let contains_last_fs_migration: bool =
+                cli.query_required_single(r###"
                     select exists(
                         select schema::Migration filter .name = <str>$0
                     )
@@ -115,7 +116,7 @@ async fn select_mode(cli: &mut Connection,
 async fn get_db_migration(cli: &mut Connection)
     -> anyhow::Result<Option<String>>
 {
-    let res = cli.query_row_opt(r###"
+    let res = cli.query_single(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
             SELECT name := Last.name

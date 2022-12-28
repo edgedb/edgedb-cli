@@ -3,11 +3,11 @@ use std::fmt;
 use std::io;
 use std::convert::Infallible;
 
-use async_std::stream::{Stream, StreamExt};
+use futures_lite::stream::{Stream, StreamExt};
 use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
 
-use edgedb_client::errors::display_error;
+use edgedb_errors::display::display_error;
 
 pub use crate::echo;
 
@@ -379,7 +379,7 @@ pub fn error(line: impl fmt::Display) {
     }
 }
 
-pub fn edgedb_error(err: &edgedb_client::errors::Error, verbose: bool) {
+pub fn edgedb_error(err: &edgedb_errors::Error, verbose: bool) {
     // Note: not using `error()` as display_error has markup inside
     echo!(err_marker(), display_error(err, verbose));
 }

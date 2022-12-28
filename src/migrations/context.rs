@@ -1,7 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use async_std::task::block_on;
-use edgedb_client::{get_project_dir};
 use crate::commands::parser::MigrationConfig;
 use crate::portable::config;
 use crate::portable::repository::Query;
@@ -19,6 +17,13 @@ pub struct Context {
     pub quiet: bool,
 }
 
+#[tokio::main]
+async fn get_project_dir(override_dir: Option<&Path>, search_parents: bool)
+    -> Result<Option<PathBuf>, edgedb_errors::Error>
+{
+    edgedb_tokio::get_project_dir(override_dir, search_parents).await
+}
+
 impl Context {
     pub fn from_project_or_config(cfg: &MigrationConfig, quiet: bool)
         -> anyhow::Result<Context>
@@ -26,7 +31,7 @@ impl Context {
         let mut edgedb_version = None;
         let schema_dir = if let Some(schema_dir) = &cfg.schema_dir {
             schema_dir.clone()
-        } else if let Some(cfg_dir) = block_on(get_project_dir(None, true))? {
+        } else if let Some(cfg_dir) = get_project_dir(None, true)? {
             let config_path = cfg_dir.join("edgedb.toml");
             let config = config::read(&config_path)?;
             edgedb_version = Some(config.edgedb.server_version);

@@ -1,5 +1,5 @@
 use colorful::Colorful;
-use edgedb_client::client::Connection;
+use crate::connect::Connection;
 
 use crate::commands::{Options, ExitCode};
 use crate::commands::parser::ShowStatus;
@@ -12,7 +12,7 @@ use crate::print;
 async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
     -> Result<(), anyhow::Error>
 {
-    let data = cli.query_row::<CurrentMigration, _>(
+    let data = cli.query_required_single::<CurrentMigration, _>(
         "DESCRIBE CURRENT MIGRATION AS JSON",
         &(),
     ).await?;
@@ -48,7 +48,7 @@ pub async fn status(cli: &mut Connection, _options: &Options,
 {
     let ctx = Context::from_project_or_config(&status.cfg, status.quiet)?;
     let migrations = migration::read_all(&ctx, true).await?;
-    let db_migration: Option<String> = cli.query_row_opt(r###"
+    let db_migration: Option<String> = cli.query_single(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
             SELECT name := Last.name
@@ -91,7 +91,7 @@ pub async fn status(cli: &mut Connection, _options: &Options,
     }
     execute_start_migration(&ctx, cli).await?;
     let check = ensure_diff_is_empty(cli, status).await;
-    let abort = cli.execute("ABORT MIGRATION").await.map_err(|e| e.into());
+    let abort = cli.execute("ABORT MIGRATION", &()).await.map_err(|e| e.into());
     check.and(abort)?;
     if !status.quiet {
         if print::use_color() {

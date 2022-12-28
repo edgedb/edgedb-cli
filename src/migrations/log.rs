@@ -1,11 +1,10 @@
 use std::collections::{BTreeSet, BTreeMap};
 
-use async_std::prelude::StreamExt;
-use edgedb_client::client::Connection;
 use edgedb_derive::Queryable;
 
 use crate::commands::Options;
 use crate::commands::parser::MigrationLog;
+use crate::connect::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::migration;
 
@@ -16,12 +15,21 @@ struct Migration {
     parent_names: Vec<String>,
 }
 
+#[tokio::main]
+pub async fn log(cli: &mut Connection,
+                       common: &Options, options: &MigrationLog)
+    -> Result<(), anyhow::Error>
+{
+    log_async(cli, common, options).await
+}
 
-pub async fn log(cli: &mut Connection, common: &Options, options: &MigrationLog)
+
+pub async fn log_async(cli: &mut Connection,
+                       common: &Options, options: &MigrationLog)
     -> Result<(), anyhow::Error>
 {
     if options.from_fs {
-        return log_fs(common, options).await;
+        return log_fs_async(common, options).await;
     } else if options.from_db {
         return log_db(cli, common, options).await;
     } else {
@@ -62,13 +70,9 @@ pub async fn log_db(cli: &mut Connection, _common: &Options,
     options: &MigrationLog)
     -> Result<(), anyhow::Error>
 {
-    let mut items = cli.query::<Migration, _>(r###"
+    let migrations = cli.query::<Migration, _>(r###"
             SELECT schema::Migration {name, parent_names := .parents.name }
         "###, &()).await?;
-    let mut migrations = Vec::new();
-    while let Some(item) = items.next().await.transpose()? {
-        migrations.push(item);
-    }
     let output = topology_sort(migrations);
     let limit = options.limit.unwrap_or(output.len());
     if options.newest_first {
@@ -83,7 +87,14 @@ pub async fn log_db(cli: &mut Connection, _common: &Options,
     Ok(())
 }
 
-pub async fn log_fs(_common: &Options, options: &MigrationLog)
+#[tokio::main]
+pub async fn log_fs(common: &Options, options: &MigrationLog)
+    -> Result<(), anyhow::Error>
+{
+    log_fs_async(common, options).await
+}
+
+async fn log_fs_async(_common: &Options, options: &MigrationLog)
     -> Result<(), anyhow::Error>
 {
     assert!(options.from_fs);

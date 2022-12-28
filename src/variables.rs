@@ -97,10 +97,9 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
             let val = match
                 state.variable_input(name, var_type, optional, "").await?
             {
-                | prompt::Input::Value(val) => Some(val),
-                | prompt::Input::Text(_) => unreachable!(),
-                | prompt::Input::Interrupt => Err(Canceled)?,
-                | prompt::Input::Eof => None,
+                | prompt::VarInput::Value(val) => Some(val),
+                | prompt::VarInput::Interrupt => Err(Canceled)?,
+                | prompt::VarInput::Eof => None,
             };
             Ok(val)
         }

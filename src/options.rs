@@ -3,15 +3,15 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anymap::AnyMap;
-use async_std::task;
+use anyhow::Context;
 use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
-use edgedb_client::{Builder, get_project_dir};
-use edgedb_client::credentials::TlsSecurity;
-use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind};
+use edgedb_errors::{ClientNoCredentialsError, ErrorKind};
 use edgedb_protocol::model;
+use edgedb_tokio::credentials::TlsSecurity;
+use edgedb_tokio::{Builder, get_project_dir};
 use fs_err as fs;
 
 use crate::cli::options::CliCommand;
@@ -634,8 +634,12 @@ impl Options {
         })
     }
 
-    pub fn create_connector(&self) -> anyhow::Result<Connector> {
-        Ok(Connector::new(conn_params(&self)))
+    pub async fn create_connector(&self) -> anyhow::Result<Connector> {
+        Ok(Connector::new(conn_params(&self).await))
+    }
+    #[tokio::main]
+    pub async fn block_on_create_connector(&self) -> anyhow::Result<Connector> {
+        Ok(Connector::new(conn_params(&self).await))
     }
 }
 
@@ -657,7 +661,7 @@ fn set_password(options: &ConnectionOptions, builder: &mut Builder)
     Ok(())
 }
 
-pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
+pub async fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
     let tmp = &opts.conn_options;
     let mut bld = Builder::uninitialized();
     if let Some(path) = &tmp.unix_path {
@@ -677,7 +681,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         }
         bld.read_extra_env_vars()?;
     } else if let Some(dsn) = &tmp.dsn {
-        task::block_on(bld.read_dsn(dsn))?;
+        bld.read_dsn(dsn).await?;
         bld.read_extra_env_vars()?;
     } else if let Some(instance) = &tmp.instance {
         match instance {
@@ -685,21 +689,21 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
                 let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
                 client.ensure_authenticated()?;
                 bld.host_port(Some(client.get_cloud_host(org_slug, name)), None);
-                bld.secret_key(client.access_token.unwrap());
+                // TODO(tailhook) bld.secret_key(client.access_token.unwrap());
             }
             InstanceName::Local(instance) => {
-                task::block_on(bld.read_instance(instance))?;
+                bld.read_instance(instance).await?;
             }
         }
         bld.read_extra_env_vars()?;
     } else if let Some(file_path) = &tmp.credentials_file {
-        task::block_on(bld.read_credentials(file_path))?;
+        bld.read_credentials(file_path).await?;
         bld.read_extra_env_vars()?;
     } else {
-        bld = task::block_on(Builder::from_env())?;
+        bld = Builder::from_env().await?;
     };
     if tmp.admin {
-        bld.admin()?;
+        bld.admin(true);
     }
     if let Some(user) = &tmp.user {
         bld.user(user);
@@ -714,12 +718,13 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.connect_timeout(val);
     }
     if let Some(val) = &tmp.secret_key {
-        bld.secret_key(val);
+        todo!();
+        //bld.secret_key(val);
     }
     set_password(tmp, &mut bld)?;
     load_tls_options(tmp, &mut bld)?;
     if !bld.is_initialized() {
-        let project_dir = task::block_on(get_project_dir(None, true))?;
+        let project_dir = get_project_dir(None, true).await?;
         if project_dir.is_some() {
             return Err(anyhow::anyhow!(ClientNoCredentialsError::with_message(
                 "project is not initialized \

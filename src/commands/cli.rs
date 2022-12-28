@@ -1,5 +1,3 @@
-use async_std::task;
-
 use crate::cli::directory_check;
 use crate::cli;
 use crate::cloud::main::cloud_main;
@@ -12,6 +10,16 @@ use crate::portable;
 use crate::print::style::Styler;
 use crate::watch;
 
+#[tokio::main]
+async fn common_cmd(options: &Options, cmdopt: commands::Options, cmd: &Common)
+    -> Result<(), anyhow::Error>
+{
+    let mut conn = cmdopt.conn_params.connect().await?;
+    commands::execute::common(
+        &mut conn, cmd, &cmdopt
+    ).await?;
+    Ok(())
+}
 
 pub fn main(options: Options) -> Result<(), anyhow::Error> {
     match options.subcommand.as_ref().expect("subcommand is present") {
@@ -23,7 +31,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 } else {
                     None
                 },
-                conn_params: options.create_connector()?,
+                conn_params: options.block_on_create_connector()?,
             };
             directory_check::check_and_warn();
             match cmd {
@@ -31,25 +39,15 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                 Common::Migration(
                     Migration { subcommand: MigrationCmd::Log(mlog), .. }
                 ) if mlog.from_fs => {
-                    task::block_on(migrations::log_fs(&cmdopt, &mlog)).into()
+                    migrations::log_fs(&cmdopt, &mlog).into()
                 }
                 Common::Migration(
                     Migration { subcommand: MigrationCmd::Edit(params), .. }
                 ) if params.no_check => {
-                    task::block_on(
-                        migrations::edit_no_check(&cmdopt, &params)
-                    ).into()
+                    migrations::edit_no_check(&cmdopt, &params).into()
                 }
                 // Otherwise connect
-                cmd => {
-                    task::block_on(async {
-                        let mut conn = cmdopt.conn_params.connect().await?;
-                        commands::execute::common(
-                            &mut conn, cmd, &cmdopt
-                        ).await?;
-                        Ok(())
-                    }).into()
-                }
+                cmd => common_cmd(&options, cmdopt, cmd),
             }
         },
         Command::Server(cmd) => {
@@ -66,7 +64,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::Query(q) => {
             directory_check::check_and_warn();
-            task::block_on(non_interactive::main(&q, &options)).into()
+            non_interactive::noninteractive_main(&q, &options).into()
         }
         Command::_SelfInstall(s) => {
             cli::install::main(s)
@@ -78,7 +76,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             cli::main(c)
         },
         Command::Info(info) => {
-            task::block_on(commands::info(&options, info)).into()
+            commands::info(&options, info).into()
         }
         Command::UI(c) => {
             commands::show_ui(&options, c)
