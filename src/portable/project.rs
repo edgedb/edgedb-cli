@@ -1428,15 +1428,15 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
 }
 
 pub fn find_project_dirs_by_instance(name: &str) -> anyhow::Result<Vec<PathBuf>> {
-    find_project_dirs("instance-name", |val| name == val, true)
+    find_project_stash_dirs("instance-name", |val| name == val, true)
         .map(|projects| projects.into_values().flatten().collect())
 }
 
 #[context("could not read project dir {:?}", stash_base())]
-pub fn find_project_dirs(
+pub fn find_project_stash_dirs(
     get: &str,
     f: impl Fn(&str) -> bool,
-    noisy: bool,
+    verbose: bool,
 ) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
     let mut res = HashMap::new();
     let dir = match fs::read_dir(stash_base()?) {
@@ -1461,7 +1461,7 @@ pub fn find_project_dirs(
         let value = match fs::read_to_string(&path) {
             Ok(value) => value.trim().to_string(),
             Err(e) => {
-                if noisy {
+                if verbose {
                     log::warn!("Error reading {:?}: {}", path, e);
                 }
                 continue;
@@ -1481,7 +1481,7 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
         if project_dirs.len() > 1 { "s" } else { "" },
     ));
     for dir in project_dirs {
-        let dest = match read_project_real_path(dir) {
+        let dest = match read_project_path(dir) {
             Ok(path) => path,
             Err(e) => {
                 print::error(e);
@@ -1493,7 +1493,7 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
 }
 
 #[context("cannot read {:?}", project_dir)]
-pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
+pub fn read_project_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     let bytes = fs::read(&project_dir.join("project-path"))?;
     Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
@@ -1607,7 +1607,7 @@ fn print_other_project_warning(name: &str, project_path: &Path,
 {
     let mut project_dirs = Vec::new();
     for pd in find_project_dirs_by_instance(name)? {
-        let real_pd = match read_project_real_path(&pd) {
+        let real_pd = match read_project_path(&pd) {
             Ok(path) => path,
             Err(e) => {
                 print::error(e);

@@ -37,7 +37,7 @@ pub fn with_projects(name: &str, force: bool,
     }
     f()?;
     for dir in project_dirs {
-        match project::read_project_real_path(&dir) {
+        match project::read_project_path(&dir) {
             Ok(path) => eprintln!("Unlinking {}", path.display()),
             Err(_) => eprintln!("Cleaning {}", dir.display()),
         };

@@ -13,7 +13,7 @@ use crate::commands::ExitCode;
 use crate::options::CloudOptions;
 use crate::portable::exit_codes;
 use crate::portable::local::write_json;
-use crate::portable::project::{find_project_dirs, read_project_real_path};
+use crate::portable::project::{find_project_stash_dirs, read_project_path};
 use crate::print;
 use crate::question;
 
@@ -79,32 +79,31 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
     )
 }
 
-fn find_real_project_dirs(
+fn find_project_dirs(
     f: impl Fn(&str) -> bool,
 ) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
-    find_project_dirs("cloud-profile", f, false).map(|projects| {
-        projects
-            .into_iter()
-            .filter_map(|(profile, projects)| {
-                let projects = projects
-                    .into_iter()
-                    .filter_map(|p| {
-                        read_project_real_path(&p)
-                            .map_err(|e| {
-                                log::warn!("Broken project stash dir: {:?}", p);
-                                e
-                            })
-                            .ok()
-                    })
-                    .collect::<Vec<_>>();
-                if projects.is_empty() {
-                    None
-                } else {
-                    Some((profile, projects))
-                }
-            })
-            .collect()
-    })
+    let projects = find_project_stash_dirs("cloud-profile", f, false)?;
+    Ok((projects
+        .into_iter()
+        .filter_map(|(profile, projects)| {
+            let projects = projects
+                .into_iter()
+                .filter_map(|p| {
+                    read_project_path(&p)
+                        .map_err(|e| {
+                            log::warn!("Broken project stash dir: {:?}", p);
+                            e
+                        })
+                        .ok()
+                })
+                .collect::<Vec<_>>();
+            if projects.is_empty() {
+                None
+            } else {
+                Some((profile, projects))
+            }
+        })
+        .collect()))
 }
 
 pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()> {
@@ -118,7 +117,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
             Err(e) => anyhow::bail!(e),
         };
-        let mut projects = find_real_project_dirs(|_| true).or_else(|e| {
+        let mut projects = find_project_dirs(|_| true).or_else(|e| {
             if c.force {
                 Ok(HashMap::new())
             } else {
@@ -168,7 +167,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
         if path.exists() {
             let profile = client.profile.as_deref().unwrap_or("default");
             log::debug!("Logging out from profile {:?}", profile);
-            let projects = find_real_project_dirs(|p| profile == p)
+            let projects = find_project_dirs(|p| profile == p)
                 .map(|projects| projects.into_values().flatten().collect())
                 .or_else(|e| if c.force { Ok(Vec::new()) } else { Err(e) })?;
             removed = true;

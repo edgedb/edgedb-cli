@@ -80,7 +80,7 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
         eprintln!("To continue with the upgrade, run:");
     }
     for pd in project_dirs {
-        let pd = project::read_project_real_path(&pd)?;
+        let pd = project::read_project_path(&pd)?;
         print_project_upgrade_command(&ver_query, &current_project, &pd);
     }
     if !force {
