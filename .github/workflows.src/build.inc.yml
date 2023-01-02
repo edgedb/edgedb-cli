@@ -3,6 +3,15 @@
     runs-on: ubuntu-latest
     outputs:
       branch: ${{ steps.whichver.outputs.branch }}
+      scm_revision: ${{ steps.whatrev.outputs.rev }}
+<% if subdist == "nightly" %>
+<% for tgt in targets.linux %>
+      if_<< tgt.family >>_<< tgt.platform_version >>_<< tgt.arch >>: ${{ steps.scm.outputs.if_<< tgt.family >>_<< tgt.platform_version >>_<< tgt.arch >> }}
+<% endfor %>
+<% for tgt in targets.macos + targets.win %>
+      if_<< tgt.platform >>_<< tgt.platform_version >>: ${{ steps.scm.outputs.if_<< tgt.platform >>_<< tgt.platform_version >> }}
+<% endfor %>
+<% endif %>
     steps:
     - uses: actions/checkout@v3
       with:
@@ -15,11 +24,63 @@
         echo branch="${branch}" >> $GITHUB_OUTPUT
       id: whichver
 
+<% if subdist == "nightly" %>
+    - name: Determine SCM revision
+      id: scm
+      shell: bash
+      run: |
+        rev=$(git rev-parse HEAD)
+        jq_filter='.packages[] | select(.basename == "edgedb-cli") | select(.architecture == $ARCH) | .version_details.metadata.scm_revision | . as $rev | select($REV | startswith($rev))'
+<% for tgt in targets.linux %>
+        val=true
+<% if tgt.family == "debian" %>
+        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/<< tgt.platform_version >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then 
+          echo 'Skip rebuilding existing << tgt.family >>-<< tgt.platform_version >>-<< tgt.arch >>'
+          val=false
+        fi
+<% elif tgt.family == "redhat" %>
+        out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el<< tgt.platform_version >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing << tgt.family >>-<< tgt.platform_version >>-<< tgt.arch >>'
+          val=false
+        fi
+<% elif tgt.family == "generic" %>
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing << tgt.family >>-<< tgt.platform_version >>-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>'
+          val=false
+        fi
+<% endif %>
+        echo if_<< tgt.family >>_<< tgt.platform_version >>_<< tgt.arch >>="$val" >> $GITHUB_OUTPUT
+<% endfor %>
+<% for tgt in targets.macos + targets.win %>
+        val=true
+<% if tgt.platform == "macos" %>
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
+          val=false
+        fi
+<% elif tgt.platform == "win" %>
+        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        if [ -n "$out" ]; then
+          echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
+          val=false
+        fi
+<% endif %>
+        echo if_<< tgt.platform >>_<< tgt.platform_version >>="$val" >> $GITHUB_OUTPUT
+<% endfor %>
+<% endif %>
+
 <% for tgt in targets.linux %>
 <% set plat_id = tgt.platform + ("{}".format(tgt.platform_libc) if tgt.platform_libc else "") + ("-{}".format(tgt.platform_version) if tgt.platform_version else "") %>
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
     needs: prep
+<% if subdist == "nightly" %>
+    if: needs.prep.outputs.if_<< tgt.family >>_<< tgt.platform_version >>_<< tgt.arch >> == 'true'
+<% endif %>
 
     steps:
     - uses: actions/checkout@v3
@@ -61,6 +122,9 @@
   build-<< tgt.name >>:
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
     needs: prep
+<% if subdist == "nightly" %>
+    if: needs.prep.outputs.if_<< tgt.platform >>_<< tgt.platform_version >> == 'true'
+<% endif %>
 
     steps:
     - uses: actions/checkout@v3
@@ -106,6 +170,9 @@
   build-<< tgt.name >>:
     runs-on: windows-2019
     needs: prep
+<% if subdist == "nightly" %>
+    if: needs.prep.outputs.if_<< tgt.platform >>_<< tgt.platform_version >> == 'true'
+<% endif %>
 
     steps:
     - uses: actions/checkout@v3

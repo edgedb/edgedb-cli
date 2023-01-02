@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       branch: ${{ steps.whichver.outputs.branch }}
+      scm_revision: ${{ steps.whatrev.outputs.rev }}
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -23,9 +25,12 @@ jobs:
 
 
 
+
+
   build-debian-buster-x86_64:
     runs-on: ubuntu-latest
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -58,6 +63,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -88,6 +94,7 @@ jobs:
   build-debian-bullseye-x86_64:
     runs-on: ubuntu-latest
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -120,6 +127,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -150,6 +158,7 @@ jobs:
   build-debian-bookworm-x86_64:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -182,6 +191,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -212,6 +222,7 @@ jobs:
   build-ubuntu-bionic-x86_64:
     runs-on: ubuntu-latest
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -244,6 +255,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -274,6 +286,7 @@ jobs:
   build-ubuntu-focal-x86_64:
     runs-on: ubuntu-latest
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -306,6 +319,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -336,6 +350,7 @@ jobs:
   build-ubuntu-jammy-x86_64:
     runs-on: ubuntu-latest
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -368,6 +383,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -398,6 +414,7 @@ jobs:
   build-centos-7-x86_64:
     runs-on: ubuntu-latest
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -430,6 +447,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -460,6 +478,7 @@ jobs:
   build-centos-8-aarch64:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -492,6 +511,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -523,6 +543,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -553,6 +574,7 @@ jobs:
   build-linux-x86_64:
     runs-on: ubuntu-latest
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -589,6 +611,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -624,6 +647,7 @@ jobs:
   build-macos-x86_64:
     runs-on: macos-latest
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
@@ -664,6 +688,7 @@ jobs:
     runs-on: ['self-hosted', 'macOS', 'ARM64']
     needs: prep
 
+
     steps:
     - uses: actions/checkout@v3
       with:
@@ -703,6 +728,7 @@ jobs:
   build-win-x86_64:
     runs-on: windows-2019
     needs: prep
+
 
     steps:
     - uses: actions/checkout@v3
