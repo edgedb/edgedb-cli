@@ -19,5 +19,5 @@ pub use create::create;
 pub use migrate::migrate;
 pub use status::status;
 pub use edit::{edit, edit_no_check};
-pub use self::log::{log, log_async, log_fs};
+pub use self::log::{log, log_fs};
 pub use context::Context;

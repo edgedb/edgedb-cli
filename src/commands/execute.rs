@@ -101,7 +101,7 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
                 migrations::status(cli, &options, params).await?;
             }
             MigrationCmd::Log(params) => {
-                migrations::log_async(cli, &options, params).await?;
+                migrations::log(cli, &options, params).await?;
             }
             MigrationCmd::Edit(params) => {
                 migrations::edit(cli, &options, params).await?;

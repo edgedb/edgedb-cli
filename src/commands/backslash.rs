@@ -2,8 +2,6 @@ use std::borrow::Cow;
 use std::collections::{BTreeSet, BTreeMap};
 use std::str::FromStr;
 
-use anyhow;
-use futures_lite::stream;
 use clap::{self, FromArgMatches};
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
@@ -663,7 +661,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             };
             println!("Descriptor id: {}", desc_id);
             print::native_to_stdout(
-                stream::iter([Ok::<_, Error>(value)]),
+                tokio_stream::iter([Ok::<_, Error>(value)]),
                 &prompt.print,
             ).await?;
             println!();

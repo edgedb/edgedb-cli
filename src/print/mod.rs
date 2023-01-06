@@ -3,9 +3,9 @@ use std::fmt;
 use std::io;
 use std::convert::Infallible;
 
-use futures_lite::stream::{Stream, StreamExt};
 use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
+use tokio_stream::{Stream, StreamExt};
 
 use edgedb_errors::display::display_error;
 

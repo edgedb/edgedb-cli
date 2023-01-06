@@ -15,17 +15,8 @@ struct Migration {
     parent_names: Vec<String>,
 }
 
-#[tokio::main]
 pub async fn log(cli: &mut Connection,
-                       common: &Options, options: &MigrationLog)
-    -> Result<(), anyhow::Error>
-{
-    log_async(cli, common, options).await
-}
-
-
-pub async fn log_async(cli: &mut Connection,
-                       common: &Options, options: &MigrationLog)
+                 common: &Options, options: &MigrationLog)
     -> Result<(), anyhow::Error>
 {
     if options.from_fs {

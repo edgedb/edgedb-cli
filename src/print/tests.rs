@@ -4,9 +4,9 @@ use std::str::FromStr;
 use std::pin::Pin;
 use std::task;
 
-use futures_lite::Stream;
 use bigdecimal::BigDecimal;
 use bytes::Bytes;
+use tokio_stream::Stream;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model::Datetime;
