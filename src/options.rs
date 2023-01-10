@@ -175,7 +175,7 @@ pub struct ConnectionOptions {
     /// (via `--tls-ca-file` or in credentials JSON file), or
     /// "no_host_verification" otherwise.
     #[clap(long, hide=true, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(value_name="insecure | no_host_verification | strict | default")]
+    #[clap(value_name="insecure | no_host_verification | staging | strict | default")]
     tls_security: Option<String>,
 
     /// In case EdgeDB connection can't be established, retry up to
@@ -780,6 +780,7 @@ pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
         None => None,
         Some("insecure") => Some(TlsSecurity::Insecure),
         Some("no_host_verification") => Some(TlsSecurity::NoHostVerification),
+        Some("staging") => Some(TlsSecurity::Staging),
         Some("strict") => Some(TlsSecurity::Strict),
         Some("default") => Some(TlsSecurity::Default),
         Some(_) => anyhow::bail!(
@@ -801,7 +802,7 @@ pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
     }
     if options.tls_verify_hostname {
         if let Some(s) = security {
-            if s != TlsSecurity::Strict {
+            if s != TlsSecurity::Strict && s != TlsSecurity::Staging {
                 anyhow::bail!(
                     "Cannot set --tls-verify-hostname while \
                      --tls-security is also set"
