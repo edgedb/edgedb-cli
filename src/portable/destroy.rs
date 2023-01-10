@@ -148,7 +148,7 @@ fn do_destroy(
         InstanceName::Cloud { org_slug, name: inst_name } => {
             log::info!("Removing cloud instance {}", name);
             if let Err(e) = crate::cloud::ops::try_to_destroy(
-                &inst_name, &org_slug, opts
+                &inst_name, &org_slug, &opts.cloud_options
             ) {
                 let msg = format!("Failed to destroy EdgeDB Cloud instance: {:#}", e);
                 if options.force {

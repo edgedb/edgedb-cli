@@ -1,4 +1,3 @@
-use std::convert::TryInto;
 use std::env;
 use std::fs;
 use std::io;
@@ -6,13 +5,13 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::Context;
-use surf::http::auth::{AuthenticationScheme, Authorization};
+use reqwest::header;
 
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
 
 const EDGEDB_CLOUD_DEFAULT_DNS_ZONE: &str = "aws.edgedb.cloud";
-const EDGEDB_CLOUD_API_VERSION: &str = "/v1/";
+const EDGEDB_CLOUD_API_VERSION: &str = "v1/";
 const EDGEDB_CLOUD_API_TIMEOUT: u64 = 10;
 
 #[derive(Debug, serde::Deserialize)]
@@ -23,7 +22,7 @@ struct ErrorResponse {
 
 #[derive(Debug, thiserror::Error)]
 #[error("HTTP error: {0}")]
-pub struct HttpError(surf::Error);
+pub struct HttpError(reqwest::Error);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudConfig {
@@ -37,9 +36,9 @@ struct Claims {
 }
 
 pub struct CloudClient {
-    client: surf::Client,
+    client: reqwest::Client,
     pub is_logged_in: bool,
-    pub api_endpoint: String,
+    pub api_endpoint: reqwest::Url,
     options_secret_key: Option<String>,
     options_profile: Option<String>,
     options_api_endpoint: Option<String>,
@@ -83,8 +82,8 @@ impl CloudClient {
                 }
             }
         };
-        let mut config = surf::Config::new()
-            .set_timeout(Some(Duration::from_secs(EDGEDB_CLOUD_API_TIMEOUT)));
+        let mut builder =
+            reqwest::Client::builder().timeout(Duration::from_secs(EDGEDB_CLOUD_API_TIMEOUT));
         let is_logged_in;
         let dns_zone;
         if let Some(secret_key) = secret_key.clone() {
@@ -97,10 +96,12 @@ impl CloudClient {
             let claims: Claims = serde_json::from_slice(&claims)?;
             dns_zone = claims.issuer;
 
-            let auth = Authorization::new(AuthenticationScheme::Bearer, secret_key);
-            config = config
-                .add_header(auth.name(), auth.value())
-                .map_err(HttpError)?;
+            let mut headers = header::HeaderMap::new();
+            let auth_str = format!("Bearer {}", secret_key);
+            let mut auth_value = header::HeaderValue::from_str(&auth_str)?;
+            auth_value.set_sensitive(true);
+            headers.insert(header::AUTHORIZATION, auth_value);
+            builder = builder.default_headers(headers);
             is_logged_in = true;
         } else {
             dns_zone = None;
@@ -110,11 +111,13 @@ impl CloudClient {
         let api_endpoint = options_api_endpoint
             .clone()
             .or_else(|| env::var("EDGEDB_CLOUD_API_ENDPOINT").ok())
-            .unwrap_or_else(|| format!("https://api.g.{dns_zone}"));
-        config = config
-            .set_base_url(surf::Url::parse(&api_endpoint)?.join(EDGEDB_CLOUD_API_VERSION)?);
+            .or_else(|| Some(format!("https://api.g.{dns_zone}")))
+            .as_deref()
+            .map(reqwest::Url::parse)
+            .unwrap()
+            .and_then(|u| u.join(EDGEDB_CLOUD_API_VERSION))?;
         Ok(Self {
-            client: config.try_into()?,
+            client: builder.build()?,
             is_logged_in,
             api_endpoint,
             options_secret_key: options_secret_key.clone(),
@@ -144,11 +147,11 @@ impl CloudClient {
 
     pub async fn request<T: serde::de::DeserializeOwned>(
         &self,
-        req: surf::RequestBuilder,
+        req: reqwest::RequestBuilder,
     ) -> anyhow::Result<T> {
-        let mut resp = req.await.map_err(HttpError)?;
+        let resp = req.send().await.map_err(HttpError)?;
         if !resp.status().is_success() {
-            let ErrorResponse { status, error } = resp.body_json().await.map_err(HttpError)?;
+            let ErrorResponse { status, error } = resp.json().await.map_err(HttpError)?;
             if let Some(error) = error {
                 anyhow::bail!(format!(
                     "Failed to create authentication session: {}: {}",
@@ -161,37 +164,49 @@ impl CloudClient {
                 ));
             }
         }
-        Ok(resp.body_json().await.map_err(HttpError)?)
+        Ok(resp.json().await.map_err(HttpError)?)
     }
 
     pub async fn get<T: serde::de::DeserializeOwned>(
         &self,
         uri: impl AsRef<str>,
     ) -> anyhow::Result<T> {
-        self.request(self.client.get(uri)).await
+        self.request(self.client.get(self.api_endpoint.join(uri.as_ref())?))
+            .await
     }
 
-    pub async fn post<T: serde::de::DeserializeOwned>(
-        &self,
-        uri: impl AsRef<str>,
-        body: impl Into<surf::Body>,
-    ) -> anyhow::Result<T> {
-        self.request(self.client.post(uri).body(body)).await
+    pub async fn post<T, J>(&self, uri: impl AsRef<str>, body: &J) -> anyhow::Result<T>
+        where
+            T: serde::de::DeserializeOwned,
+            J: serde::Serialize + ?Sized,
+    {
+        self.request(
+            self.client
+                .post(self.api_endpoint.join(uri.as_ref())?)
+                .json(body),
+        )
+        .await
     }
 
-    pub async fn put<T: serde::de::DeserializeOwned>(
-        &self,
-        uri: impl AsRef<str>,
-        body: impl Into<surf::Body>,
-    ) -> anyhow::Result<T> {
-        self.request(self.client.put(uri).body(body)).await
+    pub async fn put<T, J>(&self, uri: impl AsRef<str>, body: &J) -> anyhow::Result<T>
+        where
+            T: serde::de::DeserializeOwned,
+            J: serde::Serialize + ?Sized,
+    {
+        self.request(
+            self.client
+                .put(self.api_endpoint.join(uri.as_ref())?)
+                .json(body),
+        )
+        .await
     }
 
     pub async fn delete<T: serde::de::DeserializeOwned>(
         &self,
         uri: impl AsRef<str>,
     ) -> anyhow::Result<T> {
-        self.request(self.client.delete(uri)).await
+        self.request(self.client.delete(self.api_endpoint.join(uri.as_ref())?))
+            .await
     }
 }
 

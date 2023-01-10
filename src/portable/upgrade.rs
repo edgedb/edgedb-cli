@@ -145,7 +145,7 @@ fn upgrade_cloud(cmd: &Upgrade, org: &str, name: &str, opts: &crate::options::Op
     let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
     client.ensure_authenticated()?;
 
-    let inst = task::block_on(cloud::ops::find_cloud_instance_by_name(name, org, &client))?
+    let inst = cloud::ops::find_cloud_instance_by_name(name, org, &client)?
         .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
 
     let inst_ver = ver::Specific::from_str(&inst.version)?;
@@ -177,7 +177,7 @@ fn upgrade_cloud(cmd: &Upgrade, org: &str, name: &str, opts: &crate::options::Op
         name: name.to_string(),
         version: pkg_ver.to_string(),
     };
-    task::block_on(cloud::ops::upgrade_cloud_instance(&client, &request))?;
+    cloud::ops::upgrade_cloud_instance(&client, &request)?;
 
     print::echo!(
         "EdgeDB Cloud instance",

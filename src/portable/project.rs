@@ -316,7 +316,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     Ok(())
 }
 
-async fn ask_existing_instance_name(
+fn ask_existing_instance_name(
     cloud_client: &mut CloudClient
 ) -> anyhow::Result<InstanceName> {
     let instances = credentials::all_instance_names()?;
@@ -325,7 +325,7 @@ async fn ask_existing_instance_name(
         let mut q =
             question::String::new("Specify the name of EdgeDB instance \
                                    to link with this project");
-        let target_name = unblock(move || q.ask()).await?;
+        let target_name = q.ask()?;
 
         let inst_name = match InstanceName::from_str(&target_name) {
             Ok(name) => name,
@@ -340,14 +340,14 @@ async fn ask_existing_instance_name(
                 if !cloud_client.is_logged_in {
                     if let Err(e) = crate::cloud::ops::prompt_cloud_login(
                         cloud_client
-                    ).await {
+                    ) {
                         print::error(e);
                         continue;
                     }
                 }
                 crate::cloud::ops::find_cloud_instance_by_name(
                     name, org_slug, cloud_client
-                ).await?.is_some()
+                )?.is_some()
             }
         };
         if exists {
@@ -381,7 +381,7 @@ fn link(
                        with `--server-instance` argument when linking project \
                        in non-interactive mode")
     } else {
-        task::block_on(ask_existing_instance_name(&mut client))?
+        ask_existing_instance_name(&mut client)?
     };
     let inst = Handle::probe(&name, project_dir, &config.project.schema_dir, &client)?;
     inst.check_version(&ver_query);
@@ -419,7 +419,7 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     })
 }
 
-async fn ask_name(
+fn ask_name(
     dir: &Path, options: &Init, cloud_client: &mut CloudClient
 ) -> anyhow::Result<(InstanceName, bool)> {
     let instances = credentials::all_instance_names()?;
@@ -456,7 +456,7 @@ async fn ask_name(
                     name,
                     org_slug,
                     cloud_client,
-                ).await?;
+                )?;
                 inst.is_some()
             }
         };
@@ -467,15 +467,13 @@ async fn ask_name(
         }
         return Ok((default_name, false));
     }
+    let mut q = question::String::new(
+        "Specify the name of EdgeDB instance to use with this project"
+    );
+    let default_name_str = default_name.to_string();
+    q.default(&default_name_str);
     loop {
-        let default_name_clone = default_name.clone();
-        let target_name = unblock(move || {
-            let mut q = question::String::new(
-                "Specify the name of EdgeDB instance to use with this project"
-            );
-            let default_name_str = default_name_clone.to_string();
-            q.default(&default_name_str).ask()
-        }).await?;
+        let target_name = q.ask()?;
         let inst_name = match InstanceName::from_str(&target_name) {
             Ok(name) => name,
             Err(e) => {
@@ -489,14 +487,14 @@ async fn ask_name(
                 if !cloud_client.is_logged_in {
                     if let Err(e) = crate::cloud::ops::prompt_cloud_login(
                         cloud_client
-                    ).await {
+                    ) {
                         print::error(e);
                         continue;
                     }
                 }
                 crate::cloud::ops::find_cloud_instance_by_name(
                     name, org_slug, cloud_client
-                ).await?.is_some()
+                )?.is_some()
             }
         };
         if exists {
@@ -547,7 +545,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         config.edgedb.server_version
     };
     let mut client = CloudClient::new(cloud_options)?;
-    let (name, exists) = task::block_on(ask_name(project_dir, options, &mut client))?;
+    let (name, exists) = ask_name(project_dir, options, &mut client)?;
 
     if exists {
         let inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
@@ -700,9 +698,7 @@ fn do_cloud_init(
         // default_database: None,
         // default_user: None,
     };
-    task::block_on(
-        crate::cloud::ops::create_cloud_instance(client, &request)
-    )?;
+    crate::cloud::ops::create_cloud_instance(client, &request)?;
     let full_name = format!("{}/{}", org, name);
     let profile = client.profile.as_deref().or_else(|| Some("default"));
     write_stash_dir(stash_dir, project_dir, &full_name, profile)?;
@@ -754,7 +750,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     let schema_files = find_schema_files(&schema_dir)?;
 
     let mut client = CloudClient::new(&opts.cloud_options)?;
-    let (inst_name, exists) = task::block_on(ask_name(project_dir, options, &mut client))?;
+    let (inst_name, exists) = ask_name(project_dir, options, &mut client)?;
 
     if exists {
         let inst = Handle::probe(&inst_name, project_dir, &schema_dir, &client)?;
@@ -1054,16 +1050,7 @@ impl Handle<'_> {
     }
     pub async fn get_builder(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::uninitialized();
-        if let InstanceKind::Cloud { org_slug, name, cloud_client } = &self.instance {
-            let inst = crate::cloud::ops::find_cloud_instance_by_name(name, org_slug, cloud_client)
-                .await?
-                .with_context(|| {
-                    format!("Instance {}/{} doesn't exist any more", org_slug, name)
-                })?;
-            builder.credentials(&inst.as_credentials(cloud_client).await?)?;
-        } else {
-            builder.read_instance(&self.name).await?;
-        }
+        builder.read_instance(&self.name).await?;
         Ok(builder)
     }
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {

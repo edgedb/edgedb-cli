@@ -27,17 +27,18 @@ struct UserSession {
     auth_url: String,
 }
 
-pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
-    do_login(&CloudClient::new(options)?).await
+pub fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
+    do_login(&CloudClient::new(options)?)
 }
 
+#[tokio::main]
 pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
     let UserSession {
         id,
         auth_url,
         token: _,
     } = client
-        .post("auth/sessions/", serde_json::json!({ "type": "CLI" }))
+        .post("auth/sessions/", &serde_json::json!({ "type": "CLI" }).to_string())
         .await?;
     let link = format!("{}{}", client.api_endpoint, auth_url);
     log::debug!("Opening URL in browser: {}", link);
