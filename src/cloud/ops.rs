@@ -179,7 +179,7 @@ pub async fn create_cloud_instance(
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances", request.org);
     let operation: CloudOperation = client
-        .post(url, &serde_json::to_value(request)?)
+        .post(url, request)
         .await?;
     wait_instance_create(operation, &request.org, &request.name, client).await?;
     Ok(())
@@ -192,7 +192,7 @@ pub async fn upgrade_cloud_instance(
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances/{}", request.org, request.name);
     let operation: CloudOperation = client
-        .put(url, &serde_json::to_value(request)?)
+        .put(url, request)
         .await?;
     wait_instance_upgrade(operation, &request.org, &request.name, client).await?;
     Ok(())

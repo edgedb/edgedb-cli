@@ -38,9 +38,9 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
         auth_url,
         token: _,
     } = client
-        .post("auth/sessions/", &serde_json::json!({ "type": "CLI" }).to_string())
+        .post("auth/sessions/", &HashMap::from([("type", "CLI")]))
         .await?;
-    let link = format!("{}{}", client.api_endpoint, auth_url);
+    let link = client.api_endpoint.join(&auth_url)?.to_string();
     log::debug!("Opening URL in browser: {}", link);
     if open::that(&link).is_ok() {
         print::prompt("Please complete the authentication in the opened browser.");
