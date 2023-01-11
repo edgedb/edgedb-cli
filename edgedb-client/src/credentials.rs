@@ -11,7 +11,6 @@ use crate::errors::{Error, ErrorKind};
 pub enum TlsSecurity {
     Insecure,
     NoHostVerification,
-    Staging,
     Strict,
     Default,
 }
@@ -66,7 +65,6 @@ impl TlsSecurity {
             "default" => Ok(TlsSecurity::Default),
             "insecure" => Ok(TlsSecurity::Insecure),
             "no_host_verification" => Ok(TlsSecurity::NoHostVerification),
-            "staging" => Ok(TlsSecurity::Staging),
             "strict" => Ok(TlsSecurity::Strict),
             _ => Err(crate::errors::ClientError::with_message(format!(
                 "Invalid value {:?}. \
@@ -112,7 +110,6 @@ impl Serialize for Credentials {
             tls_verify_hostname: match self.tls_security {
                 TlsSecurity::Default => None,
                 TlsSecurity::Strict => Some(true),
-                TlsSecurity::Staging => Some(true),
                 TlsSecurity::NoHostVerification => Some(false),
                 TlsSecurity::Insecure => Some(false),
             },
@@ -131,7 +128,6 @@ impl<'de> Deserialize<'de> for Credentials {
         let creds = CredentialsCompat::deserialize(deserializer)?;
         let expected_verify = match creds.tls_security {
             Some(TlsSecurity::Strict) => Some(true),
-            Some(TlsSecurity::Staging) => Some(true),
             Some(TlsSecurity::NoHostVerification) => Some(false),
             Some(TlsSecurity::Insecure) => Some(false),
             _ => None,

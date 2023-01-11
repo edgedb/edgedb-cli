@@ -27,9 +27,6 @@ pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Resul
             TlsSecurity::Strict => {
                 url.set_query(Some(&format!("tls_security=strict")));
             }
-            TlsSecurity::Staging => {
-                url.set_query(Some(&format!("tls_security=staging")));
-            }
             TlsSecurity::Insecure => {
                 url.set_query(Some(&format!("tls_security=insecure")));
             }
