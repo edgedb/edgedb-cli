@@ -14,21 +14,27 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     let mut token = None;
     let mut is_remote = true;
     if let Some(instance) = builder.get_instance_name() {
-        match jwt::LocalJWT::new(instance).generate() {
-            Ok(t) => {
-                is_remote = false;
-                token = Some(t);
-            }
-            Err(e) if e.is::<NonLocalInstance>() => {
-                // Continue without token for remote instances
-                log::debug!("Assuming remote instance because: {:#}", e);
-            }
-            Err(e) if e.is::<jwt::ReadKeyError>() => {
-                print::warn(format!("{:#}", e));
-            }
-            Err(e) => {
-                is_remote = false;
-                print::warn(format!("Cannot generate authToken: {:#}", e));
+        if instance.find("/").is_some() {
+            is_remote = true;
+            token = builder.as_credentials()?.secret_key;
+        }
+        if token.is_none() {
+            match jwt::LocalJWT::new(instance).generate() {
+                Ok(t) => {
+                    is_remote = false;
+                    token = Some(t);
+                }
+                Err(e) if e.is::<NonLocalInstance>() => {
+                    // Continue without token for remote instances
+                    log::debug!("Assuming remote instance because: {:#}", e);
+                }
+                Err(e) if e.is::<jwt::ReadKeyError>() => {
+                    print::warn(format!("{:#}", e));
+                }
+                Err(e) => {
+                    is_remote = false;
+                    print::warn(format!("Cannot generate authToken: {:#}", e));
+                }
             }
         }
     }
