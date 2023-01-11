@@ -84,7 +84,7 @@ fn find_project_dirs(
     f: impl Fn(&str) -> bool,
 ) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
     let projects = find_project_stash_dirs("cloud-profile", f, false)?;
-    Ok((projects
+    Ok(projects
         .into_iter()
         .filter_map(|(profile, projects)| {
             let projects = projects
@@ -104,7 +104,7 @@ fn find_project_dirs(
                 Some((profile, projects))
             }
         })
-        .collect()))
+        .collect())
 }
 
 pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()> {

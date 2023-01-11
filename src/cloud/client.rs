@@ -111,14 +111,19 @@ impl CloudClient {
         let api_endpoint = options_api_endpoint
             .clone()
             .map(Ok)
-            .or_else(|| Some(env::var("EDGEDB_CLOUD_API_ENDPOINT")))
-            .transpose()?
+            .or_else(|| env::var_os("EDGEDB_CLOUD_API_ENDPOINT").map(|v| v.into_string()))
+            .transpose()
+            .map_err(|v| anyhow::anyhow!("cannot decode EDGEDB_CLOUD_API_ENDPOINT: {:?}", v))?
             .or_else(|| Some(format!("https://api.g.{dns_zone}")))
             .as_deref()
             .map(reqwest::Url::parse)
             .unwrap()
             .and_then(|u| u.join(EDGEDB_CLOUD_API_VERSION))?;
-        if env::var("EDGEDB_CLOUD_API_TLS_SECURITY")? == "staging" {
+        let cloud_certs = env::var_os("_EDGEDB_CLOUD_CERTS")
+            .map(|v| v.into_string())
+            .transpose()
+            .map_err(|v| anyhow::anyhow!("cannot decode _EDGEDB_CLOUD_CERTS: {:?}", v))?;
+        if matches!(cloud_certs.as_deref(), Some("staging")) {
             builder = builder
                 .add_root_certificate(
                     reqwest::Certificate::from_pem(
