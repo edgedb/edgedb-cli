@@ -27,7 +27,7 @@ use crate::question;
 use edgedb_client::credentials::Credentials;
 
 
-async fn ask_name(
+fn ask_name(
     cloud_client: &mut cloud::client::CloudClient
 ) -> anyhow::Result<InstanceName> {
     let instances = credentials::all_instance_names()?;
@@ -46,14 +46,14 @@ async fn ask_name(
             InstanceName::Local(name) => instances.contains(name),
             InstanceName::Cloud { org_slug, name} => {
                 if !cloud_client.is_logged_in {
-                    if let Err(e) = cloud::ops::prompt_cloud_login(cloud_client).await {
+                    if let Err(e) = cloud::ops::prompt_cloud_login(cloud_client) {
                         print::error(e);
                         continue;
                     }
                 }
                 cloud::ops::find_cloud_instance_by_name(
                     name, org_slug, cloud_client
-                ).await?.is_some()
+                )?.is_some()
             }
         };
         if exists {
@@ -86,7 +86,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
                              in non-interactive mode");
         return Err(ExitCode::new(2).into());
     } else {
-        task::block_on(ask_name(&mut client))?
+        ask_name(&mut client)?
     };
 
     let name = match inst_name.clone() {
@@ -191,7 +191,7 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
         org: org_slug.to_string(),
         version: pkg_ver.to_string(),
     };
-    task::block_on(cloud::ops::create_cloud_instance(&client, &request))?;
+    cloud::ops::create_cloud_instance(&client, &request)?;
     echo!(
         "EdgeDB Cloud instance",
         inst_name,

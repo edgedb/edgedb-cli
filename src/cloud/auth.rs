@@ -27,19 +27,20 @@ struct UserSession {
     auth_url: String,
 }
 
-pub async fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
-    do_login(&CloudClient::new(options)?).await
+pub fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
+    do_login(&CloudClient::new(options)?)
 }
 
+#[tokio::main]
 pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
     let UserSession {
         id,
         auth_url,
         token: _,
     } = client
-        .post("auth/sessions/", serde_json::json!({ "type": "CLI" }))
+        .post("auth/sessions/", &HashMap::from([("type", "CLI")]))
         .await?;
-    let link = format!("{}{}", client.api_endpoint, auth_url);
+    let link = client.api_endpoint.join(&auth_url)?.to_string();
     log::debug!("Opening URL in browser: {}", link);
     if open::that(&link).is_ok() {
         print::prompt("Please complete the authentication in the opened browser.");
@@ -83,7 +84,7 @@ fn find_project_dirs(
     f: impl Fn(&str) -> bool,
 ) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
     let projects = find_project_stash_dirs("cloud-profile", f, false)?;
-    Ok((projects
+    Ok(projects
         .into_iter()
         .filter_map(|(profile, projects)| {
             let projects = projects
@@ -103,7 +104,7 @@ fn find_project_dirs(
                 Some((profile, projects))
             }
         })
-        .collect()))
+        .collect())
 }
 
 pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()> {

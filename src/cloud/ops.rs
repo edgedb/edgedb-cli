@@ -1,11 +1,12 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use async_std::future::timeout;
 use async_std::task;
+use blocking::unblock;
 use edgedb_client::credentials::Credentials;
 use edgedb_client::Builder;
 use indicatif::ProgressBar;
+use tokio::time::timeout;
 
 use crate::cloud::client::CloudClient;
 use crate::collect::Collector;
@@ -30,10 +31,10 @@ pub struct CloudInstance {
 }
 
 impl CloudInstance {
-    pub async fn as_credentials(&self, client: &CloudClient) -> anyhow::Result<Credentials> {
+    pub async fn as_credentials(&self, secret_key: &str) -> anyhow::Result<Credentials> {
         let mut builder = Builder::uninitialized();
         builder
-            .secret_key(client.secret_key.clone().unwrap())
+            .secret_key(secret_key)
             .read_instance(&format!("{}/{}", self.org_slug, self.name)).await?;
         let mut creds = builder.as_credentials()?;
         creds.tls_ca = self.tls_ca.clone();
@@ -44,9 +45,9 @@ impl CloudInstance {
 impl RemoteStatus {
     async fn from_cloud_instance(
         cloud_instance: &CloudInstance,
-        client: &CloudClient
+        secret_key: &str,
     ) -> anyhow::Result<Self> {
-        let credentials = cloud_instance.as_credentials(client).await?;
+        let credentials = cloud_instance.as_credentials(secret_key).await?;
         let (version, connection) = try_connect(&credentials).await;
         Ok(Self {
             name: format!("{}/{}", cloud_instance.org_slug, cloud_instance.name),
@@ -101,6 +102,7 @@ pub struct CloudOperation {
 }
 
 
+#[tokio::main]
 pub async fn find_cloud_instance_by_name(
     inst: &str,
     org: &str,
@@ -170,36 +172,38 @@ async fn wait_instance_upgrade(
     wait_instance_available_after_operation(operation, org, name, client, "upgrading").await
 }
 
+#[tokio::main]
 pub async fn create_cloud_instance(
     client: &CloudClient,
     request: &CloudInstanceCreate,
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances", request.org);
     let operation: CloudOperation = client
-        .post(url, serde_json::to_value(request)?)
+        .post(url, request)
         .await?;
     wait_instance_create(operation, &request.org, &request.name, client).await?;
     Ok(())
 }
 
+#[tokio::main]
 pub async fn upgrade_cloud_instance(
     client: &CloudClient,
     request: &CloudInstanceUpgrade,
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances/{}", request.org, request.name);
     let operation: CloudOperation = client
-        .put(url, serde_json::to_value(request)?)
+        .put(url, request)
         .await?;
     wait_instance_upgrade(operation, &request.org, &request.name, client).await?;
     Ok(())
 }
 
-pub async fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
+pub fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
     let mut q = question::Confirm::new(
         "You're not authenticated to the EdgeDB Cloud yet, login now?",
     );
     if q.default(true).ask()? {
-        crate::cloud::auth::do_login(&client).await?;
+        crate::cloud::auth::do_login(&client)?;
         client.reinit()?;
         client.ensure_authenticated()?;
         Ok(())
@@ -208,7 +212,8 @@ pub async fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> 
     }
 }
 
-async fn destroy(name: &str, org: &str, options: &CloudOptions) -> anyhow::Result<()> {
+#[tokio::main]
+pub async fn try_to_destroy(name: &str, org: &str, options: &CloudOptions) -> anyhow::Result<()> {
     log::info!("Destroying EdgeDB Cloud instance: {}/{}", name, org);
     let client = CloudClient::new(options)?;
     client.ensure_authenticated()?;
@@ -216,28 +221,24 @@ async fn destroy(name: &str, org: &str, options: &CloudOptions) -> anyhow::Resul
     Ok(())
 }
 
-pub fn try_to_destroy(
-    name: &str,
-    org: &str,
-    options: &crate::options::Options,
-) -> anyhow::Result<()> {
-    task::block_on(destroy(name, org, &options.cloud_options))?;
-    Ok(())
+#[tokio::main]
+async fn get_instances(client: CloudClient) -> anyhow::Result<Vec<CloudInstance>> {
+    timeout(Duration::from_secs(30), client.get("instances/"))
+        .await
+        .or_else(|_| anyhow::bail!("timed out with Cloud API"))?
+        .context("failed with Cloud API")
 }
 
 pub async fn list(
-    client: &CloudClient,
+    client: CloudClient,
     errors: &Collector<anyhow::Error>,
 ) -> anyhow::Result<Vec<RemoteStatus>> {
     client.ensure_authenticated()?;
-    let cloud_instances: Vec<CloudInstance> =
-        timeout(Duration::from_secs(30), client.get("instances/"))
-            .await
-            .or_else(|_| anyhow::bail!("timed out with Cloud API"))?
-            .context("failed with Cloud API")?;
+    let secret_key = client.secret_key.clone().unwrap();
+    let cloud_instances = unblock(move || get_instances(client)).await?;  // mixing tokio in async-std?
     let mut rv = Vec::new();
     for cloud_instance in cloud_instances {
-        match RemoteStatus::from_cloud_instance(&cloud_instance, client).await {
+        match RemoteStatus::from_cloud_instance(&cloud_instance, &secret_key).await {
             Ok(status) => rv.push(status),
             Err(e) => {
                 errors.add(
