@@ -219,7 +219,7 @@ impl Connection {
         });
     }
     pub fn get_server_param<T: ServerParam>(&self) -> Option<&T::Value> {
-        self.get_server_param::<T>()
+        self.inner.get_server_param::<T>()
     }
     pub fn is_consistent(&self) -> bool {
         self.inner.is_consistent()
@@ -254,5 +254,13 @@ impl Connection {
         -> Result<CommandDataDescription1, Error>
     {
         self.inner.parse(opts, query, &self.state).await
+    }
+    pub async fn restore(&mut self, header: Bytes,
+        stream: impl Stream<Item=Result<Bytes, Error>> + Unpin)
+        -> Result<(), Error>
+    {
+        let resp = self.inner.restore(header, stream).await?;
+        update_state(&mut self.state, &resp)?;
+        Ok(())
     }
 }

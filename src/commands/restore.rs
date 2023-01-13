@@ -1,20 +1,24 @@
 use std::collections::{HashMap, BTreeSet};
 use std::convert::TryInto;
 use std::ffi::OsString;
+use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
 use std::slice;
 use std::str;
+use std::task::{Poll, Context};
 use std::time::{Instant, Duration};
 
-use anyhow::Context;
+use anyhow::Context as _;
 use bytes::{Bytes, BytesMut, BufMut};
 use fn_error_context::context;
 use tokio::fs;
 use tokio::time::timeout;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
+use tokio_stream::Stream;
 
 use edgedb_errors::{Error, ErrorKind};
-use edgedb_errors::{ProtocolOutOfOrderError};
+use edgedb_errors::{ProtocolOutOfOrderError, UserError};
 use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
 use edgedb_protocol::server_message::ServerMessage;
 use edgeql_parser::helpers::quote_name;
@@ -36,23 +40,29 @@ pub enum PacketType {
     Block,
 }
 
+pub struct Packets<'a> {
+    input: &'a mut Input,
+    buf: BytesMut,
+}
 
-async fn read_packet(input: &mut Input, expected: PacketType)
+
+async fn read_packet(input: &mut Input, buf: &mut BytesMut,
+                     expected: PacketType)
     -> Result<Option<Bytes>, anyhow::Error>
 {
-    let mut buf = [0u8; 1+20+4];
-    let mut read = 0;
-    while read < buf.len() {
-        let n = input.read(&mut buf[read..]).await
+    const HEADER_LEN: usize = 1+20+4;
+    while buf.len() < HEADER_LEN {
+        buf.reserve(HEADER_LEN);
+        let n = input.read_buf(buf).await
             .context("Cannot read packet header")?;
         if n == 0 {  // EOF
-            if read == 0 {
-                return Ok(None);
+            if buf.len() == 0 {
+                return Ok(None)
+            } else {
+                return Err(io::Error::from(io::ErrorKind::UnexpectedEof))
+                    .context("Cannot read packet header")?
             }
-            Err(io::Error::from(io::ErrorKind::UnexpectedEof))
-            .context("Cannot read packet header")?
         }
-        read += n;
     }
     let typ = match buf[0] {
         b'H' => PacketType::Header,
@@ -64,20 +74,39 @@ async fn read_packet(input: &mut Input, expected: PacketType)
                     expected, typ));
     }
     let len = u32::from_be_bytes(buf[1+20..].try_into().unwrap()) as usize;
-    let mut buf = BytesMut::with_capacity(len);
-    unsafe {
-        // this is safe because we use read_exact which initializes whole slice
-
-        let chunk = buf.chunk_mut();
-        // BytesMut is contiguous, so this assertion should hold
-        assert_eq!(chunk.len(), len);
-        let dest: &mut [u8] = slice::from_raw_parts_mut(
-            chunk.as_mut_ptr(), chunk.len());
-        input.read_exact(dest).await
-            .with_context(|| format!("Error reading block of {} bytes", len))?;
-        buf.advance_mut(dest.len());
+    if buf.capacity() < HEADER_LEN + len {
+        buf.reserve(HEADER_LEN + len - buf.capacity());
     }
-    return Ok(Some(buf.freeze()));
+    while buf.len() < HEADER_LEN + len {
+        let read = input.read_buf(buf).await
+            .with_context(|| format!("Error reading block of {} bytes", len))?;
+        if read == 0 {
+            return Err(io::Error::from(io::ErrorKind::UnexpectedEof))
+                .with_context(||
+                    format!("Error reading block of {} bytes", len))?;
+        }
+    }
+    Ok(Some(buf.split_to(HEADER_LEN + len).split_off(HEADER_LEN).freeze()))
+}
+
+impl Packets<'_> {
+    async fn next(&mut self) -> Option<Result<Bytes, Error>> {
+        read_packet(self.input, &mut self.buf, PacketType::Block)
+            .await
+            .map_err(UserError::with_source_ref)
+            .transpose()
+    }
+}
+
+impl Stream for Packets<'_> {
+    type Item = Result<Bytes, Error>;
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>)
+        -> Poll<Option<Result<Bytes, Error>>>
+    {
+        let next = self.next();
+        tokio::pin!(next);
+        return next.poll(cx);
+    }
 }
 
 
@@ -110,7 +139,6 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
     params: &RestoreCmd)
     -> Result<(), anyhow::Error>
 {
-    /*
     use PacketType::*;
     let RestoreCmd {
         path: ref filename,
@@ -143,115 +171,18 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
         Err(anyhow::anyhow!("Unsupported dump version {}", version))
         .with_context(file_ctx)?
     }
-    let header = read_packet(&mut input, Header).await.with_context(file_ctx)?
+    let mut buf = BytesMut::with_capacity(65536);
+    let header = read_packet(&mut input, &mut buf, Header).await
+        .with_context(file_ctx)?
         .ok_or_else(|| anyhow::anyhow!("Dump is empty"))
                        .with_context(file_ctx)?;
     let start_headers = Instant::now();
-    let mut seq = cli.start_sequence().await?;
-    seq.send_messages(&[
-        ClientMessage::Restore(Restore {
-            headers: HashMap::new(),
-            jobs: 1,
-            data: header,
-        })
-    ]).await?;
-    loop {
-        let msg = seq.message().await?;
-        match msg {
-            ServerMessage::RestoreReady(_) => {
-                log::info!(target: "edgedb::restore",
-                    "Schema applied in {:?}", start_headers.elapsed());
-                break;
-            }
-            ServerMessage::ErrorResponse(err) => {
-                seq.err_sync().await.ok();
-                return Err(Into::<Error>::into(err)
-                    .context("error initiating restore protocol")
-                    .into());
-            }
-            _ => {
-                return Err(ProtocolOutOfOrderError::with_message(format!(
-                    "unsolicited message {:?}", msg)))?;
-            }
-        }
-    }
-    let result = send_blocks(&mut seq.writer, &mut input,
-                             filename.as_ref())
-        .race(wait_response(&mut seq.reader, start_headers))
-        .await;
-    if let Err(..) = result {
-        seq.err_sync().await.ok();
-    } else {
-        seq.end_clean();
-    }
-    result
-    */
-    todo!()
-}
-
-/*
-async fn send_blocks(writer: &mut Writer<'_>, input: &mut Input,
-    filename: &Path)
-    -> Result<(), anyhow::Error>
-{
-    use PacketType::*;
-
-    let start_blocks = Instant::now();
-    while
-        let Some(data) = read_packet(input, Block).await
-            .with_context(|| format!("Failed to read dump {}",
-                                     filename.display()))?
-    {
-        writer.send_messages(&[
-            ClientMessage::RestoreBlock(RestoreBlock { data })
-        ]).await?;
-    }
-    writer.send_messages(&[ClientMessage::RestoreEof]).await?;
-    log::info!(target: "edgedb::restore",
-        "Blocks sent in {:?}", start_blocks.elapsed());
-
-    // This future should be canceled by wait_response() receiving
-    // CommandComplete
-    let start_waiting = Instant::now();
-    loop {
-        timeout(Duration::from_secs(60), pending::<()>()).await.ok();
-        log::info!(target: "edgedb::restore",
-            "Waiting for complete {:?}", start_waiting.elapsed());
-    }
-}
-
-async fn wait_response(reader: &mut Reader<'_>, start: Instant)
-    -> Result<(), anyhow::Error>
-{
-    loop {
-        let msg = reader.message().await?;
-        match msg {
-            ServerMessage::StateDataDescription(_) => {
-                // TODO: handle state desc here
-            }
-            ServerMessage::CommandComplete0(_) => {
-                log::info!(target: "edgedb::restore",
-                    "Complete in {:?}", start.elapsed());
-                break;
-            }
-            ServerMessage::CommandComplete1(..) => {
-                log::info!(target: "edgedb::restore",
-                    "Complete in {:?}", start.elapsed());
-                // TODO(tailhook) process state from command_complete
-                break;
-            }
-            ServerMessage::ErrorResponse(err) => {
-                return Err(Into::<Error>::into(err))?;
-            }
-            _ => {
-                return Err(ProtocolOutOfOrderError::with_message(format!(
-                    "unsolicited message {:?}", msg)))?;
-            }
-        }
-    }
+    cli.restore(header, Packets {
+        input: &mut input,
+        buf,
+    }).await?;
     Ok(())
 }
-*/
 
 fn path_to_database_name(path: &Path) -> anyhow::Result<String> {
     let encoded = path.file_stem().and_then(|x| x.to_str())
