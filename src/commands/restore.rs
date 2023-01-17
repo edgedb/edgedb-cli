@@ -73,7 +73,7 @@ async fn read_packet(input: &mut Input, buf: &mut BytesMut,
         return Err(anyhow::anyhow!("Expected block {:?} got {:?}",
                     expected, typ));
     }
-    let len = u32::from_be_bytes(buf[1+20..].try_into().unwrap()) as usize;
+    let len = u32::from_be_bytes(buf[1+20..][..4].try_into().unwrap()) as usize;
     if buf.capacity() < HEADER_LEN + len {
         buf.reserve(HEADER_LEN + len - buf.capacity());
     }

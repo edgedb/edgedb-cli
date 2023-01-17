@@ -9,6 +9,7 @@ use sha1::{Digest};
 use edgedb_protocol::client_message::{ClientMessage, Dump};
 use edgedb_protocol::server_message::ServerMessage;
 use edgedb_errors::{Error, ErrorKind, ProtocolOutOfOrderError};
+use tokio_stream::{StreamExt};
 
 use crate::commands::Options;
 use crate::commands::list_databases::get_databases;
@@ -82,89 +83,42 @@ pub async fn dump(cli: &mut Connection, general: &Options,
 async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     -> Result<(), anyhow::Error>
 {
-    /*
-    let mut seq = cli.start_sequence().await?;
     let (mut output, guard) = Guard::open(filename).await?;
     output.write_all(
         b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00\
           \x00\x00\x00\x00\x00\x00\x00\x01"
         ).await?;
 
-    seq.send_messages(&[
-        ClientMessage::Dump(Dump {
-            headers: Default::default(),
-        }),
-        ClientMessage::Sync,
-    ]).await?;
+    let (header, mut blocks) = cli.dump().await?;
+
+    // this is ensured because length in the protocol is u32 too
+    assert!(header.data.len() <= u32::max_value() as usize);
 
     let mut header_buf = Vec::with_capacity(25);
-    let msg = seq.message().await?;
-    match msg {
-        ServerMessage::DumpHeader(packet) => {
-            // this is ensured because length in the protocol is u32 too
-            assert!(packet.data.len() <= u32::max_value() as usize);
 
-            header_buf.truncate(0);
-            header_buf.push(b'H');
-            header_buf.extend(
-                &sha1::Sha1::new_with_prefix(&packet.data).finalize()[..]);
-            header_buf.extend(
-                &(packet.data.len() as u32).to_be_bytes()[..]);
-            output.write_all(&header_buf).await?;
-            output.write_all(&packet.data).await?;
-        }
-        ServerMessage::ErrorResponse(err) => {
-            seq.err_sync().await.ok();
-            return Err(Into::<Error>::into(err)
-                .context("error receiving dump header")
-                .into());
-        }
-        _ => {
-            return Err(ProtocolOutOfOrderError::with_message(format!(
-                "unsolicited message {:?}", msg)))?;
-        }
-    }
-    loop {
-        let msg = seq.message().await?;
-        match msg {
-            ServerMessage::CommandComplete0(..) => {
-                seq.expect_ready().await?;
-                break;
-            }
-            ServerMessage::CommandComplete1(d) => {
-                seq.process_complete(&d)?;
-                seq.expect_ready().await?;
-                break;
-            }
-            ServerMessage::DumpBlock(packet) => {
-                // this is ensured because length in the protocol is u32 too
-                assert!(packet.data.len() <= u32::max_value() as usize);
+    header_buf.push(b'H');
+    header_buf.extend(
+        &sha1::Sha1::new_with_prefix(&header.data).finalize()[..]);
+    header_buf.extend(
+        &(header.data.len() as u32).to_be_bytes()[..]);
+    output.write_all(&header_buf).await?;
+    output.write_all(&header.data).await?;
 
-                header_buf.truncate(0);
-                header_buf.push(b'D');
-                header_buf.extend(
-                    &sha1::Sha1::new_with_prefix(&packet.data).finalize()[..]);
-                header_buf.extend(
-                    &(packet.data.len() as u32).to_be_bytes()[..]);
-                output.write_all(&header_buf).await?;
-                output.write_all(&packet.data).await?;
-            }
-            ServerMessage::ErrorResponse(err) => {
-                seq.err_sync().await.ok();
-                return Err(Into::<Error>::into(err)
-                    .context("error receiving dump block")
-                    .into());
-            }
-            _ => {
-                return Err(ProtocolOutOfOrderError::with_message(format!(
-                    "unsolicited message {:?}", msg)))?;
-            }
-        }
+    while let Some(packet) = blocks.next().await.transpose()? {
+        // this is ensured because length in the protocol is u32 too
+        assert!(packet.data.len() <= u32::max_value() as usize);
+
+        header_buf.truncate(0);
+        header_buf.push(b'D');
+        header_buf.extend(
+            &sha1::Sha1::new_with_prefix(&packet.data).finalize()[..]);
+        header_buf.extend(
+            &(packet.data.len() as u32).to_be_bytes()[..]);
+        output.write_all(&header_buf).await?;
+        output.write_all(&packet.data).await?;
     }
     guard.commit().await?;
     Ok(())
-        */
-    todo!();
 }
 
 pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)

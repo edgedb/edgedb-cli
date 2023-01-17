@@ -18,6 +18,7 @@ use edgedb_protocol::features::ProtocolVersion;
 use edgedb_protocol::query_arg::QueryArgs;
 use edgedb_protocol::server_message::TransactionState;
 use edgedb_protocol::server_message::CommandDataDescription1;
+use edgedb_protocol::server_message::RawPacket;
 use edgedb_protocol::client_message::{State, CompilationOptions};
 use edgedb_protocol::value::Value;
 use edgedb_tokio::raw::{self, Response};
@@ -43,6 +44,11 @@ pub struct ResponseStream<'a, T: QueryResult>
     where T::State: Unpin,
 {
     inner: raw::ResponseStream<'a, T>,
+    state: &'a mut State,
+}
+
+pub struct DumpStream<'a> {
+    inner: raw::DumpStream<'a>,
     state: &'a mut State,
 }
 
@@ -93,6 +99,33 @@ impl<'a, T: QueryResult> Stream for ResponseStream<'a, T>
     type Item = Result<T, Error>;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>)
         -> Poll<Option<Result<T, Error>>>
+    {
+        let next = self.get_mut().next();
+        tokio::pin!(next);
+        return next.poll(cx);
+    }
+}
+
+impl DumpStream<'_> {
+    async fn next(&mut self) -> Option<Result<RawPacket, Error>> {
+        if let Some(el) = self.inner.next_block().await {
+            Some(Ok(el))
+        } else {
+            match self.inner.process_complete().await {
+                Ok(resp) => match update_state(self.state, &resp) {
+                    Ok(()) => None,
+                    Err(e) => Some(Err(e)),
+                },
+                Err(e) => Some(Err(e)),
+            }
+        }
+    }
+}
+
+impl Stream for DumpStream<'_> {
+    type Item = Result<RawPacket, Error>;
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>)
+        -> Poll<Option<Result<RawPacket, Error>>>
     {
         let next = self.get_mut().next();
         tokio::pin!(next);
@@ -262,5 +295,16 @@ impl Connection {
         let resp = self.inner.restore(header, stream).await?;
         update_state(&mut self.state, &resp)?;
         Ok(())
+    }
+    pub async fn dump(&mut self)
+        -> Result<
+            (RawPacket, impl Stream<Item=Result<RawPacket, Error>> + '_),
+            Error
+        >
+    {
+        let mut inner = self.inner.dump().await?;
+        let header = inner.take_header().expect("header is read");
+        let stream = DumpStream { inner, state: &mut self.state };
+        Ok((header, stream))
     }
 }
