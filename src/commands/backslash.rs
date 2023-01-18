@@ -653,11 +653,11 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         }
         DebugState(StateParam { base }) => {
             let (desc_id, value) = if *base {
-                prompt.get_state_as_value()
+                prompt.get_state_as_value()?
             } else {
                 prompt.connection.as_ref()
                     .map(|c| c.get_state_as_value())
-                    .unwrap_or_else(|| prompt.get_state_as_value())
+                    .unwrap_or_else(|| prompt.get_state_as_value())?
             };
             println!("Descriptor id: {}", desc_id);
             print::native_to_stdout(
@@ -668,8 +668,6 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             Ok(Skip)
         }
         DebugStateDesc(StateParam { base }) => {
-            todo!();
-            /*
             let desc = if *base {
                 prompt.edgeql_state_desc.clone()
             } else {
@@ -682,7 +680,6 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             eprintln!("Descriptor: {:#?}", typedesc.descriptors());
             eprintln!("Codec: {:#?}", typedesc.build_codec()?);
             Ok(Skip)
-            */
         }
         History => {
             prompt.show_history().await?;

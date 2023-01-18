@@ -10,7 +10,7 @@ use tokio_stream::Stream;
 
 use edgedb_protocol::model::Uuid;
 use edgedb_errors::{Error, ErrorKind, ResultExt};
-use edgedb_errors::{NoDataError};
+use edgedb_errors::{NoDataError, ProtocolEncodingError, ClientError};
 use edgedb_protocol::QueryResult;
 use edgedb_protocol::common::Capabilities;
 use edgedb_protocol::descriptors::RawTypedesc;
@@ -271,8 +271,25 @@ impl Connection {
     pub fn transaction_state(&self) -> TransactionState {
         self.inner.transaction_state()
     }
-    pub fn get_state_as_value(&self) -> (Uuid, Value) {
-        todo!();
+    pub fn get_state_as_value(&self) -> Result<(Uuid, Value), Error> {
+        if self.state.typedesc_id == Uuid::from_u128(0) {
+            return Ok((Uuid::from_u128(0), Value::Nothing));
+        }
+        let desc = self.inner.state_descriptor();
+        if desc.id != self.state.typedesc_id {
+            return Err(ClientError::with_message(
+                    format!("State type descriptor id is {:?}, \
+                             but state is encoded using {:?}",
+                            desc.id, self.state.typedesc_id)
+            ));
+        }
+        let desc = desc.decode().map_err(ProtocolEncodingError::with_source)?;
+        let codec = desc.build_codec()
+            .map_err(ProtocolEncodingError::with_source)?;
+        let value = codec.decode(&self.state.data[..])
+            .map_err(ProtocolEncodingError::with_source)?;
+
+        Ok((desc.id().clone(), value))
     }
     pub fn get_state(&self) -> &State {
         &self.state

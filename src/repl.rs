@@ -7,6 +7,8 @@ use colorful::Colorful;
 use tokio::sync::oneshot;
 use tokio::sync::mpsc::Sender;
 
+use edgedb_errors::{Error, ErrorKind};
+use edgedb_errors::{NoDataError, ProtocolEncodingError, ClientError};
 use edgedb_protocol::common::{State as EdgeqlState, RawTypedesc};
 use edgedb_protocol::model::Uuid;
 use edgedb_protocol::model::{Duration as EdbDuration};
@@ -297,8 +299,25 @@ impl State {
         }
         Ok(false)
     }
-    pub fn get_state_as_value(&self) -> (Uuid, Value) {
-        todo!();
+    pub fn get_state_as_value(&self) -> Result<(Uuid, Value), Error> {
+        if self.edgeql_state.typedesc_id == Uuid::from_u128(0) {
+            return Ok((Uuid::from_u128(0), Value::Nothing));
+        }
+        let desc = &self.edgeql_state_desc;
+        if desc.id != self.edgeql_state.typedesc_id {
+            return Err(ClientError::with_message(
+                    format!("State type descriptor id is {:?}, \
+                             but state is encoded using {:?}",
+                            desc.id, self.edgeql_state.typedesc_id)
+            ));
+        }
+        let desc = desc.decode().map_err(ProtocolEncodingError::with_source)?;
+        let codec = desc.build_codec()
+            .map_err(ProtocolEncodingError::with_source)?;
+        let value = codec.decode(&self.edgeql_state.data[..])
+            .map_err(ProtocolEncodingError::with_source)?;
+
+        Ok((desc.id().clone(), value))
     }
 }
 
