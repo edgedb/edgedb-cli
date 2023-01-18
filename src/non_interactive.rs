@@ -1,15 +1,20 @@
 use std::str;
 
 use anyhow::{self, Context};
-use bytes::BytesMut;
-use crate::connect::Connection;
+use bytes::{Bytes, BytesMut};
+use tokio::fs::{File as AsyncFile};
+use tokio::io::{self, AsyncRead, BufWriter, AsyncWriteExt, stdin, stdout};
+
 use edgedb_errors::NoResultExpected;
+use edgedb_protocol::client_message::{CompilationOptions};
+use edgedb_protocol::client_message::{Parse, Prepare, IoFormat, Cardinality};
+use edgedb_protocol::common::{Capabilities, CompilationFlags, State};
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
-use tokio::fs::{File as AsyncFile};
-use tokio::io::{self, AsyncRead, BufWriter, stdin};
+use tokio_stream::StreamExt;
 
 use crate::commands::ExitCode;
+use crate::connect::Connection;
 use crate::error_display::print_query_error;
 use crate::options::Options;
 use crate::options::Query;
@@ -110,25 +115,42 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
     fmt: OutputFormat)
     -> Result<(), anyhow::Error>
 {
-    todo!();
-    /*
+    use crate::repl::OutputFormat::*;
+
+    let flags = CompilationOptions {
+        implicit_limit: None,
+        implicit_typenames: fmt == Default &&
+            conn.protocol().supports_inline_typenames(),
+        implicit_typeids: false,
+        explicit_objectids: true,
+        allow_capabilities: Capabilities::ALL,
+        io_format: match fmt {
+            Default | TabSeparated => IoFormat::Binary,
+            JsonLines | JsonPretty => IoFormat::JsonElements,
+            Json => IoFormat::Json,
+        },
+        expected_cardinality: Cardinality::Many,
+    };
+    let data_description = conn.parse(&flags, stmt).await?;
+
     let mut cfg = print::Config::new();
     if let Some((w, _h)) = term_size::dimensions_stdout() {
         cfg.max_width(w);
     }
     cfg.colors(atty::is(atty::Stream::Stdout));
 
+    let mut items = conn.execute_stream(
+        &flags, stmt, &data_description, &(),
+    ).await?;
+
+    if !items.can_contain_data() {
+        let res = items.complete().await?;
+        print::completion(&res.status_data);
+        return Ok(());
+    }
+
     match fmt {
         OutputFormat::TabSeparated => {
-            let mut items = match conn.query::<Value, _>(stmt, &()).await {
-                Ok(items) => items,
-                Err(e) if e.is::<NoResultExpected>() => {
-                    print::completion(e.initial_message()
-                        .unwrap_or("UNKNOWN").as_bytes());
-                    return Ok(());
-                }
-                Err(e) => return Err(e)?,
-            };
             while let Some(row) = items.next().await.transpose()? {
                 let mut text = tab_separated::format_row(&row)?;
                 // trying to make writes atomic if possible
@@ -137,15 +159,6 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
             }
         }
         OutputFormat::Default => {
-            let items = match conn.query::<Value, _>(stmt, &()).await {
-                Ok(items) => items,
-                Err(e) if e.is::<NoResultExpected>() => {
-                    print::completion(e.initial_message()
-                        .unwrap_or("UNKNOWN"));
-                    return Ok(());
-                }
-                Err(e) => return Err(e)?,
-            };
             match print::native_to_stdout(items, &cfg).await {
                 Ok(()) => {}
                 Err(e) => {
@@ -162,24 +175,27 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
             }
         }
         OutputFormat::JsonPretty | OutputFormat::JsonLines => {
-            let mut items = match conn.query_json_els(stmt, &()).await {
-                Ok(items) => items,
-                Err(e) if e.is::<NoResultExpected>() => {
-                    print::completion(e.initial_message()
-                        .unwrap_or("UNKNOWN"));
-                    return Ok(());
-                }
-                Err(e) => return Err(e)?,
-            };
             if fmt == OutputFormat::JsonLines {
                 while let Some(mut row) = items.next().await.transpose()? {
+                    let mut text = match row {
+                        Value::Str(s) => s,
+                        _ => return Err(anyhow::anyhow!(
+                            "the server returned \
+                             a non-string value in JSON mode")),
+                    };
                     // trying to make writes atomic if possible
-                    row += "\n";
-                    stdout().write_all(row.as_bytes()).await?;
+                    text += "\n";
+                    stdout().write_all(text.as_bytes()).await?;
                 }
             } else {
                 while let Some(row) = items.next().await.transpose()? {
-                    let value: serde_json::Value = serde_json::from_str(&row)
+                    let mut text = match row {
+                        Value::Str(s) => s,
+                        _ => return Err(anyhow::anyhow!(
+                            "the server returned \
+                             a non-string value in JSON mode")),
+                    };
+                    let value: serde_json::Value = serde_json::from_str(&text)
                         .context("cannot decode json result")?;
                     // trying to make writes atomic if possible
                     let mut data = print::json_item_to_string(&value, &cfg)?;
@@ -189,17 +205,14 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
             }
         }
         OutputFormat::Json => {
-            let mut items = match conn.query_json(stmt, &()).await {
-                Ok(items) => items,
-                Err(e) if e.is::<NoResultExpected>() => {
-                    print::completion(e.initial_message()
-                        .unwrap_or("UNKNOWN"));
-                    return Ok(());
-                },
-                Err(e) => return Err(e)?,
-            };
             while let Some(row) = items.next().await.transpose()? {
-                let items: serde_json::Value = serde_json::from_str(&row)
+                let mut text = match row {
+                    Value::Str(s) => s,
+                    _ => return Err(anyhow::anyhow!(
+                        "the server returned \
+                         a non-string value in JSON mode")),
+                };
+                let items: serde_json::Value = serde_json::from_str(&text)
                     .context("cannot decode json result")?;
                 let items = items.as_array()
                     .ok_or_else(|| anyhow::anyhow!(
@@ -212,5 +225,4 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
         }
     }
     Ok(())
-    */
 }

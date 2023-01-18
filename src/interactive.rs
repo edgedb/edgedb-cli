@@ -277,7 +277,11 @@ async fn execute_query(options: &Options, state: &mut repl::State,
         implicit_typeids: false,
         explicit_objectids: true,
         allow_capabilities: Capabilities::ALL,
-        io_format: IoFormat::Binary,
+        io_format: match state.output_format {
+            Default | TabSeparated => IoFormat::Binary,
+            JsonLines | JsonPretty => IoFormat::JsonElements,
+            Json => IoFormat::Json,
+        },
         expected_cardinality: Cardinality::Many,
     };
 
