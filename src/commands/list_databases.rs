@@ -1,5 +1,3 @@
-use std::default::Default;
-
 use crate::commands::Options;
 use crate::commands::list;
 use crate::connect::Connection;

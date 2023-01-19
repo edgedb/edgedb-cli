@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anymap::AnyMap;
-use anyhow::Context;
 use atty;
 use clap::{ValueHint};
 use colorful::Colorful;

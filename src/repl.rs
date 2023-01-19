@@ -8,7 +8,7 @@ use tokio::sync::oneshot;
 use tokio::sync::mpsc::Sender;
 
 use edgedb_errors::{Error, ErrorKind};
-use edgedb_errors::{NoDataError, ProtocolEncodingError, ClientError};
+use edgedb_errors::{ProtocolEncodingError, ClientError};
 use edgedb_protocol::common::{State as EdgeqlState, RawTypedesc};
 use edgedb_protocol::model::Uuid;
 use edgedb_protocol::model::{Duration as EdbDuration};

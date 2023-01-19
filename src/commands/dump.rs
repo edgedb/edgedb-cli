@@ -1,4 +1,3 @@
-use std::default::Default;
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
@@ -6,9 +5,6 @@ use tokio::fs;
 use tokio::io::{self, AsyncWrite, AsyncWriteExt};
 use sha1::{Digest};
 
-use edgedb_protocol::client_message::{ClientMessage, Dump};
-use edgedb_protocol::server_message::ServerMessage;
-use edgedb_errors::{Error, ErrorKind, ProtocolOutOfOrderError};
 use tokio_stream::{StreamExt};
 
 use crate::commands::Options;

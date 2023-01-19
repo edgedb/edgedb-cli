@@ -1,14 +1,13 @@
 use std::str;
 
 use anyhow::{self, Context};
-use bytes::{Bytes, BytesMut};
+use bytes::{BytesMut};
 use tokio::fs::{File as AsyncFile};
-use tokio::io::{self, AsyncRead, BufWriter, AsyncWriteExt, stdin, stdout};
+use tokio::io::{AsyncRead, AsyncWriteExt, stdin, stdout};
 
-use edgedb_errors::NoResultExpected;
 use edgedb_protocol::client_message::{CompilationOptions};
-use edgedb_protocol::client_message::{Parse, Prepare, IoFormat, Cardinality};
-use edgedb_protocol::common::{Capabilities, CompilationFlags, State};
+use edgedb_protocol::client_message::{IoFormat, Cardinality};
+use edgedb_protocol::common::{Capabilities};
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
 use tokio_stream::StreamExt;
@@ -176,7 +175,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
         }
         OutputFormat::JsonPretty | OutputFormat::JsonLines => {
             if fmt == OutputFormat::JsonLines {
-                while let Some(mut row) = items.next().await.transpose()? {
+                while let Some(row) = items.next().await.transpose()? {
                     let mut text = match row {
                         Value::Str(s) => s,
                         _ => return Err(anyhow::anyhow!(
@@ -189,7 +188,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                 }
             } else {
                 while let Some(row) = items.next().await.transpose()? {
-                    let mut text = match row {
+                    let text = match row {
                         Value::Str(s) => s,
                         _ => return Err(anyhow::anyhow!(
                             "the server returned \
@@ -206,7 +205,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
         }
         OutputFormat::Json => {
             while let Some(row) = items.next().await.transpose()? {
-                let mut text = match row {
+                let text = match row {
                     Value::Str(s) => s,
                     _ => return Err(anyhow::anyhow!(
                         "the server returned \

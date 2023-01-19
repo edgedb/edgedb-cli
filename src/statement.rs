@@ -1,15 +1,12 @@
 use std::error;
 use std::fmt;
-use std::future::Future;
 use std::pin::Pin;
-use std::slice;
-use std::task::{Poll, Context};
 
 use anyhow::Context as _;
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncReadExt};
 
-use edgeql_parser::preparser::{full_statement, Continuation};
+use edgeql_parser::preparser::full_statement;
 
 #[derive(Debug)]
 pub struct EndOfFile;

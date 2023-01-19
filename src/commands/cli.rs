@@ -11,7 +11,7 @@ use crate::print::style::Styler;
 use crate::watch;
 
 #[tokio::main]
-async fn common_cmd(options: &Options, cmdopt: commands::Options, cmd: &Common)
+async fn common_cmd(_options: &Options, cmdopt: commands::Options, cmd: &Common)
     -> Result<(), anyhow::Error>
 {
     let mut conn = cmdopt.conn_params.connect().await?;

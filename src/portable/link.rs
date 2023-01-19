@@ -19,7 +19,6 @@ use edgedb_tokio::tls;
 use edgedb_tokio::{Builder};
 use edgedb_tokio::raw::Connection;
 
-use crate::connect::Connector;
 use crate::credentials;
 use crate::hint::{HintedError, HintExt};
 use crate::options::{Options, ConnectionOptions};

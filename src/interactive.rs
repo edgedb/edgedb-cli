@@ -1,29 +1,19 @@
-use std::collections::HashMap;
 use std::mem::replace;
 use std::str;
 use std::time::Instant;
 
 use anyhow::{self, Context};
-use bytes::{Bytes, BytesMut};
 use colorful::Colorful;
 use tokio::io::{stdout, AsyncWriteExt};
 use tokio::sync::mpsc::channel;
 use tokio_stream::StreamExt;
 
-use edgedb_errors::{Error as EdgedbError, StateMismatchError};
-use edgedb_errors::{ErrorKind, ClientEncodingError};
-use edgedb_protocol::client_message::ClientMessage;
 use edgedb_protocol::client_message::{CompilationOptions};
-use edgedb_protocol::client_message::{DescribeStatement, DescribeAspect};
-use edgedb_protocol::client_message::{Execute0, Execute1};
-use edgedb_protocol::client_message::{Parse, Prepare, IoFormat, Cardinality};
-use edgedb_protocol::common::{Capabilities, CompilationFlags, State};
+use edgedb_protocol::client_message::{IoFormat, Cardinality};
+use edgedb_protocol::common::{Capabilities, State};
 use edgedb_protocol::common::{RawTypedesc};
 use edgedb_protocol::model::Duration;
-use edgedb_protocol::query_arg::{Encoder, QueryArgs};
-use edgedb_protocol::server_message::ServerMessage;
 use edgedb_protocol::value::Value;
-use edgedb_tokio::raw::Response;
 use edgeql_parser::preparser::{self, full_statement};
 
 use crate::commands::{backslash, ExitCode};

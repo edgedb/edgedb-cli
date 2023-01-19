@@ -1,26 +1,21 @@
-use std::collections::{HashMap, BTreeSet};
+use std::collections::{BTreeSet};
 use std::convert::TryInto;
 use std::ffi::OsString;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
-use std::slice;
 use std::str;
 use std::task::{Poll, Context};
-use std::time::{Instant, Duration};
+use std::time::{Duration};
 
 use anyhow::Context as _;
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{Bytes, BytesMut};
 use fn_error_context::context;
 use tokio::fs;
-use tokio::time::timeout;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_stream::Stream;
 
-use edgedb_errors::{Error, ErrorKind};
-use edgedb_errors::{ProtocolOutOfOrderError, UserError};
-use edgedb_protocol::client_message::{ClientMessage, Restore, RestoreBlock};
-use edgedb_protocol::server_message::ServerMessage;
+use edgedb_errors::{Error, ErrorKind, UserError};
 use edgeql_parser::helpers::quote_name;
 use edgeql_parser::preparser::{is_empty};
 
@@ -176,7 +171,6 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
         .with_context(file_ctx)?
         .ok_or_else(|| anyhow::anyhow!("Dump is empty"))
                        .with_context(file_ctx)?;
-    let start_headers = Instant::now();
     cli.restore(header, Packets {
         input: &mut input,
         buf,

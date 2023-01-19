@@ -1,6 +1,5 @@
 use std::future::{Future, pending};
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{Poll, Context};
 use std::time::Duration;
 
