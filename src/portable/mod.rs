@@ -1,4 +1,4 @@
-mod exit_codes;
+pub(crate) mod exit_codes;
 mod main;
 pub mod config;
 pub mod local;

@@ -7,10 +7,10 @@ use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
-use edgedb_errors::{ClientNoCredentialsError, ErrorKind};
+use edgedb_errors::{ClientNoCredentialsError, ErrorKind, ResultExt};
 use edgedb_protocol::model;
 use edgedb_tokio::credentials::TlsSecurity;
-use edgedb_tokio::{Builder, get_project_dir};
+use edgedb_tokio::{Builder, get_project_dir, SkipFields};
 use fs_err as fs;
 
 use crate::cli::options::CliCommand;
@@ -206,11 +206,16 @@ pub struct CloudOptions {
     #[clap(hide=true)]
     pub cloud_api_endpoint: Option<String>,
 
-    /// Specify the EdgeDB Cloud API access token to use, instead of loading
-    /// the access token from the remembered authentication.
-    #[clap(long, name="TOKEN", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    /// Specify the EdgeDB Cloud API secret key to use, instead of loading
+    /// the secret key from the remembered authentication.
+    #[clap(long, name="SECRET_KEY", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
-    pub cloud_access_token: Option<String>,
+    pub cloud_secret_key: Option<String>,
+
+    /// Specify the authenticated EdgeDB Cloud profile, default is "default".
+    #[clap(long, name="PROFILE", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    #[clap(hide=true)]
+    pub cloud_profile: Option<String>,
 }
 
 /// Use the `edgedb` command-line tool to spin up local instances,
@@ -232,6 +237,10 @@ pub struct RawOptions {
     #[clap(long)]
     #[cfg_attr(not(feature="dev_mode"), clap(hide=true))]
     pub debug_print_codecs: bool,
+
+    #[cfg(feature="portable_tests")]
+    #[clap(long)]
+    pub test_output_conn_params: bool,
 
     /// Print all available connection options
     /// for the interactive shell and subcommands
@@ -368,6 +377,8 @@ pub struct Options {
     pub debug_print_codecs: bool,
     pub output_format: Option<OutputFormat>,
     pub no_cli_update_check: bool,
+    #[cfg(feature="portable_tests")]
+    pub test_output_conn_params: bool,
 }
 
 fn parse_duration(value: &str) -> anyhow::Result<Duration> {
@@ -630,6 +641,8 @@ impl Options {
                 None
             },
             no_cli_update_check,
+            #[cfg(feature="portable_tests")]
+            test_output_conn_params: tmp.test_output_conn_params,
         })
     }
 
@@ -675,20 +688,36 @@ pub async fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
                 bld.unix_path(host, tmp.port, tmp.admin);
             }
             _ => {
-                bld.host_port(tmp.host.clone(), tmp.port);
+                bld.host_port(tmp.host.clone(), tmp.port)?;
             }
         }
         bld.read_extra_env_vars()?;
     } else if let Some(dsn) = &tmp.dsn {
-        bld.read_dsn(dsn).await?;
-        bld.read_extra_env_vars()?;
+        let skip = SkipFields {
+            user: tmp.user.is_some(),
+            database: tmp.database.is_some(),
+            wait_until_available: tmp.wait_until_available.is_some(),
+            secret_key: tmp.secret_key.is_some(),
+            password: tmp.password || tmp.password_from_stdin || tmp.no_password,
+            tls_ca_file: tmp.tls_ca_file.is_some(),
+            tls_security: tmp.tls_security.is_some() || tmp.tls_verify_hostname || tmp.no_tls_verify_hostname,
+        };
+        bld.read_dsn(dsn, skip).await.context("invalid DSN")?;
     } else if let Some(instance) = &tmp.instance {
         match instance {
             InstanceName::Cloud { org_slug, name } => {
-                let client = crate::cloud::client::CloudClient::new(&opts.cloud_options)?;
-                client.ensure_authenticated()?;
-                bld.host_port(Some(client.get_cloud_host(org_slug, name)), None);
-                // TODO(tailhook) bld.secret_key(client.access_token.unwrap());
+                // read_instance() would use secret_key or cloud_profile for
+                // cloud instance. It's a hack here to pre-read the secret_key,
+                // the code later must set secret_key back to what we got here,
+                // if secret_key is ever overwritten after read_instance().
+                if let Some(secret_key) = &tmp.secret_key {
+                    bld.secret_key(secret_key);
+                } else if let Some(secret_key) = &opts.cloud_options.cloud_secret_key {
+                    bld.secret_key(secret_key);
+                }
+                bld.read_instance(&format!("{org_slug}/{name}")).await
+                    .map_err(anyhow::Error::from)
+                    .hint("Have you logged in? (Run `edgedb cloud login`)")?;
             }
             InstanceName::Local(instance) => {
                 bld.read_instance(instance).await?;
@@ -699,16 +728,21 @@ pub async fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.read_credentials(file_path).await?;
         bld.read_extra_env_vars()?;
     } else {
+        if let Some(secret_key) = &tmp.secret_key {
+            // This is a hack needed by Builder::from_env() when the project is
+            // linked to a cloud instance and we want to overwrite secret_key.
+            env::set_var("EDGEDB_SECRET_KEY", secret_key);
+        }
         bld = Builder::from_env().await?;
     };
     if tmp.admin {
-        bld.admin(true);
+        bld.admin()?;
     }
     if let Some(user) = &tmp.user {
-        bld.user(user);
+        bld.user(user)?;
     }
     if let Some(database) = &tmp.database {
-        bld.database(database);
+        bld.database(database)?;
     }
     if let Some(val) = tmp.wait_until_available {
         bld.wait_until_available(val);
@@ -717,8 +751,7 @@ pub async fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.connect_timeout(val);
     }
     if let Some(val) = &tmp.secret_key {
-        todo!();
-        //bld.secret_key(val);
+        bld.secret_key(val);
     }
     set_password(tmp, &mut bld)?;
     load_tls_options(tmp, &mut bld)?;

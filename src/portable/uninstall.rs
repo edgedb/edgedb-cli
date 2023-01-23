@@ -7,6 +7,7 @@ use crate::portable::exit_codes;
 use crate::portable::local::{InstanceInfo};
 use crate::portable::local;
 use crate::portable::options::Uninstall;
+use crate::portable::repository::Query;
 use crate::portable::status;
 use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
@@ -16,6 +17,10 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
     let mut candidates = local::get_installed()?;
     if options.nightly {
         candidates.retain(|cand| cand.version.is_nightly());
+    }
+    if let Some(channel) = options.channel {
+        let query = Query::from(channel);
+        candidates.retain(|cand| query.matches(&cand.version));
     }
     if let Some(ver) = &options.version {
         if let Ok(ver) = ver.parse::<ver::Filter>() {

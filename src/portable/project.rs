@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::Context;
@@ -165,6 +166,7 @@ pub struct Info {
 
     #[clap(long, possible_values=&[
         "instance-name",
+        "cloud-profile",
     ][..])]
     /// Get specific value:
     ///
@@ -178,17 +180,40 @@ pub struct Upgrade {
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// Upgrade to a latest stable version
+    /// Upgrade specified instance to the latest version
     #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_testing", "to_nightly", "to_channel",
+    ])]
     pub to_latest: bool,
 
-    /// Upgrade to a specified major version
+    /// Upgrade specified instance to a specified version
     #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_testing", "to_latest", "to_nightly", "to_channel",
+    ])]
     pub to_version: Option<ver::Filter>,
 
-    /// Upgrade to a latest nightly version
+    /// Upgrade specified instance to a latest nightly version
     #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_latest", "to_testing", "to_channel",
+    ])]
     pub to_nightly: bool,
+
+    /// Upgrade specified instance to a latest testing version
+    #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_latest", "to_nightly", "to_channel",
+    ])]
+    pub to_testing: bool,
+
+    /// Upgrade specified instance to a latest testing version
+    #[clap(long, value_enum)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_latest", "to_nightly", "to_testing",
+    ])]
+    pub to_channel: Option<Channel>,
 
     /// Verbose output
     #[clap(short='v', long)]
@@ -224,6 +249,8 @@ pub enum InstanceKind<'a> {
 #[serde(rename_all="kebab-case")]
 struct JsonInfo<'a> {
     instance_name: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cloud_profile: Option<&'a str>,
     root: &'a Path,
 }
 
@@ -313,14 +340,14 @@ async fn ask_existing_instance_name(
                 if !cloud_client.is_logged_in {
                     if let Err(e) = crate::cloud::ops::prompt_cloud_login(
                         cloud_client
-                    ).await {
+                    ) {
                         print::error(e);
                         continue;
                     }
                 }
                 crate::cloud::ops::find_cloud_instance_by_name(
                     name, org_slug, cloud_client
-                ).await?.is_some()
+                )?.is_some()
             }
         };
         if exists {
@@ -364,7 +391,12 @@ fn link(
 fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     -> anyhow::Result<ProjectInfo>
 {
-    write_stash_dir(&stash_dir, &inst.project_dir, &inst.name)?;
+    let profile = if let InstanceKind::Cloud { cloud_client, .. } = inst.instance {
+        Some(cloud_client.profile.as_deref().unwrap_or("default"))
+    } else {
+        None
+    };
+    write_stash_dir(&stash_dir, &inst.project_dir, &inst.name, profile)?;
 
     if !options.no_migrations {
         migrate(inst, !options.non_interactive)?;
@@ -425,7 +457,7 @@ async fn ask_name(
                     name,
                     org_slug,
                     cloud_client,
-                ).await?;
+                )?;
                 inst.is_some()
             }
         };
@@ -436,6 +468,11 @@ async fn ask_name(
         }
         return Ok((default_name, false));
     }
+    let mut q = question::String::new(
+        "Specify the name of EdgeDB instance to use with this project"
+    );
+    let default_name_str = default_name.to_string();
+    q.default(&default_name_str);
     loop {
         let default_name_clone = default_name.clone();
         let target_name = unblock(move || {
@@ -458,14 +495,14 @@ async fn ask_name(
                 if !cloud_client.is_logged_in {
                     if let Err(e) = crate::cloud::ops::prompt_cloud_login(
                         cloud_client
-                    ).await {
+                    ) {
                         print::error(e);
                         continue;
                     }
                 }
                 crate::cloud::ops::find_cloud_instance_by_name(
                     name, org_slug, cloud_client
-                ).await?.is_some()
+                )?.is_some()
             }
         };
         if exists {
@@ -526,6 +563,10 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
     echo!("Checking EdgeDB versions...");
 
+    let pkg = repository::get_server_package(&ver_query)?
+        .with_context(||
+            format!("cannot find package matching {}", ver_query.display()))?;
+
     match &name {
         InstanceName::Cloud { org_slug, name } => {
             table::settings(&[
@@ -534,7 +575,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
                  &schema_dir_path.display().to_string()),
-                // ("Version", &format!("{:?}", version)),
+                ("Version", &pkg.version.to_string()),
                 ("Instance name", &name.to_string()),
             ]);
 
@@ -547,14 +588,11 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                 &stash_dir,
                 &project_dir,
                 &schema_dir,
+                &pkg.version.specific(),
                 options,
                 &client)
         }
         InstanceName::Local(name) => {
-            let pkg = repository::get_server_package(&ver_query)?
-                .with_context(||
-                    format!("cannot find package matching {}", ver_query.display()))?;
-
             let meth = if cfg!(windows) {
                 "WSL"
             } else {
@@ -592,7 +630,8 @@ fn do_init(name: &str, pkg: &PackageInfo,
         let q = repository::Query::from_version(&pkg.version.specific())?;
         windows::create_instance(&options::Create {
             name: Some(inst_name.clone()),
-            nightly: q.is_nightly(),
+            nightly: false,
+            channel: q.cli_channel(),
             version: q.version,
             port: Some(port),
             start_conf: None,
@@ -632,7 +671,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
         InstanceKind::Portable(info)
     };
 
-    write_stash_dir(stash_dir, project_dir, &name)?;
+    write_stash_dir(stash_dir, project_dir, &name, None)?;
 
     let handle = Handle {
         name: name.into(),
@@ -656,20 +695,21 @@ fn do_cloud_init(
     stash_dir: &Path,
     project_dir: &Path,
     schema_dir: &Path,
+    version: &ver::Specific,
     options: &Init,
     client: &CloudClient,
-    // version: String,
 ) -> anyhow::Result<ProjectInfo> {
-    let instance = crate::cloud::ops::CloudInstanceCreate {
+    let request = crate::cloud::ops::CloudInstanceCreate {
         name: name.clone(),
         org: org.clone(),
-        // version: Some(version),
+        version: version.to_string(),
         // default_database: None,
         // default_user: None,
     };
-    crate::cloud::ops::create_cloud_instance(client, &instance)?;
+    crate::cloud::ops::create_cloud_instance(client, &request)?;
     let full_name = format!("{}/{}", org, name);
-    write_stash_dir(stash_dir, project_dir, &full_name)?;
+    let profile = client.profile.as_deref().or_else(|| Some("default"));
+    write_stash_dir(stash_dir, project_dir, &full_name, profile)?;
     if !options.no_migrations {
         let handle = Handle {
             name: full_name.clone(),
@@ -732,6 +772,8 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
 
     echo!("Checking EdgeDB versions...");
 
+    let (ver_query, pkg) = ask_version(options)?;
+
     match &inst_name {
         InstanceName::Cloud { org_slug, name } => {
             client.ensure_authenticated()?;
@@ -742,7 +784,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
                  &schema_dir_path.display().to_string()),
-                ("Version", &format!("{:?}", version)),
+                ("Version", &pkg.version.to_string()),
                 ("Instance name", &name),
             ]);
             let ver_query = Query::from_str(&version)?;
@@ -757,14 +799,12 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                 &stash_dir,
                 &project_dir,
                 &schema_dir,
+                &pkg.version.specific(),
                 options,
                 &client,
-                // version,
             )
         }
         InstanceName::Local(name) => {
-            let (ver_query, pkg) = ask_version(options)?;
-
             let meth = if cfg!(windows) {
                 "WSL"
             } else {
@@ -955,13 +995,19 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
 }
 
 #[context("error writing project dir {:?}", dir)]
-fn write_stash_dir(dir: &Path, project_dir: &Path, instance_name: &str)
-    -> anyhow::Result<()>
-{
+fn write_stash_dir(
+    dir: &Path,
+    project_dir: &Path,
+    instance_name: &str,
+    cloud_profile: Option<&str>,
+) -> anyhow::Result<()> {
     let tmp = tmp_file_path(&dir);
     fs::create_dir_all(&tmp)?;
     fs::write(&tmp.join("project-path"), path_bytes(project_dir)?)?;
     fs::write(&tmp.join("instance-name"), instance_name.as_bytes())?;
+    if let Some(profile) = cloud_profile {
+        fs::write(&tmp.join("cloud-profile"), profile.as_bytes())?;
+    }
 
     let lnk = tmp.join("project-link");
     symlink_dir(project_dir, &lnk)
@@ -1019,16 +1065,7 @@ impl Handle<'_> {
     }
     pub async fn get_builder(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::uninitialized();
-        if let InstanceKind::Cloud { org_slug, name, cloud_client } = &self.instance {
-            let inst = crate::cloud::ops::find_cloud_instance_by_name(name, org_slug, cloud_client)
-                .await?
-                .with_context(|| {
-                    format!("Instance {}/{} doesn't exist any more", org_slug, name)
-                })?;
-            builder.credentials(&inst.as_credentials(cloud_client)?)?;
-        } else {
-            builder.read_instance(&self.name).await?;
-        }
+        builder.read_instance(&self.name).await?;
         Ok(builder)
     }
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {
@@ -1265,7 +1302,7 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
                 }
             }
             let inst_name = inst.to_string();
-            let mut project_dirs = find_project_dirs(&inst_name)?;
+            let mut project_dirs = find_project_dirs_by_instance(&inst_name)?;
             if project_dirs.len() > 1 {
                 project_dirs.iter().position(|d| d == &stash_path)
                     .map(|pos| project_dirs.remove(pos));
@@ -1342,6 +1379,11 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         return Err(ExitCode::new(1).into());
     }
     let instance_name = fs::read_to_string(stash_dir.join("instance-name"))?;
+    let cloud_profile_file = stash_dir.join("cloud-profile");
+    let cloud_profile = cloud_profile_file
+        .exists()
+        .then(|| fs::read_to_string(cloud_profile_file))
+        .transpose()?;
 
     let item = options.get.as_deref()
         .or(options.instance_name.then(|| "instance-name"));
@@ -1354,29 +1396,51 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
                     println!("{}", instance_name);
                 }
             }
+            "cloud-profile" => {
+                if options.json {
+                    println!("{}", serde_json::to_string(&cloud_profile)?);
+                } else if let Some(profile) = cloud_profile {
+                    println!("{}", profile);
+                }
+            }
             _ => unreachable!(),
         }
     } else if options.json {
         println!("{}", serde_json::to_string_pretty(&JsonInfo {
             instance_name: &instance_name,
+            cloud_profile: cloud_profile.as_deref(),
             root: &root,
         })?);
     } else {
-        table::settings(&[
-            ("Instance name", &instance_name),
-            ("Project root", &root.display().to_string()),
-        ]);
+        let root = root.display().to_string();
+        let mut rows = vec![
+            ("Instance name", instance_name.as_str()),
+            ("Project root", root.as_str()),
+        ];
+        if let Some(profile) = cloud_profile.as_deref() {
+            rows.push(("Cloud profile", profile));
+        }
+        table::settings(rows.as_slice());
     }
     Ok(())
 }
 
+pub fn find_project_dirs_by_instance(name: &str) -> anyhow::Result<Vec<PathBuf>> {
+    find_project_stash_dirs("instance-name", |val| name == val, true)
+        .map(|projects| projects.into_values().flatten().collect())
+}
+
 #[context("could not read project dir {:?}", stash_base())]
-pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
-    let mut res = Vec::new();
+pub fn find_project_stash_dirs(
+    get: &str,
+    f: impl Fn(&str) -> bool,
+    verbose: bool,
+) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
+    let mut res = HashMap::new();
     let dir = match fs::read_dir(stash_base()?) {
         Ok(dir) => dir,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            return Ok(Vec::new());
+            return Ok(res);
         }
         Err(e) => return Err(e)?,
     };
@@ -1391,16 +1455,18 @@ pub fn find_project_dirs(name: &str) -> anyhow::Result<Vec<PathBuf>> {
             // skip hidden files, most likely .DS_Store (see #689)
             continue;
         }
-        let path = sub_dir.join("instance-name");
-        let inst = match fs::read_to_string(&path) {
-            Ok(inst) => inst,
+        let path = sub_dir.join(get);
+        let value = match fs::read_to_string(&path) {
+            Ok(value) => value.trim().to_string(),
             Err(e) => {
-                log::warn!("Error reading {:?}: {}", path, e);
+                if verbose {
+                    log::warn!("Error reading {:?}: {}", path, e);
+                }
                 continue;
             }
         };
-        if name == inst.trim() {
-            res.push(entry.path());
+        if f(&value) {
+            res.entry(value).or_default().push(entry.path());
         }
     }
     Ok(res)
@@ -1413,7 +1479,7 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
         if project_dirs.len() > 1 { "s" } else { "" },
     ));
     for dir in project_dirs {
-        let dest = match read_project_real_path(dir) {
+        let dest = match read_project_path(dir) {
             Ok(path) => path,
             Err(e) => {
                 print::error(e);
@@ -1425,30 +1491,38 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
 }
 
 #[context("cannot read {:?}", project_dir)]
-pub fn read_project_real_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
+pub fn read_project_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
     let bytes = fs::read(&project_dir.join("project-path"))?;
     Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
 
-pub fn upgrade(options: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
-    if options.to_version.is_some() || options.to_nightly || options.to_latest
-    {
-        update_toml(options, opts)
+pub fn upgrade(options: &Upgrade, opts: &crate::options::Options)
+    -> anyhow::Result<()>
+{
+    let (query, version_set) = Query::from_options(
+        repository::QueryOptions {
+            nightly: options.to_nightly,
+            stable: options.to_latest,
+            testing: options.to_testing,
+            version: options.to_version.as_ref(),
+            channel: options.to_channel,
+        },
+        || Ok(Query::stable()))?;
+    if version_set {
+        update_toml(options, opts, query)
     } else {
         upgrade_instance(options, opts)
     }
 }
 
 pub fn update_toml(
-    options: &Upgrade, opts: &crate::options::Options
+    options: &Upgrade, opts: &crate::options::Options, query: Query,
 ) -> anyhow::Result<()> {
     let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
     let config_path = root.join("edgedb.toml");
     let config = config::read(&config_path)?;
     let schema_dir = config.project.schema_dir;
 
-    // This assumes to_version.is_some() || to_nightly || to_latest
-    let query = Query::from_options(options.to_nightly, &options.to_version)?;
     let pkg = repository::get_server_package(&query)?.with_context(||
         format!("cannot find package matching {}", query.display()))?;
     let pkg_ver = pkg.version.specific();
@@ -1482,7 +1556,9 @@ pub fn update_toml(
                 windows::upgrade(&options::Upgrade {
                     to_latest: false,
                     to_version: query.version.clone(),
-                    to_nightly: query.is_nightly(),
+                    to_channel: None,
+                    to_testing: false,
+                    to_nightly: false,
                     name: None,
                     instance: Some(name.clone()),
                     verbose: false,
@@ -1528,8 +1604,8 @@ fn print_other_project_warning(name: &str, project_path: &Path,
     -> anyhow::Result<()>
 {
     let mut project_dirs = Vec::new();
-    for pd in find_project_dirs(name)? {
-        let real_pd = match read_project_real_path(&pd) {
+    for pd in find_project_dirs_by_instance(name)? {
+        let real_pd = match read_project_path(&pd) {
             Ok(path) => path,
             Err(e) => {
                 print::error(e);
@@ -1591,7 +1667,9 @@ pub fn upgrade_instance(
             windows::upgrade(&options::Upgrade {
                 to_latest: false,
                 to_version: cfg_ver.version.clone(),
-                to_nightly: cfg_ver.is_nightly(),
+                to_channel: None,
+                to_nightly: false,
+                to_testing: false,
                 name: None,
                 instance: Some(instance_name.into()),
                 verbose: false,

@@ -24,5 +24,15 @@ pub struct Login {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Logout {
+    /// Logout from all Cloud profiles
+    #[clap(long)]
+    pub all_profiles: bool,
 
+    /// Force destroy even if instance is referred to by a project
+    #[clap(long)]
+    pub force: bool,
+
+    /// Do not ask questions, assume user wants to delete instance
+    #[clap(long)]
+    pub non_interactive: bool,
 }

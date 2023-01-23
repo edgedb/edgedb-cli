@@ -27,9 +27,11 @@ static PKG_ROOT: OnceCell<Url> = OnceCell::new();
 pub struct NotFound;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(clap::ValueEnum)]
+#[clap(value(rename_all="kebab-case"))]
 pub enum Channel {
     Stable,
-    // Prerelease,  // TODO(tailhook)
+    Testing,
     Nightly,
 }
 
@@ -47,6 +49,14 @@ pub enum Compression {
 pub struct Query {
     pub channel: Channel,
     pub version: Option<ver::Filter>,
+}
+
+pub struct QueryOptions<'a> {
+    pub stable: bool,
+    pub nightly: bool,
+    pub testing: bool,
+    pub channel: Option<Channel>,
+    pub version: Option<&'a ver::Filter>,
 }
 
 #[derive(Debug, Clone)]
@@ -129,6 +139,24 @@ fn pkg_root() -> anyhow::Result<&'static Url> {
             .context("Package root is a valid URL")?;
         Ok(pkg_root)
     })
+}
+
+fn channel_suffix(channel: Channel) -> &'static str {
+    use Channel::*;
+
+    match channel {
+        Stable => "",
+        Nightly => ".nightly",
+        Testing => ".testing",
+    }
+}
+
+fn json_url(platform: &str, channel: Channel) -> anyhow::Result<Url> {
+    Ok(pkg_root()?.join(
+        &format!("/archive/.jsonindexes/{}{}.json",
+                 platform,
+                 channel_suffix(channel))
+    )?)
 }
 
 async fn _get_json<T>(url: &Url) -> Result<T, anyhow::Error>
@@ -256,14 +284,8 @@ pub fn get_cli_packages(channel: Channel)
 pub fn get_platform_cli_packages(channel: Channel, platform: &str)
     -> anyhow::Result<Vec<CliPackageInfo>>
 {
-    use Channel::*;
-
     let pkg_root = pkg_root()?;
-    let url = pkg_root.join(&match channel {
-        Stable => format!("/archive/.jsonindexes/{}.json", platform),
-        Nightly => format!("/archive/.jsonindexes/{}.nightly.json", platform),
-    })?;
-    let data: RepositoryData = match get_json(&url) {
+    let data: RepositoryData = match get_json(&json_url(platform, channel)?) {
         Ok(data) => data,
         Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
         Err(e) => return Err(e),
@@ -285,14 +307,8 @@ pub fn get_server_packages(channel: Channel)
 fn get_platform_server_packages(channel: Channel, platform: &str)
     -> anyhow::Result<Vec<PackageInfo>>
 {
-    use Channel::*;
-
     let pkg_root = pkg_root()?;
-    let url = pkg_root.join(&match channel {
-        Stable => format!("/archive/.jsonindexes/{}.json", platform),
-        Nightly => format!("/archive/.jsonindexes/{}.nightly.json", platform),
-    })?;
-    let data: RepositoryData = match get_json(&url) {
+    let data: RepositoryData = match get_json(&json_url(platform, channel)?) {
         Ok(data) => data,
         Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
         Err(e) => return Err(e),
@@ -420,21 +436,30 @@ impl Query {
     pub fn stable() -> Query {
         Query { channel: Channel::Stable, version: None }
     }
+    pub fn testing() -> Query {
+        Query { channel: Channel::Testing, version: None }
+    }
     pub fn display(&self) -> QueryDisplay {
         QueryDisplay(self)
     }
-    pub fn from_options(nightly: bool,
-        version: &Option<ver::Filter>)
-        -> anyhow::Result<Query>
+    pub fn from_options(opt: QueryOptions,
+                        default: impl FnOnce() -> anyhow::Result<Query>)
+        -> anyhow::Result<(Query, bool)>
     {
-        let channel = if nightly {
-            Channel::Nightly
+        let QueryOptions { stable, nightly, testing, channel, version } = opt;
+        if let Some(ver) = version {
+            Ok((Query::from_filter(ver)?, true))
+        } else if let Some(channel) = channel {
+            Ok((Query { channel, version: None }, true))
+        } else if nightly {
+            Ok((Query::nightly(), true))
+        } else if testing {
+            Ok((Query::testing(), true))
+        } else if stable {
+            Ok((Query::stable(), true))
         } else {
-            Channel::Stable
-        };
-        let version = version.clone();
-
-        Ok(Query { channel, version })
+            Ok((default()?, false))
+        }
     }
     pub fn from_filter(ver: &ver::Filter) -> anyhow::Result<Query> {
         use crate::portable::repository::ver::FilterMinor;
@@ -452,8 +477,10 @@ impl Query {
             }),
             Some(FilterMinor::Alpha(_)) |
             Some(FilterMinor::Beta(_)) |
-            Some(FilterMinor::Rc(_))
-            => anyhow::bail!("prerelease channel is no supported yet"),
+            Some(FilterMinor::Rc(_)) => Ok(Query {
+                channel: Channel::Testing,
+                version: Some(ver.clone()),
+            }),
             Some(FilterMinor::Minor(_)) => Ok(Query {
                 channel: Channel::Stable,
                 version: Some(ver.clone()),
@@ -496,11 +523,30 @@ impl Query {
                     exact: false,
                 }),
             }),
-            MinorVersion::Alpha(_) |
-            MinorVersion::Beta(_) |
-            MinorVersion::Rc(_) => {
-                anyhow::bail!("pre-release channel is not supported yet");
-            }
+            MinorVersion::Alpha(v) =>  Ok(Query {
+                channel: Channel::Testing,
+                version: Some(ver::Filter {
+                    major: ver.major,
+                    minor: Some(FilterMinor::Alpha(v)),
+                    exact: false,
+                }),
+            }),
+            MinorVersion::Beta(v) =>  Ok(Query {
+                channel: Channel::Testing,
+                version: Some(ver::Filter {
+                    major: ver.major,
+                    minor: Some(FilterMinor::Beta(v)),
+                    exact: false,
+                }),
+            }),
+            MinorVersion::Rc(v) =>  Ok(Query {
+                channel: Channel::Testing,
+                version: Some(ver::Filter {
+                    major: ver.major,
+                    minor: Some(FilterMinor::Rc(v)),
+                    exact: false,
+                }),
+            }),
         }
     }
     pub fn matches(&self, ver: &ver::Build) -> bool {
@@ -514,7 +560,7 @@ impl Query {
         }
     }
     pub fn as_config_value(&self) -> String {
-        if self.channel ==  Channel::Nightly {
+        if self.channel == Channel::Nightly {
             "nightly".into()
         } else if let Some(ver) = &self.version {
             ver.to_string()
@@ -532,6 +578,17 @@ impl Query {
                 (2, Some(v)) if v < ver::FilterMinor::Minor(6) => false,
                 _ => true
             }).unwrap_or(true)
+    }
+    pub fn cli_channel(&self) -> Option<Channel> {
+        // Only one argument in CLI is allowed
+        // So we skip channel if version is set, since version unambiguously
+        // determines the channel. But if there is no version we must provide
+        // channel.
+        if self.version.is_some() {
+            None
+        } else {
+            Some(self.channel)
+        }
     }
 }
 
@@ -591,6 +648,15 @@ impl std::str::FromStr for Query {
     }
 }
 
+impl From<Channel> for Query {
+    fn from(channel: Channel) -> Query {
+        Query {
+            channel,
+            version:None,
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for Query {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where D: de::Deserializer<'de>,
@@ -602,37 +668,38 @@ impl<'de> Deserialize<'de> for Query {
 
 impl Channel {
     pub fn from_version(ver: &ver::Specific) -> anyhow::Result<Channel> {
+        use ver::MinorVersion::*;
         match ver.minor {
-            ver::MinorVersion::Dev(_) => Ok(Channel::Nightly),
-            ver::MinorVersion::Minor(_) => Ok(Channel::Stable),
-            _ if ver.major == 1 || ver.major == 2 => {
-                // before 1.0 all prereleases go into a stable channel
+            Dev(_) => Ok(Channel::Nightly),
+            Minor(_) => Ok(Channel::Stable),
+            Alpha(_) | Beta(_) | Rc(_) if ver.major == 1 || ver.major == 2 => {
+                // before 2.0 all prereleases go into a stable channel
                 Ok(Channel::Stable)
             }
-            _ => {
-                anyhow::bail!("prerelease versions > 2.0 \
-                               are no supported yet");
-            }
+            Alpha(_) => Ok(Channel::Testing),
+            Beta(_) => Ok(Channel::Testing),
+            Rc(_) => Ok(Channel::Testing),
         }
     }
     pub fn from_filter(ver: &ver::Filter) -> anyhow::Result<Channel> {
+        use ver::FilterMinor::*;
         match ver.minor {
             None => Ok(Channel::Stable),
-            Some(ver::FilterMinor::Minor(_)) => Ok(Channel::Stable),
-            Some(_) if ver.major == 1 || ver.major == 2 => {
+            Some(Minor(_)) => Ok(Channel::Stable),
+            Some(Alpha(_) | Beta(_) | Rc(_))
+                if ver.major == 1 || ver.major == 2
+            => {
                 // before 1.0 all prereleases go into a stable channel
                 Ok(Channel::Stable)
             }
-            Some(_) => {
-                anyhow::bail!("prerelease versions > 2.0 \
-                               are no supported yet");
-            }
+            Some(Alpha(_) | Beta(_) | Rc(_)) => Ok(Channel::Testing),
         }
     }
     pub fn as_str(&self) -> &str {
         match self {
             Channel::Nightly => "nightly",
             Channel::Stable => "stable",
+            Channel::Testing => "testing",
         }
     }
 }

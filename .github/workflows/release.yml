@@ -11,6 +11,8 @@ jobs:
       branch: ${{ steps.whichver.outputs.branch }}
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
 
     - name: Determine package version
       shell: bash
@@ -645,6 +647,7 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_PLATFORM_ARCH: "x86_64"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        METAPKG_GIT_CACHE: disabled
 
         BUILD_GENERIC: true
 
@@ -683,6 +686,7 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_PLATFORM_ARCH: "aarch64"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        METAPKG_GIT_CACHE: disabled
 
         BUILD_GENERIC: true
 

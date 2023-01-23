@@ -14,3 +14,4 @@ syn::custom_keyword!(from_os_str);
 syn::custom_keyword!(from_str);
 syn::custom_keyword!(try_from_os_str);
 syn::custom_keyword!(try_from_str);
+syn::custom_keyword!(value_enum);

@@ -239,7 +239,7 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
                 .with_context(|| format!("error creating database {:?}",
                                          database))?;
         }
-        conn_params.modify(|p| { p.database(&database); })?;
+        conn_params.modify(|p| { p.database(&database).unwrap(); })?;
         let mut db_conn = conn_params.connect().await.with_context(||
              format!("cannot connect to database {:?}", database))?;
         params.path = path.into();

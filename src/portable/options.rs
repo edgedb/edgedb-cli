@@ -8,6 +8,7 @@ use edgedb_cli_derive::{EdbClap, IntoArgs};
 use crate::commands::ExitCode;
 use crate::portable::local::{is_valid_instance_name, is_valid_org_name};
 use crate::portable::ver;
+use crate::portable::repository::Channel;
 use crate::print::{echo, warn, err_marker};
 use crate::process::{self, IntoArg};
 
@@ -78,10 +79,13 @@ pub enum Command {
 pub struct Install {
     #[clap(short='i', long)]
     pub interactive: bool,
-    #[clap(long)]
+    #[clap(long, conflicts_with_all=&["channel", "version"])]
     pub nightly: bool,
-    #[clap(long, conflicts_with="nightly")]
+    #[clap(long, conflicts_with_all=&["nightly", "channel"])]
     pub version: Option<ver::Filter>,
+    #[clap(long, conflicts_with_all=&["nightly", "version"])]
+    #[clap(value_enum)]
+    pub channel: Option<Channel>,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
@@ -93,11 +97,14 @@ pub struct Uninstall {
     #[clap(long)]
     pub unused: bool,
     /// Uninstall nightly versions
-    #[clap(long)]
+    #[clap(long, conflicts_with_all=&["channel"])]
     pub nightly: bool,
     /// Uninstall specific version
-    #[clap(long, conflicts_with="nightly")]
     pub version: Option<String>,
+    /// Uninstall only versions from specific channel
+    #[clap(long, conflicts_with_all=&["nightly"])]
+    #[clap(value_enum)]
+    pub channel: Option<Channel>,
     /// Increase verbosity
     #[clap(short='v', long)]
     pub verbose: bool,
@@ -140,10 +147,13 @@ pub struct Create {
     #[clap(value_hint=ValueHint::Other)]
     pub name: Option<InstanceName>,
 
-    #[clap(long)]
+    #[clap(long, conflicts_with_all=&["channel", "version"])]
     pub nightly: bool,
-    #[clap(long, conflicts_with="nightly")]
+    #[clap(long, conflicts_with_all=&["nightly", "channel"])]
     pub version: Option<ver::Filter>,
+    #[clap(long, conflicts_with_all=&["nightly", "version"])]
+    #[clap(value_enum)]
+    pub channel: Option<Channel>,
     #[clap(long)]
     pub port: Option<u16>,
 
@@ -383,16 +393,39 @@ pub struct Logs {
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
 pub struct Upgrade {
     /// Upgrade specified instance to the latest version
-    #[clap(long, conflicts_with_all=&["to_nightly", "to_version"])]
+    #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_testing", "to_nightly", "to_channel",
+    ])]
     pub to_latest: bool,
 
     /// Upgrade specified instance to a specified version
-    #[clap(long, conflicts_with_all=&["to_nightly", "to_latest"])]
+    #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_testing", "to_latest", "to_nightly", "to_channel",
+    ])]
     pub to_version: Option<ver::Filter>,
 
     /// Upgrade specified instance to a latest nightly version
-    #[clap(long, conflicts_with_all=&["to_version", "to_latest"])]
+    #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_latest", "to_testing", "to_channel",
+    ])]
     pub to_nightly: bool,
+
+    /// Upgrade specified instance to a latest testing version
+    #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_latest", "to_nightly", "to_channel",
+    ])]
+    pub to_testing: bool,
+
+    /// Upgrade specified instance to a latest testing version
+    #[clap(long, value_enum)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_latest", "to_nightly", "to_testing",
+    ])]
+    pub to_channel: Option<Channel>,
 
     /// Instance to upgrade
     #[clap(hide=true)]
@@ -483,11 +516,17 @@ pub struct Info {
     pub json: bool,
 
     #[clap(long)]
+    #[clap(conflicts_with_all=&["channel", "version", "nightly"])]
     pub latest: bool,
     #[clap(long)]
+    #[clap(conflicts_with_all=&["channel", "version", "latest"])]
     pub nightly: bool,
-    #[clap(long, conflicts_with="nightly")]
+    #[clap(long)]
+    #[clap(conflicts_with_all=&["nightly", "channel", "latest"])]
     pub version: Option<ver::Filter>,
+    #[clap(long, value_enum)]
+    #[clap(conflicts_with_all=&["nightly", "version", "latest"])]
+    pub channel: Option<Channel>,
 
     #[clap(long, possible_values=&[
         "bin-path",

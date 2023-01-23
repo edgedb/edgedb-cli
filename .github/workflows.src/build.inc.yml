@@ -5,6 +5,8 @@
       branch: ${{ steps.whichver.outputs.branch }}
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
 
     - name: Determine package version
       shell: bash
@@ -87,6 +89,7 @@
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_PLATFORM_ARCH: "<< tgt.arch >>"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        METAPKG_GIT_CACHE: disabled
 <% if tgt.family == "generic" %>
         BUILD_GENERIC: true
 <% endif %>

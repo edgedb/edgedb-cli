@@ -11,7 +11,7 @@ pub fn cloud_main(cmd: &CloudCommand, options: &CloudOptions) -> anyhow::Result<
             auth::login(c, options)
         }
         Logout(c) => {
-            auth::logout(c)
+            auth::logout(c, options)
         }
     }
 }

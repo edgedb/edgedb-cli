@@ -426,7 +426,7 @@ async fn get_remote_async(
 
 async fn get_remote_and_cloud(
     instances: Vec<String>,
-    cloud_client: &CloudClient,
+    cloud_client: CloudClient,
     errors: &Collector<anyhow::Error>,
 ) -> anyhow::Result<Vec<RemoteStatus>> {
     match join!(
@@ -462,7 +462,7 @@ pub async fn get_remote(
     let num = instances.len();
     if cloud_client.is_logged_in {
         intermediate_feedback(
-            get_remote_and_cloud(instances, &cloud_client, errors),
+            get_remote_and_cloud(instances, cloud_client, errors),
             || {
                 if num > 0 {
                     format!("Checking cloud and {} remote instances...", num)

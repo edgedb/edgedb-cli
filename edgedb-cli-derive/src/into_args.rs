@@ -53,6 +53,34 @@ pub fn structure(s: &types::Struct) -> TokenStream {
                         });
                     }
                 }
+                ValueEnum => {
+                    if field.optional {
+                        args.push(quote! {
+                            if let Some(value) = &self.#ident {
+                                let value =
+                                    ::clap::ValueEnum::to_possible_value(value)
+                                    .expect("not a skipped variant");
+                                process.arg(#long).args([value.get_name()]);
+                            }
+                        });
+                    // TODO(tailhook) maybe done, but the problem is that
+                    //   default_value is a string
+                    //} else if let Some(val) = &field.attrs.default_value {
+                    //    args.push(quote! {
+                    //        if self.#ident != #val {
+                    //            process.arg(#long).arg(&self.#ident);
+                    //        }
+                    //    });
+                    } else {
+                        args.push(quote! {
+                            let value =
+                                ::clap::ValueEnum::to_possible_value(
+                                    &self.#ident
+                                ).expect("not a skipped variant");
+                            process.arg(#long).args([value.get_name()]);
+                        });
+                    }
+                }
                 FromFlag => {
                     args.push(quote! {
                         if self.#ident {
@@ -94,6 +122,36 @@ pub fn structure(s: &types::Struct) -> TokenStream {
                 FromFlag => {
                     abort!(field.ident,
                            "positional from_flag are not implemented");
+                }
+                ValueEnum => {
+                    if field.optional {
+                        args.push(quote! {
+                            if let Some(value) = &self.#ident {
+                                let value =
+                                    ::clap::ValueEnum::to_possible_value(value)
+                                    .expect("not a skipped variant");
+                                process.args([value.get_name()]);
+                            }
+                        });
+                    } else if let Some(val) = &field.attrs.default_value {
+                        args.push(quote! {
+                            if self.#ident != #val {
+                                let value =
+                                    ::clap::ValueEnum::to_possible_value(
+                                        &self.#ident
+                                    ).expect("not a skipped variant");
+                                process.args([value.get_name()]);
+                            }
+                        });
+                    } else {
+                        args.push(quote! {
+                            let value =
+                                ::clap::ValueEnum::to_possible_value(
+                                    &self.#ident
+                                ).expect("not a skipped variant");
+                            process.args([value.get_name()]);
+                        });
+                    }
                 }
             }
         }

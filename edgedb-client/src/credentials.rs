@@ -3,6 +3,8 @@ use std::default::Default;
 
 use serde::{de, ser, Serialize, Deserialize};
 
+use crate::errors::{Error, ErrorKind};
+
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all="snake_case")]
@@ -53,6 +55,24 @@ struct CredentialsCompat {
 
 fn default_port() -> u16 {
     5656
+}
+
+
+impl TlsSecurity {
+    pub fn from_str(val: impl AsRef<str>) -> Result<Self, Error> {
+        let val = val.as_ref();
+        match val {
+            "default" => Ok(TlsSecurity::Default),
+            "insecure" => Ok(TlsSecurity::Insecure),
+            "no_host_verification" => Ok(TlsSecurity::NoHostVerification),
+            "strict" => Ok(TlsSecurity::Strict),
+            _ => Err(crate::errors::ClientError::with_message(format!(
+                "Invalid value {:?}. \
+                Options: default, insecure, no_host_verification, strict.",
+                val,
+            ))),
+        }
+    }
 }
 
 
@@ -109,13 +129,12 @@ impl<'de> Deserialize<'de> for Credentials {
         let expected_verify = match creds.tls_security {
             Some(TlsSecurity::Strict) => Some(true),
             Some(TlsSecurity::NoHostVerification) => Some(false),
+            Some(TlsSecurity::Insecure) => Some(false),
             _ => None,
         };
-        if creds.tls_verify_hostname.is_some() &&
-            creds.tls_security.is_some() &&
-            expected_verify.zip(creds.tls_verify_hostname)
-                .map(|(creds, expected)| creds == expected)
-                .unwrap_or(false)
+        if expected_verify.zip(creds.tls_verify_hostname)
+            .map(|(creds, expected)| creds != expected)
+            .unwrap_or(false)
         {
             Err(de::Error::custom(format!(
                 "detected conflicting settings: \

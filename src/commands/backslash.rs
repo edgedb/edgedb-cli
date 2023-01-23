@@ -41,23 +41,23 @@ pub enum ExecuteResult {
 
 const HELP: &str = r###"
 Introspection
-  (options: -v = verbose, -s = show system objects, -I = case-sensitive match)
+  (options: -v = verbose, -s = show system objects, -c = case-sensitive match)
   \d [-v] NAME             describe schema object
-  \ds, \describe-schema    describe the whole schema
+  \ds, \describe schema    describe the whole schema
   \l, \list databases      list databases
-  \ls [-sI] [PATTERN]      list scalar types
+  \ls [-sc] [PATTERN]      list scalar types
                            (alias: \list scalars)
-  \lt [-sI] [PATTERN]      list object types
+  \lt [-sc] [PATTERN]      list object types
                            (alias: \list types)
-  \lr [-I]                 list roles
+  \lr [-c] [PATTERN]       list roles
                            (alias: \list roles)
-  \lm [-I]                 list modules
+  \lm [-c] [PATTERN]       list modules
                            (alias: \list modules)
-  \la [-Isv] [PATTERN]     list expression aliases
+  \la [-vsc] [PATTERN]     list expression aliases
                            (alias: \list aliases)
-  \lc [-I] [PATTERN]       list casts
+  \lc [-c] [PATTERN]       list casts
                            (alias: \list casts)
-  \li [-Isv] [PATTERN]     list indexes
+  \li [-vsc] [PATTERN]     list indexes
                            (alias: \list indexes)
 
 Operations

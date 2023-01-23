@@ -72,11 +72,19 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
 });
 
 extern fn delete_docker_image() {
-    Command::new("docker")
+    std::process::Command::new("docker")
         .arg("image")
         .arg("rm")
         .arg("edgedb_test_portable")
-        .unwrap();
+        .output()
+        .map_or_else(
+            |e| println!("docker image rm failed: {:?}", e),
+            |o| {
+                if !o.status.success() {
+                    println!("docker image rm failed: {:?}", o)
+                }
+            },
+        );
 }
 
 fn dockerfile() -> String {
@@ -89,6 +97,7 @@ fn dockerfile() -> String {
         RUN adduser --uid 1000 --home /home/user1 \
             --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
             user1
+        RUN mkdir /home/edgedb && chown user1 /home/edgedb
         ADD ./edgedb /usr/bin/edgedb
         ADD ./tests /tests
         RUN chown -R user1 /tests/proj
@@ -99,6 +108,7 @@ fn dockerfile() -> String {
 #[test_case("portable_smoke")]
 #[test_case("portable_project")]
 #[test_case("portable_project_dir")]
+#[test_case("portable_shared")]
 fn run_test(name: &'static str) {
     let file_name = TEST_EXECUTABLES.get(name).unwrap()
         .file_name().unwrap()
@@ -107,6 +117,7 @@ fn run_test(name: &'static str) {
     let script = format!(r###"
         export XDG_RUNTIME_DIR=/run/user/1000
         export EDGEDB_INSTALL_IN_DOCKER=allow
+        export RUST_TEST_THREADS=1
 
         /lib/systemd/systemd --user &
         exec /tests/{file_name}
