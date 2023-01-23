@@ -261,7 +261,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
 
     let cli = state.connection.as_mut().expect("connection established");
     let flags = CompilationOptions {
-        implicit_limit: state.implicit_limit.map(|x| x as u64),
+        implicit_limit: state.implicit_limit.map(|x| (x+1) as u64),
         implicit_typenames: state.display_typenames &&
             cli.protocol().supports_inline_typenames(),
         implicit_typeids: false,
