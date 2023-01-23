@@ -119,7 +119,7 @@ async fn get_db_migration(cli: &mut Connection)
     let res = cli.query_single(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
-            SELECT name := Last.name
+            SELECT name := assert_single(Last.name)
         "###, &()).await?;
     Ok(res)
 }
