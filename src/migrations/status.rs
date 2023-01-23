@@ -51,7 +51,7 @@ pub async fn status(cli: &mut Connection, _options: &Options,
     let db_migration: Option<String> = cli.query_single(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
-            SELECT name := Last.name
+            SELECT name := assert_single(Last.name)
         "###, &()).await?;
     if db_migration.as_ref() != migrations.keys().last() {
         if !status.quiet {
