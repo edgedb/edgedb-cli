@@ -64,7 +64,7 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     let db_migration: Option<String> = cli.query_single(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
-            SELECT name := Last.name
+            SELECT name := assert_single(Last.name)
         "###, &()).await?;
 
     let target_rev = if let Some(prefix) = &migrate.to_revision {
