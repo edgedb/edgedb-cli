@@ -829,8 +829,9 @@ fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>
     Ok(local)
 }
 
-#[tokio::main]
-pub async fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+pub fn list(options: &options::List, opts: &crate::Options)
+    -> anyhow::Result<()>
+{
     let errors = Collector::new();
     let local = match list_local(options) {
         Ok(local) => local,
@@ -846,7 +847,7 @@ pub async fn list(options: &options::List, opts: &crate::Options) -> anyhow::Res
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        match status::get_remote(&visited, opts, &errors).await {
+        match status::get_remote(&visited, opts, &errors) {
             Ok(remote) => remote,
             Err(e) => {
                 errors.add(e);
@@ -856,7 +857,7 @@ pub async fn list(options: &options::List, opts: &crate::Options) -> anyhow::Res
     };
 
     if local.is_empty() && remote.is_empty() {
-        if status::print_errors(&errors.list(), false).await {
+        if status::print_errors(&errors.list(), false) {
             return Err(ExitCode::new(1).into());
         } else {
             if options.json {
@@ -885,7 +886,7 @@ pub async fn list(options: &options::List, opts: &crate::Options) -> anyhow::Res
         status::print_table(&local, &remote);
     }
 
-    if status::print_errors(&errors.list(), true).await {
+    if status::print_errors(&errors.list(), true) {
         Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
     } else {
         Ok(())

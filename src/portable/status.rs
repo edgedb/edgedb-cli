@@ -449,7 +449,16 @@ async fn get_remote_and_cloud(
     }
 }
 
+#[tokio::main]
 pub async fn get_remote(
+    visited: &BTreeSet<String>,
+    opts: &crate::options::Options,
+    errors: &Collector<anyhow::Error>,
+) -> anyhow::Result<Vec<RemoteStatus>> {
+    _get_remote(visited, opts, errors).await
+}
+
+async fn _get_remote(
     visited: &BTreeSet<String>,
     opts: &crate::options::Options,
     errors: &Collector<anyhow::Error>,
@@ -502,8 +511,7 @@ fn list_local_status(visited: &mut BTreeSet<String>) -> anyhow::Result<Vec<FullS
     Ok(local)
 }
 
-#[tokio::main]
-pub async fn list(options: &List, opts: &crate::options::Options)
+pub fn list(options: &List, opts: &crate::options::Options)
     -> anyhow::Result<()>
 {
     let errors = Collector::new();
@@ -519,7 +527,7 @@ pub async fn list(options: &List, opts: &crate::options::Options)
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        match get_remote(&visited, opts, &errors).await {
+        match get_remote(&visited, opts, &errors) {
             Ok(remote) => remote,
             Err(e) => {
                 errors.add(e);
@@ -529,7 +537,7 @@ pub async fn list(options: &List, opts: &crate::options::Options)
     };
 
     if local.is_empty() && remote.is_empty() {
-        return if print_errors(&errors.list(), false).await {
+        return if print_errors(&errors.list(), false) {
             Err(ExitCode::new(1).into())
         } else {
             if options.json {
@@ -566,14 +574,14 @@ pub async fn list(options: &List, opts: &crate::options::Options)
         print_table(&local_json, &remote);
     }
 
-    if print_errors(&errors.list(), true).await {
+    if print_errors(&errors.list(), true) {
         Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
     } else {
         Ok(())
     }
 }
 
-pub async fn print_errors(errs: &[anyhow::Error], is_warning: bool) -> bool {
+pub fn print_errors(errs: &[anyhow::Error], is_warning: bool) -> bool {
     for e in errs {
         if is_warning {
             print::warn(format!("Warning: {:#}", e));
