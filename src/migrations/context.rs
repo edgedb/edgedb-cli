@@ -4,6 +4,8 @@ use crate::commands::parser::MigrationConfig;
 use crate::portable::config;
 use crate::portable::repository::Query;
 
+use edgedb_tokio::get_project_dir;
+
 
 pub struct Context {
     pub schema_dir: PathBuf,
@@ -17,21 +19,14 @@ pub struct Context {
     pub quiet: bool,
 }
 
-#[tokio::main]
-async fn get_project_dir(override_dir: Option<&Path>, search_parents: bool)
-    -> Result<Option<PathBuf>, edgedb_errors::Error>
-{
-    edgedb_tokio::get_project_dir(override_dir, search_parents).await
-}
-
 impl Context {
-    pub fn from_project_or_config(cfg: &MigrationConfig, quiet: bool)
+    pub async fn from_project_or_config(cfg: &MigrationConfig, quiet: bool)
         -> anyhow::Result<Context>
     {
         let mut edgedb_version = None;
         let schema_dir = if let Some(schema_dir) = &cfg.schema_dir {
             schema_dir.clone()
-        } else if let Some(cfg_dir) = get_project_dir(None, true)? {
+        } else if let Some(cfg_dir) = get_project_dir(None, true).await? {
             let config_path = cfg_dir.join("edgedb.toml");
             let config = config::read(&config_path)?;
             edgedb_version = Some(config.edgedb.server_version);

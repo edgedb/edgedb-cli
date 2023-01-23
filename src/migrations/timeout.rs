@@ -7,7 +7,8 @@ pub async fn inhibit_for_transaction(cli: &mut Connection)
     -> Result<Duration, anyhow::Error>
 {
     let old_timeout = cli.query_required_single::<Duration, _>(
-        "SELECT cfg::Config.session_idle_transaction_timeout", &()).await?;
+        "SELECT assert_single(cfg::Config.session_idle_transaction_timeout)",
+        &()).await?;
     cli.execute(
         "CONFIGURE SESSION SET session_idle_transaction_timeout \
              := <std::duration>'0'",

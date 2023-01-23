@@ -54,7 +54,8 @@ pub async fn migrate(cli: &mut Connection, _options: &Options,
     migrate: &Migrate)
     -> Result<(), anyhow::Error>
 {
-    let ctx = Context::from_project_or_config(&migrate.cfg, migrate.quiet)?;
+    let ctx = Context::from_project_or_config(&migrate.cfg, migrate.quiet)
+        .await?;
     if migrate.dev_mode {
         // TODO(tailhook) figure out progressbar in non-quiet mode
         return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
