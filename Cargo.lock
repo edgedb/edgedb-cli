@@ -113,16 +113,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-attributes"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3203e79f4dd9bdda415ed03cf14dae5a2bf775c683a00f94e9cd1faf0f596e5"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
 name = "async-channel"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -202,35 +192,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-process"
-version = "1.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6381ead98388605d0d9ff86371043b5aa922a3905824244de40dc263a14fcba4"
-dependencies = [
- "async-io",
- "async-lock",
- "autocfg",
- "blocking",
- "cfg-if 1.0.0",
- "event-listener",
- "futures-lite",
- "libc",
- "signal-hook",
- "windows-sys",
-]
-
-[[package]]
 name = "async-std"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62565bb4402e926b29953c785397c6dc0391b7b446e45008b0049eb43cec6f5d"
 dependencies = [
- "async-attributes",
  "async-channel",
  "async-global-executor",
  "async-io",
  "async-lock",
- "async-process",
  "crossbeam-utils",
  "futures-channel",
  "futures-core",
@@ -973,9 +943,9 @@ dependencies = [
  "dirs 4.0.0",
  "downcast-rs",
  "edgedb-cli-derive",
- "edgedb-derive 0.4.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
- "edgedb-errors 0.3.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
- "edgedb-protocol 0.4.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
+ "edgedb-derive",
+ "edgedb-errors",
+ "edgedb-protocol",
  "edgedb-tokio",
  "edgeql-parser",
  "env_logger 0.9.3",
@@ -1073,41 +1043,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "edgedb-client"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "async-std",
- "async-trait",
- "base64 0.13.1",
- "bytes",
- "crc16",
- "dirs 4.0.0",
- "edgedb-derive 0.4.0 (git+https://github.com/edgedb/edgedb-rust)",
- "edgedb-errors 0.3.0 (git+https://github.com/edgedb/edgedb-rust)",
- "edgedb-protocol 0.4.0 (git+https://github.com/edgedb/edgedb-rust)",
- "env_logger 0.9.3",
- "futures-util",
- "log",
- "rand 0.8.5",
- "rustls",
- "rustls-native-certs",
- "rustls-pemfile 0.3.0",
- "scram",
- "serde",
- "serde_json",
- "sha1",
- "snafu",
- "tls-api",
- "tls-api-not-tls",
- "tls-api-rustls",
- "typemap",
- "url",
- "webpki",
- "webpki-roots",
-]
-
-[[package]]
 name = "edgedb-derive"
 version = "0.4.0"
 source = "git+https://github.com/edgedb/edgedb-rust/?branch=cli_features#f2fe147a4890d1f47b0ecf7d29d38a19db45d0fa"
@@ -1119,28 +1054,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "edgedb-derive"
-version = "0.4.0"
-source = "git+https://github.com/edgedb/edgedb-rust#db24467c0c471ead5d63fd38196968a966c17143"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "trybuild",
-]
-
-[[package]]
 name = "edgedb-errors"
 version = "0.3.0"
 source = "git+https://github.com/edgedb/edgedb-rust/?branch=cli_features#f2fe147a4890d1f47b0ecf7d29d38a19db45d0fa"
-dependencies = [
- "bytes",
-]
-
-[[package]]
-name = "edgedb-errors"
-version = "0.3.0"
-source = "git+https://github.com/edgedb/edgedb-rust#db24467c0c471ead5d63fd38196968a966c17143"
 dependencies = [
  "bytes",
 ]
@@ -1154,21 +1070,9 @@ dependencies = [
  "bitflags",
  "bytes",
  "chrono",
- "edgedb-errors 0.3.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
+ "edgedb-errors",
  "num-bigint",
  "num-traits",
- "snafu",
- "uuid",
-]
-
-[[package]]
-name = "edgedb-protocol"
-version = "0.4.0"
-source = "git+https://github.com/edgedb/edgedb-rust#db24467c0c471ead5d63fd38196968a966c17143"
-dependencies = [
- "bitflags",
- "bytes",
- "edgedb-errors 0.3.0 (git+https://github.com/edgedb/edgedb-rust)",
  "snafu",
  "uuid",
 ]
@@ -1186,9 +1090,9 @@ dependencies = [
  "bytes",
  "crc16",
  "dirs 4.0.0",
- "edgedb-derive 0.4.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
- "edgedb-errors 0.3.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
- "edgedb-protocol 0.4.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
+ "edgedb-derive",
+ "edgedb-errors",
+ "edgedb-protocol",
  "log",
  "once_cell",
  "rand 0.8.5",
@@ -1509,11 +1413,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "197676987abd2f9cadff84926f410af1c183608d36641465df73ae8211dc65d6"
 dependencies = [
  "futures-core",
- "futures-io",
  "futures-macro",
  "futures-sink",
  "futures-task",
- "memchr",
  "pin-project-lite",
  "pin-utils",
  "slab",
@@ -3543,7 +3445,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7dded74ddc6d4a98f9f94f17f1c4d796e4af3cb5fba9e7655f157a036ee7de0"
 dependencies = [
  "anyhow",
- "futures-util",
  "log",
  "pem 0.8.3",
  "tempdir",
@@ -3560,7 +3461,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9026a0d37898cc761deb9aa92e727c61412f24c490853337a5dcba95f1e9adf"
 dependencies = [
  "anyhow",
- "async-std",
  "thiserror",
  "tls-api",
  "tls-api-test",
@@ -3574,7 +3474,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9eeadd40cf3e8d610d3ccc5cc71443629ac0aa2c66aee7bc085c7d0b03c706a6"
 dependencies = [
  "anyhow",
- "async-std",
  "rustls",
  "thiserror",
  "tls-api",
@@ -3591,7 +3490,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "344ab291be7ed9ab296fc28153fe3ac1e430f44c4dfb3f1324a3c09bbbb5f104"
 dependencies = [
  "anyhow",
- "async-std",
  "env_logger 0.5.13",
  "log",
  "pem 0.8.3",
@@ -3715,12 +3613,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "traitobject"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efd1f82c56340fdf16f2a953d7bda4f8fdffba13d93b00844c25572110b26079"
-
-[[package]]
 name = "try-lock"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3749,15 +3641,6 @@ checksum = "c57ffb460d7c24cd6eda43694110189030a3d1dfe418416d9468fd1c1d290b47"
 dependencies = [
  "memchr",
  "unchecked-index",
-]
-
-[[package]]
-name = "typemap"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "653be63c80a3296da5551e1bfd2cca35227e13cdd08c6668903ae2f4f77aa1f6"
-dependencies = [
- "unsafe-any",
 ]
 
 [[package]]
@@ -3823,15 +3706,6 @@ name = "unicode-width"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0edd1e5b14653f783770bce4a4dabb4a5108a5370a5f5d8cfe8710c361f6c8b"
-
-[[package]]
-name = "unsafe-any"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f30360d7979f5e9c6e6cea48af192ea8fab4afb3cf72597154b8f08935bc9c7f"
-dependencies = [
- "traitobject",
-]
 
 [[package]]
 name = "untrusted"

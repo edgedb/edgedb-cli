@@ -1,7 +1,6 @@
 [workspace]
 members = [
     ".",
-    "edgedb-client",
     "edgedb-cli-derive",
 ]
 
