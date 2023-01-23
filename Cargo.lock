@@ -601,16 +601,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "command-fds"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35cc819120a403d0eb3d0c404088c5a9f9b06066147ec69a21919fbc0833ef68"
-dependencies = [
- "nix 0.22.3",
- "thiserror",
-]
-
-[[package]]
 name = "concurrent-queue"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -983,9 +973,9 @@ dependencies = [
  "dirs 4.0.0",
  "downcast-rs",
  "edgedb-cli-derive",
- "edgedb-derive 0.4.0",
- "edgedb-errors 0.3.0",
- "edgedb-protocol 0.4.0",
+ "edgedb-derive 0.4.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
+ "edgedb-errors 0.3.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
+ "edgedb-protocol 0.4.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
  "edgedb-tokio",
  "edgeql-parser",
  "env_logger 0.9.3",
@@ -1120,14 +1110,10 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.4.0"
+source = "git+https://github.com/edgedb/edgedb-rust/?branch=cli_features#f2fe147a4890d1f47b0ecf7d29d38a19db45d0fa"
 dependencies = [
- "bytes",
- "edgedb-protocol 0.4.0",
- "edgedb-tokio",
  "proc-macro2",
  "quote",
- "serde",
- "serde_json",
  "syn",
  "trybuild",
 ]
@@ -1146,12 +1132,9 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.3.0"
+source = "git+https://github.com/edgedb/edgedb-rust/?branch=cli_features#f2fe147a4890d1f47b0ecf7d29d38a19db45d0fa"
 dependencies = [
- "anyhow",
  "bytes",
- "edgedb-tokio",
- "miette",
- "tokio",
 ]
 
 [[package]]
@@ -1165,19 +1148,16 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.4.0"
+source = "git+https://github.com/edgedb/edgedb-rust/?branch=cli_features#f2fe147a4890d1f47b0ecf7d29d38a19db45d0fa"
 dependencies = [
  "bigdecimal",
  "bitflags",
  "bytes",
  "chrono",
- "edgedb-errors 0.3.0",
- "humantime 2.1.0",
+ "edgedb-errors 0.3.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
  "num-bigint",
  "num-traits",
- "pretty_assertions",
- "rand 0.8.5",
  "snafu",
- "test-case",
  "uuid",
 ]
 
@@ -1196,6 +1176,7 @@ dependencies = [
 [[package]]
 name = "edgedb-tokio"
 version = "0.3.0"
+source = "git+https://github.com/edgedb/edgedb-rust/?branch=cli_features#f2fe147a4890d1f47b0ecf7d29d38a19db45d0fa"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1203,16 +1184,12 @@ dependencies = [
  "base16ct",
  "base64 0.13.1",
  "bytes",
- "command-fds",
  "crc16",
  "dirs 4.0.0",
- "edgedb-derive 0.4.0",
- "edgedb-errors 0.3.0",
- "edgedb-protocol 0.4.0",
- "env_logger 0.9.3",
- "futures-util",
+ "edgedb-derive 0.4.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
+ "edgedb-errors 0.3.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
+ "edgedb-protocol 0.4.0 (git+https://github.com/edgedb/edgedb-rust/?branch=cli_features)",
  "log",
- "nix 0.23.2",
  "once_cell",
  "rand 0.8.5",
  "rustls",
@@ -1222,9 +1199,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha1",
- "shutdown_hooks",
- "test-log",
- "thiserror",
  "tls-api",
  "tls-api-not-tls",
  "tls-api-rustls",
@@ -2067,29 +2041,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "miette"
-version = "5.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4afd9b301defa984bbdbe112b4763e093ed191750a0d914a78c1106b2d0fe703"
-dependencies = [
- "miette-derive",
- "once_cell",
- "thiserror",
- "unicode-width",
-]
-
-[[package]]
-name = "miette-derive"
-version = "5.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97c2401ab7ac5282ca5c8b518a87635b1a93762b0b90b9990c509888eeccba29"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2191,32 +2142,6 @@ dependencies = [
  "cc",
  "cfg-if 1.0.0",
  "libc",
-]
-
-[[package]]
-name = "nix"
-version = "0.22.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4916f159ed8e5de0082076562152a76b7a1f64a01fd9d1e0fea002c37624faf"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if 1.0.0",
- "libc",
- "memoffset 0.6.5",
-]
-
-[[package]]
-name = "nix"
-version = "0.23.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f3790c00a0150112de0f4cd161e3d7fc4b2d8a5542ffc35f099a2562aecb35c"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if 1.0.0",
- "libc",
- "memoffset 0.6.5",
 ]
 
 [[package]]
@@ -3518,17 +3443,6 @@ checksum = "3208d0ae2e3736d4ac2f6ba2229c4d9bbd54080e228e662a7684eabcf13ff419"
 dependencies = [
  "pem 0.8.3",
  "tempdir",
-]
-
-[[package]]
-name = "test-log"
-version = "0.2.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38f0c854faeb68a048f0f2dc410c5ddae3bf83854ef0e4977d58306a5edef50e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
