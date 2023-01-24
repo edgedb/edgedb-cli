@@ -88,7 +88,7 @@ commands:
     - cargo
     - test
     - --target=x86_64-unknown-linux-musl
-    - --tests=github-actions
+    - --test=github-actions
     - --features=github_action_install
     environ:
       HOME: /tmp/home
@@ -97,10 +97,27 @@ commands:
       /tmp: !Tmpfs
         size: 1Gi
 
+  test-shared: !Command
+    description: Run shared client test cases
+    container: ubuntu
+    external-user-id: 0
+    user-id: 1000
+    run:
+    - cargo
+    - test
+    - --test=portable_shared
+    - --features=portable_tests
+    volumes:
+      /home: !Tmpfs
+        size: 100Mi
+        subdirs:
+          edgedb:
+          edgedb/test:
+
   test: !Command
     description: Run all the tests
     container: ubuntu
-    prerequisites: [test-rust, test-musl]
+    prerequisites: [test-rust, test-musl, test-shared]
     run: [echo, Ok]
 
 

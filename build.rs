@@ -303,7 +303,7 @@ fn connection_{i}() {{
         write!(
             testcase,
             r#"
-    Command::new("edgedb")
+    Command::cargo_bin("edgedb").expect("binary exists")
         .arg("--test-output-conn-params")"#,
         );
         testcase.write_all(&buf).unwrap();
