@@ -315,8 +315,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     Ok(())
 }
 
-#[tokio::main]
-async fn ask_existing_instance_name(
+fn ask_existing_instance_name(
     cloud_client: &mut CloudClient
 ) -> anyhow::Result<InstanceName> {
     let instances = credentials::all_instance_names()?;
@@ -325,7 +324,7 @@ async fn ask_existing_instance_name(
         let mut q =
             question::String::new("Specify the name of EdgeDB instance \
                                    to link with this project");
-        let target_name = unblock(move || q.ask()).await??;
+        let target_name = q.ask()?;
 
         let inst_name = match InstanceName::from_str(&target_name) {
             Ok(name) => name,
@@ -419,8 +418,7 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     })
 }
 
-#[tokio::main]
-async fn ask_name(
+fn ask_name(
     dir: &Path, options: &Init, cloud_client: &mut CloudClient
 ) -> anyhow::Result<(InstanceName, bool)> {
     let instances = credentials::all_instance_names()?;
@@ -475,13 +473,11 @@ async fn ask_name(
     q.default(&default_name_str);
     loop {
         let default_name_clone = default_name.clone();
-        let target_name = unblock(move || {
-            let mut q = question::String::new(
-                "Specify the name of EdgeDB instance to use with this project"
-            );
-            let default_name_str = default_name_clone.to_string();
-            q.default(&default_name_str).ask()
-        }).await??;
+        let mut q = question::String::new(
+            "Specify the name of EdgeDB instance to use with this project"
+        );
+        let default_name_str = default_name_clone.to_string();
+        let target_name = q.default(&default_name_str).ask()?;
         let inst_name = match InstanceName::from_str(&target_name) {
             Ok(name) => name,
             Err(e) => {

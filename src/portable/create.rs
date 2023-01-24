@@ -25,9 +25,7 @@ use crate::question;
 
 use edgedb_tokio::credentials::Credentials;
 
-
-#[tokio::main]
-async fn ask_name(
+fn ask_name(
     cloud_client: &mut cloud::client::CloudClient
 ) -> anyhow::Result<InstanceName> {
     let instances = credentials::all_instance_names()?;
