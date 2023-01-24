@@ -150,7 +150,13 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     } if let Some(dir) = notify_socket.parent() {
         fs_err::create_dir_all(dir)?;
     }
-    let sock = UnixDatagram::bind(&notify_socket)
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_io()
+        .build().context("can make tokio runtime")?;
+    let sock = runtime.block_on(async {
+            // this is not async, but requires async context on windows
+            UnixDatagram::bind(&notify_socket)
+        })
         .context("cannot create notify socket")?;
 
     get_server_cmd(&meta, false)?
