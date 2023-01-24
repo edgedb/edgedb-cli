@@ -107,6 +107,8 @@ commands:
     - test
     - --test=portable_shared
     - --features=portable_tests
+    environ:
+      RUST_TEST_THREADS: 1
     volumes:
       /home: !Tmpfs
         size: 100Mi

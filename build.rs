@@ -57,7 +57,7 @@ fn main() {
         ("multiple_compound_opts", "(cannot be used with|provided more than once)"),
         ("multiple_compound_env", "multiple compound env vars found"),
         ("exclusive_options", "provided more than once"),
-        ("credentials_file_not_found", "credentials file.*could not read"),
+        ("credentials_file_not_found", "credentials file.*No such file"),
         ("project_not_initialised", "error reading project settings"),
         ("secret_key_not_found", "Run `edgedb cloud login`"),
         ("invalid_secret_key", "Illegal JWT token"),
