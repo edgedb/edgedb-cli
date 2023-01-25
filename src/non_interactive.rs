@@ -155,6 +155,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                 // trying to make writes atomic if possible
                 text += "\n";
                 stdout().write_all(text.as_bytes()).await?;
+                stdout().flush().await?;
             }
         }
         OutputFormat::Default => {
@@ -185,6 +186,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                     // trying to make writes atomic if possible
                     text += "\n";
                     stdout().write_all(text.as_bytes()).await?;
+                    stdout().flush().await?;
                 }
             } else {
                 while let Some(row) = items.next().await.transpose()? {
@@ -200,6 +202,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                     let mut data = print::json_item_to_string(&value, &cfg)?;
                     data += "\n";
                     stdout().write_all(data.as_bytes()).await?;
+                    stdout().flush().await?;
                 }
             }
         }
@@ -220,6 +223,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                 let mut data = print::json_to_string(items, &cfg)?;
                 data += "\n";
                 stdout().write_all(data.as_bytes()).await?;
+                stdout().flush().await?;
             }
         }
     }

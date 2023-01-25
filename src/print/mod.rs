@@ -340,7 +340,6 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
 
         styler: config.styler.clone(),
     };
-    prn.end().unwrap_exc()?;
     match item.format(&mut prn) {
         Ok(()) => {},
         Err(Exception::DisableFlow) => unreachable!(),
