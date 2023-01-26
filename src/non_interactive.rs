@@ -174,36 +174,38 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                 }
             }
         }
-        OutputFormat::JsonPretty | OutputFormat::JsonLines => {
-            if fmt == OutputFormat::JsonLines {
-                while let Some(row) = items.next().await.transpose()? {
-                    let mut text = match row {
-                        Value::Str(s) => s,
-                        _ => return Err(anyhow::anyhow!(
-                            "the server returned \
-                             a non-string value in JSON mode")),
-                    };
-                    // trying to make writes atomic if possible
-                    text += "\n";
-                    stdout().write_all(text.as_bytes()).await?;
-                    stdout().flush().await?;
-                }
-            } else {
-                while let Some(row) = items.next().await.transpose()? {
-                    let text = match row {
-                        Value::Str(s) => s,
-                        _ => return Err(anyhow::anyhow!(
-                            "the server returned \
-                             a non-string value in JSON mode")),
-                    };
-                    let value: serde_json::Value = serde_json::from_str(&text)
-                        .context("cannot decode json result")?;
-                    // trying to make writes atomic if possible
-                    let mut data = print::json_item_to_string(&value, &cfg)?;
-                    data += "\n";
-                    stdout().write_all(data.as_bytes()).await?;
-                    stdout().flush().await?;
-                }
+        OutputFormat::JsonPretty => {
+            while let Some(row) = items.next().await.transpose()? {
+                let text = match row {
+                    Value::Str(s) => s,
+                    _ => return Err(anyhow::anyhow!(
+                        "the server returned \
+                         a non-string value in JSON mode")),
+                };
+                let value: serde_json::Value = serde_json::from_str(&text)
+                    .context("cannot decode json result")?;
+                // trying to make writes atomic if possible
+                let mut data = print::json_item_to_string(&value, &cfg)?;
+                println!("{}", data);
+                /* //TODO
+                data += "\n";
+                stdout().write_all(data.as_bytes()).await?;
+                stdout().flush().await?;
+                */
+            }
+        }
+        OutputFormat::JsonLines => {
+            while let Some(row) = items.next().await.transpose()? {
+                let mut text = match row {
+                    Value::Str(s) => s,
+                    _ => return Err(anyhow::anyhow!(
+                        "the server returned \
+                         a non-string value in JSON mode")),
+                };
+                // trying to make writes atomic if possible
+                text += "\n";
+                stdout().write_all(text.as_bytes()).await?;
+                stdout().flush().await?;
             }
         }
         OutputFormat::Json => {

@@ -22,7 +22,6 @@ fn non_interactive_link() {
         .arg("--no-cli-update-check")
         .arg("-I_test_inst")
         .arg("query")
-        .arg("--output-format=tab-separated")
         .arg("SELECT 7*8")
         .assert()
         .success()
