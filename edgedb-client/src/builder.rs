@@ -930,8 +930,8 @@ impl Builder {
                     .unwrap_or_else(|| EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string());
                 let msg = format!("{}/{}", org_slug, name);
                 let checksum = crc16::State::<crc16::XMODEM>::calculate(msg.as_bytes());
-                let dns_bucket = format!("c-{:x}", checksum % 9900);
-                let host = format!("{}.{}.{}.i.{}", name, org_slug, dns_bucket, dns_zone);
+                let dns_bucket = format!("c-{:02}", checksum % 100);
+                let host = format!("{}--{}.{}.i.{}", name, org_slug, dns_bucket, dns_zone);
                 self.host_port(Some(host), None)?;
                 self.secret_key(secret_key);
             }
@@ -1438,9 +1438,10 @@ vbtH7QiVzeKCOTQPINyRql6P
             } else if matches!(cloud_certs.as_deref(), Some("local")) {
                 // Local nebula development root cert found in
                 // nebula/infra/terraform/local/ca/root.certificate.pem
+                log::trace!("trusting local development Nebula root certificates");
                 roots.add_server_trust_anchors(
                     tls::OwnedTrustAnchor::read_all(
-                        "----BEGIN CERTIFICATE-----
+                        "-----BEGIN CERTIFICATE-----
 MIICBjCCAaugAwIBAgIUGLnu92rPr79+DsDQBtolXEZENwMwCgYIKoZIzj0EAwIw
 UDELMAkGA1UEBhMCVVMxGjAYBgNVBAoMEUVkZ2VEQiAoaW50ZXJuYWwpMSUwIwYD
 VQQDDBxOZWJ1bGEgSW5mcmEgUm9vdCBDQSAobG9jYWwpMB4XDTIzMDExNDIzMDkw
