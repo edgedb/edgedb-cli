@@ -187,10 +187,11 @@ vbtH7QiVzeKCOTQPINyRql6P
         } else if matches!(cloud_certs.as_deref(), Some("local")) {
             // Local nebula development root cert found in
             // nebula/infra/terraform/local/ca/root.certificate.pem
+            log::trace!("trusting local development nebula root certificates");
             builder = builder
                 .add_root_certificate(
                     reqwest::Certificate::from_pem(
-                        "----BEGIN CERTIFICATE-----
+                        "-----BEGIN CERTIFICATE-----
 MIICBjCCAaugAwIBAgIUGLnu92rPr79+DsDQBtolXEZENwMwCgYIKoZIzj0EAwIw
 UDELMAkGA1UEBhMCVVMxGjAYBgNVBAoMEUVkZ2VEQiAoaW50ZXJuYWwpMSUwIwYD
 VQQDDBxOZWJ1bGEgSW5mcmEgUm9vdCBDQSAobG9jYWwpMB4XDTIzMDExNDIzMDkw
