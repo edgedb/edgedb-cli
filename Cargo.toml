@@ -47,7 +47,7 @@ serde_str = {git="https://github.com/tailhook/serde-str"}
 serde_millis = "0.1.1"
 dirs = "4"
 uuid = "1.1.2"
-prettytable-rs = {version="0.8.0", default-features=false}
+prettytable-rs = {version="0.10.0", default-features=false}
 tempfile = "3.1.0"
 codespan-reporting = "0.11"
 termcolor = "1.1.0"
@@ -110,7 +110,7 @@ difference = "2.0.0"
 notify = "5.0.0"
 
 [dev-dependencies]
-assert_cmd = {git="https://github.com/tailhook/assert_cmd", branch="edgedb_20190513"}
+assert_cmd = "2.0.8"
 predicates = "2.1.1"
 pretty_assertions = "1.2.0"
 shutdown_hooks = "0.1.0"
