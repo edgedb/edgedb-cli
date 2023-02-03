@@ -21,6 +21,8 @@ fn configure_all_parameters() {
                 ),
             SELECT Props { name }
             FILTER .name != 'id' AND NOT .is_internal
+                // `force_database_error` should not be exposed
+                AND .name != 'force_database_error'
         "###)
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
@@ -59,6 +61,8 @@ fn configure_all_parameters() {
                 ),
             SELECT Links { target_name := .target.name[5:] }
             FILTER .is_system AND .target.name[:5] = 'cfg::'
+                // `force_database_error` should not be exposed
+                AND .name != 'force_database_error'
         "###)
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
