@@ -276,7 +276,13 @@ async fn execute_query(options: &Options, state: &mut repl::State,
     };
 
     let start = Instant::now();
-    let data_description = cli.parse(&flags, statement).await?;
+    let data_description = match cli.parse(&flags, statement).await {
+        Ok(desc) => desc,
+        Err(e) => {
+            print_query_error(&e, statement, state.verbose_errors)?;
+            return Err(QueryError)?;
+        }
+    };
     let first_part = start.elapsed();
 
     if state.print_stats == Detailed {
