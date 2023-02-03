@@ -868,12 +868,12 @@ fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
         InstanceKind::Portable(inst) => {
             control::ensure_runstate_dir(&info.name)?;
             let mut cmd = control::get_server_cmd(inst, false)?;
-            cmd.background_for(migrate_async(info, false))?;
+            cmd.background_for(|| Ok(migrate_async(info, false)))?;
             Ok(())
         }
         InstanceKind::Wsl(_) => {
             let mut cmd = windows::server_cmd(&info.name, false)?;
-            cmd.background_for(migrate_async(info, false))?;
+            cmd.background_for(|| Ok(migrate_async(info, false)))?;
             Ok(())
         }
         InstanceKind::Remote => {

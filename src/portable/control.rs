@@ -150,46 +150,42 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     } if let Some(dir) = notify_socket.parent() {
         fs_err::create_dir_all(dir)?;
     }
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
-        .build().context("can make tokio runtime")?;
-    let sock = runtime.block_on(async {
-            // this is not async, but requires async context on windows
-            UnixDatagram::bind(&notify_socket)
-        })
-        .context("cannot create notify socket")?;
-
     get_server_cmd(&meta, false)?
         .env("NOTIFY_SOCKET", &notify_socket)
         .pid_file(&pid_path)
         .log_file(&log_path)?
-        .background_for(async {
-            let mut buf = [0u8; 1024];
-            while !matches!(sock.recv(&mut buf).await,
-                           Ok(len) if &buf[..len] == b"READY=1")
-            { };
+        .background_for(|| {
+                // this is not async, but requires async context
+            let sock = UnixDatagram::bind(&notify_socket)
+                .context("cannot create notify socket")?;
+            Ok(async move {
+                let mut buf = [0u8; 1024];
+                while !matches!(sock.recv(&mut buf).await,
+                               Ok(len) if &buf[..len] == b"READY=1")
+                { };
 
-            // Redirect stderr to log file, right before daemonizing.
-            // So that all early errors are visible, but all later ones
-            // (i.e. a message on term) do not clobber user's terminal.
-            if unsafe { libc::dup2(log_file.as_raw_fd(), 2) } < 0 {
-                return Err(io::Error::last_os_error())
-                    .context("cannot close stdout")?;
-            }
-            drop(log_file);
+                // Redirect stderr to log file, right before daemonizing.
+                // So that all early errors are visible, but all later ones
+                // (i.e. a message on term) do not clobber user's terminal.
+                if unsafe { libc::dup2(log_file.as_raw_fd(), 2) } < 0 {
+                    return Err(io::Error::last_os_error())
+                        .context("cannot close stdout")?;
+                }
+                drop(log_file);
 
-            // Closing stdout to notify that daemon is successfully started.
-            // Note: we can't just close the file descriptor as it will be
-            // replaced with something unexpected on any next new file
-            // descriptor creation. So we replace it with `/dev/null` (the
-            // writing end of the original pipe is closed at this point).
-            if unsafe { libc::dup2(null.as_raw_fd(), 1) } < 0 {
-                return Err(io::Error::last_os_error())
-                    .context("cannot close stdout")?;
-            }
-            drop(null);
+                // Closing stdout to notify that daemon is successfully started.
+                // Note: we can't just close the file descriptor as it will be
+                // replaced with something unexpected on any next new file
+                // descriptor creation. So we replace it with `/dev/null` (the
+                // writing end of the original pipe is closed at this point).
+                if unsafe { libc::dup2(null.as_raw_fd(), 1) } < 0 {
+                    return Err(io::Error::last_os_error())
+                        .context("cannot close stdout")?;
+                }
+                drop(null);
 
-            Ok(pending::<()>().await)
+                Ok(pending::<()>().await)
+            })
         })
 }
 

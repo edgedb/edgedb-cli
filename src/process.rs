@@ -312,9 +312,11 @@ impl Native {
     }
 
     #[allow(dead_code)]
-    pub fn background_for<T>(&mut self,
-        f: impl Future<Output=anyhow::Result<T>>)
+    pub fn background_for<T, F>(&mut self,
+        f: impl FnOnce() -> anyhow::Result<F>)
         -> anyhow::Result<T>
+        where F: Future<Output=anyhow::Result<T>>,
+
     {
         block_on(self._background(f))
     }
@@ -447,10 +449,12 @@ impl Native {
         Ok(status)
     }
 
-    async fn _background<T>(&mut self,
-        f: impl Future<Output=anyhow::Result<T>>)
+    async fn _background<T, F>(&mut self,
+        f: impl FnOnce() -> anyhow::Result<F>)
         -> anyhow::Result<T>
+        where F: Future<Output=anyhow::Result<T>>,
     {
+        let f = f()?;
         let term = interrupt::Interrupt::term();
         log::info!("Running {}: {:?}", self.description, self.command);
         if self.proxy {

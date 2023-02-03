@@ -250,7 +250,7 @@ pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
             err);
         control::ensure_runstate_dir(&inst.name)?;
         let mut cmd = control::get_server_cmd(inst, false)?;
-        cmd.background_for(dump_instance(inst, &path))?;
+        cmd.background_for(|| Ok(dump_instance(inst, &path)))?;
     } else {
         block_on_dump_instance(inst, &path)?;
         log::info!("Stopping the instance before executable upgrade");
@@ -322,13 +322,13 @@ fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()>
     control::ensure_runstate_dir(&inst.name)?;
     let mut cmd = control::get_server_cmd(inst, false)?;
     control::self_signed_arg(&mut cmd, inst.get_version()?);
-    cmd.background_for(async {
+    cmd.background_for(|| Ok(async {
         restore_instance(inst, &paths.dump_path).await?;
         log::info!("Restarting instance {:?} to apply \
                    changes from `restore --all`",
                    &inst.name);
         Ok(())
-    })?;
+    }))?;
 
     let metapath = paths.data_dir.join("instance_info.json");
     write_json(&metapath, "new instance metadata", &inst)?;
