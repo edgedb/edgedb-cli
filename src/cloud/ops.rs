@@ -6,7 +6,7 @@ use edgedb_tokio::credentials::Credentials;
 use indicatif::ProgressBar;
 use tokio::time::{sleep, timeout};
 
-use crate::cloud::client::CloudClient;
+use crate::cloud::client::{CloudClient, ErrorResponse};
 use crate::collect::Collector;
 use crate::options::CloudOptions;
 use crate::portable::status::{RemoteStatus, RemoteType, try_connect};
@@ -106,8 +106,14 @@ pub async fn find_cloud_instance_by_name(
     org: &str,
     client: &CloudClient,
 ) -> anyhow::Result<Option<CloudInstance>> {
-    let instance: CloudInstance = client.get(format!("orgs/{}/instances/{}", org, inst)).await?;
-    Ok(Some(instance))
+    client
+        .get(format!("orgs/{}/instances/{}", org, inst))
+        .await
+        .map(Some)
+        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
+            Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => Ok(None),
+            _ => Err(e),
+        })
 }
 
 async fn wait_instance_available_after_operation(
