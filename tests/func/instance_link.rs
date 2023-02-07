@@ -18,6 +18,7 @@ fn non_interactive_link() {
         .success();
     Command::cargo_bin("edgedb").expect("binary found")
         .env("CLICOLOR", "0")
+        .env("RUST_LOG", "debug")
         .arg("--no-cli-update-check")
         .arg("-I_test_inst")
         .arg("query")

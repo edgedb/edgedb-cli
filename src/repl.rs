@@ -2,19 +2,26 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
-use async_std::channel::{Sender, Receiver, RecvError};
 use bytes::BytesMut;
 use colorful::Colorful;
-use edgedb_client::client::Connection;
+use tokio::sync::oneshot;
+use tokio::sync::mpsc::Sender;
+
+use edgedb_errors::{Error, ErrorKind};
+use edgedb_errors::{ProtocolEncodingError, ClientError};
 use edgedb_protocol::common::{State as EdgeqlState, RawTypedesc};
+use edgedb_protocol::model::Uuid;
 use edgedb_protocol::model::{Duration as EdbDuration};
 use edgedb_protocol::server_message::TransactionState;
+use edgedb_protocol::value::Value;
 
 use crate::async_util::timeout;
+use crate::connect::Connection;
 use crate::connect::Connector;
+use crate::portable::ver;
 use crate::print;
 use crate::prompt::variable::VariableInput;
-use crate::prompt;
+use crate::prompt::{self, Control};
 
 
 pub const TX_MARKER: &str = "[tx]";
@@ -45,8 +52,7 @@ pub enum PrintStats {
 
 
 pub struct PromptRpc {
-    pub control: Sender<prompt::Control>,
-    pub data: Receiver<prompt::Input>,
+    pub control: Sender<Control>,
 }
 
 pub struct State {
@@ -64,7 +70,7 @@ pub struct State {
     pub conn_params: Connector,
     pub database: String,
     pub connection: Option<Connection>,
-    pub last_version: Option<String>,
+    pub last_version: Option<ver::Build>,
     pub initial_text: String,
     pub edgeql_state_desc: RawTypedesc,
     pub edgeql_state: EdgeqlState,
@@ -74,21 +80,21 @@ impl PromptRpc {
     pub async fn variable_input(&mut self,
         name: &str, var_type: Arc<dyn VariableInput>, optional: bool,
         initial: &str)
-        -> anyhow::Result<prompt::Input>
+        -> anyhow::Result<prompt::VarInput>
     {
+        let (response, rx) = oneshot::channel();
         self.control.send(
-                prompt::Control::ParameterInput {
-                    name: name.to_owned(),
-                    var_type,
-                    optional,
-                    initial: initial.to_owned(),
-                }
-            ).await
-            .context("cannot send to input thread")?;
-        match self.data.recv().await {
-            Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
-            Ok(x) => Ok(x),
-        }
+            prompt::Control::ParameterInput {
+                name: name.to_owned(),
+                var_type,
+                optional,
+                initial: initial.to_owned(),
+                response,
+            }
+        ).await.ok().context("cannot send command to prompt thread")?;
+        let res = rx.await
+            .ok().context("cannot get response from the prompt thread")?;
+        Ok(res)
     }
 }
 
@@ -96,10 +102,10 @@ impl State {
     pub async fn reconnect(&mut self) -> anyhow::Result<()> {
         let mut conn = self.conn_params.connect().await?;
         let fetched_version = conn.get_version().await?;
-        if self.last_version.as_deref() != Some(fetched_version) {
+        if self.last_version.as_ref() != Some(&fetched_version) {
             println!("{} {} (repl v{})",
                 "EdgeDB".light_gray(),
-                fetched_version[..].light_gray(),
+                fetched_version.to_string().light_gray(),
                 env!("CARGO_PKG_VERSION"));
             self.last_version = Some(fetched_version.to_owned());
         }
@@ -120,7 +126,7 @@ impl State {
                     "CONFIGURE SESSION SET session_idle_transaction_timeout \
                      := <std::duration>'{}us'",
                     d.to_micros(),
-                )).await.context(
+                ), &()).await.context(
                     "cannot configure session_idle_transaction_timeout"
                 )?;
             }
@@ -132,16 +138,16 @@ impl State {
         params.modify(|p| { p.database(database).unwrap(); })?;
         let mut conn = params.connect().await?;
         let fetched_version = conn.get_version().await?;
-        if self.last_version.as_deref() != Some(fetched_version) {
+        if self.last_version.as_ref() != Some(&fetched_version) {
             println!("{} {} (repl v{})",
                 "EdgeDB".light_gray(),
-                fetched_version[..].light_gray(),
+                fetched_version.to_string().light_gray(),
                 env!("CARGO_PKG_VERSION"));
             self.last_version = Some(fetched_version.to_owned());
         }
         self.conn_params = params;
         self.database = database.into();
-        self.edgeql_state = conn.get_state();
+        self.edgeql_state = conn.get_state().clone();
         self.edgeql_state_desc = conn.get_state_desc();
         self.connection = Some(conn);
         self.set_idle_transaction_timeout().await?;
@@ -161,15 +167,14 @@ impl State {
     }
     pub async fn ensure_connection(&mut self) -> anyhow::Result<()> {
         match &self.connection {
-            Some(c) if c.is_consistent() => {}
+            Some(c) if c.is_consistent() => return Ok(()),
             Some(_) => {
                 eprintln!("Reconnecting...");
-                self.reconnect().await?;
             }
             None => {
-                self.reconnect().await?;
             }
         };
+        self.reconnect().await?;
         Ok(())
     }
     pub async fn terminate(&mut self) {
@@ -181,15 +186,25 @@ impl State {
             }
         }
     }
-    async fn editor_response(&mut self) -> anyhow::Result<prompt::Input> {
-        let result = if let Some(conn) = &mut self.connection {
-            conn.ping_while(self.prompt.data.recv()).await
+    async fn editor_cmd<T>(&mut self,
+                           f: impl FnOnce(oneshot::Sender<T>) -> Control)
+        -> anyhow::Result<T>
+    {
+        let (tx, rx) = oneshot::channel();
+        let request = f(tx);
+        if let Some(conn) = &mut self.connection {
+            let prompt = &self.prompt;
+            conn.ping_while(async {
+                prompt.control.send(request).await
+                    .ok().context("error sending command to prompt thread")?;
+                anyhow::Ok(rx.await?)
+            }).await
         } else {
-            self.prompt.data.recv().await
-        };
-        match result {
-            Err(RecvError) | Ok(prompt::Input::Eof) => Ok(prompt::Input::Eof),
-            Ok(x) => Ok(x),
+            self.prompt.control.send(request).await
+                    .ok().context("error sending command to prompt thread")?;
+            let res = rx.await
+                    .ok().context("cannot get response from prompt thread")?;
+            Ok(res)
         }
     }
     pub async fn edgeql_input(&mut self, initial: &str)
@@ -206,14 +221,13 @@ impl State {
                 None => "",
             }
         );
-        self.prompt.control.send(
-                prompt::Control::EdgeqlInput {
-                    prompt,
-                    initial: initial.to_owned(),
-                }
-            ).await
-            .context("cannot send to input thread")?;
-        self.editor_response().await
+        self.editor_cmd(|response| {
+            prompt::Control::EdgeqlInput {
+                prompt,
+                initial: initial.to_owned(),
+                response,
+            }
+        }).await
     }
     pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()>
     {
@@ -223,25 +237,26 @@ impl State {
             InputMode::Emacs => prompt::Control::EmacsMode,
         };
         self.prompt.control.send(msg).await
-            .context("cannot send to input thread")
+            .ok().context("cannot send to input thread")
     }
-    pub async fn show_history(&self) -> anyhow::Result<()> {
-        self.prompt.control.send(prompt::Control::ShowHistory).await
-            .context("cannot send to input thread")
+    pub async fn show_history(&mut self) -> anyhow::Result<()> {
+        self.editor_cmd(|ack| {
+            Control::ShowHistory { ack }
+        }).await
     }
     pub async fn spawn_editor(&mut self, entry: Option<isize>)
         -> anyhow::Result<prompt::Input>
     {
-        self.prompt.control.send(prompt::Control::SpawnEditor { entry }).await
-            .context("cannot send to input thread")?;
-        self.editor_response().await
+        self.editor_cmd(|response| {
+            Control::SpawnEditor { entry, response }
+        }).await
     }
     pub async fn set_history_limit(&mut self, val: usize)
         -> anyhow::Result<()>
     {
         self.history_limit = val;
-        self.prompt.control.send(prompt::Control::SetHistoryLimit(val)).await
-            .context("cannot send to input thread")
+        self.prompt.control.send(Control::SetHistoryLimit(val)).await
+            .ok().context("cannot send to input thread")
     }
     pub fn in_transaction(&self) -> bool {
         match &self.connection {
@@ -257,7 +272,7 @@ impl State {
 
         if let Some(conn) = &self.connection {
             if matches!(conn.transaction_state(), NotInTransaction) {
-                self.edgeql_state = conn.get_state();
+                self.edgeql_state = conn.get_state().clone();
                 self.edgeql_state_desc = conn.get_state_desc();
             }
         }
@@ -283,6 +298,26 @@ impl State {
             }
         }
         Ok(false)
+    }
+    pub fn get_state_as_value(&self) -> Result<(Uuid, Value), Error> {
+        if self.edgeql_state.typedesc_id == Uuid::from_u128(0) {
+            return Ok((Uuid::from_u128(0), Value::Nothing));
+        }
+        let desc = &self.edgeql_state_desc;
+        if desc.id != self.edgeql_state.typedesc_id {
+            return Err(ClientError::with_message(
+                    format!("State type descriptor id is {:?}, \
+                             but state is encoded using {:?}",
+                            desc.id, self.edgeql_state.typedesc_id)
+            ));
+        }
+        let desc = desc.decode().map_err(ProtocolEncodingError::with_source)?;
+        let codec = desc.build_codec()
+            .map_err(ProtocolEncodingError::with_source)?;
+        let value = codec.decode(&self.edgeql_state.data[..])
+            .map_err(ProtocolEncodingError::with_source)?;
+
+        Ok((desc.id().clone(), value))
     }
 }
 

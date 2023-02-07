@@ -9,6 +9,7 @@ use openssl::x509::extension::{KeyUsage, SubjectAlternativeName};
 use openssl::x509::extension::{SubjectKeyIdentifier};
 use openssl::x509::{X509NameBuilder, X509Ref, X509Req, X509ReqBuilder, X509};
 
+#[derive(Clone)]
 pub struct Certs {
     pub ca_cert: Vec<u8>,
     pub nginx_cert: Vec<u8>,

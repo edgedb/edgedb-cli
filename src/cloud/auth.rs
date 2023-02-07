@@ -3,8 +3,8 @@ use std::io;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use tokio::time::sleep;
 use anyhow::Context;
-use async_std::task;
 use fs_err as fs;
 
 use crate::cloud::client::{cloud_config_dir, cloud_config_file, CloudClient, CloudConfig};
@@ -33,6 +33,10 @@ pub fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> 
 
 #[tokio::main]
 pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
+    _do_login(client).await
+}
+
+pub async fn _do_login(client: &CloudClient) -> anyhow::Result<()> {
     let UserSession {
         id,
         auth_url,
@@ -72,7 +76,7 @@ pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
             )),
             _ => {}
         }
-        task::sleep(AUTHENTICATION_POLL_INTERVAL).await;
+        sleep(AUTHENTICATION_POLL_INTERVAL).await;
     }
     anyhow::bail!(
         "Authentication is expected to be done in {:?}.",

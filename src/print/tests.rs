@@ -2,11 +2,11 @@ use std::convert::Infallible;
 use std::convert::TryFrom;
 use std::str::FromStr;
 use std::pin::Pin;
+use std::task;
 
-use async_std::stream::Stream;
-use async_std::task;
 use bigdecimal::BigDecimal;
 use bytes::Bytes;
+use tokio_stream::Stream;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model::Datetime;
@@ -43,7 +43,10 @@ fn test_format_cfg<I: FormatExt + Clone + Send + Sync>(items: &[I], config: &Con
     -> Result<String, Infallible>
 {
     let mut out = String::new();
-    task::block_on(
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build().unwrap();
+    runtime.block_on(
         _native_format(UnfusedStream::new(items),
             config, config.max_width.unwrap_or(80), false, &mut out)
     ).unwrap();
@@ -111,11 +114,11 @@ fn bigint() {
 #[test]
 fn datetime() {
     assert_eq!(test_format(&[
-        Value::Datetime(Datetime::from_micros(-1000000000000000)),
-        Value::Datetime(Datetime::from_micros(1604506938347258)),
+        Value::Datetime(Datetime::from_unix_micros(-1000000000000000)),
+        Value::Datetime(Datetime::from_unix_micros(1604506938347258)),
     ]).unwrap(),
-    "{<datetime>\'1968-04-23T22:13:20Z\', \
-      <datetime>\'2050-11-04T16:22:18.347258Z\'}");
+    "{<datetime>\'1938-04-24T22:13:20Z\', \
+      <datetime>\'2020-11-04T16:22:18.347258Z\'}");
 }
 
 #[test]

@@ -5,9 +5,9 @@ use crate::options::Options;
 use crate::portable::options::ShowCredentials;
 
 pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Result<()> {
-    use edgedb_client::credentials::TlsSecurity;
+    use edgedb_tokio::credentials::TlsSecurity;
 
-    let connector = options.create_connector()?;
+    let connector = options.block_on_create_connector()?;
     let builder = connector.get()?;
     let creds = builder.as_credentials()?;
     if let Some(result) = if c.json {

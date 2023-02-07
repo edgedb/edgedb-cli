@@ -2,7 +2,6 @@ use std::fs;
 use std::str::FromStr;
 
 use anyhow::Context;
-use async_std::task;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
@@ -24,8 +23,7 @@ use crate::print::{self, echo, err_marker, Highlight};
 use crate::process;
 use crate::question;
 
-use edgedb_client::credentials::Credentials;
-
+use edgedb_tokio::credentials::Credentials;
 
 fn ask_name(
     cloud_client: &mut cloud::client::CloudClient
@@ -277,7 +275,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     creds.database = Some(database.into());
     creds.password = Some(password.into());
     creds.tls_ca = Some(cert);
-    task::block_on(credentials::write(&paths.credentials, &creds))?;
+    credentials::write(&paths.credentials, &creds)?;
 
     Ok(())
 }

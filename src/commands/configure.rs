@@ -1,7 +1,7 @@
 use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
-use edgedb_client::client::Connection;
+use crate::connect::Connection;
 use crate::commands::parser::{Configure, ConfigStr, ConfigBool};
 use crate::commands::parser::{AuthParameter};
 
@@ -11,7 +11,8 @@ async fn set_string(cli: &mut Connection, name: &str, value: &ConfigStr)
 {
     print::completion(&cli.execute(
         &format!("CONFIGURE INSTANCE SET {} := {}",
-            name, quote_string(&value.value))
+            name, quote_string(&value.value)),
+        &(),
     ).await?);
     Ok(())
 }
@@ -21,7 +22,8 @@ async fn set_bool(cli: &mut Connection, name: &str, value: &ConfigBool)
 {
     print::completion(&cli.execute(
         &format!("CONFIGURE INSTANCE SET {} := {}",
-            name, if value.value { "true" } else { "false" })
+            name, if value.value { "true" } else { "false" }),
+        &(),
     ).await?);
     Ok(())
 }
@@ -31,7 +33,8 @@ async fn set_duration(cli: &mut Connection, name: &str, value: &ConfigStr)
 {
     print::completion(&cli.execute(
         &format!("CONFIGURE INSTANCE SET {} := <duration>{}",
-            name, quote_string(&value.value))
+            name, quote_string(&value.value)),
+        &(),
     ).await?);
     Ok(())
 }
@@ -68,20 +71,23 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 }}
                 "###,
                 props.join(",\n")
-            )).await?);
+            ), &()).await?);
             Ok(())
         }
         C::Set(Set { parameter: S::ListenAddresses(param) }) => {
             print::completion(&cli.execute(
                 &format!("CONFIGURE INSTANCE SET listen_addresses := {{{}}}",
                 param.address.iter().map(|x| quote_string(x))
-                    .collect::<Vec<_>>().join(", "))
+                    .collect::<Vec<_>>().join(", ")),
+                &(),
             ).await?);
             Ok(())
         }
         C::Set(Set { parameter: S::ListenPort(param) }) => {
             print::completion(&cli.execute(
-                &format!("CONFIGURE INSTANCE SET listen_port := {}", param.port)
+                &format!("CONFIGURE INSTANCE SET listen_port := {}",
+                         param.port),
+                &(),
             ).await?);
             Ok(())
         }
@@ -138,7 +144,8 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 C::AllowUserSpecifiedId => "allow_user_specified_id",
             };
             print::completion(&cli.execute(
-                &format!("CONFIGURE INSTANCE RESET {}", name)
+                &format!("CONFIGURE INSTANCE RESET {}", name),
+                &(),
             ).await?);
             Ok(())
         }

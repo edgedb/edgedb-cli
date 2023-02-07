@@ -3,12 +3,11 @@ use std::path::{Path, PathBuf};
 use std::collections::BTreeSet;
 
 use anyhow::Context;
-use async_std::task;
 use fn_error_context::context;
 use fs_err as fs;
 
-use edgedb_client::Builder;
-use edgedb_client::credentials::Credentials;
+use edgedb_tokio::Builder;
+use edgedb_tokio::credentials::Credentials;
 
 use crate::platform::{config_dir, tmp_file_name};
 use crate::question;
@@ -44,11 +43,12 @@ pub fn all_instance_names() -> anyhow::Result<BTreeSet<String>> {
     Ok(result)
 }
 
+#[tokio::main]
 #[context("cannot write credentials file {}", path.display())]
 pub async fn write(path: &Path, credentials: &Credentials)
     -> anyhow::Result<()>
 {
-    use async_std::fs;
+    use tokio::fs;
 
     fs::create_dir_all(path.parent().unwrap()).await?;
     let tmp_path = path.with_file_name(tmp_file_name(path));
@@ -68,7 +68,7 @@ pub fn maybe_update_credentials_file(
              update now?",
                 creds_path.display(),
             )).ask()? {
-                task::block_on(write(&creds_path, &builder.as_credentials()?))?;
+                write(&creds_path, &builder.as_credentials()?)?;
             }
         }
     }

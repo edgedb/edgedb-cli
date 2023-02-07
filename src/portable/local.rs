@@ -10,7 +10,7 @@ use std::time::SystemTime;
 use anyhow::Context;
 use fn_error_context::context;
 
-use edgedb_client::Builder;
+use edgedb_tokio::Builder;
 
 use crate::bug;
 use crate::credentials;

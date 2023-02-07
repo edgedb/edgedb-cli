@@ -7,7 +7,7 @@ use crate::portable::repository::USER_AGENT;
 use crate::print;
 
 pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
-    let connector = options.create_connector()?;
+    let connector = options.block_on_create_connector()?;
     let builder = connector.get()?;
     let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
 
@@ -16,7 +16,7 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     if let Some(instance) = builder.get_instance_name() {
         if instance.find("/").is_some() {
             is_remote = true;
-            token = builder.as_credentials()?.secret_key;
+            token = builder.get_secret_key().map(|s| s.to_string());
         }
         if token.is_none() {
             match jwt::LocalJWT::new(instance).generate() {

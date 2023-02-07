@@ -6,17 +6,17 @@ use std::process::{Command, Stdio};
 use std::sync::Arc;
 
 use anyhow::{self, Context as _Context};
-use async_std::channel::{Sender, Receiver, RecvError};
-use async_std::task;
 use dirs::data_local_dir;
-use rustyline::{self, error::ReadlineError, KeyEvent, Modifiers, Cmd};
-use rustyline::{Editor, Config, Helper, Context};
+use rustyline::completion::Completer;
 use rustyline::config::{EditMode, CompletionType, Builder as ConfigBuilder};
-use rustyline::hint::Hinter;
 use rustyline::highlight::{Highlighter, PromptInfo};
+use rustyline::hint::Hinter;
 use rustyline::history::History;
 use rustyline::validate::{Validator, ValidationResult, ValidationContext};
-use rustyline::completion::Completer;
+use rustyline::{Editor, Config, Helper, Context};
+use rustyline::{self, error::ReadlineError, KeyEvent, Modifiers, Cmd};
+use tokio::sync::mpsc::Receiver;
+use tokio::sync::oneshot::Sender;
 
 use edgeql_parser::preparser::full_statement;
 use edgedb_protocol::value::Value;
@@ -34,15 +34,16 @@ pub mod variable;
 
 
 pub enum Control {
-    EdgeqlInput { prompt: String, initial: String },
+    EdgeqlInput { prompt: String, initial: String, response: Sender<Input> },
     ParameterInput {
         name: String,
         var_type: Arc<dyn VariableInput>,
         optional: bool,
         initial: String,
+        response: Sender<VarInput>,
     },
-    ShowHistory,
-    SpawnEditor { entry: Option<isize> },
+    ShowHistory { ack: Sender<()> },
+    SpawnEditor { entry: Option<isize>, response: Sender<Input> },
     ViMode,
     EmacsMode,
     SetHistoryLimit(usize),
@@ -50,6 +51,11 @@ pub enum Control {
 
 pub enum Input {
     Text(String),
+    Eof,
+    Interrupt,
+}
+
+pub enum VarInput {
     Value(Value),
     Eof,
     Interrupt,
@@ -239,7 +245,7 @@ pub fn var_editor(config: &ConfigBuilder, var_type: &Arc<dyn VariableInput>)
 }
 
 pub fn edgeql_input(prompt: &str, editor: &mut Editor<EdgeqlHelper>,
-    data: &Sender<Input>, initial: &str)
+    response: Sender<Input>, initial: &str)
     -> anyhow::Result<()>
 {
     let text = match
@@ -247,11 +253,11 @@ pub fn edgeql_input(prompt: &str, editor: &mut Editor<EdgeqlHelper>,
     {
         Ok(text) => text,
         Err(ReadlineError::Eof) => {
-            task::block_on(data.send(Input::Eof))?;
+            response.send(Input::Eof).ok();
             return Ok(());
         }
         Err(ReadlineError::Interrupted) => {
-            task::block_on(data.send(Input::Interrupt))?;
+            response.send(Input::Interrupt).ok();
             return Ok(());
         }
         Err(e) => {
@@ -260,12 +266,12 @@ pub fn edgeql_input(prompt: &str, editor: &mut Editor<EdgeqlHelper>,
         }
     };
     editor.add_history_entry(&text);
-    task::block_on(data.send(Input::Text(text)))?;
+    response.send(Input::Text(text)).ok();
     save_history(editor, "edgeql");
     Ok(())
 }
 
-pub fn main(data: Sender<Input>, control: Receiver<Control>)
+pub fn main(mut control: Receiver<Control>)
     -> Result<(), anyhow::Error>
 {
     let config = Config::builder();
@@ -273,25 +279,26 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
     let mut config = config.completion_type(CompletionType::List);
     let mut editor = create_editor(&config);
     'outer: loop {
-        match task::block_on(control.recv()) {
-            Err(RecvError) => break 'outer,
-            Ok(Control::ViMode) => {
+        match control.blocking_recv() {
+            None => break 'outer,
+            Some(Control::ViMode) => {
                 config = config.edit_mode(EditMode::Vi);
                 editor = create_editor(&config);
             }
-            Ok(Control::EmacsMode) => {
+            Some(Control::EmacsMode) => {
                 config = config.edit_mode(EditMode::Emacs);
                 editor = create_editor(&config);
             }
-            Ok(Control::SetHistoryLimit(h)) => {
+            Some(Control::SetHistoryLimit(h)) => {
                 config = config.max_history_size(h);
                 editor = create_editor(&config);
             }
-            Ok(Control::EdgeqlInput { prompt, initial }) => {
-                edgeql_input(&prompt, &mut editor, &data, &initial)?;
+            Some(Control::EdgeqlInput { prompt, initial, response }) => {
+                edgeql_input(&prompt, &mut editor, response, &initial)?;
             }
-            Ok(Control::ParameterInput { name, var_type, optional, initial })
-            => {
+            Some(Control::ParameterInput {
+                name, var_type, optional, initial, response,
+            }) => {
                 let mut initial = initial;
                 let prompt = format!(
                     "Parameter <{}>${}{}: ",
@@ -308,7 +315,7 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                         Ok(text) => text,
                         Err(ReadlineError::Eof) => {
                             if optional {
-                                task::block_on(data.send(Input::Eof))?;
+                                response.send(VarInput::Eof).ok();
                                 continue 'outer;
                             } else {
                                 println!("Optional values are not supported \
@@ -317,7 +324,7 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                             }
                         }
                         Err(ReadlineError::Interrupted) => {
-                            task::block_on(data.send(Input::Interrupt))?;
+                            response.send(VarInput::Interrupt).ok();
                             continue 'outer;
                         }
                         Err(e) => Err(e)?,
@@ -333,17 +340,18 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 editor.add_history_entry(&text);
                 save_history(&mut editor,
                     &format!("var_{}", &var_type.type_name()));
-                task::block_on(data.send(Input::Value(value)))?;
+                response.send(VarInput::Value(value)).ok();
             }
-            Ok(Control::ShowHistory) => {
+            Some(Control::ShowHistory { ack } ) => {
                 match show_history(editor.history()) {
                     Ok(()) => {}
                     Err(e) => {
                         eprintln!("Error displaying history: {}", e);
                     }
                 }
+                ack.send(()).ok();
             }
-            Ok(Control::SpawnEditor { entry }) => {
+            Some(Control::SpawnEditor { entry, response }) => {
                 let h = editor.history();
                 let e = entry.unwrap_or(-1);
                 let normal = if e < 0 {
@@ -357,26 +365,26 @@ pub fn main(data: Sender<Input>, control: Receiver<Control>)
                 };
                 if normal < 0 {
                     eprintln!("No history entry {}", e);
-                    task::block_on(data.send(Input::Interrupt))?;
+                    response.send(Input::Interrupt).ok();
                     continue;
                 }
                 let value = if let Some(value) = h.get(normal as usize) {
                     value
                 } else {
                     eprintln!("No history entry {}", e);
-                    task::block_on(data.send(Input::Interrupt))?;
+                    response.send(Input::Interrupt).ok();
                     continue;
                 };
                 let mut text = match spawn_editor(value) {
                     Ok(text) => text,
                     Err(e) => {
                         eprintln!("Error editing history entry: {}", e);
-                        task::block_on(data.send(Input::Interrupt))?;
+                        response.send(Input::Interrupt).ok();
                         continue;
                     }
                 };
                 text.truncate(text.trim_end().len());
-                task::block_on(data.send(Input::Text(text)))?;
+                response.send(Input::Text(text)).ok();
             }
         }
     }

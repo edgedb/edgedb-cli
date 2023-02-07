@@ -88,7 +88,7 @@ commands:
     - cargo
     - test
     - --target=x86_64-unknown-linux-musl
-    - --tests=github-actions
+    - --test=github-actions
     - --features=github_action_install
     environ:
       HOME: /tmp/home
@@ -97,10 +97,29 @@ commands:
       /tmp: !Tmpfs
         size: 1Gi
 
+  test-shared: !Command
+    description: Run shared client test cases
+    container: ubuntu
+    external-user-id: 0
+    user-id: 1000
+    run:
+    - cargo
+    - test
+    - --test=portable_shared
+    - --features=portable_tests
+    environ:
+      RUST_TEST_THREADS: 1
+    volumes:
+      /home: !Tmpfs
+        size: 100Mi
+        subdirs:
+          edgedb:
+          edgedb/test:
+
   test: !Command
     description: Run all the tests
     container: ubuntu
-    prerequisites: [test-rust, test-musl]
+    prerequisites: [test-rust, test-musl, test-shared]
     run: [echo, Ok]
 
 
@@ -174,11 +193,11 @@ containers:
       - curl
 
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-1.59.0-x86_64-unknown-linux-gnu.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-1.65.0-x86_64-unknown-linux-gnu.tar.gz"
       script: "./install.sh --prefix=/usr \
                 --components=rustc,rust-std-x86_64-unknown-linux-gnu,cargo"
     - !TarInstall
-      url: "https://static.rust-lang.org/dist/rust-std-1.59.0-x86_64-unknown-linux-musl.tar.gz"
+      url: "https://static.rust-lang.org/dist/rust-std-1.65.0-x86_64-unknown-linux-musl.tar.gz"
       script: "./install.sh --prefix=/musl \
                --components=rust-std-x86_64-unknown-linux-musl"
     - !Env RUSTFLAGS: -g
@@ -195,7 +214,7 @@ containers:
       suite: bionic
       components: [main]
       trusted: true
-    - !Install [edgedb-1]
+    - !Install [edgedb-2]
     - !Text
       /var/docker.sock: ""
 
@@ -209,8 +228,8 @@ containers:
       # needed for musl build
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
-      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-1
-      EDGEDB_MAJOR_VERSION: 1
+      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-server-2
+      EDGEDB_MAJOR_VERSION: 2
 
   tools:
     setup:

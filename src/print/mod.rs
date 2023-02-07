@@ -3,11 +3,11 @@ use std::fmt;
 use std::io;
 use std::convert::Infallible;
 
-use async_std::stream::{Stream, StreamExt};
 use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
+use tokio_stream::{Stream, StreamExt};
 
-use edgedb_client::errors::display_error;
+use edgedb_errors::display::display_error;
 
 pub use crate::echo;
 
@@ -340,7 +340,6 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
 
         styler: config.styler.clone(),
     };
-    prn.end().unwrap_exc()?;
     match item.format(&mut prn) {
         Ok(()) => {},
         Err(Exception::DisableFlow) => unreachable!(),
@@ -379,7 +378,7 @@ pub fn error(line: impl fmt::Display) {
     }
 }
 
-pub fn edgedb_error(err: &edgedb_client::errors::Error, verbose: bool) {
+pub fn edgedb_error(err: &edgedb_errors::Error, verbose: bool) {
     // Note: not using `error()` as display_error has markup inside
     echo!(err_marker(), display_error(err, verbose));
 }

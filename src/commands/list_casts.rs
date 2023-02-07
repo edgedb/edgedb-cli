@@ -1,11 +1,9 @@
-use async_std::prelude::StreamExt;
-
 use prettytable::{Table, Row, Cell};
 
 use edgedb_derive::Queryable;
 use crate::commands::Options;
 use crate::commands::filter;
-use edgedb_client::client::Connection;
+use crate::connect::Connection;
 use crate::table;
 
 
@@ -44,7 +42,7 @@ pub async fn list_casts<'x>(cli: &mut Connection, options: &Options,
         {filter}
         ORDER BY .kind THEN .from_type.name THEN .to_type.name;
     "###, filter=filter);
-    let mut items = filter::query::<Cast>(cli,
+    let items = filter::query::<Cast>(cli,
         &query, &pattern, case_sensitive).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
@@ -52,7 +50,7 @@ pub async fn list_casts<'x>(cli: &mut Connection, options: &Options,
         table.set_titles(Row::new(
             ["From Type", "To Type", "Kind", "Volatility"]
             .iter().map(|x| table::header_cell(x)).collect()));
-        while let Some(item) = items.next().await.transpose()? {
+        for item in items {
             table.add_row(Row::new(vec![
                 Cell::new(&item.from_type_name),
                 Cell::new(&item.to_type_name),
@@ -68,7 +66,7 @@ pub async fn list_casts<'x>(cli: &mut Connection, options: &Options,
             table.printstd();
         }
     } else {
-        while let Some(item) = items.next().await.transpose()? {
+        for item in items {
             println!("{}\t{}\t{}\t{}",
                 item.from_type_name, item.to_type_name,
                 item.kind, item.volatility_str);

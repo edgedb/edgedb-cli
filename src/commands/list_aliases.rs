@@ -1,12 +1,10 @@
-use async_std::prelude::StreamExt;
-
 use prettytable::{Table, Row, Cell};
 
 use edgedb_derive::Queryable;
 use crate::commands::Options;
 use crate::commands::filter;
 use crate::table;
-use edgedb_client::client::Connection;
+use crate::connect::Connection;
 
 
 
@@ -55,7 +53,7 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         {filter}
         ORDER BY .name;
     "###, filter=filter);
-    let mut items = filter::query::<Alias>(cli,
+    let items = filter::query::<Alias>(cli,
         &query, &pattern, case_sensitive).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
         let mut table = Table::new();
@@ -64,7 +62,7 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
             table.set_titles(Row::new(
                 ["Name", "Class", "Expression"]
                 .iter().map(|x| table::header_cell(x)).collect()));
-            while let Some(item) = items.next().await.transpose()? {
+            for item in items {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.name),
                     Cell::new(&item.klass),
@@ -75,7 +73,7 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
             table.set_titles(Row::new(
                 ["Name", "Class"]
                 .iter().map(|x| table::header_cell(x)).collect()));
-            while let Some(item) = items.next().await.transpose()? {
+            for item in items {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.name),
                     Cell::new(&item.klass),
@@ -95,11 +93,11 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         }
     } else {
         if verbose {
-            while let Some(item) = items.next().await.transpose()? {
+            for item in items {
                 println!("{}\t{}\t{}", item.name, item.klass, item.expr);
             }
         } else {
-            while let Some(item) = items.next().await.transpose()? {
+            for item in items {
                 println!("{}\t{}", item.name, item.klass);
             }
         }

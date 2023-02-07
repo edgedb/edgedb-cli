@@ -7,7 +7,6 @@ use std::env;
 use std::path::Path;
 use std::process::exit;
 
-use async_std::task;
 use clap::{Parser};
 
 use crate::options::Options;
@@ -61,7 +60,7 @@ fn main() {
                 // prevent duplicate error message
                 err = arc.inner();
             }
-            if let Some(e) = err.downcast_ref::<edgedb_client::errors::Error>() {
+            if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
                 print::edgedb_error(e, true);
             } else {
                 print::error(err);
@@ -138,16 +137,16 @@ fn _main() -> anyhow::Result<()> {
         cli::directory_check::check_and_warn();
         #[cfg(feature="portable_tests")]
         if opt.test_output_conn_params {
-            println!("{}", opt.create_connector()?.get()?.to_json());
+            println!("{}", opt.block_on_create_connector()?.get()?.to_json()?);
             return Ok(());
         }
         if opt.interactive {
             interactive::main(opt, cfg)
         } else {
-            task::block_on(non_interactive::interpret_stdin(
+            non_interactive::interpret_stdin(
                 &opt,
                 opt.output_format.unwrap_or(repl::OutputFormat::JsonPretty)
-            ))
+            )
         }
     }
 }

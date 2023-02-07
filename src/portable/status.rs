@@ -1,21 +1,21 @@
 use std::collections::BTreeSet;
 use std::fmt::Display;
 use std::fs;
-use std::future::Future;
+use std::future::{Future, pending};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::exit;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
-use async_std::prelude::FutureExt;
-use async_std::stream;
-use async_std::task;
 use fn_error_context::context;
-use futures_util::{StreamExt, join};
 use humantime::format_duration;
+use tokio::join;
+use tokio::time::sleep;
 
-use edgedb_client::{Builder, credentials::Credentials};
+use edgedb_tokio::{Builder, credentials::Credentials};
+use crate::connect::Connection;
 
 use crate::cloud::client::CloudClient;
 use crate::collect::Collector;
@@ -252,12 +252,16 @@ fn normal_status(options: &Status) -> anyhow::Result<()> {
 async fn try_get_version(creds: &Credentials) -> anyhow::Result<String> {
     let mut builder = Builder::uninitialized();
     builder.credentials(creds)?;
-    Ok(builder.build()?.connect().await?.get_version().await?.to_owned())
+    let mut conn = Connection::connect(&builder.build()?).await?;
+    let ver = conn.query_required_single(
+        "SELECT sys::get_version_as_str()", &()
+    ).await.context("cannot fetch database version")?;
+    Ok(ver)
 }
 
 pub async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus)
 {
-    use async_std::future::timeout;
+    use tokio::time::timeout;
     match timeout(Duration::from_secs(2), try_get_version(creds)).await {
         Ok(Ok(ver)) => (Some(ver), ConnectionStatus::Connected),
         Ok(Err(e)) => {
@@ -273,6 +277,16 @@ pub async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStat
     }
 }
 
+#[tokio::main]
+async fn remote_status_with_feedback(name: &str, quiet: bool)
+    -> anyhow::Result<RemoteStatus>
+{
+    intermediate_feedback(
+        _remote_status(name, quiet),
+        || "Trying to connect...",
+    ).await
+}
+
 async fn _remote_status(name: &str, quiet: bool)
     -> anyhow::Result<RemoteStatus>
 {
@@ -284,7 +298,7 @@ async fn _remote_status(name: &str, quiet: bool)
         }
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }
-    let cred_data = async_std::fs::read(cred_path).await?;
+    let cred_data = tokio::fs::read(cred_path).await?;
     let credentials = serde_json::from_slice(&cred_data)?;
     let (version, connection) = try_connect(&credentials).await;
     return Ok(RemoteStatus {
@@ -302,13 +316,16 @@ async fn intermediate_feedback<F, D>(future: F, text: impl FnOnce() -> D)
     where F: Future,
           D: Display,
 {
-    future.race(async {
-        task::sleep(Duration::from_millis(300)).await;
-        if atty::is(atty::Stream::Stderr) {
-            eprintln!("{}", text());
-        }
-        async_std::future::pending().await
-    }).await
+    tokio::select!(
+        r = future => r,
+        _ = async {
+            sleep(Duration::from_millis(300)).await;
+            if atty::is(atty::Stream::Stderr) {
+                eprintln!("{}", text());
+            }
+            pending().await
+        } => unreachable!(),
+    )
 }
 
 pub fn remote_status(options: &Status) -> anyhow::Result<()> {
@@ -317,12 +334,7 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
         InstanceName::Cloud { .. } => unreachable!("remote_status got cloud instance")
     };
 
-    let status = task::block_on(
-        intermediate_feedback(
-            _remote_status(name, options.quiet),
-            || "Trying to connect...",
-        )
-    )?;
+    let status = remote_status_with_feedback(name, options.quiet)?;
     if options.service {
         println!("Remote instance");
     } else if options.debug {
@@ -374,32 +386,40 @@ async fn get_remote_async(
     instances: Vec<String>,
     errors: &Collector<anyhow::Error>,
 ) -> anyhow::Result<Vec<RemoteStatus>> {
-    let mut result: Vec<_> = stream::from_iter(instances)
-        .map(|name| {
-            async move {
-                match _remote_status(&name, false).await {
-                    Ok(status) => {
-                        if let Some(ConnectionStatus::Error(e)) = &status.connection {
-                            errors.add(
-                                // Can't use `e.context()` because can't clone
-                                // the error
-                                anyhow::anyhow!("probing {:?}: {:#}", name, e)
-                            );
-                        }
-                        Some(status)
-                    }
-                    Err(e) => {
+    let sem = Arc::new(tokio::sync::Semaphore::new(100));
+    let mut tasks = tokio::task::JoinSet::new();
+    for name in instances {
+        let errors = errors.sender();
+        let permit = sem.clone().acquire_owned().await
+            .expect("semaphore is ok");
+        tasks.spawn(async move {
+            let _permit = permit;
+            match _remote_status(&name, false).await {
+                Ok(status) => {
+                    if let Some(ConnectionStatus::Error(e)) = &status.connection {
                         errors.add(
-                            e.context(format!("probing {:?}", name))
+                            // Can't use `e.context()` because can't clone
+                            // the error
+                            anyhow::anyhow!("probing {:?}: {:#}", name, e)
                         );
-                        None
                     }
+                    Some(status)
+                }
+                Err(e) => {
+                    errors.add(
+                        e.context(format!("probing {:?}", name))
+                    );
+                    None
                 }
             }
-        })
-        .buffer_unordered(100)
-        .flat_map(|x| stream::from_iter(x))
-        .collect().await;
+        });
+    }
+    let mut result = Vec::new();
+    while let Some(res) = tasks.join_next().await {
+        if let Some(status) = res? {
+            result.push(status);
+        }
+    }
     result.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(result)
 }
@@ -429,7 +449,16 @@ async fn get_remote_and_cloud(
     }
 }
 
+#[tokio::main]
 pub async fn get_remote(
+    visited: &BTreeSet<String>,
+    opts: &crate::options::Options,
+    errors: &Collector<anyhow::Error>,
+) -> anyhow::Result<Vec<RemoteStatus>> {
+    _get_remote(visited, opts, errors).await
+}
+
+async fn _get_remote(
     visited: &BTreeSet<String>,
     opts: &crate::options::Options,
     errors: &Collector<anyhow::Error>,
@@ -461,10 +490,6 @@ pub async fn get_remote(
     }
 }
 
-pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()> {
-    task::block_on(list_async(options, opts))
-}
-
 fn list_local_status(visited: &mut BTreeSet<String>) -> anyhow::Result<Vec<FullStatus>> {
     let mut local = Vec::new();
     let data_dir = data_dir()?;
@@ -486,7 +511,9 @@ fn list_local_status(visited: &mut BTreeSet<String>) -> anyhow::Result<Vec<FullS
     Ok(local)
 }
 
-async fn list_async(options: &List, opts: &crate::options::Options) -> anyhow::Result<()> {
+pub fn list(options: &List, opts: &crate::options::Options)
+    -> anyhow::Result<()>
+{
     let errors = Collector::new();
     let mut visited = BTreeSet::new();
     let local = match list_local_status(&mut visited) {
@@ -500,7 +527,7 @@ async fn list_async(options: &List, opts: &crate::options::Options) -> anyhow::R
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        match get_remote(&visited, opts, &errors).await {
+        match get_remote(&visited, opts, &errors) {
             Ok(remote) => remote,
             Err(e) => {
                 errors.add(e);
@@ -510,7 +537,7 @@ async fn list_async(options: &List, opts: &crate::options::Options) -> anyhow::R
     };
 
     if local.is_empty() && remote.is_empty() {
-        return if print_errors(&errors.list(), false).await {
+        return if print_errors(&errors.list(), false) {
             Err(ExitCode::new(1).into())
         } else {
             if options.json {
@@ -547,14 +574,14 @@ async fn list_async(options: &List, opts: &crate::options::Options) -> anyhow::R
         print_table(&local_json, &remote);
     }
 
-    if print_errors(&errors.list(), true).await {
+    if print_errors(&errors.list(), true) {
         Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
     } else {
         Ok(())
     }
 }
 
-pub async fn print_errors(errs: &[anyhow::Error], is_warning: bool) -> bool {
+pub fn print_errors(errs: &[anyhow::Error], is_warning: bool) -> bool {
     for e in errs {
         if is_warning {
             print::warn(format!("Warning: {:#}", e));

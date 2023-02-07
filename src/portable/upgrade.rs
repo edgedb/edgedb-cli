@@ -4,12 +4,11 @@ use std::str::FromStr;
 use std::time::{SystemTime, Duration};
 
 use anyhow::Context;
-use async_std::task;
 use fn_error_context::context;
 
 use crate::commands::{self, ExitCode};
 use crate::cloud;
-use crate::connect::Connector;
+use crate::connect::{Connector, Connection};
 use crate::portable::control;
 use crate::portable::create;
 use crate::portable::exit_codes;
@@ -251,30 +250,36 @@ pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
             err);
         control::ensure_runstate_dir(&inst.name)?;
         let mut cmd = control::get_server_cmd(inst, false)?;
-        cmd.background_for(dump_instance(inst, &path))?;
+        cmd.background_for(|| Ok(dump_instance(inst, &path)))?;
     } else {
-        task::block_on(dump_instance(inst, &path))?;
+        block_on_dump_instance(inst, &path)?;
         log::info!("Stopping the instance before executable upgrade");
         control::do_stop(&inst.name)?;
     }
     Ok(())
 }
 
+#[tokio::main]
+async fn block_on_dump_instance(inst: &InstanceInfo, destination: &Path)
+    -> anyhow::Result<()>
+{
+    dump_instance(inst, destination).await
+}
+
 #[context("error dumping instance")]
 pub async fn dump_instance(inst: &InstanceInfo, destination: &Path)
     -> anyhow::Result<()>
 {
-    use async_std::fs;
-    use async_std::path::Path;
+    use tokio::fs;
 
     let destination = Path::new(destination);
     log::info!("Dumping instance {:?}", inst.name);
-    if destination.exists().await {
+    if fs::metadata(&destination).await.is_ok() {
         log::info!("Removing old dump at {}", destination.display());
         fs::remove_dir_all(&destination).await?;
     }
     let conn_params = inst.admin_conn_params().await?;
-    let mut cli = conn_params.build()?.connect().await?;
+    let mut cli = Connection::connect(&conn_params.build()?).await?;
     let options = commands::Options {
         command_line: true,
         styler: None,
@@ -317,13 +322,13 @@ fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()>
     control::ensure_runstate_dir(&inst.name)?;
     let mut cmd = control::get_server_cmd(inst, false)?;
     control::self_signed_arg(&mut cmd, inst.get_version()?);
-    cmd.background_for(async {
+    cmd.background_for(|| Ok(async {
         restore_instance(inst, &paths.dump_path).await?;
         log::info!("Restarting instance {:?} to apply \
                    changes from `restore --all`",
                    &inst.name);
         Ok(())
-    })?;
+    }))?;
 
     let metapath = paths.data_dir.join("instance_info.json");
     write_json(&metapath, "new instance metadata", &inst)?;
@@ -348,7 +353,7 @@ async fn restore_instance(inst: &InstanceInfo, path: &Path)
     conn_params.wait_until_available(Duration::from_secs(300));
 
     log::info!("Restoring instance {:?}", inst.name);
-    let mut cli = conn_params.build()?.connect().await?;
+    let mut cli = Connection::connect(&conn_params.build()?).await?;
 
     let options = commands::Options {
         command_line: true,

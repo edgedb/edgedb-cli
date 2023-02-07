@@ -1,14 +1,12 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use async_std::task;
-use blocking::unblock;
-use edgedb_client::credentials::Credentials;
-use edgedb_client::Builder;
+use edgedb_tokio::Builder;
+use edgedb_tokio::credentials::Credentials;
 use indicatif::ProgressBar;
-use tokio::time::timeout;
+use tokio::time::{sleep, timeout};
 
-use crate::cloud::client::CloudClient;
+use crate::cloud::client::{CloudClient, ErrorResponse};
 use crate::collect::Collector;
 use crate::options::CloudOptions;
 use crate::portable::status::{RemoteStatus, RemoteType, try_connect};
@@ -108,8 +106,14 @@ pub async fn find_cloud_instance_by_name(
     org: &str,
     client: &CloudClient,
 ) -> anyhow::Result<Option<CloudInstance>> {
-    let instance: CloudInstance = client.get(format!("orgs/{}/instances/{}", org, inst)).await?;
-    Ok(Some(instance))
+    client
+        .get(format!("orgs/{}/instances/{}", org, inst))
+        .await
+        .map(Some)
+        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
+            Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => Ok(None),
+            _ => Err(e),
+        })
 }
 
 async fn wait_instance_available_after_operation(
@@ -135,7 +139,7 @@ async fn wait_instance_available_after_operation(
                 );
             },
             OperationStatus::InProgress => {
-                task::sleep(POLLING_INTERVAL).await;
+                sleep(POLLING_INTERVAL).await;
                 operation = client.get(&url).await?;
             }
             OperationStatus::Completed => {
@@ -217,11 +221,12 @@ pub async fn try_to_destroy(name: &str, org: &str, options: &CloudOptions) -> an
     log::info!("Destroying EdgeDB Cloud instance: {}/{}", name, org);
     let client = CloudClient::new(options)?;
     client.ensure_authenticated()?;
-    let _: CloudOperation = client.delete(format!("orgs/{}/instances/{}", org, name)).await?;
+    let _: CloudOperation = client.delete(
+        format!("orgs/{}/instances/{}", org, name)
+    ).await?;
     Ok(())
 }
 
-#[tokio::main]
 async fn get_instances(client: CloudClient) -> anyhow::Result<Vec<CloudInstance>> {
     timeout(Duration::from_secs(30), client.get("instances/"))
         .await
@@ -235,7 +240,7 @@ pub async fn list(
 ) -> anyhow::Result<Vec<RemoteStatus>> {
     client.ensure_authenticated()?;
     let secret_key = client.secret_key.clone().unwrap();
-    let cloud_instances = unblock(move || get_instances(client)).await?;  // mixing tokio in async-std?
+    let cloud_instances = get_instances(client).await?;
     let mut rv = Vec::new();
     for cloud_instance in cloud_instances {
         match RemoteStatus::from_cloud_instance(&cloud_instance, &secret_key).await {

@@ -69,6 +69,10 @@ struct MockFile {
 
 impl Drop for MockFile {
     fn drop(&mut self) {
+        if !self.path.exists() {
+            // this prevents abort on double-panic when test fails
+            return;
+        }
         if self.is_dir {
             fs::remove_dir(&self.path).expect(&format!("rmdir {:?}", self.path));
         } else {

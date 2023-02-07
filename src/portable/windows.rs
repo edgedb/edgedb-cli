@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, Duration};
 
 use anyhow::Context;
-use async_std::task;
 use fn_error_context::context;
 use libflate::gzip;
 use once_cell::sync::{Lazy, OnceCell};
@@ -604,7 +603,7 @@ pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
         .arg("-I").arg(instance);
     let instance = String::from(instance);
     pro.stop_process(move || {
-        let mut cmd = async_process::Command::new("wsl");
+        let mut cmd = tokio::process::Command::new("wsl");
         cmd.arg("--user").arg("edgedb");
         cmd.arg("--distribution").arg(&wsl.distribution);
         cmd.arg("_EDGEDB_FROM_WINDOWS=1");
@@ -830,11 +829,9 @@ fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>
     Ok(local)
 }
 
-pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
-    task::block_on(list_async(options, opts))
-}
-
-async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
+pub fn list(options: &options::List, opts: &crate::Options)
+    -> anyhow::Result<()>
+{
     let errors = Collector::new();
     let local = match list_local(options) {
         Ok(local) => local,
@@ -850,7 +847,7 @@ async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::R
     let remote = if options.no_remote {
         Vec::new()
     } else {
-        match status::get_remote(&visited, opts, &errors).await {
+        match status::get_remote(&visited, opts, &errors) {
             Ok(remote) => remote,
             Err(e) => {
                 errors.add(e);
@@ -860,7 +857,7 @@ async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::R
     };
 
     if local.is_empty() && remote.is_empty() {
-        if status::print_errors(&errors.list(), false).await {
+        if status::print_errors(&errors.list(), false) {
             return Err(ExitCode::new(1).into());
         } else {
             if options.json {
@@ -889,7 +886,7 @@ async fn list_async(options: &options::List, opts: &crate::Options) -> anyhow::R
         status::print_table(&local, &remote);
     }
 
-    if status::print_errors(&errors.list(), true).await {
+    if status::print_errors(&errors.list(), true) {
         Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS).into())
     } else {
         Ok(())

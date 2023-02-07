@@ -3,15 +3,14 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anymap::AnyMap;
-use async_std::task;
 use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
-use edgedb_client::{Builder, get_project_dir, SkipFields};
-use edgedb_client::credentials::TlsSecurity;
-use edgedb_client::errors::{ClientNoCredentialsError, ErrorKind, ResultExt};
+use edgedb_errors::{ClientNoCredentialsError, ErrorKind, ResultExt};
 use edgedb_protocol::model;
+use edgedb_tokio::credentials::TlsSecurity;
+use edgedb_tokio::{Builder, get_project_dir, SkipFields};
 use fs_err as fs;
 
 use crate::cli::options::CliCommand;
@@ -647,8 +646,12 @@ impl Options {
         })
     }
 
-    pub fn create_connector(&self) -> anyhow::Result<Connector> {
-        Ok(Connector::new(conn_params(&self)))
+    pub async fn create_connector(&self) -> anyhow::Result<Connector> {
+        Ok(Connector::new(conn_params(&self).await))
+    }
+    #[tokio::main]
+    pub async fn block_on_create_connector(&self) -> anyhow::Result<Connector> {
+        Ok(Connector::new(conn_params(&self).await))
     }
 }
 
@@ -670,7 +673,7 @@ fn set_password(options: &ConnectionOptions, builder: &mut Builder)
     Ok(())
 }
 
-pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
+pub async fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
     let tmp = &opts.conn_options;
     let mut bld = Builder::uninitialized();
     if let Some(path) = &tmp.unix_path {
@@ -699,8 +702,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
             tls_ca_file: tmp.tls_ca_file.is_some(),
             tls_security: tmp.tls_security.is_some() || tmp.tls_verify_hostname || tmp.no_tls_verify_hostname,
         };
-        task::block_on(bld.read_dsn(dsn, skip)).context("invalid DSN")?;
-        bld.read_extra_env_vars()?;
+        bld.read_dsn(dsn, skip).await.context("invalid DSN")?;
     } else if let Some(instance) = &tmp.instance {
         match instance {
             InstanceName::Cloud { org_slug, name } => {
@@ -713,17 +715,17 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
                 } else if let Some(secret_key) = &opts.cloud_options.cloud_secret_key {
                     bld.secret_key(secret_key);
                 }
-                task::block_on(bld.read_instance(&format!("{org_slug}/{name}")))
+                bld.read_instance(&format!("{org_slug}/{name}")).await
                     .map_err(anyhow::Error::from)
                     .hint("Have you logged in? (Run `edgedb cloud login`)")?;
             }
             InstanceName::Local(instance) => {
-                task::block_on(bld.read_instance(instance))?;
+                bld.read_instance(instance).await?;
             }
         }
         bld.read_extra_env_vars()?;
     } else if let Some(file_path) = &tmp.credentials_file {
-        task::block_on(bld.read_credentials(file_path))?;
+        bld.read_credentials(file_path).await?;
         bld.read_extra_env_vars()?;
     } else {
         if let Some(secret_key) = &tmp.secret_key {
@@ -731,7 +733,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
             // linked to a cloud instance and we want to overwrite secret_key.
             env::set_var("EDGEDB_SECRET_KEY", secret_key);
         }
-        bld = task::block_on(Builder::from_env())?;
+        bld = Builder::from_env().await?;
     };
     if tmp.admin {
         bld.admin()?;
@@ -754,7 +756,7 @@ pub fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
     set_password(tmp, &mut bld)?;
     load_tls_options(tmp, &mut bld)?;
     if !bld.is_initialized() {
-        let project_dir = task::block_on(get_project_dir(None, true))?;
+        let project_dir = get_project_dir(None, true).await?;
         if project_dir.is_some() {
             return Err(anyhow::anyhow!(ClientNoCredentialsError::with_message(
                 "project is not initialized \

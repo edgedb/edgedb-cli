@@ -8,16 +8,15 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::Context;
-use async_std::task;
-use blocking::unblock;
 use clap::{ValueHint};
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use sha1::Digest;
+use tokio::task::spawn_blocking as unblock;
 
-use edgedb_client::client::Connection;
-use edgedb_client::Builder;
 use edgedb_cli_derive::EdbClap;
+use edgedb_tokio::Builder;
+use crate::connect::Connection;
 
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -399,7 +398,7 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     write_stash_dir(&stash_dir, &inst.project_dir, &inst.name, profile)?;
 
     if !options.no_migrations {
-        task::block_on(migrate(inst, !options.non_interactive))?;
+        migrate(inst, !options.non_interactive)?;
     }
 
     print::success("Project linked");
@@ -473,7 +472,12 @@ fn ask_name(
     let default_name_str = default_name.to_string();
     q.default(&default_name_str);
     loop {
-        let target_name = q.ask()?;
+        let default_name_clone = default_name.clone();
+        let mut q = question::String::new(
+            "Specify the name of EdgeDB instance to use with this project"
+        );
+        let default_name_str = default_name_clone.to_string();
+        let target_name = q.default(&default_name_str).ask()?;
         let inst_name = match InstanceName::from_str(&target_name) {
             Ok(name) => name,
             Err(e) => {
@@ -672,7 +676,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
         instance,
     };
     if !options.no_migrations {
-        task::block_on(migrate(&handle, false))?;
+        migrate(&handle, false)?;
     }
     print_initialized(&name, &options.project_dir);
     Ok(ProjectInfo {
@@ -709,7 +713,7 @@ fn do_cloud_init(
             instance: InstanceKind::Remote,
             project_dir: project_dir.into(),
         };
-        task::block_on(migrate(&handle, false))?;
+        migrate(&handle, false)?;
     }
     print_initialized(&full_name, &options.project_dir);
     Ok(ProjectInfo {
@@ -864,12 +868,12 @@ fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
         InstanceKind::Portable(inst) => {
             control::ensure_runstate_dir(&info.name)?;
             let mut cmd = control::get_server_cmd(inst, false)?;
-            cmd.background_for(migrate(info, false))?;
+            cmd.background_for(|| Ok(migrate_async(info, false)))?;
             Ok(())
         }
         InstanceKind::Wsl(_) => {
             let mut cmd = windows::server_cmd(&info.name, false)?;
-            cmd.background_for(migrate(info, false))?;
+            cmd.background_for(|| Ok(migrate_async(info, false)))?;
             Ok(())
         }
         InstanceKind::Remote => {
@@ -898,7 +902,14 @@ fn start(handle: &Handle) -> anyhow::Result<()> {
     }
 }
 
+#[tokio::main]
 async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
+    -> anyhow::Result<()>
+{
+    migrate_async(inst, ask_for_running).await
+}
+
+async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
     -> anyhow::Result<()>
 {
     use crate::commands::Options;
@@ -935,7 +946,7 @@ async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
                     Retry);
                 q.option("Skip migrations.",
                     Skip);
-                match unblock(move || q.ask()).await? {
+                match unblock(move || q.ask()).await?? {
                     Service => match start(inst) {
                         Ok(()) => continue,
                         Err(e) => {
@@ -1054,16 +1065,12 @@ impl Handle<'_> {
         Ok(builder)
     }
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {
-        Ok(self.get_builder().await?.build()?.connect().await?)
+        Ok(Connection::connect(&self.get_builder().await?.build()?).await?)
     }
-    pub fn get_version(&self) -> anyhow::Result<ver::Build> {
-        task::block_on(async {
-            let mut conn = self.get_connection().await?;
-            let ver = conn.query_row::<String, _>(r###"
-                SELECT sys::get_version_as_str()
-            "###, &()).await?;
-            Ok(ver.parse()?)
-        })
+    #[tokio::main(flavor="current_thread")]
+    pub async fn get_version(&self) -> anyhow::Result<ver::Build> {
+        let mut conn = self.get_connection().await?;
+        anyhow::Ok(conn.get_version().await?.clone())
     }
     fn check_version(&self, ver_query: &Query) {
         match self.get_version() {

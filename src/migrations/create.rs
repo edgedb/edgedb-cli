@@ -1,17 +1,12 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
-use async_std::fs;
-use async_std::io::prelude::WriteExt;
-use async_std::io;
-use async_std::path::{Path, PathBuf};
-use async_std::stream::StreamExt;
-use blocking::unblock;
 use colorful::Colorful;
-use edgedb_client::client::Connection;
-use edgedb_client::errors::{Error, QueryError};
-use edgedb_client::errors::{ErrorKind, ClientConnectionEosError};
+use crate::connect::Connection;
 use edgedb_derive::Queryable;
+use edgedb_errors::{Error, QueryError};
+use edgedb_errors::{ErrorKind, ClientConnectionEosError};
 use edgedb_protocol::queryable::Queryable;
 use edgeql_parser::expr;
 use edgeql_parser::hash::Hasher;
@@ -22,6 +17,9 @@ use immutable_chunkmap::set::SetM as Set;
 use linked_hash_map::LinkedHashMap;
 use rustyline::error::ReadlineError;
 use serde::Deserialize;
+use tokio::fs;
+use tokio::io::{self, AsyncWriteExt};
+use tokio::task::spawn_blocking as unblock;
 
 use crate::bug;
 use crate::commands::parser::CreateMigration;
@@ -115,7 +113,7 @@ pub async fn execute(cli: &mut Connection, text: impl AsRef<str>)
     }
     let text = text.as_ref();
     log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
-    cli.execute(text).await?;
+    cli.execute(text, &()).await?;
     Ok(())
 }
 
@@ -125,7 +123,7 @@ pub async fn query_row<R>(cli: &mut Connection, text: &str)
 {
     let text = text.as_ref();
     log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
-    cli.query_row(text, &()).await
+    cli.query_required_single(text, &()).await
 }
 
 #[context("could not read schema file {}", path.display())]
@@ -165,7 +163,7 @@ async fn choice(prompt: &str) -> anyhow::Result<Choice> {
         "stop and save changes (splits migration into multiple)");
     q.option(Quit, &["q", "quit"],
         "quit without saving changes");
-    unblock(move || q.ask()).await
+    unblock(move || q.ask()).await?
 }
 
 #[context("could not read schema in {}", ctx.schema_dir.display())]
@@ -175,7 +173,7 @@ async fn gen_start_migration(ctx: &Context)
     let mut bld = Builder::new();
     bld.add_lines(SourceName::Prefix, "START MIGRATION TO {");
     let mut dir = fs::read_dir(&ctx.schema_dir).await?;
-    while let Some(item) = dir.next().await.transpose()? {
+    while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
         if lossy_name.starts_with(".") || !lossy_name.ends_with(".esdl")
@@ -233,7 +231,7 @@ async fn first_migration(cli: &mut Connection, ctx: &Context,
         Ok(())
     }.await;
     if cli.is_consistent() {
-        let abort = cli.execute("ABORT MIGRATION").await
+        let abort = cli.execute("ABORT MIGRATION", &()).await
             .map(|_| ()).map_err(|e| e.into());
         return exec.and(abort)
     } else {
@@ -519,7 +517,7 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
     let id = hasher.make_migration_id();
     let dir = filepath.parent().unwrap();
     let tmp_file = filepath.with_file_name(tmp_file_name(&filepath.as_ref()));
-    if !filepath.exists().await {
+    if !fs::metadata(filepath).await.is_ok() {
         fs::create_dir_all(&dir).await?;
     }
     fs::remove_file(&tmp_file).await.ok();
@@ -555,7 +553,7 @@ pub async fn create(cli: &mut Connection, options: &Options,
     create: &CreateMigration)
     -> anyhow::Result<()>
 {
-    let ctx = Context::from_project_or_config(&create.cfg, false)?;
+    let ctx = Context::from_project_or_config(&create.cfg, false).await?;
 
     if dev_mode::check_client(cli).await? {
         // TODO(tailhook) older edgedb versions
@@ -619,7 +617,7 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
         }
     }.await;
     if cli.is_consistent() {
-        let abort = cli.execute("ABORT MIGRATION").await
+        let abort = cli.execute("ABORT MIGRATION", &()).await
             .map(|_| ()).map_err(|e| e.into());
         return exec.and(abort)
     } else {
@@ -674,7 +672,7 @@ async fn get_user_input(req: &[RequiredUserInput])
     let mut result = BTreeMap::new();
     for item in req {
         let copy = item.clone();
-        let input = unblock(move || get_input(&copy)).await?;
+        let input = unblock(move || get_input(&copy)).await??;
         result.insert(item.placeholder.clone(), input);
     }
     Ok(result)

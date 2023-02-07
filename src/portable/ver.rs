@@ -6,6 +6,7 @@ use anyhow::Context;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+use crate::connect::Connection;
 use crate::process::{self, IntoArg};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -315,12 +316,10 @@ impl Ord for Semver {
     }
 }
 
-pub async fn check_client(cli: &mut edgedb_client::client::Connection,
-                    minimum_version: &Filter)
+pub async fn check_client(cli: &mut Connection, minimum_version: &Filter)
     -> anyhow::Result<bool>
 {
-    let ver = cli.get_version().await?.parse::<Build>()
-        .context("cannot parse server version")?;
+    let ver = cli.get_version().await?;
     return Ok(ver.is_nightly() || minimum_version.matches(&ver));
 }
 

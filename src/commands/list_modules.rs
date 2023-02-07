@@ -1,7 +1,7 @@
 use crate::commands::Options;
 use crate::commands::filter;
 use crate::commands::list;
-use edgedb_client::client::Connection;
+use crate::connect::Connection;
 
 
 pub async fn list_modules(cli: &mut Connection, options: &Options,

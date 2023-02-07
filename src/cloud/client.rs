@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::Context;
-use reqwest::header;
+use reqwest::{header, StatusCode};
 
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
@@ -14,8 +14,11 @@ const EDGEDB_CLOUD_DEFAULT_DNS_ZONE: &str = "aws.edgedb.cloud";
 const EDGEDB_CLOUD_API_VERSION: &str = "v1/";
 const EDGEDB_CLOUD_API_TIMEOUT: u64 = 10;
 
-#[derive(Debug, serde::Deserialize)]
-struct ErrorResponse {
+#[derive(Debug, serde::Deserialize, thiserror::Error)]
+#[error("HTTP error: [{:?}] {}", code, status)]
+pub struct ErrorResponse {
+    #[serde(skip, default)]
+    pub code: StatusCode,
     status: String,
     error: Option<String>,
 }
@@ -243,21 +246,14 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
         req: reqwest::RequestBuilder,
     ) -> anyhow::Result<T> {
         let resp = req.send().await.map_err(HttpError)?;
-        if !resp.status().is_success() {
-            let ErrorResponse { status, error } = resp.json().await.map_err(HttpError)?;
-            if let Some(error) = error {
-                anyhow::bail!(format!(
-                    "Failed to create authentication session: {}: {}",
-                    status, error
-                ));
-            } else {
-                anyhow::bail!(format!(
-                    "Failed to create authentication session: {}",
-                    status
-                ));
-            }
+        if resp.status().is_success() {
+            Ok(resp.json().await.map_err(HttpError)?)
+        } else {
+            let code = resp.status().clone();
+            let mut err : ErrorResponse = resp.json().await.map_err(HttpError)?;
+            err.code = code;
+            Err(anyhow::anyhow!(err))
         }
-        Ok(resp.json().await.map_err(HttpError)?)
     }
 
     pub async fn get<T: serde::de::DeserializeOwned>(

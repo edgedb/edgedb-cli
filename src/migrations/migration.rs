@@ -1,14 +1,13 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context as _;
-use async_std::fs;
-use async_std::io;
-use async_std::path::{Path, PathBuf};
-use async_std::stream::StreamExt;
 use edgeql_parser::hash::{self, Hasher};
 use fn_error_context::context;
 use linked_hash_map::LinkedHashMap;
+use tokio::fs;
+use tokio::io;
 
 use crate::migrations::NULL_MIGRATION;
 use crate::migrations::context::Context;
@@ -110,7 +109,7 @@ async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
         Err(e) => Err(e)?,
     };
     let mut result = Vec::new();
-    while let Some(item) = dir.next().await.transpose()? {
+    while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
         if lossy_name.starts_with(".") || !lossy_name.ends_with(".edgeql")

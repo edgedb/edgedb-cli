@@ -47,8 +47,7 @@ pub fn specific_info(item: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub async fn info(_options: &Options, info: &Info)-> Result<(), anyhow::Error>
-{
+pub fn info(_options: &Options, info: &Info)-> Result<(), anyhow::Error> {
     if let Some(ref item) = info.get {
         return specific_info(&item);
     }

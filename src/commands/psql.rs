@@ -3,8 +3,8 @@ use std::process::Command;
 use std::ffi::OsString;
 
 use anyhow::Context;
-use edgedb_client::client::Connection;
-use edgedb_client::server_params::PostgresAddress;
+use crate::connect::Connection;
+use edgedb_tokio::server_params::PostgresAddress;
 
 use crate::commands::Options;
 use crate::print;
@@ -13,7 +13,7 @@ use crate::print;
 pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
     -> Result<(), anyhow::Error>
 {
-    match cli.get_param::<PostgresAddress>() {
+    match cli.get_server_param::<PostgresAddress>() {
         Some(addr) => {
             let mut cmd = Command::new("psql");
             let path = if cfg!(feature="dev_mode") {

@@ -5,7 +5,6 @@ use std::sync::{Mutex, Arc};
 use std::time::SystemTime;
 
 use anyhow::Context;
-use async_std::task;
 use colorful::Colorful;
 use pem;
 use ring::digest;
@@ -14,16 +13,16 @@ use rustls::{Certificate, ServerName};
 use rustls;
 use webpki::TrustAnchor;
 
-use edgedb_client::credentials::TlsSecurity;
-use edgedb_client::errors::{Error, PasswordRequired, ClientNoCredentialsError};
-use edgedb_client::tls;
-use edgedb_client::{Builder};
+use edgedb_tokio::credentials::TlsSecurity;
+use edgedb_errors::{Error, PasswordRequired, ClientNoCredentialsError};
+use edgedb_tokio::tls;
+use edgedb_tokio::{Builder};
+use edgedb_tokio::raw::Connection;
 
-use crate::connect::Connector;
 use crate::credentials;
 use crate::hint::{HintedError, HintExt};
 use crate::options::{Options, ConnectionOptions};
-use crate::options::{conn_params, load_tls_options};
+use crate::options::{self, load_tls_options};
 use crate::portable::destroy::with_projects;
 use crate::portable::local::{InstanceInfo, is_valid_instance_name};
 use crate::portable::options::{Link, Unlink, instance_arg, InstanceName};
@@ -151,6 +150,16 @@ fn is_no_credentials_error(mut e: &anyhow::Error) -> bool {
     return false;
 }
 
+#[tokio::main]
+async fn connect(cfg: &edgedb_tokio::Config) -> Result<Connection, Error> {
+    Connection::connect(cfg).await
+}
+
+#[tokio::main]
+async fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
+    options::conn_params(opts).await
+}
+
 pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     if matches!(cmd.name, Some(InstanceName::Cloud { .. })) {
         anyhow::bail!(
@@ -184,8 +193,8 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             trust_tls_cert: cmd.trust_tls_cert,
         }
     );
-    let connect_result = task::block_on(
-        builder.build()?.connect_with_cert_verifier(verifier.clone()));
+    let config = builder.build_with_cert_verifier(verifier.clone())?;
+    let connect_result = connect(&config);
     if let Err(e) = connect_result {
         if e.is::<PasswordRequired>() {
             let password;
@@ -210,7 +219,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 });
                 builder.pem_certificates(&pem)?;
             }
-            task::block_on(Connector::new(Ok(builder)).connect())?;
+            connect(&builder.build()?)?;
         } else {
             return Err(e.into());
         }
@@ -266,7 +275,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     }
 
-    task::block_on(credentials::write(&cred_path, &creds))?;
+    credentials::write(&cred_path, &creds)?;
     if !cmd.quiet {
         let mut msg = "Successfully linked to remote instance.".to_string();
         if print::use_color() {
