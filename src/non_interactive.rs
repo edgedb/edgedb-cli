@@ -186,12 +186,9 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                     .context("cannot decode json result")?;
                 // trying to make writes atomic if possible
                 let mut data = print::json_item_to_string(&value, &cfg)?;
-                println!("{}", data);
-                /* //TODO
                 data += "\n";
                 stdout().write_all(data.as_bytes()).await?;
                 stdout().flush().await?;
-                */
             }
         }
         OutputFormat::JsonLines => {
