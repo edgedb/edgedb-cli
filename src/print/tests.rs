@@ -114,11 +114,11 @@ fn bigint() {
 #[test]
 fn datetime() {
     assert_eq!(test_format(&[
-        Value::Datetime(Datetime::from_micros(-1000000000000000)),
-        Value::Datetime(Datetime::from_micros(1604506938347258)),
+        Value::Datetime(Datetime::from_unix_micros(-1000000000000000)),
+        Value::Datetime(Datetime::from_unix_micros(1604506938347258)),
     ]).unwrap(),
-    "{<datetime>\'1968-04-23T22:13:20Z\', \
-      <datetime>\'2050-11-04T16:22:18.347258Z\'}");
+    "{<datetime>\'1938-04-24T22:13:20Z\', \
+      <datetime>\'2020-11-04T16:22:18.347258Z\'}");
 }
 
 #[test]
