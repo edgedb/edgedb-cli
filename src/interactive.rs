@@ -373,6 +373,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
                 // trying to make writes atomic if possible
                 text += "\n";
                 stdout().write_all(text.as_bytes()).await?;
+                stdout().flush().await?;
                 index += 1;
             }
         }
@@ -429,6 +430,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
                 let mut data = print::json_to_string(jitems, &cfg)?;
                 data += "\n";
                 stdout().write_all(data.as_bytes()).await?;
+                stdout().flush().await?;
             }
         }
         JsonPretty | JsonLines => {
@@ -464,12 +466,14 @@ async fn execute_query(options: &Options, state: &mut repl::State,
                     // trying to make writes atomic if possible
                     text += "\n";
                     stdout().write_all(text.as_bytes()).await?;
+                    stdout().flush().await?;
                 } else {
                     // trying to make writes atomic if possible
                     let mut data;
                     data = print::json_item_to_string(&value, &cfg)?;
                     data += "\n";
                     stdout().write_all(data.as_bytes()).await?;
+                    stdout().flush().await?;
                     index += 1;
                 }
             }
