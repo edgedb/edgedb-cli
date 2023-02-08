@@ -1,9 +1,10 @@
 use std::str;
+use std::io::{stdout, Write};
 
 use anyhow::{self, Context};
 use bytes::{BytesMut};
 use tokio::fs::{File as AsyncFile};
-use tokio::io::{AsyncRead, AsyncWriteExt, stdin, stdout};
+use tokio::io::{AsyncRead, stdin};
 
 use edgedb_protocol::client_message::{CompilationOptions};
 use edgedb_protocol::client_message::{IoFormat, Cardinality};
@@ -154,8 +155,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                 let mut text = tab_separated::format_row(&row)?;
                 // trying to make writes atomic if possible
                 text += "\n";
-                stdout().write_all(text.as_bytes()).await?;
-                stdout().flush().await?;
+                stdout().lock().write_all(text.as_bytes())?;
             }
         }
         OutputFormat::Default => {
@@ -187,8 +187,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                 // trying to make writes atomic if possible
                 let mut data = print::json_item_to_string(&value, &cfg)?;
                 data += "\n";
-                stdout().write_all(data.as_bytes()).await?;
-                stdout().flush().await?;
+                stdout().lock().write_all(data.as_bytes())?;
             }
         }
         OutputFormat::JsonLines => {
@@ -201,8 +200,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                 };
                 // trying to make writes atomic if possible
                 text += "\n";
-                stdout().write_all(text.as_bytes()).await?;
-                stdout().flush().await?;
+                stdout().lock().write_all(text.as_bytes())?;
             }
         }
         OutputFormat::Json => {
@@ -221,8 +219,7 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                 // trying to make writes atomic if possible
                 let mut data = print::json_to_string(items, &cfg)?;
                 data += "\n";
-                stdout().write_all(data.as_bytes()).await?;
-                stdout().flush().await?;
+                stdout().lock().write_all(data.as_bytes())?;
             }
         }
     }
