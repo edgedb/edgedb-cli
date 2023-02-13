@@ -50,7 +50,17 @@ async fn check_revision_in_db(cli: &mut Connection, prefix: &str)
     return Ok(all_similar.pop())
 }
 
-pub async fn migrate(cli: &mut Connection, _options: &Options,
+pub async fn migrate(cli: &mut Connection, options: &Options,
+    migrate: &Migrate)
+    -> Result<(), anyhow::Error>
+{
+    let old_state = cli.with_ignore_error_state();
+    let res = _migrate(cli, options, migrate).await;
+    cli.restore_state(old_state);
+    return res;
+}
+
+async fn _migrate(cli: &mut Connection, _options: &Options,
     migrate: &Migrate)
     -> Result<(), anyhow::Error>
 {

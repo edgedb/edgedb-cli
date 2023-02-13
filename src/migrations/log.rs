@@ -57,7 +57,17 @@ fn topology_sort(migrations: Vec<Migration>) -> Vec<Migration> {
     return output
 }
 
-pub async fn log_db(cli: &mut Connection, _common: &Options,
+pub async fn log_db(cli: &mut Connection, common: &Options,
+    options: &MigrationLog)
+    -> Result<(), anyhow::Error>
+{
+    let old_state = cli.with_ignore_error_state();
+    let res = _log_db(cli, common, options).await;
+    cli.restore_state(old_state);
+    return res;
+}
+
+async fn _log_db(cli: &mut Connection, _common: &Options,
     options: &MigrationLog)
     -> Result<(), anyhow::Error>
 {

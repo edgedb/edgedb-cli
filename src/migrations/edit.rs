@@ -120,8 +120,17 @@ async fn check_migration(cli: &mut Connection, text: &str)
     return res.map(|_| ());
 }
 
-
 pub async fn edit(cli: &mut Connection,
+                  common: &Options, options: &MigrationEdit)
+    -> anyhow::Result<()>
+{
+    let old_state = cli.with_ignore_error_state();
+    let res = _edit(cli, common, options).await;
+    cli.restore_state(old_state);
+    return res;
+}
+
+async fn _edit(cli: &mut Connection,
                   _common: &Options, options: &MigrationEdit)
     -> anyhow::Result<()>
 {

@@ -1,13 +1,15 @@
 use std::time::{Duration, Instant};
 
-use edgedb_tokio::{get_project_dir};
+use edgedb_tokio::{get_project_dir, Error};
+use edgeql_parser::helpers::quote_string;
 use indicatif::ProgressBar;
 use notify::{RecursiveMode, Watcher};
 use tokio::sync::watch;
 use tokio::time::timeout;
 
+use crate::interrupt::Interrupt;
 use crate::options::Options;
-use crate::connect::Connector;
+use crate::connect::{Connector, Connection};
 use crate::watch::options::WatchCommand;
 use crate::migrations::{self, dev_mode};
 
@@ -18,6 +20,28 @@ struct WatchContext {
     connector: Connector,
     migration: migrations::Context,
     last_error: bool,
+}
+
+#[derive(serde::Serialize)]
+struct ErrorContext {
+    line: u32,
+    col: u32,
+    start: usize,
+    end: usize,
+    filename: String,
+}
+
+#[derive(serde::Serialize)]
+struct ErrorJson {
+    #[serde(rename="type")]
+    kind: &'static str,
+    message: String,
+    #[serde(skip_serializing_if="Option::is_none")]
+    hint: Option<String>,
+    #[serde(skip_serializing_if="Option::is_none")]
+    details: Option<String>,
+    #[serde(skip_serializing_if="Option::is_none")]
+    context: Option<ErrorContext>,
 }
 
 
@@ -50,43 +74,59 @@ pub fn watch(options: &Options, _watch: &WatchCommand)
     watch.watch(&project_dir.join("edgedb.toml"), RecursiveMode::NonRecursive)?;
     watch.watch(&project_dir.join("dbschema"), RecursiveMode::Recursive)?;
     eprintln!("Initialized. Monitoring {:?}.", project_dir);
-    runtime.block_on(watch_loop(rx, ctx))?;
+    let res = runtime.block_on(watch_loop(rx, &mut ctx));
+    runtime.block_on(ctx.try_connect_and_clear_error())
+        .map_err(|e| log::error!("Cannot clear error: {:#}", e)).ok();
+    return res;
+}
+
+async fn wait_changes(rx: &mut watch::Receiver<()>,
+    retry_deadline: Option<Instant>)
+    -> anyhow::Result<()>
+{
+    if let Some(retry_deadline) = retry_deadline {
+        let timeo = retry_deadline
+            .checked_duration_since(Instant::now())
+            .unwrap_or(Duration::new(0, 0));
+        match timeout(timeo, rx.changed()).await {
+            Ok(Ok(())) => {
+                log::debug!("Got change notification. \
+                             Waiting to stabilize.");
+            }
+            Ok(Err(e)) => {
+                anyhow::bail!("error receiving from watch: {:#}", e);
+            }
+            Err(_) => {
+                log::debug!("Retrying...");
+            }
+        }
+    } else {
+        rx.changed().await?;
+        log::debug!("Got change notification. Waiting to stabilize.");
+    }
+    loop {
+        match timeout(STABLE_TIME, rx.changed()).await {
+            Ok(Ok(())) => continue,
+            Ok(Err(e)) => {
+                anyhow::bail!("error receiving from watch: {:#}", e);
+            }
+            Err(_) => break,
+        }
+    }
     Ok(())
 }
 
-async fn watch_loop(mut rx: watch::Receiver<()>, mut ctx: WatchContext)
+async fn watch_loop(mut rx: watch::Receiver<()>, ctx: &mut WatchContext)
     -> anyhow::Result<()>
 {
     let mut retry_deadline = None::<Instant>;
     loop {
-        if let Some(retry_deadline) = retry_deadline {
-            let timeo = retry_deadline
-                .checked_duration_since(Instant::now())
-                .unwrap_or(Duration::new(0, 0));
-            match timeout(timeo, rx.changed()).await {
-                Ok(Ok(())) => {
-                    log::debug!("Got change notification. \
-                                 Waiting to stabilize.");
-                }
-                Ok(Err(e)) => {
-                    anyhow::bail!("error receiving from watch: {:#}", e);
-                }
-                Err(_) => {
-                    log::debug!("Retrying...");
-                }
-            }
-        } else {
-            rx.changed().await?;
-            log::debug!("Got change notification. Waiting to stabilize.");
-        }
-        loop {
-            match timeout(STABLE_TIME, rx.changed()).await {
-                Ok(Ok(())) => continue,
-                Ok(Err(e)) => {
-                    anyhow::bail!("error receiving from watch: {:#}", e);
-                }
-                Err(_) => break,
-            }
+        {
+            let ctrl_c = Interrupt::ctrl_c();
+            tokio::select! {
+                _ = wait_changes(&mut rx, retry_deadline) => (),
+                res = ctrl_c.wait_result() => res?,
+            };
         }
         if let Err(e) = ctx.do_update().await {
             log::error!("Error updating database: {:#}. \
@@ -108,16 +148,75 @@ impl WatchContext {
         match result {
             Ok(()) => {
                 if self.last_error {
+                    clear_error(&mut cli).await;
                     self.last_error = false;
                     eprintln!("Resolved. Schema is up to date now.");
                 }
             }
             Err(e) => {
                 eprintln!("Schema migration error: {e:#}");
+                set_error(&mut cli, e).await;
                 // TODO(tailhook) probably only print if error doesn't match
                 self.last_error = true;
             }
         }
         Ok(())
     }
+    async fn try_connect_and_clear_error(&mut self) -> anyhow::Result<()> {
+        if self.last_error {
+            let mut cli = self.connector.connect().await?;
+            clear_error(&mut cli).await;
+        }
+        Ok(())
+    }
+}
+
+impl From<anyhow::Error> for ErrorJson {
+    fn from(err: anyhow::Error) -> ErrorJson {
+        if let Some(err) = err.downcast_ref::<Error>() {
+            ErrorJson {
+                kind: "WatchError",
+                message: format!("error when trying to update the schema.\n  \
+                    Original error: {}: {}",
+                    err.kind_name(),
+                    err.initial_message().unwrap_or(""),
+                ),
+                hint: Some("see the window running \
+                           `edgedb watch` for more info".into()),
+                details: None,
+                context: None, // TODO(tailhook)
+            }
+        } else {
+            ErrorJson {
+                kind: "WatchError",
+                message: format!("error when trying to update the schema.\n  \
+                    Original error: {}", err.to_string()),
+                hint: Some("see the window running \
+                           `edgedb watch` for more info".into()),
+                details: None,
+                context: None,
+            }
+        }
+    }
+}
+
+async fn clear_error(cli: &mut Connection) {
+    let res = cli.execute(
+        "CONFIGURE INSTANCE RESET force_database_error",
+        &()
+    ).await;
+    let Err(e) = res else { return };
+    log::error!("Cannot clear database error state: {:#}", e);
+}
+
+async fn set_error(cli: &mut Connection, e: anyhow::Error) {
+    let data = serde_json::to_string(&ErrorJson::from(e)).unwrap();
+    let res = cli.execute(
+        &format!("CONFIGURE INSTANCE SET force_database_error := {}",
+            quote_string(&data)
+        ),
+        &(),
+    ).await;
+    let Err(e) = res else { return };
+    log::error!("Cannot set database error state: {:#}", e);
 }

@@ -553,6 +553,16 @@ pub async fn create(cli: &mut Connection, options: &Options,
     create: &CreateMigration)
     -> anyhow::Result<()>
 {
+    let old_state = cli.with_ignore_error_state();
+    let res = _create(cli, options, create).await;
+    cli.restore_state(old_state);
+    return res;
+}
+
+async fn _create(cli: &mut Connection, options: &Options,
+    create: &CreateMigration)
+    -> anyhow::Result<()>
+{
     let ctx = Context::from_project_or_config(&create.cfg, false).await?;
 
     if dev_mode::check_client(cli).await? {

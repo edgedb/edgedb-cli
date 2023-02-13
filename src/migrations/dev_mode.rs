@@ -128,16 +128,20 @@ async fn migrate_to_schema(cli: &mut Connection, ctx: &Context)
     -> anyhow::Result<()>
 {
     execute_start_migration(&ctx, cli).await?;
-    execute(cli, "POPULATE MIGRATION").await?;
-    let descr = query_row::<CurrentMigration>(cli,
-        "DESCRIBE CURRENT MIGRATION AS JSON"
-    ).await?;
-    if !descr.complete {
-        // TODO(tailhook) is `POPULATE MIGRATION` equivalent to `--yolo` or
-        // should we do something manually?
-        anyhow::bail!("Migration cannot be automatically populated");
-    }
+    let res = async {
+        execute(cli, "POPULATE MIGRATION").await?;
+        let descr = query_row::<CurrentMigration>(cli,
+            "DESCRIBE CURRENT MIGRATION AS JSON"
+        ).await?;
+        if !descr.complete {
+            // TODO(tailhook) is `POPULATE MIGRATION` equivalent to `--yolo` or
+            // should we do something manually?
+            anyhow::bail!("Migration cannot be automatically populated");
+        }
+        Ok(descr)
+    }.await;
     execute(cli, "ABORT MIGRATION").await?;
+    let descr = res?;
     if !descr.confirmed.is_empty() {
         ddl::apply_statements(cli, &descr.confirmed).await?;
     }
