@@ -553,7 +553,7 @@ pub async fn create(cli: &mut Connection, options: &Options,
     create: &CreateMigration)
     -> anyhow::Result<()>
 {
-    let old_state = cli.with_ignore_error_state();
+    let old_state = cli.set_ignore_error_state();
     let res = _create(cli, options, create).await;
     cli.restore_state(old_state);
     return res;

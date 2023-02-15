@@ -54,7 +54,7 @@ pub async fn migrate(cli: &mut Connection, options: &Options,
     migrate: &Migrate)
     -> Result<(), anyhow::Error>
 {
-    let old_state = cli.with_ignore_error_state();
+    let old_state = cli.set_ignore_error_state();
     let res = _migrate(cli, options, migrate).await;
     cli.restore_state(old_state);
     return res;

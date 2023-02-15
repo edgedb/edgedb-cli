@@ -61,7 +61,7 @@ pub async fn log_db(cli: &mut Connection, common: &Options,
     options: &MigrationLog)
     -> Result<(), anyhow::Error>
 {
-    let old_state = cli.with_ignore_error_state();
+    let old_state = cli.set_ignore_error_state();
     let res = _log_db(cli, common, options).await;
     cli.restore_state(old_state);
     return res;

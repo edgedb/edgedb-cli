@@ -181,7 +181,7 @@ impl Connection {
             server_version: None,
         })
     }
-    pub fn with_ignore_error_state(&mut self) -> State {
+    pub fn set_ignore_error_state(&mut self) -> State {
         let new_state = make_ignore_error_state(self.inner.state_descriptor());
         return mem::replace(&mut self.state, new_state);
     }

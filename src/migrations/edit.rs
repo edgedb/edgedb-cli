@@ -124,7 +124,7 @@ pub async fn edit(cli: &mut Connection,
                   common: &Options, options: &MigrationEdit)
     -> anyhow::Result<()>
 {
-    let old_state = cli.with_ignore_error_state();
+    let old_state = cli.set_ignore_error_state();
     let res = _edit(cli, common, options).await;
     cli.restore_state(old_state);
     return res;
