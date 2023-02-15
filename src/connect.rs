@@ -1,4 +1,5 @@
 use std::future::{Future, pending};
+use std::mem;
 use std::pin::Pin;
 use std::task::{Poll, Context};
 use std::time::Duration;
@@ -7,20 +8,20 @@ use bytes::Bytes;
 use tokio::time::sleep;
 use tokio_stream::Stream;
 
-use edgedb_protocol::model::Uuid;
 use edgedb_errors::{Error, ErrorKind, ResultExt};
 use edgedb_errors::{NoDataError, ProtocolEncodingError, ClientError};
 use edgedb_protocol::QueryResult;
+use edgedb_protocol::client_message::{State, CompilationOptions};
 use edgedb_protocol::common::Capabilities;
 use edgedb_protocol::descriptors::RawTypedesc;
 use edgedb_protocol::features::ProtocolVersion;
+use edgedb_protocol::model::Uuid;
 use edgedb_protocol::query_arg::QueryArgs;
-use edgedb_protocol::server_message::TransactionState;
 use edgedb_protocol::server_message::CommandDataDescription1;
 use edgedb_protocol::server_message::RawPacket;
-use edgedb_protocol::client_message::{State, CompilationOptions};
+use edgedb_protocol::server_message::TransactionState;
 use edgedb_protocol::value::Value;
-use edgedb_tokio::raw::{self, Response};
+use edgedb_tokio::raw::{self, Response, PoolState};
 use edgedb_tokio::server_params::ServerParam;
 use edgedb_tokio::{Builder, Config};
 
@@ -180,13 +181,21 @@ impl Connection {
             server_version: None,
         })
     }
+    pub fn set_ignore_error_state(&mut self) -> State {
+        let new_state = make_ignore_error_state(self.inner.state_descriptor());
+        return mem::replace(&mut self.state, new_state);
+    }
+    pub fn restore_state(&mut self, state: State) {
+        self.state = state;
+    }
     pub async fn get_version(&mut self) -> Result<&ver::Build, Error> {
         if self.server_version.is_some() {
             return Ok(self.server_version.as_ref().unwrap());
         }
+        let state = make_ignore_error_state(self.inner.state_descriptor());
         let resp: raw::Response<String> = self.inner.query_required_single(
             "SELECT sys::get_version_as_str()", &(),
-            &State::empty(),
+            &state,
             Capabilities::empty(),
         ).await.context("cannot fetch database version")?;
         let build = resp.data.parse()?;
@@ -323,4 +332,18 @@ impl Connection {
         let stream = DumpStream { inner, state: &mut self.state };
         Ok((header, stream))
     }
+}
+
+fn make_ignore_error_state(desc: &RawTypedesc) -> State {
+    _make_ignore_error_state(desc).unwrap_or(State::empty())
+}
+
+fn _make_ignore_error_state(desc: &RawTypedesc) -> Option<State> {
+    #[derive(edgedb_derive::ConfigDelta)]
+    struct ErrorState {
+        force_database_error: &'static str,
+    }
+    PoolState::default()
+        .with_config(&ErrorState { force_database_error: "false" })
+        .encode(desc).ok()
 }
