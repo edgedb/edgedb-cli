@@ -143,7 +143,11 @@ impl WatchContext {
         // TODO(tailhook) check edgedb version
         bar.set_message("connecting");
         let mut cli = self.connector.connect().await?;
+
+        let old_state = cli.with_ignore_error_state();
         let result = dev_mode::migrate(&mut cli, &self.migration, &bar).await;
+        cli.restore_state(old_state);
+
         bar.finish_and_clear();
         match result {
             Ok(()) => {
