@@ -167,8 +167,6 @@ async fn _migrate_to_schema(cli: &mut Connection, ctx: &Context)
                 "DESCRIBE CURRENT MIGRATION AS JSON"
             ).await?;
             if !descr.complete {
-                // TODO(tailhook) is `POPULATE MIGRATION` equivalent to `--yolo`
-                // or should we do something manually?
                 anyhow::bail!("Migration cannot be automatically populated");
             }
             Ok(Some(descr))
@@ -209,20 +207,7 @@ async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
 
     let res = async {
         apply_migrations_inner(cli, migrations, true).await?;
-        execute_start_migration(&ctx, cli).await?;
-        execute(cli, "POPULATE MIGRATION").await?;
-        let descr = query_row::<CurrentMigration>(cli,
-            "DESCRIBE CURRENT MIGRATION AS JSON"
-        ).await?;
-        if !descr.complete {
-            // TODO(tailhook) is `POPULATE MIGRATION` equivalent to `--yolo` or
-            // should we do something manually?
-            anyhow::bail!("Migration cannot be automatically populated");
-        }
-        execute(cli, "ABORT MIGRATION").await?;
-        if !descr.confirmed.is_empty() {
-            ddl::apply_statements(cli, &descr.confirmed).await?;
-        }
+        migrate_to_schema(cli, ctx).await?;
         Ok(())
     }.await;
 
@@ -233,7 +218,7 @@ async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
             Ok(())
         }
         Err(e) => {
-            execute(cli, "ABORT MIGRATION REWRITE").await
+            execute_if_connected(cli, "ABORT MIGRATION REWRITE").await
                 .map_err(|e| {
                     log::warn!("Error aborting migration rewrite: {:#}", e);
                 }).ok();

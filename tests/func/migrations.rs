@@ -722,3 +722,23 @@ fn dev_mode() -> anyhow::Result<()> {
         .assert().success();
     Ok(())
 }
+
+#[test]
+fn unsafe_migrations() -> anyhow::Result<()> {
+    SERVER.admin_cmd()
+        .arg("database").arg("create").arg("db_unsafe")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db_unsafe")
+        .arg("migrate").arg("--dev-mode")
+        .arg("--schema-dir=tests/migrations/db_unsafe/initial")
+        .env("NO_COLOR", "1")
+        .assert().success();
+    SERVER.admin_cmd()
+        .arg("--database=db_unsafe")
+        .arg("migrate").arg("--dev-mode")
+        .arg("--schema-dir=tests/migrations/db_unsafe/modified1")
+        .env("NO_COLOR", "1")
+        .assert().success();
+    Ok(())
+}
