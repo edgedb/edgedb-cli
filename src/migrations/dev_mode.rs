@@ -4,6 +4,7 @@ use linked_hash_map::LinkedHashMap;
 use anyhow::Context as _;
 use indicatif::ProgressBar;
 use once_cell::sync::Lazy;
+use edgedb_errors::{QueryError};
 
 use crate::async_try;
 use crate::commands::Options;
@@ -11,7 +12,7 @@ use crate::commands::parser::CreateMigration;
 use crate::migrations::context::Context;
 use crate::migrations::create::{CurrentMigration, normal_migration};
 use crate::migrations::create::{execute, query_row, execute_start_migration};
-use crate::migrations::create::{execute_if_connected};
+use crate::migrations::create::{execute_if_connected, unsafe_populate};
 use crate::migrations::migrate::{apply_migrations, apply_migrations_inner};
 use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::timeout;
@@ -129,10 +130,39 @@ async fn get_db_migration(cli: &mut Connection)
 async fn migrate_to_schema(cli: &mut Connection, ctx: &Context)
     -> anyhow::Result<()>
 {
-    execute_start_migration(&ctx, cli).await?;
+    use edgedb_protocol::server_message::TransactionState::NotInTransaction;
+
+    let transaction = matches!(cli.transaction_state(), NotInTransaction);
+    if transaction {
+        execute(cli, "START TRANSACTION").await?;
+    }
+    async_try!{
+        async {
+            _migrate_to_schema(cli, ctx).await
+        },
+        finally async {
+            if transaction {
+                execute_if_connected(cli, "COMMIT").await?;
+            }
+            anyhow::Ok(())
+        }
+    }
+}
+
+async fn _migrate_to_schema(cli: &mut Connection, ctx: &Context)
+    -> anyhow::Result<()>
+{
+    execute(cli, "DECLARE SAVEPOINT migrate_to_schema").await?;
     let descr = async_try! {
         async {
-            execute(cli, "POPULATE MIGRATION").await?;
+            execute_start_migration(&ctx, cli).await?;
+            if let Err(e) = execute(cli, "POPULATE MIGRATION").await {
+                if e.is::<QueryError>() {
+                    return Ok(None)
+                } else {
+                    return Err(e)?;
+                }
+            }
             let descr = query_row::<CurrentMigration>(cli,
                 "DESCRIBE CURRENT MIGRATION AS JSON"
             ).await?;
@@ -141,12 +171,30 @@ async fn migrate_to_schema(cli: &mut Connection, ctx: &Context)
                 // or should we do something manually?
                 anyhow::bail!("Migration cannot be automatically populated");
             }
-            Ok(descr)
+            Ok(Some(descr))
         },
         finally async {
-            execute_if_connected(cli, "ABORT MIGRATION").await
+            execute_if_connected(cli,
+                "ROLLBACK TO SAVEPOINT migrate_to_schema",
+            ).await?;
+            execute_if_connected(cli,
+                "RELEASE SAVEPOINT migrate_to_schema",
+            ).await
         }
     }?;
+    let descr = if let Some(descr) = descr {
+        descr
+    } else {
+        execute_start_migration(&ctx, cli).await?;
+        async_try! {
+            async {
+                unsafe_populate(ctx, cli).await
+            },
+            finally async {
+                execute_if_connected(cli, "ABORT MIGRATION",).await
+            }
+        }?
+    };
     if !descr.confirmed.is_empty() {
         ddl::apply_statements(cli, &descr.confirmed).await?;
     }
