@@ -5,11 +5,13 @@ use anyhow::Context as _;
 use indicatif::ProgressBar;
 use once_cell::sync::Lazy;
 
+use crate::async_try;
 use crate::commands::Options;
 use crate::commands::parser::CreateMigration;
 use crate::migrations::context::Context;
 use crate::migrations::create::{CurrentMigration, normal_migration};
 use crate::migrations::create::{execute, query_row, execute_start_migration};
+use crate::migrations::create::{execute_if_connected};
 use crate::migrations::migrate::{apply_migrations, apply_migrations_inner};
 use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::timeout;
@@ -128,20 +130,23 @@ async fn migrate_to_schema(cli: &mut Connection, ctx: &Context)
     -> anyhow::Result<()>
 {
     execute_start_migration(&ctx, cli).await?;
-    let res = async {
-        execute(cli, "POPULATE MIGRATION").await?;
-        let descr = query_row::<CurrentMigration>(cli,
-            "DESCRIBE CURRENT MIGRATION AS JSON"
-        ).await?;
-        if !descr.complete {
-            // TODO(tailhook) is `POPULATE MIGRATION` equivalent to `--yolo` or
-            // should we do something manually?
-            anyhow::bail!("Migration cannot be automatically populated");
+    let descr = async_try! {
+        async {
+            execute(cli, "POPULATE MIGRATION").await?;
+            let descr = query_row::<CurrentMigration>(cli,
+                "DESCRIBE CURRENT MIGRATION AS JSON"
+            ).await?;
+            if !descr.complete {
+                // TODO(tailhook) is `POPULATE MIGRATION` equivalent to `--yolo`
+                // or should we do something manually?
+                anyhow::bail!("Migration cannot be automatically populated");
+            }
+            Ok(descr)
+        },
+        finally async {
+            execute_if_connected(cli, "ABORT MIGRATION").await
         }
-        Ok(descr)
-    }.await;
-    execute(cli, "ABORT MIGRATION").await?;
-    let descr = res?;
+    }?;
     if !descr.confirmed.is_empty() {
         ddl::apply_statements(cli, &descr.confirmed).await?;
     }
