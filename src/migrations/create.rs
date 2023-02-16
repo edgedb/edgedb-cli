@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use colorful::Colorful;
 use crate::connect::Connection;
 use edgedb_derive::Queryable;
-use edgedb_errors::{Error, QueryError};
+use edgedb_errors::{Error, QueryError, InvalidSyntaxError};
 use edgedb_errors::{ErrorKind, ClientConnectionEosError};
 use edgedb_protocol::queryable::Queryable;
 use edgeql_parser::expr;
@@ -115,6 +115,7 @@ struct SplitMigration;
 #[error("EdgeDB could not resolve migration automatically. \
          Please run `edgedb migration create` in interactive mode.")]
 struct CantResolve;
+
 
 pub async fn execute(cli: &mut Connection, text: impl AsRef<str>)
     -> Result<(), Error>
@@ -276,25 +277,26 @@ pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
         if data.complete {
             return Ok(data);
         }
-        if let Some(proposal) = data.proposed {
+        if let Some(proposal) = &data.proposed {
             let mut placeholders = BTreeMap::new();
             if !proposal.required_user_input.is_empty() {
-                for input in proposal.required_user_input {
+                for input in &proposal.required_user_input {
                     let expr = match input.placeholder.as_ref() {
                         "fill_expr" if input.type_name.is_some() => {
-                            format!("<{}>{{}}", input.type_name.unwrap())
+                            format!("<{}>{{}}",
+                                    input.type_name.as_ref().unwrap())
                         }
                         "cast_expr"
                             if input.pointer_name.is_some() &&
                                input.new_type.is_some()
                         => {
                             format!("<{}>.{}",
-                                    input.new_type.unwrap(),
-                                    input.pointer_name.unwrap())
+                                    input.new_type.as_ref().unwrap(),
+                                    input.pointer_name.as_ref().unwrap())
                         }
                         "conv_expr" if input.pointer_name.is_some() => {
                             format!("(SELECT .{} LIMIT 1)",
-                                    input.pointer_name.unwrap())
+                                    input.pointer_name.as_ref().unwrap())
                         }
                         _ => {
                             log::debug!("Cannot fill placeholder {} \
@@ -305,17 +307,53 @@ pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
                             return Err(CantResolve)?;
                         }
                     };
-                    placeholders.insert(input.placeholder, expr);
+                    placeholders.insert(input.placeholder.clone(), expr);
                 }
             }
-            for statement in proposal.statements {
-                let statement = substitute_placeholders(
-                    &statement.text, &placeholders)?;
-                execute(cli, &statement).await?;
+            if !apply_proposal(cli, &proposal, &placeholders).await? {
+                execute(cli, "ALTER CURRENT MIGRATION REJECT PROPOSED").await?;
             }
         } else {
             log::debug!("No proposal generated");
             return Err(CantResolve)?;
+        }
+    }
+}
+
+async fn apply_proposal(cli: &mut Connection, proposal: &Proposal,
+                        placeholders: &BTreeMap<String, String>)
+    -> anyhow::Result<bool>
+{
+    execute(cli, "DECLARE SAVEPOINT proposal").await?;
+    let mut rollback = false;
+    async_try!{
+        async {
+            for statement in &proposal.statements {
+                let statement = substitute_placeholders(
+                    &statement.text, &placeholders)?;
+                if let Err(e) = execute(cli, &statement).await {
+                    if e.is::<InvalidSyntaxError>() {
+                        log::error!("Error executing: {}", statement);
+                        return Err(e)?;
+                    } else if e.is::<QueryError>() {
+                        rollback = true;
+                        log::info!("Statement {:?} failed: {:#}",
+                                   statement, e);
+                        return Ok(false);
+                    } else {
+                        return Err(e)?;
+                    }
+                }
+            }
+            Ok(true)
+        },
+        finally async {
+            if rollback {
+                execute_if_connected(cli,
+                    "ROLLBACK TO SAVEPOINT proposal",
+                ).await?;
+            }
+            execute_if_connected(cli, "RELEASE SAVEPOINT proposal").await
         }
     }
 }
