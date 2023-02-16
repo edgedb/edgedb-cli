@@ -281,12 +281,14 @@ pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
             let mut placeholders = BTreeMap::new();
             if !proposal.required_user_input.is_empty() {
                 for input in &proposal.required_user_input {
-                    let expr = match input.placeholder.as_ref() {
-                        "fill_expr" if input.type_name.is_some() => {
+                    let name = &input.placeholder[..];
+                    let kind_end = name.find("_expr").unwrap_or(name.len());
+                    let expr = match &name[..kind_end] {
+                        "fill" if input.type_name.is_some() => {
                             format!("<{}>{{}}",
                                     input.type_name.as_ref().unwrap())
                         }
-                        "cast_expr"
+                        "cast"
                             if input.pointer_name.is_some() &&
                                input.new_type.is_some()
                         => {
@@ -294,7 +296,7 @@ pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
                                     input.new_type.as_ref().unwrap(),
                                     input.pointer_name.as_ref().unwrap())
                         }
-                        "conv_expr" if input.pointer_name.is_some() => {
+                        "conv" if input.pointer_name.is_some() => {
                             format!("(SELECT .{} LIMIT 1)",
                                     input.pointer_name.as_ref().unwrap())
                         }
