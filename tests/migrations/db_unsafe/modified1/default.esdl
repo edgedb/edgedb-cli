@@ -3,7 +3,7 @@ module default {
         # implicit cast
         property always_integer -> int64;
         # existing cast
-        property string_int -> int;
+        property string_int -> int32;
         # no cast (drop, create)
         property int_dur -> duration;
         # make required
