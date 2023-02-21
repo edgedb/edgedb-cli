@@ -27,7 +27,6 @@ FLAGS:
         --no-modify-path    Do not configure the PATH environment variable
     -q, --quiet             Disable progress output
     -v, --verbose           Enable verbose output
-    -V, --version           Print version information
 EOF
 }
 
