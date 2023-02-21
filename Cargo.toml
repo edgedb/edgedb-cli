@@ -51,7 +51,7 @@ serde_str = {git="https://github.com/tailhook/serde-str"}
 serde_millis = "0.1.1"
 dirs = "4"
 uuid = "1.1.2"
-prettytable-rs = {version="0.8.0", default-features=false}
+prettytable-rs = {version="0.10.0", default-features=false}
 tempfile = "3.1.0"
 codespan-reporting = "0.11"
 termcolor = "1.1.0"
