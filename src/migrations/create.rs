@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use colorful::Colorful;
 use crate::connect::Connection;
 use edgedb_derive::Queryable;
-use edgedb_errors::{Error, QueryError};
+use edgedb_errors::{Error, QueryError, InvalidSyntaxError};
 use edgedb_errors::{ErrorKind, ClientConnectionEosError};
 use edgedb_protocol::queryable::Queryable;
 use edgeql_parser::expr;
@@ -21,6 +21,7 @@ use tokio::fs;
 use tokio::io::{self, AsyncWriteExt};
 use tokio::task::spawn_blocking as unblock;
 
+use crate::async_try;
 use crate::bug;
 use crate::commands::parser::CreateMigration;
 use crate::commands::{Options, ExitCode};
@@ -62,6 +63,12 @@ enum Choice {
 pub struct RequiredUserInput {
     placeholder: String,
     prompt: String,
+    #[allow(dead_code)]
+    old_type: Option<String>,
+    new_type: Option<String>,
+    #[serde(rename="type")]
+    type_name: Option<String>,
+    pointer_name: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -104,6 +111,12 @@ struct Refused;
 #[error("split migration")]
 struct SplitMigration;
 
+#[derive(Debug, thiserror::Error)]
+#[error("EdgeDB could not resolve migration automatically. \
+         Please run `edgedb migration create` in interactive mode.")]
+struct CantResolve;
+
+
 pub async fn execute(cli: &mut Connection, text: impl AsRef<str>)
     -> Result<(), Error>
 {
@@ -111,6 +124,21 @@ pub async fn execute(cli: &mut Connection, text: impl AsRef<str>)
         return Err(ClientConnectionEosError::with_message(
                 "connection closed by server"));
     }
+    log_execute(cli, text).await
+}
+
+pub async fn execute_if_connected(cli: &mut Connection, text: impl AsRef<str>)
+    -> Result<(), Error>
+{
+    if !cli.is_consistent() {
+        return Ok(())
+    }
+    log_execute(cli, text).await
+}
+
+async fn log_execute(cli: &mut Connection, text: impl AsRef<str>)
+    -> Result<(), Error>
+{
     let text = text.as_ref();
     log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
     cli.execute(text, &()).await?;
@@ -239,19 +267,111 @@ async fn first_migration(cli: &mut Connection, ctx: &Context,
     }
 }
 
-async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
-    options: &CreateMigration)
-    -> anyhow::Result<()>
+pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
+    -> anyhow::Result<CurrentMigration>
 {
-    let descr = loop {
+    loop {
         let data = query_row::<CurrentMigration>(cli,
             "DESCRIBE CURRENT MIGRATION AS JSON"
         ).await?;
         if data.complete {
-            break data;
+            return Ok(data);
+        }
+        if let Some(proposal) = &data.proposed {
+            let mut placeholders = BTreeMap::new();
+            if !proposal.required_user_input.is_empty() {
+                for input in &proposal.required_user_input {
+                    let name = &input.placeholder[..];
+                    let kind_end = name.find("_expr").unwrap_or(name.len());
+                    let expr = match &name[..kind_end] {
+                        "fill" if input.type_name.is_some() => {
+                            format!("<{}>{{}}",
+                                    input.type_name.as_ref().unwrap())
+                        }
+                        "cast"
+                            if input.pointer_name.is_some() &&
+                               input.new_type.is_some()
+                        => {
+                            format!("<{}>.{}",
+                                    input.new_type.as_ref().unwrap(),
+                                    input.pointer_name.as_ref().unwrap())
+                        }
+                        "conv" if input.pointer_name.is_some() => {
+                            format!("(SELECT .{} LIMIT 1)",
+                                    input.pointer_name.as_ref().unwrap())
+                        }
+                        _ => {
+                            log::debug!("Cannot fill placeholder {} \
+                                        into {:?}, input info: {:?}",
+                                        input.placeholder,
+                                        proposal.statements,
+                                        input);
+                            return Err(CantResolve)?;
+                        }
+                    };
+                    placeholders.insert(input.placeholder.clone(), expr);
+                }
+            }
+            if !apply_proposal(cli, &proposal, &placeholders).await? {
+                execute(cli, "ALTER CURRENT MIGRATION REJECT PROPOSED").await?;
+            }
+        } else {
+            log::debug!("No proposal generated");
+            return Err(CantResolve)?;
+        }
+    }
+}
+
+async fn apply_proposal(cli: &mut Connection, proposal: &Proposal,
+                        placeholders: &BTreeMap<String, String>)
+    -> anyhow::Result<bool>
+{
+    execute(cli, "DECLARE SAVEPOINT proposal").await?;
+    let mut rollback = false;
+    async_try!{
+        async {
+            for statement in &proposal.statements {
+                let statement = substitute_placeholders(
+                    &statement.text, &placeholders)?;
+                if let Err(e) = execute(cli, &statement).await {
+                    if e.is::<InvalidSyntaxError>() {
+                        log::error!("Error executing: {}", statement);
+                        return Err(e)?;
+                    } else if e.is::<QueryError>() {
+                        rollback = true;
+                        log::info!("Statement {:?} failed: {:#}",
+                                   statement, e);
+                        return Ok(false);
+                    } else {
+                        return Err(e)?;
+                    }
+                }
+            }
+            Ok(true)
+        },
+        finally async {
+            if rollback {
+                execute_if_connected(cli,
+                    "ROLLBACK TO SAVEPOINT proposal",
+                ).await?;
+            }
+            execute_if_connected(cli, "RELEASE SAVEPOINT proposal").await
+        }
+    }
+}
+
+async fn non_interactive_populate(_ctx: &Context, cli: &mut Connection)
+    -> anyhow::Result<CurrentMigration>
+{
+    loop {
+        let data = query_row::<CurrentMigration>(cli,
+            "DESCRIBE CURRENT MIGRATION AS JSON"
+        ).await?;
+        if data.complete {
+            return Ok(data);
         }
         if let Some(proposal) = data.proposed {
-            if proposal.confidence >= SAFE_CONFIDENCE || options.allow_unsafe {
+            if proposal.confidence >= SAFE_CONFIDENCE {
                 if !proposal.required_user_input.is_empty() {
                     for input in proposal.required_user_input {
                         eprintln!("Input required: {}", input.prompt);
@@ -280,6 +400,17 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
                 interactive mode to confirm changes, \
                 or use `--allow-unsafe`");
         }
+    }
+}
+
+async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
+    options: &CreateMigration)
+    -> anyhow::Result<()>
+{
+    let descr = if options.allow_unsafe {
+        unsafe_populate(ctx, cli).await?
+    } else {
+        non_interactive_populate(ctx, cli).await?
     };
     if descr.confirmed.is_empty() && !options.allow_empty {
         print::warn("No schema changes detected.");
@@ -600,38 +731,36 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
     -> anyhow::Result<()>
 {
     execute_start_migration(&ctx, cli).await?;
-    let exec = async {
-        let descr = query_row::<CurrentMigration>(cli,
-            "DESCRIBE CURRENT MIGRATION AS JSON",
-        ).await?;
-        let db_migration = if descr.parent == "initial" {
-            None
-        } else {
-            Some(&descr.parent)
-        };
-        if db_migration != migrations.keys().last() {
-            anyhow::bail!("Database must be updated to the last migration \
-                on the filesystem for `migration create`. Run:\n  \
-                edgedb migrate");
-        }
-
-        let num_migrations = migrations.len() as u64 +1;
-        if create.non_interactive {
-            run_non_interactive(&ctx, cli, num_migrations, &create).await
-        } else {
-            if create.allow_unsafe {
-                log::warn!("The `--allow-unsafe` flag is unused \
-                            in interactive mode");
+    async_try! {
+        async {
+            let descr = query_row::<CurrentMigration>(cli,
+                "DESCRIBE CURRENT MIGRATION AS JSON",
+            ).await?;
+            let db_migration = if descr.parent == "initial" {
+                None
+            } else {
+                Some(&descr.parent)
+            };
+            if db_migration != migrations.keys().last() {
+                anyhow::bail!("Database must be updated to the last migration \
+                    on the filesystem for `migration create`. Run:\n  \
+                    edgedb migrate");
             }
-            run_interactive(&ctx, cli, num_migrations, &create).await
+
+            let num_migrations = migrations.len() as u64 +1;
+            if create.non_interactive {
+                run_non_interactive(&ctx, cli, num_migrations, &create).await
+            } else {
+                if create.allow_unsafe {
+                    log::warn!("The `--allow-unsafe` flag is unused \
+                                in interactive mode");
+                }
+                run_interactive(&ctx, cli, num_migrations, &create).await
+            }
+        },
+        finally async {
+            execute_if_connected(cli, "ABORT MIGRATION").await
         }
-    }.await;
-    if cli.is_consistent() {
-        let abort = cli.execute("ABORT MIGRATION", &()).await
-            .map(|_| ()).map_err(|e| e.into());
-        return exec.and(abort)
-    } else {
-        return exec
     }
 }
 

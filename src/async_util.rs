@@ -10,3 +10,21 @@ pub async fn timeout<F, T, E>(dur: Duration, f: F) -> anyhow::Result<T>
     .map(|r| r.map_err(Into::into))
     .unwrap_or_else(|_| Err(io::Error::from(io::ErrorKind::TimedOut).into()))
 }
+
+#[macro_export]
+macro_rules! async_try {
+    ($block:expr, finally $finally:expr) => {
+        {
+            let result = $block.await;
+            match ($finally.await, result) {
+                (Ok(()), Ok(res)) => Ok(res),
+                (Err(e), Ok(_)) => Err(e.into()),
+                (Ok(()), Err(e)) => Err(e),
+                (Err(fin_e), Err(e)) => {
+                    log::info!("Cannot finalize operation: {:#}", fin_e);
+                    Err(e)
+                }
+            }
+        }
+    }
+}

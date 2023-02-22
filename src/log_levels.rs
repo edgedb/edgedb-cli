@@ -26,6 +26,10 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
         Some(Command::Common(Common::Restore(r))) if r.verbose => {
             builder.filter_module("edgedb::restore", log::LevelFilter::Info);
         }
+        Some(Command::Watch(w)) if w.verbose => {
+            builder.filter_module("edgedb::migrations::dev_mode::ddl",
+                                  log::LevelFilter::Info);
+        }
         Some(Command::Common(Common::Migration(c))) => match &c.subcommand {
             MigrationCmd::Create(c) if c.debug_print_queries => {
                 builder.filter_module("edgedb::migrations::query",
