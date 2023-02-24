@@ -220,4 +220,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: install
-          args: "--path=. --root=$TMPDIR"
+          args: "--locked --path=. --root=$TMPDIR"
