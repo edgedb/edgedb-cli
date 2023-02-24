@@ -134,6 +134,7 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
         T::Colon => Some(S::Operator),
         T::Add => Some(S::Operator),
         T::Sub => Some(S::Operator),
+        T::DoubleSplat => Some(S::Operator),
         T::Mul => Some(S::Operator),
         T::Div => Some(S::Operator),
         T::Modulo => Some(S::Operator),
