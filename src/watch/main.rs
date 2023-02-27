@@ -206,7 +206,7 @@ impl From<anyhow::Error> for ErrorJson {
 
 async fn clear_error(cli: &mut Connection) {
     let res = cli.execute(
-        "CONFIGURE INSTANCE RESET force_database_error",
+        "CONFIGURE CURRENT DATABASE RESET force_database_error",
         &()
     ).await;
     let Err(e) = res else { return };
@@ -216,7 +216,7 @@ async fn clear_error(cli: &mut Connection) {
 async fn set_error(cli: &mut Connection, e: anyhow::Error) {
     let data = serde_json::to_string(&ErrorJson::from(e)).unwrap();
     let res = cli.execute(
-        &format!("CONFIGURE INSTANCE SET force_database_error := {}",
+        &format!("CONFIGURE CURRENT DATABASE SET force_database_error := {}",
             quote_string(&data)
         ),
         &(),
