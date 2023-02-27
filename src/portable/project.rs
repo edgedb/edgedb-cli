@@ -773,7 +773,6 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     match &inst_name {
         InstanceName::Cloud { org_slug, name } => {
             client.ensure_authenticated()?;
-            let version = ask_cloud_version(options)?;
             table::settings(&[
                 ("Project directory", &project_dir.display().to_string()),
                 ("Project config", &config_path.display().to_string()),
@@ -783,7 +782,6 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                 ("Version", &pkg.version.to_string()),
                 ("Instance name", &name),
             ]);
-            let ver_query = Query::from_str(&version)?;
             write_config(&config_path, &ver_query)?;
             if !schema_files {
                 write_schema_default(&schema_dir_path, &ver_query)?;
@@ -1216,22 +1214,6 @@ fn ask_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
                 }
             }
         }
-    }
-}
-
-fn ask_cloud_version(options: &Init) -> anyhow::Result<String> {
-    if options.non_interactive {
-        Ok("*".into())
-    } else {
-        let mut q = question::String::new(
-            "Specify the version of EdgeDB to use with this project"
-        );
-        let default_version;
-        if let Some(version) = &options.server_version {
-            default_version = version.display().to_string();
-            q.default(&default_version);
-        }
-        Ok(q.ask()?)
     }
 }
 
