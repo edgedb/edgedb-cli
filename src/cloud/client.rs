@@ -247,12 +247,27 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
     ) -> anyhow::Result<T> {
         let resp = req.send().await.map_err(HttpError)?;
         if resp.status().is_success() {
-            Ok(resp.json().await.map_err(HttpError)?)
+            let full = resp.text().await?;
+            serde_json::from_str(&full).with_context(|| {
+                log::debug!("Response body: {}", full);
+                "error decoding response body".to_string()
+            })
         } else {
             let code = resp.status().clone();
-            let mut err : ErrorResponse = resp.json().await.map_err(HttpError)?;
-            err.code = code;
-            Err(anyhow::anyhow!(err))
+            let full = resp.text().await?;
+            Err(anyhow::anyhow!(serde_json::from_str(&full)
+                .map(|mut e: ErrorResponse| {
+                    e.code = code;
+                    e
+                })
+                .unwrap_or_else(|e| {
+                    log::debug!("Response body: {}", full);
+                    ErrorResponse {
+                        code,
+                        status: format!("error decoding response body: {:#}", e),
+                        error: Some(full),
+                    }
+                })))
         }
     }
 
