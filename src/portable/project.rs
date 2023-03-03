@@ -975,7 +975,10 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
         &Options {
             command_line: true,
             styler: None,
-            conn_params: Connector::new(Ok(inst.get_builder().await?)),
+            conn_params: Connector::new(
+                inst.get_builder()?.build_env().await
+                .map_err(Into::into)
+            ),
         },
         &Migrate {
             cfg: MigrationConfig {
@@ -1057,13 +1060,13 @@ impl Handle<'_> {
             })
         }
     }
-    pub async fn get_builder(&self) -> anyhow::Result<Builder> {
-        let mut builder = Builder::uninitialized();
-        builder.read_instance(&self.name).await?;
+    pub fn get_builder(&self) -> anyhow::Result<Builder> {
+        let mut builder = Builder::new();
+        builder.instance(&self.name)?;
         Ok(builder)
     }
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {
-        Ok(Connection::connect(&self.get_builder().await?.build()?).await?)
+        Ok(Connection::connect(&self.get_builder()?.build_env().await?).await?)
     }
     #[tokio::main(flavor="current_thread")]
     pub async fn get_version(&self) -> anyhow::Result<ver::Build> {

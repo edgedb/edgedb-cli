@@ -250,9 +250,10 @@ fn normal_status(options: &Status) -> anyhow::Result<()> {
 }
 
 async fn try_get_version(creds: &Credentials) -> anyhow::Result<String> {
-    let mut builder = Builder::uninitialized();
-    builder.credentials(creds)?;
-    let mut conn = Connection::connect(&builder.build()?).await?;
+    let config = Builder::new()
+        .credentials(creds)?
+        .constrained_build()?;
+    let mut conn = Connection::connect(&config).await?;
     let ver = conn.query_required_single(
         "SELECT sys::get_version_as_str()", &()
     ).await.context("cannot fetch database version")?;

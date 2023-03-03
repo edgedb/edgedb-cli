@@ -278,12 +278,13 @@ pub async fn dump_instance(inst: &InstanceInfo, destination: &Path)
         log::info!("Removing old dump at {}", destination.display());
         fs::remove_dir_all(&destination).await?;
     }
-    let conn_params = inst.admin_conn_params().await?;
-    let mut cli = Connection::connect(&conn_params.build()?).await?;
+    let conn_params = inst.admin_conn_params()?;
+    let config = conn_params.build_env().await?;
+    let mut cli = Connection::connect(&config).await?;
     let options = commands::Options {
         command_line: true,
         styler: None,
-        conn_params: Connector::new(Ok(conn_params)),
+        conn_params: Connector::new(Ok(config)),
     };
     commands::dump_all(&mut cli, &options, destination.as_ref()).await?;
     Ok(())
@@ -349,16 +350,17 @@ async fn restore_instance(inst: &InstanceInfo, path: &Path)
     -> anyhow::Result<()>
 {
     use crate::commands::parser::Restore;
-    let mut conn_params = inst.admin_conn_params().await?;
+    let mut conn_params = inst.admin_conn_params()?;
     conn_params.wait_until_available(Duration::from_secs(300));
 
     log::info!("Restoring instance {:?}", inst.name);
-    let mut cli = Connection::connect(&conn_params.build()?).await?;
+    let cfg = conn_params.build_env().await?;
+    let mut cli = Connection::connect(&cfg).await?;
 
     let options = commands::Options {
         command_line: true,
         styler: None,
-        conn_params: Connector::new(Ok(conn_params)),
+        conn_params: Connector::new(Ok(cfg)),
     };
     commands::restore_all(&mut cli, &options, &Restore {
         path: path.into(),

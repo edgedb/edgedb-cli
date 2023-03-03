@@ -7,11 +7,11 @@ use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
-use edgedb_errors::{ClientNoCredentialsError, ErrorKind, ResultExt};
+use edgedb_errors::{ClientNoCredentialsError, NoCloudConfigFound, ResultExt};
 use edgedb_protocol::model;
 use edgedb_tokio::credentials::TlsSecurity;
-use edgedb_tokio::{Builder, get_project_dir, SkipFields};
-use fs_err as fs;
+use edgedb_tokio::{Builder, Config, get_project_dir};
+use tokio::task::spawn_blocking as unblock;
 
 use crate::cli::options::CliCommand;
 use crate::cli;
@@ -34,13 +34,14 @@ pub mod describe;
 const MAX_TERM_WIDTH: usize = 90;
 const MIN_TERM_WIDTH: usize = 50;
 
-static CONNECTION_ARG_HINT: &str = "\
-    Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
-    to specify connection parameters. See `--help` for details";
-
 const CONN_OPTIONS_GROUP: &str =
     "CONNECTION OPTIONS (`edgedb --help-connect` to see the full list)";
 const CLOUD_OPTIONS_GROUP: &str = "CLOUD OPTIONS";
+const CONNECTION_ARG_HINT: &str = "\
+    Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
+    to specify connection parameters. See `--help` for details";
+const CLOUD_CONFIG_ARG_HINT: &str =
+    "Have you logged in? (Run `edgedb cloud login`)";
 
 pub trait PropagateArgs {
     fn propagate_args(&self, dest: &mut AnyMap, matches: &clap::ArgMatches)
@@ -647,96 +648,112 @@ impl Options {
     }
 
     pub async fn create_connector(&self) -> anyhow::Result<Connector> {
-        Ok(Connector::new(conn_params(&self).await))
-    }
-    #[tokio::main]
-    pub async fn block_on_create_connector(&self) -> anyhow::Result<Connector> {
-        Ok(Connector::new(conn_params(&self).await))
-    }
-}
-
-fn set_password(options: &ConnectionOptions, builder: &mut Builder)
-    -> anyhow::Result<()>
-{
-    let password = if options.password_from_stdin {
-        tty_password::read_stdin()?
-    } else if options.no_password {
-        return Ok(());
-    } else if options.password {
-        let user = builder.get_user();
-        tty_password::read(
-            format!("Password for '{}': ", user.escape_default()))?
-    } else {
-        return Ok(())
-    };
-    builder.password(password);
-    Ok(())
-}
-
-pub async fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
-    let tmp = &opts.conn_options;
-    let mut bld = Builder::uninitialized();
-    if let Some(path) = &tmp.unix_path {
-        bld.unix_path(path, tmp.port, tmp.admin);
-        bld.read_extra_env_vars()?;
-    } else if tmp.host.is_some() || tmp.port.is_some() {
-        match &tmp.host {
-            Some(host) if host.contains("/") => {
-                log::warn!("Deprecated: `--host` that contains slash is path \
-                    to a unix socket. Use TCP connection if possible \
-                    otherwise use `--unix-path`.");
-                bld.unix_path(host, tmp.port, tmp.admin);
-            }
-            _ => {
-                bld.host_port(tmp.host.clone(), tmp.port)?;
-            }
+        let mut builder = prepare_conn_params(&self)?;
+        if self.conn_options.password_from_stdin || self.conn_options.password {
+            // Temporary set an empty password. It will be overriden by
+            // `config.with_password()` but we need it here so that
+            // `edgedb://?password_env=NON_EXISTING` does not read the
+            // environemnt variable
+            builder.password("");
         }
-        bld.read_extra_env_vars()?;
-    } else if let Some(dsn) = &tmp.dsn {
-        let skip = SkipFields {
-            user: tmp.user.is_some(),
-            database: tmp.database.is_some(),
-            wait_until_available: tmp.wait_until_available.is_some(),
-            secret_key: tmp.secret_key.is_some(),
-            password: tmp.password || tmp.password_from_stdin || tmp.no_password,
-            tls_ca_file: tmp.tls_ca_file.is_some(),
-            tls_security: tmp.tls_security.is_some() || tmp.tls_verify_hostname || tmp.no_tls_verify_hostname,
-        };
-        bld.read_dsn(dsn, skip).await.context("invalid DSN")?;
-    } else if let Some(instance) = &tmp.instance {
-        match instance {
-            InstanceName::Cloud { org_slug, name } => {
-                // read_instance() would use secret_key or cloud_profile for
-                // cloud instance. It's a hack here to pre-read the secret_key,
-                // the code later must set secret_key back to what we got here,
-                // if secret_key is ever overwritten after read_instance().
-                if let Some(secret_key) = &tmp.secret_key {
-                    bld.secret_key(secret_key);
-                } else if let Some(secret_key) = &opts.cloud_options.cloud_secret_key {
-                    bld.secret_key(secret_key);
+        match builder.build_env().await {
+            Ok(config) => {
+                let config = with_password(&self.conn_options, config).await?;
+                Ok(Connector::new(Ok(config)))
+            }
+            Err(e) => {
+                let (_, cfg, _) = builder.build_no_fail().await;
+                // ask password anyways, so input that fed as a password
+                // never goes to anywhere else
+                with_password(&self.conn_options, cfg).await?;
+
+                if e.is::<ClientNoCredentialsError>() {
+                    let project_dir = get_project_dir(None, true).await?;
+                    let message = if project_dir.is_some() {
+                        "project is not initialized and no connection options \
+                            are specified"
+                    } else {
+                        "no `edgedb.toml` found and no connection options \
+                            are specified"
+                    };
+                    Ok(Connector::new(
+                        Err(anyhow::anyhow!(message))
+                        .hint(CONNECTION_ARG_HINT)
+                        .map_err(Into::into)
+                    ))
+                } else if e.is::<NoCloudConfigFound>() {
+                    Ok(Connector::new(
+                        Err(anyhow::anyhow!(e))
+                        .hint(CLOUD_CONFIG_ARG_HINT)
+                        .map_err(Into::into)
+                    ))
+                } else {
+                    Ok(Connector::new(Err(e.into())))
                 }
-                bld.read_instance(&format!("{org_slug}/{name}")).await
-                    .map_err(anyhow::Error::from)
-                    .hint("Have you logged in? (Run `edgedb cloud login`)")?;
-            }
-            InstanceName::Local(instance) => {
-                bld.read_instance(instance).await?;
             }
         }
-        bld.read_extra_env_vars()?;
-    } else if let Some(file_path) = &tmp.credentials_file {
-        bld.read_credentials(file_path).await?;
-        bld.read_extra_env_vars()?;
+    }
+
+    #[tokio::main]
+    pub async fn block_on_create_connector(&self) -> anyhow::Result<Connector>
+    {
+        self.create_connector().await
+    }
+}
+
+async fn with_password(options: &ConnectionOptions, config: Config)
+    -> anyhow::Result<Config>
+{
+    if options.password_from_stdin {
+        let password = unblock(|| tty_password::read_stdin()).await??;
+        Ok(config.with_password(&password))
+    } else if options.no_password {
+        Ok(config)
+    } else if options.password {
+        let user = config.user().to_owned();
+        let password = unblock(move || {
+            tty_password::read(
+                format!("Password for '{}': ", user.escape_default()))
+        }).await??;
+        Ok(config.with_password(&password))
     } else {
-        if let Some(secret_key) = &tmp.secret_key {
-            // This is a hack needed by Builder::from_env() when the project is
-            // linked to a cloud instance and we want to overwrite secret_key.
-            env::set_var("EDGEDB_SECRET_KEY", secret_key);
+        Ok(config)
+    }
+}
+
+pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
+    let tmp = &opts.conn_options;
+    let mut bld = Builder::new();
+    if let Some(path) = &tmp.unix_path {
+        bld.unix_path(path);
+    }
+    if let Some(host) = &tmp.host {
+        if host.contains("/") {
+            log::warn!("Deprecated: `--host` that contains slash is path \
+                to a unix socket. Use TCP connection if possible \
+                otherwise use `--unix-path`.");
+            bld.unix_path(host);
+        } else {
+            bld.host(host)?;
         }
-        bld = Builder::from_env().await?;
-    };
+    }
+    if let Some(port) = tmp.port {
+        bld.port(port)?;
+    }
+    if let Some(dsn) = &tmp.dsn {
+        bld.dsn(dsn).context("invalid DSN")?;
+    }
+    if let Some(instance) = &tmp.instance {
+        bld.instance(&instance.to_string())?;
+    }
+    if let Some(secret_key) = &tmp.secret_key {
+        bld.secret_key(secret_key);
+    }
+    if let Some(file_path) = &tmp.credentials_file {
+        bld.credentials_file(file_path);
+    }
     if tmp.admin {
-        bld.admin()?;
+        bld.admin(true);
     }
     if let Some(user) = &tmp.user {
         bld.user(user)?;
@@ -753,21 +770,7 @@ pub async fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
     if let Some(val) = &tmp.secret_key {
         bld.secret_key(val);
     }
-    set_password(tmp, &mut bld)?;
     load_tls_options(tmp, &mut bld)?;
-    if !bld.is_initialized() {
-        let project_dir = get_project_dir(None, true).await?;
-        if project_dir.is_some() {
-            return Err(anyhow::anyhow!(ClientNoCredentialsError::with_message(
-                "project is not initialized \
-                 and no connection options are specified"
-            ))).hint(CONNECTION_ARG_HINT)?;
-        } else {
-            return Err(anyhow::anyhow!(ClientNoCredentialsError::with_message(
-                "no `edgedb.toml` found and no connection options are specified"
-            ))).hint(CONNECTION_ARG_HINT)?;
-        }
-    }
     Ok(bld)
 }
 
@@ -775,8 +778,7 @@ pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
     -> anyhow::Result<()>
 {
     if let Some(cert_file) = &options.tls_ca_file {
-        let data = fs::read_to_string(cert_file)?;
-        builder.pem_certificates(&data)?;
+        builder.tls_ca_file(&cert_file);
     }
     let mut security = match options.tls_security.as_deref() {
         None => None,
