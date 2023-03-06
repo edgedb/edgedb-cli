@@ -184,7 +184,13 @@ pub async fn create_cloud_instance(
     let url = format!("orgs/{}/instances", request.org);
     let operation: CloudOperation = client
         .post(url, request)
-        .await?;
+        .await
+        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
+            Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => {
+                anyhow::bail!("The organization \"{}\" doesn't exist.", request.org);
+            }
+            _ => Err(e),
+        })?;
     wait_instance_create(operation, &request.org, &request.name, client).await?;
     Ok(())
 }
