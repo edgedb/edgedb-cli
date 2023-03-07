@@ -208,7 +208,7 @@ pub struct Upgrade {
     ])]
     pub to_testing: bool,
 
-    /// Upgrade specified instance to a latest testing version
+    /// Upgrade specified instance to the specified channel
     #[clap(long, value_enum)]
     #[clap(conflicts_with_all=&[
         "to_version", "to_latest", "to_nightly", "to_testing",

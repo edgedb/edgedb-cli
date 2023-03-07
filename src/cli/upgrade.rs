@@ -29,10 +29,20 @@ pub struct CliUpgrade {
     pub force: bool,
     /// Upgrade to the latest nightly version
     #[clap(long)]
+    #[clap(conflicts_with_all=&["to_testing", "to_stable", "to_channel"])]
     pub to_nightly: bool,
     /// Upgrade to the latest stable version
     #[clap(long)]
+    #[clap(conflicts_with_all=&["to_testing", "to_nightly", "to_channel"])]
     pub to_stable: bool,
+    /// Upgrade to the latest testing version
+    #[clap(long)]
+    #[clap(conflicts_with_all=&["to_stable", "to_nightly", "to_channel"])]
+    pub to_testing: bool,
+    /// Upgrade specified instance to the specified channel
+    #[clap(long, value_enum)]
+    #[clap(conflicts_with_all=&["to_stable", "to_nightly", "to_testing"])]
+    pub to_channel: Option<Channel>,
 }
 
 
@@ -105,6 +115,8 @@ pub fn unpack_file(src: &Path, tgt: &Path,
 pub fn channel_of(ver: &str) -> repository::Channel {
     if ver.contains("-dev.") {
         Channel::Nightly
+    } else if ver.contains("-") {
+        Channel::Testing
     } else {
         Channel::Stable
     }
@@ -135,14 +147,20 @@ pub fn upgrade_to_arm64() -> anyhow::Result<()> {
         force: true,
         to_nightly: false,
         to_stable: false,
+        to_testing: false,
+        to_channel: None,
     }, binary_path()?)
 }
 
 fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
     let cur_channel = channel();
-    let channel = if options.to_stable {
+    let channel = if let Some(channel) = options.to_channel {
+        channel
+    } else if options.to_stable {
         Channel::Stable
     } else if options.to_nightly {
+        Channel::Nightly
+    } else if options.to_testing {
         Channel::Nightly
     } else {
         cur_channel

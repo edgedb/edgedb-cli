@@ -23,6 +23,7 @@ USAGE:
 FLAGS:
     -h, --help              Print help information
         --nightly           Install nightly version of command-line tools
+        --testing           Install testing version of command-line tools
     -y                      Disable confirmation prompt
         --no-modify-path    Do not configure the PATH environment variable
     -q, --quiet             Disable progress output
@@ -50,6 +51,9 @@ main() {
         case "$arg" in
             --nightly)
                 suffix="nightly"
+                ;;
+            --testing)
+                suffix="testing"
                 ;;
             -h|--help)
                 usage
