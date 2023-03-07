@@ -311,7 +311,7 @@ impl CommandCache {
     fn new() -> CommandCache {
         let mut clap = Backslash::into_app();
         let mut aliases = BTreeMap::new();
-        aliases.insert("d", &["describe"][..]);
+        aliases.insert("d", &["describe", "object"][..]);
         aliases.insert("ds", &["describe", "schema"]);
         aliases.insert("l", &["list", "databases"]);
         aliases.insert("ls", &["list", "scalars"]);
