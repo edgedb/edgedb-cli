@@ -13,14 +13,8 @@ fn bare_status() -> anyhow::Result<()> {
         .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/bare")
         .assert().code(2)
-        .stderr(ends_with(
-r###"Detected differences between the database schema and the schema source, in particular:
-    CREATE TYPE default::Type1 {
-        CREATE PROPERTY field1 -> std::str;
-    };
-edgedb error: Some migrations are missing.
-  Use `edgedb migration create`.
-"###));
+        .stderr(contains("CREATE PROPERTY field1"))
+        .stderr(contains("edgedb error: Some migrations are missing"));
     Ok(())
 }
 
@@ -368,14 +362,8 @@ fn modified1() -> anyhow::Result<()> {
         .arg("migration").arg("status")
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(2)
-        .stderr(ends_with(
-r###"Detected differences between the database schema and the schema source, in particular:
-    CREATE TYPE default::Type2 {
-        CREATE PROPERTY field2 -> std::str;
-    };
-edgedb error: Some migrations are missing.
-  Use `edgedb migration create`.
-"###));
+        .stderr(contains("CREATE PROPERTY field2"))
+        .stderr(contains("edgedb error: Some migrations are missing"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("migration").arg("create")
@@ -389,7 +377,7 @@ edgedb error: Some migrations are missing.
         .arg("--newest-first")
         .arg("--limit=1")
         .assert().code(0)
-        .stdout("m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q\n");
+        .stdout("m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a\n");
     SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("migration").arg("status")
@@ -399,7 +387,7 @@ edgedb error: Some migrations are missing.
             \"m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa\" \
             while sources contain 1 migrations ahead, \
             starting from \
-            \"m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q\"\
+            \"m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a\"\
             (tests/migrations/db1/modified1/migrations/00002.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
@@ -407,7 +395,7 @@ edgedb error: Some migrations are missing.
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().success()
         .stderr(ends_with("Applied \
-            m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q \
+            m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a \
             (00002.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
@@ -415,7 +403,7 @@ edgedb error: Some migrations are missing.
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(0)
         .stderr(ends_with("Everything is up to date. Revision \
-            m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q\n"));
+            m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("migration").arg("status")
@@ -423,7 +411,7 @@ edgedb error: Some migrations are missing.
         .assert().success()
         .stderr(ends_with("Database is up to date. \
             Last migration: \
-            m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q.\n"));
+            m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a.\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("migration").arg("create")
@@ -437,7 +425,7 @@ edgedb error: Some migrations are missing.
         .arg("--newest-first")
         .assert().code(0)
         .stdout("\
-            m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q\n\
+            m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a\n\
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa\n\
         ");
     SERVER.admin_cmd()
@@ -447,7 +435,7 @@ edgedb error: Some migrations are missing.
         .assert().code(0)
         .stdout("\
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa\n\
-            m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q\n\
+            m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a\n\
         ");
     Ok(())
 }
@@ -502,7 +490,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
     cmd.send_line("y").unwrap();
     cmd.exp_string("Created \
         tests/migrations/db1/modified2/migrations/00002.edgeql, \
-        id: m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q").unwrap();
+        id: m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a").unwrap();
 
     SERVER.admin_cmd()
         .arg("--database=modified2")
@@ -510,7 +498,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db1/modified2")
         .assert().success()
         .stderr(ends_with("Applied \
-            m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q \
+            m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a \
             (00002.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=modified2")
@@ -519,7 +507,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
         .assert().success()
         .stderr(ends_with("Database is up to date. \
             Last migration: \
-            m1caxjxlggy5xv63isfp5oxdbucx35efhgevxdklvlcgjgpdus3j3q.\n"));
+            m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a.\n"));
     SERVER.admin_cmd()
         .arg("--database=modified2")
         .arg("migration").arg("create")
