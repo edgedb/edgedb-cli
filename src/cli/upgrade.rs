@@ -161,7 +161,7 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
     } else if options.to_nightly {
         Channel::Nightly
     } else if options.to_testing {
-        Channel::Nightly
+        Channel::Testing
     } else {
         cur_channel
     };
