@@ -31,9 +31,10 @@ use crate::table;
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct CliInstall {
-    /// Install nightly version of command-line tools
-    #[clap(long)]
+    #[clap(long, hide=true)]
     pub nightly: bool,
+    #[clap(long, hide=true)]
+    pub testing: bool,
     /// Enable verbose output
     #[clap(short='v', long)]
     pub verbose: bool,
