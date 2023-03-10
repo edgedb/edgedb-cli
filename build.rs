@@ -61,7 +61,7 @@ fn main() {
         ("exclusive_options", "provided more than once"),
         ("credentials_file_not_found", "credentials file.*No such file"),
         ("project_not_initialised", "project is not initialized"),
-        ("secret_key_not_found", "Run `edgedb cloud login`"),
+        ("secret_key_not_found", "try `edgedb cloud login`"),
         ("invalid_secret_key", "Illegal JWT token"),
     ]);
 
