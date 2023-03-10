@@ -6,7 +6,7 @@ use anyhow::Context;
 use fn_error_context::context;
 use fs_err as fs;
 
-use edgedb_tokio::Builder;
+use edgedb_tokio::Config;
 use edgedb_tokio::credentials::Credentials;
 
 use crate::platform::{config_dir, tmp_file_name};
@@ -58,17 +58,17 @@ pub async fn write(path: &Path, credentials: &Credentials)
 }
 
 pub fn maybe_update_credentials_file(
-    builder: &Builder, ask: bool
+    config: &Config, ask: bool
 ) -> anyhow::Result<()> {
-    if builder.is_creds_file_outdated() {
-        if let Some(instance_name) = builder.get_instance_name() {
+    if config.is_creds_file_outdated() {
+        if let Some(instance_name) = config.local_instance_name() {
             let creds_path = path(instance_name)?;
             if !ask || question::Confirm::new(format!(
                 "The format of the instance credential file at {} is outdated, \
              update now?",
                 creds_path.display(),
             )).ask()? {
-                write(&creds_path, &builder.as_credentials()?)?;
+                write(&creds_path, &config.as_credentials()?)?;
             }
         }
     }

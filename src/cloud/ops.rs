@@ -30,11 +30,12 @@ pub struct CloudInstance {
 
 impl CloudInstance {
     pub async fn as_credentials(&self, secret_key: &str) -> anyhow::Result<Credentials> {
-        let mut builder = Builder::uninitialized();
-        builder
+        let config = Builder::new()
             .secret_key(secret_key)
-            .read_instance(&format!("{}/{}", self.org_slug, self.name)).await?;
-        let mut creds = builder.as_credentials()?;
+            .instance(&format!("{}/{}", self.org_slug, self.name))?
+            .build_env().await?;
+        let mut creds = config.as_credentials()?;
+        // TODO(tailhook) can this be emitted from as_credentials()?
         creds.tls_ca = self.tls_ca.clone();
         Ok(creds)
     }

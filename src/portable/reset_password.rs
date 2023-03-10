@@ -84,8 +84,8 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     let inst = InstanceInfo::read(name)?;
     tokio::runtime::Builder::new_current_thread().enable_all().build()?
         .block_on(async {
-            let conn_params = inst.admin_conn_params().await?;
-            let mut cli = Connection::connect(&conn_params.build()?).await?;
+            let conn_params = inst.admin_conn_params()?.constrained_build()?;
+            let mut cli = Connection::connect(&conn_params).await?;
             cli.execute(
                 &format!(r###"
                     ALTER ROLE {name} {{

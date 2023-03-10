@@ -1,51 +1,52 @@
 use std::io::{stdout, Write};
 
+use anyhow::Context;
+
 use crate::commands::ExitCode;
 use crate::options::{Options, UI};
-use crate::portable::local::NonLocalInstance;
+use crate::portable::local;
 use crate::portable::repository::USER_AGENT;
 use crate::print;
 
+
 pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
     let connector = options.block_on_create_connector()?;
-    let builder = connector.get()?;
-    let mut url = format!("http://{}:{}/ui", builder.get_host(), builder.get_port());
+    let cfg = connector.get()?;
 
-    let mut token = None;
-    let mut is_remote = true;
-    if let Some(instance) = builder.get_instance_name() {
-        if instance.find("/").is_some() {
-            is_remote = true;
-            token = builder.get_secret_key().map(|s| s.to_string());
-        }
-        if token.is_none() {
-            match jwt::LocalJWT::new(instance).generate() {
-                Ok(t) => {
-                    is_remote = false;
-                    token = Some(t);
-                }
-                Err(e) if e.is::<NonLocalInstance>() => {
-                    // Continue without token for remote instances
-                    log::debug!("Assuming remote instance because: {:#}", e);
-                }
-                Err(e) if e.is::<jwt::ReadKeyError>() => {
-                    print::warn(format!("{:#}", e));
-                }
-                Err(e) => {
-                    is_remote = false;
-                    print::warn(format!("Cannot generate authToken: {:#}", e));
-                }
-            }
-        }
-    }
+    let local_info = cfg.local_instance_name()
+        .map(local::InstanceInfo::try_read).transpose()?.flatten();
+    let is_remote = !local_info.is_some();
 
+    let token = if let Some(key) = cfg.secret_key() {
+        Some(key.to_owned())
+    } else if let Some(instance) = local_info {
+        let ver = instance.get_version()?.specific();
+        let legacy = ver < "3.0-alpha.1".parse().unwrap();
+        jwt::LocalJWT::new(instance.name, legacy).generate()
+            .map_err(|e| {
+                log::warn!("Cannot generate authToken: {:#}", e);
+            })
+            .ok()
+    } else if matches!(cfg.local_instance_name(), Some("_localdev")) {
+        jwt::LocalJWT::new("_localdev", false).generate()
+            .map_err(|e| {
+                log::warn!("Cannot generate authToken: {:#}", e);
+            })
+            .ok()
+    } else {
+        None
+    };
+
+    let mut url = cfg.http_url(false).map(|s| s + "/ui")
+        .context("connected via unix socket")?;
     if args.no_server_check {
         // We'll always use HTTP if --no-server-check is specified, depending on
         // the server to redirect to HTTPS if necessary.
     } else {
         let mut use_https = false;
         if is_remote {
-            let https_url = "https".to_owned() + url.strip_prefix("http").unwrap();
+            let https_url = cfg.http_url(true).map(|u| u + "/ui")
+                .context("connected via unix socket")?;
             match open_url(&https_url).map(|r| r.status()) {
                 Ok(reqwest::StatusCode::OK) => {
                     url = https_url;
@@ -65,7 +66,7 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
         }
         if !use_https {
             match open_url(&url).map(|r| r.status()) {
-                Ok(reqwest::StatusCode::OK) => (),
+                Ok(reqwest::StatusCode::OK) => {}
                 Ok(reqwest::StatusCode::NOT_FOUND) => {
                     print::error("the specified EdgeDB server is not serving Web UI.");
                     print::echo!(
@@ -83,7 +84,8 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
                     return Err(ExitCode::new(3).into());
                 }
                 Err(e) => {
-                    print::error(format!("cannot connect to {}: {:#}", url, e,));
+                    print::error(format!("cannot connect to {}: {:#}",
+                                         url, e,));
                     return Err(ExitCode::new(4).into());
                 }
             }
@@ -140,8 +142,6 @@ mod jwt {
 
     use crate::platform::data_dir;
     use crate::portable::local::{instance_data_dir, NonLocalInstance};
-    use crate::portable::status;
-    use crate::print;
 
     #[derive(Debug, thiserror::Error)]
     #[error("Cannot read JOSE key file(s)")]
@@ -156,17 +156,8 @@ mod jwt {
     }
 
     impl LocalJWT {
-        pub fn new(instance_name: impl Into<String>) -> Self {
+        pub fn new(instance_name: impl Into<String>, legacy: bool) -> Self {
             let instance_name = instance_name.into();
-            let legacy = status::instance_status(&instance_name)
-                .ok()
-                .and_then(|v| v.json().version)
-                .as_deref()
-                .map(|v| v < "3.0")
-                .unwrap_or_else(|| {
-                    print::warn("Cannot detect version of instance; assuming 3.0+");
-                    false
-                });
             let rng = rand::SystemRandom::new();
             Self {
                 instance_name,

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::{Mutex, Arc};
 use std::time::SystemTime;
 
+
 use anyhow::Context;
 use colorful::Colorful;
 use pem;
@@ -16,13 +17,13 @@ use webpki::TrustAnchor;
 use edgedb_tokio::credentials::TlsSecurity;
 use edgedb_errors::{Error, PasswordRequired, ClientNoCredentialsError};
 use edgedb_tokio::tls;
-use edgedb_tokio::{Builder};
+use edgedb_tokio::{Builder, Config};
 use edgedb_tokio::raw::Connection;
 
 use crate::credentials;
-use crate::hint::{HintedError, HintExt};
+use crate::hint::{HintExt};
 use crate::options::{Options, ConnectionOptions};
-use crate::options::{self, load_tls_options};
+use crate::options;
 use crate::portable::destroy::with_projects;
 use crate::portable::local::{InstanceInfo, is_valid_instance_name};
 use crate::portable::options::{Link, Unlink, instance_arg, InstanceName};
@@ -140,24 +141,15 @@ fn gen_default_instance_name(input: impl fmt::Display) -> String {
     return name;
 }
 
-fn is_no_credentials_error(mut e: &anyhow::Error) -> bool {
-    if let Some(he) = e.downcast_ref::<HintedError>() {
-        e = &he.error;
-    }
-    if let Some(e) = e.downcast_ref::<Error>() {
-        return e.is::<ClientNoCredentialsError>();
-    }
-    return false;
-}
-
 #[tokio::main]
 async fn connect(cfg: &edgedb_tokio::Config) -> Result<Connection, Error> {
     Connection::connect(cfg).await
 }
 
 #[tokio::main]
-async fn conn_params(opts: &Options) -> anyhow::Result<Builder> {
-    options::conn_params(opts).await
+async fn conn_params(cmd: &Link, opts: &Options) -> anyhow::Result<Config> {
+    let mut builder = options::prepare_conn_params(&opts)?;
+    prompt_conn_params(&opts.conn_options, &mut builder, cmd).await
 }
 
 pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
@@ -168,23 +160,12 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             \n  edgedb -I {}", cmd.name.as_ref().unwrap());
     }
 
-    let mut builder = match conn_params(&opts) {
-        Ok(builder) => builder,
-        Err(e) if is_no_credentials_error(&e) => {
-            Builder::uninitialized()
-        }
-        Err(e) => {
-            return Err(e);
-        }
-    };
+    let config = conn_params(cmd, opts)?;
 
-    prompt_conn_params(&opts.conn_options, &mut builder, cmd)?;
-    load_tls_options(&opts.conn_options, &mut builder)?;
-
-    let mut creds = builder.as_credentials()?;
+    let mut creds = config.as_credentials()?;
     let verifier = Arc::new(
         InteractiveCertVerifier {
-            inner: WebPkiVerifier::new(builder.root_cert_store()?, None),
+            inner: WebPkiVerifier::new(config.root_cert_store()?, None),
             cert_out: Mutex::new(None),
             tls_security: creds.tls_security,
             system_ca_only: creds.tls_ca.is_none(),
@@ -193,7 +174,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             trust_tls_cert: cmd.trust_tls_cert,
         }
     );
-    let config = builder.build_with_cert_verifier(verifier.clone())?;
+    let mut config = config.with_cert_verifier(verifier.clone());
     let connect_result = connect(&config);
     if let Err(e) = connect_result {
         if e.is::<PasswordRequired>() {
@@ -204,22 +185,21 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             } else if !cmd.non_interactive {
                 password = tty_password::read(format!(
                         "Password for '{}': ",
-                        builder.get_user().escape_default()))?;
+                        config.user().escape_default()))?;
             } else {
                 return Err(e.into());
             }
 
-            let mut builder = builder.clone();
-            builder.password(&password);
+            config = config.with_password(&password);
             creds.password = Some(password);
             if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
                 let pem = pem::encode(&pem::Pem {
                     tag: "CERTIFICATE".into(),
                     contents: cert.0.clone(),
                 });
-                builder.pem_certificates(&pem)?;
+                config = config.with_pem_certificates(&pem)?;
             }
-            connect(&builder.build()?)?;
+            connect(&config)?;
         } else {
             return Err(e.into());
         }
@@ -235,7 +215,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         Some(InstanceName::Local(name)) => (credentials::path(name)?, name.clone()),
         Some(InstanceName::Cloud { .. }) => unreachable!(),
         None => {
-            let default = gen_default_instance_name(builder.display_addr());
+            let default = gen_default_instance_name(config.display_addr());
             if cmd.non_interactive {
                 if !cmd.quiet {
                     eprintln!("Using generated instance name: {}", &default);
@@ -291,72 +271,73 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn prompt_conn_params(
+async fn prompt_conn_params(
     options: &ConnectionOptions,
     builder: &mut Builder,
     link: &Link,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Config> {
     if link.non_interactive && options.password {
         anyhow::bail!(
             "--password and --non-interactive are mutually exclusive."
         )
     }
-    if builder.get_unix_path().is_some() {
-        anyhow::bail!("Cannot link to a UNIX domain socket.")
-    };
-    let mut host = builder.get_host().to_string();
-    let mut port = builder.get_port();
 
     if link.non_interactive {
-        if !builder.is_initialized() {
-            return Err(anyhow::anyhow!("no connection options are specified"))
-                .hint("Remove `--non-interactive` option or specify \
-                      `--host=localhost` and/or `--port=5656`. \
-                      See `edgedb --help-connect` for details")?;
-        }
+        let config = match builder.build_env().await {
+            Ok(config) => config,
+            Err(e) if e.is::<ClientNoCredentialsError>() => {
+                return Err(anyhow::anyhow!(
+                        "no connection options are specified")
+                    ).hint("Remove `--non-interactive` option or specify \
+                           `--host=localhost` and/or `--port=5656`. \
+                           See `edgedb --help-connect` for details")?;
+            }
+            Err(e) => return Err(e)?,
+        };
         if !link.quiet {
             eprintln!(
                 "Authenticating to edgedb://{}@{}/{}",
-                builder.get_user(),
-                builder.display_addr(),
-                builder.get_database(),
+                config.user(),
+                config.display_addr(),
+                config.database(),
             );
         }
-    } else {
+        Ok(config)
+    } else if options.dsn.is_none() {
+        let (_, config, _) = builder.build_no_fail().await;
         if options.host.is_none() {
-            host = question::String::new("Specify the host of the server")
-                .default(&host)
-                .ask()?
+            builder.host(
+                &question::String::new("Specify the host of the server")
+                    .default(config.host().unwrap_or("localhost"))
+                    .ask()?
+            )?;
         };
         if options.port.is_none() {
-            port = question::String::new("Specify the port of the server")
-                .default(&port.to_string())
-                .ask()?
-                .parse()?
+            builder.port(
+                question::String::new("Specify the port of the server")
+                    .default(&config.port().unwrap_or(5656).to_string())
+                    .ask()?
+                    .parse()?
+            )?;
         }
-        if options.host.is_none() || options.port.is_none() {
-            builder.host_port(Some(host), Some(port))?;
-        }
-        if let Some(user) = &options.user {
-            builder.user(user)?;
-        } else {
+        if options.user.is_none() {
             builder.user(
-                question::String::new("Specify the database user")
-                    .default(builder.get_user())
+                &question::String::new("Specify the database user")
+                    .default(config.user())
                     .ask()?
             )?;
         }
-        if let Some(database) = &options.database {
-            builder.database(database)?;
-        } else {
+        if options.database.is_none() {
             builder.database(
-                question::String::new("Specify the database name")
-                    .default(builder.get_database())
+                &question::String::new("Specify the database name")
+                    .default(config.database())
                     .ask()?
             )?;
         }
+        Ok(builder.build_env().await?)
+    } else {
+        Ok(builder.build_env().await?)
     }
-    Ok(())
 }
 
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {

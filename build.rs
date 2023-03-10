@@ -44,7 +44,7 @@ fn main() {
         ("invalid_host", "invalid host"),
         (
             "invalid_port",
-            "(Invalid value.*for.*port|invalid port|cannot parse env var EDGEDB_PORT)",
+            "(Invalid value.*for.*port|invalid port|EDGEDB_PORT is invalid)",
         ),
         ("invalid_dsn_or_instance_name", "(invalid DSN|Invalid value.*for.*instance)"),
         ("invalid_user", "invalid user"),
@@ -55,10 +55,12 @@ fn main() {
             "no `edgedb.toml` found and no connection options are specified",
         ),
         ("multiple_compound_opts", "(cannot be used with|provided more than once)"),
-        ("multiple_compound_env", "multiple compound env vars found"),
+        ("multiple_compound_env",
+            "multiple compound env vars found|\
+             [A-Z]+\\s*conflicts\\s*with\\s*[A-Z]+"),
         ("exclusive_options", "provided more than once"),
         ("credentials_file_not_found", "credentials file.*No such file"),
-        ("project_not_initialised", "error reading project settings"),
+        ("project_not_initialised", "project is not initialized"),
         ("secret_key_not_found", "Run `edgedb cloud login`"),
         ("invalid_secret_key", "Illegal JWT token"),
     ]);
@@ -84,6 +86,12 @@ fn main() {
     let connection_testcases = fs::read_to_string(connection_testcases).unwrap();
     let connection_testcases: Value = serde_json::from_str(&connection_testcases).unwrap();
     let empty_map = Map::new();
+    write!(output, "
+use std::sync::Mutex;
+
+static MUTEX: Mutex<()> = Mutex::new(());
+");
+
     'testcase: for (i, case) in connection_testcases.as_array().unwrap().iter().enumerate() {
         let mut testcase = Vec::new();
         let case = case.as_object().unwrap();
@@ -159,6 +167,7 @@ fn main() {
             testcase,
             r#"
 fn connection_{i}() {{
+    let _mutex = MUTEX.lock();
 "#
         );
         if let Some(result) = &result {
@@ -304,6 +313,7 @@ fn connection_{i}() {{
             testcase,
             r#"
     Command::cargo_bin("edgedb").unwrap_or_else(|_| Command::new("edgedb"))
+        .arg("--no-cli-update-check")
         .arg("--test-output-conn-params")"#,
         );
         testcase.write_all(&buf).unwrap();

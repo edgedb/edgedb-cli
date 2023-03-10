@@ -23,7 +23,7 @@ use edgedb_protocol::server_message::TransactionState;
 use edgedb_protocol::value::Value;
 use edgedb_tokio::raw::{self, Response, PoolState};
 use edgedb_tokio::server_params::ServerParam;
-use edgedb_tokio::{Builder, Config};
+use edgedb_tokio::Config;
 
 use crate::hint::ArcError;
 use crate::portable::ver;
@@ -31,7 +31,7 @@ use crate::portable::ver;
 
 #[derive(Debug, Clone)]
 pub struct Connector {
-    params: Result<(Builder, Config), ArcError>,
+    config: Result<Config, ArcError>,
 }
 
 pub struct Connection {
@@ -134,24 +134,23 @@ impl Stream for DumpStream<'_> {
 }
 
 impl Connector {
-    pub fn new(builder: Result<Builder, anyhow::Error>) -> Connector {
-        let params = builder.map_err(ArcError::from).and_then(|b| {
-            b.build().map(|c| (b, c))
-                .map_err(|e| ArcError::from(anyhow::anyhow!(e)))
-        });
-        Connector { params }
+    pub fn new(config: anyhow::Result<Config>) -> Connector {
+        Connector { config: config.map_err(ArcError::from) }
     }
-    pub fn modify<F: FnOnce(&mut Builder)>(&mut self, f: F)
-        -> anyhow::Result<&mut Self>
-    {
-        if let Ok((builder, cfg)) = self.params.as_mut() {
-            f(builder);
-            *cfg = builder.build()?;
+    pub fn database(&mut self, name: &str) -> anyhow::Result<&mut Self> {
+        if let Ok(cfg) = self.config.as_mut() {
+            *cfg = cfg.clone().with_database(name)?;
         }
         Ok(self)
     }
+    pub fn wait_until_available(&mut self, dur: Duration) -> &mut Self {
+        if let Ok(cfg) = self.config.as_mut() {
+            *cfg = cfg.clone().with_wait_until_available(dur);
+        }
+        self
+    }
     pub async fn connect(&self) -> Result<Connection, anyhow::Error> {
-        let (_, cfg) = self.params.as_ref().map_err(Clone::clone)?;
+        let cfg = self.config.as_ref().map_err(Clone::clone)?;
         let conn = tokio::select!(
             conn = Connection::connect(&cfg) => conn?,
             _ = self.print_warning(cfg) => unreachable!(),
@@ -167,9 +166,8 @@ impl Connector {
             cfg.display_addr());
         pending().await
     }
-    pub fn get(&self) -> anyhow::Result<&Builder, ArcError> {
-        let (builder, _) = self.params.as_ref().map_err(Clone::clone)?;
-        Ok(builder)
+    pub fn get(&self) -> anyhow::Result<&Config, ArcError> {
+        self.config.as_ref().map_err(Clone::clone)
     }
 }
 

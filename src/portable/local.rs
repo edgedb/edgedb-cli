@@ -351,9 +351,11 @@ impl InstanceInfo {
             .ok_or_else(|| bug::error("version should be set"))?
             .server_path()
     }
-    pub async fn admin_conn_params(&self) -> anyhow::Result<Builder> {
-        let mut builder = Builder::uninitialized();
-        builder.unix_path(runstate_dir(&self.name)?, Some(self.port), true);
+    pub fn admin_conn_params(&self) -> anyhow::Result<Builder> {
+        let mut builder = Builder::new();
+        builder.port(self.port)?;
+        builder.unix_path(&runstate_dir(&self.name)?);
+        builder.admin(true);
         builder.user("edgedb")?;
         builder.database("edgedb")?;
         Ok(builder)
@@ -414,3 +416,4 @@ fn test_min_port() {
         vec![10701, 10703, 10704],
     );
 }
+

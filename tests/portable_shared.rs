@@ -17,7 +17,12 @@ struct ResultPredicate {
 
 impl Predicate<str> for ResultPredicate {
     fn eval(&self, variable: &str) -> bool {
-        let actual: Value = serde_json::from_str(variable).unwrap();
+        let actual: Value = match serde_json::from_str(variable) {
+            Ok(value) => value,
+            Err(e) => {
+                panic!("CLI returned invalid JSON ({:#}): {:?}", e, variable);
+            }
+        };
         for (k, v) in actual.as_object().unwrap() {
             match self.result.get(k) {
                 Some(expected) if k == "waitUntilAvailable" => {
@@ -106,6 +111,10 @@ fn mock_project(
     let hash = hex::encode(sha1::Sha1::new_with_prefix(bytes).finalize());
     let project_dir = project_dir.replace("${HASH}", &hash);
     let project_dir = PathBuf::from(project_dir);
+    let project_dir_mock = MockFile {
+        path: project_dir.clone(),
+        is_dir: true,
+    };
     let project_path_file = mock_file(
         project_dir.join("project-path").to_str().unwrap(),
         project_path,
@@ -140,6 +149,7 @@ fn mock_project(
         );
         rv.push(cloud_profile_file);
     }
+    rv.push(project_dir_mock);
     rv
 }
 
