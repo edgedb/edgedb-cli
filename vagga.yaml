@@ -160,10 +160,10 @@ commands:
     container: tools
     run: [cargo, outdated]
 
-  fuzz: !Command
-    description: Run fuzz tool
+  audit: !Command
+    description: Run audit tool
     container: tools
-    run: [cargo, fuzz]
+    run: [cargo, audit]
 
   bloat: !Command
     description: Run cargo bloat tool
@@ -234,7 +234,7 @@ containers:
   tools:
     setup:
     - !Container ubuntu
-    - !Sh 'cargo install cargo-fuzz cargo-outdated cargo-bloat --root=/usr'
+    - !Sh 'cargo install cargo-audit cargo-outdated cargo-bloat --root=/usr'
     environ: *environ
 
   nightly:
