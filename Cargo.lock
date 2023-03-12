@@ -969,7 +969,7 @@ dependencies = [
  "predicates",
  "pretty_assertions",
  "prettytable-rs",
- "rand 0.8.5",
+ "rand",
  "regex",
  "reqwest",
  "rexpect",
@@ -1039,7 +1039,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.4.0"
-source = "git+https://github.com/edgedb/edgedb-rust/#3bd30f012dabf7a2711046badd4f5255736757f7"
+source = "git+https://github.com/edgedb/edgedb-rust/#c06e2a1d446a667d92f74ddc3e3227b6ace6a65d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1050,7 +1050,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.3.0"
-source = "git+https://github.com/edgedb/edgedb-rust/#3bd30f012dabf7a2711046badd4f5255736757f7"
+source = "git+https://github.com/edgedb/edgedb-rust/#c06e2a1d446a667d92f74ddc3e3227b6ace6a65d"
 dependencies = [
  "bytes",
 ]
@@ -1058,7 +1058,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.4.0"
-source = "git+https://github.com/edgedb/edgedb-rust/#3bd30f012dabf7a2711046badd4f5255736757f7"
+source = "git+https://github.com/edgedb/edgedb-rust/#c06e2a1d446a667d92f74ddc3e3227b6ace6a65d"
 dependencies = [
  "bigdecimal",
  "bitflags",
@@ -1074,7 +1074,7 @@ dependencies = [
 [[package]]
 name = "edgedb-tokio"
 version = "0.3.0"
-source = "git+https://github.com/edgedb/edgedb-rust/#3bd30f012dabf7a2711046badd4f5255736757f7"
+source = "git+https://github.com/edgedb/edgedb-rust/#c06e2a1d446a667d92f74ddc3e3227b6ace6a65d"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1089,7 +1089,7 @@ dependencies = [
  "edgedb-protocol",
  "log",
  "once_cell",
- "rand 0.8.5",
+ "rand",
  "rustls",
  "rustls-native-certs",
  "rustls-pemfile 0.3.0",
@@ -1333,12 +1333,6 @@ checksum = "76ee7a02da4d231650c7cea31349b889be2f45ddb3ef3032d2ec8185f6313fd2"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "fuchsia-cprng"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
 
 [[package]]
 name = "funty"
@@ -2313,7 +2307,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d791538a6dcc1e7cb7fe6f6b58aca40e7f79403c45b2bc274008b5e647af1d8"
 dependencies = [
  "base64ct",
- "rand_core 0.6.4",
+ "rand_core",
  "subtle",
 ]
 
@@ -2554,26 +2548,13 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
-dependencies = [
- "fuchsia-cprng",
- "libc",
- "rand_core 0.3.1",
- "rdrand",
- "winapi",
-]
-
-[[package]]
-name = "rand"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
  "rand_chacha",
- "rand_core 0.6.4",
+ "rand_core",
 ]
 
 [[package]]
@@ -2583,23 +2564,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
 dependencies = [
  "ppv-lite86",
- "rand_core 0.6.4",
+ "rand_core",
 ]
-
-[[package]]
-name = "rand_core"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a6fdeb83b075e8266dcc8762c22776f6877a63111121f5f8c7411e5be7eed4b"
-dependencies = [
- "rand_core 0.4.2",
-]
-
-[[package]]
-name = "rand_core"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c33a3c44ca05fa6f1807d8e6743f3824e8509beca625669633be0acbdf509dc"
 
 [[package]]
 name = "rand_core"
@@ -2608,15 +2574,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom",
-]
-
-[[package]]
-name = "rdrand"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "678054eb77286b51581ba43620cc911abf02758c91f93f479767aed0f90458b2"
-dependencies = [
- "rand_core 0.3.1",
 ]
 
 [[package]]
@@ -2661,15 +2618,6 @@ name = "regex-syntax"
 version = "0.6.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
-
-[[package]]
-name = "remove_dir_all"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3acd125665422973a33ac9d3dd2df85edad0f4ae9b00dafb1a05e43a9f5ef8e7"
-dependencies = [
- "winapi",
-]
 
 [[package]]
 name = "reqwest"
@@ -2894,7 +2842,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7679a5e6b97bac99b2c208894ba0d34b17d9657f0b728c1cd3bf1c5f7f6ebe88"
 dependencies = [
  "base64 0.13.1",
- "rand 0.8.5",
+ "rand",
  "ring",
 ]
 
@@ -3196,16 +3144,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tempdir"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
-dependencies = [
- "rand 0.4.6",
- "remove_dir_all",
-]
-
-[[package]]
 name = "tempfile"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3302,12 +3240,13 @@ dependencies = [
 
 [[package]]
 name = "test-cert-gen"
-version = "0.7.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3208d0ae2e3736d4ac2f6ba2229c4d9bbd54080e228e662a7684eabcf13ff419"
+checksum = "345f92b7cac59507cdaba298c5493f7c40e2063d31f6fc621105183344d5d50a"
 dependencies = [
+ "once_cell",
  "pem 0.8.3",
- "tempdir",
+ "tempfile",
 ]
 
 [[package]]
@@ -3403,14 +3342,14 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tls-api"
-version = "0.7.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7dded74ddc6d4a98f9f94f17f1c4d796e4af3cb5fba9e7655f157a036ee7de0"
+checksum = "66d1b3dfb0a60da3e8a130c9f2432063d9979928a05c2b2cdcfc9fd05e4f53a3"
 dependencies = [
  "anyhow",
  "log",
  "pem 0.8.3",
- "tempdir",
+ "tempfile",
  "thiserror",
  "tokio",
  "void",
@@ -3419,9 +3358,9 @@ dependencies = [
 
 [[package]]
 name = "tls-api-not-tls"
-version = "0.7.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9026a0d37898cc761deb9aa92e727c61412f24c490853337a5dcba95f1e9adf"
+checksum = "529dda0254aa61462ebe3937ecf877b6b1d7e745d25b74c18ba98593aefd7086"
 dependencies = [
  "anyhow",
  "thiserror",
@@ -3432,9 +3371,9 @@ dependencies = [
 
 [[package]]
 name = "tls-api-rustls"
-version = "0.7.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9eeadd40cf3e8d610d3ccc5cc71443629ac0aa2c66aee7bc085c7d0b03c706a6"
+checksum = "afcd7905a7d9603bc4c1bcf4710141d463cde70f027ab7900bc1d0012712444d"
 dependencies = [
  "anyhow",
  "rustls",
@@ -3448,9 +3387,9 @@ dependencies = [
 
 [[package]]
 name = "tls-api-test"
-version = "0.7.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "344ab291be7ed9ab296fc28153fe3ac1e430f44c4dfb3f1324a3c09bbbb5f104"
+checksum = "9df107843d725428d76bb159040fbae6d1524dcf25d5b24c56daa6b37ce9dbb5"
 dependencies = [
  "anyhow",
  "env_logger 0.5.13",
