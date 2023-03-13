@@ -91,7 +91,7 @@ pub fn structure(s: &types::Struct) -> TokenStream {
         impl #impl_gen crate::options::PropagateArgs
             for #ident #ty_gen #where_cl
         {
-            fn propagate_args(&self, #dest: &mut ::anymap::AnyMap,
+            fn propagate_args(&self, #dest: &mut crate::options::SharedGroups,
                 #matches: &clap::ArgMatches)
                 -> Result<(), clap::Error>
             {
@@ -656,7 +656,7 @@ fn mk_struct_matches(s: &types::Struct, matches: &syn::Ident) -> TokenStream {
         let mut compose = Vec::with_capacity(inheritable.len()+1);
         let mut extract = Vec::with_capacity(inheritable.len());
         compose.push(quote! {
-            let mut #tmap = ::anymap::AnyMap::new();
+            let mut #tmap = crate::options::SharedGroups::new();
         });
         for (inh_name, ty) in inheritable {
             compose.push(quote! {
@@ -859,7 +859,7 @@ fn mk_subcommand_propagation(e: &types::Enum) -> TokenStream {
         impl #impl_gen crate::options::PropagateArgs
             for #enum_name #ty_gen #where_cl
         {
-            fn propagate_args(&self, #dest: &mut ::anymap::AnyMap,
+            fn propagate_args(&self, #dest: &mut crate::options::SharedGroups,
                 #matches: &clap::ArgMatches)
                 -> Result<(), clap::Error>
             {

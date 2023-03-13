@@ -1,8 +1,9 @@
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use anymap::AnyMap;
 use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
@@ -41,8 +42,11 @@ const CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
     to specify connection parameters. See `--help` for details";
 
+pub struct SharedGroups(HashMap<TypeId, Box<dyn Any>>);
+
 pub trait PropagateArgs {
-    fn propagate_args(&self, dest: &mut AnyMap, matches: &clap::ArgMatches)
+    fn propagate_args(&self, dest: &mut SharedGroups,
+                      matches: &clap::ArgMatches)
         -> Result<(), clap::Error>;
 }
 
@@ -811,4 +815,19 @@ pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
         builder.tls_security(s);
     }
     Ok(())
+}
+
+impl SharedGroups {
+    pub fn new() -> SharedGroups {
+        SharedGroups(HashMap::new())
+    }
+    pub fn insert<T: Any>(&mut self, value: T) {
+        self.0.insert(TypeId::of::<T>(), Box::new(value));
+    }
+    pub fn remove<T: Any>(&mut self) -> Option<T> {
+        self.0.remove(&TypeId::of::<T>()).map(|v| *v.downcast().unwrap())
+    }
+    pub fn get_mut<T: Any>(&mut self) -> Option<&mut T> {
+        self.0.get_mut(&TypeId::of::<T>()).and_then(|v| v.downcast_mut())
+    }
 }
