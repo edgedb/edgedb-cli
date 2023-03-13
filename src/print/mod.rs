@@ -5,6 +5,7 @@ use std::convert::Infallible;
 
 use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
+use terminal_size::{Width, terminal_size};
 use tokio_stream::{Stream, StreamExt};
 
 use edgedb_errors::display::display_error;
@@ -209,7 +210,7 @@ pub async fn native_to_stdout<S, I, E>(rows: S, config: &Config)
           E: fmt::Debug + Error + 'static,
 {
     let w = config.max_width.unwrap_or_else(|| {
-        term_size::dimensions_stdout().map(|(w, _h)| w).unwrap_or(80)
+        terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(80)
     });
     let colors = config.colors
             .unwrap_or_else(|| atty::is(atty::Stream::Stdout));

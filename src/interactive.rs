@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use anyhow::{self, Context};
 use colorful::Colorful;
+use terminal_size::{Width, terminal_size};
 use tokio::io::{stdout, AsyncWriteExt};
 use tokio::sync::mpsc::channel;
 use tokio_stream::StreamExt;
@@ -343,9 +344,9 @@ async fn execute_query(options: &Options, state: &mut repl::State,
     }
 
     let mut cfg = state.print.clone();
-    if let Some((w, _h)) = term_size::dimensions_stdout() {
+    if let Some((Width(w), _h)) = terminal_size() {
         // update max_width each time
-        cfg.max_width(w);
+        cfg.max_width(w.into());
     }
     match state.output_format {
         TabSeparated => {
