@@ -105,7 +105,7 @@ open = "3.0.2"
 tokio = {version="1.23.0",features=[
     "macros", "rt", "rt-multi-thread", "fs", "process", "io-std", "net",
 ]}
-difference = "2.0.0"
+dissimilar = "1.0.6"
 notify = "5.0.0"
 
 [dev-dependencies]
