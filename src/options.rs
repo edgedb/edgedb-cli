@@ -7,7 +7,7 @@ use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
-use edgedb_errors::{ClientNoCredentialsError, NoCloudConfigFound, ResultExt};
+use edgedb_errors::{ClientNoCredentialsError, ResultExt};
 use edgedb_protocol::model;
 use edgedb_tokio::credentials::TlsSecurity;
 use edgedb_tokio::{Builder, Config, get_project_dir};
@@ -40,8 +40,6 @@ const CLOUD_OPTIONS_GROUP: &str = "CLOUD OPTIONS";
 const CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
     to specify connection parameters. See `--help` for details";
-const CLOUD_CONFIG_ARG_HINT: &str =
-    "Have you logged in? (Run `edgedb cloud login`)";
 
 pub trait PropagateArgs {
     fn propagate_args(&self, dest: &mut AnyMap, matches: &clap::ArgMatches)
@@ -679,12 +677,6 @@ impl Options {
                     Ok(Connector::new(
                         Err(anyhow::anyhow!(message))
                         .hint(CONNECTION_ARG_HINT)
-                        .map_err(Into::into)
-                    ))
-                } else if e.is::<NoCloudConfigFound>() {
-                    Ok(Connector::new(
-                        Err(anyhow::anyhow!(e))
-                        .hint(CLOUD_CONFIG_ARG_HINT)
                         .map_err(Into::into)
                     ))
                 } else {
