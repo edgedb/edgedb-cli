@@ -1,6 +1,8 @@
 use prettytable::{Table, Row, Cell};
 
 use edgedb_derive::Queryable;
+use terminal_size::{Width, terminal_size};
+
 use crate::commands::Options;
 use crate::commands::filter;
 use crate::connect::Connection;
@@ -44,8 +46,8 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
     let items = filter::query::<TypeRow>(cli,
         &query, pattern, case_sensitive).await?;
     if !options.command_line || atty::is(atty::Stream::Stdout) {
-        let term_width = term_size::dimensions_stdout()
-            .map(|(w, _h)| w).unwrap_or(80);
+        let term_width = terminal_size()
+            .map(|(Width(w), _h)| w.into()).unwrap_or(80);
         let extending_width = (term_width-7) * 3 / 4;
         let mut table = Table::new();
         table.set_format(*table::FORMAT);

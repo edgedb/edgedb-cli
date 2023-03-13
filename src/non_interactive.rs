@@ -3,6 +3,7 @@ use std::io::{stdout, Write};
 
 use anyhow::{self, Context};
 use bytes::{BytesMut};
+use terminal_size::{Width, terminal_size};
 use tokio::fs::{File as AsyncFile};
 use tokio::io::{AsyncRead, stdin};
 
@@ -134,8 +135,8 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
     let data_description = conn.parse(&flags, stmt).await?;
 
     let mut cfg = print::Config::new();
-    if let Some((w, _h)) = term_size::dimensions_stdout() {
-        cfg.max_width(w);
+    if let Some((Width(w), _h)) = terminal_size() {
+        cfg.max_width(w.into());
     }
     cfg.colors(atty::is(atty::Stream::Stdout));
 
