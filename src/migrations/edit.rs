@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use difference::{Difference, Changeset};
+use dissimilar::{diff, Chunk};
 use tokio::fs;
 use tokio::task::spawn_blocking as unblock;
 
@@ -43,23 +43,23 @@ enum FailAction {
 fn print_diff(path1: &Path, data1: &str, path2: &Path, data2: &str) {
     println!("--- {}", path1.display());
     println!("+++ {}", path2.display());
-    let changeset = Changeset::new(data1, data2, "\n");
+    let changeset = diff(data1, data2);
     let n1 = data1.split("\n").count();
     let n2 = data2.split("\n").count();
     println!("@@ -1,{} +1,{}", n1, n2);
-    for item in &changeset.diffs {
+    for item in &changeset {
         match item {
-            Difference::Same(block) => {
+            Chunk::Equal(block) => {
                 for line in block.split("\n") {
                     println!(" {}", line);
                 }
             }
-            Difference::Add(block) => {
+            Chunk::Insert(block) => {
                 for line in block.split("\n") {
                     println!("+{}", line.added());
                 }
             }
-            Difference::Rem(block) => {
+            Chunk::Delete(block) => {
                 for line in block.split("\n") {
                     println!("-{}", line.deleted());
                 }
