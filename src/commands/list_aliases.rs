@@ -1,6 +1,8 @@
 use prettytable::{Table, Row, Cell};
 
 use edgedb_derive::Queryable;
+use is_terminal::IsTerminal;
+
 use crate::commands::Options;
 use crate::commands::filter;
 use crate::table;
@@ -55,7 +57,7 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
     "###, filter=filter);
     let items = filter::query::<Alias>(cli,
         &query, &pattern, case_sensitive).await?;
-    if !options.command_line || atty::is(atty::Stream::Stdout) {
+    if !options.command_line || std::io::stdout().is_terminal() {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
         if verbose {

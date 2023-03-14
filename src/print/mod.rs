@@ -7,6 +7,7 @@ use colorful::{Color, Colorful};
 use snafu::{Snafu, ResultExt, AsErrorSource};
 use terminal_size::{Width, terminal_size};
 use tokio_stream::{Stream, StreamExt};
+use is_terminal::IsTerminal;
 
 use edgedb_errors::display::display_error;
 
@@ -212,8 +213,7 @@ pub async fn native_to_stdout<S, I, E>(rows: S, config: &Config)
     let w = config.max_width.unwrap_or_else(|| {
         terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(80)
     });
-    let colors = config.colors
-            .unwrap_or_else(|| atty::is(atty::Stream::Stdout));
+    let colors = config.colors.unwrap_or_else(|| io::stdout().is_terminal());
     _native_format(rows, config, w, colors, Stdout {}).await
 }
 

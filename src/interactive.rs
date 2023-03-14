@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use anyhow::{self, Context};
 use colorful::Colorful;
+use is_terminal::IsTerminal;
 use terminal_size::{Width, terminal_size};
 use tokio::io::{stdout, AsyncWriteExt};
 use tokio::sync::mpsc::channel;
@@ -97,7 +98,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         .max_items(implicit_limit)
         .expand_strings(cfg.shell.expand_strings.unwrap_or(true))
         .implicit_properties(cfg.shell.implicit_properties.unwrap_or(false))
-        .colors(atty::is(atty::Stream::Stdout))
+        .colors(std::io::stdout().is_terminal())
         .clone();
     let conn_config = conn.get()?;
     credentials::maybe_update_credentials_file(conn_config, true)?;

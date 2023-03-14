@@ -1,6 +1,7 @@
 use prettytable::{Table, Row, Cell};
 
 use edgedb_derive::Queryable;
+use is_terminal::IsTerminal;
 use terminal_size::{Width, terminal_size};
 
 use crate::commands::Options;
@@ -56,7 +57,7 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
 
     let items = filter::query::<ScalarType>(cli,
         &query, &pattern, case_sensitive).await?;
-    if !options.command_line || atty::is(atty::Stream::Stdout) {
+    if !options.command_line || std::io::stdout().is_terminal() {
         let term_width = terminal_size()
             .map(|(Width(w), _h)| w).unwrap_or(80);
         let extending_width: usize = ((term_width-10) / 2).into();

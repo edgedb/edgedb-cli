@@ -8,6 +8,7 @@ use std::path::Path;
 use anyhow::Context;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
+use is_terminal::IsTerminal;
 use once_cell::sync::OnceCell;
 use serde::{ser, de, Serialize, Deserialize};
 use tokio::fs;
@@ -182,7 +183,7 @@ async fn get_json<T>(url: &Url) -> Result<T, anyhow::Error>
         res = _get_json(url) => res,
         _ = async {
             tokio::time::sleep(Duration::from_secs(2)).await;
-            if atty::is(atty::Stream::Stderr) {
+            if std::io::stderr().is_terminal() {
                 eprintln!("Fetching {} takes too long. Common reasons are:",
                           url);
                 eprintln!("  1. Your internet connectivity is slow");
