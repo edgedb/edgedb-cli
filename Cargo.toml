@@ -129,9 +129,8 @@ portable_tests = []
 docker_test_wrapper = []
 
 [target.'cfg(unix)'.dependencies]
-signal = "0.7.0"
 signal-hook = {version="0.3.10", features=["iterator"]}
-nix = "0.24.2"
+nix = "0.26.2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.3.8"
