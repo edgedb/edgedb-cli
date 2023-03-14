@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
+use std::io::stdin;
 
-use atty;
 use clap::{ValueHint};
 use colorful::Colorful;
 use edgedb_cli_derive::EdbClap;
@@ -12,6 +12,7 @@ use edgedb_errors::{ClientNoCredentialsError, ResultExt};
 use edgedb_protocol::model;
 use edgedb_tokio::credentials::TlsSecurity;
 use edgedb_tokio::{Builder, Config, get_project_dir};
+use is_terminal::IsTerminal;
 use tokio::task::spawn_blocking as unblock;
 
 use crate::cli::options::CliCommand;
@@ -583,7 +584,7 @@ impl Options {
         // TODO(pc) add option to force interactive mode not on a tty (tests)
         let interactive = tmp.query.is_none()
             && tmp.subcommand.is_none()
-            && atty::is(atty::Stream::Stdin);
+            && stdin().is_terminal();
 
         if tmp.json {
             say_option_is_deprecated(

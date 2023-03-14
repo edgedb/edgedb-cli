@@ -1,3 +1,5 @@
+use is_terminal::IsTerminal;
+
 use crate::cli::directory_check;
 use crate::cli;
 use crate::cloud::main::cloud_main;
@@ -26,7 +28,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         Command::Common(cmd) => {
             let cmdopt = commands::Options {
                 command_line: true,
-                styler: if atty::is(atty::Stream::Stdout) {
+                styler: if std::io::stdout().is_terminal() {
                     Some(Styler::dark_256())
                 } else {
                     None

@@ -27,7 +27,7 @@ clap = {version="3.2.23", features=["derive", "cargo"]}
 clap_complete = "3.2.5"
 strsim = "0.10.0"
 whoami = "1.1"
-atty = "0.2.13"
+is-terminal = "0.4.4"
 scram = "0.6.0"
 rpassword = "6.0.1"
 colorful = "0.2.1"

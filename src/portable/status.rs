@@ -11,6 +11,7 @@ use std::time::Duration;
 use anyhow::Context;
 use fn_error_context::context;
 use humantime::format_duration;
+use is_terminal::IsTerminal;
 use tokio::join;
 use tokio::time::sleep;
 
@@ -321,7 +322,7 @@ async fn intermediate_feedback<F, D>(future: F, text: impl FnOnce() -> D)
         r = future => r,
         _ = async {
             sleep(Duration::from_millis(300)).await;
-            if atty::is(atty::Stream::Stderr) {
+            if std::io::stderr().is_terminal() {
                 eprintln!("{}", text());
             }
             pending().await
