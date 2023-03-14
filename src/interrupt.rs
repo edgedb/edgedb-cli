@@ -36,6 +36,21 @@ pub enum Signal {
     Hup,
 }
 
+/// A RAII guard for masking out signals and waiting for them synchronously
+///
+/// Trap temporarily replaces signal handlers to an empty handler, effectively
+/// activating singnals that are ignored by default.
+///
+/// Old signal handlers are restored in `Drop` handler.
+#[cfg(unix)]
+pub struct Trap {
+    oldset: nix::sys::signal::SigSet,
+    oldsigs: Vec<(Signal, nix::sys::signal::SigAction)>,
+}
+
+#[cfg(not(unix))]
+pub struct Trap {}
+
 type SigMask = u8;
 
 #[derive(Debug, thiserror::Error)]
@@ -286,6 +301,15 @@ impl Signal {
             Signal::Hup => SIGHUP,
         }
     }
+    fn to_nix(&self) -> nix::sys::signal::Signal {
+        use nix::sys::signal::Signal::*;
+
+        match self {
+            Signal::Interrupt => SIGINT,
+            Signal::Term => SIGTERM,
+            Signal::Hup => SIGHUP,
+        }
+    }
     fn from_unix(sig: i32) -> Option<Self> {
         use signal_hook::consts::signal::*;
 
@@ -294,6 +318,65 @@ impl Signal {
              SIGTERM => Some(Signal::Term),
              SIGHUP => Some(Signal::Hup),
              _ => None,
+        }
+    }
+}
+
+impl Trap {
+    /// Create and activate the signal trap for specified signals. Signals not
+    /// in list will be delivered asynchronously as always.
+    #[cfg(unix)]
+    pub fn trap(signals: &[Signal]) -> Trap {
+        use nix::sys::signal::{SigSet, SigmaskHow};
+        use nix::sys::signal::{sigaction, SigAction, SaFlags, SigHandler};
+
+        extern "C" fn empty_handler(_: libc::c_int) { }
+
+        unsafe {
+            let mut sigset = SigSet::empty();
+            for &sig in signals {
+                sigset.add(sig.to_nix());
+            }
+            let oldset = sigset.thread_swap_mask(SigmaskHow::SIG_BLOCK)
+                .expect("can set thread mask");
+            let mut oldsigs = Vec::new();
+            // Set signal handlers to an empty function, this allows ignored
+            // signals to become pending, effectively allowing them to be
+            // waited for.
+            for &sig in signals {
+                oldsigs.push((
+                    sig,
+                    sigaction(
+                        sig.to_nix(),
+                        &SigAction::new(SigHandler::Handler(empty_handler),
+                            SaFlags::empty(), sigset)
+                    ).expect("sigaction works")
+                ));
+            }
+            Trap {
+                oldset: oldset,
+                oldsigs: oldsigs,
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
+    pub fn trap(_: &[Signal]) -> Trap {
+        Trap {}
+    }
+}
+
+#[cfg(unix)]
+impl Drop for Trap {
+    fn drop(&mut self) {
+        use nix::sys::signal::sigaction;
+
+        unsafe {
+            for &(sig, ref sigact) in self.oldsigs.iter() {
+                sigaction(sig.to_nix(), sigact).expect("sigaction works");
+            }
+            self.oldset.thread_set_mask()
+                .expect("sigset works");
         }
     }
 }

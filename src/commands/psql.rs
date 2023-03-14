@@ -8,6 +8,7 @@ use edgedb_tokio::server_params::PostgresAddress;
 
 use crate::commands::Options;
 use crate::print;
+use crate::interrupt;
 
 
 pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
@@ -52,11 +53,12 @@ pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
                 cmd.env("PATH", path);
             }
 
-            #[cfg(unix)]
-            let _trap = signal::trap::Trap::trap(&[signal::Signal::SIGINT]);
-            cmd.status().context(
+
+            let _trap = interrupt::Trap::trap(&[interrupt::Signal::Interrupt]);
+            cmd.status().with_context(|| {
                 format!("Error running {:?} (path: {:?})", cmd,
-                    path.unwrap_or_else(OsString::new)))?;
+                        path.unwrap_or_else(OsString::new))
+            })?;
         }
         None => {
             print::error("psql requires EdgeDB to run in DEV mode.");
