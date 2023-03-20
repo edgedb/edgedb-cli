@@ -46,7 +46,10 @@ fn main() {
             "invalid_port",
             "(Invalid value.*for.*port|invalid port|EDGEDB_PORT is invalid)",
         ),
-        ("invalid_dsn_or_instance_name", "(invalid DSN|Invalid value.*for.*instance)"),
+        (
+            "invalid_dsn_or_instance_name",
+            "(invalid DSN|must be a valid identifier|instance name.*length cannot exceed)",
+        ),
         ("invalid_user", "invalid user"),
         ("invalid_database", "invalid database"),
         ("invalid_credentials_file", "cannot read credentials file"),

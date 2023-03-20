@@ -226,10 +226,10 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                     let name = question::String::new(
                         "Specify a new instance name for the remote server"
                     ).default(&default).ask()?;
-                    if !is_valid_instance_name(&name) {
+                    if !is_valid_instance_name(&name, false) {
                         print::error(
                             "Instance name must be a valid identifier, \
-                             (regex: ^[a-zA-Z_][a-zA-Z_0-9]*$)");
+                             (regex: ^[a-zA-Z_0-9](-?[a-zA-Z_0-9])*$)");
                         continue;
                     }
                     break (credentials::path(&name)?, name);

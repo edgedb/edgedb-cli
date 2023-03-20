@@ -34,7 +34,7 @@ pub fn all_instance_names() -> anyhow::Result<BTreeSet<String>> {
         let item = item?;
         if let Ok(filename) = item.file_name().into_string() {
             if let Some(name) = filename.strip_suffix(".json") {
-                if is_valid_instance_name(name) {
+                if is_valid_instance_name(name, false) {
                     result.insert(name.into());
                 }
             }

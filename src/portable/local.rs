@@ -375,29 +375,30 @@ impl InstallInfo {
     }
 }
 
-pub fn is_valid_instance_name(name: &str) -> bool {
-    let mut chars = name.chars();
-    match chars.next() {
-        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
-        _ => return false,
-    }
-    for c in chars {
-        if !c.is_ascii_alphanumeric() && c != '_' {
-            return false;
-        }
-    }
-    return true;
-}
-
-pub fn is_valid_org_name(name: &str) -> bool {
+pub fn is_valid_instance_name(name: &str, is_cloud: bool) -> bool {
     let mut chars = name.chars();
     match chars.next() {
         Some(c) if c.is_ascii_alphanumeric() => {}
+        Some(c) if !is_cloud && c == '_' => {}
         _ => return false,
     }
+    let mut was_dash = false;
     for c in chars {
-        if !c.is_ascii_alphanumeric() && c != '-' {
-            return false;
+        if c == '-' {
+            if was_dash {
+                return false;
+            } else {
+                was_dash = true;
+            }
+        } else {
+            if c == '_' {
+                if is_cloud {
+                    return false;
+                }
+            } else if !c.is_ascii_alphanumeric() {
+                return false;
+            }
+            was_dash = false;
         }
     }
     return true;

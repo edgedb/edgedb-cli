@@ -374,7 +374,7 @@ pub fn list_local<'x>(dir: &'x Path)
             res => return Some(Err(res.with_context(err_ctx).unwrap_err())),
         };
         let fname = entry.file_name();
-        let name_op = fname.to_str().and_then(|x| is_valid_instance_name(x).then(|| x));
+        let name_op = fname.to_str().and_then(|x| is_valid_instance_name(x, false).then(|| x));
         if let Some(name) = name_op {
             return Some(Ok((name.into(), entry.path())))
         } else {

@@ -6,12 +6,15 @@ use serde::{Serialize, Deserialize};
 use edgedb_cli_derive::{EdbClap, IntoArgs};
 
 use crate::commands::ExitCode;
-use crate::portable::local::{is_valid_instance_name, is_valid_org_name};
+use crate::portable::local::is_valid_instance_name;
 use crate::portable::ver;
 use crate::portable::repository::Channel;
 use crate::print::{echo, warn, err_marker};
 use crate::process::{self, IntoArg};
 
+
+const DOMAIN_LABEL_MAX_LENGTH: usize = 63;
+const CLOUD_INSTANCE_NAME_MAX_LENGTH: usize = DOMAIN_LABEL_MAX_LENGTH - 2 + 1;  // "--" -> "/"
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct ServerCommand {
@@ -593,18 +596,24 @@ impl FromStr for InstanceName {
     type Err = anyhow::Error;
     fn from_str(name: &str) -> anyhow::Result<InstanceName> {
         if let Some((org_slug, name)) = name.split_once('/') {
-            if !is_valid_instance_name(name) {
+            if !is_valid_instance_name(name, true) {
                 anyhow::bail!(
                     "instance name \"{}\" must be a valid identifier, \
-                     regex: ^[a-zA-Z_][a-zA-Z_0-9]*$",
+                     regex: ^[a-zA-Z0-9](-?[a-zA-Z0-9])*$",
                     name,
                 );
             }
-            if !is_valid_org_name(org_slug) {
+            if !is_valid_instance_name(org_slug, true) {
                 anyhow::bail!(
                     "org name \"{}\" must be a valid identifier, \
-                     regex: ^[a-zA-Z0-9][a-zA-Z0-9-]{{0,38}}$",
+                     regex: ^[a-zA-Z0-9](-?[a-zA-Z0-9])*$",
                     org_slug,
+                );
+            }
+            if name.len() > CLOUD_INSTANCE_NAME_MAX_LENGTH {
+                anyhow::bail!(
+                    "instance name \"{}\" length cannot exceed {} characters",
+                    name, CLOUD_INSTANCE_NAME_MAX_LENGTH,
                 );
             }
             Ok(InstanceName::Cloud {
@@ -612,10 +621,10 @@ impl FromStr for InstanceName {
                 name: name.into(),
             })
         } else {
-            if !is_valid_instance_name(name) {
+            if !is_valid_instance_name(name, false) {
                 anyhow::bail!(
                     "instance name must be a valid identifier, \
-                     regex: ^[a-zA-Z_][a-zA-Z_0-9]*$ or \
+                     regex: ^[a-zA-Z_0-9](-?[a-zA-Z_0-9])*$ or \
                      a cloud instance name ORG/INST."
                 );
             }
