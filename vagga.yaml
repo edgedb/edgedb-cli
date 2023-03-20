@@ -175,7 +175,7 @@ containers:
 
   ubuntu:
     setup:
-    - !Ubuntu bionic
+    - !Ubuntu jammy
     - !UbuntuUniverse
     - !Install
       - ca-certificates
@@ -211,10 +211,10 @@ containers:
             postgres
     - !UbuntuRepo
       url: https://packages.edgedb.com/apt
-      suite: bionic
-      components: [main]
+      suite: jammy
+      components: [testing]
       trusted: true
-    - !Install [edgedb-2]
+    - !Install [edgedb-server-3-alpha2]
     - !Text
       /var/docker.sock: ""
 
@@ -228,8 +228,8 @@ containers:
       # needed for musl build
       PATH: /musl/bin:/usr/local/bin:/usr/bin:/bin
       LD_LIBRARY_PATH: /musl/lib/rustlib/x86_64-unknown-linux-musl/lib
-      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-server-2/bin
-      EDGEDB_MAJOR_VERSION: 2
+      PSQL_DEFAULT_PATH: /usr/lib/x86_64-linux-gnu/edgedb-server-3-alpha2/bin
+      EDGEDB_MAJOR_VERSION: 3-alpha2
 
   tools:
     setup:
@@ -239,7 +239,7 @@ containers:
 
   nightly:
     setup:
-    - !Ubuntu bionic
+    - !Ubuntu jammy
     - !UbuntuUniverse
     - !Install
       - ca-certificates

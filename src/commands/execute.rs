@@ -1,4 +1,3 @@
-use edgeql_parser::helpers::quote_name;
 use crate::connect::Connection;
 use edgedb_tokio::server_params::PostgresAddress;
 
@@ -80,11 +79,13 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
         }
         Database(c) => match &c.subcommand {
             DatabaseCmd::Create(c) => {
-                print::completion(&cli.execute(
-                    &format!("CREATE DATABASE {}",
-                             quote_name(&c.database_name)),
-                    &(),
-                ).await?);
+                commands::database::create(cli, c, &options).await?;
+            }
+            DatabaseCmd::Drop(d) => {
+                commands::database::drop(cli, d, &options).await?;
+            }
+            DatabaseCmd::Wipe(w) => {
+                commands::database::wipe(cli, w, &options).await?;
             }
         }
         Migrate(params) => {

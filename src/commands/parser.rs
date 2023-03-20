@@ -118,6 +118,10 @@ pub struct Database {
 pub enum DatabaseCmd {
     /// Create a new DB
     Create(CreateDatabase),
+    /// Delete the database
+    Drop(DropDatabase),
+    /// Destroy the contents of the current database (keeping database itself)
+    Wipe(WipeDatabase),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -243,6 +247,21 @@ pub struct Connect {
 #[derive(EdbClap, Clone, Debug)]
 pub struct CreateDatabase {
     pub database_name: String,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct DropDatabase {
+    pub database_name: String,
+    /// Drop database without confirming
+    #[clap(long)]
+    pub non_interactive: bool,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct WipeDatabase {
+    /// Drop database without confirming
+    #[clap(long)]
+    pub non_interactive: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]

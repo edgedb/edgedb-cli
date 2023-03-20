@@ -38,6 +38,7 @@ pub struct Connection {
     inner: raw::Connection,
     server_version: Option<ver::Build>,
     state: State,
+    config: Config,
 }
 
 pub struct ResponseStream<'a, T: QueryResult>
@@ -177,7 +178,11 @@ impl Connection {
             inner: raw::Connection::connect(&cfg).await?,
             state: State::empty(),
             server_version: None,
+            config: cfg.clone(),
         })
+    }
+    pub fn database(&self) -> &str {
+        self.config.database()
     }
     pub fn set_ignore_error_state(&mut self) -> State {
         let new_state = make_ignore_error_state(self.inner.state_descriptor());
