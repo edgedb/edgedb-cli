@@ -22,6 +22,7 @@ mod config;
 mod connect;
 mod credentials;
 mod error_display;
+mod analyze;
 mod format;
 mod highlight;
 mod hint;

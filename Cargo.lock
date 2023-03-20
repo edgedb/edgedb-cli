@@ -1045,7 +1045,7 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb#49eb98202af0ea059a22b43fcb3f74ee1d497723"
+source = "git+https://github.com/edgedb/edgedb#68033e0256a9c4f214ec1b2042817d8e235f56ec"
 dependencies = [
  "base32",
  "combine",
@@ -3482,6 +3482,9 @@ name = "uuid"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1674845326ee10d37ca60470760d4288a6f80f304007d92e5c53bab78c9cfd79"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "value-bag"

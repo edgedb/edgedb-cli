@@ -17,12 +17,14 @@ use edgedb_protocol::common::{RawTypedesc};
 use edgedb_protocol::model::Duration;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser::{self, full_statement};
+use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
 
 use crate::commands::{backslash, ExitCode};
 use crate::config::Config;
 use crate::credentials;
 use crate::echo;
 use crate::error_display::print_query_error;
+use crate::analyze;
 use crate::interrupt::{Interrupt, InterruptError};
 use crate::options::Options;
 use crate::outputs::tab_separated;
@@ -52,6 +54,7 @@ struct ToDo<'a> {
 #[derive(Debug, PartialEq)]
 pub enum ToDoItem<'a> {
     Query(&'a str),
+    Explain(&'a str),
     Backslash(&'a str),
 }
 
@@ -75,12 +78,22 @@ impl<'a> Iterator for ToDo<'a> {
             } else {
                 let len = full_statement(&tail.as_bytes(), None)
                     .unwrap_or(tail.len());
+                let query = &tail[..len];
                 self.tail = &tail[len..];
-                if preparser::is_empty(&tail[..len]) {
+                if preparser::is_empty(query) {
                     continue;
-                } else {
-                    return Some(ToDoItem::Query(&tail[..len]));
                 }
+                match (&mut TokenStream::new(query)).next() {
+                    Some(Ok(tok))
+                    if tok.token.kind == TokenKind::Keyword &&
+                       tok.token.value.eq_ignore_ascii_case("analyze")
+                    => {
+                        return Some(ToDoItem::Explain(query));
+                    }
+                    Some(Ok(_) | Err(_)) => {} // let EdgeDB handle Err
+                    None => continue, // but should be unreachable
+                }
+                return Some(ToDoItem::Query(query));
             }
         }
     }
@@ -527,6 +540,15 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                             res = execute_backslash(state, text) => res,
                             res = ctrlc.wait_result() => res,
                         )
+                    }
+                    ToDoItem::Explain(statement) => {
+                        tokio::select!(
+                            r = state.soft_reconnect() => r,
+                            r = ctrlc.wait_result() => r,
+                        ).and(tokio::select!(
+                            r = analyze::interactive(state, statement) => r,
+                            r = ctrlc.wait_result() => r,
+                        ))
                     }
                     ToDoItem::Query(statement) => {
                         tokio::select!(
