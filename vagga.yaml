@@ -127,6 +127,8 @@ commands:
     description: Run edgedb repl
     container: ubuntu
     run: [cargo, run, --bin, edgedb, --features=dev_mode, '--', -I_localdev]
+    environ:
+      _EDGEDB_ANALYZE_DEBUG_PLAN: true
 
   repl-release: !Command
     description: Run edgedb repl
