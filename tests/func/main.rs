@@ -32,6 +32,8 @@ mod instance_link;
 #[cfg(all(target_os="linux", not(target_env="musl")))]
 mod interactive;
 
+#[path="../util.rs"]
+mod util;
 mod help;
 
 pub struct Config {

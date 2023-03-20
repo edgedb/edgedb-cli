@@ -1,5 +1,6 @@
 mod exit;
 mod configure;
+mod database;
 mod describe;
 mod describe_schema;
 mod dump;
