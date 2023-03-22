@@ -48,8 +48,9 @@ fn main() {
         ),
         (
             "invalid_dsn_or_instance_name",
-            "(invalid DSN|must be a valid identifier|instance name.*length cannot exceed)",
+            "(invalid DSN|must be a valid identifier)",
         ),
+        ("invalid_instance_name", "invalid.*instance name"),
         ("invalid_user", "invalid user"),
         ("invalid_database", "invalid database"),
         ("invalid_credentials_file", "cannot read credentials file"),

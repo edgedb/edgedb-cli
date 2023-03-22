@@ -375,11 +375,14 @@ impl InstallInfo {
     }
 }
 
-pub fn is_valid_instance_name(name: &str, is_cloud: bool) -> bool {
+pub fn is_valid_local_instance_name(name: &str) -> bool {
+    // For local instance names:
+    //  1. Allow only letters, numbers, underscores and single dashes
+    //  2. Must not start or end with a dash
+    // regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$
     let mut chars = name.chars();
     match chars.next() {
-        Some(c) if c.is_ascii_alphanumeric() => {}
-        Some(c) if !is_cloud && c == '_' => {}
+        Some(c) if c.is_ascii_alphanumeric() || c == '_' => {}
         _ => return false,
     }
     let mut was_dash = false;
@@ -391,17 +394,41 @@ pub fn is_valid_instance_name(name: &str, is_cloud: bool) -> bool {
                 was_dash = true;
             }
         } else {
-            if c == '_' {
-                if is_cloud {
-                    return false;
-                }
-            } else if !c.is_ascii_alphanumeric() {
+            if !c.is_ascii_alphanumeric() && c != '_' {
                 return false;
             }
             was_dash = false;
         }
     }
-    return true;
+    return !was_dash;
+}
+
+pub fn is_valid_cloud_name(name: &str) -> bool {
+    // For cloud instance name parts (organization slugs and instance names):
+    //  1. Allow only letters, numbers and single dashes
+    //  2. Must not start or end with a dash
+    // regex: ^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphanumeric() => {}
+        _ => return false,
+    }
+    let mut was_dash = false;
+    for c in chars {
+        if c == '-' {
+            if was_dash {
+                return false;
+            } else {
+                was_dash = true;
+            }
+        } else {
+            if !c.is_ascii_alphanumeric() {
+                return false;
+            }
+            was_dash = false;
+        }
+    }
+    return !was_dash;
 }
 
 #[derive(Debug, thiserror::Error)]

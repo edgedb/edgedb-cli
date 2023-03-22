@@ -25,7 +25,7 @@ use crate::hint::{HintExt};
 use crate::options::{Options, ConnectionOptions};
 use crate::options;
 use crate::portable::destroy::with_projects;
-use crate::portable::local::{InstanceInfo, is_valid_instance_name};
+use crate::portable::local::{InstanceInfo, is_valid_local_instance_name};
 use crate::portable::options::{Link, Unlink, instance_arg, InstanceName};
 use crate::portable::project;
 use crate::print;
@@ -226,10 +226,10 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                     let name = question::String::new(
                         "Specify a new instance name for the remote server"
                     ).default(&default).ask()?;
-                    if !is_valid_instance_name(&name, false) {
+                    if !is_valid_local_instance_name(&name) {
                         print::error(
                             "Instance name must be a valid identifier, \
-                             (regex: ^[a-zA-Z_0-9](-?[a-zA-Z_0-9])*$)");
+                             (regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$)");
                         continue;
                     }
                     break (credentials::path(&name)?, name);
