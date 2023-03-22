@@ -973,7 +973,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.4.0"
-source = "git+https://github.com/edgedb/edgedb-rust/?branch=cloud-inst-name#cb76455d98b9fe935424d07668d4a01afd07af7a"
+source = "git+https://github.com/edgedb/edgedb-rust/#ac5886ab236ee8a203dc3d2b73f5f067ea96330b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -984,7 +984,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.3.0"
-source = "git+https://github.com/edgedb/edgedb-rust/?branch=cloud-inst-name#cb76455d98b9fe935424d07668d4a01afd07af7a"
+source = "git+https://github.com/edgedb/edgedb-rust/#ac5886ab236ee8a203dc3d2b73f5f067ea96330b"
 dependencies = [
  "bytes",
 ]
@@ -992,7 +992,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.4.0"
-source = "git+https://github.com/edgedb/edgedb-rust/?branch=cloud-inst-name#cb76455d98b9fe935424d07668d4a01afd07af7a"
+source = "git+https://github.com/edgedb/edgedb-rust/#ac5886ab236ee8a203dc3d2b73f5f067ea96330b"
 dependencies = [
  "bigdecimal",
  "bitflags",
@@ -1008,7 +1008,7 @@ dependencies = [
 [[package]]
 name = "edgedb-tokio"
 version = "0.3.0"
-source = "git+https://github.com/edgedb/edgedb-rust/?branch=cloud-inst-name#cb76455d98b9fe935424d07668d4a01afd07af7a"
+source = "git+https://github.com/edgedb/edgedb-rust/#ac5886ab236ee8a203dc3d2b73f5f067ea96330b"
 dependencies = [
  "anyhow",
  "arc-swap",
