@@ -27,7 +27,7 @@ use crate::platform::{data_dir};
 use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstanceInfo, Paths};
-use crate::portable::local::{read_ports, is_valid_instance_name, lock_file};
+use crate::portable::local::{read_ports, is_valid_local_instance_name, lock_file};
 use crate::portable::options::{Status, List, instance_arg, InstanceName};
 use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
 use crate::portable::{windows, linux, macos};
@@ -374,7 +374,7 @@ pub fn list_local<'x>(dir: &'x Path)
             res => return Some(Err(res.with_context(err_ctx).unwrap_err())),
         };
         let fname = entry.file_name();
-        let name_op = fname.to_str().and_then(|x| is_valid_instance_name(x).then(|| x));
+        let name_op = fname.to_str().and_then(|x| is_valid_local_instance_name(x).then(|| x));
         if let Some(name) = name_op {
             return Some(Ok((name.into(), entry.path())))
         } else {
