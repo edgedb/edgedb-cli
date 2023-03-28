@@ -95,6 +95,10 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         }
     };
 
+    if cmd.region.is_some() {
+        print::warn("The `--region` option is only applicable to cloud instances.")
+    }
+
     let paths = Paths::get(&name)?;
     paths.check_exists()
         .with_context(|| format!("instance {:?} detected", name))
@@ -181,13 +185,26 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
         .with_context(||
             format!("cannot find package matching {}", query.display()))?;
 
-    let pkg_ver = pkg.version.specific();
-
     client.ensure_authenticated()?;
+
+    let pkg_ver = pkg.version.specific();
+    let region = match &cmd.region {
+        None => cloud::ops::get_current_region(&client)?.name,
+        Some(region) => region.to_string(),
+    };
+
+    if !cmd.non_interactive && !question::Confirm::new(format!(
+        "This will create a new EdgeDB cloud instance with the following parameters: \
+        \n\nRegion: {region}\n\nDoes this look good?",
+    )).ask()? {
+        return Ok(());
+    }
+
     let request = cloud::ops::CloudInstanceCreate {
         name: name.to_string(),
         org: org_slug.to_string(),
         version: pkg_ver.to_string(),
+        region: Some(region),
     };
     cloud::ops::create_cloud_instance(&client, &request)?;
     echo!(
