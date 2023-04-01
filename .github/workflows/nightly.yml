@@ -516,7 +516,7 @@ jobs:
         echo "SNAPSHOT_TAG=${tag}" >> $GITHUB_ENV
 
     - name: Publish docker image
-      uses: elgohr/Publish-Docker-Github-Action@2.19
+      uses: elgohr/Publish-Docker-Github-Action@v5
       env:
         PKG_PLATFORM_FULL: "linux-x86_64"
       with:
