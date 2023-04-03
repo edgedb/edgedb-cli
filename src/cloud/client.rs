@@ -94,23 +94,49 @@ impl CloudClient {
                 .splitn(3, ".")
                 .skip(1)
                 .next()
-                .context("Illegal JWT token")?;
-            let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)?;
-            let claims: Claims = serde_json::from_slice(&claims)?;
-            dns_zone = claims.issuer;
+                .context("secret key is malformed: invalid JWT format")?;
+            let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)
+                .context("secret key is malformed: invalid base64 data")?;
+            let claims: Claims = serde_json::from_slice(&claims)
+                .context("secret key is malformed: invalid JSON data")?;
+            dns_zone = claims.issuer
+                .context("secret key is malformed: missing `iss` claim")?;
 
             let mut headers = header::HeaderMap::new();
             let auth_str = format!("Bearer {}", secret_key);
             let mut auth_value = header::HeaderValue::from_str(&auth_str)?;
             auth_value.set_sensitive(true);
-            headers.insert(header::AUTHORIZATION, auth_value);
-            builder = builder.default_headers(headers);
+            headers.insert(header::AUTHORIZATION, auth_value.clone());
+            // Duplicate the Authorization as X-Nebula-Authorization as
+            // reqwest will strip the former on redirects.
+            headers.insert("X-Nebula-Authorization", auth_value);
+
+            let dns_zone2 = dns_zone.clone();
+            let redirect_policy = reqwest::redirect::Policy::custom(move |attempt| {
+                if attempt.previous().len() > 5 {
+                    attempt.error("too many redirects")
+                } else {
+                    match attempt.url().host_str() {
+                        Some(host) if host.ends_with(&dns_zone2) =>
+                            attempt.follow(),
+                        // prevent redirects outside of the
+                        // token issuer zone
+                        Some(_) => attempt.stop(),
+                        // relative redirect
+                        None => attempt.follow()
+                    }
+                }
+            });
+
+            builder = builder
+                .default_headers(headers)
+                .redirect(redirect_policy);
+
             is_logged_in = true;
         } else {
-            dns_zone = None;
+            dns_zone = EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string();
             is_logged_in = false;
         }
-        let dns_zone = dns_zone.unwrap_or_else(|| EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string());
         let api_endpoint = options_api_endpoint
             .clone()
             .map(Ok)

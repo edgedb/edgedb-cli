@@ -160,6 +160,10 @@ pub struct Create {
     #[clap(long)]
     pub port: Option<u16>,
 
+    /// For cloud instances: the region to create the instance in.
+    #[clap(long)]
+    pub region: Option<String>,
+
     /// Deprecated. Has no meaning.
     #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
     pub start_conf: Option<StartConf>,

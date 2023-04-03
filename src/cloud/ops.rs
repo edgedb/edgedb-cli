@@ -67,11 +67,19 @@ pub struct Org {
     pub name: String,
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct Region {
+    pub name: String,
+    pub platform: String,
+    pub platform_region: String,
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceCreate {
     pub name: String,
     pub org: String,
     pub version: String,
+    pub region: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub default_database: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -100,6 +108,18 @@ pub struct CloudOperation {
     pub message: String,
 }
 
+#[tokio::main]
+pub async fn get_current_region(
+    client: &CloudClient,
+) -> anyhow::Result<Region> {
+    let url = "region/self";
+    client
+        .get(url)
+        .await
+        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
+            _ => Err(e),
+        })
+}
 
 #[tokio::main]
 pub async fn find_cloud_instance_by_name(
