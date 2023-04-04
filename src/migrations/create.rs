@@ -191,7 +191,7 @@ async fn choice(prompt: &str) -> anyhow::Result<Choice> {
         "stop and save changes (splits migration into multiple)");
     q.option(Quit, &["q", "quit"],
         "quit without saving changes");
-    unblock(move || q.ask()).await?
+    q.async_ask().await
 }
 
 #[context("could not read schema in {}", ctx.schema_dir.display())]

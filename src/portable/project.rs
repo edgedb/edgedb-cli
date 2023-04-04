@@ -12,7 +12,6 @@ use clap::{ValueHint};
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use sha1::Digest;
-use tokio::task::spawn_blocking as unblock;
 
 use edgedb_cli_derive::EdbClap;
 use edgedb_tokio::Builder;
@@ -946,7 +945,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
                     Retry);
                 q.option("Skip migrations.",
                     Skip);
-                match unblock(move || q.ask()).await?? {
+                match q.async_ask().await? {
                     Service => match start(inst) {
                         Ok(()) => continue,
                         Err(e) => {
