@@ -8,13 +8,13 @@ use edgedb_errors::{QueryError};
 
 use crate::async_try;
 use crate::commands::Options;
-use crate::commands::parser::CreateMigration;
 use crate::migrations::context::Context;
 use crate::migrations::create::{CurrentMigration, normal_migration};
 use crate::migrations::create::{execute, query_row, execute_start_migration};
 use crate::migrations::create::{execute_if_connected, unsafe_populate};
 use crate::migrations::migrate::{apply_migrations, apply_migrations_inner};
 use crate::migrations::migration::{self, MigrationFile};
+use crate::migrations::options::CreateMigration;
 use crate::migrations::timeout;
 use crate::portable::ver;
 

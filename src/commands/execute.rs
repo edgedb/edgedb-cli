@@ -2,8 +2,8 @@ use crate::connect::Connection;
 use edgedb_tokio::server_params::PostgresAddress;
 
 use crate::commands::{self, Options};
-use crate::commands::parser::{Common, DatabaseCmd, MigrationCmd};
-use crate::commands::parser::{ListCmd, DescribeCmd};
+use crate::commands::parser::{Common, DatabaseCmd, ListCmd, DescribeCmd};
+use crate::migrations::options::{MigrationCmd};
 use crate::print;
 use crate::migrations;
 

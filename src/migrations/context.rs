@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::commands::parser::MigrationConfig;
+use crate::migrations::options::MigrationConfig;
 use crate::portable::config;
 use crate::portable::repository::Query;
 

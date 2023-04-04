@@ -12,6 +12,7 @@ mod status;
 mod timeout;
 
 pub mod dev_mode;
+pub mod options;
 
 const NULL_MIGRATION: &str = "initial";
 

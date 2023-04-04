@@ -1,6 +1,7 @@
 use crate::cli::options::Command as Cli;
+use crate::commands::parser::Common;
+use crate::migrations::options::MigrationCmd;
 use crate::options::{Options, Command};
-use crate::commands::parser::{Common, MigrationCmd};
 use crate::portable::options::Command as Server;
 use crate::portable::options::InstanceCommand as Instance;
 use crate::portable::project::Command as Project;
