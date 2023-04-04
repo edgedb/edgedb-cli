@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 use std::io::{stdin, BufRead};
 
-use rustyline::{Editor, Config};
 use anyhow::Context;
+use rustyline::{Editor, Config};
+use tokio::task::spawn_blocking;
 
 use crate::print;
 
@@ -89,6 +90,12 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
     }
 }
 
+impl<T: Clone + Send> Numeric<'static, T> {
+    pub async fn async_ask(self) -> anyhow::Result<T> {
+        spawn_blocking(move || self.ask()).await?
+    }
+}
+
 impl<'a> String<'a> {
     pub fn new(question: &'a str) -> String {
         String {
@@ -124,6 +131,13 @@ impl<'a> String<'a> {
         }
         self.initial = Some(val.into());
         return Ok(val.into());
+    }
+}
+
+impl String<'static> {
+    #[allow(dead_code)]
+    pub async fn async_ask(mut self) -> anyhow::Result<std::string::String> {
+        spawn_blocking(move || self.ask()).await?
     }
 }
 
@@ -193,6 +207,13 @@ impl<'a> Confirm<'a> {
     }
 }
 
+impl Confirm<'static> {
+    #[allow(dead_code)]
+    pub async fn async_ask(self) -> anyhow::Result<bool> {
+        spawn_blocking(move || self.ask()).await?
+    }
+}
+
 impl<'a, T: Clone + 'a> Choice<'a, T> {
     pub fn new<Q: Into<Cow<'a, str>>>(question: Q) -> Self {
         Choice {
@@ -251,5 +272,11 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
                          val, options)
             );
         }
+    }
+}
+
+impl<T: Send + Clone> Choice<'static, T> {
+    pub async fn async_ask(self) -> anyhow::Result<T> {
+        spawn_blocking(move || self.ask()).await?
     }
 }

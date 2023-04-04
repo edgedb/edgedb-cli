@@ -177,7 +177,7 @@ async fn _edit(cli: &mut Connection,
                 q.option(OldAction::Replace, &["n", "no"],
                          format!("use original {:?} instead", path));
                 q.option(OldAction::Diff, &["d", "diff"], "show diff");
-                match cli.ping_while(unblock(move || q.ask())).await?? {
+                match cli.ping_while(q.async_ask()).await? {
                     OldAction::Restore => break,
                     OldAction::Replace => {
                         cli.ping_while(fs::copy(&path, &temp_path)).await?;
@@ -218,7 +218,7 @@ async fn _edit(cli: &mut Connection,
                                  "restore original and abort");
                         q.option(InvalidAction::Abort, &["q", "quit"][..],
                                  "abort and keep temporary file");
-                        match cli.ping_while(unblock(move || q.ask())).await?? {
+                        match cli.ping_while(q.async_ask()).await? {
                             InvalidAction::Edit => continue 'edit,
                             InvalidAction::Diff => {
                                 cli.ping_while(async {
@@ -268,7 +268,7 @@ async fn _edit(cli: &mut Connection,
                                  "restore original and abort");
                         q.option(FailAction::Abort, &["q", "quit"][..],
                                  "abort and keep temporary file for later");
-                        match unblock(move || q.ask()).await?? {
+                        match q.async_ask().await? {
                             FailAction::Edit => continue 'edit,
                             FailAction::Force => {
                                 fs::rename(&temp_path, &path).await?;
