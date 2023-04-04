@@ -30,13 +30,7 @@ struct UserSession {
 
 #[derive(Debug, serde::Deserialize)]
 struct User {
-    id: String,
     name: String,
-    full_name: Option<String>,
-    github_handle: Option<String>,
-
-    #[serde(with="humantime_serde")]
-    tos_agreement_date: Option<std::time::SystemTime>,
 }
 
 pub fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
