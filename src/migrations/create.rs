@@ -14,7 +14,7 @@ use edgeql_parser::schema_file::validate;
 use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
 use fn_error_context::context;
 use immutable_chunkmap::set::SetM as Set;
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 use rustyline::error::ReadlineError;
 use serde::Deserialize;
 use tokio::fs;
@@ -726,7 +726,7 @@ async fn _create(cli: &mut Connection, options: &Options,
 }
 
 pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
-                              migrations: &LinkedHashMap<String, MigrationFile>,
+                              migrations: &IndexMap<String, MigrationFile>,
                               create: &CreateMigration)
     -> anyhow::Result<()>
 {

@@ -886,11 +886,11 @@ dependencies = [
  "humantime 2.1.0",
  "humantime-serde",
  "immutable-chunkmap",
+ "indexmap",
  "indicatif",
  "is-terminal",
  "libc",
  "libflate",
- "linked-hash-map",
  "log",
  "minimad",
  "native-tls",
@@ -962,7 +962,7 @@ dependencies = [
  "clap",
  "clap_generate",
  "heck",
- "linked-hash-map",
+ "indexmap",
  "proc-macro-error",
  "proc-macro2",
  "quote",
@@ -1615,12 +1615,13 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "1.9.2"
+version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1885e79c1fc4b10f0e172c475f458b7f7b93061064d98c3293e98c5ba0c8b399"
+checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown",
+ "serde",
 ]
 
 [[package]]
@@ -1784,15 +1785,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a52d3a8bfc85f250440e4424db7d857e241a3aebbbe301f3eb606ab15c39acbf"
 dependencies = [
  "rle-decode-fast",
-]
-
-[[package]]
-name = "linked-hash-map"
-version = "0.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
-dependencies = [
- "serde",
 ]
 
 [[package]]

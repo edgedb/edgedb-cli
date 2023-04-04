@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 use proc_macro2::Span;
 use proc_macro_error::{emit_error, ResultExt};
 use syn::parse::{Parse, Parser, ParseStream};
@@ -72,7 +72,7 @@ pub struct ContainerAttrs {
     pub setting: bool,
     pub rename_all: Case,
     pub inherit: Vec<syn::Type>,
-    pub options: LinkedHashMap<syn::Ident, syn::Expr>,
+    pub options: IndexMap<syn::Ident, syn::Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,7 +104,7 @@ pub struct FieldAttrs {
     pub inheritable: bool,
     pub parse: Option<CliParse>,
     pub default_value: Option<syn::Expr>,
-    pub options: LinkedHashMap<syn::Ident, syn::Expr>,
+    pub options: IndexMap<syn::Ident, syn::Expr>,
 }
 
 pub struct SubcommandAttrs {
@@ -115,7 +115,7 @@ pub struct SubcommandAttrs {
     pub hide: bool,
     pub expand_help: bool,
     pub inherit: Vec<syn::Type>,
-    pub options: LinkedHashMap<syn::Ident, syn::Expr>,
+    pub options: IndexMap<syn::Ident, syn::Expr>,
 }
 
 struct ContainerAttrList(pub Punctuated<ContainerAttr, syn::Token![,]>);
@@ -330,7 +330,7 @@ impl ContainerAttrs {
             setting: false,
             inherit: Vec::new(),
             rename_all: Case::KebabCase,
-            options: LinkedHashMap::new(),
+            options: IndexMap::new(),
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer) &&
@@ -403,7 +403,7 @@ impl FieldAttrs {
             inheritable: false,
             parse: None,
             default_value: None,
-            options: LinkedHashMap::new(),
+            options: IndexMap::new(),
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer) &&
@@ -499,7 +499,7 @@ impl SubcommandAttrs {
             expand_help: false,
             hide: false,
             inherit: Vec::new(),
-            options: LinkedHashMap::new(),
+            options: IndexMap::new(),
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer) &&

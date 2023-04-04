@@ -1,5 +1,5 @@
 use crate::connect::Connection;
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 
 use anyhow::Context as _;
 use indicatif::ProgressBar;
@@ -61,9 +61,9 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar)
     match select_mode(cli, &migrations, db_migration.as_deref()).await? {
         Mode::Normal { skip } => {
             log::info!("Skipping {} revisions.", skip);
-            for _ in 0..skip {
-                migrations.pop_front();
-            }
+            migrations.reverse();
+            migrations.truncate(migrations.len() - skip);
+            migrations.reverse();
             if !migrations.is_empty() {
                 bar.set_message("applying migrations");
                 apply_migrations(cli, &migrations, &ctx).await?;
@@ -85,7 +85,7 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar)
 }
 
 async fn select_mode(cli: &mut Connection,
-                     migrations: &LinkedHashMap<String, MigrationFile>,
+                     migrations: &IndexMap<String, MigrationFile>,
                      db_migration: Option<&str>)
     -> anyhow::Result<Mode>
 {
@@ -95,7 +95,7 @@ async fn select_mode(cli: &mut Connection,
                 return Ok(Mode::Normal { skip: idx+1 });
             }
         }
-        let last_fs_migration = migrations.back().map(|(id, _)| id.clone());
+        let last_fs_migration = migrations.last().map(|(id, _)| id.clone());
         if let Some(id) = last_fs_migration {
             let contains_last_fs_migration: bool =
                 cli.query_required_single(r###"
@@ -200,7 +200,7 @@ async fn _migrate_to_schema(cli: &mut Connection, ctx: &Context)
 }
 
 async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
-                          migrations: &LinkedHashMap<String, MigrationFile>)
+                          migrations: &IndexMap<String, MigrationFile>)
     -> anyhow::Result<()>
 {
     execute(cli, "START MIGRATION REWRITE").await?;
@@ -228,7 +228,7 @@ async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
 }
 
 async fn create_in_rewrite(ctx: &Context, cli: &mut Connection,
-                           migrations: &LinkedHashMap<String, MigrationFile>,
+                           migrations: &IndexMap<String, MigrationFile>,
                            create: &CreateMigration)
     -> anyhow::Result<()>
 {

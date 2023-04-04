@@ -14,7 +14,7 @@ quote = "1.0.9"
 proc-macro2 = "1.0.36"
 proc-macro-error = "1.0.4"
 trybuild = "1.0.19"
-linked-hash-map = "0.5.4"
+indexmap = "1.9.3"
 heck = "0.4.0"
 
 [lib]

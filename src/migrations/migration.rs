@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context as _;
 use edgeql_parser::hash::{self, Hasher};
 use fn_error_context::context;
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 use tokio::fs;
 use tokio::io;
 
@@ -128,7 +128,7 @@ pub fn file_num(path: &Path) -> Option<u64> {
 
 #[context("could not read migrations in {}", dir.display())]
 async fn _read_all(dir: &Path, validate_hashes: bool)
-    -> anyhow::Result<LinkedHashMap<String, MigrationFile>>
+    -> anyhow::Result<IndexMap<String, MigrationFile>>
 {
     let mut all = HashMap::new();
     for path in _read_names(dir).await? {
@@ -153,9 +153,9 @@ async fn _read_all(dir: &Path, validate_hashes: bool)
 }
 
 fn sort_revisions(mut all: HashMap<String, MigrationFile>)
-    -> anyhow::Result<LinkedHashMap<String, MigrationFile>>
+    -> anyhow::Result<IndexMap<String, MigrationFile>>
 {
-    let mut res = LinkedHashMap::new();
+    let mut res = IndexMap::new();
     let mut counter = 1;
     let mut parent_id = String::from(NULL_MIGRATION);
     while !all.is_empty() {
@@ -195,7 +195,7 @@ fn sort_revisions(mut all: HashMap<String, MigrationFile>)
 }
 
 pub async fn read_all(ctx: &Context, validate_hashes: bool)
-    -> anyhow::Result<LinkedHashMap<String, MigrationFile>>
+    -> anyhow::Result<IndexMap<String, MigrationFile>>
 {
     _read_all(ctx.schema_dir.join("migrations").as_ref(), validate_hashes)
         .await

@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::Context as _;
 use colorful::Colorful;
 use indicatif::ProgressBar;
-use linked_hash_map::LinkedHashMap;
+use indexmap::IndexMap;
 use tokio::fs;
 
 use crate::commands::ExitCode;
@@ -18,14 +18,15 @@ use crate::migrations::timeout;
 use crate::print;
 
 
-fn skip_revisions(migrations: &mut LinkedHashMap<String, MigrationFile>,
+fn skip_revisions(migrations: &mut IndexMap<String, MigrationFile>,
     db_migration: &str)
     -> anyhow::Result<()>
 {
-    while let Some((key, _)) = migrations.pop_front() {
-        if key == db_migration {
-            return Ok(())
-        }
+    migrations.reverse();
+    if let Some(idx) = migrations.get_index_of(db_migration) {
+        migrations.truncate(idx);
+        migrations.reverse();
+        return Ok(())
     }
     anyhow::bail!("There is no database revision {} \
         in the filesystem. Consider updating sources.",
@@ -127,9 +128,9 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
         skip_revisions(&mut migrations, db_migration)?;
     };
     if let Some(target_rev) = &target_rev {
-        while let Some((key, _)) = migrations.back() {
+        while let Some((key, _)) = migrations.last() {
             if key != target_rev {
-                migrations.pop_back();
+                migrations.pop();
             } else {
                 break;
             }
@@ -168,7 +169,7 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
 }
 
 pub async fn apply_migrations(cli: &mut Connection,
-    migrations: &LinkedHashMap<String, MigrationFile>, ctx: &Context)
+    migrations: &IndexMap<String, MigrationFile>, ctx: &Context)
     -> anyhow::Result<()>
 {
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
@@ -197,7 +198,7 @@ pub async fn apply_migrations(cli: &mut Connection,
 }
 
 pub async fn apply_migrations_inner(cli: &mut Connection,
-    migrations: &LinkedHashMap<String, MigrationFile>, quiet: bool)
+    migrations: &IndexMap<String, MigrationFile>, quiet: bool)
     -> anyhow::Result<()>
 {
     for (_, migration) in migrations {
