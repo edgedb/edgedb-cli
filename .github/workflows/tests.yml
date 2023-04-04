@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 45
     strategy:
       matrix:
-        os: [ubuntu-18.04, ubuntu-latest, macos-latest, windows-2019]
+        os: [ubuntu-20.04, ubuntu-latest, macos-latest, windows-2019]
         # migrations tests work only on nightly
         edgedb-version: ["nightly"]
     steps:
