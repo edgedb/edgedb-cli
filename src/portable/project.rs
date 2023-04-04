@@ -912,7 +912,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
     -> anyhow::Result<()>
 {
     use crate::commands::Options;
-    use crate::commands::parser::{Migrate, MigrationConfig};
+    use crate::migrations::options::{Migrate, MigrationConfig};
     use Action::*;
 
     #[derive(Clone, Copy)]

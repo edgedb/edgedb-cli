@@ -23,13 +23,13 @@ use tokio::task::spawn_blocking as unblock;
 
 use crate::async_try;
 use crate::bug;
-use crate::commands::parser::CreateMigration;
 use crate::commands::{Options, ExitCode};
 use crate::error_display::print_query_error;
 use crate::highlight;
 use crate::migrations::context::Context;
 use crate::migrations::dev_mode;
 use crate::migrations::migration::{self, MigrationFile};
+use crate::migrations::options::CreateMigration;
 use crate::migrations::print_error::print_migration_error;
 use crate::migrations::prompt;
 use crate::migrations::source_map::{Builder, SourceMap};

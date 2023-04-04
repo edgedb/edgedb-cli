@@ -3,7 +3,7 @@ use std::collections::{BTreeSet, BTreeMap};
 use edgedb_derive::Queryable;
 
 use crate::commands::Options;
-use crate::commands::parser::MigrationLog;
+use crate::migrations::options::MigrationLog;
 use crate::connect::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::migration;

@@ -2,7 +2,7 @@ use colorful::Colorful;
 use crate::connect::Connection;
 
 use crate::commands::{Options, ExitCode};
-use crate::commands::parser::ShowStatus;
+use crate::migrations::options::ShowStatus;
 use crate::migrations::context::Context;
 use crate::migrations::create::{execute_start_migration, CurrentMigration};
 use crate::migrations::migration;

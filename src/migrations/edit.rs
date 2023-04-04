@@ -5,12 +5,12 @@ use tokio::fs;
 use tokio::task::spawn_blocking as unblock;
 
 use crate::commands::Options;
-use crate::commands::parser::MigrationEdit;
 use crate::connect::Connection;
 use crate::error_display::print_query_error;
 use crate::migrations::context::Context;
 use crate::migrations::grammar::parse_migration;
 use crate::migrations::migration::{read_names, file_num};
+use crate::migrations::options::MigrationEdit;
 use crate::platform::{tmp_file_path, spawn_editor};
 use crate::print::{echo, err_marker, Highlight};
 use crate::question::Choice;
