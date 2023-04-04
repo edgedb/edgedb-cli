@@ -107,6 +107,7 @@ tokio = {version="1.23.0",features=[
 ]}
 dissimilar = "1.0.6"
 notify = "5.0.0"
+gethostname = "0.4.1"
 
 [dev-dependencies]
 assert_cmd = "2.0.8"

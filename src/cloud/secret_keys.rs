@@ -16,27 +16,27 @@ use crate::question;
 use crate::print::{self, Highlight};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
-struct SecretKey {
-    id: String,
-    name: Option<String>,
-    description: Option<String>,
-    scopes: Vec<String>,
+pub struct SecretKey {
+    pub id: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub scopes: Vec<String>,
 
     #[serde(with="humantime_serde")]
-    created_on: std::time::SystemTime,
+    pub created_on: std::time::SystemTime,
 
     #[serde(with = "humantime_serde")]
-    expires_on: Option<std::time::SystemTime>,
+    pub expires_on: Option<std::time::SystemTime>,
 
-    secret_key: Option<String>,
+    pub secret_key: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
-struct CreateSecretKeyInput {
-    name: Option<String>,
-    description: Option<String>,
-    scopes: Option<Vec<String>>,
-    ttl: Option<String>,
+pub struct CreateSecretKeyInput {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub scopes: Option<Vec<String>>,
+    pub ttl: Option<String>,
 }
 
 pub fn main(cmd: &SecretKeyCommand, options: &CloudOptions) -> anyhow::Result<()> {
@@ -135,7 +135,7 @@ pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> a
         Some(s) => Some(s),
     };
 
-    let key: SecretKey = client.post("secretkeys/", &params).await?;
+    let key: SecretKey = create_secret_key(client, &params).await?;
 
     if c.json {
         println!("{}", serde_json::to_string_pretty(&key)?);
@@ -153,6 +153,10 @@ pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> a
     }
 
     Ok(())
+}
+
+pub async fn create_secret_key(client: &CloudClient, params: &CreateSecretKeyInput) -> anyhow::Result<SecretKey> {
+   client.post("secretkeys/", params).await
 }
 
 pub fn revoke(c: &options::RevokeSecretKey, options: &CloudOptions) -> anyhow::Result<()> {
