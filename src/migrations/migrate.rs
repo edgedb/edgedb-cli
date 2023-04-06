@@ -6,6 +6,7 @@ use indicatif::ProgressBar;
 use indexmap::IndexMap;
 use tokio::fs;
 
+use crate::async_try;
 use crate::commands::ExitCode;
 use crate::commands::Options;
 use crate::connect::Connection;
@@ -173,28 +174,26 @@ pub async fn apply_migrations(cli: &mut Connection,
     -> anyhow::Result<()>
 {
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
-    let transaction = async {
-        cli.execute("START TRANSACTION", &()).await?;
-        match apply_migrations_inner(cli, migrations, ctx.quiet).await {
-            Ok(()) => {
-                cli.execute("COMMIT", &()).await?;
-                Ok(())
-            }
-            Err(e) => {
-                if cli.is_consistent() {
-                    cli.execute("ROLLBACK", &()).await.ok();
+    async_try! {
+        async {
+            cli.execute("START TRANSACTION", &()).await?;
+            match apply_migrations_inner(cli, migrations, ctx.quiet).await {
+                Ok(()) => {
+                    cli.execute("COMMIT", &()).await?;
+                    Ok(())
                 }
-                Err(e)
+                Err(e) => {
+                    if cli.is_consistent() {
+                        cli.execute("ROLLBACK", &()).await.ok();
+                    }
+                    Err(e)
+                }
             }
+        },
+        finally async {
+            timeout::restore_for_transaction(cli, old_timeout).await
         }
-    }.await;
-    if cli.is_consistent() {
-        let timeout = timeout::restore_for_transaction(cli, old_timeout).await;
-        transaction.and(timeout)?;
-    } else {
-        transaction?;
-    };
-    Ok(())
+    }
 }
 
 pub async fn apply_migrations_inner(cli: &mut Connection,

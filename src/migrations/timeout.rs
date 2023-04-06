@@ -20,10 +20,12 @@ pub async fn inhibit_for_transaction(cli: &mut Connection)
 pub async fn restore_for_transaction(cli: &mut Connection, old: Duration)
     -> Result<(), anyhow::Error>
 {
-    cli.execute(&format!(
-       "CONFIGURE SESSION SET session_idle_transaction_timeout \
-           := <std::duration>{}",
-       quote_string(&old.to_string())
-    ), &()).await?;
+    if cli.is_consistent() {
+        cli.execute(&format!(
+           "CONFIGURE SESSION SET session_idle_transaction_timeout \
+               := <std::duration>{}",
+           quote_string(&old.to_string())
+        ), &()).await?;
+    }
     Ok(())
 }
