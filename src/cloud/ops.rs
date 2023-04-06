@@ -234,7 +234,7 @@ pub fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
         "You're not authenticated to the EdgeDB Cloud yet, login now?",
     );
     if q.default(true).ask()? {
-        crate::cloud::auth::do_login(&client)?;
+        crate::cloud::auth::do_login(client)?;
         client.reinit()?;
         client.ensure_authenticated()?;
         Ok(())

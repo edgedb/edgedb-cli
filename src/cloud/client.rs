@@ -259,6 +259,11 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
         Ok(())
     }
 
+    pub fn set_secret_key(&mut self, key: Option<&String>) -> anyhow::Result<()> {
+        self.options_secret_key = key.cloned();
+        self.reinit()
+    }
+
     pub fn ensure_authenticated(&self) -> anyhow::Result<()> {
         if self.is_logged_in {
             Ok(())

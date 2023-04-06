@@ -7,7 +7,8 @@ use tokio::time::sleep;
 use anyhow::Context;
 use fs_err as fs;
 
-use crate::cloud::client::{cloud_config_dir, cloud_config_file, CloudClient, CloudConfig};
+use crate::cloud::client::{cloud_config_dir, cloud_config_file, CloudClient, CloudConfig, ErrorResponse};
+use crate::cloud::secret_keys::{CreateSecretKeyInput, SecretKey};
 use crate::cloud::options;
 use crate::commands::ExitCode;
 use crate::options::CloudOptions;
@@ -27,16 +28,42 @@ struct UserSession {
     auth_url: String,
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct User {
+    name: String,
+}
+
 pub fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> {
-    do_login(&CloudClient::new(options)?)
+    let mut client = CloudClient::new(options)?;
+    do_login(&mut client)
 }
 
 #[tokio::main]
-pub async fn do_login(client: &CloudClient) -> anyhow::Result<()> {
+pub async fn do_login(client: &mut CloudClient) -> anyhow::Result<()> {
     _do_login(client).await
 }
 
-pub async fn _do_login(client: &CloudClient) -> anyhow::Result<()> {
+pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
+    // See if we're already logged in.
+    let user_resp: anyhow::Result<User> = client.get("user").await;
+
+    match user_resp {
+        Ok(user) => {
+            print::success(format!(
+                "Already logged in as {}.", user.name));
+            return Ok(());
+        },
+        Err(ref err) if matches!(
+            err.downcast_ref::<ErrorResponse>(),
+            Some(ErrorResponse { code: reqwest::StatusCode::UNAUTHORIZED, .. })
+        ) => {
+            // Fallthrough.
+        },
+        Err(err) => {
+            return Err(err);
+        }
+    }
+
     let UserSession {
         id,
         auth_url,
@@ -60,14 +87,30 @@ pub async fn _do_login(client: &CloudClient) -> anyhow::Result<()> {
                 auth_url: _,
                 token: Some(secret_key),
             }) => {
+                // `token` is a short-lived secret key, obtain a
+                // non-expiring secret key from the secretkeys/ API now.
+                client.set_secret_key(Some(&secret_key))?;
+                let hostname = gethostname::gethostname();
+                let key: SecretKey = client.post("secretkeys/", &CreateSecretKeyInput{
+                    name: Some(format!("CLI @ {hostname:#?}")),
+                    description: None,
+                    scopes: None,
+                    ttl: None,
+                }).await?;
+
                 write_json(
                     &cloud_config_file(&client.profile)?,
                     "cloud config",
                     &CloudConfig {
-                        secret_key: Some(secret_key),
+                        secret_key: key.secret_key,
                     },
                 )?;
-                print::success("Successfully authenticated to EdgeDB Cloud.");
+                client.set_secret_key(None)?;
+
+                let user: User = client.get("user").await?;
+                print::success(format!(
+                    "Successfully logged in to EdgeDB Cloud as {}.",
+                    user.name));
                 return Ok(());
             }
             Err(e) => print::warn(format!(
