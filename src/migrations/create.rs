@@ -710,18 +710,20 @@ async fn _create(cli: &mut Connection, options: &Options,
 
     let migrations = migration::read_all(&ctx, true).await?;
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
-    // This decision must be done early on because of the bug in EdgeDB:
-    //   https://github.com/edgedb/edgedb/issues/3958
-    let exec = if migrations.len() == 0 {
-        first_migration(cli, &ctx, create).await
-    } else {
-        normal_migration(cli, &ctx, &migrations, create).await
-    };
-    if cli.is_consistent() {
-        let timeout = timeout::restore_for_transaction(cli, old_timeout).await;
-        exec.and(timeout)
-    } else {
-        exec
+    async_try! {
+        async {
+            // This decision must be done early on because
+            // of the bug in EdgeDB:
+            //   https://github.com/edgedb/edgedb/issues/3958
+            if migrations.len() == 0 {
+                first_migration(cli, &ctx, create).await
+            } else {
+                normal_migration(cli, &ctx, &migrations, create).await
+            }
+        },
+        finally async {
+            timeout::restore_for_transaction(cli, old_timeout).await
+        }
     }
 }
 

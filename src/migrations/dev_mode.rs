@@ -244,19 +244,21 @@ pub async fn create(cli: &mut Connection, ctx: &Context, _options: &Options,
     let migrations = migration::read_all(&ctx, true).await?;
 
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
-    execute(cli, "START MIGRATION REWRITE").await?;
-
-    let res = create_in_rewrite(ctx, cli, &migrations, create).await;
-    let drop_res = if cli.is_consistent() {
-        execute(cli, "ABORT MIGRATION REWRITE").await
-            .context("migration rewrite cleanup")
-    } else {
-        Ok(())
-    };
-    let timeo_res = if cli.is_consistent() {
-        timeout::restore_for_transaction(cli, old_timeout).await
-    } else {
-        Ok(())
-    };
-    res.and(drop_res).and(timeo_res)
+    async_try! {
+        async {
+            execute(cli, "START MIGRATION REWRITE").await?;
+            async_try! {
+                async {
+                    create_in_rewrite(ctx, cli, &migrations, create).await
+                },
+                finally async {
+                    execute_if_connected(cli, "ABORT MIGRATION REWRITE").await
+                        .context("migration rewrite cleanup")
+                }
+            }
+        },
+        finally async {
+            timeout::restore_for_transaction(cli, old_timeout).await
+        }
+    }
 }
