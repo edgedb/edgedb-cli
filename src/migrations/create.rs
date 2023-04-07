@@ -3,7 +3,6 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use colorful::Colorful;
-use crate::connect::Connection;
 use edgedb_derive::Queryable;
 use edgedb_errors::{Error, QueryError, InvalidSyntaxError};
 use edgedb_errors::{ErrorKind, ClientConnectionEosError};
@@ -14,7 +13,7 @@ use edgeql_parser::schema_file::validate;
 use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
 use fn_error_context::context;
 use immutable_chunkmap::set::SetM as Set;
-use indexmap::IndexMap;
+use once_cell::sync::OnceCell;
 use rustyline::error::ReadlineError;
 use serde::Deserialize;
 use tokio::fs;
@@ -24,15 +23,17 @@ use tokio::task::spawn_blocking as unblock;
 use crate::async_try;
 use crate::bug;
 use crate::commands::{Options, ExitCode};
+use crate::connect::Connection;
 use crate::error_display::print_query_error;
 use crate::highlight;
 use crate::migrations::context::Context;
 use crate::migrations::dev_mode;
-use crate::migrations::migration::{self, MigrationFile};
+use crate::migrations::migration;
 use crate::migrations::options::CreateMigration;
 use crate::migrations::print_error::print_migration_error;
 use crate::migrations::prompt;
 use crate::migrations::source_map::{Builder, SourceMap};
+use crate::migrations::squash;
 use crate::migrations::timeout;
 use crate::platform::tmp_file_name;
 use crate::print::style::Styler;
@@ -96,6 +97,20 @@ pub struct CurrentMigration {
     pub proposed: Option<Proposal>,
 }
 
+#[derive(Debug)]
+pub enum MigrationKey {
+    Index(u64),
+    Fixup { target_revision: String },
+}
+
+#[derive(Debug)]
+pub struct FutureMigration {
+    key: MigrationKey,
+    parent: String,
+    statements: Vec<String>,
+    id: OnceCell<String>,
+}
+
 struct InteractiveMigration<'a> {
     cli: &'a mut Connection,
     save_point: usize,
@@ -116,6 +131,36 @@ struct SplitMigration;
          Please run `edgedb migration create` in interactive mode.")]
 struct CantResolve;
 
+
+impl FutureMigration {
+    fn new(key: MigrationKey, descr: CurrentMigration) -> Self {
+        FutureMigration {
+            key,
+            parent: descr.parent,
+            statements: descr.confirmed,
+            id: OnceCell::new(),
+        }
+    }
+    pub fn empty(key: MigrationKey, parent: &str) -> Self {
+        FutureMigration {
+            key,
+            parent: parent.to_owned(),
+            statements: Vec::new(),
+            id: OnceCell::new(),
+        }
+    }
+    pub fn id(&self) -> anyhow::Result<&str> {
+        let FutureMigration { ref parent, ref statements, ref id, .. } = self;
+        id.get_or_try_init(|| {
+            let mut hasher = Hasher::start_migration(parent);
+            for statement in statements {
+                hasher.add_source(&statement)
+                    .map_err(|e| migration::hashing_error(statement, e))?;
+            }
+            Ok(hasher.make_migration_id())
+        }).map(|s| &s[..])
+    }
+}
 
 pub async fn execute(cli: &mut Connection, text: impl AsRef<str>)
     -> Result<(), Error>
@@ -232,38 +277,35 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
     }
 }
 
-async fn first_migration(cli: &mut Connection, ctx: &Context,
+pub async fn first_migration(cli: &mut Connection, ctx: &Context,
                          options: &CreateMigration)
-    -> anyhow::Result<()>
+    -> anyhow::Result<FutureMigration>
 {
     execute_start_migration(&ctx, cli).await?;
-    let exec = async {
-        execute(cli, "POPULATE MIGRATION").await?;
-        let descr = query_row::<CurrentMigration>(cli,
-            "DESCRIBE CURRENT MIGRATION AS JSON"
-        ).await?;
-        if descr.parent != "initial" {
-            // We know there are zero revisions in the filesystem
-            anyhow::bail!("There is no database revision {} \
-                in the filesystem. Consider updating sources.",
-                descr.parent);
+    async_try! {
+        async {
+            execute(cli, "POPULATE MIGRATION").await?;
+            let descr = query_row::<CurrentMigration>(cli,
+                "DESCRIBE CURRENT MIGRATION AS JSON"
+            ).await?;
+            if descr.parent != "initial" {
+                // We know there are zero revisions in the filesystem
+                anyhow::bail!("There is no database revision {} \
+                    in the filesystem. Consider updating sources.",
+                    descr.parent);
+            }
+            if !descr.complete {
+                return Err(bug::error("First migration populated is not complete"));
+            }
+            if descr.confirmed.is_empty() && !options.allow_empty {
+                print::warn("No schema changes detected.");
+                return Err(ExitCode::new(4))?;
+            }
+            Ok(FutureMigration::new(MigrationKey::Index(1), descr))
+        },
+        finally async {
+            execute_if_connected(cli, "ABORT MIGRATION").await
         }
-        if !descr.complete {
-            return Err(bug::error("First migration populated is not complete"));
-        }
-        if descr.confirmed.is_empty() && !options.allow_empty {
-            print::warn("No schema changes detected.");
-            return Err(ExitCode::new(4))?;
-        }
-        write_migration(ctx, &descr, 1, !options.non_interactive).await?;
-        Ok(())
-    }.await;
-    if cli.is_consistent() {
-        let abort = cli.execute("ABORT MIGRATION", &()).await
-            .map(|_| ()).map_err(|e| e.into());
-        return exec.and(abort)
-    } else {
-        return exec
     }
 }
 
@@ -403,9 +445,9 @@ async fn non_interactive_populate(_ctx: &Context, cli: &mut Connection)
     }
 }
 
-async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
-    options: &CreateMigration)
-    -> anyhow::Result<()>
+async fn run_non_interactive(ctx: &Context, cli: &mut Connection,
+                             key: MigrationKey, options: &CreateMigration)
+    -> anyhow::Result<FutureMigration>
 {
     let descr = if options.allow_unsafe {
         unsafe_populate(ctx, cli).await?
@@ -416,8 +458,7 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection, index: u64,
         print::warn("No schema changes detected.");
         return Err(ExitCode::new(4))?;
     }
-    write_migration(ctx, &descr, index, false).await?;
-    Ok(())
+    Ok(FutureMigration::new(key, descr))
 }
 
 impl InteractiveMigration<'_> {
@@ -609,9 +650,9 @@ impl InteractiveMigration<'_> {
 }
 
 
-async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
-    options: &CreateMigration)
-    -> anyhow::Result<()>
+async fn run_interactive(_ctx: &Context, cli: &mut Connection,
+                         key: MigrationKey, options: &CreateMigration)
+    -> anyhow::Result<FutureMigration>
 {
     let descr = InteractiveMigration::new(cli).run().await?;
 
@@ -619,33 +660,32 @@ async fn run_interactive(ctx: &Context, cli: &mut Connection, index: u64,
         print::warn("No schema changes detected.");
         return Err(ExitCode::new(4))?;
     }
-    write_migration(ctx, &descr, index, true).await?;
-    Ok(())
+    Ok(FutureMigration::new(key, descr))
 }
 
-pub async fn write_migration(ctx: &Context, descr: &CurrentMigration,
-    index: u64, verbose: bool)
+pub async fn write_migration(ctx: &Context, descr: &FutureMigration,
+    verbose: bool)
     -> anyhow::Result<()>
 {
-    let dir = ctx.schema_dir.join("migrations");
-    let filename = dir.join(format!("{:05}.edgeql", index));
+    let filename = match &descr.key {
+        MigrationKey::Index(idx) => {
+            let dir = ctx.schema_dir.join("migrations");
+            dir.join(format!("{:05}.edgeql", idx))
+        }
+        MigrationKey::Fixup { target_revision } => {
+            let dir = ctx.schema_dir.join("fixups");
+            dir.join(format!("{}-{}.edgeql", descr.parent, target_revision))
+        }
+    };
     _write_migration(descr, filename.as_ref(), verbose).await
 }
 
 #[context("could not write migration file {}", filepath.display())]
-async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
+async fn _write_migration(descr: &FutureMigration, filepath: &Path,
     verbose: bool)
     -> anyhow::Result<()>
 {
-    let statements = descr.confirmed.iter()
-        .map(|s| s.clone())
-        .collect::<Vec<_>>();
-    let mut hasher = Hasher::start_migration(&descr.parent);
-    for statement in &statements {
-        hasher.add_source(&statement)
-            .map_err(|e| migration::hashing_error(statement, e))?;
-    }
-    let id = hasher.make_migration_id();
+    let id = descr.id()?;
     let dir = filepath.parent().unwrap();
     let tmp_file = filepath.with_file_name(tmp_file_name(&filepath.as_ref()));
     if !fs::metadata(filepath).await.is_ok() {
@@ -656,7 +696,7 @@ async fn _write_migration(descr: &CurrentMigration, filepath: &Path,
     file.write(format!("CREATE MIGRATION {}\n", id).as_bytes()).await?;
     file.write(format!("    ONTO {}\n", descr.parent).as_bytes()).await?;
     file.write(b"{\n").await?;
-    for statement in &statements {
+    for statement in &descr.statements {
         for line in statement.lines() {
             file.write(&format!("  {}\n", line).as_bytes()).await?;
         }
@@ -684,10 +724,14 @@ pub async fn create(cli: &mut Connection, options: &Options,
     create: &CreateMigration)
     -> anyhow::Result<()>
 {
-    let old_state = cli.set_ignore_error_state();
-    let res = _create(cli, options, create).await;
-    cli.restore_state(old_state);
-    return res;
+    if create.squash {
+        squash::main(cli, options, create).await
+    } else {
+        let old_state = cli.set_ignore_error_state();
+        let res = _create(cli, options, create).await;
+        cli.restore_state(old_state);
+        return res;
+    }
 }
 
 async fn _create(cli: &mut Connection, options: &Options,
@@ -710,7 +754,7 @@ async fn _create(cli: &mut Connection, options: &Options,
 
     let migrations = migration::read_all(&ctx, true).await?;
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
-    async_try! {
+    let migration = async_try! {
         async {
             // This decision must be done early on because
             // of the bug in EdgeDB:
@@ -718,19 +762,24 @@ async fn _create(cli: &mut Connection, options: &Options,
             if migrations.len() == 0 {
                 first_migration(cli, &ctx, create).await
             } else {
-                normal_migration(cli, &ctx, &migrations, create).await
+                let key = MigrationKey::Index((migrations.len() + 1) as u64);
+                let parent = migrations.keys().last().map(|x| &x[..]);
+                normal_migration(cli, &ctx, key, parent, create).await
             }
         },
         finally async {
             timeout::restore_for_transaction(cli, old_timeout).await
         }
-    }
+    }?;
+    write_migration(&ctx, &migration, !create.non_interactive).await?;
+    Ok(())
 }
 
 pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
-                              migrations: &IndexMap<String, MigrationFile>,
+                              key: MigrationKey,
+                              ensure_parent: Option<&str>,
                               create: &CreateMigration)
-    -> anyhow::Result<()>
+    -> anyhow::Result<FutureMigration>
 {
     execute_start_migration(&ctx, cli).await?;
     async_try! {
@@ -741,23 +790,22 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
             let db_migration = if descr.parent == "initial" {
                 None
             } else {
-                Some(&descr.parent)
+                Some(&descr.parent[..])
             };
-            if db_migration != migrations.keys().last() {
+            if db_migration != ensure_parent {
                 anyhow::bail!("Database must be updated to the last migration \
                     on the filesystem for `migration create`. Run:\n  \
                     edgedb migrate");
             }
 
-            let num_migrations = migrations.len() as u64 +1;
             if create.non_interactive {
-                run_non_interactive(&ctx, cli, num_migrations, &create).await
+                run_non_interactive(&ctx, cli, key, &create).await
             } else {
                 if create.allow_unsafe {
                     log::warn!("The `--allow-unsafe` flag is unused \
                                 in interactive mode");
                 }
-                run_interactive(&ctx, cli, num_migrations, &create).await
+                run_interactive(&ctx, cli, key, &create).await
             }
         },
         finally async {

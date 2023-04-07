@@ -10,6 +10,7 @@ use crate::async_try;
 use crate::commands::Options;
 use crate::migrations::context::Context;
 use crate::migrations::create::{CurrentMigration, normal_migration};
+use crate::migrations::create::{MigrationKey};
 use crate::migrations::create::{execute, query_row, execute_start_migration};
 use crate::migrations::create::{execute_if_connected, unsafe_populate};
 use crate::migrations::migrate::{apply_migrations, apply_migrations_inner};
@@ -233,7 +234,9 @@ async fn create_in_rewrite(ctx: &Context, cli: &mut Connection,
     -> anyhow::Result<()>
 {
     apply_migrations_inner(cli, migrations, true).await?;
-    normal_migration(cli, ctx, migrations, create).await?;
+    let key = MigrationKey::Index((migrations.len() + 1) as u64);
+    let parent = migrations.keys().last().map(|x| &x[..]);
+    normal_migration(cli, ctx, key, parent, create).await?;
     Ok(())
 }
 
