@@ -44,6 +44,11 @@ pub struct MigrationConfig {
 pub struct CreateMigration {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
+    /// Squash all migrations into one and optionally provide fixup migration.
+    ///
+    /// Note: this discards data migrations.
+    #[clap(long)]
+    pub squash: bool,
     /// Do not ask questions. By default works only if "safe" changes are
     /// to be done. Unless `--allow-unsafe` is also specified.
     #[clap(long)]

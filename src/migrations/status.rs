@@ -1,15 +1,18 @@
 use colorful::Colorful;
-use crate::connect::Connection;
+use indexmap::IndexMap;
 
+use crate::async_try;
 use crate::commands::{Options, ExitCode};
-use crate::migrations::options::ShowStatus;
+use crate::connect::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::create::{execute_start_migration, CurrentMigration};
-use crate::migrations::migration;
+use crate::migrations::create::{execute_if_connected};
+use crate::migrations::migration::{self, MigrationFile};
+use crate::migrations::options::ShowStatus;
 use crate::print;
 
 
-async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
+async fn ensure_diff_is_empty(cli: &mut Connection, ctx: &Context)
     -> Result<(), anyhow::Error>
 {
     let data = cli.query_required_single::<CurrentMigration, _>(
@@ -17,7 +20,7 @@ async fn ensure_diff_is_empty(cli: &mut Connection, status: &ShowStatus)
         &(),
     ).await?;
     if !data.confirmed.is_empty() || !data.complete {
-        if !status.quiet {
+        if !ctx.quiet {
             eprintln!("Detected differences between \
                 the database schema and the schema source, \
                 in particular:");
@@ -48,13 +51,38 @@ pub async fn status(cli: &mut Connection, _options: &Options,
 {
     let ctx = Context::from_project_or_config(&status.cfg, status.quiet).await?;
     let migrations = migration::read_all(&ctx, true).await?;
+    match up_to_date_check(cli, &ctx, &migrations).await? {
+        Some(_) if status.quiet => Ok(()),
+        Some(migration) => {
+            if print::use_color() {
+                eprintln!(
+                    "{} Last migration: {}.",
+                    "Database is up to date.".bold().light_green(),
+                    migration.bold().white(),
+                );
+            } else {
+                eprintln!(
+                    "Database is up to date. Last migration: {}.",
+                    migration,
+                );
+            }
+            Ok(())
+        }
+        None => Err(ExitCode::new(3).into()),
+    }
+}
+
+pub async fn migrations_applied(cli: &mut Connection, ctx: &Context,
+                                migrations: &IndexMap<String, MigrationFile>)
+    -> Result<Option<String>, anyhow::Error>
+{
     let db_migration: Option<String> = cli.query_single(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
             SELECT name := assert_single(Last.name)
         "###, &()).await?;
     if db_migration.as_ref() != migrations.keys().last() {
-        if !status.quiet {
+        if !ctx.quiet {
             if let Some(db_migration) = &db_migration {
                 if let Some(_) = migrations.get(db_migration) {
                     let mut iter = migrations.keys()
@@ -87,33 +115,28 @@ pub async fn status(cli: &mut Connection, _options: &Options,
                 eprintln!("  Run `edgedb migrate` to apply.");
             }
         }
-        return Err(ExitCode::new(3).into());
+        return Ok(None);
     }
-    execute_start_migration(&ctx, cli).await?;
-    let check = ensure_diff_is_empty(cli, status).await;
-    let abort = cli.execute("ABORT MIGRATION", &()).await.map_err(|e| e.into());
-    check.and(abort)?;
-    if !status.quiet {
-        if print::use_color() {
-            eprintln!(
-                "{} Last migration: {}.",
-                "Database is up to date.".bold().light_green(),
-                db_migration
-                    .as_ref()
-                    .map(|x| &x[..])
-                    .unwrap_or("initial")
-                    .bold()
-                    .white(),
-            );
-        } else {
-            eprintln!(
-                "Database is up to date. Last migration: {}.",
-                db_migration
-                    .as_ref()
-                    .map(|x| &x[..])
-                    .unwrap_or("initial"),
-            );
+    Ok(Some(db_migration.unwrap_or_else(|| String::from("initial"))))
+}
+
+pub async fn up_to_date_check(cli: &mut Connection, ctx: &Context,
+                              migrations: &IndexMap<String, MigrationFile>)
+    -> Result<Option<String>, anyhow::Error>
+{
+    let result = migrations_applied(cli, ctx, migrations).await?;
+    if result.is_none() {
+        // No sense checking database difference
+        return Ok(None);
+    }
+    execute_start_migration(ctx, cli).await?;
+    async_try! {
+        async {
+            ensure_diff_is_empty(cli, ctx).await
+        },
+        finally async {
+            execute_if_connected(cli, "ABORT MIGRATION").await
         }
-    }
-    Ok(())
+    }?;
+    Ok(result)
 }

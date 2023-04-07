@@ -8,6 +8,7 @@ mod migration;
 mod print_error;
 mod prompt;
 mod source_map;
+mod squash;
 mod status;
 mod timeout;
 
