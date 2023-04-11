@@ -177,7 +177,7 @@ pub struct Create {
     #[clap(long, default_value="edgedb")]
     pub default_user: String,
 
-    /// Do not ask questions, assume user wants to delete instance
+    /// Do not ask questions, assume user wants to create instance
     #[clap(long)]
     pub non_interactive: bool,
 }
