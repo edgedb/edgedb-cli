@@ -7,12 +7,13 @@ use once_cell::sync::Lazy;
 use edgedb_errors::{QueryError};
 
 use crate::async_try;
+use crate::bug;
 use crate::commands::Options;
 use crate::migrations::context::Context;
 use crate::migrations::create::{CurrentMigration, normal_migration};
 use crate::migrations::create::{MigrationKey};
-use crate::migrations::create::{execute, query_row, execute_start_migration};
-use crate::migrations::create::{execute_if_connected, unsafe_populate};
+use crate::migrations::create::{execute_start_migration, unsafe_populate};
+use crate::migrations::edb::{execute, query_row, execute_if_connected};
 use crate::migrations::migrate::{apply_migrations, apply_migrations_inner};
 use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::options::CreateMigration;
@@ -57,17 +58,16 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar)
             "Dev mode is not supported on EdgeDB {}. Please upgrade.",
             cli.get_version().await?);
     }
-    let mut migrations = migration::read_all(&ctx, true).await?;
+    let migrations = migration::read_all(&ctx, true).await?;
     let db_migration = get_db_migration(cli).await?;
     match select_mode(cli, &migrations, db_migration.as_deref()).await? {
         Mode::Normal { skip } => {
             log::info!("Skipping {} revisions.", skip);
-            migrations.reverse();
-            migrations.truncate(migrations.len() - skip);
-            migrations.reverse();
+            let migrations = migrations.get_range(skip..)
+                .ok_or_else(|| bug::error("`skip` is out of range"))?;
             if !migrations.is_empty() {
                 bar.set_message("applying migrations");
-                apply_migrations(cli, &migrations, &ctx).await?;
+                apply_migrations(cli, migrations, &ctx).await?;
             }
             bar.set_message("calculating diff");
             log::info!("Calculating schema diff.");

@@ -26,5 +26,22 @@ macro_rules! async_try {
                 }
             }
         }
-    }
+    };
+    ($block:expr, except $except:expr, else $else:expr) => {
+        {
+            match $block.await {
+                Ok(result) => {
+                    $else.await.map_err(Into::into).and(Ok(result))
+                }
+                Err(e) => {
+                    $except.await
+                        .map_err(|e| {
+                            log::info!("Cannot cancel operation: {:#}", e);
+                        })
+                        .ok();
+                    Err(e)
+                }
+            }
+        }
+    };
 }

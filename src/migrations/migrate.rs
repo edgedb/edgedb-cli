@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::collections::{VecDeque, HashMap};
 
 use anyhow::Context as _;
 use colorful::Colorful;
@@ -7,31 +8,68 @@ use indexmap::IndexMap;
 use tokio::fs;
 
 use crate::async_try;
+use crate::bug;
 use crate::commands::ExitCode;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::error_display::print_query_error;
 use crate::migrations::context::Context;
 use crate::migrations::dev_mode;
+use crate::migrations::edb::{execute, execute_if_connected};
 use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::options::Migrate;
 use crate::migrations::timeout;
 use crate::print;
 
+#[derive(Debug, Clone, Copy)]
+pub enum Operation<'a> {
+    Apply(&'a MigrationFile),
+    Rewrite(&'a indexmap::map::Slice<String, MigrationFile>),
+}
 
-fn skip_revisions(migrations: &mut IndexMap<String, MigrationFile>,
-    db_migration: &str)
-    -> anyhow::Result<()>
+enum PathElem<'a> {
+    Fixup(&'a MigrationFile),
+    Normal(&'a MigrationFile),
+}
+
+type OperationIter<'a> = Box<dyn Iterator<Item=Operation<'a>> + Send + 'a>;
+
+pub trait AsOperations<'a> {
+    fn as_operations(self) -> OperationIter<'a>;
+}
+
+fn slice<'x>(migrations: &'x IndexMap<String, MigrationFile>,
+    // start is exclusive and end is inclusive
+    start: Option<&String>, end: Option<&String>)
+    -> anyhow::Result<&'x indexmap::map::Slice<String, MigrationFile>>
 {
-    migrations.reverse();
-    if let Some(idx) = migrations.get_index_of(db_migration) {
-        migrations.truncate(idx);
-        migrations.reverse();
-        return Ok(())
+    let start_index = start.and_then(|m| migrations.get_index_of(m))
+        .map(|idx| idx + 1)
+        .unwrap_or(0);  // this zero is for start=None, get_index_of returning
+                        // None should never happen as we switch for `fixup`
+    let end_index = end.and_then(|m| migrations.get_index_of(m))
+        .map(|idx| idx+1)
+        .unwrap_or(migrations.len());
+    migrations.get_range(start_index..end_index)
+        .ok_or_else(|| bug::error("slicing error"))
+}
+
+impl<'a> AsOperations<'a> for &'a indexmap::map::Slice<String, MigrationFile> {
+    fn as_operations(self) -> OperationIter<'a> {
+        Box::new(self.values().map(Operation::Apply))
     }
-    anyhow::bail!("There is no database revision {} \
-        in the filesystem. Consider updating sources.",
-        db_migration);
+}
+
+impl<'a> AsOperations<'a> for &'a IndexMap<String, MigrationFile> {
+    fn as_operations(self) -> OperationIter<'a> {
+        Box::new(self.values().map(Operation::Apply))
+    }
+}
+
+impl<'a> AsOperations<'a> for &'a Vec<Operation<'a>> {
+    fn as_operations(self) -> OperationIter<'a> {
+        Box::new(self.iter().cloned())
+    }
 }
 
 async fn check_revision_in_db(cli: &mut Connection, prefix: &str)
@@ -72,7 +110,7 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
         // TODO(tailhook) figure out progressbar in non-quiet mode
         return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
     }
-    let mut migrations = migration::read_all(&ctx, true).await?;
+    let migrations = migration::read_all(&ctx, true).await?;
     let db_migration: Option<String> = cli.query_single(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
@@ -126,17 +164,15 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
     };
 
     if let Some(db_migration) = &db_migration {
-        skip_revisions(&mut migrations, db_migration)?;
-    };
-    if let Some(target_rev) = &target_rev {
-        while let Some((key, _)) = migrations.last() {
-            if key != target_rev {
-                migrations.pop();
-            } else {
-                break;
-            }
+        if !migrations.contains_key(db_migration) {
+            let target_rev = target_rev.as_ref()
+                .unwrap_or_else(|| &migrations.last().unwrap().0);
+            return fixup(cli, &ctx, &migrations,
+                         db_migration, target_rev, migrate).await;
         }
-    }
+    };
+    let migrations = slice(&migrations,
+                           db_migration.as_ref(), target_rev.as_ref())?;
     if migrations.is_empty() {
         if !migrate.quiet {
             if print::use_color() {
@@ -162,31 +198,153 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
         }
         return Ok(());
     }
-    apply_migrations(cli, &migrations, &ctx).await?;
+    apply_migrations(cli, migrations, &ctx).await?;
     if db_migration.is_none() {
         disable_ddl(cli).await?;
     }
     return Ok(())
 }
 
+async fn fixup(cli: &mut Connection, ctx: &Context,
+    migrations: &IndexMap<String, MigrationFile>,
+    db_migration: &String, target: &String, _options: &Migrate)
+    -> anyhow::Result<()>
+{
+    let fixups = migration::read_fixups(ctx, true).await?;
+    let path = find_path(&migrations, &fixups, db_migration, target)?;
+
+    let mut operations = Vec::with_capacity(path.len()*2);
+    for path_elem in path {
+        match path_elem {
+            PathElem::Normal(f) => {
+                operations.push(Operation::Apply(f));
+            }
+            PathElem::Fixup(f) => {
+                operations.push(Operation::Apply(f));
+                let target = f.fixup_target.as_ref()
+                    .ok_or_else(|| bug::error("not a fixup rev"))?;
+                let last = migrations.get_index_of(target)
+                    .ok_or_else(|| anyhow::anyhow!("\
+                        target of a fixup revision {target:?} \
+                        is not in a target history. Implementation of \
+                        subsequent fixups is limited.\
+                    "))?;
+                let slice = migrations.get_range(..last+1)
+                    .ok_or_else(|| bug::error("range slicing error"))?;
+                operations.push(Operation::Rewrite(slice));
+            }
+        }
+    }
+
+    apply_migrations(cli, &operations, ctx).await?;
+    Ok(())
+}
+
+fn find_path<'a>(migrations: &'a IndexMap<String, MigrationFile>,
+                 fixups: &'a [MigrationFile],
+                 db_migration: &String, target: &String)
+    -> anyhow::Result<Vec<PathElem<'a>>>
+{
+    let mut by_target = HashMap::new();
+    let mut by_source = HashMap::new();
+    for mig in fixups {
+        if let Some(fixup_target) = &mig.fixup_target {
+            if fixup_target != &mig.data.id {  // do not push twice
+                by_target.entry(fixup_target)
+                    .or_insert_with(Vec::new)
+                    .push(&mig.data.parent_id);
+            }
+        }
+        by_target.entry(&mig.data.id)
+                .or_insert_with(Vec::new)
+                .push(&mig.data.parent_id);
+        by_source.entry(&mig.data.parent_id)
+            .or_insert_with(Vec::new)
+            .push(mig);
+    }
+    for mig in migrations.values() {
+        by_target.entry(&mig.data.id)
+                .or_insert_with(Vec::new)
+                .push(&mig.data.parent_id);
+        by_source.entry(&mig.data.parent_id)
+            .or_insert_with(Vec::new)
+            .push(mig);
+    }
+
+    // Use breadth first search
+    let mut queue = VecDeque::new();
+    let mut markup = HashMap::new();
+    queue.push_back((target, 0));
+    markup.insert(target, 0);
+    while let Some((migration, num)) = queue.pop_front() {
+        if migration == db_migration {
+            return backtrack(&markup, &by_source, num, migration);
+        }
+        if let Some(items) = by_target.get(migration) {
+            for item in items {
+                markup.insert(item, num+1);
+                queue.push_back((item, num+1));
+            }
+        }
+    }
+    anyhow::bail!("Migration {target:?} is not reachable \
+                  from {db_migration:?}. Mising fixup files.");
+}
+
+fn backtrack<'a>(markup: &HashMap<&String, u32>,
+                 by_source: &HashMap<&String, Vec<&'a MigrationFile>>,
+                 num: u32, db_revision: &String)
+    -> anyhow::Result<Vec<PathElem<'a>>>
+{
+    let mut result = Vec::with_capacity(num as usize);
+    let mut cur_target = db_revision;
+    for idx in (0..num).rev() {
+        let sources = by_source.get(cur_target)
+            .ok_or_else(|| bug::error("failed to backtrack BFS"))?;
+        for item in sources {
+            if &item.data.parent_id != cur_target {
+                continue;
+            }
+            match item.fixup_target {
+                // Normal, non-fixup path takes priority, so that
+                // we can skip rebase if revision equals to fixup revision
+                _ if markup.get(&item.data.id) == Some(&idx) => {
+                    result.push(PathElem::Normal(*item));
+                    cur_target = &item.data.id;
+                    break;
+                }
+                Some(ref fixup) if markup.get(fixup) == Some(&idx) => {
+                    result.push(PathElem::Fixup(*item));
+                    cur_target = fixup;
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
+    if result.is_empty() || result.len() != num as usize {
+        return Err(bug::error("failed to backtrack BFS"));
+    }
+    Ok(result)
+}
+
 pub async fn apply_migrations(cli: &mut Connection,
-    migrations: &IndexMap<String, MigrationFile>, ctx: &Context)
+    migrations: impl AsOperations<'_>, ctx: &Context)
     -> anyhow::Result<()>
 {
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     async_try! {
         async {
-            cli.execute("START TRANSACTION", &()).await?;
-            match apply_migrations_inner(cli, migrations, ctx.quiet).await {
-                Ok(()) => {
-                    cli.execute("COMMIT", &()).await?;
-                    Ok(())
-                }
-                Err(e) => {
-                    if cli.is_consistent() {
-                        cli.execute("ROLLBACK", &()).await.ok();
-                    }
-                    Err(e)
+            execute(cli, "START TRANSACTION").await?;
+            async_try! {
+                async {
+                    apply_migrations_inner(cli, migrations, ctx.quiet).await
+                },
+                except async {
+                    execute_if_connected(cli, "ROLLBACK").await
+                },
+                else async {
+                    execute(cli, "COMMIT").await
                 }
             }
         },
@@ -196,33 +354,64 @@ pub async fn apply_migrations(cli: &mut Connection,
     }
 }
 
-pub async fn apply_migrations_inner(cli: &mut Connection,
-    migrations: &IndexMap<String, MigrationFile>, quiet: bool)
+async fn apply_migration(cli: &mut Connection, migration: &MigrationFile)
     -> anyhow::Result<()>
 {
-    for (_, migration) in migrations {
-        let data = fs::read_to_string(&migration.path).await
-            .context("error re-reading migration file")?;
-        cli.execute(&data, &()).await.map_err(|err| {
-            match print_query_error(&err, &data, false) {
-                Ok(()) => ExitCode::new(1).into(),
-                Err(err) => err,
+    let data = fs::read_to_string(&migration.path).await
+        .context("error re-reading migration file")?;
+    cli.execute(&data, &()).await.map_err(|err| {
+        match print_query_error(&err, &data, false) {
+            Ok(()) => ExitCode::new(1).into(),
+            Err(err) => err,
+        }
+    })?;
+    Ok(())
+}
+
+pub async fn apply_migrations_inner(cli: &mut Connection,
+    migrations: impl AsOperations<'_>, quiet: bool)
+    -> anyhow::Result<()>
+{
+    for operation in migrations.as_operations() {
+        match operation {
+            Operation::Apply(migration) => {
+                apply_migration(cli, migration).await?;
+                if !quiet {
+                    let file_name = migration.path.file_name().unwrap();
+                    if print::use_color() {
+                        eprintln!(
+                            "{} {} ({})",
+                            "Applied".bold().light_green(),
+                            migration.data.id[..].bold().white(),
+                            Path::new(file_name).display(),
+                        );
+                    } else {
+                        eprintln!(
+                            "Applied {} ({})",
+                            migration.data.id,
+                            Path::new(file_name).display(),
+                        );
+                    }
+                }
             }
-        })?;
-        if !quiet {
-            if print::use_color() {
-                eprintln!(
-                    "{} {} ({})",
-                    "Applied".bold().light_green(),
-                    migration.data.id[..].bold().white(),
-                    Path::new(migration.path.file_name().unwrap()).display(),
-                );
-            } else {
-                eprintln!(
-                    "Applied {} ({})",
-                    migration.data.id,
-                    Path::new(migration.path.file_name().unwrap()).display(),
-                );
+            Operation::Rewrite(migrations) => {
+                execute(cli, "START MIGRATION REWRITE").await?;
+                async_try! {
+                    async {
+                        for migration in migrations.values() {
+                            apply_migration(cli, migration).await?;
+                        }
+                        anyhow::Ok(())
+                    },
+                    except async {
+                        execute_if_connected(cli, "ABORT MIGRATION REWRITE")
+                            .await
+                    },
+                    else async {
+                        execute(cli, "COMMIT MIGRATION REWRITE").await
+                            .context("commit migration rewrite")
+                    }
+                }?;
             }
         }
     }
