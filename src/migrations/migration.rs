@@ -26,6 +26,7 @@ pub struct Migration {
 #[derive(Debug)]
 pub struct MigrationFile {
     pub path: PathBuf,
+    pub fixup_target: Option<String>,
     pub data: Migration,
 }
 
@@ -137,6 +138,7 @@ async fn _read_all(dir: &Path, validate_hashes: bool)
             Entry::Vacant(v) => {
                 v.insert(MigrationFile {
                     path: path.to_path_buf(),
+                    fixup_target: None,
                     data,
                 });
             }
@@ -198,6 +200,36 @@ pub async fn read_all(ctx: &Context, validate_hashes: bool)
     -> anyhow::Result<IndexMap<String, MigrationFile>>
 {
     _read_all(ctx.schema_dir.join("migrations").as_ref(), validate_hashes)
+        .await
+}
+
+#[context("could not read migrations in {}", dir.display())]
+async fn _read_fixups(dir: &Path, validate_hashes: bool)
+    -> anyhow::Result<Vec<MigrationFile>>
+{
+    let mut result = Vec::new();
+    for path in _read_names(dir).await? {
+        let data = read_file(&path, validate_hashes).await?;
+        let fixup_target = path.file_stem()
+            .and_then(|s| s.to_str())
+            .and_then(|s| s.split("-").skip(1).next());
+        let Some(fixup_target) = fixup_target else {
+            log::warn!("Invalid fixup file name {:?}", path);
+            continue;
+        };
+        result.push(MigrationFile {
+            path: path.to_path_buf(),
+            fixup_target: Some(fixup_target.into()),
+            data,
+        });
+    }
+    Ok(result)
+}
+
+pub async fn read_fixups(ctx: &Context, validate_hashes: bool)
+    -> anyhow::Result<Vec<MigrationFile>>
+{
+    _read_fixups(ctx.schema_dir.join("fixups").as_ref(), validate_hashes)
         .await
 }
 
@@ -325,6 +357,7 @@ mod test {
         input.iter().cloned().map(|(id, parent, filename)| {
             (parent.into(), MigrationFile {
                 path: filename.into(),
+                fixup_target: None,
                 data: Migration {
                     id: id.into(),
                     id_range: (0, 0),

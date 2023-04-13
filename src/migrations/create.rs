@@ -5,8 +5,6 @@ use std::path::{Path, PathBuf};
 use colorful::Colorful;
 use edgedb_derive::Queryable;
 use edgedb_errors::{Error, QueryError, InvalidSyntaxError};
-use edgedb_errors::{ErrorKind, ClientConnectionEosError};
-use edgedb_protocol::queryable::Queryable;
 use edgeql_parser::expr;
 use edgeql_parser::hash::Hasher;
 use edgeql_parser::schema_file::validate;
@@ -24,6 +22,7 @@ use crate::async_try;
 use crate::bug;
 use crate::commands::{Options, ExitCode};
 use crate::connect::Connection;
+use crate::migrations::edb::{execute, execute_if_connected, query_row};
 use crate::error_display::print_query_error;
 use crate::highlight;
 use crate::migrations::context::Context;
@@ -160,43 +159,6 @@ impl FutureMigration {
             Ok(hasher.make_migration_id())
         }).map(|s| &s[..])
     }
-}
-
-pub async fn execute(cli: &mut Connection, text: impl AsRef<str>)
-    -> Result<(), Error>
-{
-    if !cli.is_consistent() {
-        return Err(ClientConnectionEosError::with_message(
-                "connection closed by server"));
-    }
-    log_execute(cli, text).await
-}
-
-pub async fn execute_if_connected(cli: &mut Connection, text: impl AsRef<str>)
-    -> Result<(), Error>
-{
-    if !cli.is_consistent() {
-        return Ok(())
-    }
-    log_execute(cli, text).await
-}
-
-async fn log_execute(cli: &mut Connection, text: impl AsRef<str>)
-    -> Result<(), Error>
-{
-    let text = text.as_ref();
-    log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
-    cli.execute(text, &()).await?;
-    Ok(())
-}
-
-pub async fn query_row<R>(cli: &mut Connection, text: &str)
-    -> Result<R, Error>
-    where R: Queryable
-{
-    let text = text.as_ref();
-    log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
-    cli.query_required_single(text, &()).await
 }
 
 #[context("could not read schema file {}", path.display())]

@@ -6,7 +6,7 @@ use crate::commands::{Options, ExitCode};
 use crate::connect::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::create::{execute_start_migration, CurrentMigration};
-use crate::migrations::create::{execute_if_connected};
+use crate::migrations::edb::{execute_if_connected};
 use crate::migrations::migration::{self, MigrationFile};
 use crate::migrations::options::ShowStatus;
 use crate::print;
