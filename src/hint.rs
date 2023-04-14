@@ -38,6 +38,25 @@ impl<T> HintExt for Result<T, anyhow::Error> {
     }
 }
 
+impl HintExt for anyhow::Error {
+    type Result = HintedError;
+    fn hint(self, text: &'static str) -> Self::Result
+    {
+        HintedError {
+            error: self,
+            hint: text.into(),
+        }
+    }
+    fn with_hint<F>(self, f: F) -> Self::Result
+        where F: FnOnce() -> String
+    {
+        HintedError {
+            hint: f().into(),
+            error: self,
+        }
+    }
+}
+
 impl Error for HintedError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         self.error.source()
