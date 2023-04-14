@@ -13,6 +13,7 @@ use crate::commands::ExitCode;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::error_display::print_query_error;
+use crate::hint::HintExt;
 use crate::migrations::context::Context;
 use crate::migrations::dev_mode;
 use crate::migrations::edb::{execute, execute_if_connected};
@@ -34,9 +35,24 @@ enum PathElem<'a> {
 
 type OperationIter<'a> = Box<dyn Iterator<Item=Operation<'a>> + Send + 'a>;
 
+
+#[derive(Debug, edgedb_tokio::Queryable)]
+// TODO(tailhook) this has to be open-ended enumeration
+enum MigrationGeneratedBy {
+    DevMode,
+    DDLStatement,
+}
+
+#[derive(Debug, edgedb_tokio::Queryable)]
+struct MigrationInfo {
+    name: String,
+    generated_by: Option<MigrationGeneratedBy>,
+}
+
 pub trait AsOperations<'a> {
     fn as_operations(self) -> OperationIter<'a>;
 }
+
 
 fn slice<'x>(migrations: &'x IndexMap<String, MigrationFile>,
     // start is exclusive and end is inclusive
@@ -111,10 +127,10 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
         return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
     }
     let migrations = migration::read_all(&ctx, true).await?;
-    let db_migration: Option<String> = cli.query_single(r###"
+    let db_migration: Option<MigrationInfo> = cli.query_single(r###"
             WITH Last := (SELECT schema::Migration
                           FILTER NOT EXISTS .<parents[IS schema::Migration])
-            SELECT name := assert_single(Last.name)
+            SELECT assert_single(Last { name, generated_by })
         "###, &()).await?;
 
     let target_rev = if let Some(prefix) = &migrate.to_revision {
@@ -145,14 +161,14 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
                 if print::use_color() {
                     msg = format!("{}", msg.bold().light_green());
                 }
-                if Some(&db_rev) == db_migration.as_ref() {
+                if Some(&db_rev) == db_migration.as_ref().map(|m| &m.name) {
                     eprintln!("{} Revision {}", msg, db_rev);
                 } else {
                     eprintln!("{} Revision {} is the ancestor of the latest {}",
                         msg,
                         db_rev,
                         db_migration.as_ref()
-                            .map(|x| &x[..]).unwrap_or("initial"),
+                            .map(|x| &x.name[..]).unwrap_or("initial"),
                     );
                 }
             }
@@ -164,35 +180,31 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
     };
 
     if let Some(db_migration) = &db_migration {
-        if !migrations.contains_key(db_migration) {
-            let target_rev = target_rev.as_ref()
-                .unwrap_or_else(|| &migrations.last().unwrap().0);
-            return fixup(cli, &ctx, &migrations,
-                         db_migration, target_rev, migrate).await;
+        if !migrations.contains_key(&db_migration.name) {
+                let target_rev = target_rev.as_ref()
+                    .unwrap_or_else(|| &migrations.last().unwrap().0);
+                return fixup(cli, &ctx, &migrations,
+                             &db_migration, target_rev, migrate).await;
         }
     };
     let migrations = slice(&migrations,
-                           db_migration.as_ref(), target_rev.as_ref())?;
+                           db_migration.as_ref().map(|m| &m.name),
+                           target_rev.as_ref())?;
     if migrations.is_empty() {
         if !migrate.quiet {
             if print::use_color() {
                 eprintln!(
                     "{} Revision {}",
                     "Everything is up to date.".bold().light_green(),
-                    db_migration
-                        .as_ref()
-                        .map(|x| &x[..])
-                        .unwrap_or("initial")
-                        .bold()
-                        .white(),
+                    db_migration.as_ref()
+                        .map(|m| &m.name[..]).unwrap_or("initial")
+                        .bold().white(),
                 );
             } else {
                 eprintln!(
                     "Everything is up to date. Revision {}",
-                    db_migration
-                        .as_ref()
-                        .map(|x| &x[..])
-                        .unwrap_or("initial"),
+                    db_migration.as_ref()
+                        .map(|m| &m.name[..]).unwrap_or("initial"),
                 );
             }
         }
@@ -207,11 +219,40 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
 
 async fn fixup(cli: &mut Connection, ctx: &Context,
     migrations: &IndexMap<String, MigrationFile>,
-    db_migration: &String, target: &String, _options: &Migrate)
+    db_migration: &MigrationInfo, target: &String, _options: &Migrate)
     -> anyhow::Result<()>
 {
     let fixups = migration::read_fixups(ctx, true).await?;
-    let path = find_path(&migrations, &fixups, db_migration, target)?;
+    let db_mname = &db_migration.name;
+    let Some(path) = find_path(&migrations, &fixups, db_mname, target)? else {
+        match db_migration.generated_by {
+            Some(MigrationGeneratedBy::DevMode) => {
+                return Err(
+                    anyhow::anyhow!("Dev mode migrations are in the database.")
+                    .hint("Use `edgedb migrate --dev-mode` or `edgedb watch`")
+                )?;
+            }
+            Some(MigrationGeneratedBy::DDLStatement) => {
+                return Err(
+                    anyhow::anyhow!("DDL statements were applied to the \
+                        database, cannot proceed normally.")
+                    .hint("Create a fixup file manually or recreate the \
+                        database from scratch.")
+                )?;
+            }
+            None => {
+                return Err(
+                    anyhow::anyhow!("Migration {:?} is unreachable from {:?}.",
+                          target, db_mname)
+                    .hint("This usually means that some migration or fixup \
+                          files are missing. Ensure that everything is \
+                          committed an pulled from version control. Then \
+                          create a fixup file manually or recreate the \
+                          database from scratch.")
+                )?;
+            }
+        }
+    };
 
     let mut operations = Vec::with_capacity(path.len()*2);
     for path_elem in path {
@@ -243,7 +284,7 @@ async fn fixup(cli: &mut Connection, ctx: &Context,
 fn find_path<'a>(migrations: &'a IndexMap<String, MigrationFile>,
                  fixups: &'a [MigrationFile],
                  db_migration: &String, target: &String)
-    -> anyhow::Result<Vec<PathElem<'a>>>
+    -> anyhow::Result<Option<Vec<PathElem<'a>>>>
 {
     let mut by_target = HashMap::new();
     let mut by_source = HashMap::new();
@@ -278,7 +319,7 @@ fn find_path<'a>(migrations: &'a IndexMap<String, MigrationFile>,
     markup.insert(target, 0);
     while let Some((migration, num)) = queue.pop_front() {
         if migration == db_migration {
-            return backtrack(&markup, &by_source, num, migration);
+            return backtrack(&markup, &by_source, num, migration).map(Some);
         }
         if let Some(items) = by_target.get(migration) {
             for item in items {
@@ -287,8 +328,7 @@ fn find_path<'a>(migrations: &'a IndexMap<String, MigrationFile>,
             }
         }
     }
-    anyhow::bail!("Migration {target:?} is not reachable \
-                  from {db_migration:?}. Mising fixup files.");
+    return Ok(None);
 }
 
 fn backtrack<'a>(markup: &HashMap<&String, u32>,
