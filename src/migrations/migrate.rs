@@ -29,6 +29,7 @@ pub enum Operation<'a> {
     Rewrite(&'a indexmap::map::Slice<String, MigrationFile>),
 }
 
+#[cfg_attr(test, derive(Debug))]
 enum PathElem<'a> {
     Fixup(&'a MigrationFile),
     Normal(&'a MigrationFile),
@@ -499,4 +500,160 @@ pub async fn disable_ddl(cli: &mut Connection) -> Result<(), anyhow::Error> {
         "#, &()).await?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod test {
+    use indexmap::{indexmap, IndexMap};
+    use crate::migrations::migration::{MigrationFile, Migration};
+    use super::PathElem;
+    use PathMock::*;
+
+
+    #[derive(Debug)]
+    pub enum PathMock {
+        Fixup(&'static str),
+        Normal(&'static str),
+    }
+
+    impl PartialEq<PathMock> for PathElem<'_> {
+        fn eq(&self, other: &PathMock) -> bool {
+            use PathElem as E;
+
+            match (other, self) {
+                (Fixup(a), E::Fixup(b))
+                if Some(*a) == b.fixup_target.as_deref() => true,
+                (Normal(a), E::Normal(b)) if a == &&b.data.id => true,
+                _ => false,
+            }
+        }
+    }
+    impl PartialEq<PathElem<'_>> for PathMock {
+        fn eq(&self, other: &PathElem<'_>) -> bool {
+            use PathElem as E;
+
+            match (self, other) {
+                (Fixup(a), E::Fixup(b))
+                if Some(*a) == b.fixup_target.as_deref() => true,
+                (Normal(a), E::Normal(b)) if a == &&b.data.id => true,
+                _ => false,
+            }
+        }
+    }
+
+    fn find_path<'a>(migrations: &'a IndexMap<String, MigrationFile>,
+                     fixups: &'a [MigrationFile],
+                     db: &str, target: &str)
+        -> Vec<PathElem<'a>>
+    {
+        super::find_path(migrations, fixups, &db.into(), &target.into())
+            .expect("no error").expect("path found")
+    }
+
+    fn normal(name: &str, parent: &str) -> MigrationFile {
+        MigrationFile {
+            path: format!("/__non_existent__/{name}.edgeql").into(),
+            fixup_target: None,
+            data: Migration {
+                id: name.into(),
+                parent_id: parent.into(),
+                id_range: (0, 0),
+                text_range: (0, 0),
+                message: None,
+            },
+        }
+    }
+
+    fn fixup(target: &str, parent: &str) -> MigrationFile {
+        MigrationFile {
+            path: format!("/__non_existent__/{parent}-{target}.edgeql").into(),
+            fixup_target: Some(target.into()),
+            data: Migration {
+                id: format!("{target}{parent}"),
+                parent_id: parent.into(),
+                id_range: (0, 0),
+                text_range: (0, 0),
+                message: None,
+            },
+        }
+    }
+
+    #[test]
+    fn typical_after_squash() {
+        let migrations = indexmap! {
+            "m121".into() => normal("m121", "initial"),
+        };
+        let fixups = vec![fixup("m121", "m107")];
+        assert_eq!(
+            find_path(&migrations, &fixups, "m107", "m121"),
+            vec![Fixup("m121")],
+        );
+    }
+
+    #[test]
+    fn extra_revs() {
+        let migrations = indexmap! {
+            "m121".into() => normal("m121", "initial"),
+            "m122".into() => normal("m122", "m121"),
+            "m123".into() => normal("m123", "m122"),
+            "m124".into() => normal("m124", "m123"),
+        };
+        let fixups = vec![
+            fixup("m121", "m105")
+        ];
+        assert_eq!(
+            find_path(&migrations, &fixups, "m105", "m124"),
+            vec![Fixup("m121"), Normal("m122"), Normal("m123"), Normal("m124")],
+        );
+        assert_eq!(
+            find_path(&migrations, &fixups, "m105", "m123"),
+            vec![Fixup("m121"), Normal("m122"), Normal("m123")],
+        );
+    }
+
+    #[test]
+    fn two_fixups() {
+        // Currently it only works if fixup target == migration id.
+        // This is because we have no way to rebase history after first fixup.
+        // We have to send second fixup without revision id (i.e. rewrite
+        // migration a bit) to make this fully work.
+        //
+        // But we have a test for path search anyways as there are limited cases
+        // where it actually works
+        let migrations = indexmap! {
+            "m121".into() => normal("m121", "initial"),
+            "m122".into() => normal("m122", "m121"),
+            "m123".into() => normal("m123", "m122"),
+            "m124".into() => normal("m124", "m123"),
+        };
+        let fixups = vec![
+            fixup("m105", "m103"),
+            fixup("m121", "m105"),
+        ];
+        assert_eq!(
+            find_path(&migrations, &fixups, "m103", "m123"),
+            vec![Fixup("m105"), Fixup("m121"), Normal("m122"), Normal("m123")],
+        );
+    }
+
+    #[test]
+    fn shortcut() {
+        // I'm not sure it's useful, but the test here is to ensure that this
+        // behavior is not broken
+        let migrations = indexmap! {
+            "m101".into() => normal("m101", "initial"),
+            "m102".into() => normal("m102", "m101"),
+            "m103".into() => normal("m103", "m102"),
+            "m104".into() => normal("m104", "m103"),
+            "m105".into() => normal("m105", "m104"),
+            "m106".into() => normal("m106", "m105"),
+        };
+        let fixups = vec![
+            fixup("m105", "m102")
+        ];
+        assert_eq!(
+            find_path(&migrations, &fixups, "m101", "m106"),
+            vec![Normal("m102"), Fixup("m105"), Normal("m106")],
+        );
+    }
 }
