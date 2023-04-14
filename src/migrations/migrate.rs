@@ -6,6 +6,7 @@ use colorful::Colorful;
 use indicatif::ProgressBar;
 use indexmap::IndexMap;
 use tokio::fs;
+use edgedb_errors::InvalidReferenceError;
 
 use crate::async_try;
 use crate::bug;
@@ -116,6 +117,33 @@ pub async fn migrate(cli: &mut Connection, options: &Options,
     return res;
 }
 
+async fn get_last_migration(cli: &mut Connection)
+    -> anyhow::Result<Option<MigrationInfo>>
+{
+    let res30 = cli.query_single(r###"
+        WITH Last := (SELECT schema::Migration
+                      FILTER NOT EXISTS .<parents[IS schema::Migration])
+        SELECT assert_single(Last { name, generated_by })
+    "###, &()).await;
+    match res30 {
+        Ok(res) => Ok(res),
+        Err(e) if e.is::<InvalidReferenceError>() => {
+            let name = cli.query_single(r###"
+                WITH Last := (SELECT schema::Migration
+                              FILTER NOT EXISTS .<parents[IS schema::Migration])
+                SELECT name := assert_single(Last.name)
+            "###, &()).await?;
+            Ok(name.map(|name| {
+                MigrationInfo {
+                    name,
+                    generated_by: None,
+                }
+            }))
+        }
+        Err(e) => Err(e)?,
+    }
+}
+
 async fn _migrate(cli: &mut Connection, _options: &Options,
     migrate: &Migrate)
     -> Result<(), anyhow::Error>
@@ -127,11 +155,7 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
         return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
     }
     let migrations = migration::read_all(&ctx, true).await?;
-    let db_migration: Option<MigrationInfo> = cli.query_single(r###"
-            WITH Last := (SELECT schema::Migration
-                          FILTER NOT EXISTS .<parents[IS schema::Migration])
-            SELECT assert_single(Last { name, generated_by })
-        "###, &()).await?;
+    let db_migration: Option<MigrationInfo> = get_last_migration(cli).await?;
 
     let target_rev = if let Some(prefix) = &migrate.to_revision {
         let db_rev = check_revision_in_db(cli, prefix).await?;
