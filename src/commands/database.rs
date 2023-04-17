@@ -1,11 +1,12 @@
 use edgeql_parser::helpers::quote_name;
 
-use crate::connect::Connection;
-use crate::commands::{ExitCode, Options};
 use crate::commands::parser::{CreateDatabase, DropDatabase, WipeDatabase};
+use crate::commands::{ExitCode, Options};
+use crate::connect::Connection;
+use crate::hint::HintExt;
+use crate::portable::exit_codes;
 use crate::print;
 use crate::question;
-use crate::portable::exit_codes;
 
 
 pub async fn create(cli: &mut Connection, options: &CreateDatabase, _: &Options)
@@ -43,6 +44,12 @@ pub async fn drop(cli: &mut Connection, options: &DropDatabase, _: &Options)
 pub async fn wipe(cli: &mut Connection, options: &WipeDatabase, _: &Options)
     -> Result<(), anyhow::Error>
 {
+    if cli.get_version().await?.specific() < "3.0".parse().unwrap() {
+        return Err(
+            anyhow::anyhow!("The `database wipe` command is only \
+                            supported in EdgeDB >= 3.0")
+        ).hint("Use `edgedb database drop`, `edgedb database create`")?;
+    }
     if !options.non_interactive {
         let q = question::Confirm::new_dangerous(
             format!("Do you really want to wipe \
