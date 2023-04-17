@@ -28,7 +28,7 @@ pub async fn drop(cli: &mut Connection, options: &DropDatabase, _: &Options)
             format!("Do you really want to delete database {:?}?",
                     options.database_name)
         );
-        if !q.ask()? {
+        if !cli.ping_while(q.async_ask()).await? {
             print::error("Canceled.");
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
         }
@@ -44,7 +44,7 @@ pub async fn drop(cli: &mut Connection, options: &DropDatabase, _: &Options)
 pub async fn wipe(cli: &mut Connection, options: &WipeDatabase, _: &Options)
     -> Result<(), anyhow::Error>
 {
-    if cli.get_version().await?.specific() < "3.0".parse().unwrap() {
+    if cli.get_version().await?.specific() < "3.0-alpha.2".parse().unwrap() {
         return Err(
             anyhow::anyhow!("The `database wipe` command is only \
                             supported in EdgeDB >= 3.0")
@@ -56,7 +56,7 @@ pub async fn wipe(cli: &mut Connection, options: &WipeDatabase, _: &Options)
                     the contents of the database {:?}?",
                     cli.database())
         );
-        if !q.ask()? {
+        if !cli.ping_while(q.async_ask()).await? {
             print::error("Canceled.");
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
         }
