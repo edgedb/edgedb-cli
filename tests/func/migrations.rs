@@ -437,6 +437,49 @@ fn modified1() -> anyhow::Result<()> {
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa\n\
             m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a\n\
         ");
+
+    fs::remove_dir_all("tests/migrations/db1/squash").ok();
+    fs::create_dir_all("tests/migrations/db1/squash")?;
+    fs::create_dir_all("tests/migrations/db1/squash/migrations")?;
+    fs::copy("tests/migrations/db1/modified1/default.esdl",
+             "tests/migrations/db1/squash/default.esdl")?;
+    fs::copy("tests/migrations/db1/modified1/migrations/00001.edgeql",
+             "tests/migrations/db1/squash/migrations/00001.edgeql")?;
+    fs::copy("tests/migrations/db1/modified1/migrations/00002.edgeql",
+             "tests/migrations/db1/squash/migrations/00002.edgeql")?;
+
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("migration").arg("create")
+        .arg("--squash")
+        .arg("--non-interactive")
+        .arg("--schema-dir=tests/migrations/db1/squash")
+        .assert().success().stderr(contains("Squash is complete"));
+    SERVER.admin_cmd()
+        .arg("--database=modified1")
+        .arg("migrate")
+        .arg("--schema-dir=tests/migrations/db1/squash")
+        .assert().success().stderr(ends_with(
+            "m1fw3q62du3fmdbeuikq3tc4fsfhs3phafnjhoh3jzedk3sfgx3lha\
+            .edgeql)\n"
+        ));
+    SERVER.admin_cmd()
+        .arg("migration").arg("log")
+        .arg("--from-fs")
+        .arg("--schema-dir=tests/migrations/db1/squash")
+        .assert().code(0)
+        .stdout("\
+            m1fw3q62du3fmdbeuikq3tc4fsfhs3phafnjhoh3jzedk3sfgx3lha\n\
+        ");
+    SERVER.admin_cmd()
+        .arg("migration").arg("log")
+        .arg("--database=modified1")
+        .arg("--from-db")
+        .arg("--schema-dir=tests/migrations/db1/squash")
+        .assert().code(0)
+        .stdout("\
+            m1fw3q62du3fmdbeuikq3tc4fsfhs3phafnjhoh3jzedk3sfgx3lha\n\
+        ");
     Ok(())
 }
 
