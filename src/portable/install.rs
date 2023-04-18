@@ -189,7 +189,7 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     let target_dir = platform::portable_dir()?.join(&ver_name);
     if target_dir.exists() {
         let meta = check_metadata(&target_dir, &pkg_info)?;
-        echo!("Version", meta.version.emphasize(), "is already installed");
+        echo!("Version", meta.version.emphasize(), "is already downloaded");
         return Ok(meta);
     }
 

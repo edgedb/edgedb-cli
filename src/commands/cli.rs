@@ -5,7 +5,7 @@ use crate::cli;
 use crate::cloud::main::cloud_main;
 use crate::commands::parser::Common;
 use crate::commands;
-use crate::migrations::options::{MigrationCmd, Migration};
+use crate::migrations::options::{MigrationCmd as M, Migration};
 use crate::migrations;
 use crate::non_interactive;
 use crate::options::{Options, Command};
@@ -40,14 +40,19 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             match cmd {
                 // Process commands that don't need connection first
                 Common::Migration(
-                    Migration { subcommand: MigrationCmd::Log(mlog), .. }
+                    Migration { subcommand: M::Log(mlog), .. }
                 ) if mlog.from_fs => {
                     migrations::log_fs(&cmdopt, &mlog).into()
                 }
                 Common::Migration(
-                    Migration { subcommand: MigrationCmd::Edit(params), .. }
+                    Migration { subcommand: M::Edit(params), .. }
                 ) if params.no_check => {
                     migrations::edit_no_check(&cmdopt, &params).into()
+                }
+                Common::Migration(
+                    Migration { subcommand: M::UpgradeCheck(params), .. }
+                ) => {
+                    migrations::upgrade_check(&cmdopt, params)
                 }
                 // Otherwise connect
                 cmd => common_cmd(&options, cmdopt, cmd),

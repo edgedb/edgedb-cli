@@ -264,7 +264,7 @@ pub fn install_twice_test(dockerfile: &str, tagname: &str, nightly: bool)
         .stderr(predicates::str::contains("--- DONE ---"))
         .stderr(predicates::function::function(|data: &str| {
             let tail = &data[data.find("--- DONE ---").unwrap()..];
-            tail.contains("already installed")
+            tail.contains("already downloaded")
         }));
     Ok(())
 }

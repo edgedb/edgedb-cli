@@ -130,6 +130,9 @@ struct SplitMigration;
          Please run `edgedb migration create` in interactive mode.")]
 struct CantResolve;
 
+#[derive(Debug, thiserror::Error)]
+#[error("cannot proceed until .esdl files are fixed")]
+pub struct EsdlError;
 
 impl FutureMigration {
     fn new(key: MigrationKey, descr: CurrentMigration) -> Self {
@@ -233,7 +236,7 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
         Ok(_) => Ok(()),
         Err(e) if e.is::<QueryError>() => {
             print_migration_error(&e, &source_map)?;
-            anyhow::bail!("cannot proceed until .esdl files are fixed");
+            return Err(EsdlError)?;
         }
         Err(e) => Err(e)?,
     }

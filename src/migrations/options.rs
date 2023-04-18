@@ -5,6 +5,8 @@ use clap::{ValueHint};
 use edgedb_cli_derive::EdbClap;
 
 use crate::options::ConnectionOptions;
+use crate::portable::repository::Channel;
+use crate::portable::ver;
 
 
 #[derive(EdbClap, Clone, Debug)]
@@ -30,6 +32,8 @@ pub enum MigrationCmd {
     /// after editor exits. Usually should be used for
     /// migrations that haven't been applied yet.
     Edit(MigrationEdit),
+    /// Check current schema on the new EdgeDB version
+    UpgradeCheck(UpgradeCheck),
 }
 
 #[derive(EdbClap, Clone, Debug)]
@@ -139,4 +143,42 @@ pub struct MigrationEdit {
     /// Fix migration id non-interactively, and don't run editor
     #[clap(long)]
     pub non_interactive: bool,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct UpgradeCheck {
+    #[clap(flatten)]
+    pub cfg: MigrationConfig,
+
+    /// Check the upgrade to a specified version
+    #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_testing", "to_nightly", "to_channel",
+    ])]
+    pub to_version: Option<ver::Filter>,
+
+    /// Check the upgrade to a latest nightly version
+    #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_testing", "to_channel",
+    ])]
+    pub to_nightly: bool,
+
+    /// Check the upgrade to a latest testing version
+    #[clap(long)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_nightly", "to_channel",
+    ])]
+    pub to_testing: bool,
+
+    /// Check the upgrade to the latest version in the channel
+    #[clap(long, value_enum)]
+    #[clap(conflicts_with_all=&[
+        "to_version", "to_nightly", "to_testing",
+    ])]
+    pub to_channel: Option<Channel>,
+
+    /// Monitor schema changes and check again on change
+    #[clap(long)]
+    pub watch: bool,
 }
