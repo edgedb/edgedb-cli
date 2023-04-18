@@ -155,7 +155,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
         .pid_file(&pid_path)
         .log_file(&log_path)?
         .background_for(|| {
-                // this is not async, but requires async context
+            // this is not async, but requires async context
             let sock = UnixDatagram::bind(&notify_socket)
                 .context("cannot create notify socket")?;
             Ok(async move {

@@ -55,6 +55,10 @@ pub trait AsOperations<'a> {
     fn as_operations(self) -> OperationIter<'a>;
 }
 
+#[derive(Debug, thiserror::Error)]
+#[error("error in one of the migrations")]
+pub struct ApplyMigrationError;
+
 
 fn slice<'x>(migrations: &'x IndexMap<String, MigrationFile>,
     // start is exclusive and end is inclusive
@@ -419,14 +423,14 @@ pub async fn apply_migrations(cli: &mut Connection,
     }
 }
 
-async fn apply_migration(cli: &mut Connection, migration: &MigrationFile)
+pub async fn apply_migration(cli: &mut Connection, migration: &MigrationFile)
     -> anyhow::Result<()>
 {
     let data = fs::read_to_string(&migration.path).await
         .context("error re-reading migration file")?;
     cli.execute(&data, &()).await.map_err(|err| {
         match print_query_error(&err, &data, false) {
-            Ok(()) => ExitCode::new(1).into(),
+            Ok(()) => ApplyMigrationError.into(),
             Err(err) => err,
         }
     })?;

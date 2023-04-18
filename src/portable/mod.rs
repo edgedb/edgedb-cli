@@ -16,7 +16,7 @@ mod create;
 mod credentials;
 mod destroy;
 mod info;
-mod install;
+pub mod install;
 mod link;
 mod list_versions;
 mod reset_password;

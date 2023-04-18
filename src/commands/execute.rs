@@ -107,6 +107,9 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             MigrationCmd::Edit(params) => {
                 migrations::edit(cli, &options, params).await?;
             }
+            MigrationCmd::UpgradeCheck(_) => {
+                anyhow::bail!("cannot be run in REPL mode");
+            }
         }
     }
     Ok(())
