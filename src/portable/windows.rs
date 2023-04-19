@@ -56,7 +56,7 @@ static WSL: OnceCell<Wsl> = OnceCell::new();
 #[error("WSL distribution is not installed")]
 pub struct NoDistribution;
 
-struct Wsl {
+pub struct Wsl {
     #[cfg(windows)]
     #[allow(dead_code)]
     lib: wslapi::Library,
@@ -74,7 +74,7 @@ struct WslInfo {
 }
 
 impl Wsl {
-    fn edgedb(&self) -> process::Native {
+    pub fn edgedb(&self) -> process::Native {
         let mut pro = process::Native::new("edgedb", "edgedb", "wsl");
         pro.arg("--user").arg("edgedb");
         pro.arg("--distribution").arg(&self.distribution);
@@ -147,7 +147,7 @@ fn credentials_linux(instance: &str) -> String {
 }
 
 #[context("cannot convert to linux (WSL) path {:?}", path)]
-fn path_to_linux(path: &Path) -> anyhow::Result<String> {
+pub fn path_to_linux(path: &Path) -> anyhow::Result<String> {
     use std::path::Component::*;
     use std::path::Prefix::*;
     if !path.is_absolute() {
@@ -175,6 +175,27 @@ fn path_to_linux(path: &Path) -> anyhow::Result<String> {
                     s.to_str().context("invalid characters in path")?,
                 );
             }
+        }
+    }
+    Ok(result)
+}
+
+#[context("cannot convert WSL path to windows path {:?}", path)]
+pub fn path_to_windows(path: &Path) -> anyhow::Result<PathBuf> {
+    use std::path::Component::*;
+    use std::path::Prefix::*;
+
+    let mut result = PathBuf::with_capacity(
+        path.to_str().map(|m| m.len()).unwrap_or(32) + 32);
+    result.push(r"\\WSL$\");
+    result.push(CURRENT_DISTRO);
+    for component in path.components() {
+        match component {
+            RootDir => {}
+            Prefix(..) => return Err(bug::error("prefix in unix path")),
+            CurDir => return Err(bug::error("current dir in canonical path")),
+            ParentDir => return Err(bug::error("parent dir in canonical path")),
+            Normal(s) => result.push(s),
         }
     }
     Ok(result)
@@ -536,7 +557,7 @@ fn get_wsl_distro(_install: bool) -> anyhow::Result<Wsl> {
     Err(bug::error("WSL on unix is unupported"))
 }
 
-fn ensure_wsl() -> anyhow::Result<&'static Wsl> {
+pub fn ensure_wsl() -> anyhow::Result<&'static Wsl> {
     WSL.get_or_try_init(|| get_wsl_distro(true))
 }
 

@@ -16,7 +16,9 @@ pub fn structure(s: &types::Struct) -> TokenStream {
     for field in &s.fields {
         let ident = &field.ident;
         if field.attrs.flatten {
-            abort!(field.ident, "flatten is not implemented");
+            args.push(quote! {
+                process.args(&self.#ident);
+            });
         } else if field.attrs.subcommand {
             abort!(field.ident, "subcommand is not implemented");
         } else if let Some(long) = &field.attrs.long {

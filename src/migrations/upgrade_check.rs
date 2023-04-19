@@ -36,10 +36,45 @@ enum CheckResult {
     MigrationsIssue,
 }
 
-
+#[cfg(windows)]
 pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
     -> anyhow::Result<()>
 {
+    use crate::portable::windows;
+
+    let status_path = tempfile::NamedTempFile::new()
+        .context("tempfile failure")?
+        .into_temp_path();
+
+    let mut cmd = windows::ensure_wsl()?.edgedb();
+    cmd.arg("migration").arg("upgrade-check");
+    cmd.args(&UpgradeCheck {
+        run_server_with_status: Some(
+            windows::path_to_linux(&status_path)?.into()
+        ),
+        .. options.clone()
+    });
+    cmd.background_for(move || Ok(async move {
+        while let Ok(meta) = fs::metadata(&status_path).await {
+            if meta.len() > "READY={}".len() as u64 {
+                break;
+            }
+        }
+        let ctx = Context::from_project_or_config(
+            &options.cfg, false,
+        ).await?;
+
+        do_check(&ctx, &status_path, options.watch).await
+    }))
+}
+
+
+#[cfg(unix)]
+pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
+    -> anyhow::Result<()>
+{
+    use tokio::net::UnixDatagram;
+
     let (version, _) = Query::from_options(
         repository::QueryOptions {
             nightly: options.to_nightly,
@@ -49,46 +84,55 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
             channel: options.to_channel,
         },
         || Ok(Query::stable()))?;
-    if cfg!(windows) {
-        todo!();
-    } else {
-        use tokio::net::UnixDatagram;
 
-        let pkg = repository::get_server_package(&version)?
-            .with_context(|| format!("no package matching {} found",
-                                     version.display()))?;
-        let info = install::package(&pkg).context("error installing EdgeDB")?;
-        let server_path = info.server_path()?;
+    let pkg = repository::get_server_package(&version)?
+        .with_context(|| format!("no package matching {} found",
+                                 version.display()))?;
+    let info = install::package(&pkg).context("error installing EdgeDB")?;
+    let server_path = info.server_path()?;
 
-        let status_dir = tempfile::tempdir().context("tempdir failure")?;
+    if let Some(status_path) = &options.run_server_with_status {
         let mut cmd = process::Native::new("edgedb", "edgedb", server_path);
-        cmd.env("NOTIFY_SOCKET", &status_dir.path().join("notify"));
         cmd.arg("--temp-dir");
         cmd.arg("--auto-shutdown-after=0");
         cmd.arg("--default-auth-method=Trust");
-        cmd.arg("--emit-server-status").arg(&status_dir.path().join("status"));
+        cmd.arg("--emit-server-status").arg(&status_path);
         cmd.arg("--port=auto");
         cmd.arg("--compiler-pool-mode=on_demand");
         cmd.arg("--tls-cert-mode=generate_self_signed");
         cmd.arg("--log-level=warn");
-        cmd.background_for(move || {
-            // this is not async, but requires async context
-            let sock = UnixDatagram::bind(&status_dir.path().join("notify"))
-                .context("cannot create notify socket")?;
-            Ok(async move {
-                let ctx = Context::from_project_or_config(
-                    &options.cfg, true,
-                ).await?;
-                let mut buf = [0u8; 1024];
-                while !matches!(sock.recv(&mut buf).await,
-                               Ok(len) if &buf[..len] == b"READY=1")
-                { };
-
-                let status_file = status_dir.path().join("status");
-                do_check(&ctx, &status_file, options.watch).await
-            })
-        })
+        cmd.exec_replacing_self()?;
+        unreachable!();
     }
+
+    let status_dir = tempfile::tempdir().context("tempdir failure")?;
+    let mut cmd = process::Native::new("edgedb", "edgedb", server_path);
+    cmd.env("NOTIFY_SOCKET", &status_dir.path().join("notify"));
+    cmd.arg("--temp-dir");
+    cmd.arg("--auto-shutdown-after=0");
+    cmd.arg("--default-auth-method=Trust");
+    cmd.arg("--emit-server-status").arg(&status_dir.path().join("status"));
+    cmd.arg("--port=auto");
+    cmd.arg("--compiler-pool-mode=on_demand");
+    cmd.arg("--tls-cert-mode=generate_self_signed");
+    cmd.arg("--log-level=warn");
+    cmd.background_for(move || {
+        // this is not async, but requires async context
+        let sock = UnixDatagram::bind(&status_dir.path().join("notify"))
+            .context("cannot create notify socket")?;
+        Ok(async move {
+            let ctx = Context::from_project_or_config(
+                &options.cfg, false,
+            ).await?;
+            let mut buf = [0u8; 1024];
+            while !matches!(sock.recv(&mut buf).await,
+                           Ok(len) if &buf[..len] == b"READY=1")
+            { };
+
+            let status_file = status_dir.path().join("status");
+            do_check(&ctx, &status_file, options.watch).await
+        })
+    })
 }
 
 
@@ -103,13 +147,24 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
         anyhow::bail!("Invalid server status {status_data:?}");
     };
     let status: EdgedbStatus = serde_json::from_str(json_data)?;
-    let cert_data = fs::read_to_string(&status.tls_cert_file).await?;
+    let cert_path = if cfg!(windows) {
+        crate::portable::windows::path_to_windows(
+            Path::new(&status.tls_cert_file))?
+    } else {
+        Path::new(&status.tls_cert_file).to_path_buf()
+    };
+    let cert_data = fs::read_to_string(&cert_path).await
+        .with_context(|| format!("cannot read cert file {cert_path:?}"))?;
     let config = Builder::new()
         .port(status.port)?
         .pem_certificates(&cert_data)?
         .constrained_build()
         .context("cannot build connection params")?;
     let cli = &mut Connection::connect(&config).await?;
+
+    if !fs::metadata(&ctx.schema_dir).await.is_ok() {
+        anyhow::bail!("No schema dir found at {:?}", ctx.schema_dir);
+    }
 
     if watch {
         let (tx, rx) = watch::channel(());
