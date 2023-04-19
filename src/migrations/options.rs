@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{ValueHint};
 
-use edgedb_cli_derive::EdbClap;
+use edgedb_cli_derive::{EdbClap, IntoArgs};
 
 use crate::options::ConnectionOptions;
 use crate::portable::repository::Channel;
@@ -36,7 +36,7 @@ pub enum MigrationCmd {
     UpgradeCheck(UpgradeCheck),
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(EdbClap, IntoArgs, Clone, Debug)]
 pub struct MigrationConfig {
     /// Directory where `*.esdl` and `*.edgeql` files are located.
     /// Default is `./dbschema`
@@ -145,7 +145,7 @@ pub struct MigrationEdit {
     pub non_interactive: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(EdbClap, IntoArgs, Clone, Debug)]
 pub struct UpgradeCheck {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
@@ -181,4 +181,7 @@ pub struct UpgradeCheck {
     /// Monitor schema changes and check again on change
     #[clap(long)]
     pub watch: bool,
+
+    #[edb(hide=true)]
+    pub run_server_with_status: Option<PathBuf>,
 }
