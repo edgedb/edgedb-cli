@@ -63,7 +63,6 @@ pub fn watch(options: &Options, _watch: &WatchCommand)
         last_error: false,
     };
     log::info!("Initialized in a project dir: {:?}", project_dir);
-    runtime.block_on(ctx.do_update())?;
     let (tx, rx) = watch::channel(());
     let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
         res.map_err(|e| {
@@ -72,7 +71,10 @@ pub fn watch(options: &Options, _watch: &WatchCommand)
         tx.send(()).unwrap();
     })?;
     watch.watch(&project_dir.join("edgedb.toml"), RecursiveMode::NonRecursive)?;
-    watch.watch(&project_dir.join("dbschema"), RecursiveMode::Recursive)?;
+    watch.watch(&ctx.migration.schema_dir, RecursiveMode::Recursive)?;
+
+    runtime.block_on(ctx.do_update())?;
+
     eprintln!("Initialized. Monitoring {:?}.", project_dir);
     let res = runtime.block_on(watch_loop(rx, &mut ctx));
     runtime.block_on(ctx.try_connect_and_clear_error())
@@ -80,7 +82,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand)
     return res;
 }
 
-async fn wait_changes(rx: &mut watch::Receiver<()>,
+pub async fn wait_changes(rx: &mut watch::Receiver<()>,
     retry_deadline: Option<Instant>)
     -> anyhow::Result<()>
 {
@@ -128,6 +130,7 @@ async fn watch_loop(mut rx: watch::Receiver<()>, ctx: &mut WatchContext)
                 res = ctrl_c.wait_result() => res?,
             };
         }
+        retry_deadline = None;
         if let Err(e) = ctx.do_update().await {
             log::error!("Error updating database: {:#}. \
                          Will retry in 10 sec.", e);

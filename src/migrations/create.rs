@@ -572,7 +572,7 @@ impl InteractiveMigration<'_> {
                 Ok(()) => {}
                 Err(e) => {
                     if e.is::<QueryError>() {
-                        print_query_error(&e, &text, false)?;
+                        print_query_error(&e, &text, false, "<statement>")?;
                     } else {
                         if print::use_color() {
                             eprintln!(

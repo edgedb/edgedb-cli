@@ -228,7 +228,7 @@ impl Interrupt {
         if let Some(state) = &*old {
             let mut old_bt = state.backtrace.clone();
             old_bt.resolve();
-            panic!("Second Interrupt created simutlaneously.\n\n\
+            panic!("Second Interrupt created simultaneously.\n\n\
                 Previous was created at:\n{:?}", old_bt);
         };
         Interrupt { event }
