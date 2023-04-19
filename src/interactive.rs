@@ -288,7 +288,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
     let data_description = match cli.parse(&flags, statement).await {
         Ok(desc) => desc,
         Err(e) => {
-            print_query_error(&e, statement, state.verbose_errors)?;
+            print_query_error(&e, statement, state.verbose_errors, "<query>")?;
             return Err(QueryError)?;
         }
     };
@@ -395,7 +395,8 @@ async fn execute_query(options: &Options, state: &mut repl::State,
                             ..
                         } => {
                             print_query_error(
-                                error, statement, state.verbose_errors
+                                error, statement, state.verbose_errors,
+                                "<query>",
                             )?;
                         }
                         _ => eprintln!("{:#?}", e),

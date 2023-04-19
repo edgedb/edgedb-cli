@@ -104,12 +104,13 @@ pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
     Ok(())
 }
 
-async fn check_migration(cli: &mut Connection, text: &str)
+async fn check_migration(cli: &mut Connection, text: &str, path: &Path)
     -> anyhow::Result<()>
 {
     cli.execute("START TRANSACTION", &()).await?;
     let res = cli.execute(&text, &()).await.map_err(|err| {
-        match print_query_error(&err, &text, false) {
+        let fname = path.display().to_string();
+        match print_query_error(&err, &text, false, &fname) {
             Ok(()) => err.into(),
             Err(err) => err,
         }
@@ -149,7 +150,7 @@ async fn _edit(cli: &mut Connection,
         let migration = parse_migration(&text)?;
         let new_id = migration.expected_id(&text)?;
         let new_data = migration.replace_id(&text, &new_id);
-        check_migration(cli, &new_data).await?;
+        check_migration(cli, &new_data, &path).await?;
 
         if migration.id != new_id {
             cli.ping_while(async {
@@ -252,7 +253,7 @@ async fn _edit(cli: &mut Connection,
             } else {
                 echo!("Id", migration.id.emphasize(), "is already correct.");
             }
-            match check_migration(cli, &new_data).await {
+            match check_migration(cli, &new_data, &path).await {
                 Ok(()) => {}
                 Err(e) => {
                     echo!(err_marker(), "error checking migration:", e);

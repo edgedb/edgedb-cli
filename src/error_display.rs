@@ -11,7 +11,8 @@ use edgedb_errors::{Error, InternalServerError};
 use crate::print;
 
 
-pub fn print_query_error(err: &Error, query: &str, verbose: bool)
+pub fn print_query_error(err: &Error, query: &str, verbose: bool,
+                         source_name: &str)
     -> Result<(), anyhow::Error>
 {
     let pstart = err.position_start();
@@ -25,7 +26,7 @@ pub fn print_query_error(err: &Error, query: &str, verbose: bool)
     };
     let hint = err.hint().unwrap_or("error");
     let detail = err.details().map(|s| s.into());
-    let files = SimpleFile::new("query", query);
+    let files = SimpleFile::new(source_name, query);
     let context_error = err
         .contexts()
         .rev()

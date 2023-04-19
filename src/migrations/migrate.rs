@@ -429,7 +429,8 @@ pub async fn apply_migration(cli: &mut Connection, migration: &MigrationFile)
     let data = fs::read_to_string(&migration.path).await
         .context("error re-reading migration file")?;
     cli.execute(&data, &()).await.map_err(|err| {
-        match print_query_error(&err, &data, false) {
+        let fname = migration.path.display().to_string();
+        match print_query_error(&err, &data, false, &fname) {
             Ok(()) => ApplyMigrationError.into(),
             Err(err) => err,
         }

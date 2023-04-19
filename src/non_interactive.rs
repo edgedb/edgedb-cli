@@ -103,7 +103,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options,
 {
     _run_query(conn, stmt, options, fmt).await.map_err(|err| {
         if let Some(err) = err.downcast_ref::<edgedb_errors::Error>() {
-            match print_query_error(&err, stmt, false) {
+            match print_query_error(&err, stmt, false, "<query>") {
                 Ok(()) => ExitCode::new(1).into(),
                 Err(e) => e,
             }
