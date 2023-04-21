@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use anyhow::Context as _;
 use colorful::Colorful;
 use edgedb_derive::Queryable;
 use edgedb_errors::{Error, QueryError, InvalidSyntaxError};
@@ -210,7 +211,14 @@ async fn gen_start_migration(ctx: &Context)
 {
     let mut bld = Builder::new();
     bld.add_lines(SourceName::Prefix, "START MIGRATION TO {");
-    let mut dir = fs::read_dir(&ctx.schema_dir).await?;
+    let mut dir = match fs::read_dir(&ctx.schema_dir).await {
+        Ok(dir) => dir,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            bld.add_lines(SourceName::Suffix, "};");
+            return Ok(bld.done());
+        }
+        Err(e) => Err(e).context(format!("cannot read {:?}", ctx.schema_dir))?,
+    };
     while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
