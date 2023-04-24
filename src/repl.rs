@@ -22,6 +22,7 @@ use crate::portable::ver;
 use crate::print;
 use crate::prompt::variable::VariableInput;
 use crate::prompt::{self, Control};
+use crate::analyze;
 
 
 pub const TX_MARKER: &str = "[tx]";
@@ -55,11 +56,17 @@ pub struct PromptRpc {
     pub control: Sender<Control>,
 }
 
+pub struct LastAnalyze {
+    pub query: String,
+    pub output: analyze::Analysis,
+}
+
 pub struct State {
     pub prompt: PromptRpc,
     pub print: print::Config,
     pub verbose_errors: bool,
     pub last_error: Option<anyhow::Error>,
+    pub last_analyze: Option<LastAnalyze>,
     pub implicit_limit: Option<usize>,
     pub idle_transaction_timeout: EdbDuration,
     pub input_mode: InputMode,

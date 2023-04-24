@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::env;
 use std::fmt;
 
-use crate::analyze::model::{Explain, Plan, IndexCell};
+use crate::analyze::model::{Analysis, Plan, IndexCell};
 use crate::analyze::model::{Shape, ChildName, DebugNode};
 
 static NUMBERS: [char; 10] = ['➊', '➋', '➌', '➍', '➎', '➏', '➐', '➑', '➒', '➓'];
@@ -10,7 +10,7 @@ static NUMBERS: [char; 10] = ['➊', '➋', '➌', '➍', '➎', '➏', '➐', '
 
 struct Opt<'a, T>(&'a Option<T>);
 
-pub fn print_debug_plan(explain: &Explain) {
+pub fn print_debug_plan(explain: &Analysis) {
     if let Some(debug) = &explain.debug_info {
         if let Some(node) = &debug.full_plan {
             println!("Debug Plan");
@@ -49,7 +49,7 @@ fn print_debug_node(prefix: &str, node: &DebugNode, last: bool) {
     }
 }
 
-pub fn print_shape(explain: &Explain) {
+pub fn print_shape(explain: &Analysis) {
     println!("Shape");
     if let Some(shape) = &explain.coarse_grained {
         print_subshape("", None, shape, true);
@@ -140,7 +140,7 @@ fn find_debug_indexes(plan: &DebugNode,
     }
 }
 
-pub fn print_contexts(explain: &Explain) {
+pub fn print_contexts(explain: &Analysis) {
     println!("Contexts");
     let mut context_indexes = BTreeMap::new();
     if let Some(plan) = &explain.fine_grained {
@@ -190,7 +190,7 @@ pub fn print_contexts(explain: &Explain) {
     println!("{}", out);
 }
 
-pub fn print_tree(explain: &Explain) {
+pub fn print_tree(explain: &Analysis) {
     println!("Full Plan Tree");
     if let Some(tree) = &explain.fine_grained {
         print_tree_node("", tree, true);

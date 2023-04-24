@@ -122,6 +122,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         print,
         verbose_errors: cfg.shell.verbose_errors.unwrap_or(false),
         last_error: None,
+        last_analyze: None,
         implicit_limit: implicit_limit,
         idle_transaction_timeout: idle_tx_timeout,
         output_format: options.output_format
