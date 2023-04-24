@@ -33,6 +33,8 @@ pub enum Common {
 
     /// List matching database objects by name and type
     List(List),
+    /// Analyze query performance
+    Analyze(Analyze),
     /// Show postgres address. Works on dev-mode database only.
     #[edb(hide=true)]
     Pgaddr,
@@ -61,6 +63,12 @@ pub enum DescribeCmd {
 pub struct List {
     #[clap(subcommand)]
     pub subcommand: ListCmd,
+}
+
+#[derive(EdbClap, Clone, Debug)]
+pub struct Analyze {
+    /// Query to analyze performance of
+    pub query: Option<String>,
 }
 
 #[derive(EdbClap, Clone, Debug)]

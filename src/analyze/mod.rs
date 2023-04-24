@@ -2,8 +2,9 @@ use std::env;
 
 use anyhow::Context;
 
+use crate::connect::Connection;
 use crate::repl::{self, LastAnalyze};
-
+use crate::commands::parser::Analyze;
 
 mod model;
 mod tree;
@@ -51,5 +52,28 @@ pub fn render_explain(explain: &Analysis) -> anyhow::Result<()>
         tree::print_debug_plan(explain);
     }
     tree::print_shape(explain);
+    Ok(())
+}
+
+pub async fn command(cli: &mut Connection, options: &Analyze)
+    -> anyhow::Result<()>
+{
+    let Some(inner_query) = &options.query else {
+        anyhow::bail!("Query argument is required");
+    };
+    let query = format!("analyze {inner_query}");
+
+    let data = cli.query_required_single::<String, _>(&query, &()).await?;
+
+    if env::var_os("_EDGEDB_ANALYZE_DEBUG_JSON")
+        .map(|x| !x.is_empty()).unwrap_or(false)
+    {
+        let json: serde_json::Value = serde_json::from_str(&data).unwrap();
+        println!("JSON: {}", json);
+    }
+    let jd = &mut serde_json::Deserializer::from_str(&data);
+    let output: Analysis = serde_path_to_error::deserialize(jd)
+        .context("parsing explain output")?;
+    render_explain(&output)?;
     Ok(())
 }
