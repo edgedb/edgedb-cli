@@ -21,6 +21,7 @@ mod completion;
 mod config;
 mod connect;
 mod credentials;
+mod classify;
 mod error_display;
 mod analyze;
 mod format;

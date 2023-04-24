@@ -17,14 +17,14 @@ use edgedb_protocol::common::{RawTypedesc};
 use edgedb_protocol::model::Duration;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser::{self, full_statement};
-use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
 
+use crate::analyze;
+use crate::classify;
 use crate::commands::{backslash, ExitCode};
 use crate::config::Config;
 use crate::credentials;
 use crate::echo;
 use crate::error_display::print_query_error;
-use crate::analyze;
 use crate::interrupt::{Interrupt, InterruptError};
 use crate::options::Options;
 use crate::outputs::tab_separated;
@@ -83,22 +83,15 @@ impl<'a> Iterator for ToDo<'a> {
                 if preparser::is_empty(query) {
                     continue;
                 }
-                match (&mut TokenStream::new(query)).next() {
-                    Some(Ok(tok))
-                    if tok.token.kind == TokenKind::Keyword &&
-                       tok.token.value.eq_ignore_ascii_case("analyze")
-                    => {
-                        return Some(ToDoItem::Explain(query));
-                    }
-                    Some(Ok(_) | Err(_)) => {} // let EdgeDB handle Err
-                    None => continue, // but should be unreachable
+                if classify::is_analyze(query) {
+                    return Some(ToDoItem::Explain(query))
+                } else {
+                    return Some(ToDoItem::Query(query))
                 }
-                return Some(ToDoItem::Query(query));
             }
         }
     }
 }
-
 
 pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
     let (control_wr, control_rd) = channel(1);
