@@ -1,11 +1,12 @@
 use crate::connect::Connection;
 use edgedb_tokio::server_params::PostgresAddress;
 
-use crate::commands::{self, Options};
+use crate::analyze;
 use crate::commands::parser::{Common, DatabaseCmd, ListCmd, DescribeCmd};
+use crate::commands::{self, Options};
 use crate::migrations::options::{MigrationCmd};
-use crate::print;
 use crate::migrations;
+use crate::print;
 
 
 pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
@@ -45,6 +46,9 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
                 commands::list_roles(cli, &options,
                     &c.pattern, c.case_sensitive).await?;
             }
+        }
+        Analyze(c) => {
+            analyze::command(cli, c).await?;
         }
         Pgaddr => {
             match cli.get_server_param::<PostgresAddress>() {
