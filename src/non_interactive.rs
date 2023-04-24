@@ -15,6 +15,7 @@ use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
 use tokio_stream::StreamExt;
 
+use crate::classify;
 use crate::commands::ExitCode;
 use crate::connect::Connection;
 use crate::error_display::print_query_error;
@@ -58,6 +59,10 @@ pub async fn noninteractive_main(q: &Query, options: &Options)
     } else if let Some(queries) = &q.queries {
         let mut conn = options.create_connector().await?.connect().await?;
         for query in queries {
+            if classify::is_analyze(query) {
+                anyhow::bail!("Analyze queries are not allowed. \
+                               Use the dedicated `edgedb analyze` command.");
+            }
             run_query(&mut conn, query, &options, fmt).await?;
         }
     } else {
@@ -91,6 +96,10 @@ async fn interpret_file<T>(file: &mut T, options: &Options, fmt: OutputFormat)
             .context("can't decode statement")?;
         if preparser::is_empty(stmt) {
             continue;
+        }
+        if classify::is_analyze(stmt) {
+            anyhow::bail!("Analyze queries are not allowed. \
+                           Use the dedicated `edgedb analyze` command.");
         }
         run_query(&mut conn, &stmt, &options, fmt).await?;
     }

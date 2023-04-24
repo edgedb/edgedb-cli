@@ -1,10 +1,12 @@
 use std::env;
+use std::borrow::Cow;
 
 use anyhow::Context;
 
+use crate::classify;
+use crate::commands::parser::Analyze;
 use crate::connect::Connection;
 use crate::repl::{self, LastAnalyze};
-use crate::commands::parser::Analyze;
 
 mod model;
 mod tree;
@@ -61,7 +63,13 @@ pub async fn command(cli: &mut Connection, options: &Analyze)
     let Some(inner_query) = &options.query else {
         anyhow::bail!("Query argument is required");
     };
-    let query = format!("analyze {inner_query}");
+    let query = if classify::is_analyze(inner_query) {
+        // allow specifying options in the query itself
+        Cow::Borrowed(inner_query)
+    } else {
+        // but also do not make user writing `analyze` twice
+        Cow::Owned(format!("analyze {inner_query}"))
+    };
 
     let data = cli.query_required_single::<String, _>(&query, &()).await?;
 
