@@ -11,13 +11,14 @@ use edgedb_errors::Error;
 use edgedb_errors::display::display_error_verbose;
 use edgedb_protocol::model::Duration;
 
+use crate::analyze;
 use crate::commands::Options;
-use crate::repl;
-use crate::print;
-use crate::print::style::Styler;
-use crate::prompt;
 use crate::commands::execute;
 use crate::commands::parser::{Backslash, BackslashCmd, Setting, StateParam};
+use crate::print::style::Styler;
+use crate::print;
+use crate::prompt;
+use crate::repl;
 use crate::table;
 
 
@@ -648,6 +649,14 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                 }
             } else {
                 eprintln!("== there is no previous error ==");
+            }
+            Ok(Skip)
+        }
+        Expand => {
+            if let Some(ref last) = prompt.last_analyze {
+                analyze::render_expanded_explain(&last.output).await?;
+            } else {
+                eprintln!("== there is no previous analyze statement ==");
             }
             Ok(Skip)
         }

@@ -8,7 +8,7 @@ pub type IndexCell = Arc<crossbeam_utils::atomic::AtomicCell<Option<u32>>>;
 
 
 #[derive(Deserialize, Debug)]
-pub struct Explain {
+pub struct Analysis {
     pub buffers: Vec<String>,
     pub fine_grained: Option<Plan>,
     pub coarse_grained: Option<Shape>,

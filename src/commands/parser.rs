@@ -115,6 +115,7 @@ pub enum BackslashCmd {
     Common(Common),
     Help,
     LastError,
+    Expand,
     DebugState(StateParam),
     DebugStateDesc(StateParam),
     History,
