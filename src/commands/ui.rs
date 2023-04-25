@@ -53,14 +53,14 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
                     use_https = true;
                 }
                 Ok(status) => {
-                    log::debug!(
-                        "GET {} returned status code {}, retry HTTP.",
+                    print::echo!(
+                        "{} returned status code {}, retry HTTP.",
                         https_url,
                         status
                     );
                 }
                 Err(e) => {
-                    log::debug!("GET {} failed: {:#}", https_url, e);
+                    print::echo!("Failed to probe {}: {:#}, retry HTTP.", https_url, e);
                 }
             }
         }

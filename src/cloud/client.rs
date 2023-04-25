@@ -1,4 +1,5 @@
-use std::env;
+use std::{env, fmt};
+use std::fmt::Formatter;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -15,7 +16,6 @@ const EDGEDB_CLOUD_API_VERSION: &str = "v1/";
 const EDGEDB_CLOUD_API_TIMEOUT: u64 = 10;
 
 #[derive(Debug, serde::Deserialize, thiserror::Error)]
-#[error("HTTP error: [{:?}] {}", code, status)]
 pub struct ErrorResponse {
     #[serde(skip, default)]
     pub code: StatusCode,
@@ -342,6 +342,16 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
     ) -> anyhow::Result<T> {
         self.request(self.client.delete(self.api_endpoint.join(uri.as_ref())?))
             .await
+    }
+}
+
+impl fmt::Display for ErrorResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(error) = &self.error {
+            write!(f, "{}", error)
+        } else {
+            write!(f, "HTTP error: [{:?}] {}", self.code, self.status)
+        }
     }
 }
 
