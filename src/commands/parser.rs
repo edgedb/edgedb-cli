@@ -69,6 +69,14 @@ pub struct List {
 pub struct Analyze {
     /// Query to analyze performance of
     pub query: Option<String>,
+
+    /// Write analysis into the JSON file specified instead of formatting
+    #[clap(long)]
+    pub debug_output_file: Option<PathBuf>,
+
+    /// Read JSON file instead of executing a query
+    #[clap(long, conflicts_with="query")]
+    pub read_json: Option<PathBuf>,
 }
 
 #[derive(EdbClap, Clone, Debug)]
