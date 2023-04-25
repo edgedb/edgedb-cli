@@ -15,12 +15,14 @@ use tokio::fs;
 use tokio::io::{AsyncWriteExt};
 use url::Url;
 
+use crate::async_util::timeout;
 use crate::portable::platform;
 use crate::portable::ver;
 use crate::portable::windows;
 
 
 pub const USER_AGENT: &str = "edgedb";
+pub const DEFAULT_TIMEOUT: Duration = Duration::new(60, 0);
 static PKG_ROOT: OnceCell<Url> = OnceCell::new();
 
 #[derive(thiserror::Error, Debug)]
@@ -176,11 +178,11 @@ async fn _get_json<T>(url: &Url) -> Result<T, anyhow::Error>
 
 #[context("failed to fetch JSON at URL: {}", url)]
 #[tokio::main]
-async fn get_json<T>(url: &Url) -> Result<T, anyhow::Error>
+async fn get_json<T>(url: &Url, timeo: Duration) -> Result<T, anyhow::Error>
     where T: serde::de::DeserializeOwned,
 {
     tokio::select! {
-        res = _get_json(url) => res,
+        res = timeout(timeo, _get_json(url)) => res,
         _ = async {
             tokio::time::sleep(Duration::from_secs(2)).await;
             if std::io::stderr().is_terminal() {
@@ -276,17 +278,19 @@ fn valid_hash(val: &String) -> bool {
         hex::decode(val).map(|x| x.len() == 64).unwrap_or(false)
 }
 
-pub fn get_cli_packages(channel: Channel)
+pub fn get_cli_packages(channel: Channel, timeout: Duration)
     -> anyhow::Result<Vec<CliPackageInfo>>
 {
-    get_platform_cli_packages(channel, platform::get_cli()?)
+    get_platform_cli_packages(channel, platform::get_cli()?, timeout)
 }
 
-pub fn get_platform_cli_packages(channel: Channel, platform: &str)
+pub fn get_platform_cli_packages(channel: Channel, platform: &str,
+                                 timeo: Duration)
     -> anyhow::Result<Vec<CliPackageInfo>>
 {
     let pkg_root = pkg_root()?;
-    let data: RepositoryData = match get_json(&json_url(platform, channel)?) {
+    let data: RepositoryData;
+    data = match get_json(&json_url(platform, channel)?, timeo) {
         Ok(data) => data,
         Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
         Err(e) => return Err(e),
@@ -309,7 +313,8 @@ fn get_platform_server_packages(channel: Channel, platform: &str)
     -> anyhow::Result<Vec<PackageInfo>>
 {
     let pkg_root = pkg_root()?;
-    let data: RepositoryData = match get_json(&json_url(platform, channel)?) {
+    let data: RepositoryData;
+    data = match get_json(&json_url(platform, channel)?, DEFAULT_TIMEOUT) {
         Ok(data) => data,
         Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
         Err(e) => return Err(e),
