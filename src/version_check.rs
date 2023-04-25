@@ -37,7 +37,7 @@ impl Cache {
     fn channel_matches(&self, chan: &repository::Channel) -> bool {
         self.version.as_ref()
             .map(|v| cli::upgrade::channel_of(&v.to_string()) == *chan)
-            .unwrap_or(false)
+            .unwrap_or(true) // negative cache always matches
     }
 }
 
@@ -89,10 +89,13 @@ fn _check(cache_dir: &Path, strict: bool) -> anyhow::Result<()> {
         }
     }
     let timestamp = SystemTime::now();
-    let pkg = repository::get_cli_packages(channel)?
-        .into_iter()
-        .map(|pkg| pkg.version)
-        .max();
+    let pkg = repository::get_cli_packages(channel, Duration::new(1, 0))
+        .map_err(|e| log::info!("cli version check failed: {e:#}")).ok()
+        .and_then(|pkgs| {
+            pkgs.into_iter()
+            .map(|pkg| pkg.version)
+            .max()
+        });
     if let Some(ver) = &pkg {
         if &self_version < ver {
             newer_warning(&ver);

@@ -1,6 +1,7 @@
 use std::env;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::Context;
 use edgedb_cli_derive::EdbClap;
@@ -14,6 +15,9 @@ use crate::portable::repository::{self, download, Channel};
 use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
 use crate::process;
+
+
+const INDEX_TIMEOUT: Duration = Duration::new(60, 0);
 
 
 #[derive(EdbClap, Clone, Debug)]
@@ -180,7 +184,8 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
         force = true;
     }
 
-    let pkg = repository::get_platform_cli_packages(channel, target_plat)?
+    let pkg = repository::get_platform_cli_packages(channel, target_plat,
+                                                    INDEX_TIMEOUT)?
         .into_iter().max_by(|a, b| a.version.cmp(&b.version))
         .context("cannot find new version")?;
     if !force && pkg.version <= self_version()? {

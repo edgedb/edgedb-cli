@@ -337,7 +337,10 @@ fn wsl_cli_version(distro: &str)
 fn download_binary(dest: &Path) -> anyhow::Result<()> {
     let my_ver = self_version()?;
     let pkgs = repository::get_platform_cli_packages(
-        upgrade::channel(), "x86_64-unknown-linux-musl")?;
+        upgrade::channel(),
+        "x86_64-unknown-linux-musl",
+        repository::DEFAULT_TIMEOUT,
+    )?;
     let pkg = pkgs.iter().find(|pkg| pkg.version == my_ver);
     let pkg = if let Some(pkg) = pkg {
         pkg.clone()
@@ -345,6 +348,7 @@ fn download_binary(dest: &Path) -> anyhow::Result<()> {
         let pkg = repository::get_platform_cli_packages(
                 upgrade::channel(),
                 "x86_64-unknown-linux-musl",
+                repository::DEFAULT_TIMEOUT,
             )?.into_iter().max_by(|a, b| a.version.cmp(&b.version))
             .context("cannot find new version")?;
         if pkg.version < my_ver {
