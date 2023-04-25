@@ -129,7 +129,6 @@ commands:
     run: [cargo, run, --bin, edgedb, --features=dev_mode, '--', -I_localdev]
     environ:
       #_EDGEDB_ANALYZE_DEBUG_PLAN: true
-      #_EDGEDB_ANALYZE_DEBUG_JSON: true
 
   repl-release: !Command
     description: Run edgedb repl
