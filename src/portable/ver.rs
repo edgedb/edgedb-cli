@@ -180,10 +180,13 @@ impl Build {
 
 impl Filter {
     pub fn matches(&self, bld: &Build) -> bool {
+        self.matches_specific(&bld.specific())
+    }
+
+    pub fn matches_specific(&self, spec: &Specific) -> bool {
         use MinorVersion as M;
         use FilterMinor as Q;
 
-        let spec = bld.specific();
         if spec.major != self.major {
             return false;
         }
