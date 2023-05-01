@@ -99,6 +99,7 @@ pub struct RemoteStatus {
     pub version: Option<String>,
     pub connection: Option<ConnectionStatus>,
     pub instance_status: Option<String>,
+    pub location: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -303,6 +304,9 @@ async fn _remote_status(name: &str, quiet: bool)
     let cred_data = tokio::fs::read(cred_path).await?;
     let credentials = serde_json::from_slice(&cred_data)?;
     let (version, connection) = try_connect(&credentials).await;
+    let location = format!("{}:{}",
+        credentials.host.as_deref().unwrap_or("localhost"),
+        credentials.port.clone());
     return Ok(RemoteStatus {
         name: name.into(),
         type_: RemoteType::Remote,
@@ -310,6 +314,7 @@ async fn _remote_status(name: &str, quiet: bool)
         version,
         connection: Some(connection),
         instance_status: None,
+        location: location,
     })
 }
 
@@ -598,14 +603,15 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
     table.set_titles(Row::new(
-        ["Kind", "Name", "Port", "Version", "Status"]
+        ["Kind", "Name", "Location", "Version", "Status"]
         .iter().map(|x| table::header_cell(x)).collect()));
     for status in local {
         table.add_row(Row::new(vec![
             Cell::new("local"),
             Cell::new(&status.name),
-            Cell::new(status.port.as_ref().map(ToString::to_string)
-                .as_deref().unwrap_or("?")),
+            Cell::new(&format!("localhost:{}",
+                status.port.as_ref().map(ToString::to_string)
+                .as_deref().unwrap_or("?"))),
             Cell::new(status.version.as_deref().unwrap_or("?")),
             Cell::new(status.service_status.as_deref().unwrap_or("?")),
         ]));
@@ -617,9 +623,7 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
                 RemoteType::Remote => "remote",
             }),
             Cell::new(&status.name),
-            Cell::new(&format!("{}:{}",
-                   status.credentials.host.as_deref().unwrap_or("localhost"),
-                   status.credentials.port)),
+            Cell::new(&status.location),
             Cell::new(&status.version.as_ref()
                 .map(|m| m.to_string()).as_deref().unwrap_or("?".into())),
             Cell::new(
