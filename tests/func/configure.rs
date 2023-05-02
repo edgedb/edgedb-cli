@@ -6,8 +6,8 @@ use crate::SERVER;
 #[test]
 fn configure_all_parameters() {
     let cmd = SERVER.admin_cmd()
-        .arg("--tab-separated")
         .arg("query")
+        .arg("--output-format=tab-separated")
         .arg(r###"
             WITH Ptr := (SELECT schema::ObjectType
                          FILTER .name = 'cfg::Config'),
@@ -18,6 +18,7 @@ fn configure_all_parameters() {
                             FILTER .name = "cfg::internal" AND @value = 'true'
                         )),
                    }
+                   FILTER .name NOT LIKE '\\_%'
                 ),
             SELECT Props { name }
             FILTER .name != 'id' AND NOT .is_internal
