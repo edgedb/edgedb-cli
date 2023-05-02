@@ -24,6 +24,7 @@ pub struct CloudInstance {
     dsn: String,
     status: String,
     pub version: String,
+    pub region: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     tls_ca: Option<String>,
 }
@@ -57,6 +58,7 @@ impl RemoteStatus {
             version,
             connection: Some(connection),
             instance_status: Some(cloud_instance.status.clone()),
+            location: format!("\u{2601}\u{FE0F} {}", cloud_instance.region),
         })
     }
 }
