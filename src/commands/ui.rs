@@ -107,7 +107,7 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
             Ok(_) => {
                 print::success("Opening URL in browser:");
                 println!("{}", url);
-                if let Some(path) = options.conn_options.credentials_file {
+                if let Some(path) = &options.conn_options.credentials_file {
                     println!("See login credentials at {path:?}");
                 }
                 Ok(())
