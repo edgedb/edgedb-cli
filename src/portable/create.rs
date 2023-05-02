@@ -16,9 +16,10 @@ use crate::portable::local::{Paths, InstanceInfo};
 use crate::portable::local::{write_json, allocate_port};
 use crate::portable::options::{Create, InstanceName, Start};
 use crate::portable::platform::optional_docker_check;
-use crate::portable::repository::{self, Query, QueryOptions};
+use crate::portable::repository::{Query, QueryOptions, Channel};
 use crate::portable::reset_password::{password_hash, generate_password};
 use crate::portable::{windows, linux, macos};
+use crate::portable::ver;
 use crate::print::{self, echo, err_marker, Highlight};
 use crate::process;
 use crate::question;
@@ -170,32 +171,44 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
         org_slug: org_slug.to_string(),
         name: name.to_string(),
     };
-    let (query, _) = Query::from_options(
-        QueryOptions {
-            nightly: cmd.nightly,
-            testing: false,
-            channel: cmd.channel,
-            version: cmd.version.as_ref(),
-            stable: false,
-        },
-        || anyhow::Ok(Query::stable()),
-    )?;
 
-    let pkg = repository::get_server_package(&query)?
-        .with_context(||
-            format!("cannot find package matching {}", query.display()))?;
+    if cmd.nightly || matches!(cmd.channel, Some(Channel::Nightly))
+        || matches!(cmd.channel, Some(Channel::Testing))
+    {
+        print::error(
+            "The requested EdgeDB version is not supported by EdgeDB Cloud.",
+        );
+        return Err(ExitCode::new(exit_codes::INVALID_CONFIG))?;
+    }
 
     client.ensure_authenticated()?;
 
-    let pkg_ver = pkg.version.specific();
     let region = match &cmd.region {
         None => cloud::ops::get_current_region(&client)?.name,
         Some(region) => region.to_string(),
     };
 
+    let mut versions = cloud::ops::get_versions(client)?;
+
+    if let Some(ver) = &cmd.version {
+        versions.retain(
+            |cand| ver.matches_specific(
+                &cand.version.parse::<ver::Specific>().unwrap()));
+    }
+
+    if versions.len() == 0 {
+        print::error(
+            "The requested EdgeDB version is not supported by EdgeDB Cloud.",
+        );
+        return Err(ExitCode::new(exit_codes::INVALID_CONFIG))?;
+    }
+
+    versions.sort_by_cached_key(|k| k.version.parse::<ver::Semver>().unwrap());
+    let server_ver = &versions.last().unwrap().version;
+
     if !cmd.non_interactive && !question::Confirm::new(format!(
         "This will create a new EdgeDB cloud instance with the following parameters: \
-        \n\nRegion: {region}\n\nDoes this look good?",
+        \n\nRegion: {region}\nServer Version: {server_ver}\nDoes this look good?",
     )).ask()? {
         return Ok(());
     }
@@ -203,7 +216,7 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
     let request = cloud::ops::CloudInstanceCreate {
         name: name.to_string(),
         org: org_slug.to_string(),
-        version: pkg_ver.to_string(),
+        version: server_ver.to_string(),
         region: Some(region),
     };
     cloud::ops::create_cloud_instance(&client, &request)?;

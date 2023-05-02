@@ -48,14 +48,14 @@ impl RemoteStatus {
         secret_key: &str,
     ) -> anyhow::Result<Self> {
         let credentials = cloud_instance.as_credentials(secret_key).await?;
-        let (version, connection) = try_connect(&credentials).await;
+        let (_, connection) = try_connect(&credentials).await;
         Ok(Self {
             name: format!("{}/{}", cloud_instance.org_slug, cloud_instance.name),
             type_: RemoteType::Cloud {
                 instance_id: cloud_instance.id.clone(),
             },
             credentials,
-            version,
+            version: Some(cloud_instance.version.clone()),
             connection: Some(connection),
             instance_status: Some(cloud_instance.status.clone()),
             location: format!("\u{2601}\u{FE0F} {}", cloud_instance.region),
@@ -74,6 +74,11 @@ pub struct Region {
     pub name: String,
     pub platform: String,
     pub platform_region: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct Version {
+    pub version: String,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -115,6 +120,19 @@ pub async fn get_current_region(
     client: &CloudClient,
 ) -> anyhow::Result<Region> {
     let url = "region/self";
+    client
+        .get(url)
+        .await
+        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
+            _ => Err(e),
+        })
+}
+
+#[tokio::main]
+pub async fn get_versions(
+    client: &CloudClient,
+) -> anyhow::Result<Vec<Version>> {
+    let url = "versions";
     client
         .get(url)
         .await
