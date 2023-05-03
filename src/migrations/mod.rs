@@ -12,10 +12,10 @@ mod source_map;
 mod squash;
 mod status;
 mod timeout;
-mod upgrade_check;
 
 pub mod dev_mode;
 pub mod options;
+pub mod upgrade_check;
 
 const NULL_MIGRATION: &str = "initial";
 
