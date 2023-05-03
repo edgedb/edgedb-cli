@@ -112,6 +112,7 @@ pub enum OperationStatus {
 pub struct CloudOperation {
     pub id: String,
     pub status: OperationStatus,
+    pub description: String,
     pub message: String,
 }
 
@@ -157,15 +158,12 @@ pub async fn find_cloud_instance_by_name(
         })
 }
 
-async fn wait_instance_available_after_operation(
+async fn wait_for_operation(
     mut operation: CloudOperation,
-    org: &str,
-    name: &str,
     client: &CloudClient,
-    operation_type: &str,
-) -> anyhow::Result<CloudInstance> {
+) -> anyhow::Result<()> {
     let spinner = ProgressBar::new_spinner()
-        .with_message(format!("Waiting for the result of EdgeDB Cloud instance {}...", operation_type));
+        .with_message(format!("Monitoring {}...", operation.description));
     spinner.enable_steady_tick(SPINNER_TICK);
 
     let url = format!("operations/{}", operation.id);
@@ -173,22 +171,28 @@ async fn wait_instance_available_after_operation(
     while Instant::now() < deadline {
         match operation.status {
             OperationStatus::Failed => {
-                anyhow::bail!(
-                    "Failed to wait for EdgeDB Cloud instance to become available after {} an instance: {}",
-                    operation_type,
-                    operation.message,
-                );
+                anyhow::bail!(operation.message);
             },
             OperationStatus::InProgress => {
                 sleep(POLLING_INTERVAL).await;
                 operation = client.get(&url).await?;
             }
             OperationStatus::Completed => {
-                break;
+                return Ok(());
             }
         }
     }
 
+    anyhow::bail!("Timed out.")
+}
+
+async fn wait_instance_available_after_operation(
+    operation: CloudOperation,
+    org: &str,
+    name: &str,
+    client: &CloudClient,
+) -> anyhow::Result<CloudInstance> {
+    wait_for_operation(operation, client).await?;
     let url = format!("orgs/{}/instances/{}", org, name);
     let instance: CloudInstance = client.get(&url).await?;
 
@@ -197,24 +201,6 @@ async fn wait_instance_available_after_operation(
     } else {
         anyhow::bail!("Timed out.")
     }
-}
-
-async fn wait_instance_create(
-    operation: CloudOperation,
-    org: &str,
-    name: &str,
-    client: &CloudClient,
-) -> anyhow::Result<CloudInstance> {
-    wait_instance_available_after_operation(operation, org, name, client, "creating").await
-}
-
-async fn wait_instance_upgrade(
-    operation: CloudOperation,
-    org: &str,
-    name: &str,
-    client: &CloudClient,
-) -> anyhow::Result<CloudInstance> {
-    wait_instance_available_after_operation(operation, org, name, client, "upgrading").await
 }
 
 #[tokio::main]
@@ -232,7 +218,8 @@ pub async fn create_cloud_instance(
             }
             _ => Err(e),
         })?;
-    wait_instance_create(operation, &request.org, &request.name, client).await?;
+    wait_instance_available_after_operation(
+        operation, &request.org, &request.name, client).await?;
     Ok(())
 }
 
@@ -245,7 +232,8 @@ pub async fn upgrade_cloud_instance(
     let operation: CloudOperation = client
         .put(url, request)
         .await?;
-    wait_instance_upgrade(operation, &request.org, &request.name, client).await?;
+    wait_instance_available_after_operation(
+        operation, &request.org, &request.name, client).await?;
     Ok(())
 }
 
@@ -264,13 +252,17 @@ pub fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
 }
 
 #[tokio::main]
-pub async fn try_to_destroy(name: &str, org: &str, options: &CloudOptions) -> anyhow::Result<()> {
-    log::info!("Destroying EdgeDB Cloud instance: {}/{}", name, org);
+pub async fn destroy_cloud_instance(
+    name: &str,
+    org: &str,
+    options: &CloudOptions,
+) -> anyhow::Result<()> {
     let client = CloudClient::new(options)?;
     client.ensure_authenticated()?;
-    let _: CloudOperation = client.delete(
+    let operation: CloudOperation = client.delete(
         format!("orgs/{}/instances/{}", org, name)
     ).await?;
+    wait_for_operation(operation, &client).await?;
     Ok(())
 }
 
