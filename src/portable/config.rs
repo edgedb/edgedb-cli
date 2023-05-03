@@ -90,7 +90,10 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
                 .map(|p| p.schema_dir)
                 .flatten()
                 .map(|s| s.into())
-                .unwrap_or("dbschema".into())
+                .unwrap_or_else(|| {
+                    path.parent().unwrap_or(&Path::new(""))
+                    .join("dbschema")
+                })
         },
     })
 }
