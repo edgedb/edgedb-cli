@@ -1,23 +1,31 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf, Component};
+use std::sync::Mutex;
 use std::time::SystemTime;
 
 use anyhow::Context;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
+use once_cell::sync::Lazy;
 
 use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstallInfo, write_json};
 use crate::portable::options::Install;
+use crate::portable::ver::Build;
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{PackageInfo, PackageHash, Query, download};
 use crate::portable::repository::{QueryOptions};
 use crate::portable::repository::{get_server_package, get_specific_package};
 use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
+
+
+static INSTALLED_VERSIONS: Lazy<Mutex<BTreeSet<Build>>> =
+    Lazy::new(|| Mutex::new(BTreeSet::new()));
 
 
 #[context("metadata error for {:?}", dir)]
@@ -189,7 +197,10 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     let target_dir = platform::portable_dir()?.join(&ver_name);
     if target_dir.exists() {
         let meta = check_metadata(&target_dir, &pkg_info)?;
-        echo!("Version", meta.version.emphasize(), "is already downloaded");
+        if INSTALLED_VERSIONS.lock().unwrap().insert(meta.version.clone()) {
+            echo!("Version", meta.version.emphasize(),
+                  "is already downloaded");
+        }
         return Ok(meta);
     }
 
@@ -208,6 +219,7 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
         || format!("cannot rename {:?} -> {:?}", tmp_target, target_dir))?;
     unlink_cache(&cache_path);
     echo!("Successfully installed", pkg_info.version.emphasize());
+    INSTALLED_VERSIONS.lock().unwrap().insert(pkg_info.version.clone());
 
     Ok(info)
 }
