@@ -18,8 +18,10 @@ use crate::migrations::migrate::{apply_migration, ApplyMigrationError};
 use crate::migrations::migration;
 use crate::migrations::options::UpgradeCheck;
 use crate::migrations::timeout;
+use crate::portable::config::Config;
 use crate::portable::install;
-use crate::portable::repository::{self, Query};
+use crate::portable::local::InstallInfo;
+use crate::portable::repository::{self, Query, PackageInfo};
 use crate::print::{warn, success, echo, Highlight};
 use crate::process;
 use crate::watch::wait_changes;
@@ -73,8 +75,6 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
 pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
     -> anyhow::Result<()>
 {
-    use tokio::net::UnixDatagram;
-
     let (version, _) = Query::from_options(
         repository::QueryOptions {
             nightly: options.to_nightly,
@@ -89,9 +89,10 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
         .with_context(|| format!("no package matching {} found",
                                  version.display()))?;
     let info = install::package(&pkg).context("error installing EdgeDB")?;
-    let server_path = info.server_path()?;
 
+    // This is run from windows to do the upgrade check
     if let Some(status_path) = &options.run_server_with_status {
+        let server_path = info.server_path()?;
         let mut cmd = process::Native::new("edgedb", "edgedb", server_path);
         cmd.arg("--temp-dir");
         cmd.arg("--auto-shutdown-after=0");
@@ -105,6 +106,34 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
         unreachable!();
     }
 
+     let runtime = tokio::runtime::Builder::new_multi_thread()
+         .enable_all()
+         .build()?;
+    let ctx = runtime.block_on(
+        Context::from_project_or_config(&options.cfg, false)
+    )?;
+    return spawn_and_check(&info, ctx, options.watch);
+}
+
+#[cfg(windows)]
+pub fn to_version(pkg: &PackageInfo, config: &Config) -> anyhow::Result<()> {
+    unreachable!();
+}
+
+#[cfg(unix)]
+pub fn to_version(pkg: &PackageInfo, config: &Config) -> anyhow::Result<()> {
+    let info = install::package(pkg).context("error installing EdgeDB")?;
+    let ctx = Context::for_project(config)?;
+    return spawn_and_check(&info, ctx, false);
+}
+
+#[cfg(unix)]
+fn spawn_and_check(info: &InstallInfo, ctx: Context, watch: bool)
+    -> anyhow::Result<()>
+{
+    use tokio::net::UnixDatagram;
+
+    let server_path = info.server_path()?;
     let status_dir = tempfile::tempdir().context("tempdir failure")?;
     let mut cmd = process::Native::new("edgedb", "edgedb", server_path);
     cmd.env("NOTIFY_SOCKET", &status_dir.path().join("notify"));
@@ -121,16 +150,13 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
         let sock = UnixDatagram::bind(&status_dir.path().join("notify"))
             .context("cannot create notify socket")?;
         Ok(async move {
-            let ctx = Context::from_project_or_config(
-                &options.cfg, false,
-            ).await?;
             let mut buf = [0u8; 1024];
             while !matches!(sock.recv(&mut buf).await,
                            Ok(len) if &buf[..len] == b"READY=1")
             { };
 
             let status_file = status_dir.path().join("status");
-            do_check(&ctx, &status_file, options.watch).await
+            do_check(&ctx, &status_file, watch).await
         })
     })
 }

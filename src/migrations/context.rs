@@ -44,9 +44,12 @@ impl Context {
     pub fn for_watch(project_dir: &Path) -> anyhow::Result<Context> {
         let config_path = project_dir.join("edgedb.toml");
         let config = config::read(&config_path)?;
+        return Context::for_project(&config);
+    }
+    pub fn for_project(config: &config::Config) -> anyhow::Result<Context> {
         Ok(Context {
-            schema_dir: config.project.schema_dir,
-            edgedb_version: Some(config.edgedb.server_version),
+            schema_dir: config.project.schema_dir.clone(),
+            edgedb_version: Some(config.edgedb.server_version.clone()),
             quiet: false,
         })
     }

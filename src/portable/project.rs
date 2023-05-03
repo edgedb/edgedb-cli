@@ -1503,7 +1503,7 @@ pub fn update_toml(
     let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
     let config_path = root.join("edgedb.toml");
     let config = config::read(&config_path)?;
-    let schema_dir = config.project.schema_dir;
+    let schema_dir = &config.project.schema_dir;
 
     let pkg = repository::get_server_package(&query)?.with_context(||
         format!("cannot find package matching {}", query.display()))?;
@@ -1555,6 +1555,7 @@ pub fn update_toml(
                 if pkg_ver.is_compatible(&inst_ver) && !options.force {
                     upgrade::upgrade_compatible(inst, pkg)?;
                 } else {
+                    migrations::upgrade_check::to_version(&pkg, &config)?;
                     upgrade::upgrade_incompatible(inst, pkg)?;
                 }
             }
@@ -1620,8 +1621,8 @@ pub fn upgrade_instance(
     let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
     let config_path = root.join("edgedb.toml");
     let config = config::read(&config_path)?;
-    let cfg_ver = config.edgedb.server_version;
-    let schema_dir = config.project.schema_dir;
+    let cfg_ver = &config.edgedb.server_version;
+    let schema_dir = &config.project.schema_dir;
 
     let stash_dir = stash_path(&root)?;
     if !stash_dir.exists() {
@@ -1666,6 +1667,7 @@ pub fn upgrade_instance(
             if pkg_ver.is_compatible(&inst_ver) {
                 upgrade::upgrade_compatible(inst, pkg)?;
             } else {
+                migrations::upgrade_check::to_version(&pkg, &config)?;
                 upgrade::upgrade_incompatible(inst, pkg)?;
             }
         }
