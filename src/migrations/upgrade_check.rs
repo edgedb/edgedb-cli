@@ -116,7 +116,7 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
 }
 
 #[cfg(windows)]
-pub fn to_version(pkg: &PackageInfo, config: &Config) -> anyhow::Result<()> {
+pub fn to_version(_: &PackageInfo, _: &Config) -> anyhow::Result<()> {
     unreachable!();
 }
 
