@@ -77,6 +77,10 @@ pub struct Analyze {
     /// Read JSON file instead of executing a query
     #[clap(long, conflicts_with="query")]
     pub read_json: Option<PathBuf>,
+
+    /// Show detailed output of the analyze
+    #[clap(long)]
+    pub expand: bool,
 }
 
 #[derive(EdbClap, Clone, Debug)]
