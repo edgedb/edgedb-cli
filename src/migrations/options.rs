@@ -93,7 +93,10 @@ pub struct Migrate {
     ///
     /// This is commonly used to apply schema temporarily before doing
     /// `migration create` for testing purposes.
-    #[clap(long, hide=true)]
+    ///
+    /// This is a single step of `edgedb watch`, when you don't need to monitor
+    /// schema for changes.
+    #[clap(long)]
     pub dev_mode: bool,
 }
 
