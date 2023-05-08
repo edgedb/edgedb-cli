@@ -64,6 +64,8 @@ Introspection
 Operations
   \dump FILENAME           dump current database into a file
   \restore FILENAME        restore the database from file into the current one
+  \expand                  print expanded output of the last ANALYZE operation
+  \E, \last-error          print more information on the last error occurred
 
 Editing
   \s, \history             show history

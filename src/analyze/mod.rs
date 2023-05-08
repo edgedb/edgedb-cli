@@ -120,6 +120,9 @@ pub async fn command(cli: &mut Connection, options: &Analyze)
             .with_context(|| format!("parsing explain output"))?;
 
         render_explain(&output)?;
+        if options.expand {
+            render_expanded_explain(&output).await?;
+        }
     }
     Ok(())
 }
