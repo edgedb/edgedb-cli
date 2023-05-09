@@ -14,6 +14,7 @@ use crate::repl::{self, LastAnalyze};
 
 mod model;
 mod tree;
+mod table;
 
 pub use model::Analysis;
 

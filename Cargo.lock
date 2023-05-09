@@ -940,6 +940,7 @@ dependencies = [
  "tokio-stream",
  "toml",
  "unicode-segmentation",
+ "unicode-width",
  "url",
  "urlencoding",
  "uuid",
