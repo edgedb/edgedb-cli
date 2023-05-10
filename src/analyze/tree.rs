@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::collections::BTreeMap;
 use std::env;
 use std::fmt;
@@ -22,6 +23,9 @@ pub struct ShapeNode<'a> {
     marker: NodeMarker,
     attribute: Option<&'a str>,
 }
+
+#[derive(Debug)]
+pub struct Relations<'a>(&'a [String]);
 
 pub fn print_debug_plan(explain: &Analysis) {
     if let Some(debug) = &explain.debug_info {
@@ -71,14 +75,16 @@ pub fn print_shape(explain: &Analysis) {
         // TODO(tailhook) column splitter
         cost_header(&mut header, &explain.arguments);
         // TODO(tailhook) column splitter
+        header.push(Box::new("Relations".emphasize()) as Box<_>);
 
-        let mut total = Vec::with_capacity(3);
-        total.push(Box::new("root") as Box<_>);
+        let mut root = Vec::with_capacity(3);
+        root.push(Box::new("root".fade()) as Box<_>);
         // TODO(tailhook) column splitter
-        cost_columns(&mut total, &shape.cost, &explain.arguments);
+        cost_columns(&mut root, &shape.cost, &explain.arguments);
         // TODO(tailhook) column splitter
+        root.push(Box::new(Relations(&shape.relations)));
 
-        let mut rows = vec![header, total];
+        let mut rows = vec![header, root];
 
         for (child, ch) in NodeMarker::new().children(&shape.children) {
             match &ch.name {
@@ -112,7 +118,7 @@ fn visit_subshape<'x>(
     // TODO(tailhook) column splitter
     cost_columns(&mut row, &node.cost, arguments);
     // TODO(tailhook) column splitter
-    // TODO: row.push(node.relations);
+    row.push(Box::new(Relations(&node.relations)));
     result.push(row);
 
     for (child, ch) in marker.children(&node.children) {
@@ -350,11 +356,20 @@ impl NodeMarker {
         -> fmt::Result
     {
         for _ in 1..height {
-            for i in &self.columns {
-                if *i {
+            write!(f, "\n")?;
+            let mut iter = self.columns.iter();
+            if let Some(first) = iter.next() {
+                if *first {
                     write!(f, "  ")?;
                 } else {
                     write!(f, "│ ")?;
+                }
+            }
+            for i in iter {
+                if *i {
+                    write!(f, "    ")?;
+                } else {
+                    write!(f, "  │ ")?;
                 }
             }
         }
@@ -420,5 +435,60 @@ fn cost_columns(
         row.push(Box::new(table::Float(cost.total_cost)));
         row.push(Box::new(table::Right(cost.plan_rows)));
         row.push(Box::new(table::Right(cost.plan_width)));
+    }
+}
+
+impl table::Contents for Relations<'_> {
+    fn width_bounds(&self) -> (usize, usize) {
+        let mut min_width = 0;
+        let mut width = 0;
+        let last_idx = self.0.len().saturating_sub(1);
+        for (idx, item) in self.0.iter().enumerate() {
+            let item_width = table::display_width(item);
+            if last_idx == idx {
+                min_width = max(min_width, item_width);
+                width += item_width
+            } else {
+                min_width = max(min_width, item_width + ",".len());
+                width += item_width + ", ".len();
+            }
+        }
+        (min_width, width)
+    }
+    fn height(&self, width: usize) -> usize {
+        let mut height = 1;
+        let mut col = 0;
+        let last_idx = self.0.len().saturating_sub(1);
+        for (idx, item) in self.0.iter().enumerate() {
+            let item_width = table::display_width(item);
+            let comma = if last_idx == idx { "" } else { "," };
+            let mut space = if col > 0 { " " } else { "" };
+            if col + space.len() + item_width + comma.len() > width {
+                height += 1;
+                col = 0;
+                space = "";
+            }
+            col += space.len() + item_width + comma.len();
+        }
+        return height;
+    }
+    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter)
+        -> fmt::Result
+    {
+        let mut col = 0;
+        let last_idx = self.0.len().saturating_sub(1);
+        for (idx, item) in self.0.iter().enumerate() {
+            let item_width = table::display_width(item);
+            let comma = if last_idx == idx { "" } else { "," };
+            let mut space = if col > 0 { " " } else { "" };
+            if col + space.len() + item_width + comma.len() > width {
+                write!(f, "\n")?;
+                col = 0;
+                space = "";
+            }
+            write!(f, "{space}{item}{comma}")?;
+            col += space.len() + item_width + comma.len();
+        }
+        Ok(())
     }
 }

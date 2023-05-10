@@ -83,8 +83,10 @@ pub fn render(table: &Vec<Vec<Box<dyn Contents+'_>>>) {
         .collect::<Vec<_>>();
     let mut line_buf = String::with_capacity(width + 1);
     for (row, height) in table.iter().zip(heights) {
+        for buf in &mut buffers {
+            buf.truncate(0);
+        }
         for (idx, (cell, &width)) in row.iter().zip(&widths).enumerate() {
-            buffers[idx].truncate(0);
             write!(&mut buffers[idx], "{}",
                    BufRender { cell: &**cell, width, height }
             ).ok();
@@ -209,10 +211,16 @@ impl fmt::Write for Counter {
     }
 }
 
-fn str_width(s: &str) -> usize {
+pub fn str_width(s: &str) -> usize {
     let mut cnt = Counter::new();
     for c in s.chars() {
         cnt.add_char(c);
     }
+    cnt.width
+}
+
+pub fn display_width(v: impl fmt::Display) -> usize {
+    let mut cnt = Counter::new();
+    write!(&mut cnt, "{}", v).expect("can write into counter");
     cnt.width
 }
