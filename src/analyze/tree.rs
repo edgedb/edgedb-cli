@@ -12,6 +12,7 @@ static NUMBERS: [char; 10] = ['➊', '➋', '➌', '➍', '➎', '➏', '➐', '
 
 
 struct Opt<'a, T>(&'a Option<T>);
+struct Border;
 
 #[derive(Debug, Clone)]
 pub struct NodeMarker {
@@ -72,16 +73,12 @@ pub fn print_shape(explain: &Analysis) {
 
         let mut header = Vec::with_capacity(3);
         header.push(Box::new("") as Box<_>);
-        // TODO(tailhook) column splitter
         cost_header(&mut header, &explain.arguments);
-        // TODO(tailhook) column splitter
         header.push(Box::new("Relations".emphasize()) as Box<_>);
 
         let mut root = Vec::with_capacity(3);
         root.push(Box::new("root".fade()) as Box<_>);
-        // TODO(tailhook) column splitter
         cost_columns(&mut root, &shape.cost, &explain.arguments);
-        // TODO(tailhook) column splitter
         root.push(Box::new(Relations(&shape.relations)));
 
         let mut rows = vec![header, root];
@@ -402,10 +399,28 @@ impl table::Contents for ShapeNode<'_> {
     }
 }
 
+impl table::Contents for Border {
+    fn width_bounds(&self) -> (usize, usize) {
+        (1, 1)
+    }
+    fn height(&self, _width: usize) -> usize {
+        1
+    }
+    fn render(&self, _width: usize, height: usize, f: &mut fmt::Formatter)
+        -> fmt::Result
+    {
+        for _ in 0..height {
+            write!(f, "{}\n", "│".emphasize())?;
+        }
+        Ok(())
+    }
+}
+
 fn cost_header(
     header: &mut Vec<Box<dyn table::Contents + '_>>,
     args: &Arguments
 ) {
+    header.push(Box::new(Border) as Box<_>);
     if args.execute {
         header.push(Box::new(table::Right("Time".emphasize())) as Box<_>);
         header.push(Box::new(table::Right("Cost".emphasize())) as Box<_>);
@@ -417,6 +432,7 @@ fn cost_header(
         header.push(Box::new(table::Right("Plan Rows".emphasize())) as Box<_>);
         header.push(Box::new(table::Right("Width".emphasize())) as Box<_>);
     }
+    header.push(Box::new(Border) as Box<_>);
 }
 
 fn cost_columns(
@@ -424,6 +440,7 @@ fn cost_columns(
     cost: &Cost,
     args: &Arguments
 ) {
+    row.push(Box::new(Border) as Box<_>);
     if args.execute {
         // TODO(tailhook) use actual time
         row.push(Box::new(table::Float(cost.actual_total_time.unwrap_or(0.))));
@@ -436,6 +453,7 @@ fn cost_columns(
         row.push(Box::new(table::Right(cost.plan_rows)));
         row.push(Box::new(table::Right(cost.plan_width)));
     }
+    row.push(Box::new(Border) as Box<_>);
 }
 
 impl table::Contents for Relations<'_> {
