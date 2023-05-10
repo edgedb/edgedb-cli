@@ -5,6 +5,7 @@ use std::fmt;
 use crate::analyze::model::{Analysis, Plan, IndexCell, Arguments};
 use crate::analyze::model::{Shape, ChildName, DebugNode, Cost};
 use crate::analyze::table;
+use crate::print::Highlight;
 
 static NUMBERS: [char; 10] = ['➊', '➋', '➌', '➍', '➎', '➏', '➐', '➑', '➒', '➓'];
 
@@ -68,11 +69,11 @@ pub fn print_shape(explain: &Analysis) {
         let mut header = Vec::with_capacity(3);
         header.push(Box::new("") as Box<_>);
         // TODO(tailhook) column splitter
-        header.push(Box::new("Cost") as Box<_>);
+        header.push(Box::new(table::Right("Cost".emphasize())) as Box<_>);
         // TODO(tailhook) column splitter
 
         let mut total = Vec::with_capacity(3);
-        total.push(Box::new("TOTAL") as Box<_>);
+        total.push(Box::new("root") as Box<_>);
         // TODO(tailhook) column splitter
         cost_columns(&mut total, &shape.cost, &explain.arguments);
         // TODO(tailhook) column splitter

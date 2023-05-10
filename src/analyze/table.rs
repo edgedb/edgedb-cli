@@ -1,6 +1,6 @@
 use std::fmt::{self, Write};
 use std::cmp::max;
-use unicode_width::UnicodeWidthStr;
+use unicode_width::UnicodeWidthChar;
 
 use terminal_size::{terminal_size, Width};
 
@@ -18,11 +18,20 @@ struct BufRender<'a> {
     height: usize,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+enum TextState {
+    Normal,
+    Escape,
+    Bracket,
+}
+
 struct Counter {
     width: usize,
+    state: TextState,
 }
 
 pub struct Float(pub f64);
+pub struct Right<T: fmt::Display>(pub T);
 
 pub fn render(table: &Vec<Vec<Box<dyn Contents+'_>>>) {
     let width = terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(200);
@@ -93,7 +102,7 @@ pub fn render(table: &Vec<Vec<Box<dyn Contents+'_>>>) {
                 }
                 next_col = col + width + 1;
                 iter.next().map(|line| {
-                    col += line.width();
+                    col += str_width(line);
                     line_buf.push_str(line);
                 });
             }
@@ -125,6 +134,23 @@ impl<T: fmt::Display> Contents for T {
     }
 }
 
+impl<T: fmt::Display> Contents for Right<T> {
+    fn width_bounds(&self) -> (usize, usize) {
+        let mut cnt = Counter::new();
+        write!(&mut cnt, "{}", self.0).expect("can write into counter");
+        (cnt.width, cnt.width)
+    }
+    fn height(&self, _width: usize) -> usize {
+        1
+    }
+    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter)
+        -> fmt::Result
+    {
+        let inner_width = self.width_bounds().0;
+        write!(f, "{0:>1$}{2}", "", width - inner_width, self.0)
+    }
+}
+
 impl Contents for Float {
     fn width_bounds(&self) -> (usize, usize) {
         let mut cnt = Counter::new();
@@ -143,13 +169,50 @@ impl Contents for Float {
 
 impl Counter {
     fn new() -> Counter {
-        Counter { width: 0 }
+        Counter {
+            width: 0,
+            state: TextState::Normal,
+        }
+    }
+    fn add_char(&mut self, c: char) {
+        use TextState::*;
+        match self.state {
+            Escape => {
+                if c == '[' {
+                    self.state = Bracket;
+                } else {
+                    self.state = Normal;
+                }
+            }
+            Bracket => {
+                match c {
+                    ';' | '?' | '0'..='9' => {},
+                    _ => self.state = Normal,
+                }
+            }
+            Normal if c == '\x1b' => {
+                self.state = Escape;
+            }
+            Normal => {
+                self.width += c.width().unwrap_or(0);
+            }
+        }
     }
 }
 
 impl fmt::Write for Counter {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.width += s.width();
+        for c in s.chars() {
+            self.add_char(c);
+        }
         Ok(())
     }
+}
+
+fn str_width(s: &str) -> usize {
+    let mut cnt = Counter::new();
+    for c in s.chars() {
+        cnt.add_char(c);
+    }
+    cnt.width
 }
