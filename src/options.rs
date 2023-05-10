@@ -318,8 +318,10 @@ pub enum Command {
     /// EdgeDB Cloud authentication
     #[edb(inherit(CloudOptions), hide=true)]
     Cloud(CloudCommand),
-    /// EdgeDB Cloud authentication
-    #[edb(inherit(CloudOptions), hide=true)]
+    /// Start a long-running process that watches for changes in schema files in
+    /// your project's ``dbschema`` directory and applies those changes to your
+    /// database in real time.
+    #[edb(inherit(CloudOptions))]
     Watch(WatchCommand),
 }
 
