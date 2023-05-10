@@ -78,7 +78,7 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
     }
     match item {
         Descriptor::BaseScalar(s) => {
-            let var_type: Arc<dyn VariableInput> = match s.id {
+            let var_type: Arc<dyn VariableInput> = match *s.id {
                 codec::STD_STR => Arc::new(variable::Str),
                 codec::STD_UUID => Arc::new(variable::Uuid),
                 codec::STD_INT16 => Arc::new(variable::Int16),
@@ -91,7 +91,7 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
                 codec::STD_JSON => Arc::new(variable::Json),
                 codec::STD_BIGINT => Arc::new(variable::BigInt),
                 _ => return Err(anyhow::anyhow!(
-                        "Unimplemented input type {}", s.id))
+                        "Unimplemented input type {}", *s.id))
             };
 
             let val = match
