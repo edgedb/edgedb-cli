@@ -45,6 +45,10 @@ pub fn all_packages() -> Vec<PackageInfo> {
         Ok(stable) => pkgs.extend(stable),
         Err(e) => log::warn!("Unable to fetch stable packages: {:#}", e),
     };
+    match get_server_packages(Channel::Testing) {
+        Ok(testing) => pkgs.extend(testing),
+        Err(e) => log::warn!("Unable to fetch testing packages: {:#}", e),
+    };
     match get_server_packages(Channel::Nightly) {
         Ok(nightly) => pkgs.extend(nightly),
         Err(e) => log::warn!("Unable to fetch nightly packages: {:#}", e),
