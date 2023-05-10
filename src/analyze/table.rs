@@ -22,7 +22,9 @@ struct Counter {
     width: usize,
 }
 
-pub fn render_table(table: Vec<Vec<Box<dyn Contents>>>) {
+pub struct Float(pub f64);
+
+pub fn render(table: &Vec<Vec<Box<dyn Contents+'_>>>) {
     let width = terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(200);
     let cols = table.iter().map(|r| r.len()).max().unwrap_or(1);
     let width_bounds = (0..cols).map(|c| {
@@ -120,6 +122,22 @@ impl<T: fmt::Display> Contents for T {
         -> fmt::Result
     {
         write!(f, "{}", self)
+    }
+}
+
+impl Contents for Float {
+    fn width_bounds(&self) -> (usize, usize) {
+        let mut cnt = Counter::new();
+        write!(&mut cnt, "{:.1}", self.0).expect("can write into counter");
+        (cnt.width, cnt.width)
+    }
+    fn height(&self, _width: usize) -> usize {
+        1
+    }
+    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter)
+        -> fmt::Result
+    {
+        write!(f, "{1:>0$.1}", width, self.0)
     }
 }
 

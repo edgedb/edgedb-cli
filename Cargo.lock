@@ -854,6 +854,7 @@ dependencies = [
  "base32",
  "base64 0.13.1",
  "bigdecimal",
+ "bitvec",
  "blake2b_simd",
  "blake3",
  "bytes",

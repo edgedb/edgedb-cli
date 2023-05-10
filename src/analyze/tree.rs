@@ -2,13 +2,25 @@ use std::collections::BTreeMap;
 use std::env;
 use std::fmt;
 
-use crate::analyze::model::{Analysis, Plan, IndexCell};
-use crate::analyze::model::{Shape, ChildName, DebugNode};
+use crate::analyze::model::{Analysis, Plan, IndexCell, Arguments};
+use crate::analyze::model::{Shape, ChildName, DebugNode, Cost};
+use crate::analyze::table;
 
 static NUMBERS: [char; 10] = ['➊', '➋', '➌', '➍', '➎', '➏', '➐', '➑', '➒', '➓'];
 
 
 struct Opt<'a, T>(&'a Option<T>);
+
+#[derive(Debug, Clone)]
+pub struct NodeMarker {
+    columns: bitvec::vec::BitVec,
+}
+
+#[derive(Debug, Clone)]
+pub struct ShapeNode<'a> {
+    marker: NodeMarker,
+    attribute: Option<&'a str>,
+}
 
 pub fn print_debug_plan(explain: &Analysis) {
     if let Some(debug) = &explain.debug_info {
@@ -52,47 +64,40 @@ fn print_debug_node(prefix: &str, node: &DebugNode, last: bool) {
 pub fn print_shape(explain: &Analysis) {
     println!("Shape");
     if let Some(shape) = &explain.coarse_grained {
-        print_subshape("", None, shape, true);
+        let mut rows = Vec::new();
+        visit_subshape(&mut rows, &explain.arguments,
+                       NodeMarker::new(), None, shape);
+        table::render(&rows);
     }
 }
 
-fn print_subshape(prefix: &str, attribute: Option<&str>, node: &Shape, last: bool)
-{
-    let marker = if last { "╰──" } else { "├──" };
-    let mut title = Vec::with_capacity(4);
-    if let Some(attribute) = attribute {
-        title.push(".");
-        title.push(attribute);
-    }
-    for (idx, relation) in node.relations.iter().enumerate() {
-        if idx == 0 && !title.is_empty() {
-            title.push(": ");
-        } else if idx > 0 {
-            title.push(", ");
-        }
-        title.push(relation);
-    }
-    let cost = format!("(cost={cost})",
-         cost=node.cost.total_cost,
-    );
-    println!("{prefix}{marker}{ctx} {title} {cost}",
-             title=title.join(""),
-             ctx=node.contexts.iter()
-                 .flat_map(|c| c.index_cell.load())
-                 .next().map(|idx| NUMBERS[idx as usize]) // TODO 10 > nums
-                 .unwrap_or(if node.contexts.is_empty() {' '} else {'*'}),
-    );
-
-    let prefix = prefix.to_string() + if last { "   " } else { "│  " };
+fn visit_subshape<'x>(
+    result: &mut Vec<Vec<Box<dyn table::Contents + 'x>>>,
+    arguments: &Arguments,
+    marker: NodeMarker,
+    attribute: Option<&'x str>,
+    node: &'x Shape,
+) {
+    let mut row = Vec::with_capacity(3);
+    row.push(Box::new(ShapeNode {
+        marker: marker.clone(),
+        attribute,
+    }) as Box<_>);
+    // TODO(tailhook) column splitter
+    cost_columns(&mut row, &node.cost, arguments);
+    // TODO(tailhook) column splitter
+    // TODO: row.push(node.relations);
+    result.push(row);
 
     let last_idx = node.children.len().saturating_sub(1);
     for (idx, ch) in node.children.iter().enumerate() {
+        let child = marker.child(last_idx == idx);
         match &ch.name {
             ChildName::Pointer { name } => {
-                print_subshape(&prefix, Some(name), &ch.node, idx == last_idx);
+                visit_subshape(result, arguments, child, Some(name), &ch.node);
             }
             _ => {
-                print_subshape(&prefix, None, &ch.node, idx == last_idx);
+                visit_subshape(result, arguments, child, None, &ch.node);
             }
         }
     }
@@ -254,5 +259,112 @@ impl<'a, T: fmt::Display> fmt::Display for Opt<'a, T> {
             None => write!(f, "∅"),
             Some(v) => v.fmt(f),
         }
+    }
+}
+
+impl NodeMarker {
+    pub fn new() -> NodeMarker {
+        NodeMarker { columns: bitvec::vec::BitVec::new() }
+    }
+    pub fn child(&self, last: bool) -> NodeMarker {
+        let mut columns = self.columns.clone();
+        columns.push(last);
+        NodeMarker { columns }
+    }
+}
+
+impl NodeMarker {
+    fn width(&self) -> usize {
+        self.columns.len().saturating_sub(1)*4 + 2
+    }
+    fn render_head(&self, f: &mut fmt::Formatter)
+        -> fmt::Result
+    {
+        let cols = &self.columns;
+        if cols.len() <= 1 {
+            if let Some(last) = cols.last() {
+                if *last {
+                    write!(f, "╰─")?;
+                } else {
+                    write!(f, "├─")?;
+                }
+            }
+        } else {
+            let mut iter = cols.iter().take(self.columns.len() - 1);
+            if let Some(first) = iter.next() {
+                if *first {
+                    write!(f, "  ")?;
+                } else {
+                    write!(f, "│ ")?;
+                }
+            }
+            for i in iter {
+                if *i {
+                    write!(f, "    ")?;
+                } else {
+                    write!(f, "  │ ")?;
+                }
+            }
+            if let Some(last) = cols.last() {
+                if *last {
+                    write!(f, "  ╰─")?;
+                } else {
+                    write!(f, "  ├─")?;
+                }
+            }
+        }
+        Ok(())
+    }
+    fn render_tail(&self, height: usize, f: &mut fmt::Formatter)
+        -> fmt::Result
+    {
+        for _ in 1..height {
+            for i in &self.columns {
+                if *i {
+                    write!(f, "  ")?;
+                } else {
+                    write!(f, "│ ")?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl table::Contents for ShapeNode<'_> {
+    fn width_bounds(&self) -> (usize, usize) {
+        let mwidth = self.marker.width();
+        let alen = if let Some(attr) = self.attribute {
+            " .".len() + attr.len()
+        } else {
+            0
+        };
+        (mwidth + alen, mwidth + alen)
+    }
+    fn height(&self, _width: usize) -> usize {
+        1
+    }
+    fn render(&self, _width: usize, height: usize, f: &mut fmt::Formatter)
+        -> fmt::Result
+    {
+        self.marker.render_head(f)?;
+        if let Some(attr) = self.attribute {
+            write!(f, " .{}", attr)?;
+        }
+        self.marker.render_tail(height, f)?;
+        Ok(())
+    }
+}
+
+fn cost_columns(
+    row: &mut Vec<Box<dyn table::Contents + '_>>,
+    cost: &Cost,
+    args: &Arguments
+) {
+    if args.execute {
+        // TODO(tailhook) use actual time
+        row.push(Box::new(table::Float(cost.total_cost as f64)));
+    } else {
+        row.push(Box::new(table::Float(cost.total_cost as f64)));
     }
 }

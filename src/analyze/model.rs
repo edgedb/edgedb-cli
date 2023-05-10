@@ -13,6 +13,14 @@ pub struct Analysis {
     pub fine_grained: Option<Plan>,
     pub coarse_grained: Option<Shape>,
     pub debug_info: Option<DebugInfo>,
+    pub arguments: Arguments,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Arguments {
+    pub execute: bool,
+    #[serde(default)]
+    pub buffers: bool,
 }
 
 #[derive(Deserialize, Debug)]
