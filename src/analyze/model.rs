@@ -97,13 +97,13 @@ pub struct Plan {
 pub struct Cost {
     pub plan_rows: u64,
     pub plan_width: u64,
-    pub startup_cost: f32,
-    pub total_cost: f32,
+    pub startup_cost: f64,
+    pub total_cost: f64,
 
-    pub actual_startup_time: Option<f32>,
-    pub actual_total_times: Option<f32>,
-    pub actual_rows: Option<f32>,
-    pub actual_loops: Option<f32>,
+    pub actual_startup_time: Option<f64>,
+    pub actual_total_time: Option<f64>,
+    pub actual_rows: Option<f64>,
+    pub actual_loops: Option<f64>,
 }
 
 #[derive(Deserialize, Debug)]

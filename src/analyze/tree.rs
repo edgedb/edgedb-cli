@@ -69,7 +69,7 @@ pub fn print_shape(explain: &Analysis) {
         let mut header = Vec::with_capacity(3);
         header.push(Box::new("") as Box<_>);
         // TODO(tailhook) column splitter
-        header.push(Box::new(table::Right("Cost".emphasize())) as Box<_>);
+        cost_header(&mut header, &explain.arguments);
         // TODO(tailhook) column splitter
 
         let mut total = Vec::with_capacity(3);
@@ -387,6 +387,23 @@ impl table::Contents for ShapeNode<'_> {
     }
 }
 
+fn cost_header(
+    header: &mut Vec<Box<dyn table::Contents + '_>>,
+    args: &Arguments
+) {
+    if args.execute {
+        header.push(Box::new(table::Right("Time".emphasize())) as Box<_>);
+        header.push(Box::new(table::Right("Cost".emphasize())) as Box<_>);
+        header.push(Box::new(table::Right("Loops".emphasize())) as Box<_>);
+        header.push(Box::new(table::Right("Rows".emphasize())) as Box<_>);
+        header.push(Box::new(table::Right("Width".emphasize())) as Box<_>);
+    } else {
+        header.push(Box::new(table::Right("Cost".emphasize())) as Box<_>);
+        header.push(Box::new(table::Right("Plan Rows".emphasize())) as Box<_>);
+        header.push(Box::new(table::Right("Width".emphasize())) as Box<_>);
+    }
+}
+
 fn cost_columns(
     row: &mut Vec<Box<dyn table::Contents + '_>>,
     cost: &Cost,
@@ -394,8 +411,14 @@ fn cost_columns(
 ) {
     if args.execute {
         // TODO(tailhook) use actual time
-        row.push(Box::new(table::Float(cost.total_cost as f64)));
+        row.push(Box::new(table::Float(cost.actual_total_time.unwrap_or(0.))));
+        row.push(Box::new(table::Right(cost.total_cost)));
+        row.push(Box::new(table::Float(cost.actual_loops.unwrap_or(0.))));
+        row.push(Box::new(table::Float(cost.actual_rows.unwrap_or(0.))));
+        row.push(Box::new(table::Right(cost.plan_width)));
     } else {
-        row.push(Box::new(table::Float(cost.total_cost as f64)));
+        row.push(Box::new(table::Float(cost.total_cost)));
+        row.push(Box::new(table::Right(cost.plan_rows)));
+        row.push(Box::new(table::Right(cost.plan_width)));
     }
 }
