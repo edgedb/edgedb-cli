@@ -64,9 +64,34 @@ fn print_debug_node(prefix: &str, node: &DebugNode, last: bool) {
 pub fn print_shape(explain: &Analysis) {
     println!("Shape");
     if let Some(shape) = &explain.coarse_grained {
-        let mut rows = Vec::new();
-        visit_subshape(&mut rows, &explain.arguments,
-                       NodeMarker::new(), None, shape);
+
+        let mut header = Vec::with_capacity(3);
+        header.push(Box::new("") as Box<_>);
+        // TODO(tailhook) column splitter
+        header.push(Box::new("Cost") as Box<_>);
+        // TODO(tailhook) column splitter
+
+        let mut total = Vec::with_capacity(3);
+        total.push(Box::new("TOTAL") as Box<_>);
+        // TODO(tailhook) column splitter
+        cost_columns(&mut total, &shape.cost, &explain.arguments);
+        // TODO(tailhook) column splitter
+
+        let mut rows = vec![header, total];
+
+        for (child, ch) in NodeMarker::new().children(&shape.children) {
+            match &ch.name {
+                ChildName::Pointer { name } => {
+                    visit_subshape(&mut rows, &explain.arguments,
+                                   child, Some(name), &ch.node);
+                }
+                _ => {
+                    visit_subshape(&mut rows, &explain.arguments,
+                                   child, None, &ch.node);
+                }
+            }
+        }
+
         table::render(&rows);
     }
 }
@@ -89,9 +114,7 @@ fn visit_subshape<'x>(
     // TODO: row.push(node.relations);
     result.push(row);
 
-    let last_idx = node.children.len().saturating_sub(1);
-    for (idx, ch) in node.children.iter().enumerate() {
-        let child = marker.child(last_idx == idx);
+    for (child, ch) in marker.children(&node.children) {
         match &ch.name {
             ChildName::Pointer { name } => {
                 visit_subshape(result, arguments, child, Some(name), &ch.node);
@@ -266,10 +289,17 @@ impl NodeMarker {
     pub fn new() -> NodeMarker {
         NodeMarker { columns: bitvec::vec::BitVec::new() }
     }
-    pub fn child(&self, last: bool) -> NodeMarker {
-        let mut columns = self.columns.clone();
-        columns.push(last);
-        NodeMarker { columns }
+    pub fn children<'x, I: IntoIterator>(&'x self, children: I)
+        -> impl Iterator<Item=(NodeMarker, I::Item)> + 'x
+        where I::IntoIter: ExactSizeIterator + 'x,
+    {
+        let children = children.into_iter();
+        let last_idx = children.len().saturating_sub(1);
+        children.enumerate().map(move |(idx, child)| {
+            let mut columns = self.columns.clone();
+            columns.push(last_idx == idx);
+            (NodeMarker { columns }, child)
+        })
     }
 }
 
