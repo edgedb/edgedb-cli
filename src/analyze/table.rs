@@ -1,8 +1,10 @@
 use std::fmt::{self, Write};
-use std::cmp::max;
-use unicode_width::UnicodeWidthChar;
+use std::cmp::{max, min};
 
+use unicode_width::UnicodeWidthChar;
 use terminal_size::{terminal_size, Width};
+
+use crate::print::Highlight;
 
 
 pub trait Contents {
@@ -25,15 +27,19 @@ enum TextState {
     Bracket,
 }
 
-struct Counter {
-    width: usize,
+pub struct Counter {
+    pub width: usize,
+    pub offset: usize,
     state: TextState,
 }
 
 pub struct Float(pub f64);
 pub struct Right<T: fmt::Display>(pub T);
 
-pub fn render(table: &Vec<Vec<Box<dyn Contents+'_>>>) {
+pub fn render(
+    title: Option<impl fmt::Display>,
+    table: &Vec<Vec<Box<dyn Contents+'_>>>
+) {
     let width = terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(200);
     let cols = table.iter().map(|r| r.len()).max().unwrap_or(1);
     let width_bounds = (0..cols).map(|c| {
@@ -78,6 +84,9 @@ pub fn render(table: &Vec<Vec<Box<dyn Contents+'_>>>) {
             .max().unwrap_or(0)
     }).collect::<Vec<_>>();
 
+    if let Some(title) = title {
+        print_title(title, min(width, max_width));
+    }
     let mut buffers = widths.iter()
         .map(|w| String::with_capacity(*w))
         .collect::<Vec<_>>();
@@ -112,6 +121,20 @@ pub fn render(table: &Vec<Vec<Box<dyn Contents+'_>>>) {
             line_buf.truncate(0);
         }
     }
+}
+
+pub fn print_title(title: impl fmt::Display, width: usize) {
+    let width = min(
+        terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(width),
+        width,
+    );
+    let twidth = display_width(&title) + 2;
+    let filler = (width - twidth)/2;
+    println!("{} {} {}",
+        format_args!("{0:─^filler$}", "").fade(),
+        title.emphasize(),
+        format_args!("{0:─^filler$}", "").fade(),
+    );
 }
 
 impl fmt::Display for BufRender<'_> {
@@ -170,13 +193,14 @@ impl Contents for Float {
 }
 
 impl Counter {
-    fn new() -> Counter {
+    pub fn new() -> Counter {
         Counter {
             width: 0,
+            offset: 0,
             state: TextState::Normal,
         }
     }
-    fn add_char(&mut self, c: char) {
+    pub fn add_char(&mut self, c: char) {
         use TextState::*;
         match self.state {
             Escape => {
@@ -197,6 +221,7 @@ impl Counter {
             }
             Normal => {
                 self.width += c.width().unwrap_or(0);
+                self.offset += c.len_utf8();
             }
         }
     }

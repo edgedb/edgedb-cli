@@ -15,6 +15,7 @@ use crate::repl::{self, LastAnalyze};
 mod model;
 mod tree;
 mod table;
+mod contexts;
 
 pub use model::Analysis;
 
@@ -33,8 +34,9 @@ pub async fn interactive(prompt: &mut repl::State, query: &str)
         println!("JSON: {}", json);
     }
     let jd = &mut serde_json::Deserializer::from_str(&data);
-    let output: Analysis = serde_path_to_error::deserialize(jd)
+    let output = serde_path_to_error::deserialize(jd)
         .context("parsing explain output")?;
+    let output = contexts::preprocess(output);
 
     let analyze = prompt.last_analyze.insert(LastAnalyze {
         query: query.to_owned(),
@@ -50,9 +52,9 @@ pub async fn render_expanded_explain(data: &Analysis) -> anyhow::Result<()>
     Ok(())
 }
 
-pub fn render_explain(explain: &Analysis) -> anyhow::Result<()>
+fn render_explain(explain: &Analysis) -> anyhow::Result<()>
 {
-    tree::print_contexts(explain);
+    contexts::print(explain);
     if env::var_os("_EDGEDB_ANALYZE_DEBUG_PLAN")
         .map(|x| !x.is_empty()).unwrap_or(false)
     {
@@ -63,7 +65,7 @@ pub fn render_explain(explain: &Analysis) -> anyhow::Result<()>
 }
 
 #[fn_error_context::context("cannot lookup path {:?}", path)]
-pub async fn is_special(path: &Path) -> anyhow::Result<bool> {
+async fn is_special(path: &Path) -> anyhow::Result<bool> {
     match fs::metadata(path).await {
         Ok(meta) => Ok(!meta.is_file()),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
@@ -117,8 +119,9 @@ pub async fn command(cli: &mut Connection, options: &Analyze)
         }
     } else {
         let jd = &mut serde_json::Deserializer::from_str(&data);
-        let output: Analysis = serde_path_to_error::deserialize(jd)
+        let output = serde_path_to_error::deserialize(jd)
             .with_context(|| format!("parsing explain output"))?;
+        let output = contexts::preprocess(output);
 
         render_explain(&output)?;
         if options.expand {
