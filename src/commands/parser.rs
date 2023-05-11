@@ -355,7 +355,7 @@ pub struct Restore {
     #[clap(value_hint=ValueHint::AnyPath)]
     pub path: PathBuf,
 
-    /// Restore all databases and the server configuratoin. `path` is a
+    /// Restore all databases and the server configuration. `path` is a
     /// directory in this case
     #[clap(long)]
     pub all: bool,
