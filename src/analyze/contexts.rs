@@ -164,7 +164,7 @@ fn print_buffer(buffer: &Buffer, title: impl fmt::Display) {
                 // TODO(tailhook) catch reset and restore underline
                 counter.add_char(c);
                 out.push(c);
-                if counter.offset > end {
+                if counter.offset >= end {
                     break;
                 }
                 if out.ends_with("\x1B[0m") {
