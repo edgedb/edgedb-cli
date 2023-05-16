@@ -1,18 +1,56 @@
+use std::collections::HashMap;
+use std::default::Default;
 use std::fmt;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::Deserialize;
 
+use crate::analyze::contexts::Number;
 
-pub type IndexCell = Arc<crossbeam_utils::atomic::AtomicCell<Option<u32>>>;
 
+static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct ContextId(u64);
 
 #[derive(Deserialize, Debug)]
-pub struct Analysis {
+pub struct AnalysisData {
     pub buffers: Vec<String>,
     pub fine_grained: Option<Plan>,
     pub coarse_grained: Option<Shape>,
     pub debug_info: Option<DebugInfo>,
+    pub arguments: Arguments,
+}
+
+#[derive(Debug)]
+pub struct Analysis {
+    pub buffers: Vec<Buffer>,
+    pub fine_grained: Option<Plan>,
+    pub coarse_grained: Option<Shape>,
+    pub debug_info: Option<DebugInfo>,
+    pub arguments: Arguments,
+    pub contexts: HashMap<ContextId, Number>,
+}
+
+#[derive(Debug)]
+pub struct ContextSpan {
+    pub offset: usize,
+    pub len: usize,
+    pub num: Number,
+}
+
+#[derive(Debug)]
+pub struct Buffer {
+    pub text: String,
+    pub contexts: Vec<ContextSpan>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Arguments {
+    pub execute: bool,
+    #[serde(default)]
+    pub buffers: bool,
 }
 
 #[derive(Deserialize, Debug)]
@@ -89,13 +127,13 @@ pub struct Plan {
 pub struct Cost {
     pub plan_rows: u64,
     pub plan_width: u64,
-    pub startup_cost: f32,
-    pub total_cost: f32,
+    pub startup_cost: f64,
+    pub total_cost: f64,
 
-    pub actual_startup_time: Option<f32>,
-    pub actual_total_times: Option<f32>,
-    pub actual_rows: Option<f32>,
-    pub actual_loops: Option<f32>,
+    pub actual_startup_time: Option<f64>,
+    pub actual_total_time: Option<f64>,
+    pub actual_rows: Option<f64>,
+    pub actual_loops: Option<f64>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -136,7 +174,7 @@ pub struct Context {
     pub buffer_idx: usize,
     pub text: String,
     #[serde(skip, default)]
-    pub index_cell: IndexCell,
+    pub context_id: ContextId,
 }
 
 #[derive(Deserialize, Debug)]
@@ -210,5 +248,11 @@ impl fmt::Display for PropValue {
             ListFloat(_) => todo!(),
         }
         Ok(())
+    }
+}
+
+impl Default for ContextId {
+    fn default() -> ContextId {
+        ContextId(NEXT_ID.fetch_add(1, Ordering::SeqCst))
     }
 }
