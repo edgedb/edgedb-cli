@@ -69,6 +69,7 @@ pub struct ConnectionOptions {
     /// Path to JSON file to read credentials from
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(conflicts_with_all=&["dsn", "instance"])]
+    #[clap(hide=true)]
     pub credentials_file: Option<PathBuf>,
 
     /// Host of the EdgeDB instance
