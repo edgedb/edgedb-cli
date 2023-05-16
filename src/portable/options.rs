@@ -37,6 +37,7 @@ pub enum InstanceCommand {
     #[edb(inherit(crate::options::CloudOptions))]
     List(List),
     /// Show status of a matching instance
+    #[edb(inherit(crate::options::CloudOptions))]
     Status(Status),
     /// Start an instance
     Start(Start),
@@ -56,6 +57,7 @@ pub enum InstanceCommand {
     /// Show logs of an instance
     Logs(Logs),
     /// Upgrade installations and instances
+    #[edb(inherit(crate::options::CloudOptions))]
     Upgrade(Upgrade),
     /// Revert a major instance upgrade
     Revert(Revert),

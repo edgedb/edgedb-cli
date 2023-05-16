@@ -11,6 +11,7 @@ use edgedb_tokio::credentials::Credentials;
 use edgeql_parser::helpers::{quote_string, quote_name};
 
 use crate::credentials;
+use crate::commands::ExitCode;
 use crate::connect::Connection;
 use crate::portable::local::InstanceInfo;
 use crate::portable::options::{ResetPassword, instance_arg, InstanceName};
@@ -47,7 +48,10 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
                 name
             }
         },
-        InstanceName::Cloud { .. } => todo!(),
+        InstanceName::Cloud { .. } => {
+            print::error("This operation is not supported on cloud instances yet.");
+            return Err(ExitCode::new(1))?;
+        },
     };
     let credentials_file = credentials::path(name)?;
     let (creds, save, user) = if credentials_file.exists() {
