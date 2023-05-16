@@ -349,6 +349,10 @@ pub struct Dump {
 }
 
 #[derive(EdbClap, Clone, Debug)]
+#[clap(override_usage(
+    "edgedb restore [OPTIONS] <path>\n    \
+     edgedb restore -d <database-name> <path>"
+))]
 pub struct Restore {
     /// Path to file (or directory in case of `--all`) to read dump from.
     /// Use dash `-` to read from stdin
