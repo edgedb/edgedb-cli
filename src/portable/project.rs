@@ -1546,6 +1546,7 @@ pub fn update_toml(
                     verbose: false,
                     force: options.force,
                     force_dump_restore: options.force,
+                    non_interactive: true,
                 }, &inst.name)?;
             } else {
                 // When force is used we might upgrade to the same version, but
@@ -1658,6 +1659,7 @@ pub fn upgrade_instance(
                 verbose: false,
                 force: options.force,
                 force_dump_restore: options.force,
+                non_interactive: true,
             }, &inst.name)?;
         } else {
             // When force is used we might upgrade to the same version, but

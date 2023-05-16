@@ -20,6 +20,7 @@ use crate::portable::repository::{self, Query, PackageInfo, Channel};
 use crate::portable::ver;
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
+use crate::question;
 
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -147,42 +148,68 @@ fn upgrade_cloud(cmd: &Upgrade, org: &str, name: &str, opts: &crate::options::Op
     let inst = cloud::ops::find_cloud_instance_by_name(name, org, &client)?
         .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
 
+    let mut versions = cloud::ops::get_versions(&client)?;
+
+    if let Some(ver) = &cmd.to_version {
+        versions.retain(
+            |cand| ver.matches_specific(
+                &cand.version.parse::<ver::Specific>().unwrap()));
+    } else if cmd.to_testing || matches!(cmd.to_channel, Some(Channel::Testing)) {
+        versions.retain(
+            |cand| {
+                let v = &cand.version.parse::<ver::Specific>().unwrap();
+                v.is_testing() || v.is_stable()
+            }
+        );
+    } else if cmd.to_nightly || matches!(cmd.to_channel, Some(Channel::Nightly)) {
+        versions.retain(
+            |cand| cand.version.parse::<ver::Specific>().unwrap().is_nightly()
+        );
+    }
+
+    if versions.len() == 0 {
+        print::error(
+            "The requested EdgeDB version is not supported by EdgeDB Cloud.",
+        );
+        return Err(ExitCode::new(exit_codes::INVALID_CONFIG))?;
+    }
+
+    versions.sort_by_cached_key(|k| k.version.parse::<ver::Specific>().unwrap());
+    let target_ver_str = &versions.last().unwrap().version;
+    let target_ver = ver::Specific::from_str(&target_ver_str)?;
     let inst_ver = ver::Specific::from_str(&inst.version)?;
-    let (ver_query, _) = Query::from_options(
-        repository::QueryOptions {
-            stable: cmd.to_latest,
-            nightly: cmd.to_nightly,
-            testing: cmd.to_testing,
-            channel: cmd.to_channel,
-            version: cmd.to_version.as_ref(),
-        },
-        || Query::from_version(&inst_ver),
-    )?;
 
-    let pkg = repository::get_server_package(&ver_query)?
-        .context("no package found according to your criteria")?;
-    let pkg_ver = pkg.version.specific();
-
-    if pkg_ver <= inst_ver && !cmd.force {
-        echo!("Latest version found", pkg.version.to_string() + ",",
+    if target_ver <= inst_ver {
+        echo!(
+            "Already up to date.\nRequested upgrade version is",
+            target_ver_str.emphasize(),
             "current instance version is",
-            inst.version.emphasize().to_string() + ".",
-            "Already up to date.");
+            inst_ver.emphasize().to_string() + ".",
+        );
+        return Ok(());
+    }
+
+    let _inst_name = format!("{}/{}", org, name);
+    let inst_name = _inst_name.emphasize();
+
+    if !cmd.non_interactive && !question::Confirm::new(format!(
+        "This will upgrade {inst_name} to version {target_ver_str}.\
+        \nDoes this look good?",
+    )).ask()? {
         return Ok(());
     }
 
     let request = cloud::ops::CloudInstanceUpgrade {
         org: org.to_string(),
         name: name.to_string(),
-        version: pkg_ver.to_string(),
+        version: target_ver.to_string(),
     };
     cloud::ops::upgrade_cloud_instance(&client, &request)?;
 
-    print::echo!(
-        "EdgeDB Cloud instance",
-        format!("{}/{}", org, name).emphasize(),
-        "is successfully upgraded.",
-    );
+    print::echo!(format!(
+        "EdgeDB Cloud instance {inst_name} has been successfully \
+        upgraded to version {target_ver_str}.",
+    ));
     Ok(())
 }
 
