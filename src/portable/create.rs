@@ -172,15 +172,6 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
         name: name.to_string(),
     };
 
-    if cmd.nightly || matches!(cmd.channel, Some(Channel::Nightly))
-        || matches!(cmd.channel, Some(Channel::Testing))
-    {
-        print::error(
-            "The requested EdgeDB version is not supported by EdgeDB Cloud.",
-        );
-        return Err(ExitCode::new(exit_codes::INVALID_CONFIG))?;
-    }
-
     client.ensure_authenticated()?;
 
     let region = match &cmd.region {
@@ -194,6 +185,17 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
         versions.retain(
             |cand| ver.matches_specific(
                 &cand.version.parse::<ver::Specific>().unwrap()));
+    } else if matches!(cmd.channel, Some(Channel::Testing)) {
+        versions.retain(
+            |cand| {
+                let v = &cand.version.parse::<ver::Specific>().unwrap();
+                v.is_testing() || v.is_stable()
+            }
+        );
+    } else if cmd.nightly || matches!(cmd.channel, Some(Channel::Nightly)) {
+        versions.retain(
+            |cand| cand.version.parse::<ver::Specific>().unwrap().is_nightly()
+        );
     }
 
     if versions.len() == 0 {
@@ -203,7 +205,7 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
         return Err(ExitCode::new(exit_codes::INVALID_CONFIG))?;
     }
 
-    versions.sort_by_cached_key(|k| k.version.parse::<ver::Semver>().unwrap());
+    versions.sort_by_cached_key(|k| k.version.parse::<ver::Specific>().unwrap());
     let server_ver = &versions.last().unwrap().version;
 
     if !cmd.non_interactive && !question::Confirm::new(format!(

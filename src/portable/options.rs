@@ -177,7 +177,7 @@ pub struct Create {
     #[clap(long, default_value="edgedb")]
     pub default_user: String,
 
-    /// Do not ask questions, assume user wants to create instance
+    /// Do not ask questions, assume user wants to upgrade instance
     #[clap(long)]
     pub non_interactive: bool,
 }
@@ -457,6 +457,10 @@ pub struct Upgrade {
     /// This is used by `project upgrade --force`
     #[clap(long, hide=true)]
     pub force_dump_restore: bool,
+
+    /// Do not ask questions, assume user wants to create instance
+    #[clap(long)]
+    pub non_interactive: bool,
 }
 
 #[derive(EdbClap, IntoArgs, Debug, Clone)]
