@@ -11,7 +11,7 @@ pub struct CloudCommand {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
-    /// Authenticate to the EdgeDB Cloud and remember the access token locally
+    /// Authenticate to the EdgeDB Cloud and remember the secret key locally
     #[edb(inherit(CloudOptions))]
     Login(Login),
     /// Forget the stored access token
@@ -31,11 +31,12 @@ pub struct Logout {
     #[clap(long)]
     pub all_profiles: bool,
 
-    /// Force destroy even if instance is referred to by a project
+    /// Force log out from all profiles, even if linked to a project
     #[clap(long)]
     pub force: bool,
 
-    /// Do not ask questions, assume user wants to delete instance
+    /// Do not ask questions, assume user wants to log out of all profiles not
+    /// linked to a project
     #[clap(long)]
     pub non_interactive: bool,
 }
