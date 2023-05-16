@@ -29,6 +29,7 @@ pub struct Login {
 pub struct Logout {
     /// Logout from all Cloud profiles
     #[clap(long)]
+    #[clap(hide=true)]
     pub all_profiles: bool,
 
     /// Force destroy even if instance is referred to by a project
