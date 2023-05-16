@@ -29,6 +29,7 @@ pub struct Login {
 pub struct Logout {
     /// Logout from all Cloud profiles
     #[clap(long)]
+    #[clap(hide=true)]
     pub all_profiles: bool,
 
     /// Force log out from all profiles, even if linked to a project
