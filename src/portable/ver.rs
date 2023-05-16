@@ -178,6 +178,20 @@ impl Build {
     }
 }
 
+impl Specific {
+    pub fn is_nightly(&self) -> bool {
+        matches!(self.minor, MinorVersion::Dev(_))
+    }
+
+    pub fn is_testing(&self) -> bool {
+        !(self.is_nightly() || self.is_stable())
+    }
+
+    pub fn is_stable(&self) -> bool {
+        matches!(self.minor, MinorVersion::Minor(_))
+    }
+}
+
 impl Filter {
     pub fn matches(&self, bld: &Build) -> bool {
         self.matches_specific(&bld.specific())
