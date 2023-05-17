@@ -282,6 +282,35 @@ pub async fn first_migration(cli: &mut Connection, ctx: &Context,
     }
 }
 
+pub fn make_default_expression(input: &RequiredUserInput)
+    -> Option<String>
+{
+    let name = &input.placeholder[..];
+    let kind_end = name.find("_expr").unwrap_or(name.len());
+    let expr = match &name[..kind_end] {
+        "fill" if input.type_name.is_some() => {
+            format!("<{}>{{}}",
+                    input.type_name.as_ref().unwrap())
+        }
+        "cast"
+            if input.pointer_name.is_some() &&
+               input.new_type.is_some()
+        => {
+            format!("<{}>.{}",
+                    input.new_type.as_ref().unwrap(),
+                    input.pointer_name.as_ref().unwrap())
+        }
+        "conv" if input.pointer_name.is_some() => {
+            format!("(SELECT .{} LIMIT 1)",
+                    input.pointer_name.as_ref().unwrap())
+        }
+        _ => {
+            return None;
+        }
+    };
+    Some(expr)
+}
+
 pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
     -> anyhow::Result<CurrentMigration>
 {
@@ -296,33 +325,13 @@ pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
             let mut placeholders = BTreeMap::new();
             if !proposal.required_user_input.is_empty() {
                 for input in &proposal.required_user_input {
-                    let name = &input.placeholder[..];
-                    let kind_end = name.find("_expr").unwrap_or(name.len());
-                    let expr = match &name[..kind_end] {
-                        "fill" if input.type_name.is_some() => {
-                            format!("<{}>{{}}",
-                                    input.type_name.as_ref().unwrap())
-                        }
-                        "cast"
-                            if input.pointer_name.is_some() &&
-                               input.new_type.is_some()
-                        => {
-                            format!("<{}>.{}",
-                                    input.new_type.as_ref().unwrap(),
-                                    input.pointer_name.as_ref().unwrap())
-                        }
-                        "conv" if input.pointer_name.is_some() => {
-                            format!("(SELECT .{} LIMIT 1)",
-                                    input.pointer_name.as_ref().unwrap())
-                        }
-                        _ => {
-                            log::debug!("Cannot fill placeholder {} \
-                                        into {:?}, input info: {:?}",
-                                        input.placeholder,
-                                        proposal.statements,
-                                        input);
-                            return Err(CantResolve)?;
-                        }
+                    let Some(expr) = make_default_expression(input) else {
+                        log::debug!("Cannot fill placeholder {} \
+                                    into {:?}, input info: {:?}",
+                                    input.placeholder,
+                                    proposal.statements,
+                                    input);
+                        return Err(CantResolve)?;
                     };
                     placeholders.insert(input.placeholder.clone(), expr);
                 }
@@ -806,9 +815,10 @@ fn add_newline_after_comment(value: &mut String) -> Result<(), anyhow::Error> {
 
 fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
     let prompt = format!("{}> ", req.placeholder);
+    let mut prev = make_default_expression(req).unwrap_or(String::new());
     loop {
         println!("{}:", req.prompt);
-        let mut value = match prompt::expression(&prompt, &req.placeholder) {
+        let mut value = match prompt::expression(&prompt, &req.placeholder, &prev) {
             Ok(val) => val,
             Err(e) => match e.downcast::<ReadlineError>() {
                 Ok(ReadlineError::Eof) => return Err(Refused.into()),
@@ -820,6 +830,7 @@ fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
             Ok(()) => {}
             Err(e) => {
                 println!("Invalid expression: {}", e);
+                prev = value;
                 continue;
             }
         }
