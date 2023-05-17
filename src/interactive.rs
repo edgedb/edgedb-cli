@@ -16,6 +16,7 @@ use edgedb_protocol::common::{Capabilities, State};
 use edgedb_protocol::common::{RawTypedesc};
 use edgedb_protocol::model::Duration;
 use edgedb_protocol::value::Value;
+use edgedb_errors::StateMismatchError;
 use edgeql_parser::preparser::{self, full_statement};
 
 use crate::analyze;
@@ -294,6 +295,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
     let start = Instant::now();
     let data_description = match cli.parse(&flags, statement).await {
         Ok(desc) => desc,
+        Err(e) if e.is::<StateMismatchError>() => return Err(RetryStateError)?,
         Err(e) => {
             print_query_error(&e, statement, state.verbose_errors, "<query>")?;
             return Err(QueryError)?;
@@ -342,6 +344,9 @@ async fn execute_query(options: &Options, state: &mut repl::State,
     if !items.can_contain_data() {
         match items.complete().await {
             Ok(res) => print::completion(&res.status_data),
+            Err(e) if e.is::<StateMismatchError>() => {
+                return Err(RetryStateError)?;
+            }
             Err(e) => {
                 eprintln!("Error: {}", e);
                 state.last_error = Some(e.into());
