@@ -2,6 +2,7 @@ use std::io::{stdout, Write};
 
 use anyhow::Context;
 
+use crate::cloud;
 use crate::commands::ExitCode;
 use crate::options::{Options, UI};
 use crate::portable::local;
@@ -9,42 +10,82 @@ use crate::portable::repository::USER_AGENT;
 use crate::print;
 
 
-pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
-    let connector = options.block_on_create_connector()?;
+pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
+    let connector = opts.block_on_create_connector()?;
     let cfg = connector.get()?;
 
-    let local_info = cfg.local_instance_name()
-        .map(local::InstanceInfo::try_read).transpose()?.flatten();
-    let is_remote = !local_info.is_some();
-
-    let token = if let Some(key) = cfg.secret_key() {
-        Some(key.to_owned())
-    } else if let Some(instance) = local_info {
-        let ver = instance.get_version()?.specific();
-        let legacy = ver < "3.0-alpha.1".parse().unwrap();
-        jwt::LocalJWT::new(instance.name, legacy).generate()
-            .map_err(|e| {
-                log::warn!("Cannot generate authToken: {:#}", e);
-            })
-            .ok()
-    } else if matches!(cfg.local_instance_name(), Some("_localdev")) {
-        jwt::LocalJWT::new("_localdev", false).generate()
-            .map_err(|e| {
-                log::warn!("Cannot generate authToken: {:#}", e);
-            })
-            .ok()
-    } else {
-        None
+    let url = match cfg.instance_name() {
+        Some(edgedb_tokio::InstanceName::Cloud { org_slug: org, name }) =>
+            get_cloud_ui_url(cmd, org, name, cfg, opts)?,
+        _ =>
+            get_local_ui_url(cmd, cfg)?,
     };
 
+    if cmd.print_url {
+        stdout()
+            .lock()
+            .write_all((url + "\n").as_bytes())
+            .expect("stdout write succeeds");
+        Ok(())
+    } else {
+        match open::that(&url) {
+            Ok(_) => {
+                print::success("Opening URL in browser:");
+                println!("{}", url);
+                Ok(())
+            }
+            Err(e) => {
+                print::error(format!("Cannot launch browser: {:#}", e));
+                print::prompt("Please visit URL:");
+                println!("{}", url);
+                Err(ExitCode::new(1).into())
+            }
+        }
+    }
+}
+
+fn get_cloud_ui_url(
+    cmd: &UI,
+    org: &str,
+    name: &str,
+    cfg: &edgedb_tokio::Config,
+    opts: &Options,
+) -> anyhow::Result<String> {
+    let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
+    client.ensure_authenticated()?;
+    let url = if client.is_default_partition {
+        format!("https://cloud.edgedb.com/{org}/{name}")
+    } else {
+        let inst = cloud::ops::find_cloud_instance_by_name(name, org, &client)?
+            .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
+        match inst.ui_url {
+            Some(url) => url,
+            None => get_local_ui_url(cmd, cfg)?,
+        }
+    };
+    Ok(url)
+}
+
+fn get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<String> {
+    let secret_key = _get_local_ui_secret_key(cfg)?;
+    let mut url = _get_local_ui_url(cmd, cfg)?;
+
+    if let Some(secret_key) = secret_key {
+        url = format!("{}?authToken={}", url, secret_key);
+    }
+
+    Ok(url)
+}
+
+fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<String> {
     let mut url = cfg.http_url(false).map(|s| s + "/ui")
         .context("connected via unix socket")?;
-    if args.no_server_check {
+    if cmd.no_server_check {
         // We'll always use HTTP if --no-server-check is specified, depending on
         // the server to redirect to HTTPS if necessary.
     } else {
         let mut use_https = false;
-        if is_remote {
+        if cfg.local_instance_name().is_none() {
             let https_url = cfg.http_url(true).map(|u| u + "/ui")
                 .context("connected via unix socket")?;
             match open_url(&https_url).map(|r| r.status()) {
@@ -92,30 +133,33 @@ pub fn show_ui(options: &Options, args: &UI) -> anyhow::Result<()> {
         }
     }
 
-    if let Some(token) = token {
-        url = format!("{}?authToken={}", url, token);
-    }
+    Ok(url)
+}
 
-    if args.print_url {
-        stdout()
-            .lock()
-            .write_all((url + "\n").as_bytes())
-            .expect("stdout write succeeds");
-        Ok(())
+fn _get_local_ui_secret_key(cfg: &edgedb_tokio::Config) -> anyhow::Result<Option<String>> {
+    let local_inst = cfg.local_instance_name();
+    let local_info = local_inst
+        .map(local::InstanceInfo::try_read)
+        .transpose()?.flatten();
+
+    if let Some(key) = cfg.secret_key() {
+        Ok(Some(key.to_owned()))
+    } else if let Some(instance) = local_info {
+        let ver = instance.get_version()?.specific();
+        let legacy = ver < "3.0-alpha.1".parse().unwrap();
+        let key = jwt::LocalJWT::new(instance.name, legacy).generate()
+            .map_err(|e| {
+                log::warn!("Cannot generate authToken: {:#}", e);
+            }).ok();
+        Ok(key)
+    } else if matches!(local_inst, Some("_localdev")) {
+        let key = jwt::LocalJWT::new("_localdev", false).generate()
+            .map_err(|e| {
+                log::warn!("Cannot generate authToken: {:#}", e);
+            }).ok();
+        Ok(key)
     } else {
-        match open::that(&url) {
-            Ok(_) => {
-                print::success("Opening URL in browser:");
-                println!("{}", url);
-                Ok(())
-            }
-            Err(e) => {
-                print::error(format!("Cannot launch browser: {:#}", e));
-                print::prompt("Please visit URL:");
-                println!("{}", url);
-                Err(ExitCode::new(1).into())
-            }
-        }
+        Ok(None)
     }
 }
 

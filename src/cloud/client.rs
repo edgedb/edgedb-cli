@@ -47,6 +47,7 @@ pub struct CloudClient {
     options_api_endpoint: Option<String>,
     pub secret_key: Option<String>,
     pub profile: Option<String>,
+    pub is_default_partition: bool,
 }
 
 impl CloudClient {
@@ -146,8 +147,7 @@ impl CloudClient {
             .or_else(|| Some(format!("https://api.g.{dns_zone}")))
             .as_deref()
             .map(reqwest::Url::parse)
-            .unwrap()
-            .and_then(|u| u.join(EDGEDB_CLOUD_API_VERSION))?;
+            .unwrap()?;
         let cloud_certs = env::var_os("_EDGEDB_CLOUD_CERTS")
             .map(|v| v.into_string())
             .transpose()
@@ -241,12 +241,17 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
         Ok(Self {
             client: builder.build()?,
             is_logged_in,
-            api_endpoint,
+            api_endpoint: api_endpoint.join(EDGEDB_CLOUD_API_VERSION)?,
             options_secret_key: options_secret_key.clone(),
             options_profile: options_profile.clone(),
             options_api_endpoint: options_api_endpoint.clone(),
             secret_key,
             profile,
+            is_default_partition: (
+                api_endpoint
+                == reqwest::Url::parse(
+                    &format!("https://api.g.{EDGEDB_CLOUD_DEFAULT_DNS_ZONE}"))?
+            )
         })
     }
 

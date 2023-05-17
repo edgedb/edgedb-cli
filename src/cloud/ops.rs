@@ -27,6 +27,8 @@ pub struct CloudInstance {
     pub region: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     tls_ca: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_url: Option<String>,
 }
 
 impl CloudInstance {
