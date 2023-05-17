@@ -6,6 +6,7 @@ use anyhow::Context;
 use fn_error_context::context;
 
 use crate::bug;
+use crate::commands::ExitCode;
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::platform::current_exe;
@@ -13,6 +14,7 @@ use crate::portable::local::{InstanceInfo, runstate_dir, open_lock, lock_file};
 use crate::portable::options::{Start, Stop, Restart, Logs, instance_arg, InstanceName};
 use crate::portable::ver;
 use crate::portable::{windows, linux, macos};
+use crate::print;
 use crate::process;
 
 
@@ -219,7 +221,10 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
                 name
             }
         },
-        InstanceName::Cloud { .. } => todo!(),
+        InstanceName::Cloud { .. } => {
+            print::error("Stoppage of cloud instances is not supported yet.");
+            return Err(ExitCode::new(1))?;
+        },
     };
     let meta = InstanceInfo::read(name)?;
     ensure_runstate_dir(&meta.name)?;
@@ -291,7 +296,6 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             // exit code of zero
             #[cfg(target_os="macos")]
             if let Err(err) = &res {
-                use crate::commands::ExitCode;
                 if let Some(exit) = err.downcast_ref::<ExitCode>() {
                     if exit.code() == 128 + 15 { // Sigterm exit code
                         res = Err(ExitCode::new(0).into());
@@ -397,7 +401,10 @@ pub fn stop(options: &Stop) -> anyhow::Result<()> {
                 name
             }
         },
-        InstanceName::Cloud { .. } => todo!(),
+        InstanceName::Cloud { .. } => {
+            print::error("Stoppage of cloud instances is not supported yet.");
+            return Err(ExitCode::new(1))?;
+        },
     };
     let meta = InstanceInfo::read(name)?;
     do_stop(&meta.name)
@@ -495,7 +502,10 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
 pub fn restart(options: &Restart) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => todo!(),
+        InstanceName::Cloud { .. } => {
+            print::error("Stoppage of cloud instances is not supported yet.");
+            return Err(ExitCode::new(1))?;
+        },
     };
     let meta = InstanceInfo::read(name)?;
     do_restart(&meta)

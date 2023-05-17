@@ -5,11 +5,13 @@ use std::path::{PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
+use crate::commands::ExitCode;
 use crate::platform::{home_dir, current_exe, detect_ipv6};
 use crate::portable::destroy::InstanceNotFound;
 use crate::portable::local::{InstanceInfo, runstate_dir, log_file};
 use crate::portable::options::{Logs, instance_arg, InstanceName};
 use crate::portable::status::Service;
+use crate::print;
 use crate::process;
 
 
@@ -411,7 +413,10 @@ pub fn external_status(inst: &InstanceInfo) -> anyhow::Result<()> {
 pub fn logs(options: &Logs) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => todo!(),
+        InstanceName::Cloud { .. } => {
+            print::error("This operation is not supported on cloud instances yet.");
+            return Err(ExitCode::new(1))?;
+        },
     };
     if detect_systemd(&name) {
         let mut cmd = process::Native::new(

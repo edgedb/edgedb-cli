@@ -56,7 +56,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Revert(c) => revert::revert(c),
         Unlink(c) => link::unlink(c),
         Status(c) if cfg!(windows) => windows::status(c),
-        Status(c) => status::status(c),
+        Status(c) => status::status(c, options),
         Credentials(c) => credentials::show_credentials(&options, &c),
     }
 }
