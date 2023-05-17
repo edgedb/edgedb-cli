@@ -22,7 +22,7 @@ pub struct CloudInstance {
     name: String,
     org_slug: String,
     dsn: String,
-    status: String,
+    pub status: String,
     pub version: String,
     pub region: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -44,10 +44,11 @@ impl CloudInstance {
 
 impl RemoteStatus {
     async fn from_cloud_instance(
+        cloud_client: &CloudClient,
         cloud_instance: &CloudInstance,
-        secret_key: &str,
     ) -> anyhow::Result<Self> {
-        let credentials = cloud_instance.as_credentials(secret_key).await?;
+        let secret_key = cloud_client.secret_key.clone().unwrap();
+        let credentials = cloud_instance.as_credentials(&secret_key).await?;
         let (_, connection) = try_connect(&credentials).await;
         Ok(Self {
             name: format!("{}/{}", cloud_instance.org_slug, cloud_instance.name),
@@ -266,7 +267,7 @@ pub async fn destroy_cloud_instance(
     Ok(())
 }
 
-async fn get_instances(client: CloudClient) -> anyhow::Result<Vec<CloudInstance>> {
+async fn get_instances(client: &CloudClient) -> anyhow::Result<Vec<CloudInstance>> {
     timeout(Duration::from_secs(30), client.get("instances/"))
         .await
         .or_else(|_| anyhow::bail!("timed out with Cloud API"))?
@@ -278,11 +279,10 @@ pub async fn list(
     errors: &Collector<anyhow::Error>,
 ) -> anyhow::Result<Vec<RemoteStatus>> {
     client.ensure_authenticated()?;
-    let secret_key = client.secret_key.clone().unwrap();
-    let cloud_instances = get_instances(client).await?;
+    let cloud_instances = get_instances(&client).await?;
     let mut rv = Vec::new();
     for cloud_instance in cloud_instances {
-        match RemoteStatus::from_cloud_instance(&cloud_instance, &secret_key).await {
+        match RemoteStatus::from_cloud_instance(&client, &cloud_instance).await {
             Ok(status) => rv.push(status),
             Err(e) => {
                 errors.add(
@@ -295,4 +295,13 @@ pub async fn list(
         }
     }
     Ok(rv)
+}
+
+#[tokio::main]
+pub async fn get_status(
+    client: &CloudClient,
+    instance: &CloudInstance,
+) -> anyhow::Result<RemoteStatus> {
+    client.ensure_authenticated()?;
+    RemoteStatus::from_cloud_instance(client, instance).await
 }

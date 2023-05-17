@@ -18,6 +18,7 @@ use tokio::time::sleep;
 use edgedb_tokio::{Builder, credentials::Credentials};
 use crate::connect::Connection;
 
+use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::collect::Collector;
 use crate::commands::ExitCode;
@@ -119,11 +120,11 @@ pub struct JsonStatus {
 }
 
 
-pub fn status(options: &Status) -> anyhow::Result<()> {
-    if options.service {
-        external_status(options)
+pub fn status(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result<()> {
+    if cmd.service {
+        external_status(cmd)
     } else {
-        normal_status(options)
+        normal_status(cmd, opts)
     }
 }
 
@@ -227,27 +228,47 @@ pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
     Ok(status_from_meta(name, &paths, meta))
 }
 
-fn normal_status(options: &Status) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
+fn normal_status(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result<()> {
+    let name = match instance_arg(&cmd.name, &cmd.instance)? {
         InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => todo!(),
+        InstanceName::Cloud { org_slug: org, name } => {
+            return cloud_status(cmd, org, name, opts);
+        },
     };
     let meta = InstanceInfo::try_read(name).transpose();
     if let Some(meta) = meta {
         let paths = Paths::get(name)?;
         let status = status_from_meta(name, &paths, meta);
-        if options.debug {
+        if cmd.debug {
             println!("{:#?}", status);
             Ok(())
-        } else if options.extended {
+        } else if cmd.extended {
             status.print_extended_and_exit();
-        } else if options.json {
+        } else if cmd.json {
             status.print_json_and_exit();
         } else {
             status.print_and_exit();
         }
     } else {
-        remote_status(options)
+        remote_status(cmd)
+    }
+}
+
+fn cloud_status(cmd: &Status, org: &str, name: &str, opts: &crate::options::Options) -> anyhow::Result<()> {
+    let client = CloudClient::new(&opts.cloud_options)?;
+    client.ensure_authenticated()?;
+
+    let inst = cloud::ops::find_cloud_instance_by_name(name, org, &client)?
+        .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
+
+    let status = cloud::ops::get_status(&client, &inst)?;
+
+    if cmd.extended {
+        status.print_extended_and_exit();
+    } else if cmd.json {
+        status.print_json_and_exit();
+    } else {
+        status.print_and_exit();
     }
 }
 
@@ -811,6 +832,11 @@ impl RemoteStatus {
         }
     }
 
+    pub fn print_extended_and_exit(&self) -> ! {
+        self.print_extended();
+        self.exit()
+    }
+
     pub fn json(&self) -> JsonStatus {
         JsonStatus {
             name: self.name.clone(),
@@ -825,6 +851,18 @@ impl RemoteStatus {
                 None
             },
         }
+    }
+
+    pub fn print_json_and_exit<'x>(&'x self) -> ! {
+        println!("{}",
+            serde_json::to_string_pretty(&self.json())
+            .expect("status is not json-serializable"));
+        self.exit()
+    }
+
+    pub fn print_and_exit(&self) -> ! {
+        eprintln!("{}", self.instance_status.as_deref().unwrap_or("<unknown>"));
+        self.exit()
     }
 
     pub fn exit(&self) -> ! {

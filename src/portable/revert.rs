@@ -28,7 +28,10 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
                 name
             }
         },
-        InstanceName::Cloud { .. } => todo!(),
+        InstanceName::Cloud { .. } => {
+            print::error("This operation is not supported on cloud instances yet.");
+            return Err(ExitCode::new(1))?;
+        },
     };
     let status = instance_status(name)?;
     let (backup_info, old_inst) = match status.backup {
