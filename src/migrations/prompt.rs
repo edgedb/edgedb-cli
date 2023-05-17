@@ -69,7 +69,7 @@ impl Completer for ExpressionHelper {
     type Candidate = String;
 }
 
-pub fn expression(prompt: &str, history_name: &str)
+pub fn expression(prompt: &str, history_name: &str, default: &str)
     -> Result<String, anyhow::Error>
 {
     let history_name = format!("migr_{}", &history_name);
@@ -86,7 +86,8 @@ pub fn expression(prompt: &str, history_name: &str)
     editor.set_helper(Some(ExpressionHelper {
         styler: Styler::dark_256(),
     }));
-    let text = editor.readline(&prompt).context("readline error")?;
+    let text = editor.readline_with_initial(&prompt, (default, ""))
+        .context("readline error")?;
     editor.add_history_entry(&text);
     save_history(&mut editor, &history_name);
     Ok(text)

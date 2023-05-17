@@ -674,7 +674,7 @@ fn input_required() -> anyhow::Result<()> {
     cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("yes").unwrap();
     cmd.exp_string("cast_expr>").unwrap();
-    cmd.send_line(".foo[IS Child2]").unwrap();
+    cmd.send_line("").unwrap();  // default value
     cmd.exp_string("Created").unwrap();
 
     fs::remove_file("tests/migrations/db3/migrations/00002.edgeql").unwrap();
