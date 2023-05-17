@@ -770,6 +770,13 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     echo!("Checking EdgeDB versions...");
 
     let (ver_query, pkg) = ask_version(options)?;
+    if let Some(filter) = &ver_query.version {
+        if !filter.matches_exact(&pkg.version.specific()) {
+            echo!("Latest version compatible with the specification",
+                  "\""; filter; "\"",
+                  "is", pkg.version.emphasize());
+        }
+    }
 
     match &inst_name {
         InstanceName::Cloud { org_slug, name } => {

@@ -197,25 +197,34 @@ impl Filter {
         self.matches_specific(&bld.specific())
     }
 
-    pub fn matches_specific(&self, spec: &Specific) -> bool {
+    pub fn matches_exact(&self, spec: &Specific) -> bool {
         use MinorVersion as M;
         use FilterMinor as Q;
 
         if spec.major != self.major {
             return false;
         }
+        match (spec.minor, self.minor.unwrap_or(Q::Minor(0))) {
+            // dev releases can't be matched
+            (M::Dev(_), _) => false,
+            (M::Minor(v), Q::Minor(q)) => v == q,
+            (M::Alpha(v), Q::Alpha(q)) => v == q,
+            (M::Beta(v), Q::Beta(q)) => v == q,
+            (M::Rc(v), Q::Rc(q)) => v == q,
+            (_, _) => false,
+        }
+    }
+
+    pub fn matches_specific(&self, spec: &Specific) -> bool {
+        use MinorVersion as M;
+        use FilterMinor as Q;
 
         if self.exact {
-            match (spec.minor, self.minor.unwrap_or(Q::Minor(0))) {
-                // dev releases can't be matched
-                (M::Dev(_), _) => false,
-                (M::Minor(v), Q::Minor(q)) => v == q,
-                (M::Alpha(v), Q::Alpha(q)) => v == q,
-                (M::Beta(v), Q::Beta(q)) => v == q,
-                (M::Rc(v), Q::Rc(q)) => v == q,
-                (_, _) => false,
-            }
+            self.matches_exact(spec)
         } else {
+            if spec.major != self.major {
+                return false;
+            }
             match (spec.minor, self.minor.unwrap_or(Q::Minor(0))) {
                 // dev releases can't be matched
                 (M::Dev(_), _) => false,
