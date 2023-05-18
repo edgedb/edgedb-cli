@@ -66,7 +66,9 @@ pub struct RequiredUserInput {
     prompt: String,
     #[allow(dead_code)]
     old_type: Option<String>,
+    old_type_is_object: Option<bool>,
     new_type: Option<String>,
+    new_type_is_object: Option<bool>,
     #[serde(rename="type")]
     type_name: Option<String>,
     pointer_name: Option<String>,
@@ -296,9 +298,18 @@ pub fn make_default_expression(input: &RequiredUserInput)
             if input.pointer_name.is_some() &&
                input.new_type.is_some()
         => {
-            format!("<{}>.{}",
-                    input.new_type.as_ref().unwrap(),
-                    input.pointer_name.as_ref().unwrap())
+            let pointer_name = input.pointer_name.as_deref().unwrap();
+            let new_type = input.new_type.as_deref().unwrap();
+            match (input.old_type_is_object, input.new_type_is_object) {
+                (Some(true), Some(true)) => {
+                    format!(".{pointer_name}[IS {new_type}]")
+                }
+                (Some(false), Some(false)) | (None, None) => {
+                    format!("<{new_type}>.{pointer_name}")
+                }
+                // TODO(tailhook) maybe create something for mixed case?
+                _ => return None,
+            }
         }
         "conv" if input.pointer_name.is_some() => {
             format!("(SELECT .{} LIMIT 1)",
