@@ -686,7 +686,8 @@ fn input_required() -> anyhow::Result<()> {
     cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("yes").unwrap();
     cmd.exp_string("cast_expr>").unwrap();
-    cmd.send_line(".foo[IS Child2] # comment").unwrap();
+    // just add a comment to the default value
+    cmd.send_line("# comment").unwrap();
     cmd.exp_string("Created").unwrap();
     Ok(())
 }
