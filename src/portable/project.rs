@@ -1139,7 +1139,7 @@ fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, DEFAULT_ESDL)?;
     fs::rename(&tmp, &default)?;
-    if version.is_nonrecursive_access_policies_supported() {
+    if version.is_nonrecursive_access_policies_needed() {
         let futures = dir.join("futures.esdl");
         let tmp = tmp_file_path(&futures);
         fs::remove_file(&tmp).ok();
