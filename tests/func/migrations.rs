@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 use crate::SERVER;
 use predicates::str::{ends_with, contains};
 
@@ -714,9 +715,9 @@ edgedb error: cannot proceed until .esdl files are fixed
 
 #[test]
 fn dev_mode() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db4/modified1/00001.edgeql")
+    fs::remove_file("tests/migrations/db4/modified1/migrations/00001.edgeql")
         .ok();
-    fs::remove_file("tests/migrations/db4/created1/00002.edgeql")
+    fs::remove_file("tests/migrations/db4/created1/migrations/00002.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db4")
@@ -739,6 +740,10 @@ fn dev_mode() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db4/modified1")
         .env("NO_COLOR", "1")
         .assert().success();
+    assert!(
+        Path::new("tests/migrations/db4/modified1/migrations/00001.edgeql")
+        .exists()
+    );
     SERVER.admin_cmd()
         .arg("--database=db4")
         .arg("migrate").arg("--dev-mode")
@@ -751,6 +756,10 @@ fn dev_mode() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db4/created1")
         .env("NO_COLOR", "1")
         .assert().success();
+    assert!(
+        Path::new("tests/migrations/db4/created1/migrations/00002.edgeql")
+        .exists()
+    );
     Ok(())
 }
 
