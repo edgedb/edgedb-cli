@@ -714,7 +714,6 @@ async fn _create(cli: &mut Connection, options: &Options,
     let ctx = Context::from_project_or_config(&create.cfg, false).await?;
 
     if dev_mode::check_client(cli).await? {
-        // TODO(tailhook) older edgedb versions
         let dev_num = query_row::<i64>(cli, "SELECT count((
             SELECT schema::Migration
             FILTER .generated_by = schema::MigrationGeneratedBy.DevMode

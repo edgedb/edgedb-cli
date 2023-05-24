@@ -10,9 +10,10 @@ use crate::async_try;
 use crate::bug;
 use crate::commands::Options;
 use crate::migrations::context::Context;
-use crate::migrations::create::{CurrentMigration, normal_migration};
-use crate::migrations::create::{MigrationKey};
+use crate::migrations::create::{CurrentMigration, FutureMigration};
+use crate::migrations::create::{MigrationKey, write_migration};
 use crate::migrations::create::{execute_start_migration, unsafe_populate};
+use crate::migrations::create::{first_migration, normal_migration};
 use crate::migrations::edb::{execute, query_row, execute_if_connected};
 use crate::migrations::migrate::{apply_migrations, apply_migrations_inner};
 use crate::migrations::migration::{self, MigrationFile};
@@ -231,13 +232,16 @@ async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
 async fn create_in_rewrite(ctx: &Context, cli: &mut Connection,
                            migrations: &IndexMap<String, MigrationFile>,
                            create: &CreateMigration)
-    -> anyhow::Result<()>
+    -> anyhow::Result<FutureMigration>
 {
     apply_migrations_inner(cli, migrations, true).await?;
-    let key = MigrationKey::Index((migrations.len() + 1) as u64);
-    let parent = migrations.keys().last().map(|x| &x[..]);
-    normal_migration(cli, ctx, key, parent, create).await?;
-    Ok(())
+    if migrations.len() == 0 {
+        first_migration(cli, &ctx, create).await
+    } else {
+        let key = MigrationKey::Index((migrations.len() + 1) as u64);
+        let parent = migrations.keys().last().map(|x| &x[..]);
+        normal_migration(cli, ctx, key, parent, create).await
+    }
 }
 
 pub async fn create(cli: &mut Connection, ctx: &Context, _options: &Options,
@@ -247,7 +251,7 @@ pub async fn create(cli: &mut Connection, ctx: &Context, _options: &Options,
     let migrations = migration::read_all(&ctx, true).await?;
 
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
-    async_try! {
+    let migration = async_try! {
         async {
             execute(cli, "START MIGRATION REWRITE").await?;
             async_try! {
@@ -263,5 +267,7 @@ pub async fn create(cli: &mut Connection, ctx: &Context, _options: &Options,
         finally async {
             timeout::restore_for_transaction(cli, old_timeout).await
         }
-    }
+    }?;
+    write_migration(&ctx, &migration, !create.non_interactive).await?;
+    Ok(())
 }
