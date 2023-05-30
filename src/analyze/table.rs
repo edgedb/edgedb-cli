@@ -35,6 +35,41 @@ pub struct Counter {
 
 pub struct Float(pub f64);
 pub struct Right<T: fmt::Display>(pub T);
+pub struct WordList<T: Words>(pub T);
+
+pub trait Words {
+    fn print<T: Printer>(&self, p: &mut T) -> fmt::Result;
+}
+
+pub trait Printer {
+    fn word(&mut self, word: impl fmt::Display) -> fmt::Result;
+    fn words(&mut self, iter: impl Iterator<Item=impl fmt::Display>)
+        -> fmt::Result
+    {
+        for word in iter {
+            self.word(word)?;
+        }
+        Ok(())
+    }
+}
+
+struct WidthPrinter {
+    min_width: usize,
+    width: usize,
+    first: bool,
+}
+
+struct HeightPrinter {
+    width: usize,
+    height: usize,
+    column: usize,
+}
+
+struct TextPrinter<'a, 'b: 'a> {
+    fmt: &'a mut fmt::Formatter<'b>,
+    width: usize,
+    column: usize,
+}
 
 pub fn render(
     title: Option<impl fmt::Display>,
@@ -248,4 +283,81 @@ pub fn display_width(v: impl fmt::Display) -> usize {
     let mut cnt = Counter::new();
     write!(&mut cnt, "{}", v).expect("can write into counter");
     cnt.width
+}
+
+impl<T: Words> Contents for WordList<T> {
+    fn width_bounds(&self) -> (usize, usize) {
+        let mut prn = WidthPrinter {
+            min_width: 0,
+            width: 0,
+            first: true,
+        };
+        self.0.print(&mut prn).expect("width printing always succeeds");
+        (prn.min_width, prn.width)
+    }
+    fn height(&self, width: usize) -> usize {
+        let mut prn = HeightPrinter {
+            width,
+            height: 1,
+            column: 0,
+        };
+        self.0.print(&mut prn).expect("height printing always succeeds");
+        prn.height
+    }
+    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter)
+        -> fmt::Result
+    {
+        let mut prn = TextPrinter {
+            fmt: f,
+            width,
+            column: 0,
+        };
+        self.0.print(&mut prn)
+    }
+}
+
+impl Printer for WidthPrinter {
+    fn word(&mut self, word: impl fmt::Display) -> fmt::Result {
+        let item_width = display_width(word);
+        self.min_width = max(self.min_width, item_width);
+        self.width += item_width;
+        if self.first {
+            self.first = false;
+        } else {
+            self.width += " ".len();
+        }
+        Ok(())
+    }
+}
+
+impl Printer for HeightPrinter {
+    fn word(&mut self, word: impl fmt::Display) -> fmt::Result {
+        let item_width = display_width(word);
+        let mut space_width = if self.column == 0 { 0 } else { " ".len() };
+        if self.column + space_width + item_width > self.width {
+            self.height += 1;
+            self.column = 0;
+            space_width = 0;
+        }
+        self.column += space_width + item_width;
+        Ok(())
+    }
+}
+
+impl Printer for TextPrinter<'_, '_> {
+    fn word(&mut self, word: impl fmt::Display) -> fmt::Result {
+        let item_width = display_width(&word);
+        let mut space_width = if self.column == 0 { 0 } else { " ".len() };
+        if self.column + space_width + item_width > self.width {
+            self.fmt.write_char('\n')?;
+            self.column = 0;
+            space_width = 0;
+        }
+        if space_width > 0 {
+            self.fmt.write_char(' ')?;
+        }
+        word.fmt(self.fmt)?;
+        self.column += space_width + item_width;
+        Ok(())
+    }
 }
