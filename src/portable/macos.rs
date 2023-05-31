@@ -120,6 +120,9 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
          <false/>
     </dict>
 
+    <key>LSBackgroundOnly</key>
+    <true/>
+
     {sockets}
 
 </dict>
