@@ -2,7 +2,7 @@ use std::fmt::{self, Write};
 
 use crate::analyze::contexts;
 use crate::analyze::model::{Analysis, Plan, Stage, Arguments};
-use crate::analyze::model::{Shape, ChildName, DebugNode, Cost, Prop};
+use crate::analyze::model::{Shape, ChildName, DebugNode, Cost};
 use crate::analyze::table;
 use crate::print::Highlight;
 
@@ -39,7 +39,7 @@ pub struct ShapeNode<'a> {
 #[derive(Debug)]
 pub struct Relations<'a>(&'a [String]);
 pub struct NodeTitle<'a>(contexts::OptNumber, &'a str);
-pub struct Property<'a>(&'a Prop);
+pub struct Property<'a, T: fmt::Display>(&'a str, T);
 pub struct Comma<T>(T, bool);
 pub struct CommaSeparated<T: Iterator>(std::iter::Peekable<T>);
 
@@ -49,6 +49,12 @@ pub struct StageInfo<'a> {
     stage: &'a Stage,
 }
 
+#[derive(Debug)]
+pub struct DebugPlanInfo<'a> {
+    context: contexts::OptNumber,
+    node: &'a DebugNode,
+}
+
 pub trait HasChildren {
     fn has_children(&self) -> bool;
 }
@@ -56,38 +62,30 @@ pub trait HasChildren {
 pub fn print_debug_plan(explain: &Analysis) {
     if let Some(debug) = &explain.debug_info {
         if let Some(node) = &debug.full_plan {
-            println!("Debug Plan");
-            print_debug_node(explain, "", node, true);
-        }
-    }
-}
 
-fn print_debug_node(explain: &Analysis, prefix: &str, node: &DebugNode,
-                    last: bool)
-{
-    let marker = if last { "└──" } else { "├──" };
-    println!("{prefix}{marker}{shape}{ctx} {node_type}:{parent} {alias}/{rel_name} [{simplified_path}] / {index} \
-             (cost={cost1}..{cost2} actual_time={atime} rows={rows} width={width})",
-             node_type=node.node_type,
-             parent=node.parent_relationship.as_deref().unwrap_or("root"),
-             index=node.index_name.as_deref().unwrap_or("-"),
-             rows=node.plan_rows,
-             width=node.plan_width,
-             cost1=node.startup_cost,
-             cost2=node.total_cost,
-             atime=Opt(&node.actual_total_time),
-             alias=node.alias.as_deref().unwrap_or("-"),
-             rel_name=node.relation_name.as_deref().unwrap_or("-"),
-             simplified_path=node.simplified_paths.iter()
-                 .map(|(alias, attr)| format!("{alias}.{attr}"))
-                 .collect::<Vec<_>>().join(","),
-             shape=node.is_shape.then(|| "+").unwrap_or(""),
-             ctx=explain.context(&node.contexts),
-    );
-    let prefix = prefix.to_string() + if last { "    " } else { "│   " };
-    let last_idx = node.plans.len().saturating_sub(1);
-    for (idx, node) in node.plans.iter().enumerate() {
-        print_debug_node(explain, &prefix, node, idx == last_idx);
+            let mut header = Vec::with_capacity(9);
+            header.push(Box::new("") as Box<_>);
+            cost_header(&mut header, &explain.arguments);
+            header.push(Box::new("Plan Info".emphasize()) as Box<_>);
+
+            let marker = NarrowMarker::new(node);
+
+            let mut row = Vec::with_capacity(9);
+            row.push(Box::new(marker.clone()) as Box<_>);
+            cost_columns(&mut row, &node.cost, &explain.arguments);
+            row.push(Box::new(table::WordList(DebugPlanInfo {
+                context: explain.context(&node.contexts),
+                node,
+            })));
+
+            let mut rows = vec![header, row];
+
+            for (child, ch) in marker.children(&node.plans) {
+                visit_debug_tree(&mut rows, &explain, child, ch);
+            }
+
+            table::render(Some("Debug Plan"), &rows);
+        }
     }
 }
 
@@ -212,6 +210,26 @@ fn visit_expanded_tree<'x>(
     }
 }
 
+fn visit_debug_tree<'x>(
+    result: &mut Vec<Vec<Box<dyn table::Contents + 'x>>>,
+    explain: &Analysis,
+    marker: NarrowMarker,
+    node: &'x DebugNode,
+) {
+    let mut row = Vec::with_capacity(9);
+    row.push(Box::new(marker.clone()) as Box<_>);
+    cost_columns(&mut row, &node.cost, &explain.arguments);
+    row.push(Box::new(table::WordList(DebugPlanInfo {
+        context: explain.context(&node.contexts),
+        node,
+    })));
+    result.push(row);
+
+    for (child, ch) in marker.children(&node.plans) {
+        visit_debug_tree(result, &explain, child, ch);
+    }
+}
+
 impl<'a, T: fmt::Display> fmt::Display for Opt<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
@@ -250,6 +268,12 @@ impl<T: HasChildren> HasChildren for &T {
 impl HasChildren for Plan {
     fn has_children(&self) -> bool {
         return !self.subplans.is_empty()
+    }
+}
+
+impl HasChildren for DebugNode {
+    fn has_children(&self) -> bool {
+        return !self.plans.is_empty()
     }
 }
 
@@ -496,8 +520,28 @@ impl table::Words for StageInfo<'_> {
         p.word(NodeTitle(self.context, &self.stage.plan_type))?;
         let props = self.stage.properties.iter()
             .filter(|i| i.important)
-            .map(Property);
+            .map(|p| Property(&p.title, &p.value));
         p.words(add_commas(props))?;
+        Ok(())
+    }
+}
+
+impl table::Words for DebugPlanInfo<'_> {
+    fn print<T: table::Printer>(&self, p: &mut T) -> fmt::Result {
+        p.word(NodeTitle(self.context, &self.node.node_type))?;
+        if let Some(value) = &self.node.parent_relationship {
+            p.word(Property("parent_rel", value))?;
+        }
+        if let Some(value) = &self.node.alias {
+            p.word(Property("alias", value))?;
+        }
+        if let Some(value) = &self.node.index_name {
+            p.word(Property("index_name", value))?;
+        }
+        if let Some(value) = &self.node.relation_name {
+            p.word(Property("relation_name", value))?;
+        }
+        p.words(self.node.properties.iter().map(|(k, v)| Property(k, v)))?;
         Ok(())
     }
 }
@@ -534,8 +578,8 @@ impl fmt::Display for NodeTitle<'_> {
     }
 }
 
-impl fmt::Display for Property<'_> {
+impl<T: fmt::Display> fmt::Display for Property<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}={}", self.0.title.fade(), self.0.value)
+        write!(f, "{}={}", self.0.fade(), self.1)
     }
 }

@@ -33,6 +33,12 @@ pub struct Counter {
     state: TextState,
 }
 
+pub struct HardWrap<T: fmt::Write> {
+    inner: T,
+    counter: Counter,
+    width: usize,
+}
+
 pub struct Float(pub f64);
 pub struct Right<T: fmt::Display>(pub T);
 pub struct WordList<T: Words>(pub T);
@@ -91,7 +97,22 @@ pub fn render(
     let widths = if max_width <= width {
         width_bounds.iter().map(|(_min, max, _sum)| *max).collect()
     } else if min_width >= width {
-        width_bounds.iter().map(|(min, _max, _sum)| *min).collect()
+        let (max_i, max_col) = width_bounds.iter().map(|(m, _, _)| *m)
+            .enumerate()
+            .max_by_key(|(_n, v)| *v)
+            .expect("at least one column must exist");
+        if min_width - max_col < width {
+            // The heuristic is that if the widest column's min width is too
+            // big, we can just cut that one.
+            let mut widths: Vec<_> = width_bounds.iter()
+                .map(|(min, _max, _sum)| *min)
+                .collect();
+            widths[max_i] = width - (min_width - max_col);
+            widths
+        } else {
+            // something is too wrong, let's bail out
+            width_bounds.iter().map(|(min, _max, _sum)| *min).collect()
+        }
     } else {
         let sum: usize = width_bounds.iter().map(|(_, _, s)| s).sum();
         let to_divide: usize = width - min_width;
@@ -145,6 +166,7 @@ pub fn render(
                     for _ in 0..next_col - col {
                         line_buf.push(' ');
                     }
+                    col = next_col;
                 }
                 next_col = col + width + 1;
                 iter.next().map(|line| {
@@ -334,12 +356,19 @@ impl Printer for HeightPrinter {
     fn word(&mut self, word: impl fmt::Display) -> fmt::Result {
         let item_width = display_width(word);
         let mut space_width = if self.column == 0 { 0 } else { " ".len() };
-        if self.column + space_width + item_width > self.width {
+        if self.column > 0 &&
+            self.column + space_width + item_width > self.width
+        {
             self.height += 1;
             self.column = 0;
             space_width = 0;
         }
         self.column += space_width + item_width;
+        // min_width is not enough, hard wrap things
+        if self.column > self.width {
+            self.height += (self.column + self.width - 1) / self.width - 1;
+            self.column = self.width; // wrap on next word
+        }
         Ok(())
     }
 }
@@ -348,7 +377,9 @@ impl Printer for TextPrinter<'_, '_> {
     fn word(&mut self, word: impl fmt::Display) -> fmt::Result {
         let item_width = display_width(&word);
         let mut space_width = if self.column == 0 { 0 } else { " ".len() };
-        if self.column + space_width + item_width > self.width {
+        if self.column > 0 &&
+            self.column + space_width + item_width > self.width
+        {
             self.fmt.write_char('\n')?;
             self.column = 0;
             space_width = 0;
@@ -356,8 +387,39 @@ impl Printer for TextPrinter<'_, '_> {
         if space_width > 0 {
             self.fmt.write_char(' ')?;
         }
-        word.fmt(self.fmt)?;
         self.column += space_width + item_width;
+        if self.column > self.width {
+            let mut wrapper = HardWrap {
+                inner: &mut self.fmt,
+                counter: Counter::new(),
+                width: self.width,
+            };
+            write!(&mut wrapper, "{}", word)?;
+            if wrapper.counter.width > 0 {
+                self.fmt.write_char('\n')?;
+            }
+            self.column = 0;
+        } else {
+            word.fmt(self.fmt)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: fmt::Write> fmt::Write for HardWrap<T> {
+    fn write_char(&mut self, c: char) -> fmt::Result {
+        self.counter.add_char(c);
+        self.inner.write_char(c)?;
+        if self.counter.width >= self.width {
+            self.inner.write_char('\n')?;
+            self.counter.width = 0;
+        }
+        Ok(())
+    }
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for c in s.chars() {
+            self.write_char(c)?;
+        }
         Ok(())
     }
 }
