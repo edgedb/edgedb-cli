@@ -779,7 +779,13 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             client.ensure_authenticated()?;
 
             let (ver_query, version) = ask_cloud_version(options, &client)?;
-
+            if let Some(filter) = &ver_query.version {
+                if !filter.matches_exact(&version) {
+                    echo!("Latest version compatible with the specification",
+                        "\""; filter; "\"",
+                        "is", version.emphasize());
+                }
+            }
             table::settings(&[
                 ("Project directory", &project_dir.display().to_string()),
                 ("Project config", &config_path.display().to_string()),
