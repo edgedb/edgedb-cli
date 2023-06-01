@@ -1219,6 +1219,20 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
                     continue;
                 }
             }
+        } else if value == "testing" {
+            match repository::get_server_package(&Query::testing()) {
+                Ok(Some(pkg)) => return Ok((Query::testing(), pkg)),
+                Ok(None) => {
+                    print::error("No testing versions found");
+                    continue;
+                }
+                Err(e) => {
+                    print::error(format!(
+                        "Cannot find testing version: {}", e
+                    ));
+                    continue;
+                }
+            }
         } else {
             match parse_ver_and_find(&value) {
                 Ok(Some(pair)) => return Ok(pair),
@@ -1280,6 +1294,14 @@ fn ask_cloud_version(options: &Init, client: &CloudClient) -> anyhow::Result<(Qu
         if value == "nightly" {
             match cloud::versions::get_version(&Query::nightly(), client) {
                 Ok(v) => return Ok((Query::nightly(), v)),
+                Err(e) => {
+                    print::error(format!("{}", e));
+                    continue;
+                }
+            }
+        } else if value == "testing" {
+            match cloud::versions::get_version(&Query::testing(), client) {
+                Ok(v) => return Ok((Query::testing(), v)),
                 Err(e) => {
                     print::error(format!("{}", e));
                     continue;

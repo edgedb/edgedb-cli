@@ -16,7 +16,7 @@ use crate::portable::install;
 use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
 use crate::portable::options::{Upgrade, instance_arg, InstanceName};
 use crate::portable::project;
-use crate::portable::repository::{self, Query, PackageInfo, Channel};
+use crate::portable::repository::{self, Query, QueryOptions, PackageInfo, Channel};
 use crate::portable::ver;
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
@@ -148,35 +148,19 @@ fn upgrade_cloud(cmd: &Upgrade, org: &str, name: &str, opts: &crate::options::Op
     let inst = cloud::ops::find_cloud_instance_by_name(name, org, &client)?
         .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
 
-    let mut versions = cloud::ops::get_versions(&client)?;
+    let (query, _) = Query::from_options(
+        QueryOptions {
+            nightly: cmd.to_nightly,
+            testing: cmd.to_testing,
+            channel: cmd.to_channel,
+            version: cmd.to_version.as_ref(),
+            stable: cmd.to_latest,
+        },
+        || anyhow::Ok(Query::stable()),
+    )?;
 
-    if let Some(ver) = &cmd.to_version {
-        versions.retain(
-            |cand| ver.matches_specific(
-                &cand.version.parse::<ver::Specific>().unwrap()));
-    } else if cmd.to_testing || matches!(cmd.to_channel, Some(Channel::Testing)) {
-        versions.retain(
-            |cand| {
-                let v = &cand.version.parse::<ver::Specific>().unwrap();
-                v.is_testing() || v.is_stable()
-            }
-        );
-    } else if cmd.to_nightly || matches!(cmd.to_channel, Some(Channel::Nightly)) {
-        versions.retain(
-            |cand| cand.version.parse::<ver::Specific>().unwrap().is_nightly()
-        );
-    }
-
-    if versions.len() == 0 {
-        print::error(
-            "The requested EdgeDB version is not supported by EdgeDB Cloud.",
-        );
-        return Err(ExitCode::new(exit_codes::INVALID_CONFIG))?;
-    }
-
-    versions.sort_by_cached_key(|k| k.version.parse::<ver::Specific>().unwrap());
-    let target_ver_str = &versions.last().unwrap().version;
-    let target_ver = ver::Specific::from_str(&target_ver_str)?;
+    let target_ver = cloud::versions::get_version(&query, &client)?;
+    let target_ver_str = target_ver.to_string();
     let inst_ver = ver::Specific::from_str(&inst.version)?;
 
     if target_ver <= inst_ver {
