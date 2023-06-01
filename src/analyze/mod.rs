@@ -48,7 +48,7 @@ pub async fn interactive(prompt: &mut repl::State, query: &str)
 
 pub async fn render_expanded_explain(data: &Analysis) -> anyhow::Result<()>
 {
-    tree::print_tree(data);
+    tree::print_expanded_tree(data);
     Ok(())
 }
 
@@ -125,6 +125,7 @@ pub async fn command(cli: &mut Connection, options: &Analyze)
 
         render_explain(&output)?;
         if options.expand {
+            println!();
             render_expanded_explain(&output).await?;
         }
     }

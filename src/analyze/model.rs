@@ -183,24 +183,16 @@ pub struct DebugNode {
     pub parent_relationship: Option<String>,
     #[serde(default)]
     pub plans: Vec<DebugNode>,
-    #[serde(default)]
-    pub is_shape: bool,
     pub alias: Option<String>,
     pub index_name: Option<String>,
     pub relation_name: Option<String>,
     #[serde(default)]
-    pub simplified_paths: Vec<(String, String)>,
-    #[serde(default)]
     pub contexts: Vec<Context>,
 
-    pub plan_width: u64,
-    pub plan_rows: u64,
-    pub startup_cost: f64,
-    pub total_cost: f64,
-    pub actual_startup_time: Option<f64>,
-    pub actual_total_time: Option<f64>,
-    pub actual_rows: Option<f64>,
-    pub actual_loops: Option<f64>,
+    #[serde(flatten)]
+    pub cost: Cost,
+    #[serde(flatten)]
+    pub properties: HashMap<String, serde_json::Value>,
 }
 
 impl fmt::Display for PropValue {
