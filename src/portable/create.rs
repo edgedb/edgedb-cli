@@ -16,10 +16,9 @@ use crate::portable::local::{Paths, InstanceInfo};
 use crate::portable::local::{write_json, allocate_port};
 use crate::portable::options::{Create, InstanceName, Start};
 use crate::portable::platform::optional_docker_check;
-use crate::portable::repository::{Query, QueryOptions, Channel};
+use crate::portable::repository::{Query, QueryOptions};
 use crate::portable::reset_password::{password_hash, generate_password};
 use crate::portable::{windows, linux, macos};
-use crate::portable::ver;
 use crate::print::{self, echo, err_marker, Highlight};
 use crate::process;
 use crate::question;
@@ -179,34 +178,18 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
         Some(region) => region.to_string(),
     };
 
-    let mut versions = cloud::ops::get_versions(client)?;
+    let (query, _) = Query::from_options(
+        QueryOptions {
+            nightly: cmd.nightly,
+            testing: false,
+            channel: cmd.channel,
+            version: cmd.version.as_ref(),
+            stable: false,
+        },
+        || anyhow::Ok(Query::stable()),
+    )?;
 
-    if let Some(ver) = &cmd.version {
-        versions.retain(
-            |cand| ver.matches_specific(
-                &cand.version.parse::<ver::Specific>().unwrap()));
-    } else if matches!(cmd.channel, Some(Channel::Testing)) {
-        versions.retain(
-            |cand| {
-                let v = &cand.version.parse::<ver::Specific>().unwrap();
-                v.is_testing() || v.is_stable()
-            }
-        );
-    } else if cmd.nightly || matches!(cmd.channel, Some(Channel::Nightly)) {
-        versions.retain(
-            |cand| cand.version.parse::<ver::Specific>().unwrap().is_nightly()
-        );
-    }
-
-    if versions.len() == 0 {
-        print::error(
-            "The requested EdgeDB version is not supported by EdgeDB Cloud.",
-        );
-        return Err(ExitCode::new(exit_codes::INVALID_CONFIG))?;
-    }
-
-    versions.sort_by_cached_key(|k| k.version.parse::<ver::Specific>().unwrap());
-    let server_ver = &versions.last().unwrap().version;
+    let server_ver = cloud::versions::get_version(&query, client)?;
 
     if !cmd.non_interactive && !question::Confirm::new(format!(
         "This will create a new EdgeDB cloud instance with the following parameters: \

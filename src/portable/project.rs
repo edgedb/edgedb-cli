@@ -17,6 +17,7 @@ use edgedb_cli_derive::EdbClap;
 use edgedb_tokio::Builder;
 use crate::connect::Connection;
 
+use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
 use crate::connect::Connector;
@@ -556,21 +557,20 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         return do_link(&inst, options, &stash_dir);
     }
 
-    echo!("Checking EdgeDB versions...");
-
-    let pkg = repository::get_server_package(&ver_query)?
-        .with_context(||
-            format!("cannot find package matching {}", ver_query.display()))?;
-
     match &name {
         InstanceName::Cloud { org_slug, name } => {
+            echo!("Checking EdgeDB cloud versions...");
+
+            let ver = cloud::versions::get_version(&ver_query, &client)
+                .with_context(|| "could not initialize project")?;
+
             table::settings(&[
                 ("Project directory", &project_dir.display().to_string()),
                 ("Project config", &config_path.display().to_string()),
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
                  &schema_dir_path.display().to_string()),
-                ("Version", &pkg.version.to_string()),
+                ("Version", &ver.to_string()),
                 ("Instance name", &name.to_string()),
             ]);
 
@@ -583,11 +583,17 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                 &stash_dir,
                 &project_dir,
                 &schema_dir,
-                &pkg.version.specific(),
+                &ver,
                 options,
                 &client)
         }
         InstanceName::Local(name) => {
+            echo!("Checking EdgeDB versions...");
+
+            let pkg = repository::get_server_package(&ver_query)?
+                .with_context(||
+                    format!("cannot find package matching {}", ver_query.display()))?;
+
             let meth = if cfg!(windows) {
                 "WSL"
             } else {
@@ -767,27 +773,20 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
         return do_link(&inst, options, &stash_dir);
     };
 
-    echo!("Checking EdgeDB versions...");
-
-    let (ver_query, pkg) = ask_version(options)?;
-    if let Some(filter) = &ver_query.version {
-        if !filter.matches_exact(&pkg.version.specific()) {
-            echo!("Latest version compatible with the specification",
-                  "\""; filter; "\"",
-                  "is", pkg.version.emphasize());
-        }
-    }
-
     match &inst_name {
         InstanceName::Cloud { org_slug, name } => {
+            echo!("Checking EdgeDB cloud versions...");
             client.ensure_authenticated()?;
+
+            let (ver_query, version) = ask_cloud_version(options, &client)?;
+
             table::settings(&[
                 ("Project directory", &project_dir.display().to_string()),
                 ("Project config", &config_path.display().to_string()),
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
                  &schema_dir_path.display().to_string()),
-                ("Version", &pkg.version.to_string()),
+                ("Version", &version.to_string()),
                 ("Instance name", &name),
             ]);
             write_config(&config_path, &ver_query)?;
@@ -801,12 +800,22 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                 &stash_dir,
                 &project_dir,
                 &schema_dir,
-                &pkg.version.specific(),
+                &version,
                 options,
                 &client,
             )
         }
         InstanceName::Local(name) => {
+            echo!("Checking EdgeDB versions...");
+            let (ver_query, pkg) = ask_local_version(options)?;
+            if let Some(filter) = &ver_query.version {
+                if !filter.matches_exact(&pkg.version.specific()) {
+                    echo!("Latest version compatible with the specification",
+                        "\""; filter; "\"",
+                        "is", pkg.version.emphasize());
+                }
+            }
+
             let meth = if cfg!(windows) {
                 "WSL"
             } else {
@@ -1171,7 +1180,7 @@ fn parse_ver_and_find(value: &str)
     }
 }
 
-fn ask_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
+fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
     let ver_query = options.server_version.clone().unwrap_or(Query::stable());
     if options.non_interactive || options.server_version.is_some() {
         let pkg = repository::get_server_package(&ver_query)?
@@ -1235,6 +1244,68 @@ fn print_versions(title: &str) -> anyhow::Result<()> {
         title,
         avail.iter()
             .filter_map(|p| Query::from_version(&p.version.specific()).ok())
+            .take(5)
+            .map(|v| v.as_config_value())
+            .collect::<Vec<_>>()
+            .join(", "),
+        if avail.len() > 5 { " ..." } else { "" },
+    );
+    Ok(())
+}
+
+fn parse_ver_and_find_cloud(value: &str, client: &CloudClient)
+    -> anyhow::Result<(Query, ver::Specific)>
+{
+    let filter = value.parse()?;
+    let query = Query::from_filter(&filter)?;
+    let version = cloud::versions::get_version(&query, client)?;
+    Ok((query, version))
+}
+
+fn ask_cloud_version(options: &Init, client: &CloudClient) -> anyhow::Result<(Query, ver::Specific)> {
+    let ver_query = options.server_version.clone().unwrap_or(Query::stable());
+    if options.non_interactive || options.server_version.is_some() {
+        let version = cloud::versions::get_version(&ver_query, client)?;
+        return Ok((ver_query, version));
+    }
+    let default = cloud::versions::get_version(&Query::stable(), client)?;
+    let default_ver = Query::from_version(&default)?.as_config_value();
+    let mut q = question::String::new(
+        "Specify the version of EdgeDB to use with this project"
+    );
+    q.default(&default_ver);
+    loop {
+        let value = q.ask()?;
+        let value = value.trim();
+        if value == "nightly" {
+            match cloud::versions::get_version(&Query::nightly(), client) {
+                Ok(v) => return Ok((Query::nightly(), v)),
+                Err(e) => {
+                    print::error(format!("{}", e));
+                    continue;
+                }
+            }
+        } else {
+            match parse_ver_and_find_cloud(&value, client) {
+                Ok(pair) => return Ok(pair),
+                Err(e) => {
+                    print::error(e);
+                    print_cloud_versions("Available versions", client)?;
+                    continue;
+                }
+            }
+        }
+    }
+}
+
+fn print_cloud_versions(title: &str, client: &CloudClient) -> anyhow::Result<()> {
+    let mut avail: Vec<ver::Specific> = cloud::ops::get_versions(client)?.into_iter()
+        .map(|v| v.version.parse::<ver::Specific>().unwrap()).collect();
+    avail.sort();
+    println!("{}: {}{}",
+        title,
+        avail.iter()
+            .filter_map(|p| Query::from_version(&p).ok())
             .take(5)
             .map(|v| v.as_config_value())
             .collect::<Vec<_>>()
