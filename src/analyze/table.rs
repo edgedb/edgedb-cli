@@ -186,7 +186,7 @@ pub fn print_title(title: impl fmt::Display, width: usize) {
         width,
     );
     let twidth = display_width(&title) + 2;
-    let filler = (width - twidth)/2;
+    let filler = max(width.saturating_sub(twidth)/2, 5);
     println!("{} {} {}",
         format_args!("{0:─^filler$}", "").fade(),
         title.emphasize(),
