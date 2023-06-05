@@ -10,13 +10,15 @@ use tokio::io::{stdout, AsyncWriteExt};
 use tokio::sync::mpsc::channel;
 use tokio_stream::StreamExt;
 
+use edgedb_errors::{StateMismatchError,  ParameterTypeMismatchError};
 use edgedb_protocol::client_message::{CompilationOptions};
 use edgedb_protocol::client_message::{IoFormat, Cardinality};
 use edgedb_protocol::common::{Capabilities, State};
 use edgedb_protocol::common::{RawTypedesc};
+use edgedb_protocol::descriptors::Typedesc;
 use edgedb_protocol::model::Duration;
 use edgedb_protocol::value::Value;
-use edgedb_errors::StateMismatchError;
+use edgedb_tokio::raw::Description;
 use edgeql_parser::preparser::{self, full_statement};
 
 use crate::analyze;
@@ -293,53 +295,63 @@ async fn execute_query(options: &Options, state: &mut repl::State,
     };
 
     let start = Instant::now();
-    let data_description = match cli.parse(&flags, statement).await {
-        Ok(desc) => desc,
+    let mut input_duration = std::time::Duration::new(0, 0);
+    let desc = Typedesc::nothing(cli.protocol());
+    let mut items = match
+        cli.try_execute_stream(&flags, statement, &desc, &desc, &()).await
+    {
+        Ok(items) => items,
+        Err(e) if e.is::<ParameterTypeMismatchError>() => {
+            let Some(data_description) = e.get::<Description>() else {
+                return Err(e)?;
+            };
+
+            let desc = data_description.output()?;
+            let indesc = data_description.input()?;
+            if options.debug_print_descriptors {
+                println!("Input Descr {:#?}", indesc.descriptors());
+                println!("Output Descr {:#?}", desc.descriptors());
+            }
+            if options.debug_print_codecs {
+                let incodec = indesc.build_codec()?;
+                println!("Input Codec {:#?}", incodec);
+            }
+
+            let input_start = Instant::now();
+            let input = match
+                cli.ping_while(input_variables(&indesc, &mut state.prompt)).await
+            {
+                Ok(input) => input,
+                Err(e) => {
+                    eprintln!("{:#}", e);
+                    state.last_error = Some(e);
+                    return Err(QueryError)?;
+                }
+            };
+            input_duration = input_start.elapsed();
+
+            let execute_res = cli.try_execute_stream(
+                &flags, statement, &indesc, &desc, &input
+            ).await;
+            match execute_res {
+                Ok(items) => items,
+                Err(e) if e.is::<StateMismatchError>() => {
+                    return Err(RetryStateError)?;
+                }
+                Err(e) => {
+                    print_query_error(&e, statement,
+                                      state.verbose_errors,
+                                      "<query>")?;
+                    return Err(QueryError)?;
+                }
+            }
+        }
         Err(e) if e.is::<StateMismatchError>() => return Err(RetryStateError)?,
         Err(e) => {
             print_query_error(&e, statement, state.verbose_errors, "<query>")?;
             return Err(QueryError)?;
         }
     };
-    let first_part = start.elapsed();
-
-    if state.print_stats == Detailed {
-        eprintln!("{}",
-            format!("Parse: {:?}", start.elapsed()).dark_gray());
-    }
-    if options.debug_print_descriptors {
-        println!("Descriptor: {:?}", data_description);
-    }
-    let desc = data_description.output()?;
-    let indesc = data_description.input()?;
-    if options.debug_print_descriptors {
-        println!("Input Descr {:#?}", indesc.descriptors());
-        println!("Output Descr {:#?}", desc.descriptors());
-    }
-    let codec = desc.build_codec()?;
-    if options.debug_print_codecs {
-        println!("Codec {:#?}", codec);
-    }
-    if options.debug_print_codecs {
-        let incodec = indesc.build_codec()?;
-        println!("Input Codec {:#?}", incodec);
-    }
-
-    let input = match
-        cli.ping_while(input_variables(&indesc, &mut state.prompt)).await
-    {
-        Ok(input) => input,
-        Err(e) => {
-            eprintln!("{:#}", e);
-            state.last_error = Some(e);
-            return Err(QueryError)?;
-        }
-    };
-
-    let start_execute = Instant::now();
-    let mut items = cli.execute_stream(
-        &flags, statement, &data_description, &input,
-    ).await?;
 
     if !items.can_contain_data() {
         match items.complete().await {
@@ -367,7 +379,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
                     eprintln!("{}",
-                        format!("First row: {:?}", start_execute.elapsed())
+                        format!("First row: {:?}", start.elapsed())
                         .dark_gray()
                     );
                 }
@@ -424,7 +436,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
                     eprintln!("{}",
-                        format!("First row: {:?}", start_execute.elapsed())
+                        format!("First row: {:?}", start.elapsed())
                         .dark_gray()
                     );
                 }
@@ -458,7 +470,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
             while let Some(row) = items.next().await.transpose()? {
                 if index == 0 && state.print_stats == Detailed {
                     eprintln!("{}",
-                        format!("First row: {:?}", start_execute.elapsed())
+                        format!("First row: {:?}", start.elapsed())
                         .dark_gray()
                     );
                 }
@@ -500,7 +512,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
     if state.print_stats != Off {
         eprintln!("{}",
             format!("Query time (including output formatting): {:?}",
-            first_part + start_execute.elapsed())
+                    start.elapsed() - input_duration)
             .dark_gray()
         );
     }
