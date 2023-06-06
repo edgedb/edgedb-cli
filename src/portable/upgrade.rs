@@ -163,7 +163,7 @@ fn upgrade_cloud(cmd: &Upgrade, org: &str, name: &str, opts: &crate::options::Op
     let target_ver_str = target_ver.to_string();
     let inst_ver = ver::Specific::from_str(&inst.version)?;
 
-    if target_ver <= inst_ver {
+    if target_ver <= inst_ver && !cmd.force {
         echo!(
             "Already up to date.\nRequested upgrade version is",
             target_ver_str.emphasize(),
