@@ -187,6 +187,7 @@ fn upgrade_cloud(cmd: &Upgrade, org: &str, name: &str, opts: &crate::options::Op
         org: org.to_string(),
         name: name.to_string(),
         version: target_ver.to_string(),
+        force: cmd.force,
     };
     cloud::ops::upgrade_cloud_instance(&client, &request)?;
 

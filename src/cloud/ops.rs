@@ -101,6 +101,7 @@ pub struct CloudInstanceUpgrade {
     pub name: String,
     pub org: String,
     pub version: String,
+    pub force: bool,
 }
 
 #[derive(Debug, serde::Deserialize)]
