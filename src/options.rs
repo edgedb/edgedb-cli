@@ -23,9 +23,10 @@ use crate::commands::parser::Common;
 use crate::connect::Connector;
 use crate::hint::HintExt;
 use crate::markdown;
+use crate::portable::local::{instance_data_dir, runstate_dir};
+use crate::portable::options::InstanceName;
 use crate::portable::project;
 use crate::portable;
-use crate::portable::options::InstanceName;
 use crate::print;
 use crate::repl::OutputFormat;
 use crate::tty_password;
@@ -665,8 +666,25 @@ impl Options {
         }
         match builder.build_env().await {
             Ok(config) => {
-                let config = with_password(&self.conn_options, config).await?;
-                Ok(Connector::new(Ok(config)))
+                let mut cfg = with_password(&self.conn_options, config).await?;
+                match (cfg.admin(), cfg.port(), cfg.local_instance_name()) {
+                    (false, _, _) => {}
+                    (true, None, _) => {}
+                    (true, Some(port), Some(name)) => {
+                        if !instance_data_dir(name)?.exists() {
+                            anyhow::bail!("The --admin option requires \
+                                           --unix-path or local instance name");
+                        }
+                        let sock = runstate_dir(name)?
+                            .join(format!(".s.EDGEDB.admin.{}", port));
+                        cfg = cfg.with_unix_path(&sock);
+                    }
+                    (true, Some(_), None) => {
+                        anyhow::bail!("The --admin option requires \
+                                       --unix-path or local instance name");
+                    }
+                }
+                Ok(Connector::new(Ok(cfg)))
             }
             Err(e) => {
                 let (_, cfg, _) = builder.build_no_fail().await;
