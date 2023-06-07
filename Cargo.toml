@@ -13,10 +13,10 @@ edition = "2018"
 
 [dependencies]
 edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
-edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust/", features=["all-types"], branch="optimistic"}
-edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust/", branch="optimistic"}
-edgedb-errors = {git = "https://github.com/edgedb/edgedb-rust/", branch="optimistic"}
-edgedb-tokio = {git = "https://github.com/edgedb/edgedb-rust/", features=["admin_socket", "unstable"], branch="optimistic"}
+edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust/", features=["all-types"]}
+edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust/"}
+edgedb-errors = {git = "https://github.com/edgedb/edgedb-rust/"}
+edgedb-tokio = {git = "https://github.com/edgedb/edgedb-rust/", features=["admin_socket", "unstable"]}
 snafu = {version="0.7.0", features=["backtraces"]}
 anyhow = "1.0.23"
 bytes = "1.0.1"
