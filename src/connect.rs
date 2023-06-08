@@ -13,7 +13,7 @@ use edgedb_errors::{NoDataError, ProtocolEncodingError, ClientError};
 use edgedb_protocol::QueryResult;
 use edgedb_protocol::client_message::{State, CompilationOptions};
 use edgedb_protocol::common::Capabilities;
-use edgedb_protocol::descriptors::RawTypedesc;
+use edgedb_protocol::descriptors::{RawTypedesc, Typedesc};
 use edgedb_protocol::features::ProtocolVersion;
 use edgedb_protocol::model::Uuid;
 use edgedb_protocol::query_arg::QueryArgs;
@@ -256,6 +256,25 @@ impl Connection {
     {
         let stream = self.inner.execute_stream(
             opts, query, &self.state, desc, arguments,
+        ).await?;
+        return Ok(ResponseStream {
+            inner: stream,
+            state: &mut self.state,
+        });
+    }
+    pub async fn try_execute_stream<R, A>(&mut self,
+        opts: &CompilationOptions,
+        query: &str,
+        input_desc: &Typedesc,
+        output_desc: &Typedesc,
+        arguments: &A
+    ) -> Result<ResponseStream<R>, Error>
+        where A: QueryArgs,
+              R: QueryResult,
+              R::State: Unpin,
+    {
+        let stream = self.inner.try_execute_stream(
+            opts, query, &self.state, input_desc, output_desc, arguments,
         ).await?;
         return Ok(ResponseStream {
             inner: stream,

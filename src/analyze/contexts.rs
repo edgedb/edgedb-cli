@@ -193,8 +193,8 @@ fn print_buffer(buffer: &Buffer, title: impl fmt::Display) {
 impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.0 {
-            0..=9 => NUMBERS[self.0 as usize].fmt(f),
-            _ => write!(f, "({})", self.0+1),
+            0..=9 => write!(f, "{} ", NUMBERS[self.0 as usize]),
+            _ => write!(f, "({}) ", self.0+1),
         }
     }
 }

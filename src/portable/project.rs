@@ -1785,10 +1785,12 @@ pub fn upgrade_instance(
         if cfg_ver.channel != Channel::Nightly {
             if let Some(pkg) =repository::get_server_package(&Query::stable())?
             {
-                echo!("New major version is available:",
-                      pkg.version.emphasize());
-                echo!("To update `edgedb.toml` and upgrade to this version, \
-                       run:\n    edgedb project upgrade --to-latest");
+                if pkg.version.specific() > inst_ver {
+                    echo!("New major version is available:",
+                          pkg.version.emphasize());
+                    echo!("To update `edgedb.toml` and upgrade to this version, \
+                           run:\n    edgedb project upgrade --to-latest");
+                }
             }
         }
     }
