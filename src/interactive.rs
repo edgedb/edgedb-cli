@@ -34,7 +34,7 @@ use crate::outputs::tab_separated;
 use crate::print::Highlight;
 use crate::print::{self, PrintError};
 use crate::prompt;
-use crate::repl;
+use crate::repl::{self, VectorLimit};
 use crate::variables::input_variables;
 
 
@@ -105,6 +105,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         .unwrap_or_else(|| Duration::from_micros(5 * 60_000_000));
     let print = print::Config::new()
         .max_items(implicit_limit)
+        .max_vector_length(VectorLimit::Auto)
         .expand_strings(cfg.shell.expand_strings.unwrap_or(true))
         .implicit_properties(cfg.shell.implicit_properties.unwrap_or(false))
         .colors(std::io::stdout().is_terminal())

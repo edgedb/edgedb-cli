@@ -510,13 +510,16 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
                 "0  # no limit".into()
             }
         }
-         IdleTransactionTimeout(_) => {
-             if prompt.idle_transaction_timeout.to_micros() > 0 {
-                 prompt.idle_transaction_timeout.to_string().into()
-             } else {
-                 "0  # no timeout".into()
-             }
-         }
+        VectorDisplayLength(_) => {
+            prompt.print.max_vector_length.to_string().into()
+        }
+        IdleTransactionTimeout(_) => {
+            if prompt.idle_transaction_timeout.to_micros() > 0 {
+                prompt.idle_transaction_timeout.to_string().into()
+            } else {
+                "0  # no timeout".into()
+            }
+        }
         HistorySize(_) => {
             prompt.history_limit.to_string().into()
         }
@@ -606,6 +609,10 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                         prompt.implicit_limit = Some(limit);
                         prompt.print.max_items = Some(limit);
                     }
+                }
+                VectorDisplayLength(c) => {
+                    prompt.print.max_vector_length =
+                        c.value.expect("only set here");
                 }
                 IdleTransactionTimeout(t) => {
                     prompt.idle_transaction_timeout = Duration::from_str(

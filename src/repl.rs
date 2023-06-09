@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -49,6 +50,13 @@ pub enum PrintStats {
     Off,
     Query,
     Detailed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VectorLimit {
+    Unlimited,
+    Auto,
+    Fixed(usize),
 }
 
 
@@ -396,6 +404,30 @@ impl PrintStats {
             Off => "off",
             Query => "query",
             Detailed => "detailed",
+        }
+    }
+}
+
+impl std::str::FromStr for VectorLimit {
+    type Err = &'static str;
+    fn from_str(s: &str) -> Result<VectorLimit, Self::Err> {
+        match s {
+            "unlimited" => Ok(VectorLimit::Unlimited),
+            "auto" => Ok(VectorLimit::Auto),
+            _ => s.parse().map(VectorLimit::Fixed)
+                .map_err(|_| "expected integer, `unlimited` or `auto`".into()),
+        }
+    }
+}
+
+impl fmt::Display for VectorLimit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use VectorLimit::*;
+
+        match self {
+            Unlimited => "unlimited".fmt(f),
+            Auto => "auto".fmt(f),
+            Fixed(x) => x.fmt(f),
         }
     }
 }

@@ -45,6 +45,7 @@ fn value_to_string(v: &Value) -> Result<String, anyhow::Error> {
         | SparseObject(..)
         | NamedTuple {..}
         | Array(_)
+        | Vector(_)
         | Set(_)
         | Tuple(_)
         | Range {..}

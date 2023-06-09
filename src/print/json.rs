@@ -13,7 +13,7 @@ impl FormatExt for Value {
             s@V::String(_) => prn.const_string(s),
             s@V::Number(_) => prn.const_number(s),
             V::Array(items) => {
-                prn.array(|prn| {
+                prn.array(None, |prn| {
                     for item in items {
                         item.format(prn)?;
                         prn.comma()?;
