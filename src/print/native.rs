@@ -3,9 +3,10 @@ use std::cmp::min;
 use bigdecimal::BigDecimal;
 use num_bigint::BigInt;
 
-use edgedb_protocol::value::Value;
-use crate::print::formatter::Formatter;
 use crate::print::buffer::Result;
+use crate::print::formatter::Formatter;
+use crate::repl::VectorLimit;
+use edgedb_protocol::value::Value;
 
 
 pub trait FormatExt {
@@ -218,7 +219,7 @@ impl FormatExt for Value {
                 })
             }
             V::Array(items) => {
-                prn.array(|prn| {
+                prn.array(None, |prn| {
                     if let Some(limit) = prn.max_items() {
                         for item in &items[..min(limit, items.len())] {
                             item.format(prn)?;
@@ -235,6 +236,34 @@ impl FormatExt for Value {
                     }
                     Ok(())
                 })
+            }
+            V::Vector(items) => {
+                match prn.max_vector_length() {
+                    VectorLimit::Fixed(limit) => {
+                        prn.array(Some("ext::pgvector::vector"), |prn| {
+                            for item in &items[..min(limit, items.len())] {
+                                prn.const_number(item)?;
+                                prn.comma()?;
+                            }
+                            if items.len() > limit {
+                                prn.ellipsis()?;
+                            }
+                            Ok(())
+                        })
+                    }
+                    VectorLimit::Unlimited => {
+                        prn.array(Some("ext::pgvector::vector"), |prn| {
+                            for item in items {
+                                prn.const_number(item)?;
+                                prn.comma()?;
+                            }
+                            Ok(())
+                        })
+                    }
+                    VectorLimit::Auto => {
+                        prn.auto_sized_vector(items)
+                    }
+                }
             }
             V::Enum(v) => prn.const_enum(&**v),
             V::Range(rng) => {

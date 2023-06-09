@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use clap::{ValueHint};
 use edgedb_cli_derive::EdbClap;
 
-use crate::repl;
+use crate::repl::{self, VectorLimit};
 use crate::options::ConnectionOptions;
 use crate::migrations::options::{Migration, Migrate};
 
@@ -172,6 +172,11 @@ pub enum Setting {
     VerboseErrors(SettingBool),
     /// Set implicit LIMIT. Defaults to 100, specify 0 to disable.
     Limit(Limit),
+    /// Set maximum of elements to display for ext::pgvector::vector type.
+    ///
+    /// Defaults to `auto` which shows whatever fits single line, but not less
+    /// than 3. Can be set to `unlimited` or a fixed number.
+    VectorDisplayLength(VectorLimitValue),
     /// Set output format.
     OutputFormat(OutputFormat),
     /// Display typenames in default output mode
@@ -203,6 +208,12 @@ pub struct SettingBool {
 pub struct Limit {
     #[clap(name="limit")]
     pub value: Option<usize>,
+}
+
+#[derive(EdbClap, Clone, Debug, Default)]
+pub struct VectorLimitValue {
+    #[clap(name="limit")]
+    pub value: Option<VectorLimit>,
 }
 
 #[derive(EdbClap, Clone, Debug, Default)]

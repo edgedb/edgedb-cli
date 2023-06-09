@@ -3,9 +3,10 @@ use crate::print::Printer;
 
 use colorful::core::color_string::CString;
 
-use crate::print::buffer::Result;
+use crate::print::buffer::{Result, Exception};
 
 use crate::print::style::Style;
+use crate::repl::VectorLimit;
 
 pub(in crate::print) trait ColorfulExt {
     fn clear(&self) -> CString;
@@ -32,8 +33,11 @@ pub trait Formatter {
         where F: FnMut(&mut Self) -> Result<Self::Error>;
     fn tuple<F>(&mut self, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;
-    fn array<F>(&mut self, f: F) -> Result<Self::Error>
+    fn array<F>(&mut self, type_name: Option<&str>, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;
+    fn auto_sized_vector<'x>(&mut self,
+                             iter: impl IntoIterator<Item=&'x f32> + Copy)
+        -> Result<Self::Error>;
     fn object<F>(&mut self, type_id: Option<&str>, f: F)
         -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;
@@ -52,9 +56,13 @@ pub trait Formatter {
     fn implicit_properties(&self) -> bool;
     fn expand_strings(&self) -> bool;
     fn max_items(&self) -> Option<usize>;
+    fn max_vector_length(&self) -> VectorLimit;
+
 }
 
-impl<T: Output> Formatter for Printer<T> {
+impl<T: Output> Formatter for Printer<T>
+    where T::Error: std::fmt::Debug,
+{
     type Error = T::Error;
     fn const_number<S: ToString>(&mut self, s: S) -> Result<Self::Error> {
         self.delimit()?;
@@ -206,15 +214,93 @@ impl<T: Output> Formatter for Printer<T> {
         self.write(self.styler.apply(Style::TupleLiteral, " := "))?;
         Ok(())
     }
-    fn array<F>(&mut self, f: F) -> Result<Self::Error>
+    fn array<F>(&mut self, type_name: Option<&str>, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>
     {
         self.delimit()?;
-        self.block(
-            self.styler.apply(Style::ArrayLiteral, "["),
-            f,
-            self.styler.apply(Style::ArrayLiteral, "]"),
+        if let Some(type_name) = type_name {
+            self.block(
+                self.styler.apply(Style::ArrayLiteral,
+                                  &format!("<{type_name}>[")),
+                f,
+                self.styler.apply(Style::ArrayLiteral, "]"),
+            )?;
+        } else {
+            self.block(
+                self.styler.apply(Style::ArrayLiteral, &"["),
+                f,
+                self.styler.apply(Style::ArrayLiteral, "]"),
+            )?;
+        }
+        Ok(())
+    }
+    fn auto_sized_vector<'x>(&mut self,
+                             iter: impl IntoIterator<Item=&'x f32> + Copy)
+        -> Result<Self::Error>
+    {
+        self.delimit()?;
+        let flag = self.open_block(
+            self.styler.apply(Style::ArrayLiteral, "<ext::pgvector::vector>[")
         )?;
+        let close = self.styler.apply(Style::ArrayLiteral, "]");
+        if self.flow {
+            let mut printed = 0;
+            let mut savepoint = (self.buffer.len(), self.column);
+            let mut first_try = || {
+                for item in iter.clone() {
+                    self.const_number(item)?;
+                    self.comma()?;
+                    let col_left = self.max_width.saturating_sub(self.column);
+                    if col_left > ", ...],".len() {
+                        savepoint = (self.buffer.len(), self.column);
+                    } else {
+                        return Err(Exception::DisableFlow);
+                    }
+                    printed += 1;
+                }
+                Ok(())
+            };
+            match first_try().and_then(|()| self.close_block(&close, flag)) {
+                Ok(()) => {}
+                Err(Exception::DisableFlow) if flag => {
+                    if printed >= 3 {
+                        self.buffer.truncate(savepoint.0);
+                        self.column = savepoint.1;
+                        let tmp_res = self.delimit()
+                            .and_then(|()| self.write("...".clear()))
+                            .and_then(|()| self.close_block(&close, flag));
+                        match tmp_res {
+                            Ok(()) => return Ok(()),
+                            Err(Exception::DisableFlow) if flag => {}
+                            Err(e) => return Err(e)?,
+                        }
+                    }
+                    self.reopen_block()?;
+                    let mut iter = iter.into_iter();
+                    for item in iter.by_ref().take(3) {
+                        self.const_number(item)?;
+                        self.comma()?;
+                    }
+                    if iter.next().is_some() {
+                        self.delimit()?;
+                        self.write("...\n".clear())?;
+                    }
+                    self.close_block(&close, flag)?;
+                }
+                Err(e) => return Err(e)?,
+            }
+        } else {
+            let mut iter = iter.into_iter();
+            for item in iter.by_ref().take(3) {
+                self.const_number(item)?;
+                self.comma()?;
+            }
+            if iter.next().is_some() {
+                self.delimit()?;
+                self.write("...".clear())?;
+            }
+            self.close_block(&close, flag)?;
+        }
         Ok(())
     }
 
@@ -228,5 +314,9 @@ impl<T: Output> Formatter for Printer<T> {
 
     fn max_items(&self) -> Option<usize> {
         self.max_items
+    }
+
+    fn max_vector_length(&self) -> VectorLimit {
+        self.max_vector_length
     }
 }

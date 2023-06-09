@@ -14,6 +14,7 @@ use edgedb_protocol::codec::{ObjectShape, ShapeElement};
 use crate::print::{self, _native_format, Config};
 use crate::print::native::FormatExt;
 use crate::print::style::Styler;
+use crate::repl::VectorLimit;
 
 struct UnfusedStream<'a, I>(Option<&'a [I]>);
 
@@ -63,6 +64,7 @@ fn test_format<I: FormatExt + Clone + Send + Sync>(items: &[I])
         max_width: Some(80),
         implicit_properties: false,
         max_items: None,
+        max_vector_length: VectorLimit::Unlimited,
         styler: Styler::dark_256(),
     })
 }
@@ -196,6 +198,39 @@ fn set_ellipsis() {
             Value::Int64(10),
         ]),
     ], Config::new().max_items(Some(2))).unwrap(), "{{10}}");
+}
+
+#[test]
+fn vector() {
+    use crate::repl::VectorLimit::*;
+    assert_eq!(test_format(&[
+        Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+    ]).unwrap(), "{<ext::pgvector::vector>[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}");
+    assert_eq!(
+        test_format_cfg(&[
+            Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+        ], Config::new().max_vector_length(Fixed(2))).unwrap(),
+        "{<ext::pgvector::vector>[0, 1, ...]}",
+    );
+    assert_eq!(
+        test_format_cfg(&[
+            Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+        ], Config::new().max_vector_length(Unlimited)).unwrap(),
+        "{<ext::pgvector::vector>[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}",
+    );
+    assert_eq!(
+        test_format_cfg(&[
+            Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+        ], Config::new().max_width(20).max_vector_length(Auto)).unwrap(),
+        "{\n  \
+           <ext::pgvector::vector>[\n    0,\n    1,\n    2,\n    ...\n  ],\n}",
+    );
+    assert_eq!(
+        test_format_cfg(&[
+            Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+        ], Config::new().max_width(50).max_vector_length(Auto)).unwrap(),
+        "{\n  <ext::pgvector::vector>[0, 1, 2, 3, 4, 5, ...],\n}",
+    );
 }
 
 #[test]
@@ -349,6 +384,43 @@ fn all_widths() {
                     "Sint tempor. Qui occaecat eu consectetur elit.".into())),
             ]},
         ], Config::new().max_width(width)).unwrap();
+    }
+}
+
+#[test]
+fn all_widths_vec_obj() {
+    use crate::repl::VectorLimit::*;
+    let shape = ObjectShape::new(vec![
+        ShapeElement {
+            flag_implicit: false,
+            flag_link_property: false,
+            flag_link: false,
+            cardinality: None,
+            name: "field1".into(),
+        },
+    ]);
+    for mvec in [Auto, Unlimited, Fixed(8), Fixed(35)] {
+        for width in 0..100 {
+            test_format_cfg(&[
+                Value::Object { shape: shape.clone(), fields: vec![
+                    Some(Value::Vector(
+                        (0..200).into_iter().map(|v| v as _).collect()
+                    )),
+                ]},
+            ], Config::new().max_width(width).max_vector_length(mvec)).unwrap();
+        }
+    }
+}
+
+#[test]
+fn all_widths_vec() {
+    use crate::repl::VectorLimit::*;
+    for mvec in [Auto, Unlimited, Fixed(8), Fixed(35)] {
+        for width in 0..100 {
+            test_format_cfg(&[
+                Value::Vector((0..200).into_iter().map(|v| v as _).collect()),
+            ], Config::new().max_width(width).max_vector_length(mvec)).unwrap();
+        }
     }
 }
 

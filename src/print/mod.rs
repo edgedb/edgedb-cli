@@ -11,6 +11,8 @@ use is_terminal::IsTerminal;
 
 use edgedb_errors::display::display_error;
 
+use crate::repl::VectorLimit;
+
 pub use crate::echo;
 
 mod color;
@@ -47,6 +49,7 @@ pub struct Config {
     pub max_width: Option<usize>,
     pub implicit_properties: bool,
     pub max_items: Option<usize>,
+    pub max_vector_length: VectorLimit,
     pub styler: style::Styler,
 }
 
@@ -59,6 +62,7 @@ pub(in crate::print) struct Printer<T> {
     max_width: usize,
     implicit_properties: bool,
     max_items: Option<usize>,
+    max_vector_length: VectorLimit,
     trailing_comma: bool,
 
     // state
@@ -86,6 +90,7 @@ impl Config {
             max_width: None,
             implicit_properties: false,
             max_items: None,
+            max_vector_length: VectorLimit::Unlimited,
             styler: style::Styler::dark_256(),
         }
     }
@@ -96,6 +101,10 @@ impl Config {
     }
     pub fn max_items(&mut self, value: Option<usize>) -> &mut Config {
         self.max_items = value;
+        self
+    }
+    pub fn max_vector_length(&mut self, value: VectorLimit) -> &mut Config {
+        self.max_vector_length = value;
         self
     }
     pub fn colors(&mut self, value: bool) -> &mut Config {
@@ -233,6 +242,7 @@ async fn _native_format<S, I, E, O>(mut rows: S, config: &Config,
         max_width,
         implicit_properties: config.implicit_properties,
         max_items: config.max_items,
+        max_vector_length: config.max_vector_length,
         trailing_comma: true,
 
         buffer: String::with_capacity(8192),
@@ -291,6 +301,7 @@ pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
         max_width: config.max_width.unwrap_or(80),
         implicit_properties: config.implicit_properties,
         max_items: config.max_items,
+        max_vector_length: config.max_vector_length,
         trailing_comma: false,
 
         buffer: String::with_capacity(8192),
@@ -327,6 +338,7 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config)
         max_width: config.max_width.unwrap_or(80),
         implicit_properties: config.implicit_properties,
         max_items: config.max_items,
+        max_vector_length: config.max_vector_length,
         trailing_comma: false,
 
         buffer: String::with_capacity(8192),
