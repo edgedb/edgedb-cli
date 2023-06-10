@@ -9,7 +9,7 @@ use codespan_reporting::term::{emit};
 use termcolor::{StandardStream, ColorChoice};
 
 use edgedb_errors::{Error, InternalServerError};
-use edgeql_parser::tokenizer::TokenStream;
+use edgeql_parser::tokenizer::Tokenizer;
 
 use crate::print;
 use crate::migrations::source_map::SourceMap;
@@ -17,10 +17,10 @@ use crate::migrations::create::SourceName;
 
 
 fn end_of_last_token(data: &str) -> Option<u64> {
-    let mut tokenizer = TokenStream::new(data);
+    let mut tokenizer = Tokenizer::new(data);
     let mut off = 0;
     for tok in &mut tokenizer {
-        off = tok.ok()?.end.offset;
+        off = tok.ok()?.span.end.offset;
     }
     return Some(off);
 }

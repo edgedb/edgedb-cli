@@ -1087,10 +1087,11 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb#68033e0256a9c4f214ec1b2042817d8e235f56ec"
+source = "git+https://github.com/edgedb/edgedb#1a2d92cb5c665d5fc9f4df6bb19ca7571869abed"
 dependencies = [
  "base32",
- "combine",
+ "bigdecimal",
+ "indexmap 1.9.3",
  "memchr",
  "sha2",
  "snafu",

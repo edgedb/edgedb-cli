@@ -1,12 +1,13 @@
 use std::marker::PhantomData;
 
-use combine::{StreamOnce, Parser, ParseResult, position};
+use combine::stream::ResetStream;
+use combine::{StreamOnce, Parser, ParseResult, position, Positioned};
 use combine::{satisfy, between, many, skip_many, eof, choice, opaque};
 use combine::parser::combinator::no_partial;
 use combine::easy::{self, Errors, Info};
-use combine::error::Tracked;
+use combine::error::{Tracked, StreamError};
 use edgeql_parser::position::Pos;
-use edgeql_parser::tokenizer::{TokenStream, Kind, Token};
+use edgeql_parser::tokenizer::{Tokenizer, Kind, Token, Checkpoint};
 use edgeql_parser::helpers::{unquote_string, UnquoteError};
 
 use crate::migrations::migration::Migration;
@@ -26,6 +27,8 @@ pub struct TokenMatch<'a> {
     kind: Kind,
     phantom: PhantomData<&'a u8>,
 }
+
+pub struct TokenStream<'a>(pub Tokenizer<'a>);
 
 pub fn kw<'s>(value: &'static str)
     -> impl Parser<TokenStream<'s>, Output=()>
@@ -48,6 +51,38 @@ pub fn kind<'x>(kind: Kind) -> TokenMatch<'x> {
     }
 }
 
+impl<'a> StreamOnce for TokenStream<'a> {
+    type Token = Token<'a>;
+    type Range = Token<'a>;
+    type Position = Pos;
+    type Error = Errors<Token<'a>, Token<'a>, Pos>;
+
+    fn uncons(&mut self) -> Result<Self::Token, Error<'a>> {
+        match self.0.next() {
+            Some(Ok(t)) => Ok(t),
+            Some(Err(t)) => Err(Error::message_format(t.message)),
+            None => Err(Error::end_of_input()),
+        }
+    }
+}
+
+impl<'a> Positioned for TokenStream<'a> {
+    fn position(&self) -> Self::Position {
+        self.0.current_pos()
+    }
+}
+
+impl<'a> ResetStream for TokenStream<'a> {
+    type Checkpoint = Checkpoint;
+    fn checkpoint(&self) -> Self::Checkpoint {
+        self.0.checkpoint()
+    }
+    fn reset(&mut self, checkpoint: Checkpoint) -> Result<(), Self::Error> {
+        self.0.reset(checkpoint);
+        Ok(())
+    }
+}
+
 impl<'a> Parser<TokenStream<'a>> for Value<'a> {
     type Output = Token<'a>;
     type PartialState = ();
@@ -57,7 +92,7 @@ impl<'a> Parser<TokenStream<'a>> for Value<'a> {
         -> ParseResult<Self::Output, Errors<Token<'a>, Token<'a>, Pos>>
     {
         satisfy(|c: Token<'a>| {
-            c.kind == self.kind && c.value.eq_ignore_ascii_case(self.value)
+            c.kind == self.kind && c.text.eq_ignore_ascii_case(self.value)
         }).parse_lazy(input)
     }
 
@@ -101,8 +136,8 @@ fn chosen_statements<'a>()
             ident("message").skip(kind(Kind::Assign))
                 .with(kind(Kind::Str))
                 .skip(kind(Kind::Semicolon))
-                .and_then(|value| -> Result<_, UnquoteError> {
-                    Ok(SetMessage(unquote_string(value.value)?.into()))
+                .and_then(|token| -> Result<_, UnquoteError> {
+                    Ok(SetMessage(unquote_string(&token.text)?.into()))
                 }),
             any_statement(),
         ))
@@ -161,13 +196,13 @@ fn migration<'a>()
         .skip(eof())
     .and_then(|((id, parent_id), brace_block)| -> Result<_, Error<'_>> {
         let (id_start, id) = id;
-        let id_end = id_start.offset as usize + id.value.len();
+        let id_end = id_start.offset as usize + id.text.len();
         let (start, statements, end) = brace_block;
         let mut m = Migration {
             message: None,
-            id: id.value.into(),
+            id: id.text.into(),
             id_range: (id_start.offset as usize, id_end),
-            parent_id: parent_id.value.into(),
+            parent_id: parent_id.text.into(),
             text_range: (start.offset as usize, end.offset as usize),
         };
         for item in statements {
@@ -187,7 +222,7 @@ fn migration<'a>()
 }
 
 pub fn parse_migration(data: &str) -> anyhow::Result<Migration> {
-    let mut tokens = TokenStream::new(data);
+    let mut tokens = TokenStream(Tokenizer::new(data));
     match migration().parse_stream(&mut tokens) {
         ParseResult::CommitOk(res) => Ok(res),
         ParseResult::PeekOk(_) => unreachable!(),

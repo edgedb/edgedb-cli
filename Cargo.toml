@@ -12,7 +12,7 @@ authors = ["EdgeDB Inc. <hello@edgedb.com>"]
 edition = "2018"
 
 [dependencies]
-edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
+edgeql-parser = {git = "https://github.com/edgedb/edgedb", features=[], default-features = false}
 edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust/", features=["all-types"]}
 edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust/"}
 edgedb-errors = {git = "https://github.com/edgedb/edgedb-rust/"}

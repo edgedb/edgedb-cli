@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use edgeql_parser::tokenizer::{TokenStream, Kind};
+use edgeql_parser::tokenizer::{Tokenizer, Kind};
 use edgeql_parser::keywords;
 use once_cell::sync::Lazy;
 
@@ -15,7 +15,7 @@ static UNRESERVED_KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 
 pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
     let mut pos = 0;
-    let mut token_stream = TokenStream::new(text);
+    let mut token_stream = Tokenizer::new(text);
     for res in &mut token_stream {
         let tok = match res {
             Ok(tok) => tok,
@@ -24,17 +24,17 @@ pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
                 return;
             }
         };
-        if tok.start.offset as usize > pos {
+        if tok.span.start.offset as usize > pos {
             emit_insignificant(outbuf, &styler,
-                &text[pos..tok.start.offset as usize]);
+                &text[pos..tok.span.start.offset as usize]);
         }
-        if let Some(st) = token_style(tok.token.kind, tok.token.value)
+        if let Some(st) = token_style(tok.kind, &tok.text)
         {
-            styler.write(st, tok.token.value, outbuf);
+            styler.write(st, &tok.text, outbuf);
         } else {
-            outbuf.push_str(tok.token.value);
+            outbuf.push_str(&tok.text);
         }
-        pos = tok.end.offset as usize;
+        pos = tok.span.end.offset as usize;
     }
     emit_insignificant(outbuf, &styler, &text[pos..]);
 }
