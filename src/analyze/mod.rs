@@ -6,11 +6,16 @@ use anyhow::Context;
 use tokio::fs;
 use tokio::io::{self, AsyncWriteExt};
 
+use edgedb_errors::{ParameterTypeMismatchError};
+use edgedb_tokio::raw::Description;
+
 use crate::classify;
-use crate::platform::tmp_file_path;
 use crate::commands::parser::Analyze;
 use crate::connect::Connection;
+use crate::platform::tmp_file_path;
 use crate::repl::{self, LastAnalyze};
+use crate::variables::input_variables;
+use crate::interactive::QueryError;
 
 mod model;
 mod tree;
@@ -25,7 +30,27 @@ pub async fn interactive(prompt: &mut repl::State, query: &str)
 {
     let cli = prompt.connection.as_mut()
         .expect("connection established");
-    let data = cli.query_required_single::<String, _>(query, &()).await?;
+    let data = match cli.query_required_single::<String, _>(query, &()).await {
+        Ok(data) => data,
+        Err(e) if e.is::<ParameterTypeMismatchError>() => {
+            let Some(data_description) = e.get::<Description>() else {
+                return Err(e)?;
+            };
+            let indesc = data_description.input()?;
+            let input = match
+                cli.ping_while(input_variables(&indesc, &mut prompt.prompt)).await
+            {
+                Ok(input) => input,
+                Err(e) => {
+                    eprintln!("{:#}", e);
+                    prompt.last_error = Some(e);
+                    return Err(QueryError)?;
+                }
+            };
+            cli.query_required_single::<String, _>(query, &input).await?
+        }
+        Err(e) => return Err(e)?,
+    };
 
     if env::var_os("_EDGEDB_ANALYZE_DEBUG_JSON")
         .map(|x| !x.is_empty()).unwrap_or(false)
