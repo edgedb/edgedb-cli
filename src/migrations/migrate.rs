@@ -209,11 +209,17 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
     };
 
     if let Some(db_migration) = &db_migration {
-        if !migrations.contains_key(&db_migration.name) {
-                let target_rev = target_rev.as_ref()
-                    .unwrap_or_else(|| &migrations.last().unwrap().0);
-                return fixup(cli, &ctx, &migrations,
-                             &db_migration, target_rev, migrate).await;
+        if let Some(last) = migrations.last() {
+            if !migrations.contains_key(&db_migration.name) {
+                    let target_rev = target_rev.as_ref()
+                        .unwrap_or_else(|| last.0);
+                    return fixup(cli, &ctx, &migrations,
+                                 &db_migration, target_rev, migrate).await;
+            }
+        } else {
+            anyhow::bail!("there are migrations in the database, \
+                           but no migrations in {:?}",
+                           ctx.schema_dir.join("migrations"));
         }
     };
     let migrations = slice(&migrations,
