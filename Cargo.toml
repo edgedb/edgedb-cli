@@ -55,9 +55,9 @@ crossterm = "0.23.1"
 async-listen = "0.2.0"
 sha1 = "0.10.1"
 hex = {version="0.4.3", features=["serde"]}
-textwrap = {version="0.15.0", features=["terminal_size"]}
+textwrap = {version="0.16.0", features=["terminal_size"]}
 log = "0.4.8"
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 os-release = "0.1.0"
 reqwest = {version="0.11.11", features=["json", "native-tls"]}
 native-tls = {version="0.2.4"}
@@ -98,7 +98,7 @@ arc-swap = "1.4.0"
 ctrlc = "3.2.0"
 crossbeam-utils = "0.8.5"
 tar = "0.4.37"
-zstd = "0.10"
+zstd = "0.12"
 semver = {version="1.0.4", features=["serde"]}
 fd-lock = "3.0.2"
 zip = "0.6.2"
