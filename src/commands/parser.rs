@@ -448,6 +448,16 @@ pub enum ValueParameter {
     /// Corresponds to the PostgreSQL work_mem configuration parameter.
     QueryWorkMem(ConfigStr),
 
+    /// The maximum amount of memory to be used by maintenance operations.
+    ///
+    /// Some of  the operations that use this option are: vacuuming, link, index
+    /// or constraint creation. If this value is specified without units, it is
+    /// taken as kilobytes. It defaults to 64 megabytes (64MB).
+    ///
+    /// Corresponds to the PostgreSQL maintenance_work_mem configuration
+    /// parameter.
+    MaintenanceWorkMem(ConfigStr),
+
     /// Sets the planner’s assumption about the effective size of the disk
     /// cache that is available to a single query.
     ///
@@ -510,6 +520,8 @@ pub enum ConfigParameter {
     SharedBuffers,
     /// Reset work_mem postgres configuration parameter to default value
     QueryWorkMem,
+    /// Reset postgres configuration parameter of the same name
+    MaintenanceWorkMem,
     /// Reset postgres configuration parameter of the same name
     EffectiveCacheSize,
     /// Reset postgres configuration parameter of the same name
