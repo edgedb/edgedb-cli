@@ -406,6 +406,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             project_dir: None,
             server_version: None,
             server_instance: None,
+            database: None,
             non_interactive: false,
             no_migrations: false,
             link: false,
