@@ -28,6 +28,7 @@ pub struct TokenMatch<'a> {
     phantom: PhantomData<&'a u8>,
 }
 
+// TODO: remove this in favour of a chumsky parser
 pub struct TokenStream<'a>(pub Tokenizer<'a>);
 
 pub fn kw<'s>(value: &'static str)
