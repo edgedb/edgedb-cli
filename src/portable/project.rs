@@ -14,9 +14,11 @@ use rand::{thread_rng, Rng};
 use sha1::Digest;
 
 use edgedb_cli_derive::EdbClap;
+use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgedb_tokio::Builder;
-use crate::connect::Connection;
+use edgeql_parser::helpers::quote_name;
 
+use crate::connect::Connection;
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -117,6 +119,10 @@ pub struct Init {
     /// Specifies the EdgeDB server instance to be associated with the project
     #[clap(long)]
     pub server_instance: Option<InstanceName>,
+
+    /// Specifies the default database for the project to use on that instance
+    #[clap(long, short='d')]
+    pub database: Option<String>,
 
     /// Deprecated. Has no action
     #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
@@ -229,6 +235,14 @@ pub struct Handle<'a> {
     instance: InstanceKind<'a>,
     project_dir: PathBuf,
     schema_dir: PathBuf,
+    database: Option<String>,
+}
+
+pub struct StashDir<'a> {
+    project_dir: &'a Path,
+    instance_name: &'a str,
+    database: Option<&'a str>,
+    cloud_profile: Option<&'a str>,
 }
 
 pub struct WslInfo {
@@ -357,6 +371,22 @@ fn ask_existing_instance_name(
     }
 }
 
+fn ask_database(options: &Init) -> anyhow::Result<String> {
+    if let Some(name) = &options.database {
+        return Ok(name.clone());
+    }
+    let mut q = question::String::new("Specify the name of the database:");
+    q.default("edgedb");
+    loop {
+        let name = q.ask()?;
+        if name.trim().is_empty() {
+            print::error(format!("Non-empty name is required"));
+        } else {
+            return Ok(name.trim().into());
+        }
+    }
+}
+
 fn link(
     options: &Init, project_dir: &Path, cloud_options: &crate::options::CloudOptions
 ) -> anyhow::Result<ProjectInfo> {
@@ -382,7 +412,13 @@ fn link(
     } else {
         ask_existing_instance_name(&mut client)?
     };
-    let inst = Handle::probe(&name, project_dir, &config.project.schema_dir, &client)?;
+    let schema_dir = &config.project.schema_dir;
+    let mut inst = Handle::probe(&name, project_dir, schema_dir, &client)?;
+    if matches!(name, InstanceName::Cloud {..}) {
+        inst.database = Some(ask_database(options)?);
+    } else {
+        inst.database = options.database.clone();
+    }
     inst.check_version(&ver_query);
     do_link(&inst, options, &stash_dir)
 }
@@ -390,15 +426,18 @@ fn link(
 fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     -> anyhow::Result<ProjectInfo>
 {
-    let profile = if let InstanceKind::Cloud { cloud_client, .. } = inst.instance {
-        Some(cloud_client.profile.as_deref().unwrap_or("default"))
-    } else {
-        None
+    let mut stash = StashDir::new(&inst.project_dir, &inst.name);
+    if let InstanceKind::Cloud { cloud_client, .. } = inst.instance {
+        let profile = cloud_client.profile.as_deref().unwrap_or("default");
+        stash.cloud_profile = Some(profile);
     };
-    write_stash_dir(&stash_dir, &inst.project_dir, &inst.name, profile)?;
+    stash.database = inst.database.as_deref();
+    stash.write(&stash_dir)?;
 
     if !options.no_migrations {
         migrate(inst, !options.non_interactive)?;
+    } else {
+        create_database(inst)?;
     }
 
     print::success("Project linked");
@@ -552,8 +591,13 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
     let (name, exists) = ask_name(project_dir, options, &mut client)?;
 
     if exists {
-        let inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
+        let mut inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
         inst.check_version(&ver_query);
+        if matches!(name, InstanceName::Cloud { .. }) {
+            inst.database = Some(ask_database(options)?);
+        } else {
+            inst.database = options.database.clone();
+        }
         return do_link(&inst, options, &stash_dir);
     }
 
@@ -563,6 +607,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
             let ver = cloud::versions::get_version(&ver_query, &client)
                 .with_context(|| "could not initialize project")?;
+            let database = ask_database(options)?;
 
             table::settings(&[
                 ("Project directory", &project_dir.display().to_string()),
@@ -570,6 +615,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
                  &schema_dir_path.display().to_string()),
+                ("Database name", &database.to_string()),
                 ("Version", &ver.to_string()),
                 ("Instance name", &name.to_string()),
             ]);
@@ -584,6 +630,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                 &project_dir,
                 &schema_dir,
                 &ver,
+                &database,
                 options,
                 &client)
         }
@@ -673,16 +720,23 @@ fn do_init(name: &str, pkg: &PackageInfo,
         InstanceKind::Portable(info)
     };
 
-    write_stash_dir(stash_dir, project_dir, &name, None)?;
 
     let handle = Handle {
         name: name.into(),
         project_dir: project_dir.into(),
         schema_dir: schema_dir.into(),
         instance,
+        database: options.database.clone(),
     };
+
+    let mut stash = StashDir::new(project_dir, &name);
+    stash.database = handle.database.as_deref();
+    stash.write(&stash_dir)?;
+
     if !options.no_migrations {
         migrate(&handle, false)?;
+    } else {
+        create_database(&handle)?;
     }
     print_initialized(&name, &options.project_dir);
     Ok(ProjectInfo {
@@ -698,6 +752,7 @@ fn do_cloud_init(
     project_dir: &Path,
     schema_dir: &Path,
     version: &ver::Specific,
+    database: &str,
     options: &Init,
     client: &CloudClient,
 ) -> anyhow::Result<ProjectInfo> {
@@ -706,21 +761,27 @@ fn do_cloud_init(
         org: org.clone(),
         version: version.to_string(),
         region: None,
-        // default_database: None,
-        // default_user: None,
     };
     crate::cloud::ops::create_cloud_instance(client, &request)?;
     let full_name = format!("{}/{}", org, name);
-    let profile = client.profile.as_deref().or_else(|| Some("default"));
-    write_stash_dir(stash_dir, project_dir, &full_name, profile)?;
+
+    let handle = Handle {
+        name: full_name.clone(),
+        schema_dir: schema_dir.into(),
+        instance: InstanceKind::Remote,
+        project_dir: project_dir.into(),
+        database: Some(database.to_owned()),
+    };
+
+    let mut stash = StashDir::new(project_dir, &full_name);
+    stash.cloud_profile = client.profile.as_deref().or_else(|| Some("default"));
+    stash.database = handle.database.as_deref();
+    stash.write(stash_dir)?;
+
     if !options.no_migrations {
-        let handle = Handle {
-            name: full_name.clone(),
-            schema_dir: schema_dir.into(),
-            instance: InstanceKind::Remote,
-            project_dir: project_dir.into(),
-        };
         migrate(&handle, false)?;
+    } else {
+        create_database(&handle)?;
     }
     print_initialized(&full_name, &options.project_dir);
     Ok(ProjectInfo {
@@ -764,13 +825,19 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     let (inst_name, exists) = ask_name(project_dir, options, &mut client)?;
 
     if exists {
-        let inst = Handle::probe(&inst_name, project_dir, &schema_dir, &client)?;
+        let mut inst;
+        inst = Handle::probe(&inst_name, project_dir, &schema_dir, &client)?;
         let ver = Query::from_version(&inst.get_version()?.specific())?;
         write_config(&config_path, &ver)?;
         if !schema_files {
             write_schema_default(&schema_dir_path, &ver)?;
         }
-        return do_link(&inst, options, &stash_dir);
+        if matches!(inst_name, InstanceName::Cloud { .. }) {
+            inst.database = Some(ask_database(options)?);
+        } else {
+            inst.database = options.database.clone();
+        }
+        return do_link(&mut inst, options, &stash_dir);
     };
 
     match &inst_name {
@@ -786,12 +853,14 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                         "is", version.emphasize());
                 }
             }
+            let database = ask_database(options)?;
             table::settings(&[
                 ("Project directory", &project_dir.display().to_string()),
                 ("Project config", &config_path.display().to_string()),
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
                  &schema_dir_path.display().to_string()),
+                ("Database", &database.to_string()),
                 ("Version", &version.to_string()),
                 ("Instance name", &name),
             ]);
@@ -807,6 +876,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                 &project_dir,
                 &schema_dir,
                 &version,
+                &database,
                 options,
                 &client,
             )
@@ -924,6 +994,33 @@ fn start(handle: &Handle) -> anyhow::Result<()> {
 }
 
 #[tokio::main]
+async fn create_database(inst: &Handle<'_>) -> anyhow::Result<()> {
+    create_database_async(inst).await
+}
+
+async fn ensure_database(cli: &mut Connection, name: &str)
+    -> anyhow::Result<()>
+{
+    let name = quote_name(name);
+    match cli.execute(&format!("CREATE DATABASE {name}"), &()).await {
+        Ok(_) => Ok(()),
+        Err(e) if e.is::<DuplicateDatabaseDefinitionError>() => Ok(()),
+        Err(e) => Err(e)?,
+    }
+}
+
+async fn create_database_async(inst: &Handle<'_>) -> anyhow::Result<()> {
+    let Some(name) = &inst.database else { return Ok(()) };
+    let config = inst.get_default_builder()?.build_env().await?;
+    if name == config.database() {
+        return Ok(());
+    }
+    let mut conn = Connection::connect(&config).await?;
+    ensure_database(&mut conn, name).await?;
+    Ok(())
+}
+
+#[tokio::main]
 async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
     -> anyhow::Result<()>
 {
@@ -948,7 +1045,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
     echo!("Applying migrations...");
 
     let mut conn = loop {
-        match inst.get_connection().await {
+        match inst.get_default_connection().await {
             Ok(conn) => break conn,
             Err(e) if ask_for_running && inst.instance.is_local() => {
                 print::error(e);
@@ -992,6 +1089,9 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
             Err(e) => return Err(e)?,
         };
     };
+    if let Some(database) = &inst.database {
+        ensure_database(&mut conn, database).await?;
+    }
 
     migrations::migrate(
         &mut conn,
@@ -1014,28 +1114,36 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
     Ok(())
 }
 
-#[context("error writing project dir {:?}", dir)]
-fn write_stash_dir(
-    dir: &Path,
-    project_dir: &Path,
-    instance_name: &str,
-    cloud_profile: Option<&str>,
-) -> anyhow::Result<()> {
-    let tmp = tmp_file_path(&dir);
-    fs::create_dir_all(&tmp)?;
-    fs::write(&tmp.join("project-path"), path_bytes(project_dir)?)?;
-    fs::write(&tmp.join("instance-name"), instance_name.as_bytes())?;
-    if let Some(profile) = cloud_profile {
-        fs::write(&tmp.join("cloud-profile"), profile.as_bytes())?;
+impl<'a> StashDir<'a> {
+    fn new(project_dir: &'a Path, instance_name: &'a str) -> StashDir<'a> {
+        StashDir {
+            project_dir,
+            instance_name,
+            database: None,
+            cloud_profile: None,
+        }
     }
+    #[context("error writing project dir {:?}", dir)]
+    fn write(&self, dir: &Path) -> anyhow::Result<()> {
+        let tmp = tmp_file_path(&dir);
+        fs::create_dir_all(&tmp)?;
+        fs::write(&tmp.join("project-path"), path_bytes(self.project_dir)?)?;
+        fs::write(&tmp.join("instance-name"), self.instance_name.as_bytes())?;
+        if let Some(profile) = self.cloud_profile {
+            fs::write(&tmp.join("cloud-profile"), profile.as_bytes())?;
+        }
+        if let Some(database) = &self.database {
+            fs::write(&tmp.join("database"), database.as_bytes())?;
+        }
 
-    let lnk = tmp.join("project-link");
-    symlink_dir(project_dir, &lnk)
-        .map_err(|e| {
-            log::info!("Error symlinking project at {:?}: {}", lnk, e);
-        }).ok();
-    fs::rename(&tmp, dir)?;
-    Ok(())
+        let lnk = tmp.join("project-link");
+        symlink_dir(self.project_dir, &lnk)
+            .map_err(|e| {
+                log::info!("Error symlinking project at {:?}: {}", lnk, e);
+            }).ok();
+        fs::rename(&tmp, dir)?;
+        Ok(())
+    }
 }
 
 impl InstanceKind<'_> {
@@ -1063,12 +1171,14 @@ impl Handle<'_> {
                     instance: InstanceKind::Portable(info),
                     project_dir: project_dir.into(),
                     schema_dir: schema_dir.into(),
+                    database: None,
                 }),
                 None => Ok(Handle {
                     name: name.into(),
                     instance: InstanceKind::Remote,
                     project_dir: project_dir.into(),
                     schema_dir: schema_dir.into(),
+                    database: None,
                 })
             }
             InstanceName::Cloud { org_slug, name: inst_name } => Ok(Handle {
@@ -1078,6 +1188,7 @@ impl Handle<'_> {
                     name: inst_name.to_owned(),
                     cloud_client,
                 },
+                database: None,
                 project_dir: project_dir.into(),
                 schema_dir: schema_dir.into(),
             })
@@ -1086,14 +1197,24 @@ impl Handle<'_> {
     pub fn get_builder(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::new();
         builder.instance(&self.name)?;
+        if let Some(database) = &self.database {
+            builder.database(database)?;
+        }
         Ok(builder)
     }
-    pub async fn get_connection(&self) -> anyhow::Result<Connection> {
-        Ok(Connection::connect(&self.get_builder()?.build_env().await?).await?)
+    pub fn get_default_builder(&self) -> anyhow::Result<Builder> {
+        let mut builder = Builder::new();
+        builder.instance(&self.name)?;
+        Ok(builder)
+    }
+    pub async fn get_default_connection(&self) -> anyhow::Result<Connection> {
+        Ok(Connection::connect(
+            &self.get_default_builder()?.build_env().await?
+        ).await?)
     }
     #[tokio::main(flavor="current_thread")]
     pub async fn get_version(&self) -> anyhow::Result<ver::Build> {
-        let mut conn = self.get_connection().await?;
+        let mut conn = self.get_default_connection().await?;
         anyhow::Ok(conn.get_version().await?.clone())
     }
     fn check_version(&self, ver_query: &Query) {
@@ -1365,6 +1486,18 @@ fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
     Ok(InstanceName::from_str(inst.trim())?)
 }
 
+#[context("cannot read database name of {:?}", stash_dir)]
+fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
+    let inst = match fs::read_to_string(&stash_dir.join("database")) {
+        Ok(text) => text,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Ok(None);
+        }
+        Err(e) => return Err(e)?,
+    };
+    Ok(Some(inst.trim().into()))
+}
+
 pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Result<()> {
     let stash_path = if let Some(dir) = &options.project_dir {
         let canon = fs::canonicalize(&dir)
@@ -1628,8 +1761,10 @@ pub fn update_toml(
               "to initialize an instance.");
     } else {
         let name = instance_name(&stash_dir)?;
+        let database = database_name(&stash_dir)?;
         let client = CloudClient::new(&opts.cloud_options)?;
-        let inst = Handle::probe(&name, &root, &schema_dir, &client)?;
+        let mut inst = Handle::probe(&name, &root, &schema_dir, &client)?;
+        inst.database = database;
         let inst = match inst.instance {
             InstanceKind::Remote
                 => anyhow::bail!("remote instances cannot be upgraded"),
@@ -1737,8 +1872,10 @@ pub fn upgrade_instance(
     }
 
     let instance_name = instance_name(&stash_dir)?;
+    let database = database_name(&stash_dir)?;
     let client = CloudClient::new(&opts.cloud_options)?;
-    let inst = Handle::probe(&instance_name, &root, &schema_dir, &client)?;
+    let mut inst = Handle::probe(&instance_name, &root, &schema_dir, &client)?;
+    inst.database = database;
     let inst = match inst.instance {
         InstanceKind::Remote
             => anyhow::bail!("remote instances cannot be upgraded"),

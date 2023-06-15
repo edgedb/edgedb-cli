@@ -95,9 +95,8 @@ fn mock_file(path: &str, content: &str) -> MockFile {
 
 fn mock_project(
     project_dir: &str,
-    instance_name: &str,
     project_path: &str,
-    cloud_profile: Option<&str>,
+    files: &indexmap::IndexMap<&str, &str>,
 ) -> Vec<MockFile> {
     let path = PathBuf::from(project_path);
     let canon = fs::canonicalize(&path).unwrap();
@@ -119,10 +118,6 @@ fn mock_project(
         project_dir.join("project-path").to_str().unwrap(),
         project_path,
     );
-    let instance_name_file = mock_file(
-        project_dir.join("instance-name").to_str().unwrap(),
-        instance_name,
-    );
     let link_file = project_dir.join("project-link");
     let is_dir;
     #[cfg(windows)]
@@ -139,15 +134,13 @@ fn mock_project(
     }
     let mut rv = vec![
         project_path_file,
-        instance_name_file,
         MockFile { path: link_file, is_dir },
     ];
-    if let Some(profile) = cloud_profile {
-        let cloud_profile_file = mock_file(
-            project_dir.join("cloud-profile").to_str().unwrap(),
-            profile,
-        );
-        rv.push(cloud_profile_file);
+    for (fname, data) in files {
+        rv.push(mock_file(
+            project_dir.join(fname).to_str().unwrap(),
+            data,
+        ));
     }
     rv.push(project_dir_mock);
     rv

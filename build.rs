@@ -296,17 +296,21 @@ fn connection_{i}() {{
     "#,
                     );
                 } else if let Some(d) = value.as_object() {
-                    let instance_name = d.get("instance-name").unwrap().as_str().unwrap();
-                    let cloud_profile = d.get("cloud-profile").map(|n| n.as_str().unwrap());
+                    let mut d = d.clone();
                     let mut project_path =
-                        d.get("project-path").unwrap().as_str().unwrap().to_string();
+                        d.remove("project-path").unwrap().as_str().unwrap().to_string();
                     if matches!(platform, Some(Platform::Windows)) {
                         project_path = project_path.replace("Users\\edgedb", "Users\\runneradmin");
                     }
+                    let values = d.iter().map(|(k, v)| {
+                        format!("{k:?} => {:?}", v.as_str().unwrap())
+                    }).collect::<Vec<_>>().join(",\n        ");
                     write!(
                         testcase,
                         r#"
-    let _file_{i} = mock_project({path:?}, {instance_name:?}, {project_path:?}, {cloud_profile:?});
+    let _file_{i} = mock_project({path:?}, {project_path:?}, &indexmap::indexmap! {{
+        {values}
+    }});
     "#,
                     );
                 }
