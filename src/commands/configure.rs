@@ -97,6 +97,9 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
         C::Set(Set { parameter: S::QueryWorkMem(param) }) => {
             set_string(cli, "query_work_mem", param).await
         }
+        C::Set(Set { parameter: S::MaintenanceWorkMem(param) }) => {
+            set_string(cli, "maintenance_work_mem", param).await
+        }
         C::Set(Set { parameter: S::EffectiveCacheSize(param) }) => {
             set_string(cli, "effective_cache_size", param).await
         }
@@ -132,6 +135,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 C::Auth => "Auth",
                 C::SharedBuffers => "shared_buffers",
                 C::QueryWorkMem => "query_work_mem",
+                C::MaintenanceWorkMem => "maintenance_work_mem",
                 C::EffectiveCacheSize => "effective_cache_size",
                 C::DefaultStatisticsTarget => "default_statistics_target",
                 C::EffectiveIoConcurrency => "effective_io_concurrency",
