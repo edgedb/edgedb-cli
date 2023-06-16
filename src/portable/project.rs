@@ -1091,6 +1091,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
     };
     if let Some(database) = &inst.database {
         ensure_database(&mut conn, database).await?;
+        conn = inst.get_connection().await?;
     }
 
     migrations::migrate(
@@ -1211,6 +1212,9 @@ impl Handle<'_> {
         Ok(Connection::connect(
             &self.get_default_builder()?.build_env().await?
         ).await?)
+    }
+    pub async fn get_connection(&self) -> anyhow::Result<Connection> {
+        Ok(Connection::connect(&self.get_builder()?.build_env().await?).await?)
     }
     #[tokio::main(flavor="current_thread")]
     pub async fn get_version(&self) -> anyhow::Result<ver::Build> {
