@@ -3,7 +3,6 @@ use std::io;
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -371,12 +370,13 @@ fn ask_existing_instance_name(
     }
 }
 
-fn ask_database(options: &Init) -> anyhow::Result<String> {
+fn ask_database(project_dir: &Path, options: &Init) -> anyhow::Result<String> {
     if let Some(name) = &options.database {
         return Ok(name.clone());
     }
+    let default = directory_to_name(project_dir, "edgedb");
     let mut q = question::String::new("Specify the name of the database:");
-    q.default("edgedb");
+    q.default(&default);
     loop {
         let name = q.ask()?;
         if name.trim().is_empty() {
@@ -415,7 +415,7 @@ fn link(
     let schema_dir = &config.project.schema_dir;
     let mut inst = Handle::probe(&name, project_dir, schema_dir, &client)?;
     if matches!(name, InstanceName::Cloud {..}) {
-        inst.database = Some(ask_database(options)?);
+        inst.database = Some(ask_database(project_dir, options)?);
     } else {
         inst.database = options.database.clone();
     }
@@ -457,6 +457,20 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
     })
 }
 
+fn directory_to_name(path: &Path, default: &str) -> String {
+    let path_stem = path.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(default);
+    let stem = path_stem
+        .replace(|c: char| !c.is_ascii_alphanumeric(), "_");
+    let stem = stem.trim_matches('_');
+    if stem.is_empty() {
+        return default.into();
+    } else {
+        return stem.into();
+    }
+}
+
 fn ask_name(
     dir: &Path, options: &Init, cloud_client: &mut CloudClient
 ) -> anyhow::Result<(InstanceName, bool)> {
@@ -464,24 +478,12 @@ fn ask_name(
     let default_name = if let Some(name) = &options.server_instance {
         name.clone()
     } else {
-        let path_stem = dir.file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("edgedb");
-        let stem = path_stem
-            .replace(|c: char| !c.is_ascii_alphanumeric(), "_");
-        let stem = stem.trim_matches('_');
-        let stem: Cow<str> = if stem.is_empty() {
-            "inst".into()
-        } else if stem.chars().next().expect("not empty").is_numeric() {
-            format!("_{}", stem).into()
-        } else {
-            stem.into()
-        };
-        let mut name = stem.to_string();
+        let base_name = directory_to_name(dir, "instance");
+        let mut name = base_name.clone();
 
         while instances.contains(&name) {
             name = format!("{}_{:04}",
-                stem, thread_rng().gen_range(0..10000));
+                base_name, thread_rng().gen_range(0..10000));
         }
         InstanceName::Local(name)
     };
@@ -594,7 +596,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         let mut inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
         inst.check_version(&ver_query);
         if matches!(name, InstanceName::Cloud { .. }) {
-            inst.database = Some(ask_database(options)?);
+            inst.database = Some(ask_database(project_dir, options)?);
         } else {
             inst.database = options.database.clone();
         }
@@ -607,7 +609,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
             let ver = cloud::versions::get_version(&ver_query, &client)
                 .with_context(|| "could not initialize project")?;
-            let database = ask_database(options)?;
+            let database = ask_database(project_dir, options)?;
 
             table::settings(&[
                 ("Project directory", &project_dir.display().to_string()),
@@ -833,7 +835,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             write_schema_default(&schema_dir_path, &ver)?;
         }
         if matches!(inst_name, InstanceName::Cloud { .. }) {
-            inst.database = Some(ask_database(options)?);
+            inst.database = Some(ask_database(project_dir, options)?);
         } else {
             inst.database = options.database.clone();
         }
@@ -853,7 +855,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                         "is", version.emphasize());
                 }
             }
-            let database = ask_database(options)?;
+            let database = ask_database(project_dir, options)?;
             table::settings(&[
                 ("Project directory", &project_dir.display().to_string()),
                 ("Project config", &config_path.display().to_string()),
