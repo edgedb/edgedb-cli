@@ -495,8 +495,10 @@ fn cost_columns(
 ) {
     row.push(Box::new(Border) as Box<_>);
     if args.execute {
-        // TODO(tailhook) use actual time
-        row.push(Box::new(table::Float(cost.actual_total_time.unwrap_or(0.))));
+        let loops = cost.actual_loops.unwrap_or(1.);
+        row.push(Box::new(table::Float(
+            cost.actual_total_time.unwrap_or(0.) * loops,
+        )));
         row.push(Box::new(table::Right(cost.total_cost)));
         row.push(Box::new(table::Float(cost.actual_loops.unwrap_or(0.))));
         row.push(Box::new(table::Float(cost.actual_rows.unwrap_or(0.))));
