@@ -48,6 +48,14 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
                 }
 
             }
+            "version" => {
+                let version = inst.version()
+                if options.json {
+                    println!("{}", serde_json::to_string(version)?);
+                } else {
+                    println!("{}", version);
+                }
+            }
             _ => unreachable!(),
         }
     } else if options.json {
