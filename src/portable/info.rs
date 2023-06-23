@@ -49,7 +49,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
 
             }
             "version" => {
-                let version = inst.version()
+                let version = &inst.version;
                 if options.json {
                     println!("{}", serde_json::to_string(version)?);
                 } else {
