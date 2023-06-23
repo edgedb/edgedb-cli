@@ -143,6 +143,7 @@ fn upgrade_local_cmd(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
               "Already up to date.");
         return Ok(());
     }
+    ver::print_version_hint(&pkg_ver, &ver_query);
 
     let inst = InstanceInfo::read(name)?;
     // When force is used we might upgrade to the same version, so
@@ -189,6 +190,7 @@ fn upgrade_cloud_cmd(
         cmd.force,
         |target_ver| {
             let target_ver_str = target_ver.to_string();
+            ver::print_version_hint(&target_ver, &query);
             if !cmd.non_interactive {
                 question::Confirm::new(format!(
                     "This will upgrade {inst_name} to version {target_ver_str}.\

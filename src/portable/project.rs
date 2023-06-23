@@ -612,6 +612,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
             let ver = cloud::versions::get_version(&ver_query, &client)
                 .with_context(|| "could not initialize project")?;
+            ver::print_version_hint(&ver, &ver_query);
             let database = ask_database(project_dir, options)?;
 
             table::settings(&[
@@ -645,6 +646,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             let pkg = repository::get_server_package(&ver_query)?
                 .with_context(||
                     format!("cannot find package matching {}", ver_query.display()))?;
+            ver::print_version_hint(&pkg.version.specific(), &ver_query);
 
             let meth = if cfg!(windows) {
                 "WSL"
@@ -851,13 +853,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             client.ensure_authenticated()?;
 
             let (ver_query, version) = ask_cloud_version(options, &client)?;
-            if let Some(filter) = &ver_query.version {
-                if !filter.matches_exact(&version) {
-                    echo!("Latest version compatible with the specification",
-                        "\""; filter; "\"",
-                        "is", version.emphasize());
-                }
-            }
+            ver::print_version_hint(&version, &ver_query);
             let database = ask_database(project_dir, options)?;
             table::settings(&[
                 ("Project directory", &project_dir.display().to_string()),
@@ -889,13 +885,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
         InstanceName::Local(name) => {
             echo!("Checking EdgeDB versions...");
             let (ver_query, pkg) = ask_local_version(options)?;
-            if let Some(filter) = &ver_query.version {
-                if !filter.matches_exact(&pkg.version.specific()) {
-                    echo!("Latest version compatible with the specification",
-                        "\""; filter; "\"",
-                        "is", pkg.version.emphasize());
-                }
-            }
+            ver::print_version_hint(&pkg.version.specific(), &ver_query);
 
             let meth = if cfg!(windows) {
                 "WSL"
@@ -1931,6 +1921,7 @@ fn upgrade_local(
                 non_interactive: true,
             }, &inst.name)?;
         } else {
+            ver::print_version_hint(&pkg_ver, &to_version);
             // When force is used we might upgrade to the same version, but
             // since some selector like `--to-latest` was specified we assume
             // user want to treat this upgrade as incompatible and do the

@@ -15,12 +15,11 @@ use crate::platform;
 use crate::portable::exit_codes;
 use crate::portable::local::{InstallInfo, write_json};
 use crate::portable::options::Install;
-use crate::portable::ver::Build;
+use crate::portable::ver::{self, Build};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{PackageInfo, PackageHash, Query, download};
 use crate::portable::repository::{QueryOptions};
 use crate::portable::repository::{get_server_package, get_specific_package};
-use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
 
 
@@ -177,8 +176,9 @@ pub fn install(options: &Install) -> anyhow::Result<()> {
 }
 
 pub fn version(query: &Query) -> anyhow::Result<InstallInfo> {
-    let pkg_info = get_server_package(&query)?
+    let pkg_info = get_server_package(query)?
         .context("no package matching your criteria found")?;
+    ver::print_version_hint(&pkg_info.version.specific(), query);
     package(&pkg_info)
 }
 

@@ -8,6 +8,8 @@ use regex::Regex;
 
 use crate::connect::Connection;
 use crate::process::{self, IntoArg};
+use crate::portable::repository::Query;
+use crate::print::{echo, Highlight};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Build(Box<str>);
@@ -193,6 +195,11 @@ impl Specific {
 }
 
 impl Filter {
+    pub fn with_exact(self) -> Filter {
+        let Filter { major, minor, exact: _ } = self;
+        Filter { major, minor, exact: true }
+    }
+
     pub fn matches(&self, bld: &Build) -> bool {
         self.matches_specific(&bld.specific())
     }
@@ -348,6 +355,17 @@ pub async fn check_client(cli: &mut Connection, minimum_version: &Filter)
     let ver = cli.get_version().await?;
     return Ok(ver.is_nightly() || minimum_version.matches(&ver));
 }
+
+pub fn print_version_hint(version: &Specific, ver_query: &Query) {
+    if let Some(filter) = &ver_query.version {
+        if !filter.matches_exact(version) {
+            echo!("Using", version.emphasize(),
+                "(matches `"; filter; "`), use `"; filter.clone().with_exact();
+                "` for exact version");
+        }
+    }
+}
+
 
 #[test]
 fn filter() {
