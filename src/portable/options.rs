@@ -543,6 +543,7 @@ pub struct Info {
 
     #[clap(long, possible_values=&[
         "bin-path",
+        "version",
     ][..])]
     /// Get specific value:
     ///
