@@ -38,6 +38,21 @@ pub struct BackupMeta {
     pub timestamp: SystemTime,
 }
 
+#[derive(Debug, Clone)]
+pub enum UpgradeAction {
+    None,
+    Upgraded,
+    Cancelled,
+}
+
+#[derive(Debug, Clone)]
+pub struct UpgradeResult {
+    pub action: UpgradeAction,
+    pub prior_version: ver::Specific,
+    pub requested_version: ver::Specific,
+    pub available_upgrade: Option<ver::Specific>,
+}
+
 pub fn print_project_upgrade_command(version: &Query,
     current_project: &Option<PathBuf>, project_dir: &Path)
 {
@@ -91,12 +106,14 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
 
 pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
     match instance_arg(&cmd.name, &cmd.instance)? {
-        InstanceName::Local(name) => upgrade_local(cmd, name),
-        InstanceName::Cloud { org_slug: org, name } => upgrade_cloud(cmd, org, name, opts),
+        InstanceName::Local(name)
+            => upgrade_local_cmd(cmd, name),
+        InstanceName::Cloud { org_slug: org, name }
+            => upgrade_cloud_cmd(cmd, org, name, opts),
     }
 }
 
-fn upgrade_local(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
+fn upgrade_local_cmd(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     let inst = InstanceInfo::read(name)?;
     let inst_ver = inst.get_version()?.specific();
     let (ver_query, ver_option) = Query::from_options(
@@ -141,13 +158,12 @@ fn upgrade_local(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     }
 }
 
-fn upgrade_cloud(cmd: &Upgrade, org: &str, name: &str, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
-    client.ensure_authenticated()?;
-
-    let inst = cloud::ops::find_cloud_instance_by_name(name, org, &client)?
-        .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
-
+fn upgrade_cloud_cmd(
+    cmd: &Upgrade,
+    org: &str,
+    name: &str,
+    opts: &crate::options::Options,
+) -> anyhow::Result<()> {
     let (query, _) = Query::from_options(
         QueryOptions {
             nightly: cmd.to_nightly,
@@ -159,43 +175,102 @@ fn upgrade_cloud(cmd: &Upgrade, org: &str, name: &str, opts: &crate::options::Op
         || anyhow::Ok(Query::stable()),
     )?;
 
-    let target_ver = cloud::versions::get_version(&query, &client)?;
-    let target_ver_str = target_ver.to_string();
-    let inst_ver = ver::Specific::from_str(&inst.version)?;
-
-    if target_ver <= inst_ver && !cmd.force {
-        echo!(
-            "Already up to date.\nRequested upgrade version is",
-            target_ver_str.emphasize(),
-            "current instance version is",
-            inst_ver.emphasize().to_string() + ".",
-        );
-        return Ok(());
-    }
+    let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
+    client.ensure_authenticated()?;
 
     let _inst_name = format!("{}/{}", org, name);
     let inst_name = _inst_name.emphasize();
 
-    if !cmd.non_interactive && !question::Confirm::new(format!(
-        "This will upgrade {inst_name} to version {target_ver_str}.\
-        \nDoes this look good?",
-    )).ask()? {
-        return Ok(());
+    let result = upgrade_cloud(
+        org,
+        name,
+        &query,
+        &client,
+        cmd.force,
+        |target_ver| {
+            let target_ver_str = target_ver.to_string();
+            if !cmd.non_interactive {
+                question::Confirm::new(format!(
+                    "This will upgrade {inst_name} to version {target_ver_str}.\
+                    \nDoes this look good?",
+                )).ask()
+            } else {
+                Ok(true)
+            }
+        }
+    )?;
+
+    let target_ver_str = result.requested_version.to_string();
+
+    match result.action {
+        UpgradeAction::Upgraded => {
+            print::echo!(format!(
+                "EdgeDB Cloud instance {inst_name} has been successfully \
+                upgraded to version {target_ver_str}.",
+            ));
+        }
+        UpgradeAction::Cancelled => {
+            print::echo!("Cancelled.");
+        }
+        UpgradeAction::None => {
+            echo!(
+                "Already up to date.\nRequested upgrade version is",
+                target_ver_str.emphasize().to_string() + ",",
+                "current instance version is",
+                result.prior_version.emphasize().to_string() + ".",
+            );
+        }
     }
 
-    let request = cloud::ops::CloudInstanceUpgrade {
-        org: org.to_string(),
-        name: name.to_string(),
-        version: target_ver.to_string(),
-        force: cmd.force,
-    };
-    cloud::ops::upgrade_cloud_instance(&client, &request)?;
-
-    print::echo!(format!(
-        "EdgeDB Cloud instance {inst_name} has been successfully \
-        upgraded to version {target_ver_str}.",
-    ));
     Ok(())
+}
+
+pub fn upgrade_cloud(
+    org: &str,
+    name: &str,
+    to_version: &Query,
+    client: &cloud::client::CloudClient,
+    force: bool,
+    confirm: impl FnOnce(&ver::Specific) -> anyhow::Result<bool>,
+) -> anyhow::Result<UpgradeResult>
+{
+    let inst = cloud::ops::find_cloud_instance_by_name(name, org, client)?
+        .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
+
+    let target_ver = cloud::versions::get_version(to_version, client)?;
+    let inst_ver = ver::Specific::from_str(&inst.version)?;
+
+    if target_ver <= inst_ver && !force {
+        Ok(UpgradeResult {
+            action: UpgradeAction::None,
+            prior_version: inst_ver,
+            requested_version: target_ver,
+            available_upgrade: None,
+        })
+    } else if !confirm(&target_ver)? {
+        Ok(UpgradeResult {
+            action: UpgradeAction::Cancelled,
+            prior_version: inst_ver,
+            requested_version: target_ver,
+            available_upgrade: None,
+        })
+    } else {
+        let request = cloud::ops::CloudInstanceUpgrade {
+            org: org.to_string(),
+            name: name.to_string(),
+            version: target_ver.to_string(),
+            force,
+        };
+
+        cloud::ops::upgrade_cloud_instance(&client, &request)?;
+
+        Ok(UpgradeResult {
+            action: UpgradeAction::Upgraded,
+            prior_version: inst_ver,
+            requested_version: target_ver,
+            available_upgrade: None,
+        })
+    }
 }
 
 pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)

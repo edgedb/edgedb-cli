@@ -227,6 +227,10 @@ pub struct Upgrade {
     /// Force upgrade process even if there is no new version
     #[clap(long)]
     pub force: bool,
+
+    /// Do not ask questions, assume user wants to upgrade instance
+    #[clap(long)]
+    pub non_interactive: bool,
 }
 
 pub struct Handle<'a> {
@@ -266,7 +270,6 @@ struct JsonInfo<'a> {
     cloud_profile: Option<&'a str>,
     root: &'a Path,
 }
-
 
 pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
@@ -1771,62 +1774,47 @@ pub fn update_toml(
         let client = CloudClient::new(&opts.cloud_options)?;
         let mut inst = Handle::probe(&name, &root, &schema_dir, &client)?;
         inst.database = database;
-        let inst = match inst.instance {
+
+        let result = match inst.instance {
             InstanceKind::Remote
                 => anyhow::bail!("remote instances cannot be upgraded"),
-            InstanceKind::Portable(inst) => inst,
+            InstanceKind::Portable(inst)
+                => upgrade_local(&config, inst, &query, options.force),
             InstanceKind::Wsl(_) => todo!(),
-            InstanceKind::Cloud { .. } => todo!(),
-        };
-        let inst_ver = inst.get_version()?.specific();
+            InstanceKind::Cloud { org_slug, name, .. }
+                => upgrade_cloud(options, &org_slug, &name, &query, opts),
+        }?;
 
-        if pkg_ver > inst_ver || options.force {
-            if cfg!(windows) {
-                windows::upgrade(&options::Upgrade {
-                    to_latest: false,
-                    to_version: query.version.clone(),
-                    to_channel: None,
-                    to_testing: false,
-                    to_nightly: false,
-                    name: None,
-                    instance: Some(name.clone()),
-                    verbose: false,
-                    force: options.force,
-                    force_dump_restore: options.force,
-                    non_interactive: true,
-                }, &inst.name)?;
-            } else {
-                // When force is used we might upgrade to the same version, but
-                // since some selector like `--to-latest` was specified we
-                // assume user want to treat this upgrade as incompatible and
-                // do the upgrade.  This is mostly for testing.
-                if pkg_ver.is_compatible(&inst_ver) && !options.force {
-                    upgrade::upgrade_compatible(inst, pkg)?;
+        match result.action {
+            upgrade::UpgradeAction::Upgraded => {
+                let config_version = if query.is_nightly() {
+                    query.clone()
                 } else {
-                    migrations::upgrade_check::to_version(&pkg, &config)?;
-                    upgrade::upgrade_incompatible(inst, pkg)?;
-                }
-            }
-            let config_version = if query.is_nightly() {
-                query.clone()
-            } else {
-                // on `--to-latest` which is equivalent to `server-version="*"`
-                // we put specific version instead
-                Query::from_version(&pkg_ver)?
-            };
+                    // on `--to-latest` which is equivalent to `server-version="*"`
+                    // we put specific version instead
+                    Query::from_version(&pkg_ver)?
+                };
 
-            if config::modify(&config_path, &config_version)? {
-                echo!("Remember to commit it to version control.");
-            }
-            let name_str = name.to_string();
-            print_other_project_warning(&name_str, &root, &query)?;
-        } else {
-            echo!("Latest version found", pkg.version.to_string() + ",",
-                  "current instance version is",
-                  inst.get_version()?.emphasize().to_string() + ".",
-                  "Already up to date.");
+                if config::modify(&config_path, &config_version)? {
+                    echo!("Remember to commit it to version control.");
+                }
+                let name_str = name.to_string();
+                print_other_project_warning(&name_str, &root, &query)?;
+            },
+            upgrade::UpgradeAction::Cancelled => {
+                echo!("Cancelled.");
+            },
+            upgrade::UpgradeAction::None => {
+                echo!(
+                    "Already up to date.\nRequested upgrade version is",
+                    result.requested_version.emphasize().to_string() + ",",
+                    "current instance version is",
+                    result.prior_version.emphasize().to_string() + ".",
+                );
+            },
         }
     };
+
     Ok(())
 }
 
@@ -1882,32 +1870,64 @@ pub fn upgrade_instance(
     let client = CloudClient::new(&opts.cloud_options)?;
     let mut inst = Handle::probe(&instance_name, &root, &schema_dir, &client)?;
     inst.database = database;
-    let inst = match inst.instance {
+    let result = match inst.instance {
         InstanceKind::Remote
             => anyhow::bail!("remote instances cannot be upgraded"),
-        InstanceKind::Portable(inst) => inst,
+        InstanceKind::Portable(inst)
+            => upgrade_local(&config, inst, cfg_ver, options.force),
         InstanceKind::Wsl(_) => todo!(),
-        InstanceKind::Cloud { .. } => todo!(),
-    };
+        InstanceKind::Cloud { org_slug, name, .. }
+            => upgrade_cloud(options, &org_slug, &name, cfg_ver, opts),
+    }?;
+
+    match result.action {
+        upgrade::UpgradeAction::Upgraded => {
+            // When upgrade attempt was made, implementations
+            // would have already printed a message.
+        },
+        upgrade::UpgradeAction::Cancelled => {
+            echo!("Cancelled.");
+        },
+        upgrade::UpgradeAction::None => {
+            echo!("EdgeDB instance is up to date with \
+                the specification in the `edgedb.toml`.");
+            if let Some(available) = result.available_upgrade {
+                echo!("New major version is available:", available.emphasize());
+                echo!("To update `edgedb.toml` and upgrade to this version, \
+                        run:\n    edgedb project upgrade --to-latest");
+            }
+        },
+    }
+
+    Ok(())
+}
+
+fn upgrade_local(
+    config: &config::Config,
+    inst: InstanceInfo,
+    to_version: &Query,
+    force: bool,
+) -> anyhow::Result<upgrade::UpgradeResult> {
     let inst_ver = inst.get_version()?.specific();
 
-    let pkg = repository::get_server_package(&cfg_ver)?.with_context(||
-        format!("cannot find package matching {}", cfg_ver.display()))?;
+    let instance_name = InstanceName::from_str(&inst.name)?;
+    let pkg = repository::get_server_package(to_version)?.with_context(||
+        format!("cannot find package matching {}", to_version.display()))?;
     let pkg_ver = pkg.version.specific();
 
-    if pkg_ver > inst_ver || options.force {
+    if pkg_ver > inst_ver || force {
         if cfg!(windows) {
             windows::upgrade(&options::Upgrade {
                 to_latest: false,
-                to_version: cfg_ver.version.clone(),
+                to_version: to_version.version.clone(),
                 to_channel: None,
                 to_nightly: false,
                 to_testing: false,
                 name: None,
                 instance: Some(instance_name.into()),
                 verbose: false,
-                force: options.force,
-                force_dump_restore: options.force,
+                force: force,
+                force_dump_restore: force,
                 non_interactive: true,
             }, &inst.name)?;
         } else {
@@ -1915,27 +1935,81 @@ pub fn upgrade_instance(
             // since some selector like `--to-latest` was specified we assume
             // user want to treat this upgrade as incompatible and do the
             // upgrade. This is mostly for testing.
-            if pkg_ver.is_compatible(&inst_ver) {
+            if pkg_ver.is_compatible(&inst_ver) && !force {
                 upgrade::upgrade_compatible(inst, pkg)?;
             } else {
                 migrations::upgrade_check::to_version(&pkg, &config)?;
                 upgrade::upgrade_incompatible(inst, pkg)?;
             }
         }
+        Ok(upgrade::UpgradeResult {
+            action: upgrade::UpgradeAction::Upgraded,
+            prior_version: inst_ver,
+            requested_version: pkg_ver,
+            available_upgrade: None,
+        })
     } else {
-        echo!("EdgeDB instance is up to date with \
-               the specification in the `edgedb.toml`.");
-        if cfg_ver.channel != Channel::Nightly {
-            if let Some(pkg) =repository::get_server_package(&Query::stable())?
-            {
-                if pkg.version.specific() > inst_ver {
-                    echo!("New major version is available:",
-                          pkg.version.emphasize());
-                    echo!("To update `edgedb.toml` and upgrade to this version, \
-                           run:\n    edgedb project upgrade --to-latest");
+        let available_upgrade = match to_version.channel {
+            Channel::Nightly => None,
+            _ => if let Some(pkg) = repository::get_server_package(&Query::stable())? {
+                let sv = pkg.version.specific();
+                if sv > inst_ver {
+                    Some(sv)
+                } else {
+                    None
                 }
-            }
-        }
+            } else {
+                None
+            },
+        };
+
+        Ok(upgrade::UpgradeResult {
+            action: upgrade::UpgradeAction::None,
+            prior_version: inst_ver,
+            requested_version: pkg_ver,
+            available_upgrade: available_upgrade,
+        })
     }
-    Ok(())
+}
+
+fn upgrade_cloud(
+    cmd: &Upgrade,
+    org: &str,
+    name: &str,
+    to_version: &Query,
+    opts: &crate::options::Options,
+) -> anyhow::Result<upgrade::UpgradeResult> {
+    let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
+    client.ensure_authenticated()?;
+
+    let result = upgrade::upgrade_cloud(
+        org,
+        name,
+        to_version,
+        &client,
+        cmd.force,
+        |target_ver| {
+            let target_ver_str = target_ver.to_string();
+            let _inst_name = format!("{}/{}", org, name);
+            let inst_name = _inst_name.emphasize();
+            if !cmd.non_interactive {
+                question::Confirm::new(format!(
+                    "This will upgrade {inst_name} to version {target_ver_str}.\
+                    \nDoes this look good?",
+                )).ask()
+            } else {
+                Ok(true)
+            }
+        },
+    )?;
+
+    if let upgrade::UpgradeAction::Upgraded = result.action {
+        let inst_name = format!("{}/{}", org, name);
+        echo!(
+            "Instance", inst_name.emphasize(),
+            "has been successfully upgraded to",
+            result.requested_version.emphasize().to_string() + ".");
+    }
+
+    Ok(result)
 }
