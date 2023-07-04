@@ -1926,7 +1926,7 @@ fn upgrade_local(
                 name: None,
                 instance: Some(instance_name.into()),
                 verbose: false,
-                force: force,
+                force,
                 force_dump_restore: force,
                 non_interactive: true,
             }, &inst.name)?;
@@ -1949,25 +1949,21 @@ fn upgrade_local(
             available_upgrade: None,
         })
     } else {
-        let available_upgrade = match to_version.channel {
-            Channel::Nightly => None,
-            _ => if let Some(pkg) = repository::get_server_package(&Query::stable())? {
+        let mut available_upgrade = None;
+        if to_version.channel != Channel::Nightly {
+            if let Some(pkg) = repository::get_server_package(&Query::stable())? {
                 let sv = pkg.version.specific();
                 if sv > inst_ver {
-                    Some(sv)
-                } else {
-                    None
+                    available_upgrade = Some(sv);
                 }
-            } else {
-                None
-            },
-        };
+            }
+        }
 
         Ok(upgrade::UpgradeResult {
             action: upgrade::UpgradeAction::None,
             prior_version: inst_ver,
             requested_version: pkg_ver,
-            available_upgrade: available_upgrade,
+            available_upgrade,
         })
     }
 }

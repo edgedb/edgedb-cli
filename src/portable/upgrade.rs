@@ -204,13 +204,13 @@ fn upgrade_cloud_cmd(
 
     match result.action {
         UpgradeAction::Upgraded => {
-            print::echo!(format!(
+            echo!(format!(
                 "EdgeDB Cloud instance {inst_name} has been successfully \
                 upgraded to version {target_ver_str}.",
             ));
         }
         UpgradeAction::Cancelled => {
-            print::echo!("Cancelled.");
+            echo!("Cancelled.");
         }
         UpgradeAction::None => {
             echo!(
