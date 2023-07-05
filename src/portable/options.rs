@@ -460,7 +460,7 @@ pub struct Upgrade {
     #[clap(long, hide=true)]
     pub force_dump_restore: bool,
 
-    /// Do not ask questions, assume user wants to create instance
+    /// Do not ask questions, assume user wants to upgrade instance
     #[clap(long)]
     pub non_interactive: bool,
 }
