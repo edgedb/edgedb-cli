@@ -811,7 +811,7 @@ fn add_newline_after_comment(value: &mut String) -> Result<(), anyhow::Error> {
         .ok_or_else(|| bug::error("input should not be empty"))?
         .map_err(|e| bug::error(
             format!("tokenizer failed on reparsing: {e:#}")))?;
-    let token_end = last_token.span.end.offset as usize;
+    let token_end = last_token.span.end as usize;
     if token_end < value.len()
         && !value[token_end..].trim().is_empty()
     {
@@ -875,7 +875,7 @@ fn substitute_placeholders<'x>(input: &'x str,
                 "the server sent an invalid query: {e:#}")))?,
         };
         if token.kind == TokenKind::Substitution {
-            output.push_str(&input[start..token.span.start.offset as usize]);
+            output.push_str(&input[start..token.span.start as usize]);
             let name = token.text.strip_prefix(r"\(")
                 .and_then(|item| item.strip_suffix(")"))
                 .ok_or_else(|| bug::error(format!("bad substitution token")))?;
@@ -883,7 +883,7 @@ fn substitute_placeholders<'x>(input: &'x str,
                 .ok_or_else(|| bug::error(format!(
                     "missing input for {:?} placeholder", name)))?;
             output.push_str(expr);
-            start = token.span.end.offset as usize;
+            start = token.span.end as usize;
         }
     }
     if start == 0 {

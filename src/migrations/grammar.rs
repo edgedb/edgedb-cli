@@ -6,6 +6,7 @@ use combine::{satisfy, between, many, skip_many, eof, choice, opaque};
 use combine::parser::combinator::no_partial;
 use combine::easy::{self, Errors, Info};
 use combine::error::{Tracked, StreamError};
+use edgeql_parser::keywords::Keyword;
 use edgeql_parser::position::Pos;
 use edgeql_parser::tokenizer::{Tokenizer, Kind, Token, Checkpoint};
 use edgeql_parser::helpers::{unquote_string, UnquoteError};
@@ -34,7 +35,7 @@ pub struct TokenStream<'a>(pub Tokenizer<'a>);
 pub fn kw<'s>(value: &'static str)
     -> impl Parser<TokenStream<'s>, Output=()>
 {
-    Value { kind: Kind::Keyword, value, phantom: PhantomData }
+    Value { kind: Kind::Keyword(Keyword(value)), value, phantom: PhantomData }
     .map(|_| ())
 }
 
@@ -132,7 +133,7 @@ fn chosen_statements<'a>()
     -> impl Parser<TokenStream<'a>, Output=Statement>
 {
     use Statement::*;
-    kw("SET").with(
+    kw("set").with(
         choice((
             ident("message").skip(kind(Kind::Assign))
                 .with(kind(Kind::Str))
@@ -186,9 +187,9 @@ fn migration<'a>()
 {
     use Statement::*;
 
-    kw("CREATE").and(ident("MIGRATION"))
+    kw("create").and(kw("migration"))
         .with((position(), kind(Kind::Ident)))
-        .skip(ident("ONTO"))
+        .skip(kw("onto"))
         .and(kind(Kind::Ident))
         .and(between(kind(Kind::OpenBrace), kind(Kind::CloseBrace),
             (position(), many::<Vec<_>, _, _>(statement()), position())

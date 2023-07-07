@@ -20,7 +20,7 @@ fn end_of_last_token(data: &str) -> Option<u64> {
     let mut tokenizer = Tokenizer::new(data);
     let mut off = 0;
     for tok in &mut tokenizer {
-        off = tok.ok()?.span.end.offset;
+        off = tok.ok()?.span.end;
     }
     return Some(off);
 }

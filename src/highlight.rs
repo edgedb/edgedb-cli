@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use edgeql_parser::tokenizer::{Tokenizer, Kind};
-use edgeql_parser::keywords;
+use edgeql_parser::keywords::{self, Keyword};
 use once_cell::sync::Lazy;
 
 use crate::print::style::{Styler, Style};
@@ -24,9 +24,9 @@ pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
                 return;
             }
         };
-        if tok.span.start.offset as usize > pos {
+        if tok.span.start as usize > pos {
             emit_insignificant(outbuf, &styler,
-                &text[pos..tok.span.start.offset as usize]);
+                &text[pos..tok.span.start as usize]);
         }
         if let Some(st) = token_style(tok.kind, &tok.text)
         {
@@ -34,7 +34,7 @@ pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
         } else {
             outbuf.push_str(&tok.text);
         }
-        pos = tok.span.end.offset as usize;
+        pos = tok.span.end as usize;
     }
     emit_insignificant(outbuf, &styler, &text[pos..]);
 }
@@ -88,15 +88,10 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
     use crate::print::style::Style as S;
 
     match kind {
-        T::Keyword => {
-            if value.eq_ignore_ascii_case("true") ||
-               value.eq_ignore_ascii_case("false")
-            {
-                Some(S::Boolean)
-            } else {
-                Some(S::Keyword)
-            }
+        T::Keyword(Keyword("true" | "false")) => {
+            Some(S::Boolean)
         },
+        T::Keyword(_) => Some(S::Keyword),
         T::Ident => {
             let lc = value.to_lowercase();
             if UNRESERVED_KEYWORDS.contains(&lc[..]) {
@@ -153,5 +148,7 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
         T::Str => Some(S::String),
         T::BacktickName => None,
         T::Substitution => Some(S::Decorator),
+
+        t => unreachable!("unexpected token kind: {:?}", t)
     }
 }
