@@ -81,7 +81,7 @@ fn main() {
 
     let connection_testcases = testcases.join("connection_testcases.json");
 
-    if !testcases.exists() || !connect_testcases.exists() {
+    if !testcases.exists() || !connection_testcases.exists() {
         eprintln!("Warning: Shared test git submodule is missing: ensure git checkout includes submodules with --recurse-submodules");
         return;
     }
