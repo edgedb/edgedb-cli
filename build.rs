@@ -78,12 +78,11 @@ fn main() {
     let testcases = Path::new(&root)
         .join("tests")
         .join("shared-client-testcases");
-    if !testcases.exists() {
-        return;
-    }
 
     let connection_testcases = testcases.join("connection_testcases.json");
-    if !connection_testcases.exists() {
+
+    if !testcases.exists() || !connect_testcases.exists() {
+        eprintln!("Warning: Shared test git submodule is missing: ensure git checkout includes submodules with --recurse-submodules");
         return;
     }
     
