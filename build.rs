@@ -83,12 +83,15 @@ fn main() {
     }
 
     let connection_testcases = testcases.join("connection_testcases.json");
+    if !connection_testcases.exists() {
+        return;
+    }
+    
     println!(
         "cargo:rerun-if-changed={}",
         connection_testcases.to_str().unwrap()
     );
-    let connection_testcases = fs::read_to_string(connection_testcases)
-        .expect("Could not find connection test cases: Ensure git submodules are included in your checkout.");
+    let connection_testcases = fs::read_to_string(connection_testcases).unwrap();
     let connection_testcases: Value = serde_json::from_str(&connection_testcases).unwrap();
     let empty_map = Map::new();
     write!(output, "
