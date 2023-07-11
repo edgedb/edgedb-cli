@@ -80,17 +80,12 @@ fn main() {
         .join("shared-client-testcases");
 
     let connection_testcases = testcases.join("connection_testcases.json");
-
-    if !testcases.exists() || !connection_testcases.exists() {
-        eprintln!("Warning: Shared test git submodule is missing: ensure git checkout includes submodules with --recurse-submodules");
-        return;
-    }
-    
     println!(
         "cargo:rerun-if-changed={}",
         connection_testcases.to_str().unwrap()
     );
-    let connection_testcases = fs::read_to_string(connection_testcases).unwrap();
+    let connection_testcases = fs::read_to_string(connection_testcases)
+        .expect("Shared test git submodule is missing: ensure git checkout includes submodules with --recurse-submodules");
     let connection_testcases: Value = serde_json::from_str(&connection_testcases).unwrap();
     let empty_map = Map::new();
     write!(output, "
