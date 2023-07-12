@@ -9,7 +9,7 @@ use edgedb_errors::{Error, QueryError, InvalidSyntaxError};
 use edgeql_parser::expr;
 use edgeql_parser::hash::Hasher;
 use edgeql_parser::schema_file::validate;
-use edgeql_parser::tokenizer::{TokenStream, Kind as TokenKind};
+use edgeql_parser::tokenizer::{Tokenizer, Kind as TokenKind};
 use fn_error_context::context;
 use immutable_chunkmap::set::SetM as Set;
 use once_cell::sync::OnceCell;
@@ -807,11 +807,11 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
 }
 
 fn add_newline_after_comment(value: &mut String) -> Result<(), anyhow::Error> {
-    let last_token = TokenStream::new(value).last()
+    let last_token = Tokenizer::new(value).last()
         .ok_or_else(|| bug::error("input should not be empty"))?
         .map_err(|e| bug::error(
-            format!("tokenizer failed on reparsing: {}", e)))?;
-    let token_end = last_token.end.offset as usize;
+            format!("tokenizer failed on reparsing: {e:#}")))?;
+    let token_end = last_token.span.end as usize;
     if token_end < value.len()
         && !value[token_end..].trim().is_empty()
     {
@@ -866,24 +866,24 @@ fn substitute_placeholders<'x>(input: &'x str,
     -> Result<Cow<'x, str>, anyhow::Error>
 {
     let mut output = String::with_capacity(input.len());
-    let mut parser = TokenStream::new(input);
+    let mut parser = Tokenizer::new(input);
     let mut start = 0;
     for item in &mut parser {
-        let item = match item {
+        let token = match item {
             Ok(item) => item,
             Err(e) => Err(bug::error(format!(
-                "the server sent an invalid query: {}", e)))?,
+                "the server sent an invalid query: {e:#}")))?,
         };
-        if item.token.kind == TokenKind::Substitution {
-            output.push_str(&input[start..item.start.offset as usize]);
-            let name = item.token.value.strip_prefix(r"\(")
+        if token.kind == TokenKind::Substitution {
+            output.push_str(&input[start..token.span.start as usize]);
+            let name = token.text.strip_prefix(r"\(")
                 .and_then(|item| item.strip_suffix(")"))
                 .ok_or_else(|| bug::error(format!("bad substitution token")))?;
             let expr = placeholders.get(name)
                 .ok_or_else(|| bug::error(format!(
                     "missing input for {:?} placeholder", name)))?;
             output.push_str(expr);
-            start = item.end.offset as usize;
+            start = token.span.end as usize;
         }
     }
     if start == 0 {
