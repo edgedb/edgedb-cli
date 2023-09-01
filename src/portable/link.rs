@@ -245,7 +245,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         } else if cmd.non_interactive {
             anyhow::bail!("File {} exists; aborting.", cred_path.display());
         } else {
-            let mut q = Confirm::new_dangerous(
+            let mut q = question::Confirm::new_dangerous(
                 format!("{} already exists! Overwrite?", cred_path.display())
             );
             q.default(false);

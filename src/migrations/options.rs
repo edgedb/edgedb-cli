@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::ValueHint;
+use clap::{ValueHint};
 
 use edgedb_cli_derive::{EdbClap, IntoArgs};
 
