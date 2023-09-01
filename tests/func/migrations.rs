@@ -34,8 +34,8 @@ fn initial() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(3)
         .stderr(ends_with(
-            "edgedb error: Database is empty. While there are 1 migrations \
-            on the filesystem.\n  Run `edgedb migrate` to apply.\n"));
+            "edgedb error: Database is empty, while 1 migrations \
+            have been found in the filesystem.\n  Run `edgedb migrate` to apply.\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
         .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
@@ -191,8 +191,8 @@ fn project() -> anyhow::Result<()> {
         .current_dir("tests/migrations/db1/project")
         .assert().code(3)
         .stderr(ends_with(
-            "edgedb error: Database is empty. While there are 1 migrations \
-            on the filesystem.\n  Run `edgedb migrate` to apply.\n"));
+            "edgedb error: Database is empty, while 1 migrations \
+            have been found in the filesystem.\n  Run `edgedb migrate` to apply.\n"));
     SERVER.admin_cmd()
         .arg("--database=project")
         .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
@@ -338,8 +338,8 @@ fn modified1() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert().code(3)
         .stderr(ends_with(
-            "edgedb error: Database is empty. While there are 1 migrations \
-            on the filesystem.\n  Run `edgedb migrate` to apply.\n"));
+            "edgedb error: Database is empty, while 1 migrations \
+            have been found in the filesystem.\n  Run `edgedb migrate` to apply.\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("migration").arg("create")
