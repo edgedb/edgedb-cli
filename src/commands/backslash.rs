@@ -41,48 +41,47 @@ pub enum ExecuteResult {
 }
 
 const HELP: &str = r###"
+                            Edgedb REPL Commands
+
 Introspection
-  (options: -v = verbose, -s = show system objects, -c = case-sensitive match)
-  \d [-v] NAME             describe schema object
-  \ds, \describe schema    describe the whole schema
-  \l, \list databases      list databases
-  \ls [-sc] [PATTERN]      list scalar types
-                           (alias: \list scalars)
-  \lt [-sc] [PATTERN]      list object types
-                           (alias: \list types)
-  \lr [-c] [PATTERN]       list roles
-                           (alias: \list roles)
-  \lm [-c] [PATTERN]       list modules
-                           (alias: \list modules)
-  \la [-vsc] [PATTERN]     list expression aliases
-                           (alias: \list aliases)
-  \lc [-c] [PATTERN]       list casts
-                           (alias: \list casts)
-  \li [-vsc] [PATTERN]     list indexes
-                           (alias: \list indexes)
+  Options:
+    -v    verbose
+    -s    show system objects
+    -c    case-sensitive match
+
+  \d [-v] NAME              Describe schema object
+  \ds                       Describe whole schema   (alias: \describe schema)
+  \l                        List databases          (alias: \list databases)
+  \ls [-sc]  [PATTERN]      List scalar types       (alias: \list scalars)
+  \lt [-sc]  [PATTERN]      List object types       (alias: \list types)
+  \lr [-c]   [PATTERN]      List roles              (alias: \list roles)
+  \lm [-c]   [PATTERN]      List modules            (alias: \list modules)
+  \la [-vsc] [PATTERN]      List expression aliases (alias: \list aliases)
+  \lc [-c]   [PATTERN]      List casts              (alias: \list casts)
+  \li [-vsc] [PATTERN]      List indexes            (alias: \list indexes)
 
 Operations
-  \dump FILENAME           dump current database into a file
-  \restore FILENAME        restore the database from file into the current one
-  \expand                  print expanded output of the last ANALYZE operation
-  \E, \last-error          print more information on the last error occurred
+  \dump FILENAME            Create dump of current database as a file
+  \restore FILENAME         Restore database from file into current database
+  \expand                   Print expanded output of last `analyze` operation
+  \E, \last-error           More information on most recent error
 
 Editing
-  \s, \history             show history
-  \e, \edit [N]            spawn $EDITOR to edit history entry N then use the
-                           output as the input
-
-Settings
-  \set [OPTION [VALUE]]    show/change setting, type \set for listing
-                           all available options
+  \s, \history              Show history
+  \e, \edit [N]             Spawn $EDITOR to edit history entry N,
+                            then use the output as input
 
 Connection
-  \c, \connect [DBNAME]    Connect to database DBNAME
+  \c, \connect [DBNAME]     Connect to database DBNAME
+
+Settings
+  \set [OPTION [VALUE]]     Show/change settings. Type \set to list
+                            all available options
 
 Help
-  \?, \h, \help            Show help on backslash commands
-  \set                     Show setting descriptions (without arguments)
-  \q, \quit, \exit, Ctrl+D Quit REPL
+  \?, \h, \help             Show help on backslash commands
+  \set                      Describe current settings
+  \q, \quit, \exit, Ctrl+D  Quit REPL
 "###;
 
 #[derive(Debug)]
@@ -641,7 +640,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         }
         Connect(c) => {
             if prompt.in_transaction() {
-                print::warn("WARNING: Transaction cancelled.");
+                print::warn("WARNING: Transaction canceled.");
             }
             prompt.try_connect(&c.database_name).await
                 .map_err(|e| {
@@ -657,7 +656,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                     None => println!("{:#}", err),
                 }
             } else {
-                eprintln!("== there is no previous error ==");
+                eprintln!("== no previous error ==");
             }
             Ok(Skip)
         }
@@ -665,7 +664,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             if let Some(ref last) = prompt.last_analyze {
                 analyze::render_expanded_explain(&last.output).await?;
             } else {
-                eprintln!("== there is no previous analyze statement ==");
+                eprintln!("== no previous analyze statement ==");
             }
             Ok(Skip)
         }

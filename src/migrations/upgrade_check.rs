@@ -206,7 +206,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
 
         let ok = matches!(single_check(ctx, cli).await?, Okay);
         if ok {
-            success("The schema is forward-compatible. Ready for upgrade.");
+            success("The schema is forward compatible. Ready for upgrade.");
         }
         eprintln!("Monitoring {:?} for changes.", &ctx.schema_dir);
         watch_loop(rx, ctx, cli, ok).await?;
@@ -226,7 +226,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
             }
         }
         if !ctx.quiet {
-            echo!("The schema is forward-compatible. Ready for upgrade.");
+            echo!("The schema is forward compatible. Ready for upgrade.");
         }
         return Ok(());
     }
@@ -288,8 +288,8 @@ async fn single_check(ctx: &Context, cli: &mut Connection)
 }
 
 fn print_apply_migration_error() {
-    warn("The current schema is compatible. \
-         But some of the migrations are outdated.");
+    warn("The current schema is compatible, \
+         but some of the migrations are outdated.");
     echo!("Please squash all migrations to fix the issue:");
     echo!("    edgedb migration create --squash".command_hint());
 }
@@ -307,7 +307,7 @@ pub async fn watch_loop(mut rx: watch::Receiver<()>,
         match single_check(ctx, cli).await {
             Ok(CheckResult::Okay) => {
                 if !ok {
-                    success("The schema is forward-compatible. \
+                    success("The schema is forward compatible. \
                             Ready for upgrade.");
                     ok = true;
                 }
@@ -318,8 +318,8 @@ pub async fn watch_loop(mut rx: watch::Receiver<()>,
             Err(e) => {
                 ok = false;
                 log::error!("Error updating database: {:#}. \
-                             Will retry in 10 sec.", e);
-                retry_deadline = Some(Instant::now() +
+                             Will retry in 10s.", e);
+                retry_deadline = Some(Instant::now() + 
                                       Duration::from_secs(10));
             }
         }

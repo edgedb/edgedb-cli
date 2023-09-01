@@ -71,7 +71,7 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
 
     if !all && !options.unused {
         echo!("Uninstalled", uninstalled.emphasize(), "versions.");
-        print::error("some instances are used. See messages above.");
+        print::error("some instances are in use. See messages above.");
         return Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS))?;
     } else if uninstalled > 0 {
         echo!("Successfully uninstalled",

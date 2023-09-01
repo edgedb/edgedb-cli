@@ -61,7 +61,7 @@ pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
             })?;
         }
         None => {
-            print::error("psql requires EdgeDB to run in DEV mode.");
+            print::error("EdgeDB must be run in DEV mode to use psql.");
         }
     }
     Ok(())

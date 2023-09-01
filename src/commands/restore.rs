@@ -65,7 +65,7 @@ async fn read_packet(input: &mut Input, buf: &mut BytesMut,
         _ => return Err(anyhow::anyhow!("Invalid block type {:x}", buf[0])),
     };
     if typ != expected {
-        return Err(anyhow::anyhow!("Expected block {:?} got {:?}",
+        return Err(anyhow::anyhow!("Expected block {:?}, got {:?}",
                     expected, typ));
     }
     let len = u32::from_be_bytes(buf[1+20..][..4].try_into().unwrap()) as usize;
@@ -158,7 +158,7 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
         .context("Cannot read header")
         .with_context(file_ctx)?;
     if &buf[..17] != b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00" {
-        Err(anyhow::anyhow!("File is not an edgedb dump"))
+        Err(anyhow::anyhow!("Incorrect header; file is not an EdgeDB dump"))
         .with_context(file_ctx)?
     }
     let version = i64::from_be_bytes(buf[17..].try_into().unwrap());

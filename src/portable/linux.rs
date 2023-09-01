@@ -62,7 +62,7 @@ pub fn create_service(info: &InstanceInfo)
             .ok();
         start_service(name)?;
     } else {
-        anyhow::bail!("either systemctl is not found or environment is wrong");
+        anyhow::bail!("either systemctl not found or environment configured incorrectly");
     }
     Ok(())
 }
@@ -414,7 +414,7 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => {
-            print::error("This operation is not supported on cloud instances yet.");
+            print::error("This operation is not yet supported on cloud instances.");
             return Err(ExitCode::new(1))?;
         },
     };

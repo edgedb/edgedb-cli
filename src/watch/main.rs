@@ -54,15 +54,15 @@ pub fn watch(options: &Options, _watch: &WatchCommand)
         .build()?;
     let project_dir = match runtime.block_on(get_project_dir(None, true))? {
         Some(proj) => proj,
-        None => anyhow::bail!("The `edgedb watch` command currently works \
-             on projects only. Run `edgedb project init` first."),
+        None => anyhow::bail!("The `edgedb watch` command currently only \
+             works for projects. Run `edgedb project init` first."),
     };
     let mut ctx = WatchContext {
         connector: options.block_on_create_connector()?,
         migration: migrations::Context::for_watch(&project_dir)?,
         last_error: false,
     };
-    log::info!("Initialized in a project dir: {:?}", project_dir);
+    log::info!("Initialized in project dir {:?}", project_dir);
     let (tx, rx) = watch::channel(());
     let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
         res.map_err(|e| {
@@ -92,7 +92,7 @@ pub async fn wait_changes(rx: &mut watch::Receiver<()>,
             .unwrap_or(Duration::new(0, 0));
         match timeout(timeo, rx.changed()).await {
             Ok(Ok(())) => {
-                log::debug!("Got change notification. \
+                log::debug!("Change notification received. \
                              Waiting to stabilize.");
             }
             Ok(Err(e)) => {
@@ -104,7 +104,7 @@ pub async fn wait_changes(rx: &mut watch::Receiver<()>,
         }
     } else {
         rx.changed().await?;
-        log::debug!("Got change notification. Waiting to stabilize.");
+        log::debug!("Change notification received. Waiting to stabilize.");
     }
     loop {
         match timeout(STABLE_TIME, rx.changed()).await {
@@ -133,7 +133,7 @@ async fn watch_loop(mut rx: watch::Receiver<()>, ctx: &mut WatchContext)
         retry_deadline = None;
         if let Err(e) = ctx.do_update().await {
             log::error!("Error updating database: {:#}. \
-                         Will retry in 10 sec.", e);
+                         Will retry in 10s.", e);
             retry_deadline = Some(Instant::now() + Duration::from_secs(10));
         }
     }

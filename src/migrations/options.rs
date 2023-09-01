@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{ValueHint};
+use clap::ValueHint;
 
 use edgedb_cli_derive::{EdbClap, IntoArgs};
 
@@ -18,21 +18,21 @@ pub struct Migration {
 #[derive(EdbClap, Clone, Debug)]
 #[edb(inherit(ConnectionOptions))]
 pub enum MigrationCmd {
-    /// Bring current database to the latest or a specified revision
+    /// Apply migration from latest migration script
     Apply(Migrate),
-    /// Create a migration script
+    /// Create migration script inside /migrations
     Create(CreateMigration),
-    /// Show current migration state
+    /// Show current migration status
     Status(ShowStatus),
     /// Show all migration versions
     Log(MigrationLog),
     /// Edit migration file
     ///
-    /// Invokes $EDITOR on the last migration file, and then fixes migration id
-    /// after editor exits. Usually should be used for
-    /// migrations that haven't been applied yet.
+    /// Invokes $EDITOR on the last migration file, and then fixes 
+    /// migration id after editor exits. Usually should be used for
+    /// migrations that have not been applied yet.
     Edit(MigrationEdit),
-    /// Check current schema on the new EdgeDB version
+    /// Check if current schema is compatible with new EdgeDB version
     UpgradeCheck(UpgradeCheck),
 }
 
@@ -48,17 +48,18 @@ pub struct MigrationConfig {
 pub struct CreateMigration {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
-    /// Squash all migrations into one and optionally provide fixup migration.
+    /// Squash all schema migrations into one and optionally provide a fixup migration.
     ///
     /// Note: this discards data migrations.
     #[clap(long)]
     pub squash: bool,
     /// Do not ask questions. By default works only if "safe" changes are
-    /// to be done. Unless `--allow-unsafe` is also specified.
+    /// to be done (those for which EdgeDB has a high degree of confidence).
+    /// This safe default can be overridden with `--allow-unsafe`.
     #[clap(long)]
     pub non_interactive: bool,
     /// Apply the most probable unsafe changes in case there are ones. This
-    /// is only useful in non-interactive mode
+    /// is only useful in non-interactive mode.
     #[clap(long)]
     pub allow_unsafe: bool,
     /// Create a new migration even if there are no changes (use this for
@@ -74,28 +75,28 @@ pub struct CreateMigration {
 pub struct Migrate {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
-    /// Do not print any messages, only indicate success by exit status
+    /// Do not print messages, only indicate success by exit status
     #[clap(long)]
     pub quiet: bool,
 
     /// Upgrade to a specified revision.
     ///
-    /// Unique prefix of the revision can be specified instead of full
+    /// A unique revision prefix can be specified instead of a full
     /// revision name.
     ///
-    /// If this revision is applied, the command is no-op. The command
-    /// ensures that this revision present, but it's not an error if more
-    /// revisions are applied on top.
+    /// If this revision is applied, the command is a no-op. The command
+    /// ensures that the revision is present, but additional applied revisions 
+    /// are not considered an error.
     #[clap(long, conflicts_with="dev_mode")]
     pub to_revision: Option<String>,
 
-    /// Apply current schema changes on top of what's in the migration history
+    /// Apply current schema changes on top of those found in the migration history
     ///
     /// This is commonly used to apply schema temporarily before doing
     /// `migration create` for testing purposes.
     ///
-    /// This is a single step of `edgedb watch`, when you don't need to monitor
-    /// schema for changes.
+    /// This works the same way as `edgedb watch` but without starting 
+    /// a long-running watch task.
     #[clap(long)]
     pub dev_mode: bool,
 }
@@ -116,7 +117,7 @@ pub struct MigrationLog {
     pub cfg: MigrationConfig,
 
     /// Print revisions from the filesystem
-    /// (doesn't require database connection)
+    /// (database connection not required)
     #[clap(long)]
     pub from_fs: bool,
 
@@ -125,12 +126,12 @@ pub struct MigrationLog {
     #[clap(long)]
     pub from_db: bool,
 
-    /// Sort migrations starting from newer to older,
-    /// by default older revisions go first
+    /// Sort migrations starting from newer to older, instead
+    /// of the default older to newer
     #[clap(long)]
     pub newest_first: bool,
 
-    /// Show maximum N revisions (default is unlimited)
+    /// Show maximum N revisions (default: no limit)
     #[clap(long)]
     pub limit: Option<usize>,
 }
@@ -140,10 +141,10 @@ pub struct MigrationEdit {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
 
-    /// Do not check migration within the database connection
+    /// Do not check migration using the database connection
     #[clap(long)]
     pub no_check: bool,
-    /// Fix migration id non-interactively, and don't run editor
+    /// Fix migration id non-interactively, and do not run editor
     #[clap(long)]
     pub non_interactive: bool,
 }
@@ -153,28 +154,28 @@ pub struct UpgradeCheck {
     #[clap(flatten)]
     pub cfg: MigrationConfig,
 
-    /// Check the upgrade to a specified version
+    /// Check upgrade to a specified version
     #[clap(long)]
     #[clap(conflicts_with_all=&[
         "to_testing", "to_nightly", "to_channel",
     ])]
     pub to_version: Option<ver::Filter>,
 
-    /// Check the upgrade to a latest nightly version
+    /// Check upgrade to latest nightly version
     #[clap(long)]
     #[clap(conflicts_with_all=&[
         "to_version", "to_testing", "to_channel",
     ])]
     pub to_nightly: bool,
 
-    /// Check the upgrade to a latest testing version
+    /// Check upgrade to latest testing version
     #[clap(long)]
     #[clap(conflicts_with_all=&[
         "to_version", "to_nightly", "to_channel",
     ])]
     pub to_testing: bool,
 
-    /// Check the upgrade to the latest version in the channel
+    /// Check upgrade to latest version in the channel
     #[clap(long, value_enum)]
     #[clap(conflicts_with_all=&[
         "to_version", "to_nightly", "to_testing",

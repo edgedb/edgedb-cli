@@ -247,7 +247,7 @@ pub fn get_installed() -> anyhow::Result<Vec<InstallInfo>> {
 
 pub fn instance_data_dir(name: &str) -> anyhow::Result<PathBuf> {
     if cfg!(windows) {
-        return Err(bug::error("no instance data dir on windows"));
+        Err(bug::error("Data dir is not used for instances on Windows"))
     } else {
         Ok(data_dir()?.join(name))
     }
@@ -276,14 +276,14 @@ impl Paths {
     }
     pub fn check_exists(&self) -> anyhow::Result<()> {
         if self.credentials.exists() {
-            anyhow::bail!("Credentials file {:?} exists", self.credentials);
+            anyhow::bail!("Credentials file {:?} already exists", self.credentials);
         }
         if self.data_dir.exists() {
-            anyhow::bail!("Data directory {:?} exists", self.data_dir);
+            anyhow::bail!("Data directory {:?} already exists", self.data_dir);
         }
         for path in &self.service_files {
             if path.exists() {
-                anyhow::bail!("Service file {:?} exists", path);
+                anyhow::bail!("Service file {:?} already exists", path);
             }
         }
         Ok(())

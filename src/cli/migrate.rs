@@ -82,7 +82,7 @@ fn move_file(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
         match q.ask()? {
             Yes => {},
             Skip => return Ok(()),
-            Quit => anyhow::bail!("Cancelled by user"),
+            Quit => anyhow::bail!("Canceled by user"),
         }
     } else {
         if dry_run {
@@ -117,7 +117,7 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
         match q.ask()? {
             Yes => {},
             Skip => return Ok(()),
-            Quit => anyhow::bail!("Cancelled by user"),
+            Quit => anyhow::bail!("Canceled by user"),
         }
     } else {
         if dry_run {
@@ -358,7 +358,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             base,
         ));
         if !q.ask()? {
-            print::error("Cancelled by user.");
+            print::error("Canceled by user.");
             print_markdown!("\
                 Once all files are backed up, run one of:\n\
                 ```\n\

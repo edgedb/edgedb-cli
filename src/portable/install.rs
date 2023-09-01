@@ -33,7 +33,7 @@ fn check_metadata(dir: &Path, pkg_info: &PackageInfo)
 {
     let data = InstallInfo::read(dir)?;
     if data.version != pkg_info.version {
-        log::warn!("Remote package has version of {},
+        log::warn!("Remote package has version {},
                     installed package version: {}",
                     pkg_info.version, data.version);
     }
@@ -102,7 +102,7 @@ fn build_path(base: &Path, path: &Path) -> anyhow::Result<Option<PathBuf>> {
                               path, dest);
             }
             Ok(m) if m.file_type().is_file() => {
-                anyhow::bail!("{:?} is a file not a directory for {:?}",
+                anyhow::bail!("{:?} is a file, not a directory for {:?}",
                               dest, path);
             }
             Ok(_) => {}
@@ -158,7 +158,7 @@ fn unlink_cache(cache_file: &Path) {
 pub fn install(options: &Install) -> anyhow::Result<()> {
     if optional_docker_check()? {
         print::error(
-            "`edgedb server install` in a Docker container is not supported.",
+            "`edgedb server install` not supported in Docker containers.",
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }

@@ -66,7 +66,7 @@ fn ask_name(
 pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
         print::error(
-            "`edgedb instance create` in a Docker container is not supported.",
+            "`edgedb instance create` is not supported in Docker containers.",
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
@@ -103,7 +103,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     paths.check_exists()
         .with_context(|| format!("instance {:?} detected", name))
         .with_hint(|| format!("Use `edgedb destroy {}` \
-                              to remove remains of unused instance",
+                              to remove rest of unused instance",
                               name))?;
 
     let port = cmd.port.map(Ok)
@@ -193,7 +193,7 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
 
     if !cmd.non_interactive && !question::Confirm::new(format!(
         "This will create a new EdgeDB cloud instance with the following parameters: \
-        \n\nRegion: {region}\nServer Version: {server_ver}\nDoes this look good?",
+        \n\n Region: {region}\n Server Version: {server_ver}\nIs this acceptable?",
     )).ask()? {
         return Ok(());
     }

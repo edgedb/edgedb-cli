@@ -243,14 +243,14 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 print::warn(format!("Overwriting {}", cred_path.display()));
             }
         } else if cmd.non_interactive {
-            anyhow::bail!("File {} exists; abort.", cred_path.display());
+            anyhow::bail!("File {} exists; aborting.", cred_path.display());
         } else {
-            let mut q = question::Confirm::new_dangerous(
-                format!("{} exists! Overwrite?", cred_path.display())
+            let mut q = Confirm::new_dangerous(
+                format!("{} already exists! Overwrite?", cred_path.display())
             );
             q.default(false);
             if !q.ask()? {
-                anyhow::bail!("Cancelled.")
+                anyhow::bail!("Canceled.")
             }
         }
     }
@@ -307,14 +307,14 @@ async fn prompt_conn_params(
         let (_, config, _) = builder.build_no_fail().await;
         if options.host.is_none() {
             builder.host(
-                &question::String::new("Specify the host of the server")
+                &question::String::new("Specify server host")
                     .default(config.host().unwrap_or("localhost"))
                     .ask()?
             )?;
         };
         if options.port.is_none() {
             builder.port(
-                question::String::new("Specify the port of the server")
+                question::String::new("Specify server port")
                     .default(&config.port().unwrap_or(5656).to_string())
                     .ask()?
                     .parse()?
@@ -322,14 +322,14 @@ async fn prompt_conn_params(
         }
         if options.user.is_none() {
             builder.user(
-                &question::String::new("Specify the database user")
+                &question::String::new("Specify database user")
                     .default(config.user())
                     .ask()?
             )?;
         }
         if options.database.is_none() {
             builder.database(
-                &question::String::new("Specify the database name")
+                &question::String::new("Specify database name")
                     .default(config.database())
                     .ask()?
             )?;

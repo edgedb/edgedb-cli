@@ -139,7 +139,7 @@ impl FromStr for Filter {
             && minor.is_some();
         let result = Filter { major, minor, exact };
         if deprecated {
-            log::warn!("Version numbers spelled as {:?} are deprecated. \
+            log::warn!("Version numbers following {:?} format are deprecated. \
                         Use: {:?}.", value, result.to_string());
         }
         Ok(result)

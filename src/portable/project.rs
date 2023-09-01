@@ -72,92 +72,93 @@ pub struct ProjectCommand {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
-    /// Initialize a new or existing project
+    /// Initialize project or link to existing unlinked project
     #[edb(inherit(crate::options::CloudOptions))]
     Init(Init),
-    /// Clean-up the project configuration
+    /// Clean up project configuration. Use `edgedb project init` to relink
     #[edb(inherit(crate::options::CloudOptions))]
     Unlink(Unlink),
-    /// Get various metadata about the project
+    /// Get various metadata about project instance
     Info(Info),
-    /// Upgrade EdgeDB instance used for the current project
+    /// Upgrade EdgeDB instance used for current project
     ///
     /// This command has two modes of operation.
     ///
-    /// Upgrade instance to a version specified in `edgedb.toml`:
+    /// Upgrade instance to version specified in `edgedb.toml`:
     ///
     ///     project upgrade
     ///
-    /// Update `edgedb.toml` to a new version and upgrade the instance:
+    /// Update `edgedb.toml` to new version and upgrade the instance:
     ///
     ///     project upgrade --to-latest
     ///     project upgrade --to-version=1-beta2
     ///     project upgrade --to-nightly
     ///
     /// In all cases your data is preserved and converted using dump/restore
-    /// mechanism. This might fail if lower version is specified (for example
-    /// if upgrading from nightly to the stable version).
+    /// mechanism. May fail if lower version is specified (e.g. if upgrading
+    /// from nightly to stable).
     Upgrade(Upgrade),
 }
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Init {
-    /// Specifies a project root directory explicitly.
+    /// Explicitly set a root directory for the project
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// Specifies the desired EdgeDB server version
+    /// Specify the desired EdgeDB server version
     #[clap(long)]
     pub server_version: Option<Query>,
 
-    /// Specifies whether the existing EdgeDB server instance
+    /// Specify whether the existing EdgeDB server instance
     /// should be linked with the project
     #[clap(long)]
     pub link: bool,
 
-    /// Specifies the EdgeDB server instance to be associated with the project
+    /// Specify the EdgeDB server instance to be associated with the project
     #[clap(long)]
     pub server_instance: Option<InstanceName>,
 
-    /// Specifies the default database for the project to use on that instance
+    /// Specify the default database for the project to use on that instance
     #[clap(long, short='d')]
     pub database: Option<String>,
 
-    /// Deprecated. Has no action
+    /// Deprecated parameter, does nothing.
     #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
     pub server_start_conf: Option<StartConf>,
 
     /// Skip running migrations
     ///
     /// There are two main use cases for this option:
-    /// 1. With `--link` option to connect to a datastore with existing data
-    /// 2. To initialize a new instance but then restore dump to it
+    /// 1. With `--link` to connect to a datastore with existing data
+    /// 2. To initialize a new instance but then restore using a dump
     #[clap(long)]
     pub no_migrations: bool,
 
-    /// Run in non-interactive mode (accepting all defaults)
+    /// Initialize in in non-interactive mode (accepting all defaults)
     #[clap(long)]
     pub non_interactive: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Unlink {
-    /// Specifies a project root directory explicitly.
+    /// Explicitly set a root directory for the project
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// If specified, the associated EdgeDB instance is destroyed by running
-    /// `edgedb instance destroy`.
+    /// If specified, the associated EdgeDB instance is destroyed 
+    /// using `edgedb instance destroy`.
     #[clap(long, short='D')]
     pub destroy_server_instance: bool,
 
+    /// Unlink in in non-interactive mode (accepting all defaults)
     #[clap(long)]
     pub non_interactive: bool,
 }
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Info {
-    /// Specifies a project root directory explicitly.
+    /// Explicitly set a root directory for the project
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
@@ -173,7 +174,7 @@ pub struct Info {
         "instance-name",
         "cloud-profile",
     ][..])]
-    /// Get specific value:
+    /// Get a specific value:
     ///
     /// * `instance-name` -- Name of the listance the project is linked to
     pub get: Option<String>,
@@ -181,11 +182,11 @@ pub struct Info {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Upgrade {
-    /// Specifies a project root directory explicitly.
+    /// Explicitly set a root directory for the project
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// Upgrade specified instance to the latest version
+    /// Upgrade specified instance to latest version
     #[clap(long)]
     #[clap(conflicts_with_all=&[
         "to_version", "to_testing", "to_nightly", "to_channel",
@@ -199,14 +200,14 @@ pub struct Upgrade {
     ])]
     pub to_version: Option<ver::Filter>,
 
-    /// Upgrade specified instance to a latest nightly version
+    /// Upgrade specified instance to latest nightly version
     #[clap(long)]
     #[clap(conflicts_with_all=&[
         "to_version", "to_latest", "to_testing", "to_channel",
     ])]
     pub to_nightly: bool,
 
-    /// Upgrade specified instance to a latest testing version
+    /// Upgrade specified instance to latest testing version
     #[clap(long)]
     #[clap(conflicts_with_all=&[
         "to_version", "to_latest", "to_nightly", "to_channel",
@@ -274,7 +275,7 @@ struct JsonInfo<'a> {
 pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
         print::error(
-            "`edgedb project init` in a Docker container is not supported.",
+            "`edgedb project init` is not supported in Docker containers.",
         );
         return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
@@ -297,9 +298,9 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             } else {
                 if options.link {
                     anyhow::bail!(
-                        "`edgedb.toml` was not found, unable to link an EdgeDB \
-                        instance with uninitialized project, to initialize \
-                        a new project run command without `--link` flag")
+                        "`edgedb.toml` not found, unable to link an EdgeDB \
+                        instance without initialized project. To initialize \
+                        a project, run command without `--link` flag")
                 }
 
                 init_new(options, &dir, opts)?
@@ -318,9 +319,9 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             } else {
                 if options.link {
                     anyhow::bail!(
-                        "`edgedb.toml` was not found, unable to link an EdgeDB \
-                        instance with uninitialized project, to initialize \
-                        a new project run command without `--link` flag")
+                        "`edgedb.toml` not found, unable to link an EdgeDB \
+                        instance without an initialized project. To initialize \
+                        a project, run command without `--link` flag")
                 }
 
                 let dir = fs::canonicalize(&base_dir)?;
@@ -368,7 +369,7 @@ fn ask_existing_instance_name(
         if exists {
             return Ok(inst_name);
         } else {
-            print::error(format!("Instance {:?} doesn't exist", target_name));
+            print::error(format!("Instance {:?} does not exist", target_name));
         }
     }
 }
@@ -378,7 +379,7 @@ fn ask_database(project_dir: &Path, options: &Init) -> anyhow::Result<String> {
         return Ok(name.clone());
     }
     let default = directory_to_name(project_dir, "edgedb");
-    let mut q = question::String::new("Specify the name of the database:");
+    let mut q = question::String::new("Specify database name:");
     q.default(&default);
     loop {
         let name = q.ask()?;
@@ -410,7 +411,7 @@ fn link(
         name.clone()
     } else if options.non_interactive {
         anyhow::bail!("Existing instance name should be specified \
-                       with `--server-instance` argument when linking project \
+                       with `--server-instance` when linking project \
                        in non-interactive mode")
     } else {
         ask_existing_instance_name(&mut client)?
@@ -805,10 +806,10 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
 
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
-        anyhow::bail!("Project was already initialized \
-                       but then `edgedb.toml` was deleted. \
+        anyhow::bail!("`edgedb.toml` deleted after \
+                       project initialization. \
                        Please run `edgedb project unlink -D` to \
-                       cleanup old database instance.");
+                       clean up old database instance.");
     }
 
     if options.non_interactive {
@@ -963,7 +964,7 @@ fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
             Ok(())
         }
         InstanceKind::Remote => {
-            anyhow::bail!("remote instance is not running, \
+            anyhow::bail!("remote instance not running, \
                           cannot run migrations");
         }
         InstanceKind::Cloud { .. } => todo!(),
@@ -981,7 +982,7 @@ fn start(handle: &Handle) -> anyhow::Result<()> {
             Ok(())
         }
         InstanceKind::Remote => {
-            anyhow::bail!("remote instance is not running, \
+            anyhow::bail!("remote instance not running, \
                           cannot run migrations");
         }
         InstanceKind::Cloud { .. } => todo!(),
@@ -1046,16 +1047,16 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
                 print::error(e);
                 let mut q = question::Numeric::new(
                     format!(
-                        "Cannot connect to an instance {:?}. What to do?",
+                        "Cannot connect to instance {:?}. Options:",
                         inst.name,
                     )
                 );
                 q.option("Start the service (if possible).",
                     Service);
                 q.option("Start in the foreground, \
-                          apply migrations and shutdown.",
+                          apply migrations and shut down.",
                     Run);
-                q.option("I have just started it manually. Try again!",
+                q.option("Instance has been started manually, retry connect",
                     Retry);
                 q.option("Skip migrations.",
                     Skip);
@@ -1074,9 +1075,8 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
                     Retry => continue,
                     Skip => {
                         print::warn("Skipping migrations.");
-                        echo!("Once service is running, \
-                            you can apply migrations by running:\n  \
-                              edgedb migrate");
+                        echo!("You can use `edgedb migrate` to apply migrations \
+                               once the service is up and running.");
                         return Ok(());
                     }
                 }
@@ -1792,7 +1792,7 @@ pub fn update_toml(
                 print_other_project_warning(&name_str, &root, &query)?;
             },
             upgrade::UpgradeAction::Cancelled => {
-                echo!("Cancelled.");
+                echo!("Canceled.");
             },
             upgrade::UpgradeAction::None => {
                 echo!(
@@ -1876,11 +1876,11 @@ pub fn upgrade_instance(
             // would have already printed a message.
         },
         upgrade::UpgradeAction::Cancelled => {
-            echo!("Cancelled.");
+            echo!("Canceled.");
         },
         upgrade::UpgradeAction::None => {
             echo!("EdgeDB instance is up to date with \
-                the specification in the `edgedb.toml`.");
+                the specification in `edgedb.toml`.");
             if let Some(available) = result.available_upgrade {
                 echo!("New major version is available:", available.emphasize());
                 echo!("To update `edgedb.toml` and upgrade to this version, \
@@ -1982,7 +1982,7 @@ fn upgrade_cloud(
             if !cmd.non_interactive {
                 question::Confirm::new(format!(
                     "This will upgrade {inst_name} to version {target_ver_str}.\
-                    \nDoes this look good?",
+                    \nConfirm upgrade?",
                 )).ask()
             } else {
                 Ok(true)

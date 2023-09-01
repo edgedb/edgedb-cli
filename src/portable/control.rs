@@ -222,7 +222,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             }
         },
         InstanceName::Cloud { .. } => {
-            print::error("Stoppage of cloud instances is not supported yet.");
+            print::error("Stopping cloud instances is not yet supported.");
             return Err(ExitCode::new(1))?;
         },
     };
@@ -304,7 +304,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             }
 
             if needs_restart {
-                log::warn!("Restarting service back into background...");
+                log::warn!("Restarting service in background...");
                 do_start(&meta).map_err(|e| {
                     log::warn!("Error starting service: {}", e);
                 }).ok();
@@ -367,7 +367,7 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
             supervisor_stop(name)
         } else {
             if let Some(pid) = read_pid(name)? {
-                log::info!("Killing EdgeDB with pid {}", pid);
+                log::info!("Stopping EdgeDB with pid {}", pid);
                 process::term(pid)?;
                 // wait for unlock
                 let _ = open_lock(name)?
@@ -382,7 +382,7 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
             supervisor_stop(name)
         } else {
             if let Some(pid) = read_pid(name)? {
-                log::info!("Killing EdgeDB with pid {}", pid);
+                log::info!("Stopping EdgeDB with pid {}", pid);
                 process::term(pid)?;
                 // wait for unlock
                 let _ = open_lock(name)?.read()?;
@@ -402,7 +402,7 @@ pub fn stop(options: &Stop) -> anyhow::Result<()> {
             }
         },
         InstanceName::Cloud { .. } => {
-            print::error("Stoppage of cloud instances is not supported yet.");
+            print::error("Stopping cloud instances is not yet supported.");
             return Err(ExitCode::new(1))?;
         },
     };
@@ -430,7 +430,7 @@ pub fn stop_and_disable(instance: &str) -> anyhow::Result<bool> {
         if lock.try_read().is_err() {  // properly running
             if !supervisor || !is_run_by_supervisor(lock) {
                 if let Some(pid) = read_pid(instance)? {
-                    log::info!("Killing EdgeDB with pid {}", pid);
+                    log::info!("Stopping EdgeDB with pid {}", pid);
                     process::term(pid)?;
                     // wait for unlock
                     let _ = open_lock(instance)?.read()?;
@@ -466,7 +466,7 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
             supervisor_restart(inst)
         } else {
             if let Some(pid) = read_pid(&inst.name)? {
-                log::info!("Killing EdgeDB with pid {}", pid);
+                log::info!("Stopping EdgeDB with pid {}", pid);
                 process::term(pid)?;
                 // wait for unlock
                 let _ = open_lock(&inst.name)?.read()?;
@@ -484,7 +484,7 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
             supervisor_restart(inst)
         } else {
             if let Some(pid) = read_pid(&inst.name)? {
-                log::info!("Killing EdgeDB with pid {}", pid);
+                log::info!("Stopping EdgeDB with pid {}", pid);
                 process::term(pid)?;
                 // wait for unlock
                 let _ = lock.read()?;

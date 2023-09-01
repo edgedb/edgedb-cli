@@ -65,14 +65,13 @@ fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
     if migration.id.starts_with("m1") {
         let id = migration.expected_id(text)?;
         if id != migration.id {
-            anyhow::bail!("migration name should be `{computed}` \
-                but `{file}` is used instead.\n\
-                Migration names are computed from the hash \
+            anyhow::bail!("\n Migration name should be: \n  {computed}, but \
+                \n  {file} found instead. \
+                \n\nMigration names are computed from the hash \
                 of the migration contents. To proceed you must fix the \
                 statement to read as:\n  \
                 CREATE MIGRATION {computed} ONTO ...\n\
-                if this migration is not applied to \
-                any database. Alternatively, revert the changes to the file.",
+                Alternatively, revert the changes to the file.",
                 computed=id, file=migration.id);
         }
         Ok(())

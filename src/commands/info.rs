@@ -24,8 +24,8 @@ pub fn specific_info(item: &str) -> Result<(), anyhow::Error> {
         }
         "data-dir" => {
             if cfg!(windows) {
-                anyhow::bail!("Windows instances don't have the data dir,
-                               as they are created in the WSL");
+                anyhow::bail!("Windows instances are created via WSL
+                               and do not have a data dir");
             } else {
                 println!("{}", dir_to_str(platform::data_dir()?));
             }

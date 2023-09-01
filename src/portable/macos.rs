@@ -359,7 +359,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
             Inactive {..} | Ready => {
                 thread::sleep(time::Duration::from_millis(30));
                 if time::SystemTime::now() > cut_off {
-                    print::error("EdgeDB did not start for 30 seconds");
+                    print::error("EdgeDB failed to start for 30 seconds");
                     break;
                 }
                 continue;
