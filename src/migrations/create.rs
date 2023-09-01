@@ -449,7 +449,7 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection,
     };
     if descr.confirmed.is_empty() && !options.allow_empty {
         print::warn("No schema changes detected.");
-        print::echo!("Hint: Use --allow-empty to create a data-only migration with no schema changes.");
+        //print::echo!("Hint: --allow-empty can be used to create a data-only migration with no schema changes.");
         return Err(ExitCode::new(4))?;
     }
     Ok(FutureMigration::new(key, descr))
@@ -652,7 +652,7 @@ async fn run_interactive(_ctx: &Context, cli: &mut Connection,
 
     if descr.confirmed.is_empty() && !options.allow_empty {
         print::warn("No schema changes detected.");
-        print::echo!("Hint: --allow-empty can be used to create a data-only migration with no schema changes.");
+        //print::echo!("Hint: --allow-empty can be used to create a data-only migration with no schema changes.");
         return Err(ExitCode::new(4))?;
     }
     Ok(FutureMigration::new(key, descr))
