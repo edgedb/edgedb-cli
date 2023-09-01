@@ -140,14 +140,14 @@ pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> a
     if c.json {
         println!("{}", serde_json::to_string_pretty(&key)?);
     } else {
-        let sk = key.secret_key.context("no valid secret key returned by the server")?;
+        let sk = key.secret_key.context("no valid secret key returned from server")?;
         if c.non_interactive {
             print!("{}", sk);
         } else {
             echo!(
                 "\nYour new EdgeDB.Cloud secret key is printed below. \
-                 Please copy and store it securely, you will not be able to \
-                 see it again.\n".green());
+                 Be sure to copy and store it securely, as you will \
+                 not be able to see it again.\n".green());
             echo!(sk.emphasize());
         }
     }
@@ -196,9 +196,9 @@ fn _ask_ttl(
 ) -> anyhow::Result<Option<String>> {
     loop {
         let ttl = question::String::new(
-            "\nPlease specify the time interval after which the secret key \
-            should expire.\nUse duration units like `1h3m` or say `never` \
-            if the key should not expire"
+            "\nPlease specify how long the secret key should \
+            remain valid.\nUse duration units like `1h3m`, or `never` \
+            if the key should never expire."
         ).ask()?;
 
         let dur = match ttl.as_str() {
@@ -220,11 +220,11 @@ fn _ask_scopes(
 ) -> anyhow::Result<Option<Vec<String>>> {
     loop {
         let scopes = question::String::new(
-            "\nPlease specify a comma- or whitespace-separated list of authorizations (scopes) \
+            "\nPlease specify a whitespace-separated list of authorizations (scopes) \
             for the new secret key.\n\
             For example, to limit the access scope to a single database in a single instance:\n\n\
             \x20\x20instance:org/instance database:mydatabase roles.all\n\n\
-            To inherit the scope of the current secret key, say `inherit`"
+            To inherit the scope of the current secret key, type `inherit`"
         ).ask()?;
 
         match scopes.as_str() {
