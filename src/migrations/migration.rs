@@ -241,9 +241,9 @@ mod test {
 
     #[test]
     #[should_panic(expected=
-        "migration name should be \
-        `m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq` \
-        but `m124` is used instead.")]
+        "Migration name should be: \
+          m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq, but \
+          m124 found instead.")]
     fn test_bad_hash() {
         let text = r###"
             CREATE MIGRATION m124 ONTO initial {
@@ -318,10 +318,9 @@ mod test {
 
     #[test]
     #[should_panic(expected=
-        "migration name should be \
-        `m1q3jjfe7zjl74v3n2vxjwzneousdas6vvd4qwrfd6j6xmhmktyada` \
-        but `m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq` \
-        is used instead")]
+        "Migration name should be: \
+          m1q3jjfe7zjl74v3n2vxjwzneousdas6vvd4qwrfd6j6xmhmktyada, but \
+          m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq found instead.")]
     fn test_hash_depends_on_parent() {
         let text = r###"
             CREATE MIGRATION
