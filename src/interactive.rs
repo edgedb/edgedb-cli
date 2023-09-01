@@ -208,7 +208,7 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
 
 fn print_json_limit_error(path: &str) {
     eprintln!("Error: Cannot render JSON result: {} is too long. \
-        Consider adding an explicit LIMIT clause, \
+        Consider adding an explicit `limit` clause, \
         or increasing the implicit limit using `\\set limit`.",
         if path.is_empty() { "." } else { path });
 }
@@ -387,7 +387,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
                 if let Some(limit) = state.implicit_limit {
                     if index >= limit {
                         eprintln!("Error: Too many rows. Consider \
-                            adding an explicit LIMIT clause, \
+                            adding an explicit `limit` clause, \
                             or increasing the implicit limit \
                             using `\\set limit`.");
                         items.complete().await?;
@@ -478,7 +478,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
                 let mut text = match row {
                     Value::Str(s) => s,
                     _ => return Err(anyhow::anyhow!(
-                        "the server returned a non-string value in JSON mode")),
+                        "server returned a non-string value in JSON mode")),
                 };
                 let value: serde_json::Value;
                 value = serde_json::from_str(&text)
@@ -587,12 +587,12 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
                         }
                         print::error(
                             "State could not be updated automatically");
-                        echo!("  Hint: This means some migrations or DDL \
+                        echo!("  Hint: This means that migrations or DDL \
                                statements were run in a concurrent \
-                               connection during your interactive \
-                               session. Restarting CLI usually works \
-                               (although, you have to to set globals \
-                               and aliases again)");
+                               connection during the interactive \
+                               session. Try restarting the CLI to resolve. \
+                               (Note: globals and aliases must be \
+                               set again in this case)");
                         return Err(ExitCode::new(10))?;
                     } else if let
                         Some(e) = err.downcast_ref::<edgedb_errors::Error>()

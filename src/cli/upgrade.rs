@@ -28,22 +28,22 @@ pub struct CliUpgrade {
     /// Disable progress output
     #[clap(short='q', long)]
     pub quiet: bool,
-    /// Reinstall even if there is no newer version
+    /// Force reinstall even if no newer version exists
     #[clap(long)]
     pub force: bool,
-    /// Upgrade to the latest nightly version
+    /// Upgrade to latest nightly version
     #[clap(long)]
     #[clap(conflicts_with_all=&["to_testing", "to_stable", "to_channel"])]
     pub to_nightly: bool,
-    /// Upgrade to the latest stable version
+    /// Upgrade to latest stable version
     #[clap(long)]
     #[clap(conflicts_with_all=&["to_testing", "to_nightly", "to_channel"])]
     pub to_stable: bool,
-    /// Upgrade to the latest testing version
+    /// Upgrade to latest testing version
     #[clap(long)]
     #[clap(conflicts_with_all=&["to_stable", "to_nightly", "to_channel"])]
     pub to_testing: bool,
-    /// Upgrade specified instance to the specified channel
+    /// Upgrade specified instance to specified channel
     #[clap(long, value_enum)]
     #[clap(conflicts_with_all=&["to_stable", "to_nightly", "to_testing"])]
     pub to_channel: Option<Channel>,
@@ -189,7 +189,7 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
         .into_iter().max_by(|a, b| a.version.cmp(&b.version))
         .context("cannot find new version")?;
     if !force && pkg.version <= self_version()? {
-        log::info!("Version is the same. No update needed.");
+        log::info!("Version is identical; no update needed.");
         if !options.quiet {
             print::success("Already up to date.");
         }

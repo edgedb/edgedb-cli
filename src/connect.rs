@@ -163,7 +163,7 @@ impl Connector {
         -> Result<Connection, Error>
     {
         sleep(Duration::new(1, 0)).await;
-        eprintln!("Connecting to an EdgeDB instance at {}...",
+        eprintln!("Connecting to EdgeDB instance at {}...",
             cfg.display_addr());
         pending().await
     }

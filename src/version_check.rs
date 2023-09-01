@@ -126,8 +126,9 @@ pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
     match env::var("EDGEDB_RUN_VERSION_CHECK").as_ref().map(|x| &x[..]) {
         Ok("never") => {
             log::debug!(
-                "Skipping version check due to \
-                EDGEDB_RUN_VERSION_CHECK=never");
+                "EDGEDB_RUN_VERSION_CHECK set to `never`, \
+                skipping version check
+                ");
             return Ok(());
         }
         Ok("cached") | Ok("default") => {}
@@ -135,13 +136,13 @@ pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
             strict = true;
         }
         Ok(value) => {
-            anyhow::bail!("unexpected value of EDGEDB_RUN_VERSION_CHECK: {:?} \
+            anyhow::bail!("unexpected value for EDGEDB_RUN_VERSION_CHECK: {:?} \
                            Options: never, cached, strict, default.",
                           value);
         }
         Err(env::VarError::NotPresent) => {}
         Err(env::VarError::NotUnicode(value)) => {
-            anyhow::bail!("unexpected value of EDGEDB_RUN_VERSION_CHECK: {:?} \
+            anyhow::bail!("unexpected value for EDGEDB_RUN_VERSION_CHECK: {:?} \
                            Options: never, cached, default.",
                           value);
         }

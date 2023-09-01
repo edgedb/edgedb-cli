@@ -95,13 +95,13 @@ impl CloudClient {
                 .splitn(3, ".")
                 .skip(1)
                 .next()
-                .context("secret key is malformed: invalid JWT format")?;
+                .context("malformed secret key: invalid JWT format")?;
             let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)
-                .context("secret key is malformed: invalid base64 data")?;
+                .context("malformed secret key: invalid base64 data")?;
             let claims: Claims = serde_json::from_slice(&claims)
-                .context("secret key is malformed: invalid JSON data")?;
+                .context("malformed secret key: invalid JSON data")?;
             dns_zone = claims.issuer
-                .context("secret key is malformed: missing `iss` claim")?;
+                .context("malformed secret key: missing `iss` claim")?;
 
             let mut headers = header::HeaderMap::new();
             let auth_str = format!("Bearer {}", secret_key);

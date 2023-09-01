@@ -11,7 +11,7 @@ pub struct CloudCommand {
 
 #[derive(EdbClap, Clone, Debug)]
 pub enum Command {
-    /// Authenticate to the EdgeDB Cloud and remember the secret key locally
+    /// Authenticate to EdgeDB Cloud and remember secret key locally
     #[edb(inherit(CloudOptions))]
     Login(Login),
     /// Forget the stored access token
@@ -27,7 +27,7 @@ pub struct Login {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Logout {
-    /// Logout from all Cloud profiles
+    /// Log out from all Cloud profiles
     #[clap(long)]
     #[clap(hide=true)]
     pub all_profiles: bool,
@@ -80,8 +80,8 @@ pub struct CreateSecretKey {
     #[clap(long)]
     pub description: Option<String>,
 
-    /// Key expiration, in duration units, for example "1 hour 30 minutes".
-    /// If set to "never", the key would not expire.
+    /// Key expiration in duration units (e.g. "1 hour 30 minutes").
+    /// Does not expire if set to `never`.
     #[clap(long, value_name = "<duration> | \"never\"")]
     pub expires: Option<String>,
 
@@ -116,7 +116,7 @@ pub struct RevokeSecretKey {
     /// Id of secret key to revoke
     #[clap(long)]
     pub secret_key_id: String,
-    /// Revoke the key without asking for confirmation.
+    /// Revoke key without asking for confirmation
     #[clap(short='y', long)]
     pub non_interactive: bool,
 }

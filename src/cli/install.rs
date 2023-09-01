@@ -44,18 +44,18 @@ pub struct CliInstall {
     /// Disable confirmation prompt, also disables running `project init`
     #[clap(short='y')]
     pub no_confirm: bool,
-    /// Do not configure the PATH environment variable
+    /// Do not configure PATH environment variable
     #[clap(long)]
     pub no_modify_path: bool,
-    /// Indicate that the edgedb-init should not issue
-    /// a "Press Enter to continue" prompt before exiting
-    /// on Windows.  This is for the cases where edgedb-init
-    /// is invoked from an existing terminal session and not
-    /// in a new window.
+    /// Indicate that edgedb-init should not issue a
+    /// "Press Enter to continue" prompt before exiting
+    /// on Windows. Used when edgedb-init is invoked 
+    /// from an existing terminal session and not in
+    /// a new window.
     #[clap(long)]
     pub no_wait_for_exit_prompt: bool,
 
-    /// Installation is run from `self ugprade` command
+    /// Installation is run from `self upgrade` command
     #[clap(long, hide=true)]
     pub upgrade: bool,
 }
@@ -215,10 +215,9 @@ fn print_post_install_message(settings: &Settings,
         print_markdown!("\
             # The EdgeDB command-line tool is now installed!\n\
             \n\
-            We've updated your environment configuration to have `${dir}` in\n\
-            your `PATH` environment variable. You may need to reopen the\n\
-            terminal for this change to take effect, and for the `edgedb`\n\
-            command to become available.\
+            The `${dir}` directory has been added to your `PATH`. You may\n\
+            need to reopen the terminal for this change to take effect\n\
+            and for the `edgedb` command to become available.\
             ",
             dir=settings.installation_path.display(),
         );
@@ -226,9 +225,8 @@ fn print_post_install_message(settings: &Settings,
         print_markdown!("\
             # The EdgeDB command-line tool is now installed!\n\
             \n\
-            We've updated your shell profile to have ${dir} in your `PATH`\n\
-            environment variable. Next time you open the terminal it will be\n\
-            configured automatically.\n\
+            Your shell profile has been updated with ${dir} in your `PATH`.\n\
+            It will be configured automatically the next time you open the terminal.\n\
             \n\
             For this session please run:\n\
             ```\n\
@@ -259,7 +257,7 @@ fn print_post_install_message(settings: &Settings,
                     ```\n\
                         fpath+=~/.zfunc\n\
                     ```\n\
-                    to your `~/.zshrc` before `compinit` command.\
+                    to your `~/.zshrc` before the `compinit` command.\
                 ");
             }
         }
@@ -304,7 +302,7 @@ fn print_post_install_message(settings: &Settings,
         }
         Err(e) => {
             print_markdown!("
-                **There was an error while initializing project: ${err}**\n\
+                **There was an error while initializing the project: ${err}**\n\
                 \n\
                 To restart project initialization, run:\n\
                 ```\n\
@@ -383,12 +381,12 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
         .context("failed to get current directory")?;
     if let Some(dir) = project::search_dir(&base_dir) {
         if project::stash_path(&base_dir)?.exists() {
-            log::info!("Project is already initialized. Skipping...");
+            log::info!("Project already initialized. Skipping...");
             return Ok(Already);
         }
         if !new_layout {
-            log::warn!("Project will not be initialized, \
-                because directory layout was not upgraded.");
+            log::warn!("Directory layout not upgraded; \
+            project will not be initialized.");
             return Ok(OldLayout);
         }
         println!("Command-line tools are installed successfully.");
@@ -541,7 +539,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     let base = home_dir()?.join(".edgedb");
     let new_layout = if base.exists() {
         eprintln!("\
-            Edgedb CLI has stopped using '{}' for storing data \
+            Edgedb CLI no longer uses '{}' to store data \
                 and now uses standard locations of your OS. \
         ", base.display());
         let q = question::Confirm::new(format!("\
@@ -622,12 +620,12 @@ fn get_windows_path_var() -> anyhow::Result<Option<String>> {
                 Ok(Some(s))
             } else {
                 log::warn!("the registry key HKEY_CURRENT_USER\\Environment\\PATH does not contain valid Unicode. \
-                       Not modifying the PATH variable");
+                       PATH variable will not be modified.");
                 return Ok(None);
             }
         }
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(Some(String::new())),
-        Err(e) => Err(e).context("windows failure"),
+        Err(e) => Err(e).context("Windows failure"),
     }
 }
 

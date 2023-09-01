@@ -68,7 +68,7 @@ pub fn term(pid: u32) -> anyhow::Result<()>{
 
     if unsafe { libc::kill(pid as i32, SIGTERM) } != 0 {
         return Err(io::Error::last_os_error())
-            .with_context(|| format!("cannot kill {}", pid))?;
+            .with_context(|| format!("cannot stop {pid}"))?;
     }
     Ok(())
 }
@@ -85,7 +85,7 @@ pub fn term(pid: u32) -> anyhow::Result<()>{
     };
     if handle == null_mut() {
         // MSDN doesn't describe what is proper error here :(
-        anyhow::bail!("process could not be found or cannot be killed");
+        anyhow::bail!("process could not be found or cannot be stopped");
     }
     unsafe { TerminateProcess(handle, 1) };
     unsafe { CloseHandle(handle) };
@@ -558,15 +558,15 @@ impl Native {
         let sig = intr.wait().await;
         match sig {
             interrupt::Signal::Interrupt => {
-                log::warn!("Got interrupt. Waiting for \
+                log::warn!("Received interrupt. Waiting for \
                     the {} process to exit.", self.description);
             }
             interrupt::Signal::Hup => {
-                log::warn!("Got HUP signal. Waiting for \
+                log::warn!("Received HUP signal. Waiting for \
                     the {} process to exit.", self.description);
             }
             interrupt::Signal::Term => {
-                log::warn!("Got TERM signal. Propagating to {}...",
+                log::warn!("Received TERM signal. Propagating to {}...",
                     self.description);
                 if self.try_stop_process().await.is_err() {
                     if unsafe { libc::kill(pid as i32, SIGTERM) } != 0 {
@@ -577,7 +577,7 @@ impl Native {
             }
         };
         timeout(Duration::from_secs(10), pending::<()>()).await.ok();
-        log::warn!("Process {} did not stop in 10 seconds, forcing...",
+        log::warn!("Process {} did not stop within 10 seconds, forcing...",
             self.description);
         if self.try_stop_process().await.is_err() {
             unsafe { libc::kill(pid as i32, SIGKILL) };
@@ -730,7 +730,7 @@ async fn stdout_loop(marker: &str, pipe: Option<impl AsyncRead+Unpin>,
     match (pipe, capture_buffer) {
         (Some(mut pipe), Some(buffer)) => {
             pipe.read_to_end(buffer).await.map_err(|e| {
-                log::info!("Cannot read command's output: {}", e);
+                log::info!("Cannot read command output: {e}");
             }).ok();
         }
         (Some(pipe), None) => {
@@ -769,7 +769,7 @@ async fn kill_child<Never>(pid: u32, description: &str) -> Never {
             io::Error::last_os_error());
     }
     timeout(Duration::from_secs(10), pending::<()>()).await.ok();
-    log::warn!("Process {} takes too long to complete. Forcing...",
+    log::warn!("Process {} is taking too long to complete. Forcing...",
         description);
     if unsafe { libc::kill(pid as i32, SIGKILL) } != 0 {
         log::debug!("Error stopping {}: {}", description,

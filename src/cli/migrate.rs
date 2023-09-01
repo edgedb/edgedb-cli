@@ -20,13 +20,13 @@ use crate::question;
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct CliMigrate {
-    /// Dry run: do no actually move anything
-    #[clap(short='v', long)]
-    pub verbose: bool,
-
-    /// Dry run: do no actually move anything (use with increased verbosity)
+    /// Dry run: do not actually move anything
     #[clap(short='n', long)]
     pub dry_run: bool,
+
+    /// Dry run: do not actually move anything (with increased verbosity)
+    #[clap(short='v', long)]
+    pub verbose: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -41,7 +41,7 @@ pub fn main(options: &CliMigrate) -> anyhow::Result<()> {
     if base.exists() {
         migrate(&base, options.dry_run)
     } else {
-        log::warn!("Directory {:?} does not exist. Nothing to do.", base);
+        log::warn!("Directory {:?} does not exist. No actions will be taken.", base);
         Ok(())
     }
 }
@@ -77,7 +77,7 @@ fn move_file(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
             src, dest));
         q.option(Yes, &["y"], "overwrite the destination file");
         q.option(Skip, &["s"],
-            "skip, keep the destination file, remove the source");
+            "skip, keep destination file, remove source");
         q.option(Quit, &["q"], "quit now without overwriting");
         match q.ask()? {
             Yes => {},
@@ -112,7 +112,7 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
             src, dest));
         q.option(Yes, &["y"], "overwrite the destination dir");
         q.option(Skip, &["s"],
-            "skip, keep the destination dir, remove the source");
+            "skip, keep destination dir, remove source");
         q.option(Quit, &["q"], "quit now without overwriting");
         match q.ask()? {
             Yes => {},
@@ -213,9 +213,8 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
             print::success("The `edgedb` executable has moved!");
             print_markdown!("\
                 \n\
-                We've updated your environment configuration to have\n\
-                `${dir}` in your `PATH` environment variable. You\n\
-                may need to reopen the terminal for this change to\n\
+                `${dir}` has been added to your `PATH`.\n\
+                You may need to reopen the terminal for this change to\n\
                 take effect, and for the `edgedb` command to become\n\
                 available.\
                 ",
@@ -254,8 +253,8 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
             print::success("The `edgedb` executable has moved!");
             print_markdown!("\
                 \n\
-                We've updated your shell profile to have ${dir} in your\n\
-                `PATH` environment variable. Next time you open the terminal\n\
+                Your shell profile has been updated to have ${dir} in your\n\
+                `PATH`. The next time you open the terminal\n\
                 it will be configured automatically.\n\
                 \n\
                 For this session please run:\n\
@@ -279,7 +278,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             let new_bin_path = binary_path()?;
             try_move_bin(&exe_path, &new_bin_path)
             .map_err(|e| {
-                print::error("Cannot move executable to the new location.");
+                print::error("Cannot move executable to new location.");
                 eprintln!("  Try `edgedb cli upgrade` instead.");
                 e
             })?;
@@ -347,12 +346,12 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     remove_dir_all(&base.join("logs"), dry_run)?;
     remove_dir_all(&base.join("cache"), dry_run)?;
 
-    if !dry_run && dir_is_non_empty(&base)? {
+    if !dry_run && dir_is_non_empty(base)? {
         eprintln!("\
-            Directory {:?} is not used by EdgeDB tools any more and must be \
-            removed to finish migration. But there are some files or \
-            directories left after all known files moved to the locations. \
-            This might be because third party tools left some files there. \
+            Directory {:?} is no longer used by EdgeDB tools and must be \
+            removed to finish migration, but some files or directories \
+            remain after all known files have moved. \
+            The files may have been left by a third party tool. \
         ", base);
         let q = question::Confirm::new(format!(
             "Do you want to remove all files and directories within {:?}?",
@@ -361,7 +360,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
         if !q.ask()? {
             print::error("Cancelled by user.");
             print_markdown!("\
-                When all files are backed up, run either of:\n\
+                Once all files are backed up, run one of:\n\
                 ```\n\
                 rm -rf ~/.edgedb\n\
                 edgedb cli migrate\n\

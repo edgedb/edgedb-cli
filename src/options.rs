@@ -38,7 +38,7 @@ const MAX_TERM_WIDTH: usize = 90;
 const MIN_TERM_WIDTH: usize = 50;
 
 const CONN_OPTIONS_GROUP: &str =
-    "CONNECTION OPTIONS (`edgedb --help-connect` to see the full list)";
+    "CONNECTION OPTIONS (`edgedb --help-connect` to see full list)";
 const CLOUD_OPTIONS_GROUP: &str = "CLOUD OPTIONS";
 const CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
@@ -73,7 +73,7 @@ pub struct ConnectionOptions {
     #[clap(hide=true)]
     pub credentials_file: Option<PathBuf>,
 
-    /// Host of the EdgeDB instance
+    /// EdgeDB instance host
     #[clap(short='H', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(value_hint=ValueHint::Hostname)]
     #[clap(hide=true)]
@@ -87,7 +87,7 @@ pub struct ConnectionOptions {
     #[clap(conflicts_with_all=&["dsn", "credentials_file", "instance"])]
     pub port: Option<u16>,
 
-    /// A path to a unix socket for the EdgeDB connection
+    /// A path to a Unix socket for EdgeDB connection
     ///
     /// When the supplied path is a directory, the actual path will be
     /// computed using the `--port` and `--admin` parameters.
@@ -98,7 +98,7 @@ pub struct ConnectionOptions {
            &["dsn", "credentials_file", "instance", "host"])]
     pub unix_path: Option<PathBuf>,
 
-    /// User name of the EdgeDB user
+    /// EdgeDB user name
     #[clap(short='u', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub user: Option<String>,
@@ -109,7 +109,7 @@ pub struct ConnectionOptions {
     #[clap(hide=true)]
     pub database: Option<String>,
 
-    /// Ask for password on the terminal (TTY)
+    /// Ask for password on terminal (TTY)
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub password: bool,
@@ -119,7 +119,7 @@ pub struct ConnectionOptions {
     #[clap(hide=true)]
     pub no_password: bool,
 
-    /// Read the password from stdin rather than TTY (useful for scripts)
+    /// Read password from stdin rather than TTY (useful for scripts)
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub password_from_stdin: bool,
@@ -131,72 +131,71 @@ pub struct ConnectionOptions {
 
     /// Certificate to match server against
     ///
-    /// This might either be full self-signed server certificate or certificate
-    /// authority (CA) certificate that server certificate is signed with.
+    /// Might either be a full self-signed server certificate or certificate
+    /// authority (CA) certificate that the server certificate is signed with.
     #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub tls_ca_file: Option<PathBuf>,
 
-
-    /// Verify hostname of the server using provided certificate
+    /// Verify server hostname using provided certificate.
     ///
-    /// It's useful when certificate authority (CA) is used for handling
-    /// certificate and usually not used for self-signed certificates.
+    /// Useful when certificate authority (CA) is used for certificate
+    /// handling and usually not used for self-signed certificates.
     ///
-    /// By default it's enabled when no specific certificate is present
+    /// Enabled by default when no specific certificate is present
     /// (via `--tls-ca-file` or in credentials JSON file)
     #[clap(long, hide=true)]
     #[clap(conflicts_with_all=&["no_tls_verify_hostname"])]
     pub tls_verify_hostname: bool, // deprecated for tls_security
 
-    /// Do not verify hostname of the server
+    /// Do not verify server hostname
     ///
     /// This allows using any certificate for any hostname. However,
-    /// certificate must be present and match certificate specified with
+    /// a certificate must be present and matching certificate specified with
     /// `--tls-ca-file` or credentials file or signed by one of the root
     /// certificate authorities.
     #[clap(long, hide=true)]
     #[clap(conflicts_with_all=&["tls_verify_hostname"])]
     pub no_tls_verify_hostname: bool, // deprecated for tls_security
 
-    /// Specify the client-side TLS security mode.
+    /// Specifications for client-side TLS security mode:
     ///
     /// `insecure`:
     /// Do not verify server certificate at all, only use encryption.
     ///
     /// `no_host_verification`:
     /// This allows using any certificate for any hostname. However,
-    /// certificate must be present and match certificate specified with
+    /// a certificate must be present and matching certificate specified with
     /// `--tls-ca-file` or credentials file or signed by one of the root
     /// certificate authorities.
     ///
     /// `strict`:
-    /// Verify the server certificate and check the hostname.
-    /// It's useful when certificate authority (CA) is used for handling
-    /// certificate and usually not used for self-signed certificates.
+    /// Verify server certificate and check hostname.
+    /// Useful when certificate authority (CA) is used for certificate
+    /// handling and usually not used for self-signed certificates.
     ///
     /// `default`:
-    /// By default it's "strict" when no specific certificate is present
-    /// (via `--tls-ca-file` or in credentials JSON file), or
-    /// "no_host_verification" otherwise.
+    /// Defaults to "strict" when no specific certificate is present
+    /// (via `--tls-ca-file` or in credentials JSON file); otherwise
+    /// to "no_host_verification".
     #[clap(long, hide=true, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[clap(value_name="insecure | no_host_verification | strict | default")]
     tls_security: Option<String>,
 
-    /// In case EdgeDB connection can't be established, retry up to
-    /// WAIT_TIME (e.g. '30s').
+    /// Retry up to WAIT_TIME (e.g. '30s') in case EdgeDB connection 
+    /// cannot be established.
     #[clap(long, name="WAIT_TIME", help_heading=Some(CONN_OPTIONS_GROUP),
                 parse(try_from_str=parse_duration))]
     #[clap(hide=true)]
     pub wait_until_available: Option<Duration>,
 
-    /// Connect to a passwordless unix socket with superuser
+    /// Connect to a passwordless Unix socket with superuser
     /// privileges by default.
     #[clap(long, hide=true, help_heading=Some(CONN_OPTIONS_GROUP))]
     pub admin: bool,
 
-    /// In case EdgeDB doesn't respond for a TIMEOUT, fail
-    /// (or retry if `--wait-until-available` is also specified). Default '10s'.
+    /// Fail when no response from EdgeDB for TIMEOUT (default '10s'); 
+    /// alternatively will retry if `--wait-until-available` is also specified.
     #[clap(long, name="TIMEOUT", help_heading=Some(CONN_OPTIONS_GROUP),
            parse(try_from_str=parse_duration))]
     #[clap(hide=true)]
@@ -206,19 +205,19 @@ pub struct ConnectionOptions {
 #[derive(EdbClap, Clone, Debug)]
 #[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
 pub struct CloudOptions {
-    /// Specify the EdgeDB Cloud API endpoint, default to the current logged-in
-    /// server, or https://api.g.aws.edgedb.cloud if unauthorized
+    /// Specify the EdgeDB Cloud API endpoint. Defaults to the current logged-in
+    /// server, or <https://api.g.aws.edgedb.cloud> if unauthorized
     #[clap(long, name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub cloud_api_endpoint: Option<String>,
 
-    /// Specify the EdgeDB Cloud API secret key to use, instead of loading
-    /// the secret key from the remembered authentication.
+    /// Specify EdgeDB Cloud API secret key to use instead of loading
+    /// key from a remembered authentication.
     #[clap(long, name="SECRET_KEY", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub cloud_secret_key: Option<String>,
 
-    /// Specify the authenticated EdgeDB Cloud profile, default is "default".
+    /// Specify authenticated EdgeDB Cloud profile. Defaults to "default".
     #[clap(long, name="PROFILE", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[clap(hide=true)]
     pub cloud_profile: Option<String>,
@@ -227,7 +226,9 @@ pub struct CloudOptions {
 /// Use the `edgedb` command-line tool to spin up local instances,
 /// manage EdgeDB projects, create and apply migrations, and more.
 ///
-/// Running `edgedb` without a subcommand opens an interactive shell.
+/// Running `edgedb` without a subcommand opens an interactive shell
+/// for the instance in your directory. If you have no existing instance,
+/// type `edgedb project init` to create one.
 #[derive(EdbClap, Debug)]
 #[edb(main)]
 #[clap(disable_version_flag=true)]
@@ -249,14 +250,14 @@ pub struct RawOptions {
     pub test_output_conn_params: bool,
 
     /// Print all available connection options
-    /// for the interactive shell and subcommands
+    /// for interactive shell along with subcommands
     #[clap(long)]
     pub help_connect: bool,
 
-    /// Tab-separated output of the queries
+    /// Tab-separated output for queries
     #[clap(short='t', long, overrides_with="json", hide=true)]
     pub tab_separated: bool,
-    /// JSON output for the queries (single JSON list per query)
+    /// JSON output for queries (single JSON list per query)
     #[clap(short='j', long, overrides_with="tab_separated", hide=true)]
     pub json: bool,
     /// Execute a query instead of starting REPL
@@ -267,11 +268,11 @@ pub struct RawOptions {
     #[clap(short='V', long="version")]
     pub print_version: bool,
 
-    // (deprecated in favor of "no_cli_update_check")
+    // Deprecated: use "no_cli_update_check" instead
     #[clap(long, hide=true)]
     pub no_version_check: bool,
 
-    /// Disable checking if a new version of CLI is available
+    /// Disable check for new available CLI version
     #[clap(long)]
     pub no_cli_update_check: bool,
 
@@ -289,14 +290,14 @@ pub struct RawOptions {
 pub enum Command {
     #[clap(flatten)]
     Common(Common),
-    /// Execute EdgeQL queries
+    /// Execute EdgeQL query in quotes (e.g. `"select 9;"`)
     #[edb(inherit(ConnectionOptions))]
     Query(Query),
-    /// Launch the web UI for the EdgeDB instance
+    /// Launch EdgeDB instance in browser web UI
     #[edb(inherit(ConnectionOptions))]
     #[edb(inherit(CloudOptions))]
     UI(UI),
-    /// Show information about the EdgeDB installation
+    /// Show paths for EdgeDB installation
     Info(Info),
     /// Manage project installation
     #[edb(expand_help)]
@@ -322,8 +323,7 @@ pub enum Command {
     #[edb(inherit(CloudOptions), hide=true)]
     Cloud(CloudCommand),
     /// Start a long-running process that watches for changes in schema files in
-    /// your project's ``dbschema`` directory and applies those changes to your
-    /// database in real time.
+    /// a project's ``dbschema`` directory, applying them in real time.
     #[edb(inherit(CloudOptions))]
     Watch(WatchCommand),
 }
@@ -353,7 +353,7 @@ pub struct UI {
     #[clap(long)]
     pub print_url: bool,
 
-    /// Don't probe the UI endpoint of the server instance
+    /// Do not probe the UI endpoint of the server instance
     #[clap(long)]
     pub no_server_check: bool,
 }
@@ -370,7 +370,7 @@ pub struct Info {
     ///
     /// * `config-dir` -- Base configuration directory
     /// * `cache-dir` -- Base cache directory
-    /// * `data-dir` -- Base data directory
+    /// * `data-dir` -- Base data directory (except on Windows)
     /// * `service-dir` -- Directory where supervisor/startup files are placed
     pub get: Option<String>,
 }
@@ -541,7 +541,7 @@ fn print_full_connection_options() {
     let slice_from = subcmd_index + CONN_OPTIONS_GROUP.len() + 2;
     let help = &help[slice_from..];
 
-    println!("CONNECTION OPTIONS (the full list):\n");
+    println!("CONNECTION OPTIONS (full list):\n");
     println!("{}", help);
 }
 
@@ -747,9 +747,9 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.unix_path(path);
     }
     if let Some(host) = &tmp.host {
-        if host.contains("/") {
-            log::warn!("Deprecated: `--host` that contains slash is path \
-                to a unix socket. Use TCP connection if possible \
+        if host.contains('/') {
+            log::warn!("Deprecated: `--host` containing a slash is \
+                a path to a unix socket. Use TCP connection if possible, \
                 otherwise use `--unix-path`.");
             bld.unix_path(host);
         } else {
