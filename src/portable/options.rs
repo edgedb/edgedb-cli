@@ -171,7 +171,7 @@ pub struct Create {
     #[clap(long)]
     pub region: Option<String>,
 
-    /// Deprecated parameter.
+    /// Deprecated parameter, unused.
     #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
     pub start_conf: Option<StartConf>,
 
