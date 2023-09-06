@@ -24,6 +24,9 @@ fn configure_all_parameters() {
             FILTER .name != 'id' AND NOT .is_internal
                 # `force_database_error` should not be exposed
                 AND .name != 'force_database_error'
+                # xxx_* configs temporarily exist during the development of Auth
+                # Delete this after https://github.com/edgedb/edgedb/pull/6014
+                AND .name not like 'xxx_%'
         "###)
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
@@ -64,6 +67,9 @@ fn configure_all_parameters() {
             FILTER .is_system AND .target.name[:5] = 'cfg::'
                 # `force_database_error` should not be exposed
                 AND .name != 'force_database_error'
+                # xxx_* configs temporarily exist during the development of Auth
+                # Delete this after https://github.com/edgedb/edgedb/pull/6014
+                AND .name not like 'xxx_%'
         "###)
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
