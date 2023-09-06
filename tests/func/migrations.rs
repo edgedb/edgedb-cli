@@ -496,13 +496,11 @@ fn error() -> anyhow::Result<()> {
         .env("NO_COLOR", "1")
         .assert().code(1)
         .stderr(ends_with(
-r###"error: Unexpected keyword 'create'
+r###"error: Unexpected keyword 'CREATE'
   ┌─ tests/migrations/db1/error/bad.esdl:3:9
   │
 3 │         create property text -> str;
-  │         ^^^^^^ Use a different identifier or quote the name with backticks: `create`
-  │
-  = Token 'create' is a reserved keyword and cannot be used as an identifier
+  │         ^^^^^^ error
 
 edgedb error: cannot proceed until .esdl files are fixed
 "###));
@@ -703,11 +701,13 @@ fn eof_err() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db_eof_err")
         .env("NO_COLOR", "1")
         .assert().code(1)
-        .stderr(ends_with(r###"error: Unexpected end of file
-  ┌─ tests/migrations/db_eof_err/default.esdl:9:19
-  │
-9 │ alias default::Foo
-  │                   ^ error
+        .stderr(ends_with(r###"error: Missing '{'
+   ┌─ tests/migrations/db_eof_err/default.esdl:9:19
+   │  
+ 9 │   alias default::Foo
+   │ ╭──────────────────^
+10 │ │ 
+   │ ╰^ error
 
 edgedb error: cannot proceed until .esdl files are fixed
 "###));
