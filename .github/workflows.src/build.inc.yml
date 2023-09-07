@@ -192,6 +192,7 @@
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 <% if tgt.platform_libc %>
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
