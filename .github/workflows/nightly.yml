@@ -1918,6 +1918,8 @@ jobs:
         PKG_PLATFORM_VERSION: "x86_64"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net
+
 
 
   publish-macos-aarch64:
@@ -1950,6 +1952,8 @@ jobs:
         PKG_PLATFORM_VERSION: "aarch64"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+        PACKAGE_SERVER: sftp://uploader@package-upload.edgedb.net
+
 
 
 
