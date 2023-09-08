@@ -218,7 +218,7 @@ pub async fn create_cloud_instance(
         .await
         .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
             Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => {
-                anyhow::bail!("The organization \"{}\" doesn't exist.", request.org);
+                anyhow::bail!("Organization \"{}\" does not exist.", request.org);
             }
             _ => Err(e),
         })?;
@@ -243,7 +243,7 @@ pub async fn upgrade_cloud_instance(
 
 pub fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
     let mut q = question::Confirm::new(
-        "You're not authenticated to the EdgeDB Cloud yet, login now?",
+        "Not authenticated to EdgeDB Cloud yet, log in now?",
     );
     if q.default(true).ask()? {
         crate::cloud::auth::do_login(client)?;

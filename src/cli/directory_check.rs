@@ -12,7 +12,7 @@ pub fn check_and_warn() {
     match _check() {
         Ok(None) => {}
         Ok(Some(dir)) => {
-            log::warn!("Edgedb CLI has stopped using '{}' for storing data \
+            log::warn!("Edgedb CLI no longer uses '{}' to store data \
                 and now uses standard locations of your OS. \
                 Run `edgedb cli migrate` to update the directory layout.",
                 dir.display());
@@ -33,7 +33,7 @@ pub fn check_and_error() -> anyhow::Result<()> {
     match _check().context("failed directory check")? {
         Some(dir) => {
             print::error(format!(
-                "Edgedb CLI has stopped using `{dir}` for storing data \
+                "Edgedb CLI no longer uses `{dir}` to store data \
                 and now uses standard locations of your OS.",
                 dir=dir.display()
             ));

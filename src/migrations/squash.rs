@@ -44,11 +44,11 @@ pub async fn main(cli: &mut Connection, _options: &Options,
     let needs_fixup = needs_fixup(cli, &ctx).await?;
 
     if db_rev == "initial" {
-        echo!("No migrations exist. Nothing to do.");
+        echo!("No migrations exist. No actions will be taken.");
         return Ok(());
     }
     if migrations.len() == 1 && !needs_fixup {
-        echo!("Only single revision exists. Nothing to do.");
+        echo!("Only a single revision exists. No actions will be taken.");
         return Ok(());
     }
     if !create.non_interactive {
@@ -128,17 +128,17 @@ async fn create_revision(cli: &mut Connection, ctx: &Context,
 
 async fn confirm_squashing(db_rev: &str) -> anyhow::Result<()> {
     echo!("Current database revision is:", db_rev.emphasize());
-    echo!("Squash operation is non-destructive, but might require manual work \
+    echo!("Squash operation is non-destructive, but may require manual work \
            if done incorrectly.");
     echo!("");
-    echo!("Here is a checklist before doing squash:");
+    echo!("Items to check before doing squash:");
     echo!("  1. Ensure that `./dbschema` dir is comitted");
     echo!("  2. Ensure that other users of the database have the revision \
         above or can create database from scratch.\n     \
-                To check specific instance, run:");
+                To check a specific instance, run:");
     echo!("       edgedb -I <name> migration log --from-db --limit 1"
           .command_hint());
-    echo!("  3. Merge version control branches that contain schema changes, \
+    echo!("  3. Merge version control branches that contain schema changes \
                 if possible.");
     echo!("");
     if !Confirm::new("Proceed?").async_ask().await? {
@@ -148,8 +148,8 @@ async fn confirm_squashing(db_rev: &str) -> anyhow::Result<()> {
 }
 
 async fn want_fixup() -> anyhow::Result<bool> {
-    echo!("Your schema differs from last revision. \
-           We can create a fixup file that will automate \
+    echo!("Your schema differs from the last revision. \
+           A fixup file can be created to automate \
            upgrading other instances to a squashed revision. \
            This starts the usual migration creation process.");
     echo!("");
@@ -163,20 +163,20 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
     if fixup_created {
         echo!("Squash is complete.");
         echo!("");
-        echo!("Remember to commit `dbschema` directory including deleted \
+        echo!("Remember to commit the `dbschema` directory including deleted \
                files and `fixups` subdirectory. Recommended command:");
         echo!("    git add dbschema".command_hint());
         echo!("");
-        echo!("Normal migration process will update your migration history:");
+        echo!("The normal migration process will update your migration history:");
         echo!("    edgedb migrate".command_hint());
     } else {
         echo!("Squash is complete.");
         echo!("");
-        echo!("Remember to commit `dbschema` directory including deleted \
+        echo!("Remember to commit the `dbschema` directory including deleted \
                files. Recommended command:");
         echo!("    git add dbschema".command_hint());
         echo!("");
-        echo!("Now you can wipe your instances and apply new schema:");
+        echo!("You can now wipe your instances and apply the new schema:");
         echo!("    edgedb database wipe".command_hint());
         echo!("    edgedb migrate".command_hint());
     }

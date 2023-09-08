@@ -180,7 +180,7 @@ fn service_status(name: &str) -> anyhow::Result<Service> {
             anyhow::bail!("unsupported platform")
         }
     } else {
-        anyhow::bail!("no supervisor is found and no active pid exists");
+        anyhow::bail!("no supervisor found and no active pid exists");
     };
     Ok(service)
 }
@@ -808,10 +808,10 @@ impl RemoteStatus {
             false
         };
         if let Some(conn_status) = &self.connection {
-            println!("  Connection Status: {}", conn_status.as_str());
+            println!("  Connection status: {}", conn_status.as_str());
         }
         if let Some(inst_status) = &self.instance_status {
-            println!("  Instance Status: {}", inst_status);
+            println!("  Instance status: {}", inst_status);
         }
         if !is_cloud {
             println!("  Credentials: exist");

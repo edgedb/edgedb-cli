@@ -191,19 +191,19 @@ async fn choice(prompt: &str) -> anyhow::Result<Choice> {
 
     let mut q = question::Choice::new(prompt.to_string());
     q.option(Yes, &["y", "yes"],
-        "confirm the prompt, use the DDL statements");
+        "Confirm the prompt, use the DDL statements");
     q.option(No, &["n", "no"],
-        "reject the prompt");
+        "Reject the prompt");
     q.option(List, &["l", "list"],
-        "list the DDL statements associated with prompt");
+        "List DDL statements associated with the prompt");
     q.option(Confirmed, &["c", "confirmed"],
-        "list already confirmed EdgeQL statements");
+        "List already confirmed EdgeQL statements");
     q.option(Back, &["b", "back"],
-        "revert back to previous save point");
+        "Revert to previous save point");
     q.option(Split, &["s", "stop"],
-        "stop and save changes (splits migration into multiple)");
+        "Stop and save changes (splits migration into multiple)");
     q.option(Quit, &["q", "quit"],
-        "quit without saving changes");
+        "Quit without saving changes");
     q.async_ask().await
 }
 
@@ -265,12 +265,12 @@ pub async fn first_migration(cli: &mut Connection, ctx: &Context,
             ).await?;
             if descr.parent != "initial" {
                 // We know there are zero revisions in the filesystem
-                anyhow::bail!("There is no database revision {} \
-                    in the filesystem. Consider updating sources.",
+                anyhow::bail!("No database revision {} in \
+                    the filesystem. Consider updating sources.",
                     descr.parent);
             }
             if !descr.complete {
-                return Err(bug::error("First migration populated is not complete"));
+                return Err(bug::error("First migration population is not complete"));
             }
             if descr.confirmed.is_empty() && !options.allow_empty {
                 print::warn("No schema changes detected.");
@@ -417,15 +417,15 @@ async fn non_interactive_populate(_ctx: &Context, cli: &mut Connection)
                     execute(cli, &statement.text).await?;
                 }
             } else {
-                eprintln!("EdgeDB is about to apply the following migration:");
+                eprintln!("EdgeDB intended to apply the following migration:");
                 for statement in proposal.statements {
                     for line in statement.text.lines() {
                         eprintln!("    {}", line);
                     }
                 }
-                eprintln!("But confidence is {} (minimum is {})",
+                eprintln!("But confidence is {}, below minimum threshold of {}",
                     proposal.confidence, SAFE_CONFIDENCE);
-                anyhow::bail!("EdgeDB cannot make decision. Please run in \
+                anyhow::bail!("EdgeDB is unable to make a decision. Please run in \
                     interactive mode to confirm changes, \
                     or use `--allow-unsafe`");
             }
@@ -449,6 +449,7 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection,
     };
     if descr.confirmed.is_empty() && !options.allow_empty {
         print::warn("No schema changes detected.");
+        //print::echo!("Hint: --allow-empty can be used to create a data-only migration with no schema changes.");
         return Err(ExitCode::new(4))?;
     }
     Ok(FutureMigration::new(key, descr))
@@ -564,7 +565,7 @@ impl InteractiveMigration<'_> {
                     Confirmed => {
                         if self.confirmed.is_empty() {
                             println!(
-                                "No EdgeQL statements were confirmed yet");
+                                "No EdgeQL statements have been confirmed.");
                         } else {
                             println!(
                                 "The following EdgeQL statements were confirmed:");
@@ -587,7 +588,7 @@ impl InteractiveMigration<'_> {
                     }
                     Quit => {
                         print::error(
-                            "Migration aborted; no results are saved."
+                            "Migration aborted; no results were saved."
                         );
                         return Err(ExitCode::new(0))?;
                     }
@@ -651,6 +652,7 @@ async fn run_interactive(_ctx: &Context, cli: &mut Connection,
 
     if descr.confirmed.is_empty() && !options.allow_empty {
         print::warn("No schema changes detected.");
+        //print::echo!("Hint: --allow-empty can be used to create a data-only migration with no schema changes.");
         return Err(ExitCode::new(4))?;
     }
     Ok(FutureMigration::new(key, descr))

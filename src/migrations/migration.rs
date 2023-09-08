@@ -65,14 +65,13 @@ fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
     if migration.id.starts_with("m1") {
         let id = migration.expected_id(text)?;
         if id != migration.id {
-            anyhow::bail!("migration name should be `{computed}` \
-                but `{file}` is used instead.\n\
-                Migration names are computed from the hash \
+            anyhow::bail!("\n Migration name should be: \n  {computed}, but \
+                \n  {file} found instead. \
+                \n\nMigration names are computed from the hash \
                 of the migration contents. To proceed you must fix the \
                 statement to read as:\n  \
                 CREATE MIGRATION {computed} ONTO ...\n\
-                if this migration is not applied to \
-                any database. Alternatively, revert the changes to the file.",
+                Alternatively, revert the changes to the file.",
                 computed=id, file=migration.id);
         }
         Ok(())
@@ -241,10 +240,7 @@ mod test {
     use crate::migrations::NULL_MIGRATION;
 
     #[test]
-    #[should_panic(expected=
-        "migration name should be \
-        `m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq` \
-        but `m124` is used instead.")]
+    #[should_panic(expected="Migration name should be: \n  m1tjyzfl33vvzwjd5izo5nyp4zdsekyvxpdm7zhtt5ufmqjzczopdq, but \n  m124 found instead.")]
     fn test_bad_hash() {
         let text = r###"
             CREATE MIGRATION m124 ONTO initial {
@@ -318,11 +314,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected=
-        "migration name should be \
-        `m1q3jjfe7zjl74v3n2vxjwzneousdas6vvd4qwrfd6j6xmhmktyada` \
-        but `m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq` \
-        is used instead")]
+    #[should_panic(expected="Migration name should be: \n  m1q3jjfe7zjl74v3n2vxjwzneousdas6vvd4qwrfd6j6xmhmktyada, but \n  m154kc2cbzmzz2tzcjz5rpsspdew3azydwhwpkhcgkznpp6ibwhevq found instead.")]
     fn test_hash_depends_on_parent() {
         let text = r###"
             CREATE MIGRATION

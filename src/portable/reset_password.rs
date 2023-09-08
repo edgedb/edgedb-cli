@@ -76,7 +76,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
             let confirm = tty_password::read(
                 format!("Confirm password for '{}': ", user.escape_default()))?;
             if password != confirm {
-                print::error("Passwords don't match");
+                print::error("Passwords do not match");
             } else {
                 break password;
             }

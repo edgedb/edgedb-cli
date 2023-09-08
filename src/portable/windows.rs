@@ -358,8 +358,8 @@ fn download_binary(dest: &Path) -> anyhow::Result<()> {
                  pkg.version,
                  my_ver)));
         }
-        log::warn!("No matching package version {} found. \
-                    Using latest one {}.",
+        log::warn!("No package matching version {} found. \
+                    Using latest version {}.", 
                     my_ver, pkg.version);
         pkg
     };
@@ -468,17 +468,17 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             match result {
                 Ok(out) if !utf16_contains(&out.stdout, "--import") => {
                     return Err(anyhow::anyhow!(
-                        "WSL currently installed is outdated."))
+                        "Current installed WSL version is outdated."))
                         .hint("Please run `wsl --install` under \
-                               administrator privileges for the upgrade.")?;
+                               administrator privileges to upgrade.")?;
                 }
                 Ok(_) => {}
                 Err(e) => {
                     return Err(anyhow::anyhow!(
                         "Error running `wsl` tool: {:#}", e))
-                        .hint("You must be running Windows 10 version 2004 \
-                               and higher (Build 19041 and higher) \
-                               or Windows 11.")?;
+                        .hint("Requires Windows 10 version 2004 or higher \
+                               (Build 19041 and above) or \
+                               Windows 11.")?;
                 }
             }
 
@@ -502,7 +502,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
     }
 
     if update_cli {
-        echo!("Updating container's CLI version...");
+        echo!("Updating container CLI version...");
         if let Some(bin_path) = env::var_os("_EDGEDB_WSL_LINUX_BINARY") {
             let bin_path = fs::canonicalize(bin_path)?;
             wsl_simple_cmd(&wsl, &distro, &format!(
@@ -616,7 +616,7 @@ fn create_and_start(wsl: &Wsl, name: &str) -> anyhow::Result<()> {
 }
 
 pub fn stop_and_disable(_name: &str) -> anyhow::Result<bool> {
-    anyhow::bail!("running as a service is not supported on Windows yet");
+    anyhow::bail!("running as a service is not yet supported on Windows");
 }
 
 pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
@@ -648,25 +648,25 @@ pub fn daemon_start(instance: &str) -> anyhow::Result<()> {
 }
 
 pub fn start_service(_instance: &str) -> anyhow::Result<()> {
-    anyhow::bail!("running as a service is not supported on Windows yet");
+    anyhow::bail!("running as a service is not yet supported on Windows");
 }
 
 pub fn stop_service(_name: &str) -> anyhow::Result<()> {
-    anyhow::bail!("running as a service is not supported on Windows yet");
+    anyhow::bail!("running as a service is not yet supported on Windows");
 }
 
 pub fn restart_service(_inst: &InstanceInfo) -> anyhow::Result<()> {
-    anyhow::bail!("running as a service is not supported on Windows yet");
+    anyhow::bail!("running as a service is not yet supported on Windows");
 }
 
 pub fn service_status(_inst: &str) -> Service {
     Service::Inactive {
-        error: "running as a service is not supported on Windows yet".into(),
+        error: "running as a service is not yet supported on Windows".into(),
     }
 }
 
 pub fn external_status(_inst: &InstanceInfo) -> anyhow::Result<()> {
-    anyhow::bail!("running as a service is not supported on Windows yet");
+    anyhow::bail!("running as a service is not yet supported on Windows");
 }
 
 pub fn is_wrapped() -> bool {

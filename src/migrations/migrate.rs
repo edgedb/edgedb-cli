@@ -259,18 +259,18 @@ async fn fixup(cli: &mut Connection, ctx: &Context,
 {
     let fixups = migration::read_fixups(ctx, true).await?;
     let db_mname = &db_migration.name;
-    let Some(path) = find_path(&migrations, &fixups, db_mname, target)? else {
+    let Some(path) = find_path(migrations, &fixups, db_mname, target)? else {
         match db_migration.generated_by {
             Some(MigrationGeneratedBy::DevMode) => {
                 return Err(
-                    anyhow::anyhow!("Dev mode migrations are in the database.")
+                    anyhow::anyhow!("Database contains Dev mode migrations.")
                     .hint("Use `edgedb migrate --dev-mode` or `edgedb watch`")
                 )?;
             }
             Some(MigrationGeneratedBy::DDLStatement) => {
                 return Err(
-                    anyhow::anyhow!("DDL statements were applied to the \
-                        database, cannot proceed normally.")
+                    anyhow::anyhow!("Cannot proceed normally as DDL statements \
+                    have been applied to the database.")
                     .hint("Create a fixup file manually or recreate the \
                         database from scratch.")
                 )?;
@@ -281,7 +281,7 @@ async fn fixup(cli: &mut Connection, ctx: &Context,
                           target, db_mname)
                     .hint("This usually means that some migration or fixup \
                           files are missing. Ensure that everything is \
-                          committed an pulled from version control. Then \
+                          committed and pulled from version control. Then \
                           create a fixup file manually or recreate the \
                           database from scratch.")
                 )?;
@@ -301,7 +301,7 @@ async fn fixup(cli: &mut Connection, ctx: &Context,
                     .ok_or_else(|| bug::error("not a fixup rev"))?;
                 let last = migrations.get_index_of(target)
                     .ok_or_else(|| anyhow::anyhow!("\
-                        target of a fixup revision {target:?} \
+                        target of fixup revision {target:?} \
                         is not in a target history. Implementation of \
                         subsequent fixups is limited.\
                     "))?;

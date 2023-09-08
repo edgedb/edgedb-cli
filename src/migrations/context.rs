@@ -10,10 +10,10 @@ use edgedb_tokio::get_project_dir;
 pub struct Context {
     pub schema_dir: PathBuf,
 
-    /// Version of edgedb declared in edgedb.toml
+    /// Version of edgedb declared in edgedb.toml.
     ///
-    /// It may be set to None just because edgedb.toml has never been read.
-    /// (non existing entry in the file is equivalent to "stable").
+    /// May be set to None if edgedb.toml has never been read, while
+    /// a non-existing entry in edgedb.toml will be taken as "stable".
     pub edgedb_version: Option<Query>,
 
     pub quiet: bool,

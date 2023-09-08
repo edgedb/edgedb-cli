@@ -74,9 +74,9 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
     let link = client.api_endpoint.join(&auth_url)?.to_string();
     log::debug!("Opening URL in browser: {}", link);
     if open::that(&link).is_ok() {
-        print::prompt("Please complete the authentication in the opened browser.");
+        print::prompt("Page to complete authentication now open in your browser.");
     } else {
-        print::prompt("Please open this link in your browser and complete the authentication:");
+        print::prompt("Please paste this link into your browser to complete authentication:");
         print::success_msg("Link", link);
     }
     let deadline = Instant::now() + AUTHENTICATION_WAIT_TIME;
@@ -114,7 +114,7 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
                 return Ok(());
             }
             Err(e) => print::warn(format!(
-                "Retrying to get results because request failed: {:?}",
+                "Request failed: {:?}\nRetrying...", 
                 e
             )),
             _ => {}
@@ -122,8 +122,8 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
         sleep(AUTHENTICATION_POLL_INTERVAL).await;
     }
     anyhow::bail!(
-        "Authentication is expected to be done in {:?}.",
-        AUTHENTICATION_WAIT_TIME
+        "Authentication expected to complete in {:?}.",
+         AUTHENTICATION_WAIT_TIME
     )
 }
 
@@ -192,7 +192,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
                         }
                     } else {
                         let q = question::Confirm::new_dangerous(format!(
-                            "{}\nStill logout?",
+                            "{}\nStill log out?",
                             make_project_warning(profile, projects),
                         ));
                         if !q.ask()? {
@@ -205,7 +205,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             removed = true;
             fs::remove_file(cloud_creds.join(item.file_name()))?;
             print::success(format!(
-                "You're now logged out from EdgeDB Cloud profile {:?}.",
+                "You are now logged out from EdgeDB Cloud profile {:?}.",
                 profile
             ));
         }
@@ -225,23 +225,23 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
                     removed = c.force;
                 } else {
                     let q = question::Confirm::new_dangerous(format!(
-                        "{}\nStill logout?",
+                        "{}\nStill log out?",
                         make_project_warning(profile, projects),
                     ));
                     removed = q.ask()?;
                 }
             }
             if removed {
-                fs::remove_file(path).with_context(|| "failed to logout")?;
+                fs::remove_file(path).with_context(|| "failed to log out")?;
                 print::success(format!(
-                    "You're now logged out from EdgeDB Cloud for profile \"{}\".",
+                    "You are now logged out from EdgeDB Cloud for profile \"{}\".",
                     client.profile.as_deref().unwrap_or("default")
                 ));
             }
             skipped = !removed;
         } else {
             print::warn(format!(
-                "You're already logged out from EdgeDB Cloud for profile \"{}\".",
+                "Already logged out from EdgeDB Cloud for profile \"{}\".",
                 client.profile.as_deref().unwrap_or("default")
             ));
         }
@@ -270,7 +270,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
 
 fn make_project_warning(profile: &str, projects: Vec<PathBuf>) -> String {
     format!(
-        "The Cloud profile {:?} is still used by the following projects:\n    {}",
+        "Cloud profile {:?} is still used by the following projects:\n    {}",
         profile,
         projects
             .iter()

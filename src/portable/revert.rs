@@ -50,14 +50,14 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         match status.data_status {
             DataDirectory::Upgrading(Ok(up)) if process::exists(up.pid) => {
                 echo!(
-                    "Looks like upgrade is still in progress \
+                    "Upgrade appears to still be in progress \
                     with pid", up.pid.emphasize(),
                 );
                 echo!("Run with `--ignore-pid-check` to override");
                 return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
             }
             DataDirectory::Upgrading(_) => {
-                echo!("Note: it looks like backup is from a broken upgrade");
+                echo!("Note: backup appears to be from a broken upgrade");
             }
             _ => {}
         }

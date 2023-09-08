@@ -22,7 +22,7 @@ async fn ensure_diff_is_empty(cli: &mut Connection, ctx: &Context)
     if !data.confirmed.is_empty() || !data.complete {
         if !ctx.quiet {
             eprintln!("Detected differences between \
-                the database schema and the schema source, \
+                database schema and schema source, \
                 in particular:");
             let changes = data.confirmed.iter()
                 .chain(data.proposed.iter()
@@ -101,15 +101,15 @@ pub async fn migrations_applied(cli: &mut Connection, ctx: &Context,
                     ));
                 } else {
                     print::error(format!(
-                        "There is no database revision {} in the filesystem.",
+                        "Database revision {} not found in the filesystem.",
                         db_migration,
-                    ));
+                ));
                     eprintln!("  Consider updating sources.");
                 }
             } else {
                 print::error(format!(
-                    "Database is empty. While there are {} migrations \
-                    on the filesystem.",
+                    "Database is empty, while {} migrations \
+                    have been found in the filesystem.",
                     migrations.len(),
                 ));
                 eprintln!("  Run `edgedb migrate` to apply.");

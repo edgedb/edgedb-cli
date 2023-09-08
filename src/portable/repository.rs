@@ -186,14 +186,13 @@ async fn get_json<T>(url: &Url, timeo: Duration) -> Result<T, anyhow::Error>
         _ = async {
             tokio::time::sleep(Duration::from_secs(2)).await;
             if std::io::stderr().is_terminal() {
-                eprintln!("Fetching {} takes too long. Common reasons are:",
-                          url);
-                eprintln!("  1. Your internet connectivity is slow");
-                eprintln!("  2. Firewall blocks internet access to this resource");
+                eprintln!("Timeout expired to fetch {url}. Common reasons are:");
+                eprintln!("  1. Internet connectivity is slow");
+                eprintln!("  2. A firewall is blocking internet access to this resource");
                 if windows::is_in_wsl() {
-                    eprintln!("Note: EdgeDB CLI tool is running in \
+                    eprintln!("Note: The EdgeDB CLI tool is running under \
                                Windows Subsystem for Linux (WSL).");
-                    eprintln!("  Consider adding Windows Defender Firewall \
+                    eprintln!("  Consider adding a Windows Defender Firewall \
                               rule for WSL.");
                 }
             }

@@ -79,12 +79,12 @@ pub fn optional_docker_check() -> anyhow::Result<bool> {
             }
             Ok("allow") => return Ok(false),
             Ok(value) => {
-                anyhow::bail!("Invalid value of \
+                anyhow::bail!("Invalid value for \
                     EDGEDB_INSTALL_IN_DOCKER: {:?}. \
                     Options: allow, forbid, default.", value);
             }
             Err(env::VarError::NotUnicode(value)) => {
-                anyhow::bail!("Invalid value of \
+                anyhow::bail!("Invalid value for \
                     EDGEDB_INSTALL_IN_DOCKER: {:?}. \
                     Options: allow, forbid, default.", value);
             }

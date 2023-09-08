@@ -194,7 +194,7 @@ fn upgrade_cloud_cmd(
             if !cmd.non_interactive {
                 question::Confirm::new(format!(
                     "This will upgrade {inst_name} to version {target_ver_str}.\
-                    \nDoes this look good?",
+                    \nConfirm?",
                 )).ask()
             } else {
                 Ok(true)
@@ -212,7 +212,7 @@ fn upgrade_cloud_cmd(
             ));
         }
         UpgradeAction::Cancelled => {
-            echo!("Cancelled.");
+            echo!("Canceled.");
         }
         UpgradeAction::None => {
             echo!(
@@ -291,7 +291,7 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
         }).ok();
     control::do_restart(&inst)?;
     echo!("Instance", inst.name.emphasize(),
-          "is successfully upgraded to", pkg.version.emphasize());
+          "successfully upgraded to", pkg.version.emphasize());
     Ok(())
 }
 
@@ -323,7 +323,7 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
         }).ok();
     control::do_restart(&inst)?;
     echo!("Instance", inst.name.emphasize(),
-           "is successfully upgraded to", pkg.version.emphasize());
+           "successfully upgraded to", pkg.version.emphasize());
 
     Ok(())
 }
@@ -342,7 +342,7 @@ pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
         cmd.background_for(|| Ok(dump_instance(inst, &path)))?;
     } else {
         block_on_dump_instance(inst, &path)?;
-        log::info!("Stopping the instance before executable upgrade");
+        log::info!("Stopping instance before executable upgrade");
         control::do_stop(&inst.name)?;
     }
     Ok(())

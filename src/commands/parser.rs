@@ -11,9 +11,9 @@ use crate::migrations::options::{Migration, Migrate};
 #[derive(EdbClap, Clone, Debug)]
 #[edb(inherit(ConnectionOptions))]
 pub enum Common {
-    /// Create a database backup
+    /// Create database backup
     Dump(Dump),
-    /// Restore a database backup from file
+    /// Restore database from backup file
     Restore(Restore),
     /// Modify database configuration
     Configure(Configure),
@@ -21,21 +21,21 @@ pub enum Common {
     /// Migration management subcommands
     #[edb(expand_help)]
     Migration(Migration),
-    /// An alias for `edgedb migration apply`
+    /// Apply migration (alias for `edgedb migration apply`)
     Migrate(Migrate),
 
     /// Database commands
     #[edb(expand_help)]
     Database(Database),
-    /// Describe database schema or an object
+    /// Describe database schema or object
     #[edb(expand_help)]
     Describe(Describe),
 
-    /// List matching database objects by name and type
+    /// List name and related info of database objects (types, scalars, modules, etc.)
     List(List),
-    /// Analyze query performance
+    /// Analyze performance of query in quotes (e.g. `"select 9;"`)
     Analyze(Analyze),
-    /// Show postgres address. Works on dev-mode database only.
+    /// Show PostgreSQL address. Works on dev-mode database only.
     #[edb(hide=true)]
     Pgaddr,
     /// Run psql shell. Works on dev-mode database only.
@@ -55,7 +55,7 @@ pub struct Describe {
 pub enum DescribeCmd {
     /// Describe a database object
     Object(DescribeObject),
-    /// Describe schema of the current database
+    /// Describe current database schema
     Schema(DescribeSchema),
 }
 
@@ -70,7 +70,7 @@ pub struct Analyze {
     /// Query to analyze performance of
     pub query: Option<String>,
 
-    /// Write analysis into the JSON file specified instead of formatting
+    /// Write analysis into specified JSON file instead of formatting
     #[clap(long)]
     pub debug_output_file: Option<PathBuf>,
 
@@ -78,7 +78,7 @@ pub struct Analyze {
     #[clap(long, conflicts_with="query")]
     pub read_json: Option<PathBuf>,
 
-    /// Show detailed output of the analyze
+    /// Show detailed output of analyze command
     #[clap(long)]
     pub expand: bool,
 }
@@ -90,13 +90,13 @@ pub enum ListCmd {
     Aliases(ListAliases),
     /// Display list of casts defined in the schema
     Casts(ListCasts),
-    /// Display list of databases in the EdgeDB instance
+    /// Display list of databases for an EdgeDB instance
     Databases,
     /// Display list of indexes defined in the schema
     Indexes(ListIndexes),
     /// Display list of modules defined in the schema
     Modules(ListModules),
-    /// Display list of roles in the EdgeDB instance
+    /// Display list of roles for an EdgeDB instance
     Roles(ListRoles),
     /// Display list of scalar types defined in the schema
     Scalars(ListTypes),
@@ -114,11 +114,11 @@ pub struct Database {
 #[derive(EdbClap, Clone, Debug)]
 #[edb(inherit(ConnectionOptions))]
 pub enum DatabaseCmd {
-    /// Create a new DB
+    /// Create a new database
     Create(CreateDatabase),
-    /// Delete the database
+    /// Delete database along with its data
     Drop(DropDatabase),
-    /// Destroy the contents of the current database (keeping database itself)
+    /// Preserve database while deleting its data
     Wipe(WipeDatabase),
 }
 
@@ -147,10 +147,10 @@ pub enum BackslashCmd {
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct StateParam {
-    /// Show base state (before the transaction) instead of current transaction
+    /// Show base state (before transaction) instead of current transaction
     /// state
     ///
-    /// Has no meaning if currently not in transaction
+    /// Has no effect if currently not in a transaction
     #[clap(short='b')]
     pub base: bool,
 }
@@ -170,25 +170,25 @@ pub enum Setting {
     ImplicitProperties(SettingBool),
     /// Print all errors with maximum verbosity
     VerboseErrors(SettingBool),
-    /// Set implicit LIMIT. Defaults to 100, specify 0 to disable.
+    /// Maximum number of items to display per query (default 100). Specify 0 to disable.
     Limit(Limit),
-    /// Set maximum of elements to display for ext::pgvector::vector type.
+    /// Set maximum number of elements to display for ext::pgvector::vector type.
     ///
-    /// Defaults to `auto` which shows whatever fits single line, but not less
+    /// Defaults to `auto` which displays whatever fits a single line, but no less
     /// than 3. Can be set to `unlimited` or a fixed number.
     VectorDisplayLength(VectorLimitValue),
-    /// Set output format.
+    /// Set output format
     OutputFormat(OutputFormat),
     /// Display typenames in default output mode
     DisplayTypenames(SettingBool),
-    /// Stop escaping newlines in quoted strings
+    /// Disable escaping newlines in quoted strings
     ExpandStrings(SettingBool),
     /// Set number of entries retained in history
     HistorySize(SettingUsize),
     /// Print statistics on each query
     PrintStats(PrintStats),
     /// Set idle transaction timeout in Duration format.
-    /// Defaults to 5 minutes, specify 0 to disable.
+    /// Default is 5 minutes; specify 0 to disable.
     IdleTransactionTimeout(IdleTransactionTimeout),
 }
 
@@ -345,16 +345,16 @@ pub enum DumpFormat {
 #[derive(EdbClap, Clone, Debug)]
 pub struct Dump {
     /// Path to file write dump to (or directory if `--all` is specified).
-    /// Use dash `-` to write into stdout (latter does not work in `--all` mode)
+    /// Use dash `-` to write to stdout (latter does not work in `--all` mode)
     #[clap(value_hint=ValueHint::AnyPath)]
     pub path: PathBuf,
-    /// Dump all databases and the server configuration. `path` is a directory
+    /// Dump all databases and server configuration. `path` is a directory
     /// in this case
     #[clap(long)]
     pub all: bool,
 
     /// Choose dump format. For normal dumps this parameter should be omitted.
-    /// For `--all` only `--format=dir` is required.
+    /// For `--all`, only `--format=dir` is required.
     #[clap(long, possible_values=&["dir"][..])]
     pub format: Option<DumpFormat>,
 }
@@ -370,7 +370,7 @@ pub struct Restore {
     #[clap(value_hint=ValueHint::AnyPath)]
     pub path: PathBuf,
 
-    /// Restore all databases and the server configuration. `path` is a
+    /// Restore all databases and server configuration. `path` is a
     /// directory in this case
     #[clap(long)]
     pub all: bool,
@@ -428,9 +428,9 @@ pub enum ValueParameter {
     /// Specifies the TCP/IP address(es) on which the server is to listen for
     /// connections from client applications.
     ///
-    /// If the list is empty, the server does not listen on any IP interface
-    /// at all, in which case only Unix-domain sockets can be used to connect
-    /// to it.
+    /// If the list is empty, the server will not listen on any IP interface
+    /// whatsoever, in which case only Unix-domain sockets can be used to
+    /// connect to it.
     ListenAddresses(ListenAddresses),
 
     /// The TCP port the server listens on; 5656 by default. Note that the
@@ -450,46 +450,44 @@ pub enum ValueParameter {
 
     /// The maximum amount of memory to be used by maintenance operations.
     ///
-    /// Some of  the operations that use this option are: vacuuming, link, index
-    /// or constraint creation. If this value is specified without units, it is
-    /// taken as kilobytes. It defaults to 64 megabytes (64MB).
+    /// Some of the operations that use this option are: vacuuming, link, index
+    /// or constraint creation. A value without units is assumed to be
+    /// kilobytes. Defaults to 64 megabytes (64MB).
     ///
     /// Corresponds to the PostgreSQL maintenance_work_mem configuration
     /// parameter.
     MaintenanceWorkMem(ConfigStr),
 
     /// Sets the planner’s assumption about the effective size of the disk
-    /// cache that is available to a single query.
+    /// cache available to a single query.
     ///
-    /// Corresponds to the PostgreSQL configuration parameter of the same name
+    /// Corresponds to the PostgreSQL configuration parameter of the same name.
     EffectiveCacheSize(ConfigStr),
 
     /// Sets the default data statistics target for the planner.
     ///
-    /// Corresponds to the PostgreSQL configuration parameter of the same name
+    /// Corresponds to the PostgreSQL configuration parameter of the same name.
     DefaultStatisticsTarget(ConfigStr),
 
     /// Sets the number of concurrent disk I/O operations that PostgreSQL
-    /// expects can be executed simultaneously
+    /// expects can be executed simultaneously.
     ///
-    /// Corresponds to the PostgreSQL configuration parameter of the same name
+    /// Corresponds to the PostgreSQL configuration parameter of the same name.
     EffectiveIoConcurrency(ConfigStr),
 
     /// How long client connections can stay inactive before being closed by
-    /// the server. Defaults to `60 seconds`; set to `0s` to disable
-    /// the mechanism.
+    /// the server. Defaults to `60 seconds`; set to `0s` to disable.
     SessionIdleTimeout(ConfigStr),
 
     /// How long client connections can stay inactive while in a transaction.
-    /// Defaults to `10 seconds`; set to `0s` to disable the
-    /// mechanism.
+    /// Defaults to 10 seconds; set to `0s` to disable.
     SessionIdleTransactionTimeout(ConfigStr),
 
     /// How long an individual query can run before being aborted. A value of
     /// `0s` disables the mechanism; it is disabled by default.
     QueryExecutionTimeout(ConfigStr),
 
-    /// Defines whether DDL commands that aren't migrations are allowed
+    /// Defines whether to allow DDL commands outside of migrations.
     ///
     /// May be set to:
     /// * `AlwaysAllow`
@@ -498,11 +496,11 @@ pub enum ValueParameter {
 
     /// Apply access policies
     ///
-    /// When set to `false` user-specified access policies are not applied, so
-    /// any queries may be executed.
+    /// User-specified access policies are not applied when set to `false`, 
+    /// allowing any queries to be executed.
     ApplyAccessPolicies(ConfigBool),
 
-    /// Allow setting user-specified object identifiers
+    /// Allow setting user-specified object identifiers.
     AllowUserSpecifiedId(ConfigBool),
 }
 
@@ -516,17 +514,17 @@ pub enum ConfigParameter {
     /// Clear authentication table (only admin socket can be used to connect)
     #[clap(name="Auth")]
     Auth,
-    /// Reset shared_buffers postgres configuration parameter to default value
+    /// Reset shared_buffers PostgreSQL configuration parameter to default value
     SharedBuffers,
-    /// Reset work_mem postgres configuration parameter to default value
+    /// Reset work_mem PostgreSQL configuration parameter to default value
     QueryWorkMem,
-    /// Reset postgres configuration parameter of the same name
+    /// Reset PostgreSQL configuration parameter of the same name
     MaintenanceWorkMem,
-    /// Reset postgres configuration parameter of the same name
+    /// Reset PostgreSQL configuration parameter of the same name
     EffectiveCacheSize,
-    /// Reset postgres configuration parameter of the same name
+    /// Reset PostgreSQL configuration parameter of the same name
     DefaultStatisticsTarget,
-    /// Reset postgres configuration parameter of the same name
+    /// Reset PostgreSQL configuration parameter of the same name
     EffectiveIoConcurrency,
     /// Reset session idle timeout
     SessionIdleTimeout,
@@ -564,13 +562,13 @@ pub struct ConfigBool {
 
 #[derive(EdbClap, Clone, Debug)]
 pub struct AuthParameter {
-    /// The priority of the authentication rule. The lower this number, the
+    /// Priority of the authentication rule. The lower the number, the
     /// higher the priority.
     #[clap(long)]
     pub priority: i64,
 
-    /// The name(s) of the database role(s) this rule applies to. If set to
-    /// '*', then it applies to all roles.
+    /// The name(s) of the database role(s) this rule applies to. Will apply 
+    /// to all roles if set to '*'
     #[clap(long="user")]
     pub users: Vec<String>,
 

@@ -36,7 +36,7 @@ pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
             }
             Err(e) => {
                 print::error(format!("Cannot launch browser: {:#}", e));
-                print::prompt("Please visit URL:");
+                print::prompt("Please paste the URL below into your browser to launch the EdgeDB UI:");
                 println!("{}", url);
                 Err(ExitCode::new(1).into())
             }
@@ -109,9 +109,9 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
             match open_url(&url).map(|r| r.status()) {
                 Ok(reqwest::StatusCode::OK) => {}
                 Ok(reqwest::StatusCode::NOT_FOUND) => {
-                    print::error("the specified EdgeDB server is not serving Web UI.");
+                    print::error("Web UI not served correctly by specified EdgeDB server.");
                     print::echo!(
-                        "  If you have EdgeDB 2.0 and above, try to run the \
+                        "  If you have EdgeDB 2.0 and above, try running the \
                         server with `--admin-ui=enabled`."
                     );
                     return Err(ExitCode::new(2).into());
@@ -119,8 +119,8 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                 Ok(status) => {
                     log::info!("GET {} returned status code {}", url, status);
                     print::error(
-                        "the specified EdgeDB server is not serving Web UI \
-                        correctly; check server log for details.",
+                        "Web UI not served correctly by specified EdgeDB server. \
+                        Try `edgedb instance logs -I <instance_name>` to see details.",
                     );
                     return Err(ExitCode::new(3).into());
                 }
@@ -306,7 +306,7 @@ mod jwt {
                 ctx.update(&[0, 0, 1, 0]); // SuppPubInfo (bitsize=256)
                 Ok(ctx.finish())
             })
-            .map_err(|_| anyhow::anyhow!("Error occurred deriving key for JWT"))?;
+            .map_err(|_| anyhow::anyhow!("Error occurred while deriving key for JWT"))?;
             let enc_key =
                 aead::LessSafeKey::new(aead::UnboundKey::new(&aead::AES_256_GCM, cek.as_ref())?);
             let x = base64::encode_config(&epk[1..33], base64::URL_SAFE_NO_PAD);
