@@ -38,6 +38,26 @@ fn install() {
         .context("server-info", "show info about just installed server")
         .success();
 
+    Command::new("edgedb")
+        .arg("server").arg("info").arg("--get").arg("bin-path").arg("--latest")
+        .assert()
+        .context("server-info", "show binary parth")
+        .success()
+        .stdout(predicates::str::contains("edgedb-server"));
+
+    // TODO check output somehow
+    Command::new("edgedb")
+        .arg("server").arg("info").arg("--get").arg("version").arg("--latest")
+        .assert()
+        .context("server-info", "show server version")
+        .success();
+
+    // TODO check output somehow
+    Command::new("edgedb")
+        .arg("server").arg("info").arg("--json").arg("--get").arg("version").arg("--latest")
+        .assert()
+        .context("server-info", "show server version")
+        .success();
 
     Command::new("edgedb")
         .arg("server").arg("list-versions")

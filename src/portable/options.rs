@@ -554,10 +554,12 @@ pub struct Info {
 
     #[clap(long, possible_values=&[
         "bin-path",
+        "version",
     ][..])]
     /// Get specific value:
     ///
     /// * `bin-path` -- Path to the server binary
+    /// * `version` -- Server version
     pub get: Option<String>,
 }
 
