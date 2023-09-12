@@ -31,13 +31,21 @@
 <% for tgt in targets.linux %>
         val=true
 <% if tgt.family == "debian" %>
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/<< tgt.platform_version >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        idx_file=<< tgt.platform_version >>.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing << tgt.name >>'
           val=false
         fi
 <% elif tgt.family == "redhat" %>
-        out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el<< tgt.platform_version >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        idx_file=el<< tgt.platform_version >>.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.name >>'
           val=false

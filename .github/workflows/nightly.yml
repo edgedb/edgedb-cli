@@ -84,7 +84,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/buster.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        idx_file=buster.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing debian-buster-x86_64'
           val=false
@@ -94,7 +98,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/buster.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        idx_file=buster.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing debian-buster-aarch64'
           val=false
@@ -104,7 +112,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bullseye.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        idx_file=bullseye.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing debian-bullseye-x86_64'
           val=false
@@ -114,7 +126,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bullseye.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        idx_file=bullseye.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing debian-bullseye-aarch64'
           val=false
@@ -124,7 +140,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bookworm.nightly.json | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
+        idx_file=bookworm.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing debian-bookworm-x86_64'
           val=false
@@ -134,7 +154,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bookworm.nightly.json | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
+        idx_file=bookworm.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing debian-bookworm-aarch64'
           val=false
@@ -144,7 +168,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bionic.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        idx_file=bionic.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
           val=false
@@ -154,7 +182,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bionic.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        idx_file=bionic.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing ubuntu-bionic-aarch64'
           val=false
@@ -164,7 +196,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/focal.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        idx_file=focal.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing ubuntu-focal-x86_64'
           val=false
@@ -174,7 +210,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/focal.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        idx_file=focal.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing ubuntu-focal-aarch64'
           val=false
@@ -184,7 +224,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/jammy.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        idx_file=jammy.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
           val=false
@@ -194,7 +238,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/jammy.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        idx_file=jammy.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then 
           echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
           val=false
@@ -204,7 +252,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el7.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        idx_file=el7.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing centos-7-x86_64'
           val=false
@@ -214,7 +266,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el8.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        idx_file=el8.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing centos-8-x86_64'
           val=false
@@ -224,7 +280,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el8.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        idx_file=el8.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing centos-8-aarch64'
           val=false
@@ -234,7 +294,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el9.nightly.json | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
+        idx_file=el9.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing rockylinux-9-x86_64'
           val=false
@@ -244,7 +308,11 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el9.nightly.json | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
+        idx_file=el9.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+        fi
+        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing rockylinux-9-aarch64'
           val=false
