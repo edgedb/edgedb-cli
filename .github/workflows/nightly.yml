@@ -25,36 +25,35 @@ jobs:
 
       if_debian_bullseye_aarch64: ${{ steps.scm.outputs.if_debian_bullseye_aarch64 }}
 
-      if_debian_bookworm_: ${{ steps.scm.outputs.if_debian_bookworm_ }}
+      if_debian_bookworm_x86_64: ${{ steps.scm.outputs.if_debian_bookworm_x86_64 }}
 
-      if_debian_bookworm_: ${{ steps.scm.outputs.if_debian_bookworm_ }}
+      if_debian_bookworm_aarch64: ${{ steps.scm.outputs.if_debian_bookworm_aarch64 }}
 
-      if_debian_bionic_x86_64: ${{ steps.scm.outputs.if_debian_bionic_x86_64 }}
+      if_ubuntu_bionic_x86_64: ${{ steps.scm.outputs.if_ubuntu_bionic_x86_64 }}
 
-      if_debian_bionic_aarch64: ${{ steps.scm.outputs.if_debian_bionic_aarch64 }}
+      if_ubuntu_bionic_aarch64: ${{ steps.scm.outputs.if_ubuntu_bionic_aarch64 }}
 
-      if_debian_focal_x86_64: ${{ steps.scm.outputs.if_debian_focal_x86_64 }}
+      if_ubuntu_focal_x86_64: ${{ steps.scm.outputs.if_ubuntu_focal_x86_64 }}
 
-      if_debian_focal_aarch64: ${{ steps.scm.outputs.if_debian_focal_aarch64 }}
+      if_ubuntu_focal_aarch64: ${{ steps.scm.outputs.if_ubuntu_focal_aarch64 }}
 
-      if_debian_jammy_x86_64: ${{ steps.scm.outputs.if_debian_jammy_x86_64 }}
+      if_ubuntu_jammy_x86_64: ${{ steps.scm.outputs.if_ubuntu_jammy_x86_64 }}
 
-      if_debian_jammy_aarch64: ${{ steps.scm.outputs.if_debian_jammy_aarch64 }}
+      if_ubuntu_jammy_aarch64: ${{ steps.scm.outputs.if_ubuntu_jammy_aarch64 }}
 
-      if_redhat_7_x86_64: ${{ steps.scm.outputs.if_redhat_7_x86_64 }}
+      if_centos_7_x86_64: ${{ steps.scm.outputs.if_centos_7_x86_64 }}
 
-      if_redhat_8_x86_64: ${{ steps.scm.outputs.if_redhat_8_x86_64 }}
+      if_centos_8_x86_64: ${{ steps.scm.outputs.if_centos_8_x86_64 }}
 
-      if_redhat_8_aarch64: ${{ steps.scm.outputs.if_redhat_8_aarch64 }}
+      if_centos_8_aarch64: ${{ steps.scm.outputs.if_centos_8_aarch64 }}
 
-      if_redhat_9_: ${{ steps.scm.outputs.if_redhat_9_ }}
+      if_rockylinux_9_x86_64: ${{ steps.scm.outputs.if_rockylinux_9_x86_64 }}
 
-      if_redhat_9_: ${{ steps.scm.outputs.if_redhat_9_ }}
+      if_rockylinux_9_aarch64: ${{ steps.scm.outputs.if_rockylinux_9_aarch64 }}
 
-      if_generic_x86_64_x86_64: ${{ steps.scm.outputs.if_generic_x86_64_x86_64 }}
+      if_linux_x86_64: ${{ steps.scm.outputs.if_linux_x86_64 }}
 
-      if_generic_aarch64_aarch64: ${{ steps.scm.outputs.if_generic_aarch64_aarch64 }}
-
+      if_linux_aarch64: ${{ steps.scm.outputs.if_linux_aarch64 }}
 
       if_macos_x86_64: ${{ steps.scm.outputs.if_macos_x86_64 }}
 
@@ -127,151 +126,151 @@ jobs:
 
         out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bookworm.nightly.json | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
         if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-bookworm-'
+          echo 'Skip rebuilding existing debian-bookworm-x86_64'
           val=false
         fi
 
-        echo if_debian_bookworm_="$val" >> $GITHUB_OUTPUT
+        echo if_debian_bookworm_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bookworm.nightly.json | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
         if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-bookworm-'
+          echo 'Skip rebuilding existing debian-bookworm-aarch64'
           val=false
         fi
 
-        echo if_debian_bookworm_="$val" >> $GITHUB_OUTPUT
+        echo if_debian_bookworm_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bionic.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-bionic-x86_64'
+          echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
           val=false
         fi
 
-        echo if_debian_bionic_x86_64="$val" >> $GITHUB_OUTPUT
+        echo if_ubuntu_bionic_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/bionic.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-bionic-aarch64'
+          echo 'Skip rebuilding existing ubuntu-bionic-aarch64'
           val=false
         fi
 
-        echo if_debian_bionic_aarch64="$val" >> $GITHUB_OUTPUT
+        echo if_ubuntu_bionic_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/focal.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-focal-x86_64'
+          echo 'Skip rebuilding existing ubuntu-focal-x86_64'
           val=false
         fi
 
-        echo if_debian_focal_x86_64="$val" >> $GITHUB_OUTPUT
+        echo if_ubuntu_focal_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/focal.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-focal-aarch64'
+          echo 'Skip rebuilding existing ubuntu-focal-aarch64'
           val=false
         fi
 
-        echo if_debian_focal_aarch64="$val" >> $GITHUB_OUTPUT
+        echo if_ubuntu_focal_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/jammy.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-jammy-x86_64'
+          echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
           val=false
         fi
 
-        echo if_debian_jammy_x86_64="$val" >> $GITHUB_OUTPUT
+        echo if_ubuntu_jammy_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/jammy.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-jammy-aarch64'
+          echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
           val=false
         fi
 
-        echo if_debian_jammy_aarch64="$val" >> $GITHUB_OUTPUT
+        echo if_ubuntu_jammy_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el7.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing redhat-7-x86_64'
+          echo 'Skip rebuilding existing centos-7-x86_64'
           val=false
         fi
 
-        echo if_redhat_7_x86_64="$val" >> $GITHUB_OUTPUT
+        echo if_centos_7_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el8.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing redhat-8-x86_64'
+          echo 'Skip rebuilding existing centos-8-x86_64'
           val=false
         fi
 
-        echo if_redhat_8_x86_64="$val" >> $GITHUB_OUTPUT
+        echo if_centos_8_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el8.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing redhat-8-aarch64'
+          echo 'Skip rebuilding existing centos-8-aarch64'
           val=false
         fi
 
-        echo if_redhat_8_aarch64="$val" >> $GITHUB_OUTPUT
+        echo if_centos_8_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el9.nightly.json | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
         if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing redhat-9-'
+          echo 'Skip rebuilding existing rockylinux-9-x86_64'
           val=false
         fi
 
-        echo if_redhat_9_="$val" >> $GITHUB_OUTPUT
+        echo if_rockylinux_9_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el9.nightly.json | jq -r --arg REV "$rev" --arg ARCH "" "$jq_filter")
         if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing redhat-9-'
+          echo 'Skip rebuilding existing rockylinux-9-aarch64'
           val=false
         fi
 
-        echo if_redhat_9_="$val" >> $GITHUB_OUTPUT
+        echo if_rockylinux_9_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
         if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing generic-x86_64-musl'
+          echo 'Skip rebuilding existing linux-x86_64'
           val=false
         fi
 
-        echo if_generic_x86_64_x86_64="$val" >> $GITHUB_OUTPUT
+        echo if_linux_x86_64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
         out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
         if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing generic-aarch64-musl'
+          echo 'Skip rebuilding existing linux-aarch64'
           val=false
         fi
 
-        echo if_generic_aarch64_aarch64="$val" >> $GITHUB_OUTPUT
+        echo if_linux_aarch64="$val" >> $GITHUB_OUTPUT
 
 
         val=true
@@ -448,7 +447,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
-    if: needs.prep.outputs.if_debian_bookworm_ == 'true'
+    if: needs.prep.outputs.if_debian_bookworm_x86_64 == 'true'
 
 
     steps:
@@ -482,7 +481,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
-    if: needs.prep.outputs.if_debian_bookworm_ == 'true'
+    if: needs.prep.outputs.if_debian_bookworm_aarch64 == 'true'
 
 
     steps:
@@ -516,7 +515,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prep
 
-    if: needs.prep.outputs.if_debian_bionic_x86_64 == 'true'
+    if: needs.prep.outputs.if_ubuntu_bionic_x86_64 == 'true'
 
 
     steps:
@@ -550,7 +549,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
-    if: needs.prep.outputs.if_debian_bionic_aarch64 == 'true'
+    if: needs.prep.outputs.if_ubuntu_bionic_aarch64 == 'true'
 
 
     steps:
@@ -584,7 +583,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prep
 
-    if: needs.prep.outputs.if_debian_focal_x86_64 == 'true'
+    if: needs.prep.outputs.if_ubuntu_focal_x86_64 == 'true'
 
 
     steps:
@@ -618,7 +617,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
-    if: needs.prep.outputs.if_debian_focal_aarch64 == 'true'
+    if: needs.prep.outputs.if_ubuntu_focal_aarch64 == 'true'
 
 
     steps:
@@ -652,7 +651,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prep
 
-    if: needs.prep.outputs.if_debian_jammy_x86_64 == 'true'
+    if: needs.prep.outputs.if_ubuntu_jammy_x86_64 == 'true'
 
 
     steps:
@@ -686,7 +685,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
-    if: needs.prep.outputs.if_debian_jammy_aarch64 == 'true'
+    if: needs.prep.outputs.if_ubuntu_jammy_aarch64 == 'true'
 
 
     steps:
@@ -720,7 +719,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prep
 
-    if: needs.prep.outputs.if_redhat_7_x86_64 == 'true'
+    if: needs.prep.outputs.if_centos_7_x86_64 == 'true'
 
 
     steps:
@@ -754,7 +753,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prep
 
-    if: needs.prep.outputs.if_redhat_8_x86_64 == 'true'
+    if: needs.prep.outputs.if_centos_8_x86_64 == 'true'
 
 
     steps:
@@ -788,7 +787,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
-    if: needs.prep.outputs.if_redhat_8_aarch64 == 'true'
+    if: needs.prep.outputs.if_centos_8_aarch64 == 'true'
 
 
     steps:
@@ -822,7 +821,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
     needs: prep
 
-    if: needs.prep.outputs.if_redhat_9_ == 'true'
+    if: needs.prep.outputs.if_rockylinux_9_x86_64 == 'true'
 
 
     steps:
@@ -856,7 +855,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
-    if: needs.prep.outputs.if_redhat_9_ == 'true'
+    if: needs.prep.outputs.if_rockylinux_9_aarch64 == 'true'
 
 
     steps:
@@ -890,7 +889,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: prep
 
-    if: needs.prep.outputs.if_generic_x86_64_x86_64 == 'true'
+    if: needs.prep.outputs.if_linux_x86_64 == 'true'
 
 
     steps:
@@ -928,7 +927,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
     needs: prep
 
-    if: needs.prep.outputs.if_generic_aarch64_aarch64 == 'true'
+    if: needs.prep.outputs.if_linux_aarch64 == 'true'
 
 
     steps:

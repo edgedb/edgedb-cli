@@ -5,11 +5,8 @@
       branch: ${{ steps.whichver.outputs.branch }}
       scm_revision: ${{ steps.whatrev.outputs.rev }}
 <% if subdist == "nightly" %>
-<% for tgt in targets.linux %>
-      if_<< tgt.family >>_<< tgt.platform_version >>_<< tgt.arch >>: ${{ steps.scm.outputs.if_<< tgt.family >>_<< tgt.platform_version >>_<< tgt.arch >> }}
-<% endfor %>
-<% for tgt in targets.macos + targets.win %>
-      if_<< tgt.platform >>_<< tgt.platform_version >>: ${{ steps.scm.outputs.if_<< tgt.platform >>_<< tgt.platform_version >> }}
+<% for tgt in targets.linux + targets.macos + targets.win %>
+      if_<< tgt.name.replace('-', '_') >>: ${{ steps.scm.outputs.if_<< tgt.name.replace('-', '_') >> }}
 <% endfor %>
 <% endif %>
     steps:
@@ -36,23 +33,23 @@
 <% if tgt.family == "debian" %>
         out=$(curl -s https://packages.edgedb.com/apt/.jsonindexes/<< tgt.platform_version >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
         if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing << tgt.family >>-<< tgt.platform_version >>-<< tgt.arch >>'
+          echo 'Skip rebuilding existing << tgt.name >>'
           val=false
         fi
 <% elif tgt.family == "redhat" %>
         out=$(curl -s https://packages.edgedb.com/rpm/.jsonindexes/el<< tgt.platform_version >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
         if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing << tgt.family >>-<< tgt.platform_version >>-<< tgt.arch >>'
+          echo 'Skip rebuilding existing << tgt.name >>'
           val=false
         fi
 <% elif tgt.family == "generic" %>
         out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
         if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing << tgt.family >>-<< tgt.platform_version >>-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>'
+          echo 'Skip rebuilding existing << tgt.name >>'
           val=false
         fi
 <% endif %>
-        echo if_<< tgt.family >>_<< tgt.platform_version >>_<< tgt.arch >>="$val" >> $GITHUB_OUTPUT
+        echo if_<< tgt.name.replace('-', '_') >>="$val" >> $GITHUB_OUTPUT
 <% endfor %>
 <% for tgt in targets.macos + targets.win %>
         val=true
@@ -69,7 +66,7 @@
           val=false
         fi
 <% endif %>
-        echo if_<< tgt.platform >>_<< tgt.platform_version >>="$val" >> $GITHUB_OUTPUT
+        echo if_<< tgt.name.replace('-', '_') >>="$val" >> $GITHUB_OUTPUT
 <% endfor %>
 <% endif %>
 
@@ -79,7 +76,7 @@
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
     needs: prep
 <% if subdist == "nightly" %>
-    if: needs.prep.outputs.if_<< tgt.family >>_<< tgt.platform_version >>_<< tgt.arch >> == 'true'
+    if: needs.prep.outputs.if_<< tgt.name.replace('-', '_') >> == 'true'
 <% endif %>
 
     steps:
@@ -123,7 +120,7 @@
     runs-on: << tgt.runs_on if tgt.runs_on else "macos-latest" >>
     needs: prep
 <% if subdist == "nightly" %>
-    if: needs.prep.outputs.if_<< tgt.platform >>_<< tgt.platform_version >> == 'true'
+    if: needs.prep.outputs.if_<< tgt.name.replace('-', '_') >> == 'true'
 <% endif %>
 
     steps:
@@ -171,7 +168,7 @@
     runs-on: windows-2019
     needs: prep
 <% if subdist == "nightly" %>
-    if: needs.prep.outputs.if_<< tgt.platform >>_<< tgt.platform_version >> == 'true'
+    if: needs.prep.outputs.if_<< tgt.name.replace('-', '_') >> == 'true'
 <% endif %>
 
     steps:
