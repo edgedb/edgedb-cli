@@ -175,7 +175,7 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
-        PKG_PLATFORM_ARCH: ""
+        PKG_PLATFORM_ARCH: "x86_64"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
@@ -207,7 +207,7 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bookworm"
-        PKG_PLATFORM_ARCH: ""
+        PKG_PLATFORM_ARCH: "aarch64"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
@@ -527,7 +527,7 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
-        PKG_PLATFORM_ARCH: ""
+        PKG_PLATFORM_ARCH: "x86_64"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
@@ -559,7 +559,7 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "rockylinux"
         PKG_PLATFORM_VERSION: "9"
-        PKG_PLATFORM_ARCH: ""
+        PKG_PLATFORM_ARCH: "aarch64"
         PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
         EXTRA_OPTIMIZATIONS: "true"
 
