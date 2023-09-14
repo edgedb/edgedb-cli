@@ -26,11 +26,13 @@ targets:
           platform: debian
           platform_version: bookworm
           family: debian
+          arch: x86_64
           runs_on: [self-hosted, linux, x64]
         - name: debian-bookworm-aarch64
           platform: debian
           platform_version: bookworm
           family: debian
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: ubuntu-bionic-x86_64
           platform: ubuntu
@@ -85,11 +87,13 @@ targets:
           platform: rockylinux
           platform_version: 9
           family: redhat
+          arch: x86_64
           runs_on: [self-hosted, linux, x64]
         - name: rockylinux-9-aarch64
           platform: rockylinux
           platform_version: 9
           family: redhat
+          arch: aarch64
           runs_on: [self-hosted, linux, arm64]
         - name: linux-x86_64
           platform: linux
