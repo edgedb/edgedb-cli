@@ -38,6 +38,8 @@ pub enum MigrationCmd {
     Edit(MigrationEdit),
     /// Check if current schema is compatible with new EdgeDB version
     UpgradeCheck(UpgradeCheck),
+    /// Synchronize local migration files with the database
+    Sync(SyncMigrationFiles),
 }
 
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
@@ -195,4 +197,16 @@ pub struct UpgradeCheck {
 
     #[arg(hide=true)]
     pub run_server_with_status: Option<PathBuf>,
+}
+
+#[derive(clap::Args, IntoArgs, Clone, Debug)]
+pub struct SyncMigrationFiles {
+    #[command(flatten)]
+    pub cfg: MigrationConfig,
+    /// Don't ask questions, only add missing files, abort if mismatching
+    #[arg(long)]
+    pub non_interactive: bool,
+    /// Force overwrite existing migration files
+    #[arg(long)]
+    pub force: bool,
 }

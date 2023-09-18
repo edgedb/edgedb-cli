@@ -11,6 +11,7 @@ mod prompt;
 mod source_map;
 mod squash;
 mod status;
+mod sync;
 mod timeout;
 
 pub mod dev_mode;
@@ -26,3 +27,4 @@ pub use migrate::migrate;
 pub use self::log::{log, log_fs};
 pub use status::status;
 pub use upgrade_check::upgrade_check;
+pub use sync::sync;

@@ -9,10 +9,33 @@ use crate::migrations::context::Context;
 use crate::migrations::migration;
 
 
+pub trait SortableMigration {
+    type ParentsIter<'a>: Iterator<Item = &'a String> where Self: 'a;
+    fn name(&self) -> &str;
+    fn is_root(&self) -> bool;
+    fn iter_parents<'a>(&'a self) -> Self::ParentsIter<'a>;
+}
+
 #[derive(Queryable, Clone)]
 struct Migration {
     name: String,
     parent_names: Vec<String>,
+}
+
+impl SortableMigration for Migration {
+    type ParentsIter<'a> = std::slice::Iter<'a, String>;
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn is_root(&self) -> bool {
+        self.parent_names.is_empty()
+    }
+
+    fn iter_parents<'a>(&'a self) -> Self::ParentsIter<'a> {
+        self.parent_names.iter()
+    }
 }
 
 pub async fn log(cli: &mut Connection,
@@ -28,10 +51,10 @@ pub async fn log(cli: &mut Connection,
     }
 }
 
-fn topology_sort(migrations: Vec<Migration>) -> Vec<Migration> {
+pub fn topology_sort<M>(migrations: Vec<M>) -> Vec<M> where M: SortableMigration + Clone {
     let mut by_parent = BTreeMap::new();
     for item in &migrations {
-        for parent in &item.parent_names {
+        for parent in item.iter_parents() {
             by_parent.entry(parent.clone())
                 .or_insert_with(Vec::new)
                 .push(item.clone());
@@ -40,15 +63,15 @@ fn topology_sort(migrations: Vec<Migration>) -> Vec<Migration> {
     let mut output = Vec::new();
     let mut visited = BTreeSet::new();
     let mut queue = migrations.iter()
-        .filter(|item| item.parent_names.is_empty())
+        .filter(|item| item.is_root())
         .map(|item| item.clone())
         .collect::<Vec<_>>();
     while let Some(item) = queue.pop() {
         output.push(item.clone());
-        visited.insert(item.name.clone());
-        if let Some(children) = by_parent.remove(&item.name) {
+        visited.insert(item.name().to_string());
+        if let Some(children) = by_parent.remove(item.name()) {
             for child in children {
-                if !visited.contains(&child.name) {
+                if !visited.contains(child.name()) {
                     queue.push(child.clone());
                 }
             }
