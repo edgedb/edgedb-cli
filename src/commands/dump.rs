@@ -13,7 +13,6 @@ use crate::commands::list_databases::get_databases;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
 use crate::connect::Connection;
 use crate::platform::tmp_file_name;
-use crate::question::Confirm;
 
 
 type Output = Box<dyn AsyncWrite + Unpin + Send>;
