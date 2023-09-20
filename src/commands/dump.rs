@@ -1,17 +1,19 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
+use indicatif::{ProgressBar, HumanBytes, ProgressStyle};
 use tokio::fs;
 use tokio::io::{self, AsyncWrite, AsyncWriteExt};
-use sha1::{Digest};
+use sha1::Digest;
 
-use tokio_stream::{StreamExt};
+use tokio_stream::StreamExt;
 
 use crate::commands::Options;
 use crate::commands::list_databases::get_databases;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
 use crate::connect::Connection;
 use crate::platform::tmp_file_name;
+use crate::question::Confirm;
 
 
 type Output = Box<dyn AsyncWrite + Unpin + Send>;
@@ -79,6 +81,9 @@ pub async fn dump(cli: &mut Connection, general: &Options,
 async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     -> Result<(), anyhow::Error>
 {
+    let dbname = cli.database().to_string();
+    println!("Starting dump for {dbname}...");
+
     let (mut output, guard) = Guard::open(filename).await?;
     output.write_all(
         b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00\
@@ -93,42 +98,42 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     let mut header_buf = Vec::with_capacity(25);
 
     header_buf.push(b'H');
-    header_buf.extend(
-        &sha1::Sha1::new_with_prefix(&header.data).finalize()[..]);
-    header_buf.extend(
-        &(header.data.len() as u32).to_be_bytes()[..]);
+    header_buf.extend(&sha1::Sha1::new_with_prefix(&header.data).finalize()[..]);
+    header_buf.extend(&(header.data.len() as u32).to_be_bytes()[..]);
     output.write_all(&header_buf).await?;
     output.write_all(&header.data).await?;
 
+    let bar = ProgressBar::new_spinner();
+    let mut processed = 0;
+
     while let Some(packet) = blocks.next().await.transpose()? {
+        let packet_length = packet.data.len();
+        bar.tick();
+        processed += packet_length;
+        bar.set_message(format!("Database {dbname} dump: {} processed.", HumanBytes(processed as u64)));
+        bar.message();
+        
         // this is ensured because length in the protocol is u32 too
-        assert!(packet.data.len() <= u32::MAX as usize);
+        assert!(packet_length <= u32::MAX as usize);
 
         header_buf.truncate(0);
         header_buf.push(b'D');
-        header_buf.extend(
-            &sha1::Sha1::new_with_prefix(&packet.data).finalize()[..]);
-        header_buf.extend(
-            &(packet.data.len() as u32).to_be_bytes()[..]);
+        header_buf.extend(&sha1::Sha1::new_with_prefix(&packet.data).finalize()[..]);
+        header_buf.extend(&(packet_length as u32).to_be_bytes()[..]);
         output.write_all(&header_buf).await?;
         output.write_all(&packet.data).await?;
     }
     guard.commit().await?;
+    bar.abandon_with_message(format!("Finished dump for {dbname}. Total size: {}", HumanBytes(processed as u64)));
     Ok(())
 }
 
 pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
     -> Result<(), anyhow::Error>
 {
-    let databases: Vec<_> = get_databases(cli).await?;
-    let config = cli.query_required_single::<String, _>(
-        "DESCRIBE SYSTEM CONFIG",
-        &(),
-    ).await?;
-    let roles = cli.query_required_single::<String, _>(
-        "DESCRIBE ROLES",
-        &(),
-    ).await?;
+    let databases = get_databases(cli).await?;
+    let config: String = cli.query_required_single("DESCRIBE SYSTEM CONFIG", &()).await?;
+    let roles: String = cli.query_required_single("DESCRIBE ROLES", &()).await?;
 
     fs::create_dir_all(dir).await?;
 
