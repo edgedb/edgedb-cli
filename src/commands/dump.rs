@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use indicatif::{ProgressBar, HumanBytes, ProgressStyle};
+use indicatif::{ProgressBar, HumanBytes};
 use tokio::fs;
 use tokio::io::{self, AsyncWrite, AsyncWriteExt};
 use sha1::Digest;
