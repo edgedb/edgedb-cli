@@ -88,7 +88,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     let (header, mut blocks) = cli.dump().await?;
 
     // this is ensured because length in the protocol is u32 too
-    assert!(header.data.len() <= u32::max_value() as usize);
+    assert!(header.data.len() <= u32::MAX as usize);
 
     let mut header_buf = Vec::with_capacity(25);
 
@@ -102,7 +102,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
 
     while let Some(packet) = blocks.next().await.transpose()? {
         // this is ensured because length in the protocol is u32 too
-        assert!(packet.data.len() <= u32::max_value() as usize);
+        assert!(packet.data.len() <= u32::MAX as usize);
 
         header_buf.truncate(0);
         header_buf.push(b'D');
