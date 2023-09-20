@@ -68,18 +68,23 @@ pub async fn dump(cli: &mut Connection, general: &Options,
         } else {
             anyhow::bail!("`--format=dir` is required when using `--all`");
         }
-        dump_all(cli, general, options.path.as_ref()).await
+        dump_all(cli, general, options.path.as_ref(), options.include_secrets).await
     } else {
         if options.format.is_some() {
             anyhow::bail!("`--format` is reserved for dump using `--all`");
         }
-        dump_db(cli, general, options.path.as_ref()).await
+        dump_db(cli, general, options.path.as_ref(), options.include_secrets).await
     }
 }
 
-async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
+async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path,
+                 mut include_secrets: bool)
     -> Result<(), anyhow::Error>
 {
+    if cli.get_version().await?.specific() < "4.0-alpha.2".parse().unwrap() {
+        include_secrets = false;
+    }
+
     let dbname = cli.database().to_string();
     eprintln!("Starting dump for {dbname}...");
 
@@ -89,7 +94,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
           \x00\x00\x00\x00\x00\x00\x00\x01"
         ).await?;
 
-    let (header, mut blocks) = cli.dump().await?;
+    let (header, mut blocks) = cli.dump(include_secrets).await?;
 
     // this is ensured because length in the protocol is u32 too
     assert!(header.data.len() <= u32::MAX as usize);
@@ -127,7 +132,8 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     Ok(())
 }
 
-pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
+pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path,
+                      include_secrets: bool)
     -> Result<(), anyhow::Error>
 {
     let databases = get_databases(cli).await?;
@@ -155,7 +161,7 @@ pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path)
             .database(database)?
             .connect().await?;
         let filename = dir.join(&(urlencoding::encode(database) + ".dump")[..]);
-        dump_db(&mut db_conn, options, &filename).await?;
+        dump_db(&mut db_conn, options, &filename, include_secrets).await?;
     }
 
     Ok(())

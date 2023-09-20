@@ -343,13 +343,13 @@ impl Connection {
         update_state(&mut self.state, &resp)?;
         Ok(())
     }
-    pub async fn dump(&mut self)
+    pub async fn dump(&mut self, include_secrets: bool)
         -> Result<
             (RawPacket, impl Stream<Item=Result<RawPacket, Error>> + '_),
             Error
         >
     {
-        let mut inner = self.inner.dump().await?;
+        let mut inner = self.inner.dump_with_secrets(include_secrets).await?;
         let header = inner.take_header().expect("header is read");
         let stream = DumpStream { inner, state: &mut self.state };
         Ok((header, stream))
