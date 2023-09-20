@@ -151,9 +151,9 @@ impl VariableInput for Json {
             Err(e) if e.classify()  == serde_json::error::Category::Eof
             => Err(Error::Incomplete),
             Err(e) => Err(no_pos_err(e)),
-            Ok(_) => Ok(Value::Json(unsafe {
+            Ok(_) => Ok(Value::Json(
                 model::Json::new_unchecked(input.into())
-            })),
+            )),
         }
     }
 }
