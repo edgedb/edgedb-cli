@@ -81,7 +81,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
     -> Result<(), anyhow::Error>
 {
     let dbname = cli.database().to_string();
-    println!("Starting dump for {dbname}...");
+    eprintln!("Starting dump for {dbname}...");
 
     let (mut output, guard) = Guard::open(filename).await?;
     output.write_all(
@@ -111,7 +111,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path)
         processed += packet_length;
         bar.set_message(format!("Database {dbname} dump: {} processed.", HumanBytes(processed as u64)));
         bar.message();
-        
+
         // this is ensured because length in the protocol is u32 too
         assert!(packet_length <= u32::MAX as usize);
 
