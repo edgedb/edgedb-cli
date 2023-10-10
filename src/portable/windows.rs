@@ -208,11 +208,12 @@ pub fn create_instance(options: &options::Create, name: &str,
     let wsl = ensure_wsl()?;
 
     let inner_options = options::Create {
+        name: Some(InstanceName::Local(name.to_string())),
         port: Some(port),
         ..options.clone()
     };
     wsl.edgedb()
-        .arg("instance").arg("create").arg(name).args(&inner_options)
+        .arg("instance").arg("create").args(&inner_options)
         .run()?;
 
     if let Some(dir) = paths.credentials.parent() {
