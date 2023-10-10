@@ -212,7 +212,7 @@ pub fn create_instance(options: &options::Create, name: &str,
         ..options.clone()
     };
     wsl.edgedb()
-        .arg("instance").arg("create").args(&inner_options)
+        .arg("instance").arg("create").arg(name).args(&inner_options)
         .run()?;
 
     if let Some(dir) = paths.credentials.parent() {
