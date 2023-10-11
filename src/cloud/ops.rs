@@ -85,11 +85,19 @@ pub struct Version {
 }
 
 #[derive(Debug, serde::Serialize)]
+pub struct CloudInstanceResourceRequest {
+    pub name: String,
+    pub value: u16,
+}
+
+#[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceCreate {
     pub name: String,
     pub org: String,
     pub version: String,
     pub region: Option<String>,
+    pub requested_resources: Option<Vec<CloudInstanceResourceRequest>>,
+    pub tier: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub default_database: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
