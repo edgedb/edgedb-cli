@@ -489,13 +489,18 @@ fn error() -> anyhow::Result<()> {
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("empty_err")
         .assert().success();
-    SERVER.admin_cmd()
-        .arg("--database=empty_err")
-        .arg("migration").arg("status")
-        .arg("--schema-dir=tests/migrations/db1/error")
-        .env("NO_COLOR", "1")
-        .assert().code(1)
-        .stderr(ends_with(
+    let err = if SERVER.version().major >= 4 {
+r###"error: Unexpected keyword 'CREATE'
+  ┌─ tests/migrations/db1/error/bad.esdl:3:9
+  │
+3 │         create property text -> str;
+  │         ^^^^^^ Use a different identifier or quote the name with backticks: `create`
+  │
+  = This name is a reserved keyword and cannot be used as an identifier
+
+edgedb error: cannot proceed until .esdl files are fixed
+"###
+    } else {
 r###"error: Unexpected keyword 'CREATE'
   ┌─ tests/migrations/db1/error/bad.esdl:3:9
   │
@@ -503,7 +508,15 @@ r###"error: Unexpected keyword 'CREATE'
   │         ^^^^^^ error
 
 edgedb error: cannot proceed until .esdl files are fixed
-"###));
+"###
+    };
+    SERVER.admin_cmd()
+        .arg("--database=empty_err")
+        .arg("migration").arg("status")
+        .arg("--schema-dir=tests/migrations/db1/error")
+        .env("NO_COLOR", "1")
+        .assert().code(1)
+        .stderr(ends_with(err));
     Ok(())
 }
 
