@@ -353,6 +353,10 @@ pub struct Dump {
     #[clap(long)]
     pub all: bool,
 
+    /// Include secret configuration variables in the dump
+    #[clap(long)]
+    pub include_secrets: bool,
+
     /// Choose dump format. For normal dumps this parameter should be omitted.
     /// For `--all`, only `--format=dir` is required.
     #[clap(long, possible_values=&["dir"][..])]
@@ -496,7 +500,7 @@ pub enum ValueParameter {
 
     /// Apply access policies
     ///
-    /// User-specified access policies are not applied when set to `false`, 
+    /// User-specified access policies are not applied when set to `false`,
     /// allowing any queries to be executed.
     ApplyAccessPolicies(ConfigBool),
 
@@ -567,7 +571,7 @@ pub struct AuthParameter {
     #[clap(long)]
     pub priority: i64,
 
-    /// The name(s) of the database role(s) this rule applies to. Will apply 
+    /// The name(s) of the database role(s) this rule applies to. Will apply
     /// to all roles if set to '*'
     #[clap(long="user")]
     pub users: Vec<String>,
