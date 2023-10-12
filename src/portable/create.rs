@@ -190,57 +190,10 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
     )?;
 
     let server_ver = cloud::versions::get_version(&query, client)?;
-    let tier = if cmd.free_tier {
-        String::from("Free")
-    } else {
-        String::from("Pro")
-    };
-
-    let compute_size = cmd.compute_size.unwrap_or(1);
-    let storage_size = cmd.storage_size.unwrap_or(20);
-
-    let req_resources = match cmd.free_tier {
-        true => {
-            None
-        },
-        false => {
-            Some(vec![
-                cloud::ops::CloudInstanceResourceRequest{
-                    name: "compute".to_string(),
-                    value: compute_size,
-                },
-                cloud::ops::CloudInstanceResourceRequest{
-                    name: "storage".to_string(),
-                    value: storage_size,
-                },
-            ])
-        },
-    };
-
-    let resources_display = if req_resources.is_some() {
-        format!(
-            "\nCompute Size: {} compute unit{}\
-            \nStorage Size: {} gigabyte{}",
-            compute_size,
-            if compute_size == 1 {""} else {"s"},
-            storage_size,
-            if storage_size == 1 {""} else {"s"},
-        )
-    } else {
-        format!(
-            "\nCompute Size: 1/4 compute units\
-            \nStorage Size: 1 gigabyte",
-        )
-    };
 
     if !cmd.non_interactive && !question::Confirm::new(format!(
-        "This will create a new EdgeDB cloud instance with the following parameters:\
-        \n\
-        \nTier: {tier}\
-        \nRegion: {region}\
-        \nServer Version: {server_ver}\
-        {resources_display}\
-        \n\nIs this acceptable?",
+        "This will create a new EdgeDB cloud instance with the following parameters: \
+        \n\n Region: {region}\n Server Version: {server_ver}\nIs this acceptable?",
     )).ask()? {
         return Ok(());
     }
@@ -250,8 +203,6 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
         org: org_slug.to_string(),
         version: server_ver.to_string(),
         region: Some(region),
-        requested_resources: req_resources,
-        tier: Some(tier),
     };
     cloud::ops::create_cloud_instance(&client, &request)?;
     echo!(
