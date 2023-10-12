@@ -9,7 +9,7 @@ use std::process::{exit};
 use std::str::FromStr;
 
 use anyhow::Context;
-use clap::IntoApp;
+use clap::CommandFactory;
 use clap_complete::{generate, shells};
 use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
@@ -49,7 +49,7 @@ pub struct CliInstall {
     pub no_modify_path: bool,
     /// Indicate that edgedb-init should not issue a
     /// "Press Enter to continue" prompt before exiting
-    /// on Windows. Used when edgedb-init is invoked 
+    /// on Windows. Used when edgedb-init is invoked
     /// from an existing terminal session and not in
     /// a new window.
     #[clap(long)]
@@ -72,7 +72,7 @@ pub enum Shell {
 #[derive(EdbClap, Clone, Debug)]
 pub struct GenCompletions {
     /// Shell to print out completions for
-    #[clap(long, possible_values=&[
+    #[clap(long, value_parser=[
         "bash", "elvish", "fish", "powershell", "zsh",
     ])]
     pub shell: Option<Shell>,

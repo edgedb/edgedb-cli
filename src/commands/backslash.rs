@@ -311,7 +311,7 @@ impl CommandInfo {
 
 impl CommandCache {
     fn new() -> CommandCache {
-        let mut clap = Backslash::into_app();
+        let mut clap = Backslash::command();
         let mut aliases = BTreeMap::new();
         aliases.insert("d", &["describe", "object"][..]);
         aliases.insert("ds", &["describe", "schema"]);
@@ -364,8 +364,8 @@ impl CommandCache {
                 .filter(|a| a.get_id() != "help" && a.get_id() != "version")
                 .next()
                 .expect("setting has argument");
-            let values = arg.get_possible_values()
-                .map(|v| v.iter().map(|x| x.get_name().to_owned()).collect());
+            let values = arg.get_value_parser().possible_values()
+                .map(|v| v.map(|x| x.get_name().to_owned()).collect());
             let description = cmd.get_about().unwrap_or("").trim().to_owned();
             let info = SettingInfo {
                 name: setting.name(),
@@ -443,11 +443,11 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
             }
         }
     }
-    Backslash::into_app()
+    Backslash::command()
         .try_get_matches_from(arguments)
         .and_then(|m| Backslash::from_arg_matches(&m))
         .map_err(|e| ParseError {
-            help: e.kind() == clap::ErrorKind::DisplayHelp,
+            help: e.kind() == clap::error::ErrorKind::DisplayHelp,
             message: backslashify_help(&e.to_string()).into(),
             span: None,
         })

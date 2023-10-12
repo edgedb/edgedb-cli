@@ -23,7 +23,7 @@ bytes = "1.0.1"
 blake2b_simd = "1.0.0"
 blake3 = "1.1.0"
 rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb_20210403"}
-clap = {version="3.2.23", features=["derive", "cargo"]}
+clap = {version="3.2.25", features=["derive", "cargo"]}
 clap_complete = "3.2.5"
 strsim = "0.10.0"
 whoami = "1.1"

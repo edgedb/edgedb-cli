@@ -53,7 +53,6 @@ pub trait PropagateArgs {
 }
 
 #[derive(EdbClap, Clone, Debug)]
-#[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
 pub struct ConnectionOptions {
     /// Local instance name created with `edgedb instance create` to connect to
     /// (overrides host and port)
@@ -182,7 +181,7 @@ pub struct ConnectionOptions {
     #[clap(value_name="insecure | no_host_verification | strict | default")]
     tls_security: Option<String>,
 
-    /// Retry up to WAIT_TIME (e.g. '30s') in case EdgeDB connection 
+    /// Retry up to WAIT_TIME (e.g. '30s') in case EdgeDB connection
     /// cannot be established.
     #[clap(long, name="WAIT_TIME", help_heading=Some(CONN_OPTIONS_GROUP),
                 parse(try_from_str=parse_duration))]
@@ -194,7 +193,7 @@ pub struct ConnectionOptions {
     #[clap(long, hide=true, help_heading=Some(CONN_OPTIONS_GROUP))]
     pub admin: bool,
 
-    /// Fail when no response from EdgeDB for TIMEOUT (default '10s'); 
+    /// Fail when no response from EdgeDB for TIMEOUT (default '10s');
     /// alternatively will retry if `--wait-until-available` is also specified.
     #[clap(long, name="TIMEOUT", help_heading=Some(CONN_OPTIONS_GROUP),
            parse(try_from_str=parse_duration))]
@@ -203,7 +202,6 @@ pub struct ConnectionOptions {
 }
 
 #[derive(EdbClap, Clone, Debug)]
-#[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
 pub struct CloudOptions {
     /// Specify the EdgeDB Cloud API endpoint. Defaults to the current logged-in
     /// server, or <https://api.g.aws.edgedb.cloud> if unauthorized
@@ -360,12 +358,12 @@ pub struct UI {
 
 #[derive(EdbClap, Debug, Clone)]
 pub struct Info {
-   #[clap(long, possible_values=&[
+   #[clap(long, value_parser=[
         "config-dir",
         "cache-dir",
         "data-dir",
         "service-dir",
-    ][..])]
+    ])]
     /// Get specific value:
     ///
     /// * `config-dir` -- Base configuration directory
@@ -515,7 +513,6 @@ fn print_full_connection_options() {
     let app = <ConnectionOptions as clap::CommandFactory>::command();
 
     let mut new_app = clap::Command::new("edgedb-connect")
-                      .setting(clap::AppSettings::DeriveDisplayOrder)
                       .term_width(term_width());
     if !print::use_color() {
         new_app = new_app.color(clap::ColorChoice::Never);
@@ -548,8 +545,8 @@ fn print_full_connection_options() {
 fn term_width() -> usize {
     use std::cmp;
 
-    // clap::App::max_term_width() works poorly in conjunction
-    // with  clap::App::term_width(); it appears that one call
+    // clap::Command::max_term_width() works poorly in conjunction
+    // with  clap::Command::term_width(); it appears that one call
     // disables the effect of the other. Therefore we want to
     // calculate the acceptable term width ourselves and use
     // that to configure clap and to render subcommands help.
@@ -562,7 +559,7 @@ fn term_width() -> usize {
 
 impl Options {
     pub fn from_args_and_env() -> anyhow::Result<Options> {
-        let app = <RawOptions as clap::IntoApp>::command()
+        let app = <RawOptions as clap::CommandFactory>::command()
                   .name("edgedb")
                   .term_width(term_width());
         let app = update_main_help(app);

@@ -121,7 +121,7 @@ pub struct ListVersions {
     pub installed_only: bool,
 
     /// Single column output
-    #[clap(long, possible_values=&[
+    #[clap(long, value_parser=[
         "major-version", "installed", "available",
     ])]
     pub column: Option<String>,
@@ -172,7 +172,7 @@ pub struct Create {
     pub region: Option<String>,
 
     /// Deprecated parameter, unused.
-    #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
+    #[clap(long, hide=true, value_parser=["auto", "manual"])]
     pub start_conf: Option<StartConf>,
 
     /// Default database name (created during initialization and saved in
@@ -293,7 +293,7 @@ pub struct Start {
 
     /// Indicate whether managed by edgedb-cli, systemd, launchctl, or None
     #[clap(long, hide=true)]
-    #[clap(possible_values=&["systemd", "launchctl", "edgedb-cli"][..])]
+    #[clap(value_parser=["systemd", "launchctl", "edgedb-cli"])]
     #[clap(conflicts_with="auto_restart")]
     pub managed_by: Option<String>,
 }
@@ -552,10 +552,7 @@ pub struct Info {
     #[clap(conflicts_with_all=&["nightly", "version", "latest"])]
     pub channel: Option<Channel>,
 
-    #[clap(long, possible_values=&[
-        "bin-path",
-        "version",
-    ][..])]
+    #[clap(long, value_parser=["bin-path", "version"])]
     /// Get specific value:
     ///
     /// * `bin-path` -- Path to the server binary

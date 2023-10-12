@@ -124,7 +124,7 @@ pub struct Init {
     pub database: Option<String>,
 
     /// Deprecated parameter, does nothing.
-    #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
+    #[clap(long, hide=true, value_parser=["auto", "manual"])]
     pub server_start_conf: Option<StartConf>,
 
     /// Skip running migrations
@@ -146,7 +146,7 @@ pub struct Unlink {
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// If specified, the associated EdgeDB instance is destroyed 
+    /// If specified, the associated EdgeDB instance is destroyed
     /// using `edgedb instance destroy`.
     #[clap(long, short='D')]
     pub destroy_server_instance: bool,
@@ -170,10 +170,10 @@ pub struct Info {
     #[clap(long)]
     pub json: bool,
 
-    #[clap(long, possible_values=&[
+    #[clap(long, value_parser=[
         "instance-name",
         "cloud-profile",
-    ][..])]
+    ])]
     /// Get a specific value:
     ///
     /// * `instance-name` -- Name of the listance the project is linked to

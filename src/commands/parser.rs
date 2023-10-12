@@ -194,13 +194,13 @@ pub enum Setting {
 
 #[derive(EdbClap, Clone, Debug, Default)]
 pub struct InputMode {
-    #[clap(name="mode", possible_values=&["vi", "emacs"][..])]
+    #[clap(name="mode", value_parser=["vi", "emacs"])]
     pub value: Option<repl::InputMode>,
 }
 
 #[derive(EdbClap, Clone, Debug, Default)]
 pub struct SettingBool {
-    #[clap(possible_values=&["on", "off", "true", "false"][..])]
+    #[clap(value_parser=["on", "off", "true", "false"])]
     pub value: Option<String>,
 }
 
@@ -235,16 +235,16 @@ pub struct Edit {
 
 #[derive(EdbClap, Clone, Debug, Default)]
 pub struct OutputFormat {
-    #[clap(name="mode", possible_values=
-        &["default", "json-pretty", "json", "json-lines", "tab-separated"][..]
+    #[clap(name="mode", value_parser=
+        ["default", "json-pretty", "json", "json-lines", "tab-separated"]
     )]
     pub value: Option<repl::OutputFormat>,
 }
 
 #[derive(EdbClap, Clone, Debug, Default)]
 pub struct PrintStats {
-    #[clap(possible_values=
-        &["off", "query", "detailed"][..]
+    #[clap(value_parser=
+        ["off", "query", "detailed"]
     )]
     pub value: Option<repl::PrintStats>,
 }
@@ -359,7 +359,7 @@ pub struct Dump {
 
     /// Choose dump format. For normal dumps this parameter should be omitted.
     /// For `--all`, only `--format=dir` is required.
-    #[clap(long, possible_values=&["dir"][..])]
+    #[clap(long, value_parser=["dir"])]
     pub format: Option<DumpFormat>,
 }
 

@@ -207,7 +207,7 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
 
     if field.parse.has_arg() {
         modifiers.extend(quote! {
-            #arg = #arg.takes_value(true);
+            #arg = #arg.num_args(1);
         });
 
         if !field.optional && field.attrs.default_value.is_none() {
@@ -225,17 +225,17 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
     if field.multiple {
         if field.attrs.long.is_some() || field.attrs.short.is_some() {
             modifiers.extend(quote! {
-                #arg = #arg.multiple_occurrences(true);
+                #arg = #arg.action(::clap::ArgAction::Append).required(false).num_args(1..);
             });
         } else {
             modifiers.extend(quote! {
-                #arg = #arg.multiple_values(true);
+                #arg = #arg.num_args(1..);
             });
         }
     }
     if field.parse.kind == ParserKind::FromOccurrences {
         modifiers.extend(quote! {
-            #arg = #arg.multiple_occurrences(true);
+            #arg = #arg.action(::clap::ArgAction::Append).required(false).num_args(1..);
         });
     }
 
@@ -262,7 +262,7 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
                 quote! { std::str::FromStr::from_str }
             };
             modifiers.extend(quote! {
-                #arg = #arg.validator(|v| {
+                #arg = #arg.value_parser(|v: &_| {
                     #func(v).map(|_: #ty| ())
                 });
             });
@@ -275,7 +275,7 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
                 quote! { std::convert::From::from }
             };
             modifiers.extend(quote! {
-                #arg = #arg.validator_os(|v| {
+                #arg = #arg.value_parser(|v: &_| {
                     #func(v).map(|_: #ty| ())
                 });
             });
@@ -283,9 +283,8 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
         ParserKind::ValueEnum => {
             let ty = &field.ty;
             modifiers.extend(quote! {
-                #arg = #arg.possible_values(
-                    <#ty as ::clap::ValueEnum>::value_variants().iter()
-                    .flat_map(|v| ::clap::ValueEnum::to_possible_value(v))
+                #arg = #arg.value_parser(
+                    ::clap::builder::EnumValueParser::<#ty>::new()
                 );
             });
         }
@@ -333,7 +332,7 @@ fn mk_struct(s: &types::Struct, app: &syn::Ident,
     } else {
         (
             quote!(crate::commands::backslash::Subcommand),
-            quote!(crate::commands::backslash::IntoApp),
+            quote!(crate::commands::backslash::CommandFactory),
         )
     };
     let subcommand_visited = false;
@@ -359,9 +358,7 @@ fn mk_struct(s: &types::Struct, app: &syn::Ident,
             let ty = &field.ty;
             if !field.optional {
                 output.extend(quote! {
-                    #app = #app.setting(
-                        clap::AppSettings::SubcommandRequiredElseHelp
-                    );
+                    #app = #app.subcommand_required(true).arg_required_else_help(true);
                 });
             }
             output.extend(quote! {
@@ -392,7 +389,7 @@ fn mk_subcommands(s: &types::Enum, app: &syn::Ident,
     } else {
         (
             quote!(crate::commands::backslash::Subcommand),
-            quote!(crate::commands::backslash::IntoApp),
+            quote!(crate::commands::backslash::CommandFactory),
         )
     };
     for sub in &s.subcommands {
@@ -440,7 +437,7 @@ fn mk_subcommands(s: &types::Enum, app: &syn::Ident,
                 Vec::new()
             };
             output.extend(quote! {
-                let mut #isub = clap::App::new(#name);
+                let mut #isub = clap::Command::new(#name);
                 #isub = #isub.disable_version_flag(true);
                 #cmd_def
                 #opts
@@ -503,24 +500,24 @@ fn get_parser(fld: &types::Field, matches: &syn::Ident) -> TokenStream {
     let parser = if fld.multiple {
         let inner = match fld.parse.kind {
             FromStr => quote! {
-                #matches.values_of(stringify!(#field_name))
+                #matches.get_many::<String>(stringify!(#field_name))
                 .map(|v| v.into_iter().map(#func).collect())
                 .unwrap_or_else(Vec::new)
             },
             FromOsStr => quote! {
-                #matches.values_of_os(stringify!(#field_name))
+                #matches.get_many::<OsString>(stringify!(#field_name))
                 .map(|v| v.into_iter().map(#func).collect())
                 .unwrap_or_else(Vec::new)
             },
             TryFromStr | ValueEnum => quote! {
-                #matches.values_of(stringify!(#field_name))
+                #matches.get_many::<String>(stringify!(#field_name))
                 .map(|v| {
                     v.into_iter().map(|v| #func(v).unwrap()).collect()
                 })
                 .unwrap_or_else(Vec::new)
             },
             TryFromOsStr => quote! {
-                #matches.values_of_os(stringify!(#field_name))
+                #matches.get_many::<OsString>(stringify!(#field_name))
                 .map(|v| {
                     v.into_iter().map(|v| #func(v).unwrap()).collect()
                 })
@@ -533,7 +530,7 @@ fn get_parser(fld: &types::Field, matches: &syn::Ident) -> TokenStream {
         };
         if fld.optional {
             quote! {
-                if #matches.is_present(stringify!(#field_name)) {
+                if #matches.contains_id(stringify!(#field_name)) {
                     Some(#inner)
                 } else {
                     None
@@ -545,26 +542,26 @@ fn get_parser(fld: &types::Field, matches: &syn::Ident) -> TokenStream {
     } else {
         let parser = match fld.parse.kind {
             FromStr => quote! {
-                #matches.value_of(stringify!(#field_name))
+                #matches.get_one::<String>(stringify!(#field_name))
                 .map(#func)
             },
             FromOsStr => quote! {
-                #matches.value_of_os(stringify!(#field_name))
+                #matches.get_one::<OsString>(stringify!(#field_name))
                 .map(#func)
             },
             TryFromStr | ValueEnum => quote! {
-                #matches.value_of(stringify!(#field_name))
+                #matches.get_one::<String>(stringify!(#field_name))
                 .map(|v| #func(v).expect("already validated"))
             },
             TryFromOsStr => quote! {
-                #matches.value_of_os(stringify!(#field_name))
+                #matches.get_one::<OsString>(stringify!(#field_name))
                 .map(|v| #func(v).expect("already validated"))
             },
             FromOccurrences => {
                 todo!("from_occurrences");
             }
             FromFlag => quote! {
-                Some(#matches.is_present(stringify!(#field_name)))
+                Some(#matches.contains_id(stringify!(#field_name)))
             },
         };
         if fld.optional {
@@ -727,7 +724,7 @@ fn mk_struct_update_matches(s: &types::Struct, matches: &syn::Ident)
         } else {
             let parser = get_parser(fld, matches);
             fields.push(quote_spanned! { fld.span =>
-                if #matches.is_present(stringify!(#field_name)) {
+                if #matches.contains_id(stringify!(#field_name)) {
                     self.#field_name = #parser;
                 }
             });
@@ -785,13 +782,13 @@ fn mk_match_subcommand(s: &types::Enum, sub: &syn::Ident) -> TokenStream {
             Some((name, _)) => {
                 #(#flatten)*
                 return Err(clap::Error::raw(
-                    ::clap::ErrorKind::InvalidSubcommand,
+                    ::clap::error::ErrorKind::InvalidSubcommand,
                     format!("Subcommand {:?} not found", name),
                 ));
             }
             None => {
                 return Err(clap::Error::raw(
-                    ::clap::ErrorKind::MissingSubcommand,
+                    ::clap::error::ErrorKind::MissingSubcommand,
                     format!("Subcommand required"),
                 ));
             }
