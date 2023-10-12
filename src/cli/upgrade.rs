@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::Context;
-use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use fs_err as fs;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -20,32 +19,32 @@ use crate::process;
 const INDEX_TIMEOUT: Duration = Duration::new(60, 0);
 
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct CliUpgrade {
     /// Enable verbose output
-    #[clap(short='v', long)]
+    #[arg(short='v', long)]
     pub verbose: bool,
     /// Disable progress output
-    #[clap(short='q', long)]
+    #[arg(short='q', long)]
     pub quiet: bool,
     /// Force reinstall even if no newer version exists
-    #[clap(long)]
+    #[arg(long)]
     pub force: bool,
     /// Upgrade to latest nightly version
-    #[clap(long)]
-    #[clap(conflicts_with_all=&["to_testing", "to_stable", "to_channel"])]
+    #[arg(long)]
+    #[arg(conflicts_with_all=&["to_testing", "to_stable", "to_channel"])]
     pub to_nightly: bool,
     /// Upgrade to latest stable version
-    #[clap(long)]
-    #[clap(conflicts_with_all=&["to_testing", "to_nightly", "to_channel"])]
+    #[arg(long)]
+    #[arg(conflicts_with_all=&["to_testing", "to_nightly", "to_channel"])]
     pub to_stable: bool,
     /// Upgrade to latest testing version
-    #[clap(long)]
-    #[clap(conflicts_with_all=&["to_stable", "to_nightly", "to_channel"])]
+    #[arg(long)]
+    #[arg(conflicts_with_all=&["to_stable", "to_nightly", "to_channel"])]
     pub to_testing: bool,
     /// Upgrade specified instance to specified channel
-    #[clap(long, value_enum)]
-    #[clap(conflicts_with_all=&["to_stable", "to_nightly", "to_testing"])]
+    #[arg(long, value_enum)]
+    #[arg(conflicts_with_all=&["to_stable", "to_nightly", "to_testing"])]
     pub to_channel: Option<Channel>,
 }
 

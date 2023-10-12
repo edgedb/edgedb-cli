@@ -89,12 +89,12 @@ extern fn delete_docker_image() {
 
 fn dockerfile() -> String {
     format!(r###"
-        FROM ubuntu:focal
+        FROM ubuntu:mantic
         ENV DEBIAN_FRONTEND=noninteractive
         RUN apt-get update && apt-get install -y \
             ca-certificates sudo gnupg2 apt-transport-https curl \
             software-properties-common dbus-user-session
-        RUN adduser --uid 1000 --home /home/user1 \
+        RUN adduser --uid 2000 --home /home/user1 \
             --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
             user1
         RUN mkdir /home/edgedb && chown user1 /home/edgedb

@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 
 use clap::{ValueHint};
-use edgedb_cli_derive::EdbClap;
 
 use crate::repl::{self, VectorLimit};
-use crate::options::ConnectionOptions;
 use crate::migrations::options::{Migration, Migrate};
+use crate::options::ConnectionOptions;
+
+use edgedb_cli_derive::EdbSettings;
 
 
-#[derive(EdbClap, Clone, Debug)]
-#[edb(inherit(ConnectionOptions))]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum Common {
     /// Create database backup
     Dump(Dump),
@@ -19,16 +19,13 @@ pub enum Common {
     Configure(Configure),
 
     /// Migration management subcommands
-    #[edb(expand_help)]
     Migration(Migration),
     /// Apply migration (alias for `edgedb migration apply`)
     Migrate(Migrate),
 
     /// Database commands
-    #[edb(expand_help)]
     Database(Database),
     /// Describe database schema or object
-    #[edb(expand_help)]
     Describe(Describe),
 
     /// List name and related info of database objects (types, scalars, modules, etc.)
@@ -36,22 +33,26 @@ pub enum Common {
     /// Analyze performance of query in quotes (e.g. `"select 9;"`)
     Analyze(Analyze),
     /// Show PostgreSQL address. Works on dev-mode database only.
-    #[edb(hide=true)]
+    #[command(hide=true)]
     Pgaddr,
     /// Run psql shell. Works on dev-mode database only.
-    #[edb(hide=true)]
+    #[command(hide=true)]
     Psql,
 }
 
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
+#[command(version = "help_expand")]
+#[command(disable_version_flag=true)]
 pub struct Describe {
-    #[clap(subcommand)]
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
+    #[command(subcommand)]
     pub subcommand: DescribeCmd,
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[edb(inherit(ConnectionOptions))]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum DescribeCmd {
     /// Describe a database object
     Object(DescribeObject),
@@ -59,32 +60,37 @@ pub enum DescribeCmd {
     Schema(DescribeSchema),
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct List {
-    #[clap(subcommand)]
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
+    #[command(subcommand)]
     pub subcommand: ListCmd,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct Analyze {
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
     /// Query to analyze performance of
     pub query: Option<String>,
 
     /// Write analysis into specified JSON file instead of formatting
-    #[clap(long)]
+    #[arg(long)]
     pub debug_output_file: Option<PathBuf>,
 
     /// Read JSON file instead of executing a query
-    #[clap(long, conflicts_with="query")]
+    #[arg(long, conflicts_with="query")]
     pub read_json: Option<PathBuf>,
 
     /// Show detailed output of analyze command
-    #[clap(long)]
+    #[arg(long)]
     pub expand: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[edb(inherit(ConnectionOptions))]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum ListCmd {
     /// Display list of aliases defined in the schema
     Aliases(ListAliases),
@@ -105,14 +111,18 @@ pub enum ListCmd {
 }
 
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
+#[command(version = "help_expand")]
+#[command(disable_version_flag=true)]
 pub struct Database {
-    #[clap(subcommand)]
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
+    #[command(subcommand)]
     pub subcommand: DatabaseCmd,
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[edb(inherit(ConnectionOptions))]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum DatabaseCmd {
     /// Create a new database
     Create(CreateDatabase),
@@ -122,16 +132,16 @@ pub enum DatabaseCmd {
     Wipe(WipeDatabase),
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[clap(no_binary_name=true)]
+#[derive(clap::Parser, Clone, Debug)]
+#[command(no_binary_name=true)]
 pub struct Backslash {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub command: BackslashCmd,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum BackslashCmd {
-    #[clap(flatten)]
+    #[command(flatten)]
     Common(Common),
     Help,
     LastError,
@@ -145,24 +155,24 @@ pub enum BackslashCmd {
     Exit,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct StateParam {
     /// Show base state (before transaction) instead of current transaction
     /// state
     ///
     /// Has no effect if currently not in a transaction
-    #[clap(short='b')]
+    #[arg(short='b')]
     pub base: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct SetCommand {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub setting: Option<Setting>,
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[edb(setting_impl)]
+#[derive(clap::Subcommand, Clone, Debug)]
+#[derive(EdbSettings)]
 pub enum Setting {
     /// Set input mode. One of: vi, emacs
     InputMode(InputMode),
@@ -192,205 +202,215 @@ pub enum Setting {
     IdleTransactionTimeout(IdleTransactionTimeout),
 }
 
-#[derive(EdbClap, Clone, Debug, Default)]
+#[derive(clap::Args, Clone, Debug, Default)]
 pub struct InputMode {
-    #[clap(name="mode", possible_values=&["vi", "emacs"][..])]
+    #[arg(value_name="mode", value_parser=["vi", "emacs"])]
     pub value: Option<repl::InputMode>,
 }
 
-#[derive(EdbClap, Clone, Debug, Default)]
+#[derive(clap::Args, Clone, Debug, Default)]
 pub struct SettingBool {
-    #[clap(possible_values=&["on", "off", "true", "false"][..])]
+    #[arg(value_parser=["on", "off", "true", "false"])]
     pub value: Option<String>,
 }
 
-#[derive(EdbClap, Clone, Debug, Default)]
+#[derive(clap::Args, Clone, Debug, Default)]
 pub struct Limit {
-    #[clap(name="limit")]
+    #[arg(value_name="limit")]
     pub value: Option<usize>,
 }
 
-#[derive(EdbClap, Clone, Debug, Default)]
+#[derive(clap::Args, Clone, Debug, Default)]
 pub struct VectorLimitValue {
-    #[clap(name="limit")]
+    #[arg(value_name="limit")]
     pub value: Option<VectorLimit>,
 }
 
-#[derive(EdbClap, Clone, Debug, Default)]
+#[derive(clap::Args, Clone, Debug, Default)]
 pub struct IdleTransactionTimeout {
-    #[clap(name="duration")]
+    #[arg(value_name="duration")]
     pub value: Option<String>,
 }
 
-#[derive(EdbClap, Clone, Debug, Default)]
+#[derive(clap::Args, Clone, Debug, Default)]
 pub struct SettingUsize {
     pub value: Option<usize>,
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[clap(trailing_var_arg=true, allow_hyphen_values=true)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct Edit {
+    #[arg(trailing_var_arg=true, allow_hyphen_values=true)]
     pub entry: Option<isize>,
 }
 
-#[derive(EdbClap, Clone, Debug, Default)]
+#[derive(clap::Args, Clone, Debug, Default)]
 pub struct OutputFormat {
-    #[clap(name="mode", possible_values=
-        &["default", "json-pretty", "json", "json-lines", "tab-separated"][..]
+    #[arg(value_name="mode", value_parser=
+        ["default", "json-pretty", "json", "json-lines", "tab-separated"]
     )]
     pub value: Option<repl::OutputFormat>,
 }
 
-#[derive(EdbClap, Clone, Debug, Default)]
+#[derive(clap::Args, Clone, Debug, Default)]
 pub struct PrintStats {
-    #[clap(possible_values=
-        &["off", "query", "detailed"][..]
+    #[arg(value_parser=
+        ["off", "query", "detailed"]
     )]
     pub value: Option<repl::PrintStats>,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct Connect {
     pub database_name: String,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct CreateDatabase {
     pub database_name: String,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct DropDatabase {
     pub database_name: String,
     /// Drop database without confirming
-    #[clap(long)]
+    #[arg(long)]
     pub non_interactive: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct WipeDatabase {
     /// Drop database without confirming
-    #[clap(long)]
+    #[arg(long)]
     pub non_interactive: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ListAliases {
     pub pattern: Option<String>,
-    #[clap(long, short='c')]
+    #[arg(long, short='c')]
     pub case_sensitive: bool,
-    #[clap(long, short='s')]
+    #[arg(long, short='s')]
     pub system: bool,
-    #[clap(long, short='v')]
+    #[arg(long, short='v')]
     pub verbose: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ListCasts {
     pub pattern: Option<String>,
-    #[clap(long, short='c')]
+    #[arg(long, short='c')]
     pub case_sensitive: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ListIndexes {
     pub pattern: Option<String>,
-    #[clap(long, short='c')]
+    #[arg(long, short='c')]
     pub case_sensitive: bool,
-    #[clap(long, short='s')]
+    #[arg(long, short='s')]
     pub system: bool,
-    #[clap(long, short='v')]
+    #[arg(long, short='v')]
     pub verbose: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ListTypes {
     pub pattern: Option<String>,
-    #[clap(long, short='c')]
+    #[arg(long, short='c')]
     pub case_sensitive: bool,
-    #[clap(long, short='s')]
+    #[arg(long, short='s')]
     pub system: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ListRoles {
     pub pattern: Option<String>,
-    #[clap(long, short='c')]
+    #[arg(long, short='c')]
     pub case_sensitive: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ListModules {
     pub pattern: Option<String>,
-    #[clap(long, short='c')]
+    #[arg(long, short='c')]
     pub case_sensitive: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct DescribeObject {
     pub name: String,
-    #[clap(long, short='v')]
+    #[arg(long, short='v')]
     pub verbose: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct DescribeSchema {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(clap::ValueEnum)]
 pub enum DumpFormat {
     Dir,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct Dump {
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
     /// Path to file write dump to (or directory if `--all` is specified).
     /// Use dash `-` to write to stdout (latter does not work in `--all` mode)
-    #[clap(value_hint=ValueHint::AnyPath)]
+    #[arg(value_hint=ValueHint::AnyPath)]
     pub path: PathBuf,
     /// Dump all databases and server configuration. `path` is a directory
     /// in this case
-    #[clap(long)]
+    #[arg(long)]
     pub all: bool,
 
     /// Include secret configuration variables in the dump
-    #[clap(long)]
+    #[arg(long)]
     pub include_secrets: bool,
 
     /// Choose dump format. For normal dumps this parameter should be omitted.
     /// For `--all`, only `--format=dir` is required.
-    #[clap(long, possible_values=&["dir"][..])]
+    #[arg(long, value_enum)]
     pub format: Option<DumpFormat>,
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[clap(override_usage(
+#[derive(clap::Args, Clone, Debug)]
+#[command(override_usage(
     "edgedb restore [OPTIONS] <path>\n    \
      edgedb restore -d <database-name> <path>"
 ))]
 pub struct Restore {
+    #[command(flatten)]
+    pub conn: Option<ConnectionOptions>,
+
     /// Path to file (or directory in case of `--all`) to read dump from.
     /// Use dash `-` to read from stdin
-    #[clap(value_hint=ValueHint::AnyPath)]
+    #[arg(value_hint=ValueHint::AnyPath)]
     pub path: PathBuf,
 
     /// Restore all databases and server configuration. `path` is a
     /// directory in this case
-    #[clap(long)]
+    #[arg(long)]
     pub all: bool,
 
     /// Verbose output
-    #[clap(long, short='v')]
+    #[arg(long, short='v')]
     pub verbose: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct Configure {
-    #[clap(subcommand)]
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
+    #[command(subcommand)]
     pub command: ConfigureCommand,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum ConfigureCommand {
     /// Insert another configuration entry to the list setting
     Insert(ConfigureInsert),
@@ -400,34 +420,34 @@ pub enum ConfigureCommand {
     Set(ConfigureSet),
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ConfigureInsert {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub parameter: ListParameter,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ConfigureReset {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub parameter: ConfigParameter,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ConfigureSet {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub parameter: ValueParameter,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum ListParameter {
 
     /// Insert a client authentication rule
-    #[clap(name="Auth")]
+    #[command(name="Auth")]
     Auth(AuthParameter),
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[clap(rename_all="snake_case")]
+#[derive(clap::Subcommand, Clone, Debug)]
+#[command(rename_all="snake_case")]
 pub enum ValueParameter {
     /// Specifies the TCP/IP address(es) on which the server is to listen for
     /// connections from client applications.
@@ -508,15 +528,15 @@ pub enum ValueParameter {
     AllowUserSpecifiedId(ConfigBool),
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[clap(rename_all="snake_case")]
+#[derive(clap::Subcommand, Clone, Debug)]
+#[command(rename_all="snake_case")]
 pub enum ConfigParameter {
     /// Reset listen addresses to 127.0.0.1
     ListenAddresses,
     /// Reset port to 5656
     ListenPort,
     /// Clear authentication table (only admin socket can be used to connect)
-    #[clap(name="Auth")]
+    #[command(name="Auth")]
     Auth,
     /// Reset shared_buffers PostgreSQL configuration parameter to default value
     SharedBuffers,
@@ -544,46 +564,46 @@ pub enum ConfigParameter {
     AllowUserSpecifiedId,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ListenAddresses {
     pub address: Vec<String>,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ListenPort {
     pub port: u16,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ConfigStr {
     pub value: String,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct ConfigBool {
     pub value: bool,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct AuthParameter {
     /// Priority of the authentication rule. The lower the number, the
     /// higher the priority.
-    #[clap(long)]
+    #[arg(long)]
     pub priority: i64,
 
     /// The name(s) of the database role(s) this rule applies to. Will apply
     /// to all roles if set to '*'
-    #[clap(long="user")]
+    #[arg(long="user")]
     pub users: Vec<String>,
 
     /// The name of the authentication method type. Valid values are: Trust
     /// for no authentication and SCRAM for SCRAM-SHA-256 password
     /// authentication.
-    #[clap(long)]
+    #[arg(long)]
     pub method: String,
 
     /// An optional comment for the authentication rule.
-    #[clap(long)]
+    #[arg(long)]
     pub comment: Option<String>,
 }
 

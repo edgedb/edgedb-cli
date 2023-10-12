@@ -40,11 +40,15 @@ fn main() {
             "((EDGEDB_CLIENT_TLS_SECURITY|tls_security).*(don't comply|Invalid value)|\
             Unsupported TLS security)"
         ),
-        ("file_not_found", "(No such file or directory|cannot find the path)"),
+        (
+            "file_not_found",
+            "(No such file or directory)|(cannot find the path)|\
+            (a value is required for)"
+        ),
         ("invalid_host", "invalid host"),
         (
             "invalid_port",
-            "(Invalid value.*for.*port|invalid port|EDGEDB_PORT is invalid)",
+            "(invalid value.*for.*port|invalid port|EDGEDB_PORT is invalid)",
         ),
         (
             "invalid_dsn_or_instance_name",
@@ -53,16 +57,22 @@ fn main() {
         ("invalid_instance_name", "invalid.*instance name"),
         ("invalid_user", "invalid user"),
         ("invalid_database", "invalid database"),
-        ("invalid_credentials_file", "cannot read credentials file"),
+        (
+            "invalid_credentials_file",
+            "(cannot read credentials file)|(a value is required for)"
+        ),
         (
             "no_options_or_toml",
             "no `edgedb.toml` found and no connection options are specified",
         ),
-        ("multiple_compound_opts", "(cannot be used with|provided more than once)"),
+        (
+            "multiple_compound_opts",
+            "(cannot be used with)|(provided more than once)|(cannot be used multiple times)",
+        ),
         ("multiple_compound_env",
             "multiple compound env vars found|\
              [A-Z]+\\s*conflicts\\s*with\\s*[A-Z]+"),
-        ("exclusive_options", "provided more than once"),
+        ("exclusive_options", "(provided more than once)|(cannot be used multiple times)"),
         ("credentials_file_not_found", "credentials file.*No such file"),
         ("project_not_initialised", "project is not initialized"),
         ("secret_key_not_found", "try `edgedb cloud login`"),
