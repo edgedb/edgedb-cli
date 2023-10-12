@@ -104,7 +104,11 @@ pub struct CreateSecretKey {
     /// specified via `--ttl` or `--no-expiration`, and `--scopes` or
     /// `--inherit-scopes`.
     #[clap(short='y', long)]
-    #[clap(requires_all(&["expires", "key_scopes"]))]
+    #[clap(requires_ifs(
+        ["expires", "key_scopes"].iter().map(
+            |id| (clap::builder::ArgPredicate::IsPresent, id)
+        )
+    ))]
     pub non_interactive: bool,
 }
 

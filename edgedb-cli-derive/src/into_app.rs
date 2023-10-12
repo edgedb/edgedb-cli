@@ -42,34 +42,34 @@ pub fn structure(s: &types::Struct) -> TokenStream {
     quote! {
         impl #impl_gen clap::Parser for #ident #ty_gen #where_cl {}
         impl #impl_gen clap::CommandFactory for #ident #ty_gen #where_cl {
-            fn into_app<'help>() -> clap::Command<'help> {
+            fn command() -> clap::Command {
                 <Self as clap::Args>::augment_args(clap::Command::new(#name))
             }
-            fn into_app_for_update<'help>() -> clap::Command<'help> {
+            fn command_for_update() -> clap::Command {
                 <Self as clap::Args>::augment_args_for_update(
                     clap::Command::new(#name))
             }
         }
         impl #impl_gen clap::Args for #ident #ty_gen #where_cl {
-            fn augment_args(mut #app: clap::Command<'_>) -> clap::Command<'_> {
+            fn augment_args(mut #app: clap::Command) -> clap::Command {
                 #augment
                 return #app;
             }
-            fn augment_args_for_update(mut #app: clap::Command<'_>)
-                -> clap::Command<'_>
+            fn augment_args_for_update(mut #app: clap::Command)
+                -> clap::Command
             {
                 #augment_for_update
                 return #app;
             }
         }
-        impl #impl_gen crate::commands::backslash::IntoApp
+        impl #impl_gen crate::commands::backslash::CommandFactory
             for #ident #ty_gen #where_cl
         {
-            fn into_app<'help>() -> clap::Command<'help> {
-                <Self as crate::commands::backslash::IntoApp>
+            fn command() -> clap::Command {
+                <Self as crate::commands::backslash::CommandFactory>
                     ::augment_args(clap::Command::new(#name))
             }
-            fn augment_args(mut #app: clap::Command<'_>) -> clap::Command<'_> {
+            fn augment_args(mut #app: clap::Command) -> clap::Command {
                 #augment_no_inheritance
                 return #app;
             }
@@ -143,12 +143,12 @@ pub fn subcommands(e: &types::Enum) -> TokenStream {
             }
         }
         impl #impl_gen clap::Subcommand for #ident #ty_gen #where_cl {
-            fn augment_subcommands(mut #app: clap::App<'_>) -> clap::App<'_> {
+            fn augment_subcommands(mut #app: clap::Command) -> clap::Command {
                 #augment
                 return #app;
             }
-            fn augment_subcommands_for_update(mut #app: clap::App<'_>)
-                -> clap::App<'_>
+            fn augment_subcommands_for_update(mut #app: clap::Command)
+                -> clap::Command
             {
                 #augment_for_update
                 return #app;
@@ -169,7 +169,7 @@ pub fn subcommands(e: &types::Enum) -> TokenStream {
         impl #impl_gen crate::commands::backslash::Subcommand
             for #ident #ty_gen #where_cl
         {
-            fn augment_subcommands(mut #app: clap::App<'_>) -> clap::App<'_> {
+            fn augment_subcommands(mut #app: clap::Command) -> clap::Command {
                 #augment_no_inheritance
                 return #app;
             }
@@ -177,6 +177,43 @@ pub fn subcommands(e: &types::Enum) -> TokenStream {
         #propagation
         #setting
     }
+}
+
+fn only_one<I, T>(mut iter: I) -> Option<T>
+where
+    I: Iterator<Item = T>,
+{
+    iter.next().filter(|_| iter.next().is_none())
+}
+
+fn only_last_segment(mut ty: &syn::Type) -> Option<&syn::PathSegment> {
+    while let syn::Type::Group(syn::TypeGroup { elem, .. }) = ty {
+        ty = elem;
+    }
+    match ty {
+        syn::Type::Path(syn::TypePath {
+            qself: None,
+            path:
+                syn::Path {
+                    leading_colon: None,
+                    segments,
+                },
+        }) => only_one(segments.iter()),
+
+        _ => None,
+    }
+}
+
+pub fn is_simple_ty(ty: &syn::Type, name: &str) -> bool {
+    only_last_segment(ty)
+        .map(|segment| {
+            if let syn::PathArguments::None = segment.arguments {
+                segment.ident == name
+            } else {
+                false
+            }
+        })
+        .unwrap_or(false)
 }
 
 fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
@@ -288,7 +325,14 @@ fn mk_arg(field: &types::Field, case: &Case) -> TokenStream {
                 );
             });
         }
-        _ => {}
+        _ => {
+            let ty = &field.ty;
+            if is_simple_ty(ty, "bool") {
+                modifiers.extend(quote! {
+                    #arg = #arg.action(::clap::ArgAction::SetTrue);
+                });
+            }
+        }
     }
     // The arbitrary options must be added in the end so that e.g. explicit
     // validator() could overwrite the validators added by default previously

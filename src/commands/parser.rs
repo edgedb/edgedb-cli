@@ -228,8 +228,8 @@ pub struct SettingUsize {
 }
 
 #[derive(EdbClap, Clone, Debug)]
-#[clap(trailing_var_arg=true, allow_hyphen_values=true)]
 pub struct Edit {
+    #[clap(trailing_var_arg=true, allow_hyphen_values=true)]
     pub entry: Option<isize>,
 }
 

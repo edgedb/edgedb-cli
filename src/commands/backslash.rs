@@ -24,13 +24,13 @@ use crate::table;
 
 pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(|| CommandCache::new());
 
-pub trait IntoApp {
-    fn into_app<'help>() -> clap::Command<'help>;
-    fn augment_args(app: clap::Command<'_>) -> clap::Command<'_>;
+pub trait CommandFactory {
+    fn command() -> clap::Command;
+    fn augment_args(app: clap::Command) -> clap::Command;
 }
 
 pub trait Subcommand {
-    fn augment_subcommands(app: clap::Command<'_>) -> clap::Command<'_>;
+    fn augment_subcommands(app: clap::Command) -> clap::Command;
 }
 
 
@@ -296,12 +296,12 @@ impl CommandInfo {
                 .filter(|a| a.get_long().is_none())
                 .map(|a| Argument {
                     required: false,
-                    name: a.get_id().to_owned(),
+                    name: a.get_id().to_string().to_owned(),
                 })
                 .collect(),
-            description: cmd.get_about().map(|x| x.trim().to_owned()),
+            description: cmd.get_about().map(|x| format!("{}", x.ansi()).trim().to_owned()),
             name_description: if let Some(desc) = cmd.get_about() {
-                format!("{} -- {}", cmd.get_name(), desc.trim())
+                format!("{} -- {}", cmd.get_name(), format!("{}", desc.ansi()).trim())
             } else {
                 cmd.get_name().to_string()
             },
@@ -366,14 +366,17 @@ impl CommandCache {
                 .expect("setting has argument");
             let values = arg.get_value_parser().possible_values()
                 .map(|v| v.map(|x| x.get_name().to_owned()).collect());
-            let description = cmd.get_about().unwrap_or("").trim().to_owned();
+            let description = match cmd.get_about() {
+                Some(x) => format!("{}", x.ansi()),
+                None => String::from(""),
+            }.trim().to_owned();
             let info = SettingInfo {
                 name: setting.name(),
                 name_description: format!("{} -- {}",
                     setting.name(), description),
                 description,
                 setting,
-                value_name: arg.get_id().to_owned(),
+                value_name: arg.get_id().to_string().to_owned(),
                 values,
              };
             (info.name, info)

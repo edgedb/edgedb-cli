@@ -38,7 +38,7 @@ const MAX_TERM_WIDTH: usize = 90;
 const MIN_TERM_WIDTH: usize = 50;
 
 const CONN_OPTIONS_GROUP: &str =
-    "CONNECTION OPTIONS (`edgedb --help-connect` to see full list)";
+    "Connection Options (edgedb --help-connect to see full list)";
 const CLOUD_OPTIONS_GROUP: &str = "CLOUD OPTIONS";
 const CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
@@ -437,7 +437,7 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
         let mut new_lines = vec![lines.nth(0).unwrap().to_string()];
         for line in lines {
             new_lines.push(
-                format!("    {:padding$} {}", " ", line, padding=padding)
+                format!("  {:padding$} {}", " ", line, padding=padding)
             );
         }
 
@@ -446,7 +446,10 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
 
     let mut buf = String::with_capacity(4096);
 
-    write!(&mut buf, "SUBCOMMANDS:\n").unwrap();
+    write!(
+        &mut buf,
+        color_print::cstr!("<bold><underline>Commands</underline></bold>:\n"),
+    ).unwrap();
     let descr = T::describe();
     let mut empty_line = true;
 
@@ -464,18 +467,25 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
                 if subcmd.hide {
                     continue;
                 }
-                writeln!(&mut buf, "    {:padding$} {}",
-                    format!("{} {}", cmd.name, subcmd.name),
+                writeln!(&mut buf, "  {} {}",
+                    color_print::cformat!(
+                        "<bold>{:padding$}</bold>",
+                        format!("{} {}", cmd.name, subcmd.name),
+                        padding=padding,
+                    ),
                     wrap(&markdown::format_title(sdescr.help_title)),
-                    padding=padding
                 ).unwrap();
             }
             buf.push('\n');
             empty_line = true;
         } else {
-            writeln!(&mut buf, "    {:padding$} {}",
-                cmd.name, wrap(&markdown::format_title(cdescr.help_title)),
-                padding=padding
+            writeln!(&mut buf, "  {} {}",
+                color_print::cformat!(
+                    "<bold>{:padding$}</bold>",
+                    cmd.name,
+                    padding=padding,
+                ),
+                wrap(&markdown::format_title(cdescr.help_title)),
             ).unwrap();
             empty_line = false;
         }
@@ -490,20 +500,17 @@ fn update_main_help(mut app: clap::Command) -> clap::Command {
         app = app.color(clap::ColorChoice::Never);
     }
     let sub_cmd = make_subcommand_help::<RawOptions>();
-    let mut help = Vec::with_capacity(2048);
 
-    app.write_help(&mut help).unwrap();
+    let help = format!("{}", app.render_help().ansi()).to_string();
+    let subcmd_index = help.find("Commands:").unwrap();
+    let opt_index = help.find("Options:").unwrap();
 
-    let help = String::from_utf8(help).unwrap();
-    let subcmd_index = help.find("SUBCOMMANDS:").unwrap();
-    let mut help = help[..subcmd_index].replacen("edgedb", "EdgeDB CLI", 1);
-    help.push_str(&sub_cmd);
-
-    help = help.replacen(
-        CONN_OPTIONS_GROUP,
-        &markdown::format_markdown(CONN_OPTIONS_GROUP).trim(),
-        1
-    );
+    let help = vec![
+        &help[..subcmd_index],
+        &sub_cmd,
+        &color_print::cformat!("\n\n<bold><underline>Options:</underline></bold>"),
+        &help[(opt_index + 8)..]
+    ].join("");
 
     let help = std::str::from_utf8(Vec::leak(help.into())).unwrap();
     return app.override_help(help);
@@ -527,18 +534,14 @@ fn print_full_connection_options() {
         new_app = new_app.arg(new_arg);
     }
 
-    let mut help = Vec::with_capacity(2048);
-
     // "Long help" has more whitespace and is much more readable
     // for the many options we have in the connection group.
-    new_app.write_long_help(&mut help).unwrap();
-
-    let help = String::from_utf8(help).unwrap();
+    let help = format!("{}", new_app.render_long_help().ansi());
     let subcmd_index = help.find(CONN_OPTIONS_GROUP).unwrap();
-    let slice_from = subcmd_index + CONN_OPTIONS_GROUP.len() + 2;
+    let slice_from = subcmd_index + CONN_OPTIONS_GROUP.len() + 1;
     let help = &help[slice_from..];
 
-    println!("CONNECTION OPTIONS (full list):\n");
+    color_print::cprintln!("<bold><underline>Connection Options (full list):</underline></bold>");
     println!("{}", help);
 }
 
