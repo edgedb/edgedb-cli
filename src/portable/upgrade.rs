@@ -375,7 +375,8 @@ pub async fn dump_instance(inst: &InstanceInfo, destination: &Path)
         styler: None,
         conn_params: Connector::new(Ok(config)),
     };
-    commands::dump_all(&mut cli, &options, destination.as_ref()).await?;
+    commands::dump_all(&mut cli, &options, destination.as_ref(),
+                       true /*include_secrets*/).await?;
     Ok(())
 }
 

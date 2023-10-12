@@ -208,6 +208,7 @@ pub fn create_instance(options: &options::Create, name: &str,
     let wsl = ensure_wsl()?;
 
     let inner_options = options::Create {
+        name: Some(InstanceName::Local(name.to_string())),
         port: Some(port),
         ..options.clone()
     };
