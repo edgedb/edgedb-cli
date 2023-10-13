@@ -407,7 +407,7 @@ fn show_history(history: &History) -> Result<(), anyhow::Error> {
     cmd.stdin(Stdio::piped());
     cmd.args(items);
     let mut child = cmd.spawn()?;
-    let childin = child.stdin.as_mut().expect("stdin is piped");
+    let mut childin = child.stdin.take().expect("stdin is piped");
     for index in (0..history.len()).rev() {
         if let Some(s) = history.get(index) {
             let prefix = format!("[-{}] ", history.len() - index);
