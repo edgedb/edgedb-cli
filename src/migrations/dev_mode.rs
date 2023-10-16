@@ -26,8 +26,8 @@ enum Mode {
     Rebase,
 }
 
-const MINIMUM_VERSION: Lazy<ver::Filter> =
-    Lazy::new(|| "3.0-alpha.1".parse().unwrap());
+const MINIMUM_VERSION: Lazy<ver::Build> =
+    Lazy::new(|| "3.0-alpha.1+05474ea".parse().unwrap());
 
 mod ddl {  // Just for nice log filter
     use super::{execute, Connection};

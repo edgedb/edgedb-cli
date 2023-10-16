@@ -171,20 +171,6 @@ pub struct Create {
     #[clap(long)]
     pub region: Option<String>,
 
-    /// Request a free tier instance.
-    #[clap(long, conflicts_with_all=&["compute_size", "storage_size"])]
-    pub free_tier: bool,
-
-    /// The size of compute to be allocated for the Cloud instance in
-    /// Compute Units.
-    #[clap(long, value_name="number")]
-    pub compute_size: Option<u16>,
-
-    /// The size of storage to be allocated for the Cloud instance in
-    /// Gigabytes.
-    #[clap(long, value_name="GiB")]
-    pub storage_size: Option<u16>,
-
     /// Deprecated parameter, unused.
     #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
     pub start_conf: Option<StartConf>,

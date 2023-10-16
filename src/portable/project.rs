@@ -146,7 +146,7 @@ pub struct Unlink {
     #[clap(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// If specified, the associated EdgeDB instance is destroyed
+    /// If specified, the associated EdgeDB instance is destroyed 
     /// using `edgedb instance destroy`.
     #[clap(long, short='D')]
     pub destroy_server_instance: bool,
@@ -690,9 +690,6 @@ fn do_init(name: &str, pkg: &PackageInfo,
             channel: q.cli_channel(),
             version: q.version,
             region: None,
-            free_tier: false,
-            compute_size: None,
-            storage_size: None,
             port: Some(port),
             start_conf: None,
             default_database: "edgedb".into(),
@@ -772,8 +769,6 @@ fn do_cloud_init(
         org: org.clone(),
         version: version.to_string(),
         region: None,
-        tier: None,
-        requested_resources: None,
     };
     crate::cloud::ops::create_cloud_instance(client, &request)?;
     let full_name = format!("{}/{}", org, name);
