@@ -12,6 +12,7 @@ use crate::portable::repository::Channel;
 use crate::print::{echo, warn, err_marker};
 use crate::process::{self, IntoArg};
 use crate::options::{ConnectionOptions, CloudOptions};
+use crate::cloud::ops::CloudTier;
 
 
 const DOMAIN_LABEL_MAX_LENGTH: usize = 63;
@@ -144,6 +145,28 @@ pub enum InstanceName {
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct CloudInstanceParams {
+    /// The region in which to create the instance (for cloud instances)
+    #[arg(long)]
+    pub region: Option<String>,
+
+    /// Cloud instance subscription tier.
+    #[arg(long, value_name="tier")]
+    #[arg(value_enum)]
+    pub tier: Option<CloudTier>,
+
+    /// The size of compute to be allocated for the Cloud instance in
+    /// Compute Units.
+    #[arg(long, value_name="number")]
+    pub compute_size: Option<u16>,
+
+    /// The size of storage to be allocated for the Cloud instance in
+    /// Gigabytes.
+    #[arg(long, value_name="GiB")]
+    pub storage_size: Option<u16>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Create {
     #[command(flatten)]
     pub cloud_opts: CloudOptions,
@@ -167,9 +190,8 @@ pub struct Create {
     #[arg(long)]
     pub port: Option<u16>,
 
-    /// The region in which to create the instance (for cloud instances)
-    #[arg(long)]
-    pub region: Option<String>,
+    #[command(flatten)]
+    pub cloud_params: Option<CloudInstanceParams>,
 
     /// Deprecated parameter, unused.
     #[arg(long, hide=true)]

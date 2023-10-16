@@ -24,7 +24,7 @@ async fn common_cmd(_options: &Options, cmdopt: commands::Options, cmd: &Common)
     Ok(())
 }
 
-pub fn main(options: Options) -> Result<(), anyhow::Error> {
+pub fn main(options: &Options) -> Result<(), anyhow::Error> {
     match options.subcommand.as_ref().expect("subcommand is present") {
         Command::Common(cmd) => {
             let cmdopt = commands::Options {
@@ -55,7 +55,7 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
                     migrations::upgrade_check(&cmdopt, params)
                 }
                 // Otherwise connect
-                cmd => common_cmd(&options, cmdopt, cmd),
+                cmd => common_cmd(options, cmdopt, cmd),
             }
         },
         Command::Server(cmd) => {
@@ -64,15 +64,15 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
         }
         Command::Instance(cmd) => {
             directory_check::check_and_error()?;
-            portable::instance_main(cmd, &options)
+            portable::instance_main(cmd, options)
         }
         Command::Project(cmd) => {
             directory_check::check_and_error()?;
-            portable::project_main(cmd, &options)
+            portable::project_main(cmd, options)
         }
         Command::Query(q) => {
             directory_check::check_and_warn();
-            non_interactive::noninteractive_main(&q, &options).into()
+            non_interactive::noninteractive_main(&q, options).into()
         }
         Command::_SelfInstall(s) => {
             cli::install::main(s)
@@ -84,16 +84,16 @@ pub fn main(options: Options) -> Result<(), anyhow::Error> {
             cli::main(c)
         },
         Command::Info(info) => {
-            commands::info(&options, info).into()
+            commands::info(options, info).into()
         }
         Command::UI(c) => {
-            commands::show_ui(c, &options)
+            commands::show_ui(c, options)
         }
         Command::Cloud(c) => {
             cloud_main(c, &options.cloud_options)
         }
         Command::Watch(c) => {
-            watch::watch(&options, c)
+            watch::watch(options, c)
         }
     }
 }
