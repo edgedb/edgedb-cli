@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::io::{self, Write};
 
 use anyhow::Context;
-use edgedb_cli_derive::EdbClap;
 use fs_err as fs;
 use fn_error_context::context;
 
@@ -18,14 +17,14 @@ use crate::print_markdown;
 use crate::question;
 
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct CliMigrate {
     /// Dry run: do not actually move anything
-    #[clap(short='n', long)]
+    #[arg(short='n', long)]
     pub dry_run: bool,
 
     /// Dry run: do not actually move anything (with increased verbosity)
-    #[clap(short='v', long)]
+    #[arg(short='v', long)]
     pub verbose: bool,
 }
 

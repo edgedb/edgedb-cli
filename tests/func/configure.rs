@@ -38,7 +38,7 @@ fn configure_all_parameters() {
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
     let cmd_simple_options = out.lines()
-        .skip_while(|line| line != &"SUBCOMMANDS:")
+        .skip_while(|line| line != &"Commands:")
         .skip(1)
         .filter(|line| line.len() > 4)
         .filter(|line| !line[4..].starts_with("    "))
@@ -81,7 +81,7 @@ fn configure_all_parameters() {
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
     let cmd_object_options = out.lines()
-        .skip_while(|line| line != &"SUBCOMMANDS:")
+        .skip_while(|line| line != &"Commands:")
         .skip(1)
         .filter(|line| line.len() > 4)
         .filter(|line| !line[4..].starts_with("    "))
@@ -98,7 +98,7 @@ fn configure_all_parameters() {
         .assert().success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
     let cmd_reset_options = out.lines()
-        .skip_while(|line| line != &"SUBCOMMANDS:")
+        .skip_while(|line| line != &"Commands:")
         .skip(1)
         .filter(|line| line.len() > 4)
         .filter(|line| !line[4..].starts_with("    "))

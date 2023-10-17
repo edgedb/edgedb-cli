@@ -319,7 +319,7 @@ pub async fn watch_loop(mut rx: watch::Receiver<()>,
                 ok = false;
                 log::error!("Error updating database: {:#}. \
                              Will retry in 10s.", e);
-                retry_deadline = Some(Instant::now() + 
+                retry_deadline = Some(Instant::now() +
                                       Duration::from_secs(10));
             }
         }

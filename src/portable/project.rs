@@ -12,7 +12,6 @@ use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use sha1::Digest;
 
-use edgedb_cli_derive::EdbClap;
 use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgedb_tokio::Builder;
 use edgeql_parser::helpers::quote_name;
@@ -39,6 +38,7 @@ use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::upgrade;
 use crate::portable::ver;
 use crate::portable::windows;
+use crate::options::CloudOptions;
 use crate::print::{self, echo, Highlight};
 use crate::question;
 use crate::table;
@@ -64,19 +64,19 @@ pub struct ProjectInfo {
     stash_dir: PathBuf,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(clap::Args, Debug, Clone)]
+#[command(version = "help_expand")]
+#[command(disable_version_flag=true)]
 pub struct ProjectCommand {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub subcommand: Command,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
     /// Initialize project or link to existing unlinked project
-    #[edb(inherit(crate::options::CloudOptions))]
     Init(Init),
     /// Clean up project configuration. Use `edgedb project init` to relink
-    #[edb(inherit(crate::options::CloudOptions))]
     Unlink(Unlink),
     /// Get various metadata about project instance
     Info(Info),
@@ -100,31 +100,34 @@ pub enum Command {
     Upgrade(Upgrade),
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(clap::Args, Debug, Clone)]
 pub struct Init {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
     /// Explicitly set a root directory for the project
-    #[clap(long, value_hint=ValueHint::DirPath)]
+    #[arg(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
     /// Specify the desired EdgeDB server version
-    #[clap(long)]
+    #[arg(long)]
     pub server_version: Option<Query>,
 
     /// Specify whether the existing EdgeDB server instance
     /// should be linked with the project
-    #[clap(long)]
+    #[arg(long)]
     pub link: bool,
 
     /// Specify the EdgeDB server instance to be associated with the project
-    #[clap(long)]
+    #[arg(long)]
     pub server_instance: Option<InstanceName>,
 
     /// Specify the default database for the project to use on that instance
-    #[clap(long, short='d')]
+    #[arg(long, short='d')]
     pub database: Option<String>,
 
     /// Deprecated parameter, does nothing.
-    #[clap(long, hide=true, possible_values=&["auto", "manual"][..])]
+    #[arg(long, hide=true, value_parser=["auto", "manual"])]
     pub server_start_conf: Option<StartConf>,
 
     /// Skip running migrations
@@ -132,105 +135,108 @@ pub struct Init {
     /// There are two main use cases for this option:
     /// 1. With `--link` to connect to a datastore with existing data
     /// 2. To initialize a new instance but then restore using a dump
-    #[clap(long)]
+    #[arg(long)]
     pub no_migrations: bool,
 
     /// Initialize in in non-interactive mode (accepting all defaults)
-    #[clap(long)]
+    #[arg(long)]
     pub non_interactive: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(clap::Args, Debug, Clone)]
 pub struct Unlink {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
     /// Explicitly set a root directory for the project
-    #[clap(long, value_hint=ValueHint::DirPath)]
+    #[arg(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
-    /// If specified, the associated EdgeDB instance is destroyed 
+    /// If specified, the associated EdgeDB instance is destroyed
     /// using `edgedb instance destroy`.
-    #[clap(long, short='D')]
+    #[arg(long, short='D')]
     pub destroy_server_instance: bool,
 
     /// Unlink in in non-interactive mode (accepting all defaults)
-    #[clap(long)]
+    #[arg(long)]
     pub non_interactive: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(clap::Args, Debug, Clone)]
 pub struct Info {
     /// Explicitly set a root directory for the project
-    #[clap(long, value_hint=ValueHint::DirPath)]
+    #[arg(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
     /// Display only the instance name (shortcut to `--get instance-name`)
-    #[clap(long)]
+    #[arg(long)]
     pub instance_name: bool,
 
     /// Output in JSON format
-    #[clap(long)]
+    #[arg(long)]
     pub json: bool,
 
-    #[clap(long, possible_values=&[
+    #[arg(long, value_parser=[
         "instance-name",
         "cloud-profile",
-    ][..])]
+    ])]
     /// Get a specific value:
     ///
     /// * `instance-name` -- Name of the listance the project is linked to
     pub get: Option<String>,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(clap::Args, Debug, Clone)]
 pub struct Upgrade {
     /// Explicitly set a root directory for the project
-    #[clap(long, value_hint=ValueHint::DirPath)]
+    #[arg(long, value_hint=ValueHint::DirPath)]
     pub project_dir: Option<PathBuf>,
 
     /// Upgrade specified instance to latest version
-    #[clap(long)]
-    #[clap(conflicts_with_all=&[
+    #[arg(long)]
+    #[arg(conflicts_with_all=&[
         "to_version", "to_testing", "to_nightly", "to_channel",
     ])]
     pub to_latest: bool,
 
     /// Upgrade specified instance to a specified version
-    #[clap(long)]
-    #[clap(conflicts_with_all=&[
+    #[arg(long)]
+    #[arg(conflicts_with_all=&[
         "to_testing", "to_latest", "to_nightly", "to_channel",
     ])]
     pub to_version: Option<ver::Filter>,
 
     /// Upgrade specified instance to latest nightly version
-    #[clap(long)]
-    #[clap(conflicts_with_all=&[
+    #[arg(long)]
+    #[arg(conflicts_with_all=&[
         "to_version", "to_latest", "to_testing", "to_channel",
     ])]
     pub to_nightly: bool,
 
     /// Upgrade specified instance to latest testing version
-    #[clap(long)]
-    #[clap(conflicts_with_all=&[
+    #[arg(long)]
+    #[arg(conflicts_with_all=&[
         "to_version", "to_latest", "to_nightly", "to_channel",
     ])]
     pub to_testing: bool,
 
     /// Upgrade specified instance to the specified channel
-    #[clap(long, value_enum)]
-    #[clap(conflicts_with_all=&[
+    #[arg(long, value_enum)]
+    #[arg(conflicts_with_all=&[
         "to_version", "to_latest", "to_nightly", "to_testing",
     ])]
     pub to_channel: Option<Channel>,
 
     /// Verbose output
-    #[clap(short='v', long)]
+    #[arg(short='v', long)]
     pub verbose: bool,
 
     /// Force upgrade process even if there is no new version
-    #[clap(long)]
+    #[arg(long)]
     pub force: bool,
 
     /// Do not ask questions, assume user wants to upgrade instance
-    #[clap(long)]
+    #[arg(long)]
     pub non_interactive: bool,
 }
 
@@ -695,6 +701,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             default_database: "edgedb".into(),
             default_user: "edgedb".into(),
             non_interactive: true,
+            cloud_opts: options.cloud_opts.clone(),
         }, name, port, &paths)?;
         create::create_service(&InstanceInfo {
             name: name.into(),
@@ -1106,6 +1113,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
             quiet: false,
             to_revision: None,
             dev_mode: false,
+            conn: None,
         }).await?;
     Ok(())
 }
@@ -1769,7 +1777,7 @@ pub fn update_toml(
             InstanceKind::Remote
                 => anyhow::bail!("remote instances cannot be upgraded"),
             InstanceKind::Portable(inst)
-                => upgrade_local(&config, inst, &query, options.force),
+                => upgrade_local(options, &config, inst, &query, opts),
             InstanceKind::Wsl(_) => todo!(),
             InstanceKind::Cloud { org_slug, name, .. }
                 => upgrade_cloud(options, &org_slug, &name, &query, opts),
@@ -1864,7 +1872,7 @@ pub fn upgrade_instance(
         InstanceKind::Remote
             => anyhow::bail!("remote instances cannot be upgraded"),
         InstanceKind::Portable(inst)
-            => upgrade_local(&config, inst, cfg_ver, options.force),
+            => upgrade_local(options, &config, inst, cfg_ver, opts),
         InstanceKind::Wsl(_) => todo!(),
         InstanceKind::Cloud { org_slug, name, .. }
             => upgrade_cloud(options, &org_slug, &name, cfg_ver, opts),
@@ -1893,10 +1901,11 @@ pub fn upgrade_instance(
 }
 
 fn upgrade_local(
+    cmd: &Upgrade,
     config: &config::Config,
     inst: InstanceInfo,
     to_version: &Query,
-    force: bool,
+    opts: &crate::options::Options,
 ) -> anyhow::Result<upgrade::UpgradeResult> {
     let inst_ver = inst.get_version()?.specific();
 
@@ -1905,7 +1914,7 @@ fn upgrade_local(
         format!("cannot find package matching {}", to_version.display()))?;
     let pkg_ver = pkg.version.specific();
 
-    if pkg_ver > inst_ver || force {
+    if pkg_ver > inst_ver || cmd.force {
         if cfg!(windows) {
             windows::upgrade(&options::Upgrade {
                 to_latest: false,
@@ -1916,9 +1925,10 @@ fn upgrade_local(
                 name: None,
                 instance: Some(instance_name.into()),
                 verbose: false,
-                force,
-                force_dump_restore: force,
+                force: cmd.force,
+                force_dump_restore: cmd.force,
                 non_interactive: true,
+                cloud_opts: opts.cloud_options.clone(),
             }, &inst.name)?;
         } else {
             ver::print_version_hint(&pkg_ver, &to_version);
@@ -1926,7 +1936,7 @@ fn upgrade_local(
             // since some selector like `--to-latest` was specified we assume
             // user want to treat this upgrade as incompatible and do the
             // upgrade. This is mostly for testing.
-            if pkg_ver.is_compatible(&inst_ver) && !force {
+            if pkg_ver.is_compatible(&inst_ver) && !cmd.force {
                 upgrade::upgrade_compatible(inst, pkg)?;
             } else {
                 migrations::upgrade_check::to_version(&pkg, &config)?;

@@ -137,7 +137,9 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
     use PacketType::*;
     let RestoreCmd {
         path: ref filename,
-        all: _, verbose: _,
+        all: _,
+        verbose: _,
+        conn: _,
     } = *params;
     if is_non_empty_db(cli).await? {
         return Err(anyhow::anyhow!("\

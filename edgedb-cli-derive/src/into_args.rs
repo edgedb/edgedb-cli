@@ -169,4 +169,3 @@ pub fn structure(s: &types::Struct) -> TokenStream {
         }
     }
 }
-

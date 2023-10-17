@@ -2,12 +2,12 @@
 #![cfg_attr(windows, allow(unused_imports))]
 #![type_length_limit="8388608"]
 
+use clap::Parser;
+
 use std::default::Default;
 use std::env;
 use std::path::Path;
 use std::process::exit;
-
-use clap::{Parser};
 
 use crate::options::Options;
 

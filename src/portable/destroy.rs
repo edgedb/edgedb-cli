@@ -170,5 +170,6 @@ pub fn force_by_name(name: &InstanceName, options: &Options) -> anyhow::Result<(
         force: true,
         quiet: false,
         non_interactive: true,
+        cloud_opts: options.cloud_options.clone(),
     }, options, name)
 }

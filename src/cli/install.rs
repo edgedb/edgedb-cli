@@ -9,9 +9,8 @@ use std::process::{exit};
 use std::str::FromStr;
 
 use anyhow::Context;
-use clap::IntoApp;
+use clap::CommandFactory;
 use clap_complete::{generate, shells};
-use edgedb_cli_derive::EdbClap;
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
@@ -29,34 +28,34 @@ use crate::question::{self, read_choice};
 use crate::table;
 
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Parser, Clone, Debug)]
 pub struct CliInstall {
-    #[clap(long, hide=true)]
+    #[arg(long, hide=true)]
     pub nightly: bool,
-    #[clap(long, hide=true)]
+    #[arg(long, hide=true)]
     pub testing: bool,
     /// Enable verbose output
-    #[clap(short='v', long)]
+    #[arg(short='v', long)]
     pub verbose: bool,
     /// Skip printing messages and confirmation prompts
-    #[clap(short='q', long)]
+    #[arg(short='q', long)]
     pub quiet: bool,
     /// Disable confirmation prompt, also disables running `project init`
-    #[clap(short='y')]
+    #[arg(short='y')]
     pub no_confirm: bool,
     /// Do not configure PATH environment variable
-    #[clap(long)]
+    #[arg(long)]
     pub no_modify_path: bool,
     /// Indicate that edgedb-init should not issue a
     /// "Press Enter to continue" prompt before exiting
-    /// on Windows. Used when edgedb-init is invoked 
+    /// on Windows. Used when edgedb-init is invoked
     /// from an existing terminal session and not in
     /// a new window.
-    #[clap(long)]
+    #[arg(long)]
     pub no_wait_for_exit_prompt: bool,
 
     /// Installation is run from `self upgrade` command
-    #[clap(long, hide=true)]
+    #[arg(long, hide=true)]
     pub upgrade: bool,
 }
 
@@ -69,20 +68,20 @@ pub enum Shell {
     Zsh,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct GenCompletions {
     /// Shell to print out completions for
-    #[clap(long, possible_values=&[
+    #[arg(long, value_parser=[
         "bash", "elvish", "fish", "powershell", "zsh",
     ])]
     pub shell: Option<Shell>,
 
     /// Install all completions into the prefix
-    #[clap(long, conflicts_with="shell")]
+    #[arg(long, conflicts_with="shell")]
     pub prefix: Option<PathBuf>,
 
     /// Install all completions into the prefix
-    #[clap(long, conflicts_with="shell", conflicts_with="prefix")]
+    #[arg(long, conflicts_with="shell", conflicts_with="prefix")]
     pub home: bool,
 }
 
@@ -400,6 +399,11 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             return Ok(Refused);
         }
 
+        let options = crate::options::CloudOptions {
+            cloud_api_endpoint: None,
+            cloud_secret_key: None,
+            cloud_profile: None,
+        };
         let init = Init {
             project_dir: None,
             server_version: None,
@@ -409,11 +413,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             no_migrations: false,
             link: false,
             server_start_conf: None,
-        };
-        let options = crate::options::CloudOptions {
-            cloud_api_endpoint: None,
-            cloud_secret_key: None,
-            cloud_profile: None,
+            cloud_opts: options.clone(),
         };
         let dir = fs::canonicalize(&dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;

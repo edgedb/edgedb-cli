@@ -456,6 +456,7 @@ async fn restore_instance(inst: &InstanceInfo, path: &Path)
         path: path.into(),
         all: true,
         verbose: false,
+        conn: None,
     }).await?;
     Ok(())
 }
