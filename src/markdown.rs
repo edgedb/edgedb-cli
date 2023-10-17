@@ -90,17 +90,6 @@ fn parse_markdown(text: &str) -> minimad::Text {
     return text;
 }
 
-pub fn format_markdown(text: &str) -> String {
-    let text = prepare_markdown(&text);
-    let text = parse_markdown(&text);
-    let fmt = termimad::FmtText::from_text(
-        &MADSKIN,
-        text,
-        None,
-    );
-    fmt.to_string()
-}
-
 pub fn format_title(text: &str) -> String {
     let text = prepare_markdown(&text);
     let mut text = parse_markdown(&text);

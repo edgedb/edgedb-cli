@@ -414,7 +414,6 @@ fn show_history(history: &History) -> Result<(), anyhow::Error> {
             }
         }
     }
-    drop(childin);
     let res = child.wait()?;
     if res.success() {
         Ok(())

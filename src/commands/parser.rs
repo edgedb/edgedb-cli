@@ -133,7 +133,7 @@ pub enum DatabaseCmd {
 }
 
 #[derive(clap::Parser, Clone, Debug)]
-#[command(no_binary_name=true)]
+#[command(no_binary_name=true, disable_help_subcommand(true))]
 pub struct Backslash {
     #[command(subcommand)]
     pub command: BackslashCmd,
