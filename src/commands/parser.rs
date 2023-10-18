@@ -204,7 +204,7 @@ pub enum Setting {
 
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct InputMode {
-    #[arg(value_name="mode", value_parser=["vi", "emacs"])]
+    #[arg(value_name="mode")]
     pub value: Option<repl::InputMode>,
 }
 
@@ -239,23 +239,18 @@ pub struct SettingUsize {
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct Edit {
-    #[arg(trailing_var_arg=true, allow_hyphen_values=true)]
+    #[arg(trailing_var_arg=true, allow_hyphen_values=true, num_args=..2)]
     pub entry: Option<isize>,
 }
 
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct OutputFormat {
-    #[arg(value_name="mode", value_parser=
-        ["default", "json-pretty", "json", "json-lines", "tab-separated"]
-    )]
+    #[arg(value_name="mode")]
     pub value: Option<repl::OutputFormat>,
 }
 
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct PrintStats {
-    #[arg(value_parser=
-        ["off", "query", "detailed"]
-    )]
     pub value: Option<repl::PrintStats>,
 }
 
