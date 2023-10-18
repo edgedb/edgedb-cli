@@ -75,11 +75,13 @@ pub fn watch(options: &Options, _watch: &WatchCommand)
 
     runtime.block_on(ctx.do_update())?;
 
-    eprintln!("Initialized. Monitoring {:?}.", project_dir);
+    eprintln!("EdgeDB Watch initialized.");
+    eprintln!("  Hint: Use `edgedb migration create` and `edgedb migrate --dev-mode` to apply changes once done.");
+    eprintln!("Monitoring {:?}.", project_dir);
     let res = runtime.block_on(watch_loop(rx, &mut ctx));
     runtime.block_on(ctx.try_connect_and_clear_error())
         .map_err(|e| log::error!("Cannot clear error: {:#}", e)).ok();
-    return res;
+    res
 }
 
 pub async fn wait_changes(rx: &mut watch::Receiver<()>,
