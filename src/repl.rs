@@ -31,6 +31,8 @@ pub const FAILURE_MARKER: &str = "[tx:failed]";
 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(clap::ValueEnum)]
+#[value(rename_all="kebab-case")]
 pub enum OutputFormat {
     Default,
     Json,
@@ -40,12 +42,16 @@ pub enum OutputFormat {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(clap::ValueEnum)]
+#[value(rename_all="kebab-case")]
 pub enum InputMode {
     Vi,
     Emacs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(clap::ValueEnum)]
+#[value(rename_all="kebab-case")]
 pub enum PrintStats {
     Off,
     Query,

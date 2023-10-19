@@ -127,6 +127,8 @@ pub struct ListVersions {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(clap::ValueEnum)]
+#[value(rename_all="kebab-case")]
 pub enum StartConf {
     Auto,
     Manual,
@@ -170,7 +172,7 @@ pub struct Create {
     pub region: Option<String>,
 
     /// Deprecated parameter, unused.
-    #[arg(long, hide=true, value_parser=["auto", "manual"])]
+    #[arg(long, hide=true)]
     pub start_conf: Option<StartConf>,
 
     /// Default database name (created during initialization and saved in

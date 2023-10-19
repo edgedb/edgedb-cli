@@ -60,6 +60,8 @@ pub struct CliInstall {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[derive(clap::ValueEnum)]
+#[value(rename_all="kebab-case")]
 pub enum Shell {
     Bash,
     Elvish,
@@ -71,9 +73,7 @@ pub enum Shell {
 #[derive(clap::Args, Clone, Debug)]
 pub struct GenCompletions {
     /// Shell to print out completions for
-    #[arg(long, value_parser=[
-        "bash", "elvish", "fish", "powershell", "zsh",
-    ])]
+    #[arg(long)]
     pub shell: Option<Shell>,
 
     /// Install all completions into the prefix
