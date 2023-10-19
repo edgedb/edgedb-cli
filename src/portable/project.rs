@@ -695,7 +695,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             nightly: false,
             channel: q.cli_channel(),
             version: q.version,
-            region: None,
+            cloud_params: None,
             port: Some(port),
             start_conf: None,
             default_database: "edgedb".into(),
@@ -776,6 +776,8 @@ fn do_cloud_init(
         org: org.clone(),
         version: version.to_string(),
         region: None,
+        tier: None,
+        requested_resources: None,
     };
     crate::cloud::ops::create_cloud_instance(client, &request)?;
     let full_name = format!("{}/{}", org, name);
