@@ -652,7 +652,8 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
             let pkg = repository::get_server_package(&ver_query)?
                 .with_context(||
-                    format!("cannot find package matching {}", ver_query.display()))?;
+                    format!("cannot find package matching {}. \
+                    (Use `edgedb server list-versions` to see all available)", ver_query.display()))?;
             ver::print_version_hint(&pkg.version.specific(), &ver_query);
 
             let meth = if cfg!(windows) {
@@ -1754,7 +1755,8 @@ pub fn update_toml(
     let schema_dir = &config.project.schema_dir;
 
     let pkg = repository::get_server_package(&query)?.with_context(||
-        format!("cannot find package matching {}", query.display()))?;
+        format!("cannot find package matching {} \
+        (Use `edgedb server list-versions` to see all available)", query.display()))?;
     let pkg_ver = pkg.version.specific();
 
     let stash_dir = stash_path(&root)?;
@@ -1913,7 +1915,8 @@ fn upgrade_local(
 
     let instance_name = InstanceName::from_str(&inst.name)?;
     let pkg = repository::get_server_package(to_version)?.with_context(||
-        format!("cannot find package matching {}", to_version.display()))?;
+        format!("cannot find package matching {} \
+        (Use `edgedb server list-versions` to see all available)", to_version.display()))?;
     let pkg_ver = pkg.version.specific();
 
     if pkg_ver > inst_ver || cmd.force {
