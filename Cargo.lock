@@ -992,7 +992,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
 name = "edgedb-cli"
-version = "4.0.0-dev"
+version = "4.1.0-dev"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1108,7 +1108,7 @@ dependencies = [
 
 [[package]]
 name = "edgedb-cli-derive"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "clap 4.4.6",
  "clap_generate",

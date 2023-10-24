@@ -9,7 +9,7 @@ use std::env;
 use std::path::Path;
 use std::process::exit;
 
-use crate::options::Options;
+use crate::options::{Options, UsageError};
 
 mod async_util;
 mod bug;
@@ -56,6 +56,9 @@ fn main() {
             let mut err = e;
             let mut code = 1;
             if let Some(e) = err.downcast_ref::<commands::ExitCode>() {
+                e.exit();
+            }
+            if let Some(e) = err.downcast_ref::<UsageError>() {
                 e.exit();
             }
             if let Some(arc) = err.downcast_ref::<hint::ArcError>() {
@@ -134,7 +137,7 @@ fn _main() -> anyhow::Result<()> {
     }
 
     if opt.subcommand.is_some() {
-        commands::cli::main(opt)
+        commands::cli::main(&opt)
     } else {
         cli::directory_check::check_and_warn();
         #[cfg(feature="portable_tests")]

@@ -92,8 +92,9 @@ impl FromStr for Specific {
     type Err = anyhow::Error;
     fn from_str(value: &str) -> anyhow::Result<Specific> {
         let m = SPECIFIC.captures(value)
-            .context("unsupported version format. Examples: \
-                     `1.15`, `7.0`, `3.0-rc.1`")?;
+            .context("unsupported version format.\n\t\
+                    Examples: `1.15`, `7.0`, `4.0-rc.1`.\n\t\
+                    Use `edgedb server list-versions` to see all available versions.")?;
         let major = m.get(1).unwrap().as_str().parse()?;
         let g3 = m.get(3).map(|m| m.as_str().parse()).transpose()?;
         let minor = match m.get(2).map(|m| m.as_str()) {
@@ -120,8 +121,9 @@ impl FromStr for Filter {
                     deprecated = true;
                     m
                 }
-                None => anyhow::bail!("unsupported version format. Examples: \
-                     `1.15`, `7`, `3.0-rc.1`"),
+                None => anyhow::bail!("unsupported version format.\n\t\
+                    Examples: `1.15`, `7`, `4.0-rc.1`.\n\t\
+                    Use `edgedb server list-versions` to see all available versions."),
             }
         };
         let major = m.name("major").unwrap().as_str().parse()?;

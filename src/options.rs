@@ -43,8 +43,8 @@ const CONNECTION_ARG_HINT: &str = "\
 #[derive(clap::Args, Clone, Debug)]
 #[group(id = "connopts")]
 pub struct ConnectionOptions {
-    /// Local instance name created with `edgedb instance create` to connect to
-    /// (overrides host and port)
+    /// Instance name (use `edgedb instance list` to list local, remote and
+    /// Cloud instances available to you).
     #[arg(short='I', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete instance name
     #[arg(global=true)]
@@ -399,6 +399,7 @@ pub struct Info {
 
 #[derive(Debug, Clone)]
 pub struct Options {
+    pub app: clap::Command,
     pub conn_options: ConnectionOptions,
     pub cloud_options: CloudOptions,
     pub subcommand: Option<Command>,
@@ -410,6 +411,22 @@ pub struct Options {
     pub no_cli_update_check: bool,
     #[cfg(feature="portable_tests")]
     pub test_output_conn_params: bool,
+}
+
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("error: {}", msg)]
+pub struct UsageError {
+    kind: clap::error::ErrorKind,
+    msg: String,
+}
+
+impl UsageError {
+    pub fn new(kind: clap::error::ErrorKind, msg: impl std::fmt::Display) -> Self {
+        UsageError{kind, msg: msg.to_string()}
+    }
+    pub fn exit(&self) -> ! {
+        clap::Error::raw(self.kind, &self.msg).exit()
+    }
 }
 
 fn parse_duration(value: &str) -> anyhow::Result<Duration> {
@@ -594,6 +611,10 @@ fn term_width() -> usize {
 }
 
 impl Options {
+    pub fn error(&self, kind: clap::error::ErrorKind, msg: impl std::fmt::Display) -> UsageError {
+        UsageError::new(kind, msg)
+    }
+
     pub fn from_args_and_env() -> anyhow::Result<Options> {
         // Connection/Cloud options apply *both* to the
         // root command when ran without arguments (i.e. REPL mode)
@@ -633,7 +654,7 @@ impl Options {
         let app = <SubcommandOption as clap::Args>::augment_args(app);
         let app = update_main_help(app);
 
-        let matches = app.get_matches();
+        let matches = app.clone().get_matches();
         let args = <RawOptions as clap::FromArgMatches>
             ::from_arg_matches(&matches)?;
         let cmd = <SubcommandOption as clap::FromArgMatches>
@@ -707,6 +728,7 @@ impl Options {
         }
 
         Ok(Options {
+            app: app,
             conn_options: args.conn,
             cloud_options: args.cloud,
             interactive,

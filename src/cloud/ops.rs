@@ -70,6 +70,7 @@ impl RemoteStatus {
 pub struct Org {
     pub id: String,
     pub name: String,
+    pub preferred_payment_method: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -85,11 +86,26 @@ pub struct Version {
 }
 
 #[derive(Debug, serde::Serialize)]
+pub struct CloudInstanceResourceRequest {
+    pub name: String,
+    pub value: u16,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(clap::ValueEnum)]
+pub enum CloudTier {
+    Pro,
+    Free,
+}
+
+#[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceCreate {
     pub name: String,
     pub org: String,
     pub version: String,
     pub region: Option<String>,
+    pub requested_resources: Option<Vec<CloudInstanceResourceRequest>>,
+    pub tier: Option<CloudTier>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub default_database: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -161,6 +177,16 @@ pub async fn find_cloud_instance_by_name(
             Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => Ok(None),
             _ => Err(e),
         })
+}
+
+#[tokio::main]
+pub async fn get_org(
+    org: &str,
+    client: &CloudClient,
+) -> anyhow::Result<Org> {
+    client
+        .get(format!("orgs/{}", org))
+        .await
 }
 
 async fn wait_for_operation(
