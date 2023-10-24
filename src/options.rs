@@ -43,8 +43,8 @@ const CONNECTION_ARG_HINT: &str = "\
 #[derive(clap::Args, Clone, Debug)]
 #[group(id = "connopts")]
 pub struct ConnectionOptions {
-    /// Local instance name created with `edgedb instance create` to connect to
-    /// (overrides host and port)
+    /// Instance name (use `edgedb instance list` to list local, remote and
+    /// Cloud instances available to you).
     #[arg(short='I', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete instance name
     #[arg(global=true)]
