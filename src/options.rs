@@ -1,19 +1,17 @@
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::io::stdin;
 
-use clap::{ValueHint};
 use colorful::Colorful;
-use edgedb_cli_derive::EdbClap;
 use edgedb_errors::{ClientNoCredentialsError, ResultExt};
 use edgedb_protocol::model;
 use edgedb_tokio::credentials::TlsSecurity;
 use edgedb_tokio::{Builder, Config, get_project_dir};
 use is_terminal::IsTerminal;
 use tokio::task::spawn_blocking as unblock;
+
+use edgedb_cli_derive::IntoArgs;
 
 use crate::cli::options::CliCommand;
 use crate::cli;
@@ -32,109 +30,112 @@ use crate::repl::OutputFormat;
 use crate::tty_password;
 use crate::watch::options::WatchCommand;
 
-pub mod describe;
-
-const MAX_TERM_WIDTH: usize = 90;
+const MAX_TERM_WIDTH: usize = 100;
 const MIN_TERM_WIDTH: usize = 50;
 
 const CONN_OPTIONS_GROUP: &str =
-    "CONNECTION OPTIONS (`edgedb --help-connect` to see full list)";
-const CLOUD_OPTIONS_GROUP: &str = "CLOUD OPTIONS";
+    "Connection Options (edgedb --help-connect to see full list)";
+const CLOUD_OPTIONS_GROUP: &str = "Cloud Connection Options";
 const CONNECTION_ARG_HINT: &str = "\
     Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
     to specify connection parameters. See `--help` for details";
 
-pub struct SharedGroups(HashMap<TypeId, Box<dyn Any>>);
-
-pub trait PropagateArgs {
-    fn propagate_args(&self, dest: &mut SharedGroups,
-                      matches: &clap::ArgMatches)
-        -> Result<(), clap::Error>;
-}
-
-#[derive(EdbClap, Clone, Debug)]
-#[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
+#[derive(clap::Args, Clone, Debug)]
+#[group(id = "connopts")]
 pub struct ConnectionOptions {
     /// Local instance name created with `edgedb instance create` to connect to
     /// (overrides host and port)
-    #[clap(short='I', long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short='I', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete instance name
+    #[arg(global=true)]
     pub instance: Option<InstanceName>,
 
     /// DSN for EdgeDB to connect to (overrides all other options
     /// except password)
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(conflicts_with_all=&["instance"])]
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(conflicts_with_all=&["instance"])]
+    #[arg(global=true)]
     pub dsn: Option<String>,
 
     /// Path to JSON file to read credentials from
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(conflicts_with_all=&["dsn", "instance"])]
-    #[clap(hide=true)]
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(conflicts_with_all=&["dsn", "instance"])]
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub credentials_file: Option<PathBuf>,
 
     /// EdgeDB instance host
-    #[clap(short='H', long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(value_hint=ValueHint::Hostname)]
-    #[clap(hide=true)]
-    #[clap(conflicts_with_all=
-           &["dsn", "credentials_file", "instance", "unix_path"])]
+    #[arg(short='H', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(value_hint=clap::ValueHint::Hostname)]
+    #[arg(hide=true)]
+    #[arg(global=true)]
+    #[arg(conflicts_with_all=
+          &["dsn", "credentials_file", "instance", "unix_path"])]
     pub host: Option<String>,
 
     /// Port to connect to EdgeDB
-    #[clap(short='P', long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(hide=true)]
-    #[clap(conflicts_with_all=&["dsn", "credentials_file", "instance"])]
+    #[arg(short='P', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(hide=true)]
+    #[arg(global=true)]
+    #[arg(conflicts_with_all=&["dsn", "credentials_file", "instance"])]
     pub port: Option<u16>,
 
     /// A path to a Unix socket for EdgeDB connection
     ///
     /// When the supplied path is a directory, the actual path will be
     /// computed using the `--port` and `--admin` parameters.
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(value_hint=ValueHint::AnyPath)]
-    #[clap(hide=true)]
-    #[clap(conflicts_with_all=
-           &["dsn", "credentials_file", "instance", "host"])]
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(value_hint=clap::ValueHint::AnyPath)]
+    #[arg(hide=true)]
+    #[arg(global=true)]
+    #[arg(conflicts_with_all=
+          &["dsn", "credentials_file", "instance", "host"])]
     pub unix_path: Option<PathBuf>,
 
     /// EdgeDB user name
-    #[clap(short='u', long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(hide=true)]
+    #[arg(short='u', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub user: Option<String>,
 
     /// Database name to connect to
-    #[clap(short='d', long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(value_hint=ValueHint::Other)]  // TODO complete database
-    #[clap(hide=true)]
+    #[arg(short='d', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete database
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub database: Option<String>,
 
     /// Ask for password on terminal (TTY)
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(hide=true)]
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub password: bool,
 
     /// Don't ask for password
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(hide=true)]
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub no_password: bool,
 
     /// Read password from stdin rather than TTY (useful for scripts)
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(hide=true)]
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub password_from_stdin: bool,
 
     /// Secret key to authenticate with
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(hide=true)]
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub secret_key: Option<String>,
 
     /// Certificate to match server against
     ///
     /// Might either be a full self-signed server certificate or certificate
     /// authority (CA) certificate that the server certificate is signed with.
-    #[clap(long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(hide=true)]
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub tls_ca_file: Option<PathBuf>,
 
     /// Verify server hostname using provided certificate.
@@ -144,8 +145,9 @@ pub struct ConnectionOptions {
     ///
     /// Enabled by default when no specific certificate is present
     /// (via `--tls-ca-file` or in credentials JSON file)
-    #[clap(long, hide=true)]
-    #[clap(conflicts_with_all=&["no_tls_verify_hostname"])]
+    #[arg(long, hide=true)]
+    #[arg(conflicts_with_all=&["no_tls_verify_hostname"])]
+    #[arg(global=true)]
     pub tls_verify_hostname: bool, // deprecated for tls_security
 
     /// Do not verify server hostname
@@ -154,8 +156,9 @@ pub struct ConnectionOptions {
     /// a certificate must be present and matching certificate specified with
     /// `--tls-ca-file` or credentials file or signed by one of the root
     /// certificate authorities.
-    #[clap(long, hide=true)]
-    #[clap(conflicts_with_all=&["tls_verify_hostname"])]
+    #[arg(long, hide=true)]
+    #[arg(conflicts_with_all=&["tls_verify_hostname"])]
+    #[arg(global=true)]
     pub no_tls_verify_hostname: bool, // deprecated for tls_security
 
     /// Specifications for client-side TLS security mode:
@@ -178,48 +181,67 @@ pub struct ConnectionOptions {
     /// Defaults to "strict" when no specific certificate is present
     /// (via `--tls-ca-file` or in credentials JSON file); otherwise
     /// to "no_host_verification".
-    #[clap(long, hide=true, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[clap(value_name="insecure | no_host_verification | strict | default")]
+    #[arg(long, hide=true, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(value_name="insecure | no_host_verification | strict | default")]
+    #[arg(global=true)]
     tls_security: Option<String>,
 
-    /// Retry up to WAIT_TIME (e.g. '30s') in case EdgeDB connection 
+    /// Retry up to WAIT_TIME (e.g. '30s') in case EdgeDB connection
     /// cannot be established.
-    #[clap(long, name="WAIT_TIME", help_heading=Some(CONN_OPTIONS_GROUP),
-                parse(try_from_str=parse_duration))]
-    #[clap(hide=true)]
+    #[arg(
+        long,
+        value_name="WAIT_TIME",
+        help_heading=Some(CONN_OPTIONS_GROUP),
+        value_parser=parse_duration,
+    )]
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub wait_until_available: Option<Duration>,
 
     /// Connect to a passwordless Unix socket with superuser
     /// privileges by default.
-    #[clap(long, hide=true, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(long, hide=true, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(global=true)]
     pub admin: bool,
 
-    /// Fail when no response from EdgeDB for TIMEOUT (default '10s'); 
+    /// Fail when no response from EdgeDB for TIMEOUT (default '10s');
     /// alternatively will retry if `--wait-until-available` is also specified.
-    #[clap(long, name="TIMEOUT", help_heading=Some(CONN_OPTIONS_GROUP),
-           parse(try_from_str=parse_duration))]
-    #[clap(hide=true)]
+    #[arg(
+        long,
+        value_name="TIMEOUT",
+        help_heading=Some(CONN_OPTIONS_GROUP),
+        value_parser=parse_duration,
+    )]
+    #[arg(hide=true)]
+    #[arg(global=true)]
     pub connect_timeout: Option<Duration>,
 }
 
-#[derive(EdbClap, Clone, Debug)]
-#[clap(setting=clap::AppSettings::DeriveDisplayOrder)]
+#[derive(clap::Parser, Debug)]
+#[command(disable_version_flag=true)]
+pub struct HelpConnect {
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+}
+
+#[derive(clap::Args, IntoArgs, Clone, Debug)]
+#[group(id = "cloudopts")]
 pub struct CloudOptions {
     /// Specify the EdgeDB Cloud API endpoint. Defaults to the current logged-in
     /// server, or <https://api.g.aws.edgedb.cloud> if unauthorized
-    #[clap(long, name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
-    #[clap(hide=true)]
+    #[arg(long, value_name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    #[arg(global=true)]
     pub cloud_api_endpoint: Option<String>,
 
     /// Specify EdgeDB Cloud API secret key to use instead of loading
     /// key from a remembered authentication.
-    #[clap(long, name="SECRET_KEY", help_heading=Some(CLOUD_OPTIONS_GROUP))]
-    #[clap(hide=true)]
+    #[arg(long, value_name="SECRET_KEY", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    #[arg(global=true)]
     pub cloud_secret_key: Option<String>,
 
     /// Specify authenticated EdgeDB Cloud profile. Defaults to "default".
-    #[clap(long, name="PROFILE", help_heading=Some(CLOUD_OPTIONS_GROUP))]
-    #[clap(hide=true)]
+    #[arg(long, value_name="PROFILE", help_heading=Some(CLOUD_OPTIONS_GROUP))]
+    #[arg(global=true)]
     pub cloud_profile: Option<String>,
 }
 
@@ -229,143 +251,143 @@ pub struct CloudOptions {
 /// Running `edgedb` without a subcommand opens an interactive shell
 /// for the instance in your directory. If you have no existing instance,
 /// type `edgedb project init` to create one.
-#[derive(EdbClap, Debug)]
-#[edb(main)]
-#[clap(disable_version_flag=true)]
+#[derive(clap::Parser, Debug)]
+#[command(disable_version_flag=true)]
 pub struct RawOptions {
-    #[clap(long)]
-    #[cfg_attr(not(feature="dev_mode"), clap(hide=true))]
+    #[arg(long)]
+    #[cfg_attr(not(feature="dev_mode"), arg(hide=true))]
     pub debug_print_frames: bool,
 
-    #[clap(long)]
-    #[cfg_attr(not(feature="dev_mode"), clap(hide=true))]
+    #[arg(long)]
+    #[cfg_attr(not(feature="dev_mode"), arg(hide=true))]
     pub debug_print_descriptors: bool,
 
-    #[clap(long)]
-    #[cfg_attr(not(feature="dev_mode"), clap(hide=true))]
+    #[arg(long)]
+    #[cfg_attr(not(feature="dev_mode"), arg(hide=true))]
     pub debug_print_codecs: bool,
 
     #[cfg(feature="portable_tests")]
-    #[clap(long)]
+    #[arg(long)]
     pub test_output_conn_params: bool,
 
     /// Print all available connection options
     /// for interactive shell along with subcommands
-    #[clap(long)]
+    #[arg(long)]
     pub help_connect: bool,
 
     /// Tab-separated output for queries
-    #[clap(short='t', long, overrides_with="json", hide=true)]
+    #[arg(short='t', long, overrides_with="json", hide=true)]
     pub tab_separated: bool,
     /// JSON output for queries (single JSON list per query)
-    #[clap(short='j', long, overrides_with="tab_separated", hide=true)]
+    #[arg(short='j', long, overrides_with="tab_separated", hide=true)]
     pub json: bool,
     /// Execute a query instead of starting REPL
-    #[clap(short='c', hide=true)]
+    #[arg(short='c', hide=true)]
     pub query: Option<String>,
 
     /// Show command-line tool version
-    #[clap(short='V', long="version")]
+    #[arg(short='V', long="version")]
     pub print_version: bool,
 
     // Deprecated: use "no_cli_update_check" instead
-    #[clap(long, hide=true)]
+    #[arg(long, hide=true)]
     pub no_version_check: bool,
 
     /// Disable check for new available CLI version
-    #[clap(long)]
+    #[arg(long)]
     pub no_cli_update_check: bool,
 
-    #[edb(inheritable)]
+    #[command(flatten)]
     pub conn: ConnectionOptions,
 
-    #[edb(inheritable)]
+    #[command(flatten)]
     pub cloud: CloudOptions,
+}
 
-    #[clap(subcommand)]
+#[derive(clap::Args, Debug)]
+pub struct SubcommandOption {
+    #[command(subcommand)]
     pub subcommand: Option<Command>,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
-    #[clap(flatten)]
+    #[command(flatten)]
     Common(Common),
     /// Execute EdgeQL query in quotes (e.g. `"select 9;"`)
-    #[edb(inherit(ConnectionOptions))]
     Query(Query),
     /// Launch EdgeDB instance in browser web UI
-    #[edb(inherit(ConnectionOptions))]
-    #[edb(inherit(CloudOptions))]
     UI(UI),
     /// Show paths for EdgeDB installation
     Info(Info),
     /// Manage project installation
-    #[edb(expand_help)]
     Project(project::ProjectCommand),
     /// Manage local EdgeDB instances
-    #[edb(expand_help)]
     Instance(portable::options::ServerInstanceCommand),
     /// Manage local EdgeDB installations
     Server(portable::options::ServerCommand),
     /// Generate shell completions
-    #[clap(name="_gen_completions")]
-    #[edb(hide=true)]
+    #[command(name="_gen_completions")]
+    #[command(hide=true)]
     _GenCompletions(cli::install::GenCompletions),
     /// Self-installation commands
-    #[clap(name="cli")]
-    #[edb(expand_help)]
+    #[command(name="cli")]
     CliCommand(CliCommand),
     /// Install EdgeDB
-    #[clap(name="_self_install")]
-    #[edb(hide=true)]
+    #[command(name="_self_install")]
+    #[command(hide=true)]
     _SelfInstall(cli::install::CliInstall),
     /// EdgeDB Cloud authentication
-    #[edb(inherit(CloudOptions), hide=true)]
     Cloud(CloudCommand),
     /// Start a long-running process that watches for changes in schema files in
     /// a project's ``dbschema`` directory, applying them in real time.
-    #[edb(inherit(CloudOptions))]
     Watch(WatchCommand),
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct Query {
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
     /// Output format: `json`, `json-pretty`, `json-lines`, `tab-separated`.
     /// Default is `json-pretty`.
-    // todo: can't use `clap(default='json-pretty')` just yet, as we
+    // todo: can't use `arg(default='json-pretty')` just yet, as we
     // need to see if the user did actually specify some output
     // format or not. We need that to support the now deprecated
     // --json and --tab-separated top-level options.
-    #[clap(short='F', long)]
+    #[arg(short='F', long)]
     pub output_format: Option<OutputFormat>,
 
     /// Filename to execute queries from.
     /// Pass `--file -` to execute queries from stdin.
-    #[clap(short='f', long)]
+    #[arg(short='f', long)]
     pub file: Option<String>,
 
     pub queries: Option<Vec<String>>,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 pub struct UI {
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
     /// Print URL in console instead of opening in the browser
-    #[clap(long)]
+    #[arg(long)]
     pub print_url: bool,
 
     /// Do not probe the UI endpoint of the server instance
-    #[clap(long)]
+    #[arg(long)]
     pub no_server_check: bool,
 }
 
-#[derive(EdbClap, Debug, Clone)]
+#[derive(clap::Args, Debug, Clone)]
 pub struct Info {
-   #[clap(long, possible_values=&[
+   #[arg(long, value_parser=[
         "config-dir",
         "cache-dir",
         "data-dir",
         "service-dir",
-    ][..])]
+    ])]
     /// Get specific value:
     ///
     /// * `config-dir` -- Base configuration directory
@@ -377,6 +399,7 @@ pub struct Info {
 
 #[derive(Debug, Clone)]
 pub struct Options {
+    pub app: clap::Command,
     pub conn_options: ConnectionOptions,
     pub cloud_options: CloudOptions,
     pub subcommand: Option<Command>,
@@ -388,6 +411,22 @@ pub struct Options {
     pub no_cli_update_check: bool,
     #[cfg(feature="portable_tests")]
     pub test_output_conn_params: bool,
+}
+
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("error: {}", msg)]
+pub struct UsageError {
+    kind: clap::error::ErrorKind,
+    msg: String,
+}
+
+impl UsageError {
+    pub fn new(kind: clap::error::ErrorKind, msg: impl std::fmt::Display) -> Self {
+        UsageError{kind, msg: msg.to_string()}
+    }
+    pub fn exit(&self) -> ! {
+        clap::Error::raw(self.kind, &self.msg).exit()
+    }
 }
 
 fn parse_duration(value: &str) -> anyhow::Result<Duration> {
@@ -413,7 +452,7 @@ fn say_option_is_deprecated(option_name: &str, suggestion: &str) {
     ", error=error, opt=option_name.green(), instead=instead);
 }
 
-fn make_subcommand_help<T: describe::Describe>() -> String {
+fn make_subcommand_help(parent: &clap::Command) -> String {
     use std::fmt::Write;
 
     let width = term_width();
@@ -424,7 +463,7 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
     // the option name.  We want to align the subcommand description
     // with the option description, hence there's some hand-tuning
     // of the padding here.
-    let padding: usize = if width > 82 { 28 } else { 24 };
+    let padding: usize = if width > 82 { 26 } else { 24 };
 
     let extra_padding: usize = 4 + 1;
     let details_width: usize = width - padding - extra_padding;
@@ -439,7 +478,7 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
         let mut new_lines = vec![lines.nth(0).unwrap().to_string()];
         for line in lines {
             new_lines.push(
-                format!("    {:padding$} {}", " ", line, padding=padding)
+                format!("  {:padding$} {}", " ", line, padding=padding)
             );
         }
 
@@ -448,36 +487,55 @@ fn make_subcommand_help<T: describe::Describe>() -> String {
 
     let mut buf = String::with_capacity(4096);
 
-    write!(&mut buf, "SUBCOMMANDS:\n").unwrap();
-    let descr = T::describe();
+    write!(
+        &mut buf,
+        color_print::cstr!("<bold><underline>Commands</underline></bold>:\n"),
+    ).unwrap();
     let mut empty_line = true;
 
-    for cmd in descr.subcommands() {
-        let cdescr = cmd.describe();
-        if cmd.hide {
+    for cmd in parent.get_subcommands() {
+        if cmd.is_hide_set() {
             continue;
         }
-        if cmd.expand_help {
+        if cmd.get_version() == Some("help_expand") {
             if !empty_line {
                 buf.push('\n');
             }
-            for subcmd in cdescr.subcommands() {
-                let sdescr = subcmd.describe();
-                if subcmd.hide {
+            for subcmd in cmd.get_subcommands() {
+                if subcmd.is_hide_set() {
                     continue;
                 }
-                writeln!(&mut buf, "    {:padding$} {}",
-                    format!("{} {}", cmd.name, subcmd.name),
-                    wrap(&markdown::format_title(sdescr.help_title)),
-                    padding=padding
+                writeln!(&mut buf, "  {} {}",
+                    color_print::cformat!(
+                        "<bold>{:padding$}</bold>",
+                        format!("{} {}", cmd.get_name(), subcmd.get_name()),
+                        padding=padding,
+                    ),
+                    wrap(&markdown::format_title(
+                        &subcmd
+                            .get_about()
+                            .or_else(|| subcmd.get_long_about())
+                            .unwrap_or_default()
+                            .to_string()
+                    )),
                 ).unwrap();
             }
             buf.push('\n');
             empty_line = true;
         } else {
-            writeln!(&mut buf, "    {:padding$} {}",
-                cmd.name, wrap(&markdown::format_title(cdescr.help_title)),
-                padding=padding
+            writeln!(&mut buf, "  {} {}",
+                color_print::cformat!(
+                    "<bold>{:padding$}</bold>",
+                    cmd.get_name(),
+                    padding=padding,
+                ),
+                wrap(&markdown::format_title(
+                    &cmd
+                        .get_about()
+                        .or_else(|| cmd.get_long_about())
+                        .unwrap_or_default()
+                        .to_string()
+                )),
             ).unwrap();
             empty_line = false;
         }
@@ -491,31 +549,27 @@ fn update_main_help(mut app: clap::Command) -> clap::Command {
     if !print::use_color() {
         app = app.color(clap::ColorChoice::Never);
     }
-    let sub_cmd = make_subcommand_help::<RawOptions>();
-    let mut help = Vec::with_capacity(2048);
+    let sub_cmd = make_subcommand_help(&app);
 
-    app.write_help(&mut help).unwrap();
+    let help = format!("{}", app.render_help().ansi()).to_string();
+    let subcmd_index = help.find("Commands:").unwrap();
+    let opt_index = help.find("Options:").unwrap();
 
-    let help = String::from_utf8(help).unwrap();
-    let subcmd_index = help.find("SUBCOMMANDS:").unwrap();
-    let mut help = help[..subcmd_index].replacen("edgedb", "EdgeDB CLI", 1);
-    help.push_str(&sub_cmd);
-
-    help = help.replacen(
-        CONN_OPTIONS_GROUP,
-        &markdown::format_markdown(CONN_OPTIONS_GROUP).trim(),
-        1
-    );
+    let help = vec![
+        &help[..subcmd_index],
+        &sub_cmd,
+        &color_print::cformat!("\n\n<bold><underline>Options:</underline></bold>"),
+        &help[(opt_index + 8)..]
+    ].join("");
 
     let help = std::str::from_utf8(Vec::leak(help.into())).unwrap();
     return app.override_help(help);
 }
 
 fn print_full_connection_options() {
-    let app = <ConnectionOptions as clap::CommandFactory>::command();
+    let app = <HelpConnect as clap::CommandFactory>::command();
 
     let mut new_app = clap::Command::new("edgedb-connect")
-                      .setting(clap::AppSettings::DeriveDisplayOrder)
                       .term_width(term_width());
     if !print::use_color() {
         new_app = new_app.color(clap::ColorChoice::Never);
@@ -530,26 +584,22 @@ fn print_full_connection_options() {
         new_app = new_app.arg(new_arg);
     }
 
-    let mut help = Vec::with_capacity(2048);
-
     // "Long help" has more whitespace and is much more readable
     // for the many options we have in the connection group.
-    new_app.write_long_help(&mut help).unwrap();
-
-    let help = String::from_utf8(help).unwrap();
+    let help = format!("{}", new_app.render_long_help().ansi());
     let subcmd_index = help.find(CONN_OPTIONS_GROUP).unwrap();
-    let slice_from = subcmd_index + CONN_OPTIONS_GROUP.len() + 2;
+    let slice_from = subcmd_index + CONN_OPTIONS_GROUP.len() + 1;
     let help = &help[slice_from..];
 
-    println!("CONNECTION OPTIONS (full list):\n");
+    color_print::cprintln!("<bold><underline>Connection Options (full list):</underline></bold>");
     println!("{}", help);
 }
 
 fn term_width() -> usize {
     use std::cmp;
 
-    // clap::App::max_term_width() works poorly in conjunction
-    // with  clap::App::term_width(); it appears that one call
+    // clap::Command::max_term_width() works poorly in conjunction
+    // with  clap::Command::term_width(); it appears that one call
     // disables the effect of the other. Therefore we want to
     // calculate the acceptable term width ourselves and use
     // that to configure clap and to render subcommands help.
@@ -561,51 +611,93 @@ fn term_width() -> usize {
 }
 
 impl Options {
+    pub fn error(&self, kind: clap::error::ErrorKind, msg: impl std::fmt::Display) -> UsageError {
+        UsageError::new(kind, msg)
+    }
+
     pub fn from_args_and_env() -> anyhow::Result<Options> {
-        let app = <RawOptions as clap::IntoApp>::command()
-                  .name("edgedb")
-                  .term_width(term_width());
+        // Connection/Cloud options apply *both* to the
+        // root command when ran without arguments (i.e. REPL mode)
+        // and to many, but, crucially, not ALL subcommands, so
+        // we cannot simply make ConnectionOptions and CloudOptions
+        // global at the top level.  Instead we create a copy of those
+        // groups here and deglobalize the arguments before adding
+        // subcommands.  Various subcommand trees should then add
+        //
+        //    #[command(flatten)]
+        //    pub conn: ConnectionOptions,
+        //
+        // to enable connection and/or cloud options for themselves
+        // and their subcommands.
+        let tmp = clap::Command::new("edgedb");
+        let tmp = <RawOptions as clap::Args>::augment_args(tmp);
+        let mut global_args: Vec<_> = tmp.get_groups()
+            .filter(|g| g.get_id() == "connopts" || g.get_id() == "cloudopts")
+            .flat_map(|g| g.get_args())
+            .collect();
+        global_args.sort_unstable();
+
+        let deglobalized = tmp.get_arguments()
+            .map(
+                |arg|
+                if global_args.binary_search(&arg.get_id()).is_ok() {
+                    arg.clone().global(false)
+                } else {
+                    arg.clone()
+                }
+            );
+
+        let app = clap::Command::new("edgedb")
+                    .term_width(term_width())
+                    .args(deglobalized);
+
+        let app = <SubcommandOption as clap::Args>::augment_args(app);
         let app = update_main_help(app);
-        let matches = app.get_matches();
-        let tmp: RawOptions = <RawOptions as clap::FromArgMatches>
+
+        let matches = app.clone().get_matches();
+        let args = <RawOptions as clap::FromArgMatches>
+            ::from_arg_matches(&matches)?;
+        let cmd = <SubcommandOption as clap::FromArgMatches>
             ::from_arg_matches(&matches)?;
 
-        if tmp.help_connect {
+        let subcommand = cmd.subcommand;
+
+        if args.help_connect {
             print_full_connection_options();
             return Err(ExitCode::new(0).into());
         }
 
-        if tmp.print_version {
+        if args.print_version {
             println!("EdgeDB CLI {}", clap::crate_version!());
             return Err(ExitCode::new(0).into());
         }
 
-        if tmp.subcommand.is_some() && tmp.query.is_some() {
+        if subcommand.is_some() && args.query.is_some() {
             anyhow::bail!(
                 "Option `-c` conflicts with specifying a subcommand"
             );
         }
 
         // TODO(pc) add option to force interactive mode not on a tty (tests)
-        let interactive = tmp.query.is_none()
-            && tmp.subcommand.is_none()
+        let interactive = args.query.is_none()
+            && subcommand.is_none()
             && stdin().is_terminal();
 
-        if tmp.json {
+        if args.json {
             say_option_is_deprecated(
                 "--json",
                 "edgedb query --output-format=json");
         }
-        if tmp.tab_separated {
+        if args.tab_separated {
             say_option_is_deprecated(
                 "--tab-separated",
                 "edgedb query --output-format=tab-separated");
         }
-        let subcommand = if let Some(query) = tmp.query {
+        let subcommand = if let Some(query) = args.query {
             say_option_is_deprecated("-c", "edgedb query");
-            let output_format = if tmp.json {
+            let output_format = if args.json {
                 Some(OutputFormat::Json)
-            } else if tmp.tab_separated {
+            } else if args.tab_separated {
                 Some(OutputFormat::TabSeparated)
             } else {
                 Some(OutputFormat::JsonPretty)
@@ -614,13 +706,14 @@ impl Options {
                 queries: Some(vec![query]),
                 output_format,
                 file: None,
+                conn: args.conn.clone(),
             }))
         } else {
-            tmp.subcommand
+            subcommand
         };
 
-        let mut no_cli_update_check = tmp.no_cli_update_check;
-        if tmp.no_version_check {
+        let mut no_cli_update_check = args.no_cli_update_check;
+        if args.no_version_check {
             no_cli_update_check = true;
             let mut error = "warning:".to_string();
             if print::use_color() {
@@ -635,23 +728,24 @@ impl Options {
         }
 
         Ok(Options {
-            conn_options: tmp.conn,
-            cloud_options: tmp.cloud,
+            app: app,
+            conn_options: args.conn,
+            cloud_options: args.cloud,
             interactive,
             subcommand,
-            debug_print_frames: tmp.debug_print_frames,
-            debug_print_descriptors: tmp.debug_print_descriptors,
-            debug_print_codecs: tmp.debug_print_codecs,
-            output_format: if tmp.tab_separated {
+            debug_print_frames: args.debug_print_frames,
+            debug_print_descriptors: args.debug_print_descriptors,
+            debug_print_codecs: args.debug_print_codecs,
+            output_format: if args.tab_separated {
                 Some(OutputFormat::TabSeparated)
-            } else if tmp.json {
+            } else if args.json {
                 Some(OutputFormat::Json)
             } else {
                 None
             },
             no_cli_update_check,
             #[cfg(feature="portable_tests")]
-            test_output_conn_params: tmp.test_output_conn_params,
+            test_output_conn_params: args.test_output_conn_params,
         })
     }
 
@@ -838,19 +932,4 @@ pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
         builder.tls_security(s);
     }
     Ok(())
-}
-
-impl SharedGroups {
-    pub fn new() -> SharedGroups {
-        SharedGroups(HashMap::new())
-    }
-    pub fn insert<T: Any>(&mut self, value: T) {
-        self.0.insert(TypeId::of::<T>(), Box::new(value));
-    }
-    pub fn remove<T: Any>(&mut self) -> Option<T> {
-        self.0.remove(&TypeId::of::<T>()).map(|v| *v.downcast().unwrap())
-    }
-    pub fn get_mut<T: Any>(&mut self) -> Option<&mut T> {
-        self.0.get_mut(&TypeId::of::<T>()).and_then(|v| v.downcast_mut())
-    }
 }

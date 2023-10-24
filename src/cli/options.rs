@@ -1,24 +1,24 @@
-use edgedb_cli_derive::EdbClap;
-
 use crate::cli::install;
 use crate::cli::migrate;
 use crate::cli::upgrade;
 
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
+#[command(version = "help_expand")]
+#[command(disable_version_flag=true)]
 pub struct CliCommand {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub subcommand: Command,
 }
 
-#[derive(EdbClap, Clone, Debug)]
+#[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
     /// Upgrade the 'edgedb' command-line tool
     Upgrade(upgrade::CliUpgrade),
     /// Install the 'edgedb' command-line tool
-    #[edb(hide=true)]
+    #[command(hide=true)]
     Install(install::CliInstall),
     /// Migrate files from `~/.edgedb` to the new directory layout
-    #[edb(hide=true)]
+    #[command(hide=true)]
     Migrate(migrate::CliMigrate),
 }

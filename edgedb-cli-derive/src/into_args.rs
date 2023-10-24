@@ -16,9 +16,17 @@ pub fn structure(s: &types::Struct) -> TokenStream {
     for field in &s.fields {
         let ident = &field.ident;
         if field.attrs.flatten {
-            args.push(quote! {
-                process.args(&self.#ident);
-            });
+            if field.optional {
+                args.push(quote! {
+                    if let Some(value) = &self.#ident {
+                        process.args(value);
+                    }
+                });
+            } else {
+                args.push(quote! {
+                    process.args(&self.#ident);
+                });
+            }
         } else if field.attrs.subcommand {
             abort!(field.ident, "subcommand is not implemented");
         } else if let Some(long) = &field.attrs.long {
@@ -169,4 +177,3 @@ pub fn structure(s: &types::Struct) -> TokenStream {
         }
     }
 }
-

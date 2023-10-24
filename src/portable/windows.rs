@@ -34,7 +34,6 @@ use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
 use crate::process;
 
-
 const CURRENT_DISTRO: &str = "EdgeDB.WSL.1";
 const DISTRO_URL: Lazy<Url> = Lazy::new(|| {
     "https://aka.ms/wsl-debian-gnulinux".parse().expect("wsl url parsed")
@@ -208,6 +207,7 @@ pub fn create_instance(options: &options::Create, name: &str,
     let wsl = ensure_wsl()?;
 
     let inner_options = options::Create {
+        name: Some(InstanceName::Local(name.to_string())),
         port: Some(port),
         ..options.clone()
     };
@@ -359,7 +359,7 @@ fn download_binary(dest: &Path) -> anyhow::Result<()> {
                  my_ver)));
         }
         log::warn!("No package matching version {} found. \
-                    Using latest version {}.", 
+                    Using latest version {}.",
                     my_ver, pkg.version);
         pkg
     };

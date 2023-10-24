@@ -100,7 +100,7 @@ pub struct Float64;
 impl VariableInput for Float64 {
     fn type_name(&self) -> &str { "float64" }
     fn parse(&self, input: &str) -> Result<Value, Error> {
-        Ok(Value::Float32(input.parse().map_err(no_pos_err)?))
+        Ok(Value::Float64(input.parse().map_err(no_pos_err)?))
     }
 }
 
@@ -151,9 +151,9 @@ impl VariableInput for Json {
             Err(e) if e.classify()  == serde_json::error::Category::Eof
             => Err(Error::Incomplete),
             Err(e) => Err(no_pos_err(e)),
-            Ok(_) => Ok(Value::Json(unsafe {
+            Ok(_) => Ok(Value::Json(
                 model::Json::new_unchecked(input.into())
-            })),
+            )),
         }
     }
 }

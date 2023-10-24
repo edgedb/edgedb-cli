@@ -4,6 +4,8 @@ use std::str::FromStr;
 use anyhow::Context;
 use fn_error_context::context;
 
+use color_print::cformat;
+
 use crate::commands::ExitCode;
 use crate::cloud;
 use crate::credentials;
@@ -90,13 +92,32 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     let name = match inst_name.clone() {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { org_slug, name } => {
-            create_cloud(cmd, &org_slug, &name, &client)?;
+            create_cloud(cmd, opts, &org_slug, &name, &client)?;
             return Ok(())
         }
     };
 
-    if cmd.region.is_some() {
-        print::warn("The `--region` option is only applicable to cloud instances.")
+    if let Some(cp) = &cmd.cloud_params {
+        if cp.region.is_some() {
+            return Err(opts.error(
+                clap::error::ErrorKind::ArgumentConflict,
+                cformat!("The <bold>--region</bold> option is only applicable to cloud instances."),
+            ))?;
+        }
+
+        if cp.compute_size.is_some() {
+            return Err(opts.error(
+                clap::error::ErrorKind::ArgumentConflict,
+                cformat!("The <bold>--compute-size</bold> option is only applicable to cloud instances."),
+            ))?;
+        }
+
+        if cp.storage_size.is_some() {
+            return Err(opts.error(
+                clap::error::ErrorKind::ArgumentConflict,
+                cformat!("The <bold>--storage-size</bold> option is only applicable to cloud instances."),
+            ))?;
+        }
     }
 
     let paths = Paths::get(&name)?;
@@ -165,7 +186,13 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     Ok(())
 }
 
-fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client::CloudClient) -> anyhow::Result<()> {
+fn create_cloud(
+    cmd: &Create,
+    opts: &crate::options::Options,
+    org_slug: &str,
+    name: &str,
+    client: &cloud::client::CloudClient,
+) -> anyhow::Result<()> {
     let inst_name = InstanceName::Cloud {
         org_slug: org_slug.to_string(),
         name: name.to_string(),
@@ -173,10 +200,14 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
 
     client.ensure_authenticated()?;
 
-    let region = match &cmd.region {
+    let cp = cmd.cloud_params.as_ref();
+
+    let region = match &cp.and_then(|p| p.region.clone()) {
         None => cloud::ops::get_current_region(&client)?.name,
         Some(region) => region.to_string(),
     };
+
+    let org = cloud::ops::get_org(org_slug, client)?;
 
     let (query, _) = Query::from_options(
         QueryOptions {
@@ -191,9 +222,83 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
 
     let server_ver = cloud::versions::get_version(&query, client)?;
 
+    let compute_size = cp.and_then(|p| p.compute_size);
+    let storage_size = cp.and_then(|p| p.storage_size);
+
+    let tier = if let Some(tier) = cp.and_then(|p| p.tier) {
+        tier
+    } else if compute_size.is_some() || storage_size.is_some() || org.preferred_payment_method.is_some() {
+        cloud::ops::CloudTier::Pro
+    } else {
+        cloud::ops::CloudTier::Free
+    };
+
+    if tier == cloud::ops::CloudTier::Free {
+        if compute_size.is_some() {
+            return Err(opts.error(
+                clap::error::ErrorKind::ArgumentConflict,
+                cformat!("The <bold>--compute-size</bold> option can \
+                only be specified for Pro instances."),
+            ))?;
+        }
+        if storage_size.is_some() {
+            return Err(opts.error(
+                clap::error::ErrorKind::ArgumentConflict,
+                cformat!("The <bold>--storage-size</bold> option can \
+                only be specified for Pro instances."),
+            ))?;
+        }
+    }
+
+    let compute_size_v: String;
+    let storage_size_v: String;
+    let mut req_resources: Vec<cloud::ops::CloudInstanceResourceRequest> = vec![];
+
+    if org.preferred_payment_method.is_some() {
+        compute_size_v = compute_size.unwrap_or(1).to_string();
+        storage_size_v = storage_size.unwrap_or(20).to_string();
+    } else {
+        compute_size_v = compute_size.and_then(|v| Some(v.to_string()))
+            .unwrap_or(String::from("1/4"));
+        storage_size_v = storage_size.and_then(|v| Some(v.to_string()))
+            .unwrap_or(String::from("1"));
+    }
+
+    if let Some(compute_size) = compute_size {
+        req_resources.push(
+            cloud::ops::CloudInstanceResourceRequest{
+                name: "compute".to_string(),
+                value: compute_size,
+            },
+        )
+    }
+
+    if let Some(storage_size) = storage_size {
+        req_resources.push(
+            cloud::ops::CloudInstanceResourceRequest{
+                name: "storage".to_string(),
+                value: storage_size,
+            },
+        )
+    }
+
+    let resources_display = format!(
+        "\nCompute Size: {} compute unit{}\
+        \nStorage Size: {} gigabyte{}",
+        compute_size_v,
+        if compute_size_v == "1" {""} else {"s"},
+        storage_size_v,
+        if storage_size_v == "1" {""} else {"s"},
+    );
+
     if !cmd.non_interactive && !question::Confirm::new(format!(
-        "This will create a new EdgeDB cloud instance with the following parameters: \
-        \n\n Region: {region}\n Server Version: {server_ver}\nIs this acceptable?",
+        "This will create a new EdgeDB cloud instance with the following parameters:\
+        \n\
+        \nTier: {tier:?}\
+        \nRegion: {region}\
+        \nServer Version: {server_ver}\
+        {resources_display}\
+        \n\nIs this acceptable?",
     )).ask()? {
         return Ok(());
     }
@@ -203,6 +308,8 @@ fn create_cloud(cmd: &Create, org_slug: &str, name: &str, client: &cloud::client
         org: org_slug.to_string(),
         version: server_ver.to_string(),
         region: Some(region),
+        requested_resources: Some(req_resources),
+        tier: Some(tier),
     };
     cloud::ops::create_cloud_instance(&client, &request)?;
     echo!(

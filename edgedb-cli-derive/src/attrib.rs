@@ -1,10 +1,9 @@
 use std::convert::TryFrom;
 
 
-use indexmap::IndexMap;
 use proc_macro2::Span;
-use proc_macro_error::{emit_error, ResultExt};
-use syn::parse::{Parse, Parser, ParseStream};
+use proc_macro_error::emit_error;
+use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
 use syn::token::Paren;
 
@@ -18,7 +17,6 @@ pub enum FieldAttr {
     Parse(CliParse),
     Name(syn::LitStr),
     Flatten,
-    Inheritable,
     Value {
         name: syn::Ident,
         value: syn::Expr,
@@ -27,9 +25,7 @@ pub enum FieldAttr {
 
 #[derive(Debug)]
 pub enum ContainerAttr {
-    Inherit(syn::Type),
     Default(syn::Ident),
-    Setting,
     Value {
         name: syn::Ident,
         value: syn::Expr,
@@ -38,19 +34,12 @@ pub enum ContainerAttr {
 
 #[derive(Debug)]
 pub enum SubcommandAttr {
-    Inherit(syn::Type),
-    Hide(bool),
-    ExpandHelp,
     Name(syn::LitStr),
     Default(syn::Ident),
     Value {
         name: syn::Ident,
         value: syn::Expr,
     },
-}
-
-pub struct Markdown {
-    pub source: syn::LitStr,
 }
 
 pub enum Case {
@@ -64,15 +53,8 @@ pub enum Case {
 }
 
 pub struct ContainerAttrs {
-    pub doc: Option<Markdown>,
-    pub before_help: Option<Markdown>,
-    pub after_help: Option<Markdown>,
-    pub help: Option<Markdown>,
     pub main: bool,
-    pub setting: bool,
     pub rename_all: Case,
-    pub inherit: Vec<syn::Type>,
-    pub options: IndexMap<syn::Ident, syn::Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,27 +77,17 @@ pub struct CliParse {
 
 pub struct FieldAttrs {
     pub name: Option<syn::LitStr>,
-    pub doc: Option<Markdown>,
     pub long: Option<Option<syn::LitStr>>,
     pub short: Option<syn::LitChar>,
-    pub help: Option<Markdown>,
     pub subcommand: bool,
     pub flatten: bool,
-    pub inheritable: bool,
     pub parse: Option<CliParse>,
     pub default_value: Option<syn::Expr>,
-    pub options: IndexMap<syn::Ident, syn::Expr>,
 }
 
 pub struct SubcommandAttrs {
     pub name: Option<String>,
-    pub doc: Option<Markdown>,
-    pub about: Option<Markdown>,
     pub flatten: bool,
-    pub hide: bool,
-    pub expand_help: bool,
-    pub inherit: Vec<syn::Type>,
-    pub options: IndexMap<syn::Ident, syn::Expr>,
 }
 
 struct ContainerAttrList(pub Punctuated<ContainerAttr, syn::Token![,]>);
@@ -131,47 +103,26 @@ fn try_set<T, I>(dest: &mut T, value: I)
     .map_err(|e| emit_error!(e.into())).ok();
 }
 
-fn try_set_opt<T, I>(dest: &mut Option<T>, value: I)
-    where T: TryFrom<I>,
-          <T as TryFrom<I>>::Error: Into<proc_macro_error::Diagnostic>,
-{
-    T::try_from(value)
-    .map(|val| *dest = Some(val))
-    .map_err(|e| emit_error!(e.into())).ok();
-}
-
 impl Parse for ContainerAttr {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         use ContainerAttr::*;
+        let name: syn::Ident = input.parse()?;
         let lookahead = input.lookahead1();
-        if lookahead.peek(kw::inherit) {
-            let _kw: kw::inherit = input.parse()?;
+        if lookahead.peek(Paren) {
             let content;
             syn::parenthesized!(content in input);
-            let ty = content.parse()?;
-            Ok(Inherit(ty))
-        } else if lookahead.peek(kw::setting_impl) {
-            let _kw: kw::setting_impl = input.parse()?;
-            Ok(Setting)
+            let value = content.parse()?;
+            Ok(Value { name, value })
+        } else if lookahead.peek(syn::Token![=]) {
+            let _eq: syn::Token![=] = input.parse()?;
+            let value: syn::Expr = input.parse()?;
+            Ok(Value { name, value })
+        } else if lookahead.peek(syn::Token![,]) {
+            Ok(Default(name))
+        } else if input.cursor().eof() {
+            Ok(Default(name))
         } else {
-            let name: syn::Ident = input.parse()?;
-            let lookahead = input.lookahead1();
-            if lookahead.peek(Paren) {
-                let content;
-                syn::parenthesized!(content in input);
-                let value = content.parse()?;
-                Ok(Value { name, value })
-            } else if lookahead.peek(syn::Token![=]) {
-                let _eq: syn::Token![=] = input.parse()?;
-                let value: syn::Expr = input.parse()?;
-                Ok(Value { name, value })
-            } else if lookahead.peek(syn::Token![,]) {
-                Ok(Default(name))
-            } else if input.cursor().eof() {
-                Ok(Default(name))
-            } else {
-                Err(lookahead.error())
-            }
+            Err(lookahead.error())
         }
     }
 }
@@ -217,9 +168,6 @@ impl Parse for FieldAttr {
         } else if lookahead.peek(kw::flatten) {
             let _kw: kw::flatten = input.parse()?;
             Ok(Flatten)
-        } else if lookahead.peek(kw::inheritable) {
-            let _kw: kw::inheritable = input.parse()?;
-            Ok(Inheritable)
         } else if lookahead.peek(kw::value_enum) {
             let _kw: kw::value_enum = input.parse()?;
             Ok(Parse(CliParse {
@@ -257,25 +205,11 @@ impl Parse for SubcommandAttr {
         use SubcommandAttr::*;
 
         let lookahead = input.lookahead1();
-        if lookahead.peek(kw::inherit) {
-            let _kw: kw::inherit = input.parse()?;
-            let content;
-            syn::parenthesized!(content in input);
-            let ty = content.parse()?;
-            Ok(Inherit(ty))
-        } else if lookahead.peek(kw::name) {
+        if lookahead.peek(kw::name) {
             let _kw: kw::name = input.parse()?;
             let _eq: syn::Token![=] = input.parse()?;
             let val = input.parse()?;
             Ok(Name(val))
-        } else if lookahead.peek(kw::hide) {
-            let _kw: kw::hide = input.parse()?;
-            let _eq: syn::Token![=] = input.parse()?;
-            let val: syn::LitBool = input.parse()?;
-            Ok(Hide(val.value))
-        } else if lookahead.peek(kw::expand_help) {
-            let _kw: kw::expand_help = input.parse()?;
-            Ok(ExpandHelp)
         } else {
             let name: syn::Ident = input.parse()?;
             let lookahead = input.lookahead1();
@@ -322,19 +256,13 @@ impl ContainerAttrs {
         use ContainerAttr::*;
 
         let mut res = ContainerAttrs {
-            doc: None,
-            before_help: None,
-            after_help: None,
-            help: None,
             main: false,
-            setting: false,
-            inherit: Vec::new(),
             rename_all: Case::KebabCase,
-            options: IndexMap::new(),
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer) &&
-                (attr.path.is_ident("clap") || attr.path.is_ident("edb"))
+                (attr.path.is_ident("command")
+                 || attr.path.is_ident("arg"))
             {
                 let chunk: ContainerAttrList = match attr.parse_args() {
                     Ok(attr) => attr,
@@ -345,27 +273,10 @@ impl ContainerAttrs {
                 };
                 for item in chunk.0 {
                     match item {
-                        Inherit(ty) => {
-                            res.inherit.push(ty);
-                        }
-                        Setting => {
-                            res.setting = true;
-                        }
-                        Value { name, value } if name == "before_help" => {
-                            try_set_opt(&mut res.before_help, value);
-                        }
-                        Value { name, value } if name == "after_help" => {
-                            try_set_opt(&mut res.after_help, value);
-                        }
-                        Value { name, value } if name == "help" => {
-                            try_set_opt(&mut res.help, value);
-                        }
                         Value { name, value } if name == "rename_all" => {
                             try_set(&mut res.rename_all, value);
                         }
-                        Value { name, value } => {
-                            res.options.insert(name, value);
-                        }
+                        Value { name: _, value: _ } => { }
                         Default(name) if name == "main" => {
                             res.main = true;
                         }
@@ -373,14 +284,6 @@ impl ContainerAttrs {
                             emit_error!(&name, "expected `{}=value`", name);
                         }
                     }
-                }
-            } else if matches!(attr.style, syn::AttrStyle::Outer) &&
-                attr.path.is_ident("doc")
-            {
-                if let Some(doc) = &mut res.doc {
-                    doc.append_from_attr(attr);
-                } else {
-                    try_set_opt(&mut res.doc, attr);
                 }
             }
         }
@@ -394,20 +297,17 @@ impl FieldAttrs {
 
         let mut res = FieldAttrs {
             name: None,
-            doc: None,
-            help: None,
             short: None,
             long: None,
             subcommand: false,
             flatten: false,
-            inheritable: false,
             parse: None,
             default_value: None,
-            options: IndexMap::new(),
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer) &&
-                (attr.path.is_ident("clap") || attr.path.is_ident("edb"))
+                (attr.path.is_ident("command")
+                 || attr.path.is_ident("arg"))
             {
                 let chunk: FieldAttrList = match attr.parse_args() {
                     Ok(attr) => attr,
@@ -418,9 +318,6 @@ impl FieldAttrs {
                 };
                 for item in chunk.0 {
                     match item {
-                        Value { name, value } if name == "help" => {
-                            try_set_opt(&mut res.help, value);
-                        }
                         Value { name, value } if name == "long" => {
                             match value {
                                 syn::Expr::Lit(syn::ExprLit {
@@ -443,18 +340,12 @@ impl FieldAttrs {
                                 _ => emit_error!(value, "expected character"),
                             };
                         }
-                        Value { name, value } => {
-                            res.options.insert(name, value);
-                        }
+                        Value { name: _, value: _ } => { }
                         Default(name) if name == "long" => {
                             res.long = Some(None);
                         }
                         Flatten => {
                             res.flatten = true;
-                        }
-                        Inheritable => {
-                            res.flatten = true;
-                            res.inheritable = true;
                         }
                         Default(name) if name == "subcommand" => {
                             res.subcommand = true;
@@ -473,14 +364,6 @@ impl FieldAttrs {
                         }
                     }
                 }
-            } else if matches!(attr.style, syn::AttrStyle::Outer) &&
-                attr.path.is_ident("doc")
-            {
-                if let Some(doc) = &mut res.doc {
-                    doc.append_from_attr(attr);
-                } else {
-                    try_set_opt(&mut res.doc, attr);
-                }
             }
         }
         res
@@ -493,17 +376,12 @@ impl SubcommandAttrs {
 
         let mut res = SubcommandAttrs {
             name: None,
-            doc: None,
-            about: None,
             flatten: false,
-            expand_help: false,
-            hide: false,
-            inherit: Vec::new(),
-            options: IndexMap::new(),
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer) &&
-                (attr.path.is_ident("clap") || attr.path.is_ident("edb"))
+                (attr.path.is_ident("arg")
+                 || attr.path.is_ident("command"))
             {
                 let chunk: SubcommandAttrList = match attr.parse_args() {
                     Ok(attr) => attr,
@@ -514,16 +392,8 @@ impl SubcommandAttrs {
                 };
                 for item in chunk.0 {
                     match item {
-                        Inherit(ty) => res.inherit.push(ty),
                         Name(name) => res.name = Some(name.value()),
-                        Hide(value) => res.hide = value,
-                        ExpandHelp => res.expand_help = true,
-                        Value { name, value } if name == "about" => {
-                            try_set_opt(&mut res.about, value);
-                        }
-                        Value { name, value } => {
-                            res.options.insert(name, value);
-                        }
+                        Value { name: _, value: _ } => { }
                         Default(name) if name == "flatten" => {
                             res.flatten = true;
                         }
@@ -532,73 +402,9 @@ impl SubcommandAttrs {
                         }
                     }
                 }
-            } else if matches!(attr.style, syn::AttrStyle::Outer) &&
-                attr.path.is_ident("doc")
-            {
-                if let Some(doc) = &mut res.doc {
-                    doc.append_from_attr(attr);
-                } else {
-                    try_set_opt(&mut res.doc, attr);
-                }
             }
         }
         res
-    }
-}
-
-impl Parse for Markdown {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        Ok(Markdown { source: input.parse()? })
-    }
-}
-
-impl TryFrom<syn::Expr> for Markdown {
-    type Error = syn::Error;
-    fn try_from(val: syn::Expr) -> syn::Result<Markdown> {
-        match val {
-            syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), ..}) => {
-                Ok(Markdown { source: s })
-            }
-            _ => {
-                Err(syn::Error::new_spanned(val, "literal expected"))
-            }
-        }
-    }
-}
-impl TryFrom<&'_ syn::Attribute> for Markdown {
-    type Error = syn::Error;
-    fn try_from(attr: &syn::Attribute) -> syn::Result<Markdown> {
-        let parser = |input: ParseStream| {
-            let lookahead = input.lookahead1();
-            if lookahead.peek(syn::Token![=]) {
-                let _eq: syn::Token![=] = input.parse()?;
-                let source: syn::LitStr = input.parse()?;
-                Ok(Markdown { source })
-            } else {
-                Err(syn::Error::new_spanned(attr, "`doc=` expected"))
-            }
-        };
-        parser.parse2(attr.tokens.clone())
-    }
-}
-
-impl Markdown {
-    fn append_from_attr(&mut self, attr: &syn::Attribute) {
-        let parser = |input: ParseStream| {
-            let lookahead = input.lookahead1();
-            if lookahead.peek(syn::Token![=]) {
-                let _eq: syn::Token![=] = input.parse()?;
-                let source: syn::LitStr = input.parse()?;
-                self.source = syn::LitStr::new(
-                    &(self.source.value() + "\n" + &source.value()),
-                    self.source.span(),
-                );
-            } else {
-                emit_error!(attr, "`doc=` expected")
-            }
-            Ok(())
-        };
-        parser.parse2(attr.tokens.clone()).unwrap_or_abort();
     }
 }
 
@@ -669,12 +475,5 @@ impl Parse for ParserKind {
         } else {
             Err(lookahead.error())
         }
-    }
-}
-
-impl CliParse {
-    pub fn has_arg(&self) -> bool {
-        use ParserKind::*;
-        !matches!(self.kind, FromOccurrences | FromFlag)
     }
 }

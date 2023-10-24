@@ -10,7 +10,7 @@ fn help_connect() {
 
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
 
-    assert!(out.contains("-H, --host"));
+    assert!(out.contains("--host"));
 }
 
 #[test]

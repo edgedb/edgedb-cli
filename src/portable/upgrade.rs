@@ -375,7 +375,8 @@ pub async fn dump_instance(inst: &InstanceInfo, destination: &Path)
         styler: None,
         conn_params: Connector::new(Ok(config)),
     };
-    commands::dump_all(&mut cli, &options, destination.as_ref()).await?;
+    commands::dump_all(&mut cli, &options, destination.as_ref(),
+                       true /*include_secrets*/).await?;
     Ok(())
 }
 
@@ -455,6 +456,7 @@ async fn restore_instance(inst: &InstanceInfo, path: &Path)
         path: path.into(),
         all: true,
         verbose: false,
+        conn: None,
     }).await?;
     Ok(())
 }

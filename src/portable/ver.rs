@@ -349,11 +349,11 @@ impl Ord for Semver {
     }
 }
 
-pub async fn check_client(cli: &mut Connection, minimum_version: &Filter)
+pub async fn check_client(cli: &mut Connection, minimum_version: &Build)
     -> anyhow::Result<bool>
 {
     let ver = cli.get_version().await?;
-    return Ok(ver.is_nightly() || minimum_version.matches(&ver));
+    Ok(ver.is_nightly() || ver >= minimum_version)
 }
 
 pub fn print_version_hint(version: &Specific, ver_query: &Query) {

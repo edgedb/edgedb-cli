@@ -173,6 +173,23 @@ impl ServerGuard {
         }
     }
 
+    pub fn version(&self) -> semver::Version {
+        let output = SERVER.admin_cmd()
+            .arg("query").arg("--output-format=tab-separated")
+            .arg("
+            WITH v := sys::get_version()
+            SELECT
+                <str>v.major ++ '.' ++ <str>v.minor ++ '.0'
+                ++ (('-' ++ <str>v.stage ++ '.' ++ <str>v.stage_no)
+                    IF v.stage != <sys::VersionStage>'final' ELSE '')
+                ++ (('+' ++ std::array_join(v.local, '.')) IF len(v.local) > 0
+                    ELSE '')
+            ")
+            .unwrap();
+        std::str::from_utf8(&output.stdout).unwrap()
+            .strip_suffix("\n").unwrap().parse().unwrap()
+    }
+
     pub fn admin_cmd(&self) -> Command {
         let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
         cmd.arg("--no-cli-update-check");

@@ -70,6 +70,7 @@ impl RemoteStatus {
 pub struct Org {
     pub id: String,
     pub name: String,
+    pub preferred_payment_method: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -85,11 +86,26 @@ pub struct Version {
 }
 
 #[derive(Debug, serde::Serialize)]
+pub struct CloudInstanceResourceRequest {
+    pub name: String,
+    pub value: u16,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(clap::ValueEnum)]
+pub enum CloudTier {
+    Pro,
+    Free,
+}
+
+#[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceCreate {
     pub name: String,
     pub org: String,
     pub version: String,
     pub region: Option<String>,
+    pub requested_resources: Option<Vec<CloudInstanceResourceRequest>>,
+    pub tier: Option<CloudTier>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub default_database: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -118,6 +134,7 @@ pub struct CloudOperation {
     pub status: OperationStatus,
     pub description: String,
     pub message: String,
+    pub subsequent_id: Option<String>,
 }
 
 #[tokio::main]
@@ -162,6 +179,16 @@ pub async fn find_cloud_instance_by_name(
         })
 }
 
+#[tokio::main]
+pub async fn get_org(
+    org: &str,
+    client: &CloudClient,
+) -> anyhow::Result<Org> {
+    client
+        .get(format!("orgs/{}", org))
+        .await
+}
+
 async fn wait_for_operation(
     mut operation: CloudOperation,
     client: &CloudClient,
@@ -170,19 +197,32 @@ async fn wait_for_operation(
         .with_message(format!("Monitoring {}...", operation.description));
     spinner.enable_steady_tick(SPINNER_TICK);
 
-    let url = format!("operations/{}", operation.id);
+    let mut url = format!("operations/{}", operation.id);
     let deadline = Instant::now() + OPERATION_WAIT_TIME;
+
+    let mut original_error = None;
+
     while Instant::now() < deadline {
-        match operation.status {
-            OperationStatus::Failed => {
-                anyhow::bail!(operation.message);
+        match (operation.status, operation.subsequent_id) {
+            (OperationStatus::Failed, Some(subsequent_id)) => {
+                original_error = original_error.or(Some(operation.message));
+
+                url = format!("operations/{}", subsequent_id);
+                operation = client.get(&url).await?;
             },
-            OperationStatus::InProgress => {
+            (OperationStatus::Failed, None) => {
+                anyhow::bail!(original_error.unwrap_or(operation.message));
+            },
+            (OperationStatus::InProgress, _) => {
                 sleep(POLLING_INTERVAL).await;
                 operation = client.get(&url).await?;
             }
-            OperationStatus::Completed => {
-                return Ok(());
+            (OperationStatus::Completed, _) => {
+                if let Some(message) = original_error {
+                    anyhow::bail!(message)
+                } else {
+                    return Ok(())
+                }
             }
         }
     }

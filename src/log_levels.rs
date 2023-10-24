@@ -5,7 +5,7 @@ use crate::options::{Options, Command};
 use crate::portable::options::Command as Server;
 use crate::portable::options::InstanceCommand as Instance;
 use crate::portable::project::Command as Project;
-
+use std::io::Write;
 
 pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
     if opt.debug_print_frames {
@@ -26,6 +26,9 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
         },
         Some(Command::Common(Common::Restore(r))) if r.verbose => {
             builder.filter_module("edgedb::restore", log::LevelFilter::Info);
+            builder.format(|buf, record| {
+                writeln!(buf, "{}", record.args())
+            });
         }
         Some(Command::Watch(w)) if w.verbose => {
             builder.filter_module("edgedb::migrations::dev_mode::ddl",

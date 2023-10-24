@@ -31,7 +31,6 @@ pub struct NotFound;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[derive(clap::ValueEnum)]
-#[clap(value(rename_all="kebab-case"))]
 pub enum Channel {
     Stable,
     Testing,

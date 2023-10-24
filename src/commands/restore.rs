@@ -137,7 +137,9 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
     use PacketType::*;
     let RestoreCmd {
         path: ref filename,
-        all: _, verbose: _,
+        all: _,
+        verbose: _,
+        conn: _,
     } = *params;
     if is_non_empty_db(cli).await? {
         return Err(anyhow::anyhow!("\
@@ -148,9 +150,10 @@ async fn restore_db<'x>(cli: &mut Connection, _options: &Options,
     let mut input = if filename.to_str() == Some("-") {
         Box::new(io::stdin()) as Input
     } else {
-        fs::File::open(filename).await
-        .map(Box::new)
-        .with_context(file_ctx)?
+        let file = fs::File::open(filename).await.with_context(file_ctx)?;
+        let file_size = file.metadata().await?.len();
+        eprintln!("\nRestoring database from file `{}`. Total size: {:.02} MB", filename.display(), file_size as f64 / 1048576.0);
+        Box::new(file)
         as Input
     };
     let mut buf = [0u8; 17+8];
