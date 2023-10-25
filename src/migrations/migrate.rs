@@ -263,8 +263,8 @@ async fn fixup(cli: &mut Connection, ctx: &Context,
         match db_migration.generated_by {
             Some(MigrationGeneratedBy::DevMode) => {
                 return Err(
-                    anyhow::anyhow!("Database contains Dev mode migrations.")
-                    .hint("Use `edgedb migrate --dev-mode` or `edgedb watch`")
+                    anyhow::anyhow!("Database contains Dev mode / `edgedb watch` migrations.")
+                    .hint("Use `edgedb migration create` followed by `edgedb migrate --dev-mode`, or resume `edgedb watch`")
                 )?;
             }
             Some(MigrationGeneratedBy::DDLStatement) => {
