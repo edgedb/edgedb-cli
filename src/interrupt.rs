@@ -54,7 +54,7 @@ pub struct Trap {}
 type SigMask = u8;
 
 #[derive(Debug, thiserror::Error)]
-#[error("interrupted")]
+#[error("Interrupted by user")]
 pub struct InterruptError(pub Signal);
 
 pub struct Interrupt {
