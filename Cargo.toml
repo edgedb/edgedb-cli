@@ -18,6 +18,7 @@ edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust/"}
 edgedb-errors = {git = "https://github.com/edgedb/edgedb-rust/"}
 edgedb-tokio = {git = "https://github.com/edgedb/edgedb-rust/", features=["admin_socket", "unstable"]}
 snafu = {version="0.7.0", features=["backtraces"]}
+ansi-escapes = "0.1"
 anyhow = "1.0.23"
 bytes = "1.0.1"
 blake2b_simd = "1.0.0"

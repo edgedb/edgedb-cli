@@ -20,7 +20,8 @@ use crate::async_util::timeout;
 use crate::connect::Connection;
 use crate::connect::Connector;
 use crate::portable::ver;
-use crate::print;
+use crate::print::{self, Highlight};
+use crate::echo;
 use crate::prompt::variable::VariableInput;
 use crate::prompt::{self, Control};
 use crate::analyze;
@@ -121,19 +122,8 @@ impl PromptRpc {
 
 impl State {
     pub async fn reconnect(&mut self) -> anyhow::Result<()> {
-        let mut conn = self.conn_params.connect().await?;
-        let fetched_version = conn.get_version().await?;
-        if self.last_version.as_ref() != Some(&fetched_version) {
-            println!("{} {} (repl v{})",
-                "EdgeDB".light_gray(),
-                fetched_version.to_string().light_gray(),
-                env!("CARGO_PKG_VERSION"));
-            self.last_version = Some(fetched_version.to_owned());
-        }
-        conn.set_state(self.edgeql_state.clone());
-        self.database = self.conn_params.get()?.database().into();
-        self.connection = Some(conn);
-        self.set_idle_transaction_timeout().await?;
+        let db = self.conn_params.get()?.database().to_owned();
+        self.try_connect(&db).await?;
         Ok(())
     }
     pub async fn set_idle_transaction_timeout(&mut self) -> anyhow::Result<()> {
@@ -154,23 +144,27 @@ impl State {
         }
         Ok(())
     }
+    fn print_banner(&self, version: &ver::Build) -> anyhow::Result<()> {
+        echo!(
+            format!("{}\rEdgeDB", ansi_escapes::EraseLine.to_string()).light_gray(),
+            version.to_string().light_gray(),
+            format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade(),
+        );
+        Ok(())
+    }
     pub async fn try_connect(&mut self, database: &str) -> anyhow::Result<()> {
         let mut params = self.conn_params.clone();
         params.database(database)?;
-        let mut conn = params.connect().await?;
+        let mut conn = params.connect_interactive().await?;
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_ref() != Some(&fetched_version) {
-            println!("{} {} (repl v{})",
-                "EdgeDB".light_gray(),
-                fetched_version.to_string().light_gray(),
-                env!("CARGO_PKG_VERSION"));
+            self.print_banner(&fetched_version)?;
             self.last_version = Some(fetched_version.to_owned());
         }
         self.conn_params = params;
         self.database = database.into();
-        self.edgeql_state = conn.get_state().clone();
-        self.edgeql_state_desc = conn.get_state_desc();
         self.connection = Some(conn);
+        self.read_state();
         self.set_idle_transaction_timeout().await?;
         Ok(())
     }
