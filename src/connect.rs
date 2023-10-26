@@ -151,20 +151,44 @@ impl Connector {
         self
     }
     pub async fn connect(&self) -> Result<Connection, anyhow::Error> {
+        self._connect(false).await
+    }
+
+    pub async fn connect_interactive(&self) -> Result<Connection, anyhow::Error> {
+        self._connect(true).await
+    }
+
+    async fn _connect(&self, interactive: bool) -> Result<Connection, anyhow::Error> {
         let cfg = self.config.as_ref().map_err(Clone::clone)?;
         let conn = tokio::select!(
             conn = Connection::connect(&cfg) => conn?,
-            _ = self.print_warning(cfg) => unreachable!(),
+            _ = self.print_warning(cfg, interactive) => unreachable!(),
         );
         Ok(conn)
     }
 
-    async fn print_warning(&self, cfg: &Config)
+    fn warning_msg(&self, cfg: &Config) -> String {
+        let desc = match cfg.instance_name() {
+            Some(edgedb_tokio::InstanceName::Cloud { org_slug: org, name }) =>
+                format!("EdgeDB Cloud instance '{}/{}'", org, name),
+            Some(edgedb_tokio::InstanceName::Local(name)) =>
+                format!("EdgeDB instance '{}' at {}", name, cfg.display_addr()),
+            _ =>
+                format!("EdgeDB instance at {}", cfg.display_addr())
+        };
+        format!("Connecting to {}...", desc)
+    }
+
+    async fn print_warning(&self, cfg: &Config, interactive: bool)
         -> Result<Connection, Error>
     {
         sleep(Duration::new(1, 0)).await;
-        eprintln!("Connecting to EdgeDB instance at {}...",
-            cfg.display_addr());
+        let msg = self.warning_msg(cfg);
+        if interactive {
+            eprint!("{}", msg);
+        } else {
+            eprintln!("{}", msg);
+        }
         pending().await
     }
     pub fn get(&self) -> anyhow::Result<&Config, ArcError> {
