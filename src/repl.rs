@@ -227,15 +227,35 @@ impl State {
     {
         use TransactionState::*;
 
-        let prompt = format!("{}{}> ",
-            self.database,
-            match self.connection.as_ref().map(|c| c.transaction_state()) {
-                Some(NotInTransaction) => "",
-                Some(InTransaction) => TX_MARKER,
-                Some(InFailedTransaction) => FAILURE_MARKER,
-                None => "",
-            }
-        );
+        let txstate = match self.connection.as_ref().map(|c| c.transaction_state()) {
+            Some(NotInTransaction) => "",
+            Some(InTransaction) => TX_MARKER,
+            Some(InFailedTransaction) => FAILURE_MARKER,
+            None => "",
+        };
+
+        let inst = self.conn_params.get()?.instance_name().to_owned();
+
+        let location = match inst {
+            Some(edgedb_tokio::InstanceName::Cloud { org_slug: org, name }) =>
+                format!(
+                    "{}/{}:{}",
+                    org,
+                    name,
+                    self.database,
+                ),
+            Some(edgedb_tokio::InstanceName::Local(name)) =>
+                format!(
+                    "{}:{}",
+                    name,
+                    self.database,
+                ),
+            _ =>
+                format!("{}", self.database)
+        };
+
+        let prompt = format!("{}{}> ", location, txstate);
+
         self.editor_cmd(|response| {
             prompt::Control::EdgeqlInput {
                 prompt,
