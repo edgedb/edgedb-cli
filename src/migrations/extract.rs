@@ -6,7 +6,7 @@ use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::migrations::create::{MigrationKey, MigrationToText};
 use crate::migrations::log::{topology_sort, SortableMigration};
-use crate::migrations::options::SyncMigrationFiles;
+use crate::migrations::options::ExtractMigrations;
 use crate::migrations::{create, migration, Context};
 use crate::portable::exit_codes;
 use crate::{print, question};
@@ -65,10 +65,10 @@ impl MigrationToText for DatabaseMigration {
     }
 }
 
-pub async fn sync(
+pub async fn extract(
     cli: &mut Connection,
     _opts: &Options,
-    params: &SyncMigrationFiles,
+    params: &ExtractMigrations,
 ) -> anyhow::Result<()> {
     let src_ctx = Context::from_project_or_config(&params.cfg, params.non_interactive).await?;
     let current = migration::read_all(&src_ctx, false).await?;
@@ -107,13 +107,19 @@ pub async fn sync(
                         if params.non_interactive {
                             if !params.force {
                                 anyhow::bail!(
-                                    "Existing migration file \"{}\" mismatches the one from database!",
+                                    "migration in \"{}\" does not match the \
+                                     migration recorded in the database, \
+                                     use `--force` to overwrite the file \
+                                     with the database version of migration",
                                     migration_file.path.display(),
                                 )
                             }
                         } else if !params.force {
                             let q = question::Confirm::new_dangerous(format!(
-                                "Existing migration file \"{}\" mismatches the one from database, overwrite?",
+                                "Migration in \"{}\" does not match the \
+                                 migration recorded in the database, \
+                                 overwrite with the database version \
+                                 of migration?",
                                 migration_file.path.display()
                             ));
                             if !q.ask()? {
@@ -132,13 +138,16 @@ pub async fn sync(
                 if params.non_interactive {
                     if !params.force {
                         anyhow::bail!(
-                            "Existing migration file \"{}\" is missing in the database!",
+                            "migration in \"{}\" is not present in the \
+                             database, use `--force` to automatically remove \
+                             the non-matching files",
                             migration_file.path.display()
                         );
                     }
                 } else if !params.force {
                     let q = question::Confirm::new_dangerous(format!(
-                        "Existing migration file \"{}\" is missing in the database, delete?",
+                        "Migration \"{}\" is not present in the database, \
+                         remove the non-matching file?",
                         migration_file.path.display()
                     ));
                     if !q.ask()? {
@@ -159,17 +168,20 @@ pub async fn sync(
             .schema_dir
             .join("migrations")
             .join(from.file_name().expect(""));
-        print::success_msg("Updating", to.display());
+        print::success_msg("Writing", to.display());
         fs::copy(from, to)?;
         updated = true;
     }
     for path in to_delete {
-        print::success_msg("Deleting", path.display());
+        print::success_msg("Removing", path.display());
         fs::remove_file(path)?;
         updated = true;
     }
     if !updated {
-        print::success("Already up to date.");
+        print::success(format!(
+            "Migration history in {:?} and in the database are in sync.",
+            src_ctx.schema_dir.join("migrations"),
+        ));
     }
     Ok(())
 }

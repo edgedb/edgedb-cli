@@ -38,14 +38,16 @@ pub enum MigrationCmd {
     Edit(MigrationEdit),
     /// Check if current schema is compatible with new EdgeDB version
     UpgradeCheck(UpgradeCheck),
-    /// Synchronize local migration files with the database
-    Sync(SyncMigrationFiles),
+    /// Extract migration history from the database and write it to
+    /// <schema-dir>/migrations.
+    Extract(ExtractMigrations),
 }
 
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
 pub struct MigrationConfig {
-    /// Directory where `*.esdl` and `*.edgeql` files are located.
-    /// Default is `./dbschema`
+    /// Project schema directory.  The default is `dbschema/`,
+    /// which can be changed by setting `project.schema-dir`
+    /// in `edgedb.toml`.
     #[arg(long, value_hint=ValueHint::DirPath)]
     pub schema_dir: Option<PathBuf>,
 }
@@ -200,7 +202,7 @@ pub struct UpgradeCheck {
 }
 
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
-pub struct SyncMigrationFiles {
+pub struct ExtractMigrations {
     #[command(flatten)]
     pub cfg: MigrationConfig,
     /// Don't ask questions, only add missing files, abort if mismatching
