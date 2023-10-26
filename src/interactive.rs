@@ -149,11 +149,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
 pub async fn _main(options: Options, mut state: repl::State, cfg: Config)
     -> anyhow::Result<()>
 {
-    let mut conn = state.conn_params.connect().await?;
-    let fetched_version = conn.get_version().await?;
-    echo!("EdgeDB".light_gray(), fetched_version.to_string().light_gray(),
-        format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade());
-    state.last_version = Some(fetched_version.clone());
+    state.reconnect().await?;
     if let Some(config_path) = &cfg.file_name {
         echo!(
             format_args!("Applied {} configuration file",
@@ -162,9 +158,6 @@ pub async fn _main(options: Options, mut state: repl::State, cfg: Config)
     }
     echo!(r#"Type \help for help, \quit to quit."#.light_gray());
     state.set_history_limit(state.history_limit).await?;
-    state.connection = Some(conn);
-    state.set_idle_transaction_timeout().await?;
-    state.read_state();
     match _interactive_main(&options, &mut state).await {
         Ok(()) => return Ok(()),
         Err(e) => {
