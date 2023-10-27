@@ -1,42 +1,17 @@
 use fs_err as fs;
 
-use edgedb_derive::Queryable;
-
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::migrations::create::{MigrationKey, MigrationToText};
-use crate::migrations::log::{topology_sort, SortableMigration};
+use crate::migrations::db_migration;
 use crate::migrations::options::ExtractMigrations;
 use crate::migrations::{create, migration, Context};
 use crate::portable::exit_codes;
 use crate::{print, question};
 
-#[derive(Queryable, Clone)]
-struct Migration {
-    name: String,
-    script: String,
-    parent_names: Vec<String>,
-}
-
-impl SortableMigration for Migration {
-    type ParentsIter<'a> = std::slice::Iter<'a, String>;
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn is_root(&self) -> bool {
-        self.parent_names.is_empty()
-    }
-
-    fn iter_parents<'a>(&'a self) -> Self::ParentsIter<'a> {
-        self.parent_names.iter()
-    }
-}
-
 struct DatabaseMigration {
     key: MigrationKey,
-    migration: Migration,
+    migration: db_migration::DBMigration,
 }
 
 impl MigrationToText for DatabaseMigration {
@@ -74,20 +49,7 @@ pub async fn extract(
     let current = migration::read_all(&src_ctx, false).await?;
     let mut disk_iter = current.into_iter();
 
-    let migrations = cli
-        .query::<Migration, _>(
-            r###"
-            SELECT schema::Migration {
-                name,
-                script,
-                parent_names := .parents.name,
-            }
-            FILTER not exists(.generated_by)
-            "###,
-            &(),
-        )
-        .await?;
-    let migrations = topology_sort(migrations);
+    let migrations = db_migration::read_all(cli, true, false).await?;
     let mut db_iter = migrations.into_iter().enumerate();
     let temp_dir = tempfile::tempdir()?;
     let temp_ctx = Context {
@@ -101,7 +63,7 @@ pub async fn extract(
         match (disk_iter.next(), db_iter.next()) {
             (existing, Some((i, migration))) => {
                 let key = MigrationKey::Index((i + 1) as u64);
-                let dm = DatabaseMigration { key, migration };
+                let dm = DatabaseMigration { key, migration: migration.1 };
                 if let Some((id, migration_file)) = existing {
                     if dm.id()? != id {
                         if params.non_interactive {

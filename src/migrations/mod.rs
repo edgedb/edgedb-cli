@@ -1,5 +1,6 @@
 mod context;
 mod create;
+mod db_migration;
 mod edit;
 mod edb;
 mod grammar;

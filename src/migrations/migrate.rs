@@ -6,7 +6,6 @@ use colorful::Colorful;
 use indicatif::ProgressBar;
 use indexmap::IndexMap;
 use tokio::fs;
-use edgedb_errors::InvalidReferenceError;
 
 use crate::async_try;
 use crate::bug;
@@ -19,6 +18,8 @@ use crate::migrations::context::Context;
 use crate::migrations::dev_mode;
 use crate::migrations::edb::{execute, execute_if_connected};
 use crate::migrations::migration::{self, MigrationFile};
+use crate::migrations::db_migration::{DBMigration, MigrationGeneratedBy};
+use crate::migrations::db_migration;
 use crate::migrations::options::Migrate;
 use crate::migrations::timeout;
 use crate::print;
@@ -37,20 +38,6 @@ enum PathElem<'a> {
 
 type OperationIter<'a> = Box<dyn Iterator<Item=Operation<'a>> + Send + 'a>;
 
-
-#[derive(Debug, edgedb_tokio::Queryable)]
-// TODO(tailhook) this has to be open-ended enumeration
-enum MigrationGeneratedBy {
-    DevMode,
-    DDLStatement,
-}
-
-#[derive(Debug, edgedb_tokio::Queryable)]
-struct MigrationInfo {
-    name: String,
-    generated_by: Option<MigrationGeneratedBy>,
-}
-
 pub trait AsOperations<'a> {
     fn as_operations(self) -> OperationIter<'a>;
 }
@@ -60,10 +47,10 @@ pub trait AsOperations<'a> {
 pub struct ApplyMigrationError;
 
 
-fn slice<'x>(migrations: &'x IndexMap<String, MigrationFile>,
+fn slice<'x, M>(migrations: &'x IndexMap<String, M>,
     // start is exclusive and end is inclusive
     start: Option<&String>, end: Option<&String>)
-    -> anyhow::Result<&'x indexmap::map::Slice<String, MigrationFile>>
+    -> anyhow::Result<&'x indexmap::map::Slice<String, M>>
 {
     let start_index = start.and_then(|m| migrations.get_index_of(m))
         .map(|idx| idx + 1)
@@ -94,24 +81,6 @@ impl<'a> AsOperations<'a> for &'a Vec<Operation<'a>> {
     }
 }
 
-async fn check_revision_in_db(cli: &mut Connection, prefix: &str)
-    -> Result<Option<String>, anyhow::Error>
-{
-    let mut all_similar = cli.query::<String, _>(r###"
-        SELECT name := schema::Migration.name
-        FILTER name LIKE <str>$0
-        "###,
-        &(format!("{}%", prefix),),
-    ).await?;
-    if all_similar.is_empty() {
-        return Ok(None);
-    }
-    if all_similar.len() > 1 {
-        anyhow::bail!("More than one revision matches prefix {:?}", prefix);
-    }
-    return Ok(all_similar.pop())
-}
-
 pub async fn migrate(cli: &mut Connection, options: &Options,
     migrate: &Migrate)
     -> Result<(), anyhow::Error>
@@ -120,33 +89,6 @@ pub async fn migrate(cli: &mut Connection, options: &Options,
     let res = _migrate(cli, options, migrate).await;
     cli.restore_state(old_state);
     return res;
-}
-
-async fn get_last_migration(cli: &mut Connection)
-    -> anyhow::Result<Option<MigrationInfo>>
-{
-    let res30 = cli.query_single(r###"
-        WITH Last := (SELECT schema::Migration
-                      FILTER NOT EXISTS .<parents[IS schema::Migration])
-        SELECT assert_single(Last { name, generated_by })
-    "###, &()).await;
-    match res30 {
-        Ok(res) => Ok(res),
-        Err(e) if e.is::<InvalidReferenceError>() => {
-            let name = cli.query_single(r###"
-                WITH Last := (SELECT schema::Migration
-                              FILTER NOT EXISTS .<parents[IS schema::Migration])
-                SELECT name := assert_single(Last.name)
-            "###, &()).await?;
-            Ok(name.map(|name| {
-                MigrationInfo {
-                    name,
-                    generated_by: None,
-                }
-            }))
-        }
-        Err(e) => Err(e)?,
-    }
 }
 
 async fn _migrate(cli: &mut Connection, _options: &Options,
@@ -160,13 +102,14 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
         return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
     }
     let migrations = migration::read_all(&ctx, true).await?;
-    let db_migration: Option<MigrationInfo> = get_last_migration(cli).await?;
+    let db_migrations = db_migration::read_all(cli, false, true).await?;
+    let last_db_rev = db_migrations.last().and_then(|kv| Some(kv.0));
 
     let target_rev = if let Some(prefix) = &migrate.to_revision {
-        let db_rev = check_revision_in_db(cli, prefix).await?;
-        let file_revs = migrations.keys()
-            .filter(|r| r.starts_with(prefix))
-            .collect::<Vec<_>>();
+        let db_rev = db_migration::find_by_prefix(cli, prefix).await?;
+        let file_revs = migrations.iter()
+            .filter(|r| r.0.starts_with(prefix))
+            .map(|r| &r.1.data).collect::<Vec<_>>();
         if file_revs.len() > 1 {
             anyhow::bail!("More than one revision matches prefix {:?}",
                 prefix);
@@ -176,13 +119,13 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
                 anyhow::bail!("No revision with prefix {:?} found",
                     prefix);
             }
-            (None, Some(targ)) => targ,
-            (Some(a), Some(b)) if a != *b => {
+            (None, Some(targ)) => &targ.id,
+            (Some(a), Some(b)) if a.name != (*b).id => {
                 anyhow::bail!("More than one revision matches prefix {:?}",
                     prefix);
             }
-            (Some(_), Some(targ)) => targ,
-            (Some(targ), None) => targ,
+            (Some(_), Some(targ)) => &targ.id,
+            (Some(targ), None) => &targ.name,
         };
         if let Some(db_rev) = db_rev {
             if !migrate.quiet {
@@ -190,14 +133,13 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
                 if print::use_color() {
                     msg = format!("{}", msg.bold().light_green());
                 }
-                if Some(&db_rev) == db_migration.as_ref().map(|m| &m.name) {
-                    eprintln!("{} Revision {}", msg, db_rev);
+                if Some(&db_rev.name) == last_db_rev {
+                    eprintln!("{} Revision {}", msg, db_rev.name);
                 } else {
                     eprintln!("{} Revision {} is the ancestor of the latest {}",
                         msg,
-                        db_rev,
-                        db_migration.as_ref()
-                            .map(|x| &x.name[..]).unwrap_or("initial"),
+                        db_rev.name,
+                        last_db_rev.unwrap_or(&String::from("initial")),
                     );
                 }
             }
@@ -208,83 +150,168 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
         None
     };
 
-    if let Some(db_migration) = &db_migration {
+    if let Some(last_db_rev) = last_db_rev {
         if let Some(last) = migrations.last() {
-            if !migrations.contains_key(&db_migration.name) {
+            if !migrations.contains_key(last_db_rev) {
                     let target_rev = target_rev.as_ref()
                         .unwrap_or_else(|| last.0);
-                    return fixup(cli, &ctx, &migrations,
-                                 &db_migration, target_rev, migrate).await;
+                    return fixup(
+                        cli,
+                        &ctx,
+                        &migrations,
+                        &db_migrations,
+                        target_rev,
+                        migrate,
+                    ).await;
             }
         } else {
-            anyhow::bail!("there are migrations in the database, \
-                           but no migrations in {:?}",
-                           ctx.schema_dir.join("migrations"));
+            return Err(anyhow::anyhow!(
+                "there is applied migration history in the database \
+                 but {:?} is empty",
+                 ctx.schema_dir.join("migrations"),
+            ).with_hint(|| format!(
+                 "You might have a wrong or outdated source checkout. \
+                 If you don't, consider running `edgedb migration extract` \
+                 to bring the history in {0:?} in sync with the database.",
+                ctx.schema_dir.join("migrations")
+            )))?;
         }
     };
-    let migrations = slice(&migrations,
-                           db_migration.as_ref().map(|m| &m.name),
-                           target_rev.as_ref())?;
+    let migrations = slice(&migrations, last_db_rev, target_rev.as_ref())?;
     if migrations.is_empty() {
         if !migrate.quiet {
             if print::use_color() {
                 eprintln!(
                     "{} Revision {}",
                     "Everything is up to date.".bold().light_green(),
-                    db_migration.as_ref()
-                        .map(|m| &m.name[..]).unwrap_or("initial")
+                    last_db_rev.map(|m| &m[..]).unwrap_or("initial")
                         .bold().white(),
                 );
             } else {
                 eprintln!(
                     "Everything is up to date. Revision {}",
-                    db_migration.as_ref()
-                        .map(|m| &m.name[..]).unwrap_or("initial"),
+                    last_db_rev.map(|m| &m[..]).unwrap_or("initial"),
                 );
             }
         }
         return Ok(());
     }
     apply_migrations(cli, migrations, &ctx).await?;
-    if db_migration.is_none() {
+    if db_migrations.is_empty() {
         disable_ddl(cli).await?;
     }
     return Ok(())
 }
 
-async fn fixup(cli: &mut Connection, ctx: &Context,
+async fn fixup(
+    cli: &mut Connection,
+    ctx: &Context,
     migrations: &IndexMap<String, MigrationFile>,
-    db_migration: &MigrationInfo, target: &String, _options: &Migrate)
-    -> anyhow::Result<()>
+    db_migrations: &IndexMap<String, DBMigration>,
+    target: &String,
+    _options: &Migrate,
+) -> anyhow::Result<()>
 {
     let fixups = migration::read_fixups(ctx, true).await?;
-    let db_mname = &db_migration.name;
-    let Some(path) = find_path(migrations, &fixups, db_mname, target)? else {
-        match db_migration.generated_by {
+    let last_db_migration = db_migrations.last().map(|kv| kv.1)
+        .context("database migration history is empty")?;
+    let last_db_mname = &last_db_migration.name;
+    let Some(path) = find_path(migrations, &fixups, last_db_mname, target)? else {
+        match last_db_migration.generated_by {
             Some(MigrationGeneratedBy::DevMode) => {
-                return Err(
-                    anyhow::anyhow!("Database contains Dev mode / `edgedb watch` migrations.")
-                    .hint("Use `edgedb migration create` followed by `edgedb migrate --dev-mode`, or resume `edgedb watch`")
-                )?;
+                return Err(anyhow::anyhow!(
+                    "database contains Dev mode / `edgedb watch` migrations."
+                ).hint(
+                    "Use `edgedb migration create` followed by \
+                    `edgedb migrate --dev-mode`, or resume `edgedb watch`"
+                ))?;
             }
-            Some(MigrationGeneratedBy::DDLStatement) => {
-                return Err(
-                    anyhow::anyhow!("Cannot proceed normally as DDL statements \
-                    have been applied to the database.")
-                    .hint("Create a fixup file manually or recreate the \
-                        database from scratch.")
-                )?;
-            }
-            None => {
-                return Err(
-                    anyhow::anyhow!("Migration {:?} is unreachable from {:?}.",
-                          target, db_mname)
-                    .hint("This usually means that some migration or fixup \
-                          files are missing. Ensure that everything is \
-                          committed and pulled from version control. Then \
-                          create a fixup file manually or recreate the \
-                          database from scratch.")
-                )?;
+            Some(MigrationGeneratedBy::DDLStatement) | None => {
+                let last_fs_rev = migrations
+                    .last().map(|kv| kv.0)
+                    .context("filesystem migration history is empty")?;
+
+                let migrations_dir = ctx.schema_dir.join("migrations");
+
+                // Check if database history is strictly ahead of filesystem's.
+                if db_migrations.contains_key(last_fs_rev) {
+                    let diff = slice(db_migrations, Some(last_fs_rev), None)?;
+
+                    return Err(anyhow::anyhow!(
+                        "database applied migration history is ahead of \
+                        migration history in {:?} by {} revision{}",
+                        migrations_dir,
+                        diff.len(),
+                        if diff.len() != 1 {"s"} else {""},
+                    ).with_hint(||
+                        if matches!(
+                            last_db_migration.generated_by,
+                            Some(MigrationGeneratedBy::DDLStatement)
+                        ) {
+                            format!(
+                            "Last recorded database migration is the result of \
+                            a direct DDL statement. \
+                            Consider running `edgedb migration extract` \
+                            to bring the history in {0:?} in sync with the database.",
+                            migrations_dir)
+                        } else {
+                            format!(
+                            "You might have a wrong or outdated source checkout. \
+                            If you don't, consider running `edgedb migration extract` \
+                            to bring the history in {0:?} in sync with the database.",
+                            migrations_dir)
+                        }
+                    ))?;
+                }
+
+                let mut last_common_rev: Option<&str> = None;
+
+                // Check if there is common history.
+                for (fs_rev, db_rev) in migrations.keys().zip(db_migrations.keys()) {
+                    if fs_rev != db_rev {
+                        break
+                    }
+                    last_common_rev = Some(fs_rev);
+                }
+
+                if let Some(last_common_rev) = last_common_rev {
+                    return Err(anyhow::anyhow!(
+                        "database applied migration history diverges from \
+                        migration history in {:?} at revision {:?}",
+                        migrations_dir,
+                        last_common_rev,
+                    ).with_hint(||
+                        if matches!(
+                            last_db_migration.generated_by,
+                            Some(MigrationGeneratedBy::DDLStatement)
+                        ) {
+                            format!(
+                            "Last recorded database migration is the result of \
+                            a direct DDL statement. \
+                            Consider running `edgedb migration extract` \
+                            to bring the history in {0:?} in sync with the database.",
+                            migrations_dir)
+                        } else {
+                            format!(
+                            "You might have a wrong or outdated source checkout. \
+                            If you don't, consider running `edgedb migration extract` \
+                            to bring the history in {0:?} in sync with the database.",
+                            migrations_dir)
+                        }
+                    ))?;
+                }
+
+                // No revisions in common
+                return Err(anyhow::anyhow!(
+                    "database applied migration history is completely \
+                    unrelated to migration history in {:?}",
+                    migrations_dir,
+                ).with_hint(|| format!(
+                    "You might have a wrong or outdated source checkout. \
+                    If you don't, consider running `edgedb migration extract` \
+                    to bring the history in {0:?} in sync with the database.",
+                    migrations_dir,
+                )))?;
             }
         }
     };
