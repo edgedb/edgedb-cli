@@ -109,7 +109,7 @@ pub(crate) async fn find_by_prefix(
             parent_names := .parents.name,
             generated_by,
         }
-        FILTER name LIKE <str>$0
+        FILTER .name LIKE <str>$0
         "###,
         &(format!("{}%", prefix),),
     ).await?;
