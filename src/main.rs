@@ -130,8 +130,6 @@ fn _main() -> anyhow::Result<()> {
         Default::default()
     });
 
-    log::debug!(target: "edgedb::cli", "Options: {:#?}", opt);
-
     if !is_cli_upgrade(&opt.subcommand) {
         version_check::check(opt.no_cli_update_check)?;
     }
