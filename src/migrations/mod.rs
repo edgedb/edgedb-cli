@@ -1,5 +1,6 @@
 mod context;
 mod create;
+mod db_migration;
 mod edit;
 mod edb;
 mod grammar;
@@ -11,6 +12,7 @@ mod prompt;
 mod source_map;
 mod squash;
 mod status;
+mod extract;
 mod timeout;
 
 pub mod dev_mode;
@@ -26,3 +28,4 @@ pub use migrate::migrate;
 pub use self::log::{log, log_fs};
 pub use status::status;
 pub use upgrade_check::upgrade_check;
+pub use extract::extract;
