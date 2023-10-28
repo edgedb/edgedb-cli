@@ -105,6 +105,14 @@ pub enum MigrationKey {
     Fixup { target_revision: String },
 }
 
+pub trait MigrationToText {
+    type StatementsIter<'a>: Iterator<Item = &'a String> where Self: 'a;
+    fn key(&self) -> &MigrationKey;
+    fn parent(&self) -> anyhow::Result<&str>;
+    fn id(&self) -> anyhow::Result<&str>;
+    fn statements<'a>(&'a self) -> Self::StatementsIter<'a>;
+}
+
 #[derive(Debug)]
 pub struct FutureMigration {
     key: MigrationKey,
@@ -154,7 +162,20 @@ impl FutureMigration {
             id: OnceCell::new(),
         }
     }
-    pub fn id(&self) -> anyhow::Result<&str> {
+}
+
+impl MigrationToText for FutureMigration {
+    type StatementsIter<'a> = std::slice::Iter<'a, String>;
+
+    fn key(&self) -> &MigrationKey {
+        &self.key
+    }
+
+    fn parent(&self) -> anyhow::Result<&str> {
+        Ok(&self.parent)
+    }
+
+    fn id(&self) -> anyhow::Result<&str> {
         let FutureMigration { ref parent, ref statements, ref id, .. } = self;
         id.get_or_try_init(|| {
             let mut hasher = Hasher::start_migration(parent);
@@ -164,6 +185,10 @@ impl FutureMigration {
             }
             Ok(hasher.make_migration_id())
         }).map(|s| &s[..])
+    }
+
+    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+        self.statements.iter()
     }
 }
 
@@ -658,25 +683,25 @@ async fn run_interactive(_ctx: &Context, cli: &mut Connection,
     Ok(FutureMigration::new(key, descr))
 }
 
-pub async fn write_migration(ctx: &Context, descr: &FutureMigration,
+pub async fn write_migration(ctx: &Context, descr: &impl MigrationToText,
     verbose: bool)
     -> anyhow::Result<()>
 {
-    let filename = match &descr.key {
+    let filename = match &descr.key() {
         MigrationKey::Index(idx) => {
             let dir = ctx.schema_dir.join("migrations");
             dir.join(format!("{:05}.edgeql", idx))
         }
         MigrationKey::Fixup { target_revision } => {
             let dir = ctx.schema_dir.join("fixups");
-            dir.join(format!("{}-{}.edgeql", descr.parent, target_revision))
+            dir.join(format!("{}-{}.edgeql", descr.parent()?, target_revision))
         }
     };
     _write_migration(descr, filename.as_ref(), verbose).await
 }
 
 #[context("could not write migration file {}", filepath.display())]
-async fn _write_migration(descr: &FutureMigration, filepath: &Path,
+async fn _write_migration(descr: &impl MigrationToText, filepath: &Path,
     verbose: bool)
     -> anyhow::Result<()>
 {
@@ -689,9 +714,9 @@ async fn _write_migration(descr: &FutureMigration, filepath: &Path,
     fs::remove_file(&tmp_file).await.ok();
     let mut file = io::BufWriter::new(fs::File::create(&tmp_file).await?);
     file.write(format!("CREATE MIGRATION {}\n", id).as_bytes()).await?;
-    file.write(format!("    ONTO {}\n", descr.parent).as_bytes()).await?;
+    file.write(format!("    ONTO {}\n", descr.parent()?).as_bytes()).await?;
     file.write(b"{\n").await?;
-    for statement in &descr.statements {
+    for statement in descr.statements() {
         for line in statement.lines() {
             file.write(&format!("  {}\n", line).as_bytes()).await?;
         }
