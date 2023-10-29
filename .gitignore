@@ -2,3 +2,6 @@
 /.vagga
 /target
 .vscode
+
+# Nix artifacts
+result
