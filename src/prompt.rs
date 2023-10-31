@@ -27,6 +27,7 @@ use crate::print::style::Styler;
 use crate::highlight;
 use crate::prompt::variable::VariableInput;
 use crate::repl::{TX_MARKER, FAILURE_MARKER};
+use crate::platform::editor_path;
 
 use colorful::Colorful;
 
@@ -434,7 +435,7 @@ fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
         .tempfile()?;
     temp_file.write_all(data.as_bytes())?;
     let temp_path = temp_file.into_temp_path();
-    let editor = crate::platform::editor_path();
+    let editor = editor_path();
     let mut items = editor.split_whitespace();
     let mut cmd = Command::new(items.next().unwrap());
     cmd.args(items);

@@ -174,14 +174,14 @@ pub fn detect_ipv6() -> bool {
 
 pub fn editor_path() -> String {
     env::var("EDGEDB_EDITOR")
-    .or_else(|_| env::var("EDITOR"))
-    .unwrap_or_else(|_| {
-        if cfg!(windows) {
-            String::from("notepad.exe")
-        } else {
-            String::from("vi")
-        }
-    })
+        .or_else(|_| env::var("EDITOR"))
+        .unwrap_or_else(|_| {
+            if cfg!(windows) {
+                String::from("notepad.exe")
+            } else {
+                String::from("vi")
+            }
+        })
 }
 
 pub async fn spawn_editor(path: &Path) -> anyhow::Result<()> {
