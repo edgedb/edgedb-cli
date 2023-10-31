@@ -436,14 +436,20 @@ fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
     let temp_path = temp_file.into_temp_path();
     let editor = env::var("EDGEDB_EDITOR")
         .or_else(|_| env::var("EDITOR"))
-        .unwrap_or_else(|_| String::from("vim"));
+        .unwrap_or_else(|_| {
+            if cfg!(windows) {
+                String::from("notepad.exe")
+            } else {
+                String::from("vi")
+            }
+        });
     let mut items = editor.split_whitespace();
     let mut cmd = Command::new(items.next().unwrap());
     cmd.args(items);
     cmd.arg(&temp_path);
     let res = cmd.status()?;
     if res.success() {
-        return Ok(fs::read_to_string(&temp_path)?);
+        Ok(fs::read_to_string(&temp_path)?)
     } else {
         Err(anyhow::anyhow!("editor exited with: {}", res))
     }
