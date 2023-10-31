@@ -517,10 +517,10 @@ pub enum ValueParameter {
     ///
     /// User-specified access policies are not applied when set to `false`,
     /// allowing any queries to be executed.
-    ApplyAccessPolicies(ConfigBool),
+    ApplyAccessPolicies(ConfigStr),
 
     /// Allow setting user-specified object identifiers.
-    AllowUserSpecifiedId(ConfigBool),
+    AllowUserSpecifiedId(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -572,11 +572,6 @@ pub struct ListenPort {
 #[derive(clap::Args, Clone, Debug)]
 pub struct ConfigStr {
     pub value: String,
-}
-
-#[derive(clap::Args, Clone, Debug)]
-pub struct ConfigBool {
-    pub value: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
