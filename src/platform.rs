@@ -170,14 +170,23 @@ pub fn detect_ipv6() -> bool {
             0, // no scope id
         )
     ).is_ok()
+}
 
+pub fn editor_path() -> String {
+    env::var("EDGEDB_EDITOR")
+        .or_else(|_| env::var("EDITOR"))
+        .unwrap_or_else(|_| {
+            if cfg!(windows) {
+                String::from("notepad.exe")
+            } else {
+                String::from("vi")
+            }
+        })
 }
 
 pub async fn spawn_editor(path: &Path) -> anyhow::Result<()> {
 
-    let editor = env::var("EDGEDB_EDITOR")
-        .or_else(|_| env::var("EDITOR"))
-        .unwrap_or_else(|_| String::from("vim"));
+    let editor = editor_path();
     let mut items = editor.split_whitespace();
     let mut cmd = tokio::process::Command::new(items.next().unwrap());
     cmd.args(items);
