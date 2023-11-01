@@ -575,12 +575,6 @@ pub struct ConfigStr {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-pub struct ConfigBool {
-    #[arg(action = clap::ArgAction::Set)]
-    pub value: bool,
-}
-
-#[derive(clap::Args, Clone, Debug)]
 pub struct AuthParameter {
     /// Priority of the authentication rule. The lower the number, the
     /// higher the priority.
