@@ -127,7 +127,7 @@ pub struct Init {
     pub database: Option<String>,
 
     /// Deprecated parameter, does nothing.
-    #[arg(long, hide=true, value_parser=["auto", "manual"])]
+    #[arg(long, hide=true)]
     pub server_start_conf: Option<StartConf>,
 
     /// Skip running migrations
