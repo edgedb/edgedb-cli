@@ -4,7 +4,7 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
 use crate::connect::Connection;
-use crate::commands::parser::{Configure, ConfigStr, ListenPort, ListenAddresses, AuthParameter};
+use crate::commands::parser::{Configure, ConfigStr, ListenAddresses, AuthParameter};
 
 async fn set(cli: &mut Connection, name: &str, cast: Option<&str>, value: impl Display)
     -> Result<(), anyhow::Error>
