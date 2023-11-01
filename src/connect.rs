@@ -8,7 +8,7 @@ use bytes::Bytes;
 use tokio::time::sleep;
 use tokio_stream::Stream;
 
-use edgedb_errors::{Error, ErrorKind, ResultExt};
+use edgedb_errors::{Error, ErrorKind, ResultExt, AuthenticationError};
 use edgedb_errors::{NoDataError, ProtocolEncodingError, ClientError};
 use edgedb_protocol::QueryResult;
 use edgedb_protocol::client_message::{State, CompilationOptions};
@@ -151,18 +151,14 @@ impl Connector {
         self
     }
     pub async fn connect(&self) -> Result<Connection, anyhow::Error> {
-        self._connect(false).await
+        self._connect().await
     }
 
-    pub async fn connect_interactive(&self) -> Result<Connection, anyhow::Error> {
-        self._connect(true).await
-    }
-
-    async fn _connect(&self, interactive: bool) -> Result<Connection, anyhow::Error> {
+    async fn _connect(&self) -> Result<Connection, anyhow::Error> {
         let cfg = self.config.as_ref().map_err(Clone::clone)?;
         let conn = tokio::select!(
             conn = Connection::connect(&cfg) => conn?,
-            _ = self.print_warning(cfg, interactive) => unreachable!(),
+            _ = self.print_warning(cfg) => unreachable!(),
         );
         Ok(conn)
     }
@@ -179,16 +175,12 @@ impl Connector {
         format!("Connecting to {}...", desc)
     }
 
-    async fn print_warning(&self, cfg: &Config, interactive: bool)
+    async fn print_warning(&self, cfg: &Config)
         -> Result<Connection, Error>
     {
         sleep(Duration::new(1, 0)).await;
         let msg = self.warning_msg(cfg);
-        if interactive {
-            eprint!("{}", msg);
-        } else {
-            eprintln!("{}", msg);
-        }
+        eprintln!("{}", msg);
         pending().await
     }
     pub fn get(&self) -> anyhow::Result<&Config, ArcError> {
@@ -198,8 +190,20 @@ impl Connector {
 
 impl Connection {
     pub async fn connect(cfg: &Config) -> Result<Connection, Error> {
+        let connection = match raw::Connection::connect(&cfg).await {
+            Ok(conn) => conn,
+            Err(err) => {
+                if err.is::<AuthenticationError>() {
+                    eprintln!("Failed to authenticate.\
+                        \nHint: Use `edgedb info` to find and check the config for this instance");
+                    return Err(err)
+                } else {
+                    return Err(err)
+                }
+            }
+        };
         Ok(Connection {
-            inner: raw::Connection::connect(&cfg).await?,
+            inner: connection,
             state: State::empty(),
             server_version: None,
             config: cfg.clone(),
