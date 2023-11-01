@@ -576,6 +576,7 @@ pub struct ConfigStr {
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct ConfigBool {
+    #[arg(action = clap::ArgAction::Set)]
     pub value: bool,
 }
 
@@ -588,7 +589,7 @@ pub struct AuthParameter {
 
     /// The name(s) of the database role(s) this rule applies to. Will apply
     /// to all roles if set to '*'
-    #[arg(long="user")]
+    #[arg(long="users")]
     pub users: Vec<String>,
 
     /// The name of the authentication method type. Valid values are: Trust
