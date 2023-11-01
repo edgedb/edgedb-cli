@@ -615,7 +615,7 @@ impl Options {
         UsageError::new(kind, msg)
     }
 
-    pub fn from_args_and_env() -> anyhow::Result<Options> {
+    pub fn command() -> clap::Command {
         // Connection/Cloud options apply *both* to the
         // root command when ran without arguments (i.e. REPL mode)
         // and to many, but, crucially, not ALL subcommands, so
@@ -652,8 +652,11 @@ impl Options {
                     .args(deglobalized);
 
         let app = <SubcommandOption as clap::Args>::augment_args(app);
-        let app = update_main_help(app);
+        update_main_help(app)
+    }
 
+    pub fn from_args_and_env() -> anyhow::Result<Options> {
+        let app = Options::command();
         let matches = app.clone().get_matches();
         let args = <RawOptions as clap::FromArgMatches>
             ::from_arg_matches(&matches)?;
