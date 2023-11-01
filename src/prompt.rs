@@ -27,6 +27,7 @@ use crate::print::style::Styler;
 use crate::highlight;
 use crate::prompt::variable::VariableInput;
 use crate::repl::{TX_MARKER, FAILURE_MARKER};
+use crate::platform::editor_path;
 
 use colorful::Colorful;
 
@@ -434,16 +435,14 @@ fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
         .tempfile()?;
     temp_file.write_all(data.as_bytes())?;
     let temp_path = temp_file.into_temp_path();
-    let editor = env::var("EDGEDB_EDITOR")
-        .or_else(|_| env::var("EDITOR"))
-        .unwrap_or_else(|_| String::from("vim"));
+    let editor = editor_path();
     let mut items = editor.split_whitespace();
     let mut cmd = Command::new(items.next().unwrap());
     cmd.args(items);
     cmd.arg(&temp_path);
     let res = cmd.status()?;
     if res.success() {
-        return Ok(fs::read_to_string(&temp_path)?);
+        Ok(fs::read_to_string(&temp_path)?)
     } else {
         Err(anyhow::anyhow!("editor exited with: {}", res))
     }

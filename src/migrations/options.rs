@@ -33,8 +33,9 @@ pub enum MigrationCmd {
     /// Edit migration file
     ///
     /// Invokes $EDITOR on the last migration file, and then fixes
-    /// migration id after editor exits. Usually should be used for
-    /// migrations that have not been applied yet.
+    /// migration id after editor exits. Defaults to vi (Notepad
+    /// in Windows). Usually should be used for migrations that have
+    /// not been applied yet.
     Edit(MigrationEdit),
     /// Check if current schema is compatible with new EdgeDB version
     UpgradeCheck(UpgradeCheck),
