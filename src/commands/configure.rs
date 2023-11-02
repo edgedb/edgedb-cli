@@ -95,12 +95,11 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
             set(cli, "query_execution_timeout", Some("<duration>"), format!("'{value}'")).await
         }
         C::Set(Set { parameter: S::AllowBareDdl(ConfigStr { value }) }) => {
-            let ddl_config = match value.to_ascii_lowercase().as_str() {
-                "alwaysallow" => "'AlwaysAllow'",
-                "neverallow" => "'NeverAllow'",
+            let ddl_config = match value.as_str() {
+                v @ ("AlwaysAllow" | "NeverAllow") => v,
                 _ => return Err(anyhow::anyhow!("allow_bare_ddl may only be set to AlwaysAllow or NeverAllow"))
             };
-            set(cli, "allow_bare_ddl", None, ddl_config).await
+            set(cli, "allow_bare_ddl", None, format!("'{ddl_config}'")).await
         }
         C::Set(Set { parameter: S::ApplyAccessPolicies(ConfigStr { value }) }) => {
             set(cli, "apply_access_policies", None, value).await
