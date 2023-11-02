@@ -1,41 +1,17 @@
+use std::fmt::Display;
+
 use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
 use crate::connect::Connection;
-use crate::commands::parser::{Configure, ConfigStr, ConfigBool};
-use crate::commands::parser::{AuthParameter};
+use crate::commands::parser::{Configure, ConfigStr, ListenAddresses, AuthParameter};
 
-
-async fn set_string(cli: &mut Connection, name: &str, value: &ConfigStr)
+async fn set(cli: &mut Connection, name: &str, cast: Option<&str>, value: impl Display)
     -> Result<(), anyhow::Error>
 {
-    print::completion(&cli.execute(
-        &format!("CONFIGURE INSTANCE SET {} := {}",
-            name, quote_string(&value.value)),
-        &(),
-    ).await?);
-    Ok(())
-}
-
-async fn set_bool(cli: &mut Connection, name: &str, value: &ConfigBool)
-    -> Result<(), anyhow::Error>
-{
-    print::completion(&cli.execute(
-        &format!("CONFIGURE INSTANCE SET {} := {}",
-            name, if value.value { "true" } else { "false" }),
-        &(),
-    ).await?);
-    Ok(())
-}
-
-async fn set_duration(cli: &mut Connection, name: &str, value: &ConfigStr)
-    -> Result<(), anyhow::Error>
-{
-    print::completion(&cli.execute(
-        &format!("CONFIGURE INSTANCE SET {} := <duration>{}",
-            name, quote_string(&value.value)),
-        &(),
-    ).await?);
+    let cast = cast.unwrap_or_default();
+    let query = format!("CONFIGURE INSTANCE SET {name} := {cast}{value}");
+    print::completion(&cli.execute(&query, &()).await?);
     Ok(())
 }
 
@@ -74,13 +50,13 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
             ), &()).await?);
             Ok(())
         }
-        C::Set(Set { parameter: S::ListenAddresses(param) }) => {
+        C::Set(Set { parameter: S::ListenAddresses(ListenAddresses {address}) }) => {
+            let addresses = address
+                .iter()
+                .map(|x| quote_string(x))
+                .collect::<Vec<_>>().join(", ");
             print::completion(&cli.execute(
-                &format!("CONFIGURE INSTANCE SET listen_addresses := {{{}}}",
-                param.address.iter().map(|x| quote_string(x))
-                    .collect::<Vec<_>>().join(", ")),
-                &(),
-            ).await?);
+                &format!("CONFIGURE INSTANCE SET listen_addresses := {{{addresses}}}"), &()).await?);
             Ok(())
         }
         C::Set(Set { parameter: S::ListenPort(param) }) => {
@@ -91,41 +67,41 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
             ).await?);
             Ok(())
         }
-        C::Set(Set { parameter: S::SharedBuffers(param) }) => {
-            set_string(cli, "shared_buffers", param).await
+        C::Set(Set { parameter: S::SharedBuffers(ConfigStr {value}) }) => {
+            set(cli, "shared_buffers", Some("<cfg::memory>"), value).await
         }
-        C::Set(Set { parameter: S::QueryWorkMem(param) }) => {
-            set_string(cli, "query_work_mem", param).await
+        C::Set(Set { parameter: S::QueryWorkMem(ConfigStr{ value}) }) => {
+            set(cli, "query_work_mem", Some("<cfg::memory>"), value).await
         }
-        C::Set(Set { parameter: S::MaintenanceWorkMem(param) }) => {
-            set_string(cli, "maintenance_work_mem", param).await
+        C::Set(Set { parameter: S::MaintenanceWorkMem(ConfigStr { value }) }) => {
+            set(cli, "maintenance_work_mem", Some("<cfg::memory>"), value).await
         }
-        C::Set(Set { parameter: S::EffectiveCacheSize(param) }) => {
-            set_string(cli, "effective_cache_size", param).await
+        C::Set(Set { parameter: S::EffectiveCacheSize(ConfigStr { value }) }) => {
+            set(cli, "effective_cache_size", Some("<cfg::memory>"), value).await
         }
-        C::Set(Set { parameter: S::DefaultStatisticsTarget(param) }) => {
-            set_string(cli, "default_statistics_target", param).await
+        C::Set(Set { parameter: S::DefaultStatisticsTarget(ConfigStr { value }) }) => {
+            set(cli, "default_statistics_target", None, value).await
         }
-        C::Set(Set { parameter: S::EffectiveIoConcurrency(param) }) => {
-            set_string(cli, "effective_io_concurrency", param).await
+        C::Set(Set { parameter: S::EffectiveIoConcurrency(ConfigStr { value }) }) => {
+            set(cli, "effective_io_concurrency", None, value).await
         }
-        C::Set(Set { parameter: S::SessionIdleTimeout(param) }) => {
-            set_duration(cli, "session_idle_timeout", param).await
+        C::Set(Set { parameter: S::SessionIdleTimeout(ConfigStr { value }) }) => {
+            set(cli, "session_idle_timeout", Some("<duration>"), format!("'{value}'")).await
         }
-        C::Set(Set { parameter: S::SessionIdleTransactionTimeout(param) }) => {
-            set_duration(cli, "session_idle_transaction_timeout", param).await
+        C::Set(Set { parameter: S::SessionIdleTransactionTimeout(ConfigStr { value }) }) => {
+            set(cli, "session_idle_transaction_timeout", Some("<duration>"), format!("'{value}'")).await
         }
-        C::Set(Set { parameter: S::QueryExecutionTimeout(param) }) => {
-            set_duration(cli, "query_execution_timeout", param).await
+        C::Set(Set { parameter: S::QueryExecutionTimeout(ConfigStr { value }) }) => {
+            set(cli, "query_execution_timeout", Some("<duration>"), format!("'{value}'")).await
         }
-        C::Set(Set { parameter: S::AllowBareDdl(param) }) => {
-            set_string(cli, "allow_bare_ddl", param).await
+        C::Set(Set { parameter: S::AllowBareDdl(ConfigStr { value }) }) => {
+            set(cli, "allow_bare_ddl", None, format!("'{value}'")).await
         }
-        C::Set(Set { parameter: S::ApplyAccessPolicies(param) }) => {
-            set_bool(cli, "apply_access_policies", param).await
+        C::Set(Set { parameter: S::ApplyAccessPolicies(ConfigStr { value }) }) => {
+            set(cli, "apply_access_policies", None, value).await
         }
-        C::Set(Set { parameter: S::AllowUserSpecifiedId(param) }) => {
-            set_bool(cli, "allow_user_specified_id", param).await
+        C::Set(Set { parameter: S::AllowUserSpecifiedId(ConfigStr { value }) }) => {
+            set(cli, "allow_user_specified_id", None, value).await
         }
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
@@ -140,16 +116,15 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 C::DefaultStatisticsTarget => "default_statistics_target",
                 C::EffectiveIoConcurrency => "effective_io_concurrency",
                 C::SessionIdleTimeout => "session_idle_timeout",
-                C::SessionIdleTransactionTimeout
-                    => "session_idle_transaction_timeout",
+                C::SessionIdleTransactionTimeout => "session_idle_transaction_timeout",
                 C::QueryExecutionTimeout => "query_execution_timeout",
                 C::AllowBareDdl => "allow_bare_ddl",
                 C::ApplyAccessPolicies => "apply_access_policies",
                 C::AllowUserSpecifiedId => "allow_user_specified_id",
             };
             print::completion(&cli.execute(
-                &format!("CONFIGURE INSTANCE RESET {}", name),
-                &(),
+                &format!("CONFIGURE INSTANCE RESET {name}"),
+                &()
             ).await?);
             Ok(())
         }
