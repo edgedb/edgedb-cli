@@ -172,7 +172,12 @@ impl Connector {
             _ =>
                 format!("EdgeDB instance at {}", cfg.display_addr())
         };
-        format!("Connecting to {}...", desc)
+        let wait = cfg.wait_until_available();
+        let wait_msg = match wait.as_secs() {
+            seconds if seconds < 1 => format!("{}ms", wait.as_millis()),
+            seconds => format!("{seconds}s")
+        };
+        format!("Connecting to {desc} (will try up to {wait_msg})...")
     }
 
     async fn print_warning(&self, cfg: &Config)
