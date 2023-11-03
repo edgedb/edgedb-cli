@@ -517,10 +517,10 @@ pub enum ValueParameter {
     ///
     /// User-specified access policies are not applied when set to `false`,
     /// allowing any queries to be executed.
-    ApplyAccessPolicies(ConfigBool),
+    ApplyAccessPolicies(ConfigStr),
 
     /// Allow setting user-specified object identifiers.
-    AllowUserSpecifiedId(ConfigBool),
+    AllowUserSpecifiedId(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -575,11 +575,6 @@ pub struct ConfigStr {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-pub struct ConfigBool {
-    pub value: bool,
-}
-
-#[derive(clap::Args, Clone, Debug)]
 pub struct AuthParameter {
     /// Priority of the authentication rule. The lower the number, the
     /// higher the priority.
@@ -588,7 +583,7 @@ pub struct AuthParameter {
 
     /// The name(s) of the database role(s) this rule applies to. Will apply
     /// to all roles if set to '*'
-    #[arg(long="user")]
+    #[arg(long="users")]
     pub users: Vec<String>,
 
     /// The name of the authentication method type. Valid values are: Trust

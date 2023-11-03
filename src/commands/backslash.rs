@@ -58,8 +58,9 @@ Operations
 
 Editing
   \s, \history              Show history
-  \e, \edit [N]             Spawn $EDITOR to edit history entry N,
-                            then use the output as input
+  \e, \edit [N]             Spawn $EDITOR to edit the last used query, using
+                            the editor output as input in the REPL.
+                            Defaults to vi (Notepad in Windows).
 
 Connection
   \c, \connect [DBNAME]     Connect to database DBNAME
