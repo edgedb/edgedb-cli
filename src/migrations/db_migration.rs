@@ -78,7 +78,11 @@ pub(crate) async fn read_all(
     fetch_script: bool,
     include_dev_mode: bool,
 ) -> anyhow::Result<IndexMap<String, DBMigration>> {
-    let migrations = cli
+    let has_generated_by = cli
+        .get_version().await?.specific() >= "3.0-alpha.1".parse().unwrap();
+
+    let migrations = if has_generated_by {
+        cli
         .query::<DBMigration, _>(
             r###"
             SELECT schema::Migration {
@@ -92,8 +96,26 @@ pub(crate) async fn read_all(
                 OR .generated_by ?!= schema::MigrationGeneratedBy.DevMode
             "###,
             &(fetch_script, include_dev_mode),
-        )
-        .await?;
+        ).await?
+    } else {
+        // The use of schema::Cardinality below is intentional,
+        // as we wouldn't have the correct enum in old servers,
+        // but derive doesn't care about actual enum members in
+        // the schema, just the fact that it is an enum.
+        cli
+        .query::<DBMigration, _>(
+            r###"
+            SELECT schema::Migration {
+                name,
+                script := .script if <bool>$0 else "",
+                parent_names := .parents.name,
+                generated_by := <schema::Cardinality>{},
+            }
+            "###,
+            &(fetch_script,),
+        ).await?
+    };
+
     Ok(linearize_db_migrations(migrations))
 }
 
@@ -102,17 +124,38 @@ pub(crate) async fn find_by_prefix(
     prefix: &str,
 ) -> Result<Option<DBMigration>, anyhow::Error>
 {
-    let mut all_similar = cli.query::<DBMigration, _>(r###"
-        SELECT schema::Migration {
-            name,
-            script,
-            parent_names := .parents.name,
-            generated_by,
-        }
-        FILTER .name LIKE <str>$0
-        "###,
-        &(format!("{}%", prefix),),
-    ).await?;
+    let has_generated_by = cli
+        .get_version().await?.specific() >= "3.0-alpha.1".parse().unwrap();
+
+    let mut all_similar = if has_generated_by {
+        cli
+        .query::<DBMigration, _>(
+            r###"
+            SELECT schema::Migration {
+                name,
+                script,
+                parent_names := .parents.name,
+                generated_by,
+            }
+            FILTER .name LIKE <str>$0
+            "###,
+            &(format!("{}%", prefix),),
+        ).await?
+    } else {
+        cli
+        .query::<DBMigration, _>(
+            r###"
+            SELECT schema::Migration {
+                name,
+                script,
+                parent_names := .parents.name,
+                generated_by := <schema::Cardinality>{},
+            }
+            FILTER .name LIKE <str>$0
+            "###,
+            &(format!("{}%", prefix),),
+        ).await?
+    };
     if all_similar.is_empty() {
         return Ok(None);
     }
