@@ -94,14 +94,18 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
         C::Set(Set { parameter: S::QueryExecutionTimeout(ConfigStr { value }) }) => {
             set(cli, "query_execution_timeout", Some("<duration>"), format!("'{value}'")).await
         }
-        C::Set(Set { parameter: S::AllowBareDdl(ConfigStr { value }) }) => {
-            set(cli, "allow_bare_ddl", None, format!("'{value}'")).await
-        }
         C::Set(Set { parameter: S::ApplyAccessPolicies(ConfigStr { value }) }) => {
             set(cli, "apply_access_policies", None, value).await
         }
         C::Set(Set { parameter: S::AllowUserSpecifiedId(ConfigStr { value }) }) => {
             set(cli, "allow_user_specified_id", None, value).await
+        }
+        C::Set(Set { parameter: S::AllowBareDdl(ConfigStr { value }) }) => {
+            let query = format!("CONFIGURE CURRENT DATABASE SET allow_bare_ddl := '{value}'");
+            let res = &cli.execute(&query, &()).await?;
+            eprintln!("Current database within instance set to {value}.");
+            print::completion(res);
+            Ok(())
         }
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
