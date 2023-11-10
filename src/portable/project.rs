@@ -425,7 +425,11 @@ fn link(
     let schema_dir = &config.project.schema_dir;
     let mut inst = Handle::probe(&name, project_dir, schema_dir, &client)?;
     if matches!(name, InstanceName::Cloud {..}) {
-        inst.database = Some(ask_database(project_dir, options)?);
+        if options.non_interactive  {
+            inst.database = Some(options.database.clone().unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()))
+        } else {
+            inst.database = Some(ask_database(project_dir, options)?);
+        }
     } else {
         inst.database = options.database.clone();
     }
@@ -606,7 +610,11 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         let mut inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
         inst.check_version(&ver_query);
         if matches!(name, InstanceName::Cloud { .. }) {
-            inst.database = Some(ask_database(project_dir, options)?);
+            if options.non_interactive  {
+                inst.database = Some(options.database.clone().unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()))
+            } else {
+                inst.database = Some(ask_database(project_dir, options)?);
+            }
         } else {
             inst.database = options.database.clone();
         }
@@ -851,7 +859,11 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             write_schema_default(&schema_dir_path, &ver)?;
         }
         if matches!(inst_name, InstanceName::Cloud { .. }) {
-            inst.database = Some(ask_database(project_dir, options)?);
+            if options.non_interactive  {
+                inst.database = Some(options.database.clone().unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()))
+            } else {
+                inst.database = Some(ask_database(project_dir, options)?);
+            }
         } else {
             inst.database = options.database.clone();
         }
