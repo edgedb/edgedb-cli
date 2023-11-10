@@ -274,23 +274,21 @@ impl FormatExt for Value {
                     if !rng.is_empty() {
                         rng.upper().map(|x| &**x).format(prn)?;
                         prn.comma()?;
-                    }
 
-                    // These fields are all optional, so we omit them
-                    // when they have the default values.
-                    if !rng.inc_lower() {
-                        prn.tuple_field("inc_lower")?;
-                        prn.const_bool(rng.inc_lower())?;
-                        prn.comma()?;
-                    }
-
-                    if rng.inc_upper() {
-                        prn.tuple_field("inc_upper")?;
-                        prn.const_bool(rng.inc_upper())?;
-                        prn.comma()?;
-                    }
-
-                    if rng.is_empty() {
+                        // These fields are all optional, so we omit them
+                        // when they have the default values.
+                        if !rng.inc_lower() {
+                            prn.tuple_field("inc_lower")?;
+                            prn.const_bool(rng.inc_lower())?;
+                            prn.comma()?;
+                        }
+    
+                        if rng.inc_upper() {
+                            prn.tuple_field("inc_upper")?;
+                            prn.const_bool(rng.inc_upper())?;
+                            prn.comma()?;
+                        }
+                    } else {
                         prn.tuple_field("empty")?;
                         prn.const_bool(rng.is_empty())?;
                         prn.comma()?;
