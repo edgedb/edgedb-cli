@@ -132,7 +132,7 @@ async fn confirm_squashing(db_rev: &str) -> anyhow::Result<()> {
            if done incorrectly.");
     echo!("");
     echo!("Items to check before using --squash:");
-    echo!("  1. Ensure that the `./dbschema` dir is comitted");
+    echo!("  1. Ensure that the `./dbschema` dir is committed");
     echo!("  2. Ensure that other users of the database either have all .edgeql files\n     \
                 up to the revision above or can create the database from scratch.\n \
                 Hint: To see the current revision for a specific instance, run:");
