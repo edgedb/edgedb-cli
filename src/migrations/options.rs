@@ -102,13 +102,18 @@ pub struct Migrate {
     #[arg(long, conflicts_with="dev_mode")]
     pub to_revision: Option<String>,
 
-    /// Apply current schema changes on top of those found in the migration history
+    /// Dev mode is used to temporarily apply schema on top of those found in
+    /// the migration history. Usually used for testing purposes, as well as
+    /// `edgedb watch` which creates a dev mode migration script each time
+    /// a file is saved by a user.
+    /// 
+    /// Current dev mode migrations can be seen with the following query:
+    /// 
+    /// `select schema::Migration {*} filter .generated_by = schema::MigrationGeneratedBy.DevMode;`
     ///
-    /// This is commonly used to apply schema temporarily before doing
-    /// `migration create` for testing purposes.
-    ///
-    /// This works the same way as `edgedb watch` but without starting
-    /// a long-running watch task.
+    /// `edgedb migration create` followed by `edgedb migrate --dev-mode` will
+    /// then finalize a migration by turning existing dev mode migrations into
+    /// a regular `.edgeql` file, after which the above query will return nothing.
     #[arg(long)]
     pub dev_mode: bool,
 }
