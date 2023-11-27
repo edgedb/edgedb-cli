@@ -127,16 +127,16 @@ async fn create_revision(cli: &mut Connection, ctx: &Context,
 }
 
 async fn confirm_squashing(db_rev: &str) -> anyhow::Result<()> {
-    echo!("Current database revision is:", db_rev.emphasize());
-    echo!("Squash operation is non-destructive, but may require manual work \
+    echo!("Current database revision:", db_rev.emphasize());
+    echo!("While squashing migrations is non-destructive, it may lead to manual work \
            if done incorrectly.");
     echo!("");
-    echo!("Items to check before doing squash:");
-    echo!("  1. Ensure that `./dbschema` dir is comitted");
-    echo!("  2. Ensure that other users of the database have the revision \
-        above or can create database from scratch.\n     \
-                To check a specific instance, run:");
-    echo!("       edgedb -I <name> migration log --from-db --limit 1"
+    echo!("Items to check before using --squash:");
+    echo!("  1. Ensure that the `./dbschema` dir is comitted");
+    echo!("  2. Ensure that other users of the database either have all .edgeql files\n     \
+                up to the revision above or can create the database from scratch.\n \
+                Hint: To see the current revision for a specific instance, run:");
+    echo!("       edgedb -I <name> migration log --from-db --newest-first --limit 1"
           .command_hint());
     echo!("  3. Merge version control branches that contain schema changes \
                 if possible.");
