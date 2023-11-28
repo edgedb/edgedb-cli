@@ -40,7 +40,10 @@ pub enum MigrationCmd {
     /// Check if current schema is compatible with new EdgeDB version
     UpgradeCheck(UpgradeCheck),
     /// Extract migration history from the database and write it to
-    /// <schema-dir>/migrations.
+    /// <schema-dir>/migrations. Useful when a direct DDL command has
+    /// been used to change the schema and now `edgedb migrate` will not
+    /// comply because the database migration history is ahead of the
+    /// migration history inside <schema-dir>/migrations.
     Extract(ExtractMigrations),
 }
 
