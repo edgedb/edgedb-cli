@@ -129,8 +129,8 @@ pub enum DatabaseCmd {
     /// Deletes database along with its data
     Drop(DropDatabase),
     /// Deletes a database's data and resets its schema while
-    /// preserving the database itself and existing migration
-    /// scripts
+    /// preserving the database itself (its cfg::DatabaseConfig) 
+    /// and existing migration scripts
     Wipe(WipeDatabase),
 }
 
