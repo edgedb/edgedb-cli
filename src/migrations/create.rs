@@ -216,13 +216,13 @@ async fn choice(prompt: &str) -> anyhow::Result<Choice> {
 
     let mut q = question::Choice::new(prompt.to_string());
     q.option(Yes, &["y", "yes"],
-        "Confirm the prompt, use the DDL statements");
+        "Confirm the prompt using suggested DDL statements");
     q.option(No, &["n", "no"],
-        "Reject the prompt");
+        "Reject the prompt; server will attempt to generate another suggestion");
     q.option(List, &["l", "list"],
-        "List DDL statements associated with the prompt");
+        "List proposed DDL statements for the current prompt");
     q.option(Confirmed, &["c", "confirmed"],
-        "List already confirmed EdgeQL statements");
+        "List already confirmed EdgeQL statements for the current migration");
     q.option(Back, &["b", "back"],
         "Revert to previous save point");
     q.option(Split, &["s", "stop"],
