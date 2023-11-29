@@ -124,11 +124,11 @@ pub struct Database {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum DatabaseCmd {
-    /// Creates a new database
+    /// Create a new database
     Create(CreateDatabase),
-    /// Deletes database along with its data
+    /// Delete a database along with its data
     Drop(DropDatabase),
-    /// Deletes a database's data and resets its schema while
+    /// Delete a database's data and reset its schema while
     /// preserving the database itself (its cfg::DatabaseConfig) 
     /// and existing migration scripts
     Wipe(WipeDatabase),
