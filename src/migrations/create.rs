@@ -216,7 +216,7 @@ async fn choice(prompt: &str) -> anyhow::Result<Choice> {
 
     let mut q = question::Choice::new(prompt.to_string());
     q.option(Yes, &["y", "yes"],
-        "Confirm the prompt using suggested DDL statements");
+        r#"Confirm the prompt ("l" to see suggested statements)"#);
     q.option(No, &["n", "no"],
         "Reject the prompt; server will attempt to generate another suggestion");
     q.option(List, &["l", "list"],
@@ -224,9 +224,9 @@ async fn choice(prompt: &str) -> anyhow::Result<Choice> {
     q.option(Confirmed, &["c", "confirmed"],
         "List already confirmed EdgeQL statements for the current migration");
     q.option(Back, &["b", "back"],
-        "Revert to previous save point");
+        "Go back a step by reverting latest accepted statements");
     q.option(Split, &["s", "stop"],
-        "Stop and save changes (splits migration into multiple)");
+        "Stop and finalize migration with only current accepted changes");
     q.option(Quit, &["q", "quit"],
         "Quit without saving changes");
     q.async_ask().await
@@ -600,7 +600,7 @@ impl InteractiveMigration<'_> {
                     }
                     Back => {
                         if self.save_point == 0 {
-                            eprintln!("Already at latest savepoint");
+                            eprintln!("No EdgeQL statements confirmed, nothing to move back from");
                             continue;
                         }
                         self.save_point -= 1;
