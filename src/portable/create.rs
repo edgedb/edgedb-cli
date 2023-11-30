@@ -105,14 +105,14 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
             ))?;
         }
 
-        if cp.compute_size.is_some() {
+        if cp.billables.compute_size.is_some() {
             return Err(opts.error(
                 clap::error::ErrorKind::ArgumentConflict,
                 cformat!("The <bold>--compute-size</bold> option is only applicable to cloud instances."),
             ))?;
         }
 
-        if cp.storage_size.is_some() {
+        if cp.billables.storage_size.is_some() {
             return Err(opts.error(
                 clap::error::ErrorKind::ArgumentConflict,
                 cformat!("The <bold>--storage-size</bold> option is only applicable to cloud instances."),
@@ -222,10 +222,10 @@ fn create_cloud(
 
     let server_ver = cloud::versions::get_version(&query, client)?;
 
-    let compute_size = cp.and_then(|p| p.compute_size);
-    let storage_size = cp.and_then(|p| p.storage_size);
+    let compute_size = cp.and_then(|p| p.billables.compute_size);
+    let storage_size = cp.and_then(|p| p.billables.storage_size);
 
-    let tier = if let Some(tier) = cp.and_then(|p| p.tier) {
+    let tier = if let Some(tier) = cp.and_then(|p| p.billables.tier) {
         tier
     } else if compute_size.is_some() || storage_size.is_some() || org.preferred_payment_method.is_some() {
         cloud::ops::CloudTier::Pro

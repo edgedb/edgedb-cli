@@ -20,6 +20,7 @@ pub mod install;
 mod link;
 mod list_versions;
 mod reset_password;
+mod resize;
 mod revert;
 pub mod status;
 mod uninstall;
