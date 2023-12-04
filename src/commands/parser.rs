@@ -360,7 +360,8 @@ pub struct Dump {
     #[arg(value_hint=ValueHint::AnyPath)]
     pub path: PathBuf,
     /// Dump all databases and server configuration. `path` is a directory
-    /// in this case
+    /// in this case and thus `--format=dir` is also required.  Will
+    /// automatically overwrite any existing files of the same name.
     #[arg(long)]
     pub all: bool,
 
@@ -372,6 +373,11 @@ pub struct Dump {
     /// For `--all`, only `--format=dir` is required.
     #[arg(long, value_enum)]
     pub format: Option<DumpFormat>,
+
+    /// Used to automatically overwrite existing files of the same name. Defaults
+    /// to `true` when `--all` is used, otherwise `false`.
+    #[arg(long)]
+    pub overwrite_existing: bool
 }
 
 #[derive(clap::Args, Clone, Debug)]

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use indicatif::{ProgressBar, HumanBytes};
-use tokio::fs;
+use tokio::fs::{self, OpenOptions};
 use tokio::io::{self, AsyncWrite, AsyncWriteExt};
 use sha1::Digest;
 
@@ -24,29 +24,39 @@ pub struct Guard {
 
 
 impl Guard {
-    async fn open(filename: &Path) -> anyhow::Result<(Output, Guard)> {
+    async fn open(filename: &Path, overwrite_existing: bool) -> anyhow::Result<(Output, Guard)> {
+
         if filename.to_str() == Some("-") {
-            Ok((Box::new(io::stdout()), Guard { filenames: None }))
-        } else if cfg!(windows)
-            || filename.starts_with("/dev/")
-            || filename.file_name().is_none()
+            return Ok((Box::new(io::stdout()), Guard { filenames: None }))
+        }
+
+        let mut options = OpenOptions::new();
+        let options = match overwrite_existing {
+            true => options.write(true).create(true).truncate(true),
+            false => options.write(true).create_new(true)
+        };
+
+        if cfg!(windows) || filename.starts_with("/dev/") || filename.file_name().is_none()
         {
-            let file = fs::File::create(&filename).await
+            let file = options
+                .open(&filename).await
                 .context(filename.display().to_string())?;
             Ok((Box::new(file), Guard { filenames: None }))
         } else {
             let tmp_path = filename.with_file_name(
                 tmp_file_name(filename.as_ref()));
-            if fs::metadata(&tmp_path).await.is_ok() {
+            if fs::metadata(&tmp_path).await.is_ok() && overwrite_existing {
                 fs::remove_file(&tmp_path).await.ok();
             }
-            let tmp_file = fs::File::create(&tmp_path).await
+            let tmp_file = options
+                .open(&tmp_path).await
                 .context(tmp_path.display().to_string())?;
             Ok((Box::new(tmp_file), Guard {
                 filenames: Some((tmp_path, filename.to_owned())),
             }))
         }
     }
+
     async fn commit(self) -> anyhow::Result<()> {
         if let Some((tmp_filename, filename)) = self.filenames {
             fs::rename(tmp_filename, filename).await?;
@@ -73,12 +83,12 @@ pub async fn dump(cli: &mut Connection, general: &Options,
         if options.format.is_some() {
             anyhow::bail!("`--format` is reserved for dump using `--all`");
         }
-        dump_db(cli, general, options.path.as_ref(), options.include_secrets).await
+        dump_db(cli, general, options.path.as_ref(), options.include_secrets, options.overwrite_existing).await
     }
 }
 
 async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path,
-                 mut include_secrets: bool)
+                 mut include_secrets: bool, overwrite_existing: bool)
     -> Result<(), anyhow::Error>
 {
     if cli.get_version().await?.specific() < "4.0-alpha.2".parse().unwrap() {
@@ -86,9 +96,9 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path,
     }
 
     let dbname = cli.database().to_string();
-    eprintln!("Starting dump for {dbname}...");
+    eprintln!("Starting dump for database `{dbname}`...");
 
-    let (mut output, guard) = Guard::open(filename).await?;
+    let (mut output, guard) = Guard::open(filename, overwrite_existing).await?;
     output.write_all(
         b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00\
           \x00\x00\x00\x00\x00\x00\x00\x01"
@@ -114,7 +124,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path,
         let packet_length = packet.data.len();
         bar.tick();
         processed += packet_length;
-        bar.set_message(format!("Database {dbname} dump: {} processed.", HumanBytes(processed as u64)));
+        bar.set_message(format!("Database `{dbname}` dump: {} processed.", HumanBytes(processed as u64)));
         bar.message();
 
         // this is ensured because length in the protocol is u32 too
@@ -128,7 +138,7 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path,
         output.write_all(&packet.data).await?;
     }
     guard.commit().await?;
-    bar.abandon_with_message(format!("Finished dump for {dbname}. Total size: {}", HumanBytes(processed as u64)));
+    bar.abandon_with_message(format!("Finished dump for `{dbname}`. Total size: {}", HumanBytes(processed as u64)));
     Ok(())
 }
 
@@ -142,7 +152,7 @@ pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path,
 
     fs::create_dir_all(dir).await?;
 
-    let (mut init, guard) = Guard::open(&dir.join("init.edgeql")).await?;
+    let (mut init, guard) = Guard::open(&dir.join("init.edgeql"), true).await?;
     if !config.trim().is_empty() {
         init.write_all(b"# DESCRIBE SYSTEM CONFIG\n").await?;
         init.write_all(config.as_bytes()).await?;
@@ -161,7 +171,7 @@ pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path,
             .database(database)?
             .connect().await?;
         let filename = dir.join(&(urlencoding::encode(database) + ".dump")[..]);
-        dump_db(&mut db_conn, options, &filename, include_secrets).await?;
+        dump_db(&mut db_conn, options, &filename, include_secrets, true).await?;
     }
 
     Ok(())
