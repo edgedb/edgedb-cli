@@ -149,7 +149,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
 pub async fn _main(options: Options, mut state: repl::State, cfg: Config)
     -> anyhow::Result<()>
 {
-    state.reconnect().await?;
+    state.connect().await?;
     if let Some(config_path) = &cfg.file_name {
         echo!(
             format_args!("Applied {} configuration file",
