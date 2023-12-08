@@ -54,7 +54,7 @@
                   inherit src;
                   doCheck = false; # disable tests
                   nativeBuildInputs = [pkg-config openssl openssl.dev];
-                  buildInputs = [openssl openssl.dev] ++ lib.optionals stdenv.isDarwin [pkgslibiconv];
+                  buildInputs = [openssl openssl.dev] ++ lib.optionals stdenv.isDarwin [pkgs.libiconv];
                   OPENSSL_NO_VENDOR = "1";
                 };
               cargoArtifacts = craneLib.buildDepsOnly common;
