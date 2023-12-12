@@ -43,9 +43,10 @@ impl Guard {
                 .context(filename.display().to_string())?;
             Ok((Box::new(file), Guard { filenames: None }))
         } else {
+            // Create .~.tmp file path, first remove if already existing
             let tmp_path = filename.with_file_name(
                 tmp_file_name(filename.as_ref()));
-            if fs::metadata(&tmp_path).await.is_ok() && overwrite_existing {
+            if fs::metadata(&tmp_path).await.is_ok() {
                 fs::remove_file(&tmp_path).await.ok();
             }
             let tmp_file = options
