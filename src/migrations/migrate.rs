@@ -437,18 +437,7 @@ pub async fn apply_migrations(cli: &mut Connection,
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     async_try! {
         async {
-            execute(cli, "START TRANSACTION").await?;
-            async_try! {
-                async {
-                    apply_migrations_inner(cli, migrations, ctx.quiet).await
-                },
-                except async {
-                    execute_if_connected(cli, "ROLLBACK").await
-                },
-                else async {
-                    execute(cli, "COMMIT").await
-                }
-            }
+            apply_migrations_inner(cli, migrations, ctx.quiet).await
         },
         finally async {
             timeout::restore_for_transaction(cli, old_timeout).await
