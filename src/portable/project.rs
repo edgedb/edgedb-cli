@@ -1116,6 +1116,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
             quiet: false,
             to_revision: None,
             dev_mode: false,
+            single_transaction: false,
             conn: None,
         }).await?;
     Ok(())
