@@ -120,7 +120,7 @@ pub struct Migrate {
     #[arg(long)]
     pub dev_mode: bool,
 
-    /// Runs the migration(s) in a single transaction (legacy behaviour).
+    /// Runs the migration(s) in a single transaction.
     #[arg(long="single-transaction")]
     pub single_transaction: bool,
 }
