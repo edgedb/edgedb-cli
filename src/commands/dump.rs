@@ -43,6 +43,9 @@ impl Guard {
                 .context(filename.display().to_string())?;
             Ok((Box::new(file), Guard { filenames: None }))
         } else {
+            if !overwrite_existing && fs::metadata(&filename).await.is_ok() {
+                anyhow::bail!("failed: target file already exists. Specify --overwrite-existing to replace.")
+            }
             // Create .~.tmp file path, first remove if already existing
             let tmp_path = filename.with_file_name(
                 tmp_file_name(filename.as_ref()));
