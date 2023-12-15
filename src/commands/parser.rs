@@ -126,9 +126,11 @@ pub struct Database {
 pub enum DatabaseCmd {
     /// Create a new database
     Create(CreateDatabase),
-    /// Delete database along with its data
+    /// Delete a database along with its data
     Drop(DropDatabase),
-    /// Preserve database while deleting its data
+    /// Delete a database's data and reset its schema while
+    /// preserving the database itself (its cfg::DatabaseConfig) 
+    /// and existing migration scripts
     Wipe(WipeDatabase),
 }
 
