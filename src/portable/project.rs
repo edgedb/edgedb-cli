@@ -191,7 +191,7 @@ pub struct Upgrade {
 
     /// Upgrade specified instance to a specified version.
     /// 
-    /// e.g. --to-version=4.0-beta.1
+    /// e.g. --to-version 4.0-beta.1
     #[arg(long)]
     #[arg(conflicts_with_all=&[
         "to_testing", "to_latest", "to_nightly", "to_channel",
