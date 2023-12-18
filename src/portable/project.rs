@@ -81,22 +81,12 @@ pub enum Command {
     /// Get various metadata about project instance
     Info(Info),
     /// Upgrade EdgeDB instance used for current project
-    ///
-    /// This command has two modes of operation.
-    ///
-    /// Upgrade instance to version specified in `edgedb.toml`:
-    ///
-    ///     project upgrade
-    ///
-    /// Update `edgedb.toml` to new version and upgrade the instance:
-    ///
-    ///     project upgrade --to-latest
-    ///     project upgrade --to-version=1-beta2
-    ///     project upgrade --to-nightly
-    ///
-    /// In all cases your data is preserved and converted using dump/restore
-    /// mechanism. May fail if lower version is specified (e.g. if upgrading
-    /// from nightly to stable).
+    /// 
+    /// Data is preserved using a dump/restore mechanism.
+    /// 
+    /// Upgrades to version specified in `edgedb.toml` unless other options specified.
+    /// 
+    /// Note: May fail if lower version is specified (e.g. moving from nightly to stable).
     Upgrade(Upgrade),
 }
 
@@ -199,7 +189,9 @@ pub struct Upgrade {
     ])]
     pub to_latest: bool,
 
-    /// Upgrade specified instance to a specified version
+    /// Upgrade specified instance to a specified version.
+    /// 
+    /// e.g. --to-version=4.0-beta.1
     #[arg(long)]
     #[arg(conflicts_with_all=&[
         "to_testing", "to_latest", "to_nightly", "to_channel",
