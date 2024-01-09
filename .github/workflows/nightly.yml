@@ -89,7 +89,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing debian-buster-x86_64'
           val=false
         fi
@@ -103,7 +103,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing debian-buster-aarch64'
           val=false
         fi
@@ -117,7 +117,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing debian-bullseye-x86_64'
           val=false
         fi
@@ -131,7 +131,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing debian-bullseye-aarch64'
           val=false
         fi
@@ -145,7 +145,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing debian-bookworm-x86_64'
           val=false
         fi
@@ -159,7 +159,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing debian-bookworm-aarch64'
           val=false
         fi
@@ -173,7 +173,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
           val=false
         fi
@@ -187,7 +187,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing ubuntu-bionic-aarch64'
           val=false
         fi
@@ -201,7 +201,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing ubuntu-focal-x86_64'
           val=false
         fi
@@ -215,7 +215,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing ubuntu-focal-aarch64'
           val=false
         fi
@@ -229,7 +229,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
           val=false
         fi
@@ -243,7 +243,7 @@ jobs:
           curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
         fi
         out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
+        if [ -n "$out" ]; then
           echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
           val=false
         fi
@@ -1143,6 +1143,7 @@ jobs:
       uses: elprans/configure-pagefile-action@v2
       with:
         minimum-size: 8GB
+        disk-root: "C:"
 
     - name: Build
       env:
