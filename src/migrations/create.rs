@@ -6,6 +6,7 @@
 //         }
 //         shares_a_name: int64;
 //     }
+//
 
 //     type DoesNotShareName {
 //         multi link other_link: DoesNotShareName {
