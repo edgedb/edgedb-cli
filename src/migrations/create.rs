@@ -1,6 +1,97 @@
-use std::borrow::Cow;
-use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, BTreeMap},
+    path::{Path, PathBuf}, sync::Arc
+};
+
+#[derive(Clone, Debug, Default)]
+pub struct InteractiveMigrationInfo {
+    cast_info: HashMap<String, Vec<String>>,
+    function_info: Vec<FunctionInfo>,
+    properties: PropertyInfo
+}
+
+#[derive(Queryable, Debug, Clone, Default)]
+pub struct PropertyInfo {
+    regular_properties: Vec<String>,
+    link_properties: Vec<String>
+}
+
+#[derive(Queryable, Debug, Clone)]
+pub struct FunctionInfo {
+    name: String,
+    input: String,
+    returns: String
+}
+
+// Returns all functions as long as the type returned input type does not equal output
+// (Casts only required when changing to a new type)
+// Currently returns 161 functions
+async fn get_function_info(cli: &mut Connection) -> Result<Vec<FunctionInfo>, Error> {
+    cli.query::<FunctionInfo, _>(
+        r#"with fn := (select schema::Function filter count(.params.type.name) = 1),
+        select fn {
+        name,
+        input := array_join(array_agg((.params.type.name)), ''),
+        returns := .return_type.name
+        };"#, &()).await
+}
+
+#[derive(Queryable, Debug, Clone)]
+pub struct CastInfo {
+    from_type_name: String,
+    to_type_name: String
+}
+
+async fn get_cast_info(cli: &mut Connection) -> Result<HashMap<String, Vec<String>>, Error> {
+    let cast_info: Vec<CastInfo> = cli.query(
+        "select schema::Cast {
+        from_type_name := .from_type.name,
+        to_type_name := .to_type.name
+    };", &()).await?;
+    let mut map = std::collections::HashMap::new();
+    for cast in cast_info {
+        map.entry(cast.from_type_name).or_insert(Vec::new()).push(cast.to_type_name);
+    }
+    Ok(map)
+}
+
+// If regular_properties has the same link name at least twice and the name matches one inside
+// link_properties, then there is both a regular and a link property of the same name
+async fn get_all_property_info(cli: &mut Connection) -> Result<PropertyInfo, Error> {
+    cli.query_required_single("with
+
+ links          := (select schema::Link filter .builtin = false),
+ link_names     := (select names := links.properties.name filter names not in {'__type__', 'target', 'source'}),
+
+ properties      := (select schema::Property filter .builtin = false),
+ property_names  := (select names := properties.name filter names not in {'id', 'target', 'source'}),
+
+ select {regular_properties := property_names, link_properties := distinct link_names, };", &()).await
+}
+
+// Don't want to fail CLI if migration info can't be found, just log and return default
+async fn get_migration_info(cli: &mut Connection) -> InteractiveMigrationInfo {
+    let function_info = get_function_info(cli).await.unwrap_or_else(|e| {
+        println!("Failed to find function info: {e}");
+        log::debug!("Failed to find function info: {e}");
+        Default::default()
+    });
+    let cast_info = get_cast_info(cli).await.unwrap_or_else(|e| {
+        log::debug!("Failed to find cast_info: {e}");
+        Default::default()
+    });
+    let properties = get_all_property_info(cli).await.unwrap_or_else(|e| {
+        log::debug!("Failed to find property info: {e}");
+        Default::default()
+    });
+    
+    InteractiveMigrationInfo {
+        cast_info,
+        function_info,
+        properties
+    }
+}
 
 use anyhow::Context as _;
 use colorful::Colorful;
@@ -60,6 +151,20 @@ enum Choice {
     Quit,
 }
 
+
+/// Example:
+/// 
+///  "required_user_input": [
+/// {
+///    "prompt": "Please specify a conversion expression to alter the type of property 'strength'",
+///    "new_type": "std::str",
+///    "old_type": "std::int64",
+///    "placeholder": "cast_expr",
+///    "pointer_name": "strength",
+///    "new_type_is_object": false,
+///    "old_type_is_object": false
+///  }
+/// ]
 #[derive(Deserialize, Debug, Clone)]
 pub struct RequiredUserInput {
     placeholder: String,
@@ -79,6 +184,17 @@ pub struct StatementProposal {
     pub text: String,
 }
 
+// Example: 
+// 
+//  "proposed": {
+// "prompt": "did you alter the type of property 'strength' of link 'times'?",
+// "data_safe": false,
+// "prompt_id": "SetPropertyType PROPERTY default::__|strength@default|__||times&default||Time",
+// "confidence": 1.0,
+// "statements": [
+//   {
+//     "text": "ALTER TYPE default::Time {\n    ALTER LINK times {\n        ALTER PROPERTY strength {\n            SET TYPE std::str USING (\\(cast_expr));\n        };\n    };\n};"
+//   }
 #[derive(Deserialize, Debug)]
 pub struct Proposal {
     pub prompt_id: Option<String>,
@@ -90,6 +206,36 @@ pub struct Proposal {
     pub required_user_input: Vec<RequiredUserInput>,
 }
 
+// Returned from each DESCRIBE CURRENT SCHEMA AS JSON during a migration.
+// e.g.
+//
+// {
+//     "parent": "m17emwiottbbfc4coo7ybcrkljr5bhdv46ouoyyjrsj4qwvg7w5ina",
+//     "complete": false,
+//     "proposed": {
+//       "prompt": "did you alter the type of property 'strength' of link 'times'?",
+//       "data_safe": false,
+//       "prompt_id": "SetPropertyType PROPERTY default::__|strength@default|__||times&default||Time",
+//       "confidence": 1.0,
+//       "statements": [
+//         {
+//           "text": "ALTER TYPE default::Time {\n    ALTER LINK times {\n        ALTER PROPERTY strength {\n            SET TYPE std::str USING (\\(cast_expr));\n        };\n    };\n};"
+//         }
+//       ],
+//       "required_user_input": [
+//         {
+//           "prompt": "Please specify a conversion expression to alter the type of property 'strength'",
+//           "new_type": "std::str",
+//           "old_type": "std::int64",
+//           "placeholder": "cast_expr",
+//           "pointer_name": "strength",
+//           "new_type_is_object": false,
+//           "old_type_is_object": false
+//         }
+//       ]
+//     },
+//     "confirmed": []
+//   }
 #[derive(Deserialize, Queryable, Debug)]
 #[edgedb(json)]
 pub struct CurrentMigration {
@@ -267,6 +413,7 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
     -> anyhow::Result<()>
 {
     let (text, source_map) = gen_start_migration(&ctx).await?;
+
     match execute(cli, text).await {
         Ok(_) => Ok(()),
         Err(e) if e.is::<QueryError>() => {
@@ -347,9 +494,84 @@ pub fn make_default_expression(input: &RequiredUserInput)
     Some(expr)
 }
 
-pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
-    -> anyhow::Result<CurrentMigration>
+pub fn make_default_expression_interactive(input: &RequiredUserInput, info: Arc<InteractiveMigrationInfo>) -> Option<String>
 {
+    let name = &input.placeholder[..];
+    let kind_end = name.find("_expr").unwrap_or(name.len());
+    println!("Function info: {:#?}", info.function_info);
+    let expr = match &name[..kind_end] {
+        "fill" if input.type_name.is_some() => {
+            format!("<{}>{{}}",
+                    input.type_name.as_ref().unwrap())
+        }
+        // Please specify a conversion expression to alter the type of property 'd':
+        // cast_expr> <cal::local_date>.d
+        "cast" if input.pointer_name.is_some() && input.new_type.is_some() => {
+            let pointer_name = input.pointer_name.as_deref().unwrap();
+            // Sometimes types will show up eg. as array<std|str> for some reason instead of array<std::str>
+            let old_type = input.old_type.as_deref().unwrap_or_default().replace('|', "::");
+            let new_type = input.new_type.as_deref().unwrap_or_default().replace('|', "::");
+            println!("Old type: {old_type} New type: {new_type}");
+            match (input.old_type_is_object, input.new_type_is_object) {
+                (Some(true), Some(true)) => {
+                    format!(".{pointer_name}[IS {new_type}]")
+                }
+                (Some(false), Some(false)) | (None, None) => {
+                    // Check if old type has any casts
+                    if let Some(vals) = info.cast_info.get(&old_type) {
+                        // Then see if any of the available casts match the new type
+                        if vals.iter().any(|t| t == &new_type) {
+
+                            // cast_expr> <std::str>@strength                      
+                            if info.properties.link_properties.iter().any(|l| *l == pointer_name) {
+                                if info.properties.regular_properties.iter().filter(|l| *l == pointer_name).count() > 1 {
+                                    println!("Note: `{pointer_name}` is the name of both a regular property and a link property.");
+                                    println!("Change the _ below to . if the cast is for a regular property, or to @ if the cast is for a link property.\n");
+                                    format!("<{new_type}>_{pointer_name}")    
+                                } else {
+                                    // Definitely just a link property
+                                    format!("<{new_type}>@{pointer_name}")
+                                }
+                            } else {
+                                format!("<{new_type}>.{pointer_name}")
+                            }
+                        } else {
+                            let available_functions = info.function_info.iter().filter(|c| {
+                                // How to check for anytype, etc.? e.g. suggest len() for any array when changing to int64
+                                c.input.contains(&old_type.to_string()) && c.returns.contains(&new_type)
+                            }).collect::<Vec<_>>();
+                            if !available_functions.is_empty() {
+                                println!("Available functions: {available_functions:#?}");
+                                println!("Note: The following function{plural} may help you convert from {old_type} to {new_type}:", plural = if available_functions.len() > 2 {"s"} else {""});
+                                for function in available_functions {
+                                    let FunctionInfo { name, input, returns } = function;
+                                    println!("{name}({input}) -> {returns}");
+                                }
+                            }
+                                    format!(".{pointer_name}")
+                        } 
+                            
+                } else {
+                    format!(".{pointer_name}")
+                }
+            }
+                // TODO(tailhook) maybe create something for mixed case?
+                _ => return None,
+            }
+        }
+        "conv" if input.pointer_name.is_some() => {
+            format!("(SELECT .{} LIMIT 1)",
+                    input.pointer_name.as_ref().unwrap())
+        }
+        _ => {
+            return None;
+        }
+    };
+    Some(expr)
+}
+
+pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection) -> anyhow::Result<CurrentMigration> {
+    
     loop {
         let data = query_row::<CurrentMigration>(cli,
             "DESCRIBE CURRENT MIGRATION AS JSON"
@@ -445,20 +667,20 @@ async fn non_interactive_populate(_ctx: &Context, cli: &mut Connection)
                 eprintln!("EdgeDB intended to apply the following migration:");
                 for statement in proposal.statements {
                     for line in statement.text.lines() {
-                        eprintln!("    {}", line);
+                        eprintln!("    {line}");
                     }
                 }
                 eprintln!("But confidence is {}, below minimum threshold of {}",
                     proposal.confidence, SAFE_CONFIDENCE);
                 anyhow::bail!("EdgeDB is unable to make a decision. Please run in \
                     interactive mode to confirm changes, \
-                    or use `--allow-unsafe`");
+                    or use `--allow-unsafe` to automatically force all suggested changes");
             }
         } else {
             anyhow::bail!("EdgeDB could not resolve \
                 migration automatically. Please run in \
                 interactive mode to confirm changes, \
-                or use `--allow-unsafe`");
+                or use `--allow-unsafe` to automatically force all suggested changes");
         }
     }
 }
@@ -480,14 +702,15 @@ async fn run_non_interactive(ctx: &Context, cli: &mut Connection,
     Ok(FutureMigration::new(key, descr))
 }
 
-impl InteractiveMigration<'_> {
-    fn new(cli: &mut Connection) -> InteractiveMigration {
-        InteractiveMigration {
+impl<'a> InteractiveMigration<'a> {
+    async fn new(cli: &'a mut Connection) -> Result<Self, Error> {
+
+        Ok(InteractiveMigration {
             cli,
             save_point: 0,
             operations: vec![Set::new()],
             confirmed: Vec::new(),
-        }
+        })
     }
     async fn save_point(&mut self) -> Result<(), Error> {
         execute(self.cli,
@@ -499,7 +722,7 @@ impl InteractiveMigration<'_> {
             "ROLLBACK TO SAVEPOINT migration_{}", self.save_point)
         ).await
     }
-    async fn run(mut self) -> anyhow::Result<CurrentMigration> {
+    async fn run(mut self, info: Arc<InteractiveMigrationInfo>) -> anyhow::Result<CurrentMigration> {
         self.save_point().await?;
         loop {
             let descr = query_row::<CurrentMigration>(self.cli,
@@ -510,7 +733,7 @@ impl InteractiveMigration<'_> {
                 return Ok(descr);
             }
             if let Some(proposal) = &descr.proposed {
-                match self.process_proposal(proposal).await {
+                match self.process_proposal(proposal, Arc::clone(&info)).await {
                     Err(e) if e.is::<SplitMigration>() => return Ok(descr),
                     Err(e) => return Err(e),
                     Ok(()) => {}
@@ -520,9 +743,7 @@ impl InteractiveMigration<'_> {
             }
         }
     }
-    async fn process_proposal(&mut self, proposal: &Proposal)
-        -> anyhow::Result<()>
-    {
+    async fn process_proposal(&mut self, proposal: &Proposal, info: Arc<InteractiveMigrationInfo>) -> anyhow::Result<()> {
         use Choice::*;
 
         let cur_oper = self.operations.last().unwrap();
@@ -540,7 +761,7 @@ impl InteractiveMigration<'_> {
                 }
                 println!("(approved as part of an earlier prompt)");
                 let input = self.cli.ping_while(
-                    get_user_input(&proposal.required_user_input)
+                    get_user_input(&proposal.required_user_input, Arc::clone(&info))
                 ).await;
                 match input {
                     Ok(data) => break data,
@@ -563,7 +784,7 @@ impl InteractiveMigration<'_> {
                 match self.cli.ping_while(choice(prompt)).await? {
                     Yes => {
                         let input_res = self.cli.ping_while(
-                            get_user_input(&proposal.required_user_input)
+                            get_user_input(&proposal.required_user_input, Arc::clone(&info))
                         ).await;
                         match input_res {
                             Ok(data) => input = data,
@@ -573,9 +794,7 @@ impl InteractiveMigration<'_> {
                         break;
                     }
                     No => {
-                        execute(self.cli,
-                            "ALTER CURRENT MIGRATION REJECT PROPOSED"
-                        ).await?;
+                        execute(self.cli, "ALTER CURRENT MIGRATION REJECT PROPOSED").await?;
                         self.save_point += 1;
                         self.save_point().await?;
                         return Ok(());
@@ -670,10 +889,11 @@ impl InteractiveMigration<'_> {
 
 
 async fn run_interactive(_ctx: &Context, cli: &mut Connection,
-                         key: MigrationKey, options: &CreateMigration)
+                         key: MigrationKey, options: &CreateMigration, info: Arc<InteractiveMigrationInfo>)
     -> anyhow::Result<FutureMigration>
 {
-    let descr = InteractiveMigration::new(cli).run().await?;
+
+    let descr = InteractiveMigration::new(cli).await?.run(info).await?;
 
     if descr.confirmed.is_empty() && !options.allow_empty {
         print::warn("No schema changes detected.");
@@ -690,11 +910,12 @@ pub async fn write_migration(ctx: &Context, descr: &impl MigrationToText,
     let filename = match &descr.key() {
         MigrationKey::Index(idx) => {
             let dir = ctx.schema_dir.join("migrations");
-            dir.join(format!("{:05}.edgeql", idx))
+            dir.join(format!("{idx:05}.edgeql"))
         }
         MigrationKey::Fixup { target_revision } => {
             let dir = ctx.schema_dir.join("fixups");
-            dir.join(format!("{}-{}.edgeql", descr.parent()?, target_revision))
+            let parent = descr.parent()?;
+            dir.join(format!("{parent}-{target_revision}.edgeql"))
         }
     };
     _write_migration(descr, filename.as_ref(), verbose).await
@@ -800,6 +1021,7 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
                               create: &CreateMigration)
     -> anyhow::Result<FutureMigration>
 {
+    let info = Arc::new(get_migration_info(cli).await);
     execute_start_migration(&ctx, cli).await?;
     async_try! {
         async {
@@ -824,7 +1046,7 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
                     log::warn!("The `--allow-unsafe` flag is unused \
                                 in interactive mode");
                 }
-                run_interactive(&ctx, cli, key, &create).await
+                run_interactive(&ctx, cli, key, &create, info).await
             }
         },
         finally async {
@@ -850,9 +1072,9 @@ fn add_newline_after_comment(value: &mut String) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
+fn get_input(req: &RequiredUserInput, info: Arc<InteractiveMigrationInfo>) -> Result<String, anyhow::Error> {
     let prompt = format!("{}> ", req.placeholder);
-    let mut prev = make_default_expression(req).unwrap_or(String::new());
+    let mut prev = make_default_expression_interactive(req, info).unwrap_or_default();
     loop {
         println!("{}:", req.prompt);
         let mut value = match prompt::expression(&prompt, &req.placeholder, &prev) {
@@ -876,13 +1098,14 @@ fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
     }
 }
 
-async fn get_user_input(req: &[RequiredUserInput])
+async fn get_user_input(req: &[RequiredUserInput], info: Arc<InteractiveMigrationInfo>)
     -> Result<BTreeMap<String, String>, anyhow::Error>
 {
     let mut result = BTreeMap::new();
     for item in req {
         let copy = item.clone();
-        let input = unblock(move || get_input(&copy)).await??;
+        let info = Arc::clone(&info);
+        let input = unblock(move || get_input(&copy, info)).await??;
         result.insert(item.placeholder.clone(), input);
     }
     Ok(result)
