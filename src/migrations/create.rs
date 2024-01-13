@@ -1,3 +1,40 @@
+// module default {
+//     type SharesAName {
+//         # Change both to another scalar type, should return _ and tell user to choose between . and @
+//         multi link some_link: SharesAName {
+//             shares_a_name: int64;
+//         }
+//         shares_a_name: int64;
+//     }
+
+//     type DoesNotShareName {
+//         multi link other_link: DoesNotShareName {
+//             # Change this to another scalar type, should suggest cast with @
+//             does_not_share_name: int64;
+//         }
+//     }
+
+//     type TimeType {
+//         # Change to datetime, should suggest to_datetime function
+//         int_to_datetime: int64;
+//     }
+
+//     type StrToArrayStr {
+//         # Change to array<str>, should suggest a number of functions including
+//         # the user-defined one below
+//         s: array<str>;
+//     }
+
+//     function str_to_array_str(input: str) -> array<str> using (
+//         [input]
+//     )
+
+//     type ArrayToInt16 {
+//         # Todo: Change to int64, should recognize as array<anytype> and suggest count()
+//         a: array<str>;
+//     }
+// }
+
 use std::{
     borrow::Cow,
     collections::{HashMap, BTreeMap},
