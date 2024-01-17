@@ -8,6 +8,7 @@
 //     }
 //
 
+//
 //     type DoesNotShareName {
 //         multi link other_link: DoesNotShareName {
 //             # Change this to another scalar type, should suggest cast with @
