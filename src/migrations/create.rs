@@ -533,24 +533,31 @@ pub fn make_default_expression(input: &RequiredUserInput)
     Some(expr)
 }
 
-pub fn make_default_expression_interactive(input: &RequiredUserInput, info: Arc<InteractiveMigrationInfo>) -> Option<String>
-{
+pub fn make_default_expression_interactive(
+    input: &RequiredUserInput,
+    info: Arc<InteractiveMigrationInfo>,
+) -> Option<String> {
     let name = &input.placeholder[..];
     let kind_end = name.find("_expr").unwrap_or(name.len());
-    println!("Function info: {:#?}", info.function_info);
     let expr = match &name[..kind_end] {
         "fill" if input.type_name.is_some() => {
-            format!("<{}>{{}}",
-                    input.type_name.as_ref().unwrap())
+            format!("<{}>{{}}", input.type_name.as_ref().unwrap())
         }
         // Please specify a conversion expression to alter the type of property 'd':
         // cast_expr> <cal::local_date>.d
         "cast" if input.pointer_name.is_some() && input.new_type.is_some() => {
             let pointer_name = input.pointer_name.as_deref().unwrap();
             // Sometimes types will show up eg. as array<std|str> for some reason instead of array<std::str>
-            let old_type = input.old_type.as_deref().unwrap_or_default().replace('|', "::");
-            let new_type = input.new_type.as_deref().unwrap_or_default().replace('|', "::");
-            println!("Old type: {old_type} New type: {new_type}");
+            let old_type = input
+                .old_type
+                .as_deref()
+                .unwrap_or_default()
+                .replace('|', "::");
+            let new_type = input
+                .new_type
+                .as_deref()
+                .unwrap_or_default()
+                .replace('|', "::");
             match (input.old_type_is_object, input.new_type_is_object) {
                 (Some(true), Some(true)) => {
                     format!(".{pointer_name}[IS {new_type}]")
@@ -560,47 +567,66 @@ pub fn make_default_expression_interactive(input: &RequiredUserInput, info: Arc<
                     if let Some(vals) = info.cast_info.get(&old_type) {
                         // Then see if any of the available casts match the new type
                         if vals.iter().any(|t| t == &new_type) {
-
-                            // cast_expr> <std::str>@strength                      
-                            if info.properties.link_properties.iter().any(|l| *l == pointer_name) {
-                                if info.properties.regular_properties.iter().filter(|l| *l == pointer_name).count() > 1 {
+                            // cast_expr> <std::str>@strength
+                            if info
+                                .properties
+                                .link_properties
+                                .iter()
+                                .any(|l| *l == pointer_name)
+                            {
+                                if info
+                                    .properties
+                                    .regular_properties
+                                    .iter()
+                                    .filter(|l| *l == pointer_name)
+                                    .count()
+                                    > 1
+                                {
                                     println!("Note: `{pointer_name}` is the name of both a regular property and a link property.");
                                     println!("Change the _ below to . if the cast is for a regular property, or to @ if the cast is for a link property.\n");
-                                    format!("<{new_type}>_{pointer_name}")    
+                                    return Some(format!("<{new_type}>_{pointer_name}"));
                                 } else {
                                     // Definitely just a link property
-                                    format!("<{new_type}>@{pointer_name}")
+                                    return Some(format!("<{new_type}>@{pointer_name}"));
                                 }
                             } else {
-                                format!("<{new_type}>.{pointer_name}")
+                                return Some(format!("<{new_type}>.{pointer_name}"));
                             }
-                        } else {
-                            let available_functions = info.function_info.iter().filter(|c| {
-                                // How to check for anytype, etc.? e.g. suggest len() for any array when changing to int64
-                                c.input.contains(&old_type.to_string()) && c.returns.contains(&new_type)
+                        }
+                    }
+                    // No casts. Now try to print out any matching functions
+                    let available_functions = info.function_info.iter().filter(|func| {
+                                // First see if old and new types outright match
+                                (func.input.contains(&old_type.to_string()) && func.returns.contains(&new_type)) ||
+                                // Then see if old type is anytype and return matches
+                                (func.input.contains("anytype") && func.returns.contains(&new_type)) ||
+                                // Then see if old type is an array of anything and return matches
+                                (func.input.contains("array") && func.returns.contains(&new_type)) ||
+                                // Finally, see if function takes an anyreal and new type is any of its extending types
+                                (func.input.contains("anyreal") && func.returns.contains("anyreal") && [
+                                    "int16", "int32", "int64", "float32", "float64", "decimal"].iter().any(|e| func.returns.contains(e))
+                                )
                             }).collect::<Vec<_>>();
-                            if !available_functions.is_empty() {
-                                println!("Available functions: {available_functions:#?}");
-                                println!("Note: The following function{plural} may help you convert from {old_type} to {new_type}:", plural = if available_functions.len() > 2 {"s"} else {""});
-                                for function in available_functions {
-                                    let FunctionInfo { name, input, returns } = function;
-                                    println!("{name}({input}) -> {returns}");
-                                }
-                            }
-                                    format!(".{pointer_name}")
-                        } 
-                            
-                } else {
+                    if !available_functions.is_empty() {
+                        println!("Note: The following function{plural} may help you convert from {old_type} to {new_type}:", plural = if available_functions.len() > 2 {"s"} else {""});
+                        for function in available_functions {
+                            let FunctionInfo {
+                                name,
+                                input,
+                                returns,
+                            } = function;
+                            println!("  {name}({input}) -> {returns}");
+                        }
+                    }
+                    // Then return the pointer (maybe with matching functions, maybe not)
                     format!(".{pointer_name}")
                 }
-            }
                 // TODO(tailhook) maybe create something for mixed case?
                 _ => return None,
             }
         }
         "conv" if input.pointer_name.is_some() => {
-            format!("(SELECT .{} LIMIT 1)",
-                    input.pointer_name.as_ref().unwrap())
+            format!("(SELECT .{} LIMIT 1)", input.pointer_name.as_ref().unwrap())
         }
         _ => {
             return None;
@@ -608,6 +634,7 @@ pub fn make_default_expression_interactive(input: &RequiredUserInput, info: Arc<
     };
     Some(expr)
 }
+
 
 pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection) -> anyhow::Result<CurrentMigration> {
     
