@@ -52,8 +52,8 @@ pub struct InteractiveMigrationInfo {
 
 #[derive(Queryable, Debug, Clone, Default)]
 pub struct PropertyInfo {
-    regular_properties: Vec<String>,
-    link_properties: Vec<String>
+    all_properties: Vec<String>,
+    link_properties: Vec<String>,
 }
 
 #[derive(Queryable, Debug, Clone)]
@@ -73,7 +73,10 @@ async fn get_function_info(cli: &mut Connection) -> Result<Vec<FunctionInfo>, Er
         name,
         input := array_join(array_agg((.params.type.name)), ''),
         returns := .return_type.name
-        };"#, &()).await
+        };"#,
+        &(),
+    )
+    .await
 }
 
 #[derive(Queryable, Debug, Clone)]
@@ -83,20 +86,29 @@ pub struct CastInfo {
 }
 
 async fn get_cast_info(cli: &mut Connection) -> Result<HashMap<String, Vec<String>>, Error> {
-    let cast_info: Vec<CastInfo> = cli.query(
-        "select schema::Cast {
+    let cast_info: Vec<CastInfo> = cli
+        .query(
+            "select schema::Cast {
         from_type_name := .from_type.name,
         to_type_name := .to_type.name
-    };", &()).await?;
+    };",
+            &(),
+        )
+        .await?;
     let mut map = std::collections::HashMap::new();
     for cast in cast_info {
-        map.entry(cast.from_type_name).or_insert(Vec::new()).push(cast.to_type_name);
+        map.entry(cast.from_type_name)
+            .or_insert(Vec::new())
+            .push(cast.to_type_name);
     }
     Ok(map)
 }
 
-// If regular_properties has the same link name at least twice and the name matches one inside
+// If all_properties has the same link name at least twice and the name matches one inside
 // link_properties, then there is both a regular and a link property of the same name
+// Possible todo: get info on source too. e.g. if shares_a_name is both an object property and link
+// property in a whole bunch of types (but only once per type), don't want the CLI to inform the
+// user about the same name
 async fn get_all_property_info(cli: &mut Connection) -> Result<PropertyInfo, Error> {
     cli.query_required_single("with
 
@@ -106,7 +118,7 @@ async fn get_all_property_info(cli: &mut Connection) -> Result<PropertyInfo, Err
  properties      := (select schema::Property filter .builtin = false),
  property_names  := (select names := properties.name filter names not in {'id', 'target', 'source'}),
 
- select {regular_properties := property_names, link_properties := distinct link_names, };", &()).await
+ select {all_properties := property_names, link_properties := distinct link_names, };", &()).await
 }
 
 // Don't want to fail CLI if migration info can't be found, just log and return default
@@ -124,7 +136,7 @@ async fn get_migration_info(cli: &mut Connection) -> InteractiveMigrationInfo {
         log::debug!("Failed to find property info: {e}");
         Default::default()
     });
-    
+
     InteractiveMigrationInfo {
         cast_info,
         function_info,
@@ -192,7 +204,7 @@ enum Choice {
 
 
 /// Example:
-/// 
+///
 ///  "required_user_input": [
 /// {
 ///    "prompt": "Please specify a conversion expression to alter the type of property 'strength'",
@@ -223,8 +235,8 @@ pub struct StatementProposal {
     pub text: String,
 }
 
-// Example: 
-// 
+// Example:
+//
 //  "proposed": {
 // "prompt": "did you alter the type of property 'strength' of link 'times'?",
 // "data_safe": false,
@@ -464,7 +476,7 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
 }
 
 pub async fn first_migration(cli: &mut Connection, ctx: &Context,
-                         options: &CreateMigration)
+    options: &CreateMigration)
     -> anyhow::Result<FutureMigration>
 {
     execute_start_migration(&ctx, cli).await?;
@@ -543,6 +555,9 @@ pub fn make_default_expression_interactive(
         "fill" if input.type_name.is_some() => {
             format!("<{}>{{}}", input.type_name.as_ref().unwrap())
         }
+        "conv" if input.pointer_name.is_some() => {
+            format!("(SELECT .{} LIMIT 1)", input.pointer_name.as_ref().unwrap())
+        }
         // Please specify a conversion expression to alter the type of property 'd':
         // cast_expr> <cal::local_date>.d
         "cast" if input.pointer_name.is_some() && input.new_type.is_some() => {
@@ -564,10 +579,10 @@ pub fn make_default_expression_interactive(
                 }
                 (Some(false), Some(false)) | (None, None) => {
                     // Check if old type has any casts
-                    if let Some(vals) = info.cast_info.get(&old_type) {
-                        // Then see if any of the available casts match the new type
-                        if vals.iter().any(|t| t == &new_type) {
-                            // cast_expr> <std::str>@strength
+                    match info.cast_info.get(&old_type) {
+                        // and new types match the cast
+                        Some(vals) if vals.iter().any(|t| t == &new_type) => {
+                            // If so, then check if any link and regular properties share a name
                             if info
                                 .properties
                                 .link_properties
@@ -576,57 +591,57 @@ pub fn make_default_expression_interactive(
                             {
                                 if info
                                     .properties
-                                    .regular_properties
+                                    .all_properties
                                     .iter()
                                     .filter(|l| *l == pointer_name)
                                     .count()
                                     > 1
                                 {
-                                    println!("Note: `{pointer_name}` is the name of both a regular property and a link property.");
-                                    println!("Change the _ below to . if the cast is for a regular property, or to @ if the cast is for a link property.\n");
-                                    return Some(format!("<{new_type}>_{pointer_name}"));
+                                    println!("Note: Your schema has both object and link properties with the name `{pointer_name}`.");
+                                    println!("If this object has both, then:\n <{new_type}>.{pointer_name} will cast from the object type property, while\n <{new_type}>@{pointer_name} will cast from the link property.");
+                                    format!("<{new_type}>_{pointer_name}")
                                 } else {
                                     // Definitely just a link property
-                                    return Some(format!("<{new_type}>@{pointer_name}"));
+                                    format!("<{new_type}>@{pointer_name}")
                                 }
                             } else {
-                                return Some(format!("<{new_type}>.{pointer_name}"));
+                                // No link properties of the same name found
+                                format!("<{new_type}>.{pointer_name}")
                             }
                         }
-                    }
-                    // No casts. Now try to print out any matching functions
-                    let available_functions = info.function_info.iter().filter(|func| {
-                                // First see if old and new types outright match
-                                (func.input.contains(&old_type.to_string()) && func.returns.contains(&new_type)) ||
-                                // Then see if old type is anytype and return matches
-                                (func.input.contains("anytype") && func.returns.contains(&new_type)) ||
-                                // Then see if old type is an array of anything and return matches
-                                (func.input.contains("array") && func.returns.contains(&new_type)) ||
-                                // Finally, see if function takes an anyreal and new type is any of its extending types
-                                (func.input.contains("anyreal") && func.returns.contains("anyreal") && [
-                                    "int16", "int32", "int64", "float32", "float64", "decimal"].iter().any(|e| func.returns.contains(e))
-                                )
-                            }).collect::<Vec<_>>();
-                    if !available_functions.is_empty() {
-                        println!("Note: The following function{plural} may help you convert from {old_type} to {new_type}:", plural = if available_functions.len() > 2 {"s"} else {""});
-                        for function in available_functions {
-                            let FunctionInfo {
-                                name,
-                                input,
-                                returns,
-                            } = function;
-                            println!("  {name}({input}) -> {returns}");
+                        _ => {
+                            // No matching casts between old and new type. Now try to print out any matching functions
+                            let available_functions = info.function_info.iter().filter(|func| {
+                        // First see if old and new types outright match
+                        (func.input.contains(&old_type.to_string()) && func.returns.contains(&new_type)) ||
+                        // Then see if old type is anytype and return matches
+                        (func.input.contains("anytype") && func.returns.contains(&new_type)) ||
+                        // Then see if old type is an array of anything and return matches
+                        (func.input.contains("array") && func.returns.contains(&new_type)) ||
+                        // Finally, see if function takes an anyreal and new type is any of its extending types
+                        (func.input.contains("anyreal") && func.returns.contains("anyreal") && [
+                            "int16", "int32", "int64", "float32", "float64", "decimal"].iter().any(|e| func.returns.contains(e))
+                        )
+                    }).collect::<Vec<_>>();
+                            if !available_functions.is_empty() {
+                                println!("Note: The following function{plural} may help you convert from {old_type} to {new_type}:", plural = if available_functions.len() > 2 {"s"} else {""});
+                                for function in available_functions {
+                                    let FunctionInfo {
+                                        name,
+                                        input,
+                                        returns,
+                                    } = function;
+                                    println!("  {name}({input}) -> {returns}");
+                                }
+                            }
+                            // Then return the pointer (maybe with matching functions, maybe not)
+                            format!(".{pointer_name}")
                         }
                     }
-                    // Then return the pointer (maybe with matching functions, maybe not)
-                    format!(".{pointer_name}")
                 }
                 // TODO(tailhook) maybe create something for mixed case?
                 _ => return None,
             }
-        }
-        "conv" if input.pointer_name.is_some() => {
-            format!("(SELECT .{} LIMIT 1)", input.pointer_name.as_ref().unwrap())
         }
         _ => {
             return None;
@@ -790,7 +805,7 @@ impl<'a> InteractiveMigration<'a> {
     }
     async fn run(mut self, info: Arc<InteractiveMigrationInfo>) -> anyhow::Result<CurrentMigration> {
         self.save_point().await?;
-        loop {
+                loop {
             let descr = query_row::<CurrentMigration>(self.cli,
                 "DESCRIBE CURRENT MIGRATION AS JSON",
             ).await?;
@@ -958,7 +973,7 @@ async fn run_interactive(_ctx: &Context, cli: &mut Connection,
                          key: MigrationKey, options: &CreateMigration, info: Arc<InteractiveMigrationInfo>)
     -> anyhow::Result<FutureMigration>
 {
-
+    
     let descr = InteractiveMigration::new(cli).await?.run(info).await?;
 
     if descr.confirmed.is_empty() && !options.allow_empty {
@@ -1087,7 +1102,7 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
                               create: &CreateMigration)
     -> anyhow::Result<FutureMigration>
 {
-    let info = Arc::new(get_migration_info(cli).await);
+let info = Arc::new(get_migration_info(cli).await);
     execute_start_migration(&ctx, cli).await?;
     async_try! {
         async {
