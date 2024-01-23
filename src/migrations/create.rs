@@ -1,144 +1,8 @@
-// module default {
-//     type SharesAName {
-//         # Change both to another scalar type, should return _ and tell user to choose between . and @
-//         multi link some_link: SharesAName {
-//             shares_a_name: int64;
-//         }
-//         shares_a_name: int64;
-//     }
-//
-
-//
-//     type DoesNotShareName {
-//         multi link other_link: DoesNotShareName {
-//             # Change this to another scalar type, should suggest cast with @
-//             does_not_share_name: int64;
-//         }
-//     }
-
-//     type TimeType {
-//         # Change to datetime, should suggest to_datetime function
-//         int_to_datetime: int64;
-//     }
-
-//     type StrToArrayStr {
-//         # Change to array<str>, should suggest a number of functions including
-//         # the user-defined one below
-//         s: array<str>;
-//     }
-
-//     function str_to_array_str(input: str) -> array<str> using (
-//         [input]
-//     )
-
-//     type ArrayToInt16 {
-//         # Todo: Change to int64, should recognize as array<anytype> and suggest count()
-//         a: array<str>;
-//     }
-// }
-
 use std::{
     borrow::Cow,
     collections::{HashMap, BTreeMap},
     path::{Path, PathBuf}, sync::Arc
 };
-
-#[derive(Clone, Debug, Default)]
-pub struct InteractiveMigrationInfo {
-    cast_info: HashMap<String, Vec<String>>,
-    function_info: Vec<FunctionInfo>,
-    properties: PropertyInfo
-}
-
-#[derive(Queryable, Debug, Clone, Default)]
-pub struct PropertyInfo {
-    regular_properties: Vec<String>,
-    link_properties: Vec<String>,
-}
-
-#[derive(Queryable, Debug, Clone)]
-pub struct FunctionInfo {
-    name: String,
-    input: String,
-    returns: String
-}
-
-// Returns all functions as long as the type returned input type does not equal output
-// (Casts only required when changing to a new type)
-// Currently returns 161 functions
-async fn get_function_info(cli: &mut Connection) -> Result<Vec<FunctionInfo>, Error> {
-    cli.query::<FunctionInfo, _>(
-        r#"with fn := (select schema::Function filter count(.params.type.name) = 1),
-        select fn {
-        name,
-        input := array_join(array_agg((.params.type.name)), ''),
-        returns := .return_type.name
-        };"#,
-        &(),
-    )
-    .await
-}
-
-#[derive(Queryable, Debug, Clone)]
-pub struct CastInfo {
-    from_type_name: String,
-    to_type_name: String
-}
-
-async fn get_cast_info(cli: &mut Connection) -> Result<HashMap<String, Vec<String>>, Error> {
-    let cast_info: Vec<CastInfo> = cli
-        .query(
-            "select schema::Cast {
-        from_type_name := .from_type.name,
-        to_type_name := .to_type.name
-    };",
-            &(),
-        )
-        .await?;
-    let mut map = std::collections::HashMap::new();
-    for cast in cast_info {
-        map.entry(cast.from_type_name)
-            .or_insert(Vec::new())
-            .push(cast.to_type_name);
-    }
-    Ok(map)
-}
-
-// If all_properties has the same link name at least twice and the name matches one inside
-// link_properties, then there is both a regular and a link property of the same name
-// Possible todo: get info on source too. e.g. if shares_a_name is both an object property and link
-// property in a whole bunch of types (but only once per type), don't want the CLI to inform the
-// user about the same name
-async fn get_all_property_info(cli: &mut Connection) -> Result<PropertyInfo, Error> {
-    cli.query_required_single("with 
-    all_props := (select schema::Property filter .builtin = false),
-    props := (select all_props filter .source is schema::ObjectType and .name != 'id'),
-    links := (select all_props filter .source is schema::Link and .name not in {'target', 'source'}),
-    select { regular_properties := props.name, link_properties := links.name };", &()).await
-}
-
-// Don't want to fail CLI if migration info can't be found, just log and return default
-async fn get_migration_info(cli: &mut Connection) -> InteractiveMigrationInfo {
-    let function_info = get_function_info(cli).await.unwrap_or_else(|e| {
-        println!("Failed to find function info: {e}");
-        log::debug!("Failed to find function info: {e}");
-        Default::default()
-    });
-    let cast_info = get_cast_info(cli).await.unwrap_or_else(|e| {
-        log::debug!("Failed to find cast_info: {e}");
-        Default::default()
-    });
-    let properties = get_all_property_info(cli).await.unwrap_or_else(|e| {
-        log::debug!("Failed to find property info: {e}");
-        Default::default()
-    });
-
-    InteractiveMigrationInfo {
-        cast_info,
-        function_info,
-        properties
-    }
-}
 
 use anyhow::Context as _;
 use colorful::Colorful;
@@ -199,19 +63,19 @@ enum Choice {
 }
 
 
-/// Example:
-///
-///  "required_user_input": [
-/// {
-///    "prompt": "Please specify a conversion expression to alter the type of property 'strength'",
-///    "new_type": "std::str",
-///    "old_type": "std::int64",
-///    "placeholder": "cast_expr",
-///    "pointer_name": "strength",
-///    "new_type_is_object": false,
-///    "old_type_is_object": false
-///  }
-/// ]
+// Example:
+//
+//  "required_user_input": [
+// {
+//    "prompt": "Please specify a conversion expression to alter the type of property 'strength'",
+//    "new_type": "std::str",
+//    "old_type": "std::int64",
+//    "placeholder": "cast_expr",
+//    "pointer_name": "strength",
+//    "new_type_is_object": false,
+//    "old_type_is_object": false
+//  }
+// ]
 #[derive(Deserialize, Debug, Clone)]
 pub struct RequiredUserInput {
     placeholder: String,
@@ -233,7 +97,7 @@ pub struct StatementProposal {
 
 // Example:
 //
-//  "proposed": {
+// "proposed": {
 // "prompt": "did you alter the type of property 'strength' of link 'times'?",
 // "data_safe": false,
 // "prompt_id": "SetPropertyType PROPERTY default::__|strength@default|__||times&default||Time",
@@ -254,7 +118,7 @@ pub struct Proposal {
 }
 
 // Returned from each DESCRIBE CURRENT SCHEMA AS JSON during a migration.
-// e.g.
+// Example:
 //
 // {
 //     "parent": "m17emwiottbbfc4coo7ybcrkljr5bhdv46ouoyyjrsj4qwvg7w5ina",
@@ -319,6 +183,96 @@ struct InteractiveMigration<'a> {
     save_point: usize,
     operations: Vec<Set<String>>,
     confirmed: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct InteractiveMigrationInfo {
+    cast_info: HashMap<String, Vec<String>>,
+    function_info: Vec<FunctionInfo>,
+    properties: PropertyInfo
+}
+
+#[derive(Queryable, Debug, Clone, Default)]
+pub struct PropertyInfo {
+    regular_properties: Vec<String>,
+    link_properties: Vec<String>,
+}
+
+#[derive(Queryable, Debug, Clone)]
+pub struct FunctionInfo {
+    name: String,
+    input: String,
+    returns: String
+}
+
+// Returns all functions as long as the type returned input type does not equal output
+// (Casts only required when changing to a new type)
+async fn get_function_info(cli: &mut Connection) -> Result<Vec<FunctionInfo>, Error> {
+    cli.query::<FunctionInfo, _>(
+        r#"with fn := (select schema::Function filter count(.params.type.name) = 1),
+        select fn {
+        name,
+        input := array_join(array_agg((.params.type.name)), ''),
+        returns := .return_type.name
+        };"#,
+        &(),
+    )
+    .await
+}
+
+#[derive(Queryable, Debug, Clone)]
+pub struct CastInfo {
+    from_type_name: String,
+    to_type_name: String
+}
+
+async fn get_cast_info(cli: &mut Connection) -> Result<HashMap<String, Vec<String>>, Error> {
+    let cast_info: Vec<CastInfo> = cli
+        .query(
+            "select schema::Cast {
+        from_type_name := .from_type.name,
+        to_type_name := .to_type.name
+    };",
+            &(),
+        )
+        .await?;
+    let mut map = std::collections::HashMap::new();
+    for cast in cast_info {
+        map.entry(cast.from_type_name)
+            .or_insert(Vec::new())
+            .push(cast.to_type_name);
+    }
+    Ok(map)
+}
+
+async fn get_all_property_info(cli: &mut Connection) -> Result<PropertyInfo, Error> {
+    cli.query_required_single("with 
+    all_props := (select schema::Property filter .builtin = false),
+    props := (select all_props filter .source is schema::ObjectType and .name != 'id'),
+    links := (select all_props filter .source is schema::Link and .name not in {'target', 'source'}),
+    select { regular_properties := props.name, link_properties := links.name };", &()).await
+}
+
+// Don't want to fail CLI if migration info can't be found, just log and return default
+async fn get_migration_info(cli: &mut Connection) -> InteractiveMigrationInfo {
+    let function_info = get_function_info(cli).await.unwrap_or_else(|e| {
+        log::debug!("Failed to find function info: {e}");
+        Default::default()
+    });
+    let cast_info = get_cast_info(cli).await.unwrap_or_else(|e| {
+        log::debug!("Failed to find cast_info: {e}");
+        Default::default()
+    });
+    let properties = get_all_property_info(cli).await.unwrap_or_else(|e| {
+        log::debug!("Failed to find property info: {e}");
+        Default::default()
+    });
+
+    InteractiveMigrationInfo {
+        cast_info,
+        function_info,
+        properties
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
