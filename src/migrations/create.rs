@@ -52,7 +52,7 @@ pub struct InteractiveMigrationInfo {
 
 #[derive(Queryable, Debug, Clone, Default)]
 pub struct PropertyInfo {
-    all_properties: Vec<String>,
+    regular_properties: Vec<String>,
     link_properties: Vec<String>,
 }
 
@@ -110,15 +110,11 @@ async fn get_cast_info(cli: &mut Connection) -> Result<HashMap<String, Vec<Strin
 // property in a whole bunch of types (but only once per type), don't want the CLI to inform the
 // user about the same name
 async fn get_all_property_info(cli: &mut Connection) -> Result<PropertyInfo, Error> {
-    cli.query_required_single("with
-
- links          := (select schema::Link filter .builtin = false),
- link_names     := (select names := links.properties.name filter names not in {'__type__', 'target', 'source'}),
-
- properties      := (select schema::Property filter .builtin = false),
- property_names  := (select names := properties.name filter names not in {'id', 'target', 'source'}),
-
- select {all_properties := property_names, link_properties := distinct link_names, };", &()).await
+    cli.query_required_single("with 
+    all_props := (select schema::Property filter .builtin = false),
+    props := (select all_props filter .source is schema::ObjectType and .name != 'id'),
+    links := (select all_props filter .source is schema::Link and .name not in {'target', 'source'}),
+    select { regular_properties := props.name, link_properties := links.name };", &()).await
 }
 
 // Don't want to fail CLI if migration info can't be found, just log and return default
@@ -591,11 +587,9 @@ pub fn make_default_expression_interactive(
                             {
                                 if info
                                     .properties
-                                    .all_properties
+                                    .regular_properties
                                     .iter()
-                                    .filter(|l| *l == pointer_name)
-                                    .count()
-                                    > 1
+                                    .any(|l| *l == pointer_name)
                                 {
                                     println!("Note: Your schema has both object and link properties with the name `{pointer_name}`.");
                                     println!("If this object has both, then:\n <{new_type}>.{pointer_name} will cast from the object type property, while\n <{new_type}>@{pointer_name} will cast from the link property.");
