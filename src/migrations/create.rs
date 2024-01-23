@@ -198,6 +198,32 @@ pub struct PropertyInfo {
     link_properties: Vec<String>,
 }
 
+enum PropertyKind {
+    RegularProperty,
+    LinkProperty,
+    BothProperties
+}
+
+impl PropertyInfo {
+    fn property_check(&self, pointer_name: &str) -> PropertyKind {
+        if self
+        .link_properties
+        .iter()
+        .any(|l| *l == pointer_name) {
+            if self
+            .regular_properties
+            .iter()
+            .any(|l| *l == pointer_name) {
+                PropertyKind::BothProperties
+            } else {
+                PropertyKind::LinkProperty
+            }
+        } else {
+            PropertyKind::RegularProperty
+        }
+    }
+}
+
 #[derive(Queryable, Debug, Clone)]
 pub struct FunctionInfo {
     name: String,
@@ -533,28 +559,18 @@ pub fn make_default_expression_interactive(
                         // and new types match the cast
                         Some(vals) if vals.iter().any(|t| t == &new_type) => {
                             // If so, then check if any link and regular properties share a name
-                            if info
-                                .properties
-                                .link_properties
-                                .iter()
-                                .any(|l| *l == pointer_name)
-                            {
-                                if info
-                                    .properties
-                                    .regular_properties
-                                    .iter()
-                                    .any(|l| *l == pointer_name)
-                                {
+                            match info.properties.property_check(pointer_name) {
+                                PropertyKind::BothProperties => {
                                     println!("Note: Your schema has both object and link properties with the name `{pointer_name}`.");
                                     println!("If this object has both, then:\n <{new_type}>.{pointer_name} will cast from the object type property, while\n <{new_type}>@{pointer_name} will cast from the link property.");
                                     format!("<{new_type}>_{pointer_name}")
-                                } else {
-                                    // Definitely just a link property
+                                }
+                                PropertyKind::LinkProperty => {
                                     format!("<{new_type}>@{pointer_name}")
                                 }
-                            } else {
-                                // No link properties of the same name found
-                                format!("<{new_type}>.{pointer_name}")
+                                PropertyKind::RegularProperty => {
+                                    format!("<{new_type}>.{pointer_name}")
+                                }
                             }
                         }
                         _ => {
@@ -583,7 +599,19 @@ pub fn make_default_expression_interactive(
                                 }
                             }
                             // Then return the pointer (maybe with matching functions, maybe not)
-                            format!(".{pointer_name}")
+                            match info.properties.property_check(pointer_name) {
+                                PropertyKind::BothProperties => {
+                                    println!("Note: Your schema has both object and link properties with the name `{pointer_name}`.");
+                                    println!("If this object has both, then:\n .{pointer_name} will access the object type property, while\n @{pointer_name} will access the link property.");
+                                    format!("{pointer_name}")
+                                }
+                                PropertyKind::LinkProperty => {
+                                    format!("@{pointer_name}")
+                                }
+                                PropertyKind::RegularProperty => {
+                                    format!(".{pointer_name}")
+                                }
+                            }
                         }
                     }
                 }
