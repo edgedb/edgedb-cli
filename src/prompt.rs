@@ -331,7 +331,7 @@ pub fn main(mut control: Receiver<Control>)
                         Err(e) => Err(e)?,
                     };
                     match var_type.parse(&text) {
-                        Ok(value) => break (text, value),
+                        Ok(parse_result) => break (text.to_owned(), parse_result.1),
                         Err(e) => {
                             println!("Bad value: {}", e);
                             initial = text;

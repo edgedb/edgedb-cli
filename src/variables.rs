@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::codec;
-use edgedb_protocol::descriptors::{Typedesc, Descriptor};
+use edgedb_protocol::descriptors::{Typedesc, Descriptor, DescriptorUuid};
+use uuid::Uuid;
 use crate::repl;
 use crate::prompt;
 use crate::prompt::variable::{self, VariableInput};
@@ -66,17 +67,15 @@ pub async fn input_variables(desc: &Typedesc, state: &mut repl::PromptRpc)
     }
 }
 
-async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
-    state: &mut repl::PromptRpc, optional: bool)
-    -> Result<Option<Value>, anyhow::Error>
-{
-    match item {
+fn get_descriptor_type<'a>(mut desc: &'a Descriptor, all: &'a Typedesc) -> Result<Arc<dyn VariableInput>, anyhow::Error> {
+    match desc {
         Descriptor::Scalar(s) => {
-            item = all.get(s.base_type_pos)?;
+            desc = all.get(s.base_type_pos)?;
         }
         _ => {},
     }
-    match item {
+
+    match desc {
         Descriptor::BaseScalar(s) => {
             let var_type: Arc<dyn VariableInput> = match *s.id {
                 codec::STD_STR => Arc::new(variable::Str),
@@ -94,6 +93,35 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
                         "Unimplemented input type {}", *s.id))
             };
 
+            return Ok(var_type);
+        }
+        Descriptor::Array(arr) => {
+            let element_type = get_descriptor_type(all.get(arr.type_pos)?, all)?;
+            Ok(Arc::new(variable::Array{ element_type }))
+        }
+        _ => Err(anyhow::anyhow!(
+                "Unimplemented input type descriptor: {:?}", desc)),
+    }
+}
+
+async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
+    state: &mut repl::PromptRpc, optional: bool)
+    -> Result<Option<Value>, anyhow::Error>
+{
+    let var_type = get_descriptor_type(item, all)?;
+
+    match item {
+        Descriptor::BaseScalar(s) => {
+            let val = match
+                state.variable_input(name, var_type, optional, "").await?
+            {
+                | prompt::VarInput::Value(val) => Some(val),
+                | prompt::VarInput::Interrupt => Err(Canceled)?,
+                | prompt::VarInput::Eof => None,
+            };
+            Ok(val)
+        }
+        Descriptor::Array(arr) => {
             let val = match
                 state.variable_input(name, var_type, optional, "").await?
             {
@@ -104,7 +132,7 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
             Ok(val)
         }
         _ => Err(anyhow::anyhow!(
-                "Unimplemented input type descriptor: {:?}", item)),
+                        "Unimplemented input type descriptor: {:?}", item)),
     }
 }
 

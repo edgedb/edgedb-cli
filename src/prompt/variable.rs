@@ -1,13 +1,29 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::fmt;
 use std::sync::Arc;
 use std::convert::TryInto;
-
+use std::fmt::format;
+use std::rc::Rc;
+use std::str::FromStr;
 use anyhow::Context as _;
+
 use colorful::Colorful;
 use bigdecimal::BigDecimal;
+use nom::combinator::{map_opt, value};
+use nom::combinator::{cut, fail, map, map_res};
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
+use nom::bytes::complete::{escaped, tag, take, take_till, take_until, take_while};
+use nom::character::complete::{alphanumeric1, char, i16, i32, i64, one_of};
+use nom::{IResult, Needed, Parser};
+use nom::branch::alt;
+use nom::character::{is_alphabetic, is_alphanumeric};
+use nom::Err::{Error, Failure, Incomplete};
+use nom::error::convert_error;
+use nom::multi::separated_list0;
+use nom::number::complete::{double, f32, float, recognize_float_parts};
+use nom::sequence::{preceded, terminated};
 use num_bigint::ToBigInt;
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
@@ -16,22 +32,32 @@ use rustyline::hint::Hinter;
 use rustyline::validate::{Validator, ValidationResult, ValidationContext};
 use rustyline::{Helper, Context};
 
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("{}", description)]
-    Mistake { offset: Option<usize>, description: String },
-    #[error("value is incomplete")]
-    Incomplete,
-}
-
-fn no_pos_err<E: fmt::Display>(err: E) -> Error {
-    Error::Mistake { offset: None, description: err.to_string() }
-}
-
 pub trait VariableInput: fmt::Debug + Send + Sync + 'static {
-    fn parse(&self, input: &str) -> Result<Value, Error>;
+    fn parse<'a >(&self, input: &'a str) -> IResult<&'a str, Value>;
     fn type_name(&self) -> &str;
+}
+
+fn space(i: &str) -> IResult<&str, &str> {
+    let chars = " \t\r\n";
+
+    // nom combinators like `take_while` return a function. That function is the
+    // parser,to which we can pass the input
+    take_while(move |c| chars.contains(c))(i)
+}
+
+fn quoted_str_parser(input: &str) -> IResult<&str, &str> {
+    preceded(
+        char('\"'),
+        cut(
+            terminated(
+                escaped(
+                    alphanumeric1,
+                    '\\',
+                    one_of("\"n\\")),
+                char('\"')
+            )
+        )
+    )(input)
 }
 
 #[derive(Debug)]
@@ -39,8 +65,11 @@ pub struct Str;
 
 impl VariableInput for Str {
     fn type_name(&self) -> &str { "str" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        Ok(Value::Str(input.into()))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        map(
+            quoted_str_parser,
+            |v| Value::Str(String::from(v))
+        )(input)
     }
 }
 
@@ -49,8 +78,37 @@ pub struct Uuid;
 
 impl VariableInput for Uuid {
     fn type_name(&self) -> &str { "uuid" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        Ok(Value::Uuid(input.parse().map_err(no_pos_err)?))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        fn uuid_parser(i: &str) ->  IResult<&str, &str> {
+            let remaining_ref = Rc::new(RefCell::new(32));
+            let valid_ref = Rc::new(RefCell::new(true));
+
+            let result = take_till(|c: char| -> bool {
+                if c.is_alphanumeric() {
+                    *remaining_ref.borrow_mut() -= 1;
+                } else if c != '-' {
+                    *valid_ref.borrow_mut() = false;
+                    return true;
+                }
+
+                if *remaining_ref.borrow_mut() <= 0 {
+                    return true;
+                }
+
+                return false;
+            })(i);
+
+            if !*valid_ref.borrow_mut() || *remaining_ref.borrow_mut() > 0 {
+                return fail(i)
+            }
+
+            return result
+        }
+
+        map(
+            map_res(uuid_parser, |b: &str| b.parse::<uuid::Uuid>().context(format!("cannot parse {} into a uuid", b))),
+            |v| Value::Uuid(v)
+        )(input)
     }
 }
 
@@ -59,8 +117,8 @@ pub struct Int16;
 
 impl VariableInput for Int16 {
     fn type_name(&self) -> &str { "int16" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        Ok(Value::Int16(input.parse().map_err(no_pos_err)?))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        map(i16, Value::Int16)(input)
     }
 }
 
@@ -69,8 +127,9 @@ pub struct Int32;
 
 impl VariableInput for Int32 {
     fn type_name(&self) -> &str { "int32" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        Ok(Value::Int32(input.parse().map_err(no_pos_err)?))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        map(i32, Value::Int32)(input)
+        //Ok(Value::Int32(input.parse().map_err(no_pos_err)?))
     }
 }
 
@@ -79,8 +138,9 @@ pub struct Int64;
 
 impl VariableInput for Int64 {
     fn type_name(&self) -> &str { "int64" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        Ok(Value::Int64(input.parse().map_err(no_pos_err)?))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        map(i64, Value::Int64)(input)
+        //Ok(Value::Int64(input.parse().map_err(no_pos_err)?))
     }
 }
 
@@ -89,8 +149,8 @@ pub struct Float32;
 
 impl VariableInput for Float32 {
     fn type_name(&self) -> &str { "float32" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        Ok(Value::Float32(input.parse().map_err(no_pos_err)?))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        map(float, Value::Float32)(input)
     }
 }
 
@@ -99,8 +159,8 @@ pub struct Float64;
 
 impl VariableInput for Float64 {
     fn type_name(&self) -> &str { "float64" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        Ok(Value::Float64(input.parse().map_err(no_pos_err)?))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        map(double, Value::Float64)(input)
     }
 }
 
@@ -109,8 +169,11 @@ pub struct Bool;
 
 impl VariableInput for Bool {
     fn type_name(&self) -> &str { "bool" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        Ok(Value::Bool(input.parse().map_err(no_pos_err)?))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        alt((
+            value(Value::Bool(true), tag("true")),
+            value(Value::Bool(false), tag("false"))
+        ))(input)
     }
 }
 
@@ -119,13 +182,17 @@ pub struct BigInt;
 
 impl VariableInput for BigInt {
     fn type_name(&self) -> &str { "bigint" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        let dec: BigDecimal = input.parse().map_err(no_pos_err)?;
-        let int = dec.to_bigint()
-            .context("number is not an integer")
-            .map_err(no_pos_err)?;
-        let int = int.try_into().map_err(no_pos_err)?;
-        Ok(Value::BigInt(int))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        map_res(
+            take_while(|c: char| c.is_digit(10)),
+            |v: &str| -> Result<Value, anyhow::Error> {
+                let dec: BigDecimal = v.parse()?;
+                let int = dec.to_bigint()
+                    .context("number is not an integer")?;
+                let int = int.try_into()?;
+                Ok(Value::BigInt(int))
+            }
+        )(input)
     }
 }
 
@@ -134,10 +201,38 @@ pub struct Decimal;
 
 impl VariableInput for Decimal {
     fn type_name(&self) -> &str { "decimal" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        let dec: BigDecimal = input.parse().map_err(no_pos_err)?;
-        let dec = dec.try_into().map_err(no_pos_err)?;
-        Ok(Value::Decimal(dec))
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        map(
+            map_res(
+                map_res(
+                    recognize_float_parts,
+                    |v| {
+                        // TODO: could be done better?
+                        let mut fmt = "".to_owned();
+
+                        if !v.0 {
+                            fmt.push_str("-")
+                        }
+
+                        fmt.push_str(v.1);
+
+                        if v.2 != "" {
+                            fmt.push('.');
+                            fmt.push_str(v.2);
+                        }
+
+                        if v.3 != 0{
+                            fmt.push('e');
+                            fmt.push_str(&v.3.to_string());
+                        }
+
+                        BigDecimal::from_str(&fmt)
+                    }
+                ),
+                |v| v.try_into()
+            ),
+            |v| Value::Decimal(v)
+        )(input)
     }
 }
 
@@ -146,15 +241,47 @@ pub struct Json;
 
 impl VariableInput for Json {
     fn type_name(&self) -> &str { "json" }
-    fn parse(&self, input: &str) -> Result<Value, Error> {
-        match serde_json::from_str::<serde_json::Value>(input) {
-            Err(e) if e.classify()  == serde_json::error::Category::Eof
-            => Err(Error::Incomplete),
-            Err(e) => Err(no_pos_err(e)),
-            Ok(_) => Ok(Value::Json(
-                model::Json::new_unchecked(input.into())
-            )),
-        }
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        // treat as string, and then validate the strings content
+        map_res(
+            quoted_str_parser,
+            |v| -> Result<Value, anyhow::Error> {
+                let j = serde_json::from_str::<serde_json::Value>(v)?;
+
+                Ok(Value::Json(model::Json::new_unchecked(v.into())))
+            }
+        )(input)
+    }
+}
+
+#[derive(Debug)]
+pub struct Array {
+    pub element_type: Arc<dyn VariableInput>
+}
+
+impl VariableInput for Array {
+    fn type_name(&self) -> &str { "array" }
+    fn parse<'a>(&self, input: &'a str) -> IResult<&'a str, Value> {
+        map(
+            preceded(
+                char('['),
+                cut(
+                    terminated(
+                        separated_list0(
+                            preceded(
+                                space,
+                                char(',')
+                            ),
+                            |s| self.element_type.parse(s)),
+                        preceded(
+                            space,
+                            char(']')
+                        ),
+                    )
+                ),
+            ),
+            |v| Value::Array(v)
+        )(input)
     }
 }
 
@@ -188,8 +315,19 @@ impl Hinter for VarHelper {
         }
         match self.var_type.parse(line) {
             Ok(_) => None,
-            Err(Error::Incomplete) => None,
-            Err(e) => Some(ErrorHint(format!(" -- {}", e))),
+            Err(e) => {
+                Some(ErrorHint(format!(" -- {}", match e {
+                    Failure(f) => format!("Fail: Caused by {} at {}", f.code.description(), f.input),
+                    Incomplete(v) => format!(
+                        "Incomplete entry{}",
+                        match v {
+                            Needed::Unknown => "".to_string(),
+                            Needed::Size(s) => format!(", need {s} more chars")
+                        }
+                    ),
+                    nom::Err::Error(e) => format!("Err: Caused by {} at {}", e.code.description(), e.input),
+                })))
+            }
         }
     }
 }
@@ -219,7 +357,7 @@ impl Validator for VarHelper {
     {
         match self.var_type.parse(ctx.input()) {
             Ok(_) => Ok(ValidationResult::Valid(None)),
-            Err(Error::Incomplete) => Ok(ValidationResult::Incomplete),
+            //Err(Error::Incompil) => Ok(ValidationResult::Incomplete),
             Err(e) => Ok(ValidationResult::Invalid(
                 Some(format!(" -- {}", e))
             )),
