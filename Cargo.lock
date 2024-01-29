@@ -1052,6 +1052,7 @@ dependencies = [
  "minimad",
  "native-tls",
  "nix",
+ "nom",
  "notify",
  "num-bigint 0.4.3",
  "once_cell",
