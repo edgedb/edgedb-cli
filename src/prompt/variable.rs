@@ -13,12 +13,12 @@ use bigdecimal::BigDecimal;
 use colorful::core::StrMarker;
 use combine::parser::combinator::and_then;
 use combine::stream::Range;
-use nom::combinator::{map_opt, not, value, verify};
+use nom::combinator::{map_opt, not, success, value, verify};
 use nom::combinator::{cut, fail, map, map_res};
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use nom::bytes::complete::{escaped, is_not, tag, take, take_till, take_until, take_while, take_while_m_n};
-use nom::character::complete::{alphanumeric1, anychar, char, i16, i32, i64, multispace1, one_of};
+use nom::character::complete::{alphanumeric1, anychar, char, i16, i32, i64, multispace0, multispace1, one_of};
 use nom::{error, IResult, Needed, Parser};
 use nom::branch::alt;
 use nom::character::{is_alphabetic, is_alphanumeric};
@@ -93,11 +93,22 @@ impl FromExternalError<&str, anyhow::Error> for ParsingError {
     }
 }
 
-pub trait VariableInput: fmt::Debug + Send + Sync + 'static {
-    fn type_name(&self) -> &str;
-    fn parse<'a >(&self, input: &'a str) -> ParseResult<'a>;
+#[repr(u8)]
+pub enum InputFlags {
+    None,
+    ForceQuotedStrings
 }
 
+pub trait VariableInput: fmt::Debug + Send + Sync + 'static {
+    fn type_name(&self) -> &str;
+    fn parse<'a >(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a>;
+}
+
+fn white_space<'a, O, E: ParseError<&'a str>, F: Parser<&'a str, O, E>>(
+    f: F,
+) -> impl Parser<&'a str, O, E> {
+    delimited(multispace0, f, multispace0)
+}
 fn space(i: &str) -> IResult<&str, &str, ParsingError> {
     let chars = " \t\r\n";
     take_while(move |c| chars.contains(c))(i)
@@ -134,6 +145,7 @@ enum StringFragment<'a> {
     EscapedWS,
 }
 
+// heavily based on https://github.com/rust-bakery/nom/blob/main/examples/string.rs
 fn quoted_str_parser<'a>(input: &'a str, quote: char, esc: &str) -> IResult<&'a str, String, ParsingError> {
     context(
         "quoted_string",
@@ -171,6 +183,7 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char, esc: &str) -> IResult<&'a 
                                 value('\\', char('\\')),
                                 value('/', char('/')),
                                 value('"', char('"')),
+                                value('\'', char('\'')),
                             ))
                         ),
                         StringFragment::EscapedChar
@@ -200,14 +213,22 @@ pub struct Str;
 
 impl VariableInput for Str {
     fn type_name(&self) -> &str { "str" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
-        context(
-            "str",
-            map(
-                quoted_str,
-                Value::Str
-            )
-        )(input)
+    fn parse<'a>(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a> {
+        match flags {
+            InputFlags::ForceQuotedStrings => {
+                context(
+                    "str",
+                    map(
+                        quoted_str,
+                        Value::Str
+                    )
+                )(input)
+            }
+            _ => context(
+                "str",
+                |s: &str| Ok(("", Value::Str(s.to_string())))
+            )(input)
+        }
     }
 }
 
@@ -216,51 +237,62 @@ pub struct Uuid;
 
 impl VariableInput for Uuid {
     fn type_name(&self) -> &str { "uuid" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
-        fn uuid_parser<'a>(i: &'a str) -> ParseResult<&'a str, &str> {
-            let remaining_ref = Rc::new(RefCell::new(32));
-            let valid_ref = Rc::new(RefCell::new(true));
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
+        fn no_dashes(i: &str) -> ParseResult<&str, uuid::Uuid> {
+            map_res(
+                nom::bytes::streaming::take_while_m_n(
+                    32usize,
+                    32usize,
+                    char::is_alphanumeric,
+                ),
+                |s| uuid::Uuid::from_str(s).context("Cannot parse to UUID")
+            )(i)
+        }
 
-            let result = take_till(|c: char| -> bool {
-                if *remaining_ref.borrow_mut() <= 0 {
-                    return true;
-                }
-
-                if c.is_alphanumeric() {
-                    *remaining_ref.borrow_mut() -= 1;
-                } else if c != '-' {
-                    *valid_ref.borrow_mut() = false;
-                    return true;
-                }
-
-                return false;
-            })(i);
-
-            let remaining = *remaining_ref.borrow();
-            let valid = *valid_ref.borrow();
-
-            if remaining > 0  {
-                return Err(Error(ParsingError::Incomplete));
-            }
-
-            if !valid {
-                return Err(Error(ParsingError::Mistake {
-                    description: "Invalid UUID format".to_string(),
-                    kind: None
-                }));
-            }
-
-            return result
+        fn dashes(i: &str) -> ParseResult<&str, uuid::Uuid> {
+            map_res(
+                tuple((
+                    nom::bytes::streaming::take_while_m_n(
+                        8,
+                        8,
+                        char::is_alphanumeric,
+                    ),
+                    char('-'),
+                    nom::bytes::streaming::take_while_m_n(
+                        4,
+                        4,
+                        char::is_alphanumeric,
+                    ),
+                    char('-'),
+                    nom::bytes::streaming::take_while_m_n(
+                        4,
+                        4,
+                        char::is_alphanumeric,
+                    ),
+                    char('-'),
+                    nom::bytes::streaming::take_while_m_n(
+                        4,
+                        4,
+                        char::is_alphanumeric,
+                    ),
+                    char('-'),
+                    nom::bytes::streaming::take_while_m_n(
+                        12,
+                        12,
+                        char::is_alphanumeric,
+                    ),
+                )),
+                |s| uuid::Uuid::from_str(&[s.0, s.2, s.4, s.6, s.8].join("")).context("UUID format is malformed")
+            )(i)
         }
 
         context(
             "uuid",
             map(
-                map_res(
-                    uuid_parser,
-                    |b: &str| b.parse::<uuid::Uuid>().context(format!("cannot parse {} into a uuid", b)
-                    )
-                ),
+                alt((
+                    no_dashes,
+                    dashes,
+                )),
                 |v| Value::Uuid(v)
             )
         )(input)
@@ -272,7 +304,7 @@ pub struct Int16;
 
 impl VariableInput for Int16 {
     fn type_name(&self) -> &str { "int16" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context("int16", map(i16, Value::Int16))(input)
     }
 }
@@ -282,7 +314,7 @@ pub struct Int32;
 
 impl VariableInput for Int32 {
     fn type_name(&self) -> &str { "int32" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
             "int32",
             map(i32, Value::Int32)
@@ -295,12 +327,11 @@ pub struct Int64;
 
 impl VariableInput for Int64 {
     fn type_name(&self) -> &str { "int64" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
             "int64",
             map(i64, Value::Int64)
         )(input)
-        //Ok(Value::Int64(input.parse().map_err(no_pos_err)?))
     }
 }
 
@@ -309,7 +340,7 @@ pub struct Float32;
 
 impl VariableInput for Float32 {
     fn type_name(&self) -> &str { "float32" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context("float32", map(float, Value::Float32))(input)
     }
 }
@@ -319,7 +350,7 @@ pub struct Float64;
 
 impl VariableInput for Float64 {
     fn type_name(&self) -> &str { "float64" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context("float64", map(double, Value::Float64))(input)
     }
 }
@@ -329,7 +360,7 @@ pub struct Bool;
 
 impl VariableInput for Bool {
     fn type_name(&self) -> &str { "bool" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
             "bool",
             alt((
@@ -345,7 +376,7 @@ pub struct BigInt;
 
 impl VariableInput for BigInt {
     fn type_name(&self) -> &str { "bigint" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
             "bigint",
             map_res(
@@ -367,7 +398,7 @@ pub struct Decimal;
 
 impl VariableInput for Decimal {
     fn type_name(&self) -> &str { "decimal" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
             "decimal",
             map(
@@ -410,7 +441,7 @@ pub struct Json;
 
 impl VariableInput for Json {
     fn type_name(&self) -> &str { "json" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         // treat as string, and then validate the strings content
         context(
             "json",
@@ -433,7 +464,7 @@ pub struct Array {
 
 impl VariableInput for Array {
     fn type_name(&self) -> &str { "array" }
-    fn parse<'a>(&self, input: &'a str) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
             "array",
             map(
@@ -442,11 +473,8 @@ impl VariableInput for Array {
                     cut(
                         terminated(
                             separated_list0(
-                                preceded(
-                                    space,
-                                    char(',')
-                                ),
-                                |s| self.element_type.parse(s)
+                                white_space(char(',')),
+                                |s| self.element_type.parse(s, InputFlags::ForceQuotedStrings)
                             ),
                             preceded(
                                 space,
@@ -489,7 +517,7 @@ impl Hinter for VarHelper {
         if line == "" {  // be friendly from the start
             return None;
         }
-        match self.var_type.parse(line) {
+        match self.var_type.parse(line, InputFlags::None) {
             Ok(r) => {
                 if r.0.len() == 0 {
                     return None
@@ -521,7 +549,7 @@ impl Hinter for VarHelper {
 
 impl Highlighter for VarHelper {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
-        match self.var_type.parse(line) {
+        match self.var_type.parse(line, InputFlags::None) {
             Ok(r) => {
                 if r.0.len() == 0 {
                     return line.into()
@@ -550,7 +578,7 @@ impl Validator for VarHelper {
     fn validate(&self, ctx: &mut ValidationContext)
         -> Result<ValidationResult, ReadlineError>
     {
-        match self.var_type.parse(ctx.input()) {
+        match self.var_type.parse(ctx.input(), InputFlags::None) {
             Ok(_) => Ok(ValidationResult::Valid(None)),
             //Err(Error::Incompil) => Ok(ValidationResult::Incomplete),
             Err(e) => Ok(ValidationResult::Invalid(
