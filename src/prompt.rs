@@ -25,7 +25,7 @@ use crate::completion;
 use crate::print::Highlight;
 use crate::print::style::Styler;
 use crate::highlight;
-use crate::prompt::variable::VariableInput;
+use crate::prompt::variable::{InputFlags, VariableInput};
 use crate::repl::{TX_MARKER, FAILURE_MARKER};
 use crate::platform::editor_path;
 
@@ -330,7 +330,7 @@ pub fn main(mut control: Receiver<Control>)
                         }
                         Err(e) => Err(e)?,
                     };
-                    match var_type.parse(&text) {
+                    match var_type.parse(&text, InputFlags::None) {
                         Ok(parse_result) => {
                             if parse_result.0.len() > 0 {
                                 // remaining input
