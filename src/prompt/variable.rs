@@ -489,6 +489,25 @@ impl VariableInput for Array {
     }
 }
 
+fn format_parsing_error(e: nom::Err<ParsingError>) -> String {
+    format!(" -- {}", match e {
+        Error(p) | Failure(p) => match p {
+            ParsingError::Mistake {
+                kind: _kind,
+                description
+            } => format!("{}", description),
+            ParsingError::External {
+                description,
+                error,
+                kind: _
+            } => format!("External error occurred: {} {}", description, error),
+            ParsingError::Incomplete => "Incomplete input".to_string(),
+        },
+        Incomplete(Needed::Size(sz)) => format!("Incomplete input, needing {} more chars", sz),
+        Incomplete(_n) => "Incomplete input".to_string(),
+    })
+}
+
 pub struct VarHelper {
     var_type: Arc<dyn VariableInput>,
 }
@@ -526,22 +545,7 @@ impl Hinter for VarHelper {
                 return Some(ErrorHint(" -- excess unparsed content".to_string()))
             },
             Err(e) => {
-                Some(ErrorHint(format!(" -- {}", match e {
-                    Error(p) | Failure(p) => match p {
-                        ParsingError::Mistake {
-                            kind,
-                            description
-                        } => format!("{}: {}", kind.or(Some(ErrorKind::Fail)).unwrap().description(), description),
-                        ParsingError::External {
-                            description,
-                            error,
-                            kind: _
-                        } => format!("External error occurred: {} {}", description, error),
-                        ParsingError::Incomplete => "Incomplete input".to_string(),
-                    },
-                    Incomplete(Needed::Size(sz)) => format!("Incomplete input, needing {} more chars", sz),
-                    Incomplete(_n) => "Incomplete input".to_string(),
-                })))
+                Some(ErrorHint(format_parsing_error(e)))
             }
         }
     }
@@ -580,10 +584,9 @@ impl Validator for VarHelper {
     {
         match self.var_type.parse(ctx.input(), InputFlags::None) {
             Ok(_) => Ok(ValidationResult::Valid(None)),
-            //Err(Error::Incompil) => Ok(ValidationResult::Incomplete),
-            Err(e) => Ok(ValidationResult::Invalid(
-                Some(format!(" -- {}", e))
-            )),
+            Err(e) => {
+                Ok(ValidationResult::Invalid(Some(format_parsing_error(e))))
+            }
         }
     }
 }
