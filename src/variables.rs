@@ -104,14 +104,14 @@ fn get_descriptor_type<'a>(mut desc: &'a Descriptor, all: &'a Typedesc) -> Resul
     }
 }
 
-async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
+async fn input_item(name: &str, item: &Descriptor, all: &Typedesc,
     state: &mut repl::PromptRpc, optional: bool)
     -> Result<Option<Value>, anyhow::Error>
 {
     let var_type = get_descriptor_type(item, all)?;
 
     match item {
-        Descriptor::BaseScalar(s) => {
+        Descriptor::BaseScalar(_s) => {
             let val = match
                 state.variable_input(name, var_type, optional, "").await?
             {
@@ -121,7 +121,7 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
             };
             Ok(val)
         }
-        Descriptor::Array(arr) => {
+        Descriptor::Array(_arr) => {
             let val = match
                 state.variable_input(name, var_type, optional, "").await?
             {
