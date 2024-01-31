@@ -238,61 +238,17 @@ pub struct Uuid;
 impl VariableInput for Uuid {
     fn type_name(&self) -> &str { "uuid" }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
-        fn no_dashes(i: &str) -> ParseResult<&str, uuid::Uuid> {
-            map_res(
-                nom::bytes::streaming::take_while_m_n(
-                    32usize,
-                    32usize,
-                    char::is_alphanumeric,
-                ),
-                |s| uuid::Uuid::from_str(s).context("Cannot parse to UUID")
-            )(i)
-        }
-
-        fn dashes(i: &str) -> ParseResult<&str, uuid::Uuid> {
-            map_res(
-                tuple((
-                    nom::bytes::streaming::take_while_m_n(
-                        8,
-                        8,
-                        char::is_alphanumeric,
-                    ),
-                    char('-'),
-                    nom::bytes::streaming::take_while_m_n(
-                        4,
-                        4,
-                        char::is_alphanumeric,
-                    ),
-                    char('-'),
-                    nom::bytes::streaming::take_while_m_n(
-                        4,
-                        4,
-                        char::is_alphanumeric,
-                    ),
-                    char('-'),
-                    nom::bytes::streaming::take_while_m_n(
-                        4,
-                        4,
-                        char::is_alphanumeric,
-                    ),
-                    char('-'),
-                    nom::bytes::streaming::take_while_m_n(
-                        12,
-                        12,
-                        char::is_alphanumeric,
-                    ),
-                )),
-                |s| uuid::Uuid::from_str(&[s.0, s.2, s.4, s.6, s.8].join("")).context("UUID format is malformed")
-            )(i)
-        }
-
         context(
             "uuid",
             map(
-                alt((
-                    no_dashes,
-                    dashes,
-                )),
+                map_res(
+                    take_while_m_n(
+                        32usize,
+                        36usize,
+                        |c: char| c.is_alphanumeric() || c == '-',
+                    ),
+                    |s| uuid::Uuid::from_str(s).context("Cannot parse to UUID")
+                ),
                 |v| Value::Uuid(v)
             )
         )(input)
