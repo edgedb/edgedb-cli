@@ -331,7 +331,17 @@ pub fn main(mut control: Receiver<Control>)
                         Err(e) => Err(e)?,
                     };
                     match var_type.parse(&text) {
-                        Ok(parse_result) => break (text.to_owned(), parse_result.1),
+                        Ok(parse_result) => {
+                            if parse_result.0.len() > 0 {
+                                // remaining input
+                                println!("Bad value: remaining text '{}' is unparsed", parse_result.0);
+                                initial = text;
+                            }
+                            else {
+                                break (text.to_owned(), parse_result.1)
+                            }
+
+                        },
                         Err(e) => {
                             println!("Bad value: {}", e);
                             initial = text;
