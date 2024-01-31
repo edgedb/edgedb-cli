@@ -15,7 +15,7 @@ use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use combine::parser::combinator::and_then;
 use combine::stream::Range;
-use nom::combinator::{map_opt, not, success, value, verify};
+use nom::combinator::{map_opt, not, recognize, success, value, verify};
 use nom::combinator::{cut, fail, map, map_res};
 use nom::bytes::complete::{escaped, is_not, tag, take, take_till, take_until, take_while, take_while_m_n};
 use nom::character::complete::{alphanumeric1, anychar, char, i16, i32, i64, multispace0, multispace1, one_of};
@@ -360,29 +360,8 @@ impl VariableInput for Decimal {
             map(
                 map_res(
                     map_res(
-                        recognize_float_parts,
-                        |v| {
-                            // TODO: could be done better?
-                            let mut fmt = "".to_owned();
-
-                            if !v.0 {
-                                fmt.push_str("-")
-                            }
-
-                            fmt.push_str(v.1);
-
-                            if v.2 != "" {
-                                fmt.push('.');
-                                fmt.push_str(v.2);
-                            }
-
-                            if v.3 != 0{
-                                fmt.push('e');
-                                fmt.push_str(&v.3.to_string());
-                            }
-
-                            BigDecimal::from_str(&fmt).context("format doesn't represent a big decimal")
-                        }
+                        recognize(recognize_float_parts),
+                        |v| BigDecimal::from_str(v).context("format doesn't represent a big decimal")
                     ),
                     |v| v.try_into().context("BigDecimal cannot be interpolated")
                 ),
