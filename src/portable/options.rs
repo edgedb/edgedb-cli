@@ -54,6 +54,8 @@ pub enum InstanceCommand {
     Unlink(Unlink),
     /// Show logs for an instance
     Logs(Logs),
+    /// Resize a Cloud instance
+    Resize(Resize),
     /// Upgrade installations and instances
     Upgrade(Upgrade),
     /// Revert a major instance upgrade
@@ -145,11 +147,7 @@ pub enum InstanceName {
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
-pub struct CloudInstanceParams {
-    /// The region in which to create the instance (for cloud instances)
-    #[arg(long)]
-    pub region: Option<String>,
-
+pub struct CloudInstanceBillables {
     /// Cloud instance subscription tier.
     #[arg(long, value_name="tier")]
     #[arg(value_enum)]
@@ -164,6 +162,16 @@ pub struct CloudInstanceParams {
     /// Gigabytes.
     #[arg(long, value_name="GiB")]
     pub storage_size: Option<u16>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct CloudInstanceParams {
+    /// The region in which to create the instance (for cloud instances)
+    #[arg(long)]
+    pub region: Option<String>,
+
+    #[command(flatten)]
+    pub billables: CloudInstanceBillables,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
@@ -441,6 +449,24 @@ pub struct Logs {
     /// Show log tail and continue watching for new entries
     #[arg(short='f', long)]
     pub follow: bool,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Resize {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Instance to resize
+    #[arg(short='I', long, required=true)]
+    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    pub instance: InstanceName,
+
+    #[command(flatten)]
+    pub billables: CloudInstanceBillables,
+
+    /// Do not ask questions
+    #[arg(long)]
+    pub non_interactive: bool,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]

@@ -25,11 +25,22 @@ pub struct CloudInstance {
     pub status: String,
     pub version: String,
     pub region: String,
+    pub tier: CloudTier,
     #[serde(skip_serializing_if = "Option::is_none")]
     tls_ca: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_url: Option<String>,
+    pub billables: Vec<CloudInstanceResource>,
 }
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct CloudInstanceResource {
+    pub name: String,
+    pub display_name: String,
+    pub display_unit: String,
+    pub display_quota: String,
+}
+
 
 impl CloudInstance {
     pub async fn as_credentials(&self, secret_key: &str) -> anyhow::Result<Credentials> {
@@ -110,6 +121,14 @@ pub struct CloudInstanceCreate {
     // pub default_database: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub default_user: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CloudInstanceResize {
+    pub name: String,
+    pub org: String,
+    pub requested_resources: Option<Vec<CloudInstanceResourceRequest>>,
+    pub tier: Option<CloudTier>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -259,6 +278,27 @@ pub async fn create_cloud_instance(
         .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
             Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => {
                 anyhow::bail!("Organization \"{}\" does not exist.", request.org);
+            }
+            _ => Err(e),
+        })?;
+    wait_instance_available_after_operation(
+        operation, &request.org, &request.name, client).await?;
+    Ok(())
+}
+
+#[tokio::main]
+pub async fn resize_cloud_instance(
+    client: &CloudClient,
+    request: &CloudInstanceResize,
+) -> anyhow::Result<()> {
+    let url = format!("orgs/{}/instances/{}", request.org, request.name);
+    let operation: CloudOperation = client
+        .put(url, request)
+        .await
+        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
+            Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => {
+                anyhow::bail!(
+                    "Instance \"{}/{}\" does not exist.", request.org, request.name);
             }
             _ => Err(e),
         })?;
