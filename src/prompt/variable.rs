@@ -1,32 +1,24 @@
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::fmt;
 use std::sync::Arc;
 use std::convert::TryInto;
-use std::fmt::format;
-use std::rc::Rc;
 use std::str::FromStr;
 use anyhow::Context as _;
 
 use colorful::Colorful;
 use bigdecimal::BigDecimal;
-use colorful::core::StrMarker;
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
-use combine::parser::combinator::and_then;
-use combine::stream::Range;
-use nom::combinator::{map_opt, not, recognize, success, value, verify};
-use nom::combinator::{cut, fail, map, map_res};
-use nom::bytes::complete::{escaped, is_not, tag, take, take_till, take_until, take_while, take_while_m_n};
-use nom::character::complete::{alphanumeric1, anychar, char, i16, i32, i64, multispace0, multispace1, one_of};
-use nom::{error, IResult, Needed, Parser};
+use nom::combinator::{map_opt, recognize, value, verify, map, map_res};
+use nom::bytes::complete::{is_not, tag, take_while, take_while_m_n};
+use nom::character::complete::{char, i16, i32, i64, multispace0};
+use nom::{IResult, Needed, Parser};
 use nom::branch::alt;
-use nom::character::{is_alphabetic, is_alphanumeric};
 use nom::Err::{Error, Failure, Incomplete};
-use nom::error::{context, ContextError, convert_error, ErrorKind, FromExternalError, ParseError};
+use nom::error::{context, ContextError, ErrorKind, FromExternalError, ParseError};
 use nom::multi::{fold_many0, separated_list0};
-use nom::number::complete::{double, f32, float, recognize_float_parts};
-use nom::sequence::{delimited, preceded, terminated, tuple};
+use nom::number::complete::{double, float, recognize_float_parts};
+use nom::sequence::{delimited, preceded, terminated};
 use num_bigint::ToBigInt;
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
@@ -405,17 +397,15 @@ impl VariableInput for Array {
             map(
                 preceded(
                     char('['),
-                    cut(
-                        terminated(
-                            separated_list0(
-                                white_space(char(',')),
-                                |s| self.element_type.parse(s, InputFlags::ForceQuotedStrings)
-                            ),
-                            preceded(
-                                space,
-                                char(']')
-                            ),
-                        )
+                    terminated(
+                        separated_list0(
+                            white_space(char(',')),
+                            |s| self.element_type.parse(s, InputFlags::ForceQuotedStrings)
+                        ),
+                        preceded(
+                            space,
+                            char(']')
+                        ),
                     ),
                 ),
                 |v| Value::Array(v)
@@ -494,7 +484,10 @@ impl Highlighter for VarHelper {
                     return line.into()
                 }
 
+                // remove the remaining unparsed content from the original str
                 let mut str = line[..(line.len() - r.0.len())].to_string();
+
+                // add it back, but with it highlighted red
                 str.push_str(&r.0.light_red().to_string());
                 str.into()
             },
