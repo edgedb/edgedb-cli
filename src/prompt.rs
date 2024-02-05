@@ -330,7 +330,7 @@ pub fn main(mut control: Receiver<Control>)
                         }
                         Err(e) => Err(e)?,
                     };
-                    match var_type.parse(&text, InputFlags::None) {
+                    match var_type.parse(&text, InputFlags::NONE) {
                         Ok(parse_result) => {
                             if parse_result.0.len() > 0 {
                                 // remaining input
