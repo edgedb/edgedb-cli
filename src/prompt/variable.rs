@@ -10,7 +10,7 @@ use bigdecimal::BigDecimal;
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use nom::combinator::{map_opt, recognize, value, verify, map, map_res};
-use nom::bytes::complete::{is_not, tag, take_while, take_while_m_n};
+use nom::bytes::complete::{is_not, tag, take, take_while, take_while_m_n};
 use nom::character::complete::{char, i16, i32, i64, multispace0};
 use nom::{IResult, Needed, Parser};
 use nom::branch::alt;
@@ -72,6 +72,15 @@ impl ContextError<&str> for ParsingError {
     fn add_context(_input: &str, ctx: &'static str, other: Self) -> Self {
         let message = format!("{} -> {}", ctx, other);
         ParsingError::Mistake { kind: None, description: message }
+    }
+}
+
+impl FromExternalError<&str, String> for ParsingError {
+    fn from_external_error(input: &str, kind: ErrorKind, e: String) -> Self {
+        ParsingError::Mistake {
+            kind: Some(kind),
+            description: format!("{} at {}", e, input)
+        }
     }
 }
 
@@ -157,15 +166,38 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char, esc: &str) -> IResult<&'a 
                                     map_res(
                                         preceded(
                                             char('u'),
-                                            delimited(
-                                                char('{'),
-                                                take_while_m_n(1,6, |c: char| c.is_ascii_hexdigit()),
-                                                char('}')
+                                            verify(
+                                                take(4usize),
+                                                |s: &str| s.chars().all(|c| c.is_ascii_hexdigit())
                                             )
                                         ),
                                         move |hex| u32::from_str_radix(hex, 16).context("Failed to parse hex digit")
                                     ),
                                     std::char::from_u32
+                                ),
+                                map_res(
+                                    map_res(
+                                        preceded(
+                                            char('x'),
+                                            verify(
+                                                take(2usize),
+                                                |s: &str| s.chars().all(|c| c.is_ascii_hexdigit())
+                                            )
+                                        ),
+                                        move |hex| u8::from_str_radix(hex, 16).context("Invalid hex digit")
+                                    ),
+                                    |digit| {
+                                        if digit > 0x7F || digit == 0 {
+                                            return Err(
+                                                format!(
+                                                    "invalid string literal: \
+                                                     invalid escape sequence '\\x{:x}' \
+                                                     (only non-null ascii allowed)", digit)
+                                            );
+                                        }
+
+                                        Ok(digit as char)
+                                    }
                                 ),
                                 value('\n', char('n')),
                                 value('\r', char('r')),
