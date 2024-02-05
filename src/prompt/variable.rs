@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 use std::convert::TryInto;
+use std::fmt::format;
 use std::str::FromStr;
 use anyhow::Context as _;
 
@@ -34,7 +35,7 @@ pub enum ParsingError {
     #[error("{}", description)]
     Mistake { kind: Option<ErrorKind>, description: String },
     #[error("External error occurred: {}", error)]
-    External { kind: ErrorKind, description: String, error: anyhow::Error },
+    External { kind: Option<ErrorKind>, description: String, error: anyhow::Error },
     #[error("value is incomplete")]
     Incomplete,
 }
@@ -88,7 +89,7 @@ impl FromExternalError<&str, anyhow::Error> for ParsingError {
     fn from_external_error(input: &str, kind: ErrorKind, e: anyhow::Error) -> Self {
         ParsingError::External {
             error: e,
-            kind,
+            kind: Some(kind),
             description: format!("Failed at '{}'", input)
         }
     }
@@ -401,17 +402,30 @@ pub struct Json;
 impl VariableInput for Json {
     fn type_name(&self) -> &str { "json" }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
-        // treat as string, and then validate the strings content
+
         context(
             "json",
-            map_res(
-                double_quoted_str,
-                |v| -> Result<Value, anyhow::Error> {
-                    serde_json::from_str::<serde_json::Value>(&v)?;
+            |s| {
+                let de = serde_json::Deserializer::from_str(s);
+                let mut stream = de.into_iter::<serde_json::Value>();
 
-                    Ok(Value::Json(model::Json::new_unchecked(v.into())))
+                while let Some(r) = stream.next() {
+                    match r {
+                        Ok(_a) => {},
+                        Err(e) => return Err(Error(ParsingError::External {
+                            error: e.into(),
+                            kind: None,
+                            description: "Failed to parse json token".to_string()
+                        })),
+                    }
                 }
-            )
+
+                if stream.byte_offset() != s.len() {
+                    return Err(Error(ParsingError::Incomplete))
+                }
+
+                Ok(("", Value::Json(model::Json::new_unchecked(input.into()))))
+            }
         )(input)
     }
 }
