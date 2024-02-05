@@ -4,8 +4,7 @@ use std::sync::Arc;
 
 use edgedb_protocol::value::Value;
 use edgedb_protocol::codec;
-use edgedb_protocol::descriptors::{Typedesc, Descriptor, DescriptorUuid};
-use uuid::Uuid;
+use edgedb_protocol::descriptors::{Typedesc, Descriptor};
 use crate::repl;
 use crate::prompt;
 use crate::prompt::variable::{self, VariableInput};
@@ -110,30 +109,15 @@ async fn input_item(name: &str, item: &Descriptor, all: &Typedesc,
 {
     let var_type = get_descriptor_type(item, all)?;
 
-    match item {
-        Descriptor::BaseScalar(_s) => {
-            let val = match
-                state.variable_input(name, var_type, optional, "").await?
-            {
-                | prompt::VarInput::Value(val) => Some(val),
-                | prompt::VarInput::Interrupt => Err(Canceled)?,
-                | prompt::VarInput::Eof => None,
-            };
-            Ok(val)
-        }
-        Descriptor::Array(_arr) => {
-            let val = match
-                state.variable_input(name, var_type, optional, "").await?
-            {
-                | prompt::VarInput::Value(val) => Some(val),
-                | prompt::VarInput::Interrupt => Err(Canceled)?,
-                | prompt::VarInput::Eof => None,
-            };
-            Ok(val)
-        }
-        _ => Err(anyhow::anyhow!(
-                        "Unimplemented input type descriptor: {:?}", item)),
-    }
+    let val = match
+        state.variable_input(name, var_type, optional, "").await?
+        {
+            | prompt::VarInput::Value(val) => Some(val),
+            | prompt::VarInput::Interrupt => Err(Canceled)?,
+            | prompt::VarInput::Eof => None,
+        };
+
+    Ok(val)
 }
 
 impl Error for Canceled {

@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 use std::convert::TryInto;
-use std::fmt::format;
 use std::str::FromStr;
 use anyhow::Context as _;
 
@@ -95,10 +94,12 @@ impl FromExternalError<&str, anyhow::Error> for ParsingError {
     }
 }
 
-#[repr(u8)]
-pub enum InputFlags {
-    None,
-    ForceQuotedStrings
+bitflags::bitflags! {
+    pub struct InputFlags: u8 {
+        const NONE = 0;
+        const FORCE_QUOTED_STRINGS = 1 << 0;
+        const JSON_REMAINDER = 1 << 1;
+    }
 }
 
 pub trait VariableInput: fmt::Debug + Send + Sync + 'static {
@@ -240,7 +241,7 @@ impl VariableInput for Str {
     fn type_name(&self) -> &str { "str" }
     fn parse<'a>(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a> {
         match flags {
-            InputFlags::ForceQuotedStrings => {
+            InputFlags::FORCE_QUOTED_STRINGS => {
                 context(
                     "str",
                     map(
@@ -401,15 +402,22 @@ pub struct Json;
 
 impl VariableInput for Json {
     fn type_name(&self) -> &str { "json" }
-    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
-
+    fn parse<'a>(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a> {
         context(
             "json",
-            |s| {
+            |s: &'a str| {
                 let de = serde_json::Deserializer::from_str(s);
                 let mut stream = de.into_iter::<serde_json::Value>();
 
+                // let the stream do the tokenization gradually until we hit EOF or a syntax error
                 while let Some(r) = stream.next() {
+                    // if we want the json parsing to be less greedy, we can skip the below check for any syntax errors
+                    // and let the stream parse all it can
+                    if flags.contains(InputFlags::JSON_REMAINDER) {
+                        continue;
+                    }
+
+                    // if there is any errors at all with the input, reflect that back out and stop parsing
                     match r {
                         Ok(_a) => {},
                         Err(e) => return Err(Error(ParsingError::External {
@@ -420,11 +428,19 @@ impl VariableInput for Json {
                     }
                 }
 
-                if stream.byte_offset() != s.len() {
+                // if we've parsed nothing, its incomplete
+                if stream.byte_offset() == 0 {
                     return Err(Error(ParsingError::Incomplete))
                 }
 
-                Ok(("", Value::Json(model::Json::new_unchecked(input.into()))))
+                // we grab the substring that was successfully parsed from the stream as well as return the slice that
+                // wasn't parsed by serde
+                Ok((
+                    &s[stream.byte_offset()..],
+                    Value::Json(
+                        model::Json::new_unchecked(s[0..stream.byte_offset()].into())
+                    )
+                ))
             }
         )(input)
     }
@@ -446,7 +462,10 @@ impl VariableInput for Array {
                     terminated(
                         separated_list0(
                             white_space(char(',')),
-                            |s| self.element_type.parse(s, InputFlags::ForceQuotedStrings)
+                            |s| self.element_type.parse(
+                                s,
+                                InputFlags::FORCE_QUOTED_STRINGS | InputFlags::JSON_REMAINDER
+                            )
                         ),
                         preceded(
                             space,
@@ -507,7 +526,7 @@ impl Hinter for VarHelper {
         if line == "" {  // be friendly from the start
             return None;
         }
-        match self.var_type.parse(line, InputFlags::None) {
+        match self.var_type.parse(line, InputFlags::NONE) {
             Ok(r) => {
                 if r.0.len() == 0 {
                     return None
@@ -524,7 +543,7 @@ impl Hinter for VarHelper {
 
 impl Highlighter for VarHelper {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
-        match self.var_type.parse(line, InputFlags::None) {
+        match self.var_type.parse(line, InputFlags::NONE) {
             Ok(r) => {
                 if r.0.len() == 0 {
                     return line.into()
@@ -556,7 +575,7 @@ impl Validator for VarHelper {
     fn validate(&self, ctx: &mut ValidationContext)
         -> Result<ValidationResult, ReadlineError>
     {
-        match self.var_type.parse(ctx.input(), InputFlags::None) {
+        match self.var_type.parse(ctx.input(), InputFlags::NONE) {
             Ok(_) => Ok(ValidationResult::Valid(None)),
             Err(e) => {
                 Ok(ValidationResult::Invalid(Some(format_parsing_error(e))))
