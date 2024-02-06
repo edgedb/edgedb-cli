@@ -146,6 +146,17 @@ pub enum InstanceName {
     },
 }
 
+fn billable_unit(s: &str) -> Result<String, String> {
+    let unit: usize = s
+        .parse()
+        .map_err(|_| format!("`{s}` is not a positive number"))?;
+    if unit <= 0 {
+        Err(String::from("`{s}` is not a positive number"))
+    } else {
+        Ok(s.to_string())
+    }
+}
+
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct CloudInstanceBillables {
     /// Cloud instance subscription tier.
@@ -155,13 +166,13 @@ pub struct CloudInstanceBillables {
 
     /// The size of compute to be allocated for the Cloud instance in
     /// Compute Units.
-    #[arg(long, value_name="number")]
-    pub compute_size: Option<u16>,
+    #[arg(long, value_name="number", value_parser=billable_unit)]
+    pub compute_size: Option<String>,
 
     /// The size of storage to be allocated for the Cloud instance in
     /// Gigabytes.
-    #[arg(long, value_name="GiB")]
-    pub storage_size: Option<u16>,
+    #[arg(long, value_name="GiB", value_parser=billable_unit)]
+    pub storage_size: Option<String>,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
@@ -199,7 +210,7 @@ pub struct Create {
     pub port: Option<u16>,
 
     #[command(flatten)]
-    pub cloud_params: Option<CloudInstanceParams>,
+    pub cloud_params: CloudInstanceParams,
 
     /// Deprecated parameter, unused.
     #[arg(long, hide=true)]

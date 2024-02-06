@@ -1,5 +1,7 @@
 use color_print::cformat;
 
+use anyhow::Context;
+
 use crate::cloud;
 use crate::portable::options::{Resize, InstanceName};
 use crate::print::echo;
@@ -39,14 +41,6 @@ fn resize_cloud_cmd(
         ))?;
     }
 
-    if billables.compute_size.is_some() && billables.storage_size.is_some() {
-        return Err(opts.error(
-            clap::error::ErrorKind::MissingRequiredArgument,
-            cformat!("<bold>--compute-size</bold>, \
-            and <bold>--storage-size</bold> cannot be modified at the same time."),
-        ))?;
-    }
-
     let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
     client.ensure_authenticated()?;
 
@@ -58,8 +52,8 @@ fn resize_cloud_cmd(
     let inst = cloud::ops::find_cloud_instance_by_name(name, org_slug, &client)?
         .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
 
-    let compute_size = billables.compute_size;
-    let storage_size = billables.storage_size;
+    let mut compute_size = billables.compute_size.clone();
+    let mut storage_size = billables.storage_size.clone();
     let mut resources_display_vec: Vec<String> = vec![];
 
     if let Some(tier) = billables.tier {
@@ -92,6 +86,26 @@ fn resize_cloud_cmd(
             resources_display_vec.push(format!(
                 "New Tier: {tier:?}",
             ));
+
+            if storage_size.is_none() || compute_size.is_none() {
+                let prices = cloud::ops::get_prices(&client)?;
+                let tier_prices = prices.get(&tier)
+                    .context(format!("could not download pricing information for the {} tier", tier))?;
+                let region_prices = tier_prices.get(&inst.region)
+                    .context(format!("could not download pricing information for the {} region", inst.region))?;
+                if compute_size.is_none() {
+                    compute_size = Some(region_prices.into_iter()
+                        .find(|&price| price.billable == "compute")
+                        .context("could not download pricing information for compute")?
+                        .units_default.clone());
+                }
+                if storage_size.is_none() {
+                    storage_size = Some(region_prices.into_iter()
+                        .find(|&price| price.billable == "storage")
+                        .context("could not download pricing information for compute")?
+                        .units_default.clone());
+                }
+            }
         }
     }
 
@@ -101,13 +115,13 @@ fn resize_cloud_cmd(
         req_resources.push(
             cloud::ops::CloudInstanceResourceRequest{
                 name: "compute".to_string(),
-                value: compute_size,
+                value: compute_size.clone(),
             },
         );
         resources_display_vec.push(format!(
             "New Compute Size: {} compute unit{}",
             compute_size,
-            if compute_size == 1 {""} else {"s"},
+            if compute_size == "1" {""} else {"s"},
         ));
     }
 
@@ -115,13 +129,13 @@ fn resize_cloud_cmd(
         req_resources.push(
             cloud::ops::CloudInstanceResourceRequest{
                 name: "storage".to_string(),
-                value: storage_size,
+                value: storage_size.clone(),
             },
         );
         resources_display_vec.push(format!(
             "New Storage Size: {} gigabyte{}",
             storage_size,
-            if storage_size == 1 {""} else {"s"},
+            if storage_size == "1" {""} else {"s"},
         ));
     }
 
@@ -141,13 +155,15 @@ fn resize_cloud_cmd(
         return Ok(());
     }
 
-    let request = cloud::ops::CloudInstanceResize {
-        name: name.to_string(),
-        org: org_slug.to_string(),
-        requested_resources: Some(req_resources),
-        tier: billables.tier,
-    };
-    cloud::ops::resize_cloud_instance(&client, &request)?;
+    for res in req_resources {
+        let request = cloud::ops::CloudInstanceResize {
+            name: name.to_string(),
+            org: org_slug.to_string(),
+            requested_resources: Some(vec![res]),
+            tier: billables.tier,
+        };
+        cloud::ops::resize_cloud_instance(&client, &request)?;
+    }
     echo!(
         "EdgeDB Cloud instance",
         inst_name,
