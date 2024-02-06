@@ -81,11 +81,11 @@ pub enum Command {
     /// Get various metadata about project instance
     Info(Info),
     /// Upgrade EdgeDB instance used for current project
-    /// 
+    ///
     /// Data is preserved using a dump/restore mechanism.
-    /// 
+    ///
     /// Upgrades to version specified in `edgedb.toml` unless other options specified.
-    /// 
+    ///
     /// Note: May fail if lower version is specified (e.g. moving from nightly to stable).
     Upgrade(Upgrade),
 }
@@ -190,7 +190,7 @@ pub struct Upgrade {
     pub to_latest: bool,
 
     /// Upgrade specified instance to a specified version.
-    /// 
+    ///
     /// e.g. --to-version 4.0-beta.1
     #[arg(long)]
     #[arg(conflicts_with_all=&[
@@ -696,7 +696,14 @@ fn do_init(name: &str, pkg: &PackageInfo,
             nightly: false,
             channel: q.cli_channel(),
             version: q.version,
-            cloud_params: None,
+            cloud_params: options::CloudInstanceParams {
+                region: None,
+                billables: options::CloudInstanceBillables {
+                    tier: None,
+                    compute_size: None,
+                    storage_size: None,
+                },
+            },
             port: Some(port),
             start_conf: None,
             default_database: "edgedb".into(),

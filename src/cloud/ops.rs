@@ -1,4 +1,6 @@
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::fmt;
 
 use anyhow::Context;
 use edgedb_tokio::Builder;
@@ -96,18 +98,48 @@ pub struct Version {
     pub version: String,
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct Price {
+    pub billable: String,
+    pub unit_price_cents: String,
+    pub units_bundled: String,
+    pub units_default: String,
+}
+
+pub type Prices = HashMap<CloudTier, HashMap<String, Vec<Price>>>;
+
+#[derive(Debug, serde::Deserialize)]
+struct Billable {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct PricesResponse {
+    prices: Prices,
+    billables: Vec<Billable>,
+}
+
+
 #[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceResourceRequest {
     pub name: String,
-    pub value: u16,
+    pub value: String,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Hash, PartialEq, Eq, Clone, Copy)]
 #[derive(clap::ValueEnum)]
 pub enum CloudTier {
     Pro,
     Free,
 }
+
+impl fmt::Display for CloudTier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 
 #[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceCreate {
@@ -180,6 +212,34 @@ pub async fn get_versions(
         .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
             _ => Err(e),
         })
+}
+
+#[tokio::main]
+pub async fn get_prices(
+    client: &CloudClient,
+) -> anyhow::Result<Prices> {
+    let url = "pricing";
+    let mut resp: PricesResponse = client
+        .get(url)
+        .await
+        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
+            _ => Err(e),
+        })?;
+
+    let billable_id_to_name: HashMap<String, String> = resp.billables
+        .iter().map(|billable| (billable.id.clone(), billable.name.clone())).collect();
+
+    for (_, tier_prices) in &mut resp.prices {
+        for (_, region_prices) in tier_prices {
+            for price in region_prices {
+                price.billable = billable_id_to_name.get(&price.billable)
+                    .context(format!("could not map billable {} to name", price.billable))?
+                    .to_string();
+            }
+        }
+    }
+
+    Ok(resp.prices)
 }
 
 #[tokio::main]
