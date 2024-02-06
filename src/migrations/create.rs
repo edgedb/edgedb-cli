@@ -246,19 +246,23 @@ async fn gen_start_migration(ctx: &Context)
         }
         Err(e) => Err(e).context(format!("cannot read {:?}", ctx.schema_dir))?,
     };
+
+    let mut paths: Vec<PathBuf> = Vec::new();
     while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
-        if lossy_name.starts_with(".") || !lossy_name.ends_with(".esdl")
-            || !item.file_type().await?.is_file()
-        {
-            continue;
-        }
-        let path = item.path();
+        if !lossy_name.starts_with(".") && lossy_name.ends_with(".esdl")
+            && item.file_type().await?.is_file() { paths.push(item.path())}
+    }
+
+    paths.sort();
+
+    for path in paths {
         let chunk = read_schema_file(&path).await?;
         bld.add_lines(SourceName::File(path.clone()), &chunk);
         bld.add_lines(SourceName::Semicolon(path), ";");
     }
+    
     bld.add_lines(SourceName::Suffix, "};");
     Ok(bld.done())
 }
@@ -944,4 +948,22 @@ fn add_newline() {
     assert_eq!(wrapper("1  #xx  "), "1  #xx  \n");
     assert_eq!(wrapper("(1 + 7) #xx"), "(1 + 7) #xx\n");
     assert_eq!(wrapper("(1 #one\n + 3 #three\n)"), "(1 #one\n + 3 #three\n)");
+}
+
+#[tokio::test]
+ async fn start_migration() {
+    let schema_dir = PathBuf::from("/Users/dijanapavlovic/Documents/projects/edgedb/edgedb-cli/tests/migrations/db5");
+    
+    let ctx = Context{schema_dir, edgedb_version: None, quiet: false};
+
+    let res = match gen_start_migration(&ctx).await {
+        Ok(res) => res,
+        Err(e) => panic!("{}", e),
+    };
+
+    let expected_res = 
+        "START MIGRATION TO {\ntype Type1 {\n    property field1 -> str;\n};\n;\ntype Type2 {
+    property field2 -> str;\n};\n;\ntype Type3 {\n    property field3 -> str;\n};\n;\n};\n";
+
+    assert_eq!(res.0, expected_res);
 }
