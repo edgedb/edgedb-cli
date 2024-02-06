@@ -12,8 +12,8 @@ use crate::options::CloudOptions;
 use crate::portable::status::{RemoteStatus, RemoteType, try_connect};
 use crate::question;
 
-const OPERATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
-const POLLING_INTERVAL: Duration = Duration::from_secs(1);
+const OPERATION_WAIT_TIME: Duration = Duration::from_secs(20 * 60);
+const POLLING_INTERVAL: Duration = Duration::from_secs(2);
 const SPINNER_TICK: Duration = Duration::from_millis(100);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -246,24 +246,7 @@ async fn wait_for_operation(
         }
     }
 
-    anyhow::bail!("Timed out.")
-}
-
-async fn wait_instance_available_after_operation(
-    operation: CloudOperation,
-    org: &str,
-    name: &str,
-    client: &CloudClient,
-) -> anyhow::Result<CloudInstance> {
-    wait_for_operation(operation, client).await?;
-    let url = format!("orgs/{}/instances/{}", org, name);
-    let instance: CloudInstance = client.get(&url).await?;
-
-    if instance.dsn != "" && instance.status == "available" {
-        Ok(instance)
-    } else {
-        anyhow::bail!("Timed out.")
-    }
+    anyhow::bail!("Operation is taking too long, stopping monitor.")
 }
 
 #[tokio::main]
@@ -281,8 +264,7 @@ pub async fn create_cloud_instance(
             }
             _ => Err(e),
         })?;
-    wait_instance_available_after_operation(
-        operation, &request.org, &request.name, client).await?;
+    wait_for_operation(operation, client).await?;
     Ok(())
 }
 
@@ -302,8 +284,7 @@ pub async fn resize_cloud_instance(
             }
             _ => Err(e),
         })?;
-    wait_instance_available_after_operation(
-        operation, &request.org, &request.name, client).await?;
+    wait_for_operation(operation, client).await?;
     Ok(())
 }
 
@@ -316,8 +297,7 @@ pub async fn upgrade_cloud_instance(
     let operation: CloudOperation = client
         .put(url, request)
         .await?;
-    wait_instance_available_after_operation(
-        operation, &request.org, &request.name, client).await?;
+    wait_for_operation(operation, client).await?;
     Ok(())
 }
 
