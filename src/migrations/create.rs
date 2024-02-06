@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::env;
 
 use anyhow::Context as _;
 use colorful::Colorful;
@@ -952,15 +953,13 @@ fn add_newline() {
 
 #[tokio::test]
  async fn start_migration() {
-    let schema_dir = PathBuf::from("/Users/dijanapavlovic/Documents/projects/edgedb/edgedb-cli/tests/migrations/db5");
-    
+    let mut schema_dir = env::current_dir().unwrap();
+    schema_dir.push("tests/migrations/db5");
+
     let ctx = Context{schema_dir, edgedb_version: None, quiet: false};
 
-    let res = match gen_start_migration(&ctx).await {
-        Ok(res) => res,
-        Err(e) => panic!("{}", e),
-    };
-
+    let res =  gen_start_migration(&ctx).await.unwrap(); 
+    
     let expected_res = 
         "START MIGRATION TO {\ntype Type1 {\n    property field1 -> str;\n};\n;\ntype Type2 {
     property field2 -> str;\n};\n;\ntype Type3 {\n    property field3 -> str;\n};\n;\n};\n";
