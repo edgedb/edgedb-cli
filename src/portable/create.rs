@@ -257,20 +257,25 @@ fn create_cloud(
         .context(format!("could not download pricing information for the {} region", region))?;
     let default_compute = region_prices.into_iter()
         .find(|&price| price.billable == "compute")
-        .context("could not download pricing information for compute")?;
+        .context("could not download pricing information for compute")?
+        .units_default.clone()
+        .context("could not find default value for compute")?;
+
     let default_storage = region_prices.into_iter()
         .find(|&price| price.billable == "storage")
-        .context("could not download pricing information for compute")?;
+        .context("could not download pricing information for storage")?
+        .units_default.clone()
+        .context("could not find default value for storage")?;
 
     let mut req_resources: Vec<cloud::ops::CloudInstanceResourceRequest> = vec![];
 
     let compute_size_v = match compute_size {
-        None => default_compute.units_default.clone(),
+        None => default_compute,
         Some(v) => v.clone(),
     };
 
     let storage_size_v = match storage_size {
-        None => default_storage.units_default.clone(),
+        None => default_storage,
         Some(v) => v.clone(),
     };
 

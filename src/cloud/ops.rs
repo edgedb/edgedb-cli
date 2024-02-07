@@ -102,8 +102,8 @@ pub struct Version {
 pub struct Price {
     pub billable: String,
     pub unit_price_cents: String,
-    pub units_bundled: String,
-    pub units_default: String,
+    pub units_bundled: Option<String>,
+    pub units_default: Option<String>,
 }
 
 pub type Prices = HashMap<CloudTier, HashMap<String, Vec<Price>>>;

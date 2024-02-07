@@ -97,13 +97,15 @@ fn resize_cloud_cmd(
                     compute_size = Some(region_prices.into_iter()
                         .find(|&price| price.billable == "compute")
                         .context("could not download pricing information for compute")?
-                        .units_default.clone());
+                        .units_default.clone()
+                        .context("could not find default value for compute")?);
                 }
                 if storage_size.is_none() {
                     storage_size = Some(region_prices.into_iter()
                         .find(|&price| price.billable == "storage")
-                        .context("could not download pricing information for compute")?
-                        .units_default.clone());
+                        .context("could not download pricing information for storage")?
+                        .units_default.clone()
+                        .context("could not find default value for storage")?);
                 }
             }
         }
