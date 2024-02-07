@@ -8,8 +8,10 @@ use anyhow::Context as _;
 
 use colorful::Colorful;
 use bigdecimal::BigDecimal;
+use combine::stream::Range;
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
+use edgeql_parser::helpers::unquote_string;
 use nom::combinator::{map_opt, recognize, value, verify, map, map_res};
 use nom::bytes::complete::{is_not, tag, take, take_while, take_while_m_n};
 use nom::character::complete::{char, i16, i32, i64, multispace0};
@@ -19,7 +21,7 @@ use nom::Err::{Error, Failure, Incomplete};
 use nom::error::{context, ContextError, ErrorKind, FromExternalError, ParseError};
 use nom::multi::{fold_many0, separated_list0};
 use nom::number::complete::{double, float, recognize_float_parts};
-use nom::sequence::{delimited, preceded, terminated};
+use nom::sequence::{delimited, preceded, terminated, tuple};
 use num_bigint::ToBigInt;
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
@@ -131,106 +133,70 @@ fn quoted_str(input: &str) -> IResult<&str, String, ParsingError> {
 fn single_quoted_str(input: &str) -> IResult<&str, String, ParsingError> {
     context(
         "single_quote_str",
-        |s| quoted_str_parser(s, '\'', "\'\\")
+        |s| quoted_str_parser(s, '\'')
     )(input)
 }
 
 fn double_quoted_str(input: &str) -> IResult<&str, String, ParsingError> {
     context(
         "double_quote_str",
-        |s| quoted_str_parser(s, '\"', "\"\\")
+        |s| quoted_str_parser(s, '\"')
     )(input)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum StringFragment<'a> {
-    Literal(&'a str),
-    EscapedChar(char),
-    EscapedWS,
-}
-
-// heavily based on https://github.com/rust-bakery/nom/blob/main/examples/string.rs
-fn quoted_str_parser<'a>(input: &'a str, quote: char, esc: &str) -> IResult<&'a str, String, ParsingError> {
+fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String, ParsingError> {
     context(
         "quoted_string",
-        delimited(
-            char(quote),
-            fold_many0(
-                alt((
-                    map(
-                        verify(is_not(esc), |s: &str| !s.is_empty()),
-                        StringFragment::Literal
-                    ),
-                    map(
-                        preceded(
-                            char('\\'),
-                            alt((
-                                map_opt(
-                                    map_res(
-                                        preceded(
-                                            char('u'),
-                                            verify(
-                                                take(4usize),
-                                                |s: &str| s.chars().all(|c| c.is_ascii_hexdigit())
-                                            )
-                                        ),
-                                        move |hex| u32::from_str_radix(hex, 16).context("Failed to parse hex digit")
-                                    ),
-                                    std::char::from_u32
-                                ),
-                                map_res(
-                                    map_res(
-                                        preceded(
-                                            char('x'),
-                                            verify(
-                                                take(2usize),
-                                                |s: &str| s.chars().all(|c| c.is_ascii_hexdigit())
-                                            )
-                                        ),
-                                        move |hex| u8::from_str_radix(hex, 16).context("Invalid hex digit")
-                                    ),
-                                    |digit| {
-                                        if digit > 0x7F || digit == 0 {
-                                            return Err(
-                                                format!(
-                                                    "invalid string literal: \
-                                                     invalid escape sequence '\\x{:x}' \
-                                                     (only non-null ascii allowed)", digit)
-                                            );
-                                        }
+        map_res(
+            recognize(
+                tuple((
+                    char(quote),
+                    move |str: &'a str| {
+                        let mut pos = 0;
 
-                                        Ok(digit as char)
-                                    }
-                                ),
-                                value('\n', char('n')),
-                                value('\r', char('r')),
-                                value('\t', char('t')),
-                                value('\u{08}', char('b')),
-                                value('\u{0C}', char('f')),
-                                value('\\', char('\\')),
-                                value('/', char('/')),
-                                value('"', char('"')),
-                                value('\'', char('\'')),
-                            ))
-                        ),
-                        StringFragment::EscapedChar
-                    ),
-                    value(
-                        StringFragment::EscapedWS,
-                        preceded(char('\\'), nom::character::streaming::multispace1)
-                    ),
+                        if str.is_empty() {
+                            return Err(Error(ParsingError::Incomplete));
+                        }
+
+                        if str.len() == 1 && str.chars().nth(0).unwrap() != quote {
+                            return Err(Error(ParsingError::Mistake {
+                                kind: None,
+                                description: "Missing end quote on string".to_string()
+                            }))
+                        }
+
+                        let chars = str.char_indices();
+
+                        let mut prev = None;
+
+                        for (i, c) in chars {
+                            if prev == None {
+                                prev = Some(c);
+                                continue;
+                            }
+
+                            if c == quote {
+                                // is it escaped?
+                                if prev.unwrap() == '\\' {
+                                    prev = Some(c);
+                                    continue;
+                                }
+
+                                // not escaped, its the end of the quoted string
+                                pos = i;
+                                break;
+                            }
+
+                            prev = Some(c)
+                        }
+
+                        // slice out the actual string part, and the remainder based on the 'pos'
+                        Ok((&str[pos..], &str[..pos]))
+                    },
+                    char(quote),
                 )),
-                String::new,
-                |mut string, fragment| {
-                    match fragment {
-                        StringFragment::Literal(s) => string.push_str(s),
-                        StringFragment::EscapedChar(c) => string.push(c),
-                        StringFragment::EscapedWS => {}
-                    }
-                    string
-                }
             ),
-            char(quote),
+            |s| unquote_string(s).map(|v| v.into()).context("Failed to unquote string")
         )
     )(input)
 }
