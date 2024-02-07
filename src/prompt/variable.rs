@@ -167,7 +167,7 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
                                     continue;
                                 }
 
-                                // not escaped, its the end of the quoted string
+                                // not escaped, it's the end of the quoted string
                                 pos = i;
                                 break;
                             }
@@ -181,7 +181,7 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
                     char(quote),
                 )),
             ),
-            |s| unquote_string(s).map(|v| v.into()).context("Failed to unquote string")
+            |s| unquote_string(s).map(|v| v.into()).context("Invalid quoted string")
         )
     )(input)
 }
