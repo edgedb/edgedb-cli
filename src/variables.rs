@@ -97,6 +97,17 @@ fn get_descriptor_type<'a>(mut desc: &'a Descriptor, all: &'a Typedesc) -> Resul
         Descriptor::Array(arr) => {
             let element_type = get_descriptor_type(all.get(arr.type_pos)?, all)?;
             Ok(Arc::new(variable::Array{ element_type }))
+        },
+        Descriptor::Tuple(tuple) => {
+            let elements: Result<Vec<Arc<dyn VariableInput>>, _> = tuple.element_types.iter()
+                .map(|v| get_descriptor_type(all.get(*v)?, all))
+                .collect();
+
+            return match elements {
+                Ok(element_types) => Ok(Arc::new(variable::Tuple { element_types })),
+                Err(e) => Err(e)
+            }
+
         }
         _ => Err(anyhow::anyhow!(
                 "Unimplemented input type descriptor: {:?}", desc)),

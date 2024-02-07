@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 use std::convert::TryInto;
+use std::ops::Deref;
 use std::str::FromStr;
 use anyhow::Context as _;
 
@@ -12,7 +13,7 @@ use edgedb_protocol::model;
 use nom::combinator::{map_opt, recognize, value, verify, map, map_res};
 use nom::bytes::complete::{is_not, tag, take, take_while, take_while_m_n};
 use nom::character::complete::{char, i16, i32, i64, multispace0};
-use nom::{IResult, Needed, Parser};
+use nom::{InputLength, IResult, Needed, Parser};
 use nom::branch::alt;
 use nom::Err::{Error, Failure, Incomplete};
 use nom::error::{context, ContextError, ErrorKind, FromExternalError, ParseError};
@@ -474,6 +475,113 @@ impl VariableInput for Array {
                     ),
                 ),
                 |v| Value::Array(v)
+            )
+        )(input)
+    }
+}
+
+#[derive(Debug)]
+pub struct Tuple {
+    pub element_types: Vec<Arc<dyn VariableInput>>
+}
+
+pub struct TupleParser<'a> {
+    tuple: &'a Tuple,
+    position: usize,
+}
+
+impl Parser<&str, Value, ParsingError> for TupleParser<'_> {
+    fn parse<'a>(&mut self, input: &'a str) -> IResult<&'a str, Value, ParsingError> {
+        if self.tuple.element_types.len() <= self.position {
+            return Err(Error(ParsingError::Mistake {
+                kind: None,
+                description: "Too many elements for tuple type".to_string()
+            }));
+        }
+
+        let result = context(
+            "tuple_element",
+            |s| self.tuple.element_types[self.position].parse(
+                s,
+                InputFlags::FORCE_QUOTED_STRINGS | InputFlags::JSON_REMAINDER
+            )
+        )(input);
+
+        self.position += 1;
+
+        println!(" <-> {}: {}", self.position, result.is_ok());
+
+        result
+    }
+}
+
+impl VariableInput for Tuple {
+    fn type_name(&self) -> &str {
+        "tuple"
+    }
+
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
+        let element_parser = TupleParser {
+            position: 0,
+            tuple: self,
+        };
+
+        let element_flags: InputFlags = InputFlags::FORCE_QUOTED_STRINGS | InputFlags::JSON_REMAINDER;
+
+
+        context(
+            "tuple",
+            preceded(
+                char('('),
+                terminated(
+                    move |mut i: &str| {
+                        let mut res = Vec::new();
+                        let mut position = 0;
+
+
+                        match self.element_types[position].parse(i.clone(), element_flags) {
+                            Err(nom::Err::Error(_)) => return Ok((i, Value::Tuple(res))),
+                            Err(e) => return Err(e),
+                            Ok((i1, o)) => {
+                                res.push(o);
+                                i = i1;
+                                position += 1;
+                            }
+                        }
+
+                        loop {
+                            let len = i.input_len();
+                            match white_space(char(',')).parse(i.clone()) {
+                                Err(nom::Err::Error(_)) => return Ok((i, Value::Tuple(res))),
+                                Err(e) => return Err(e),
+                                Ok((i1, _)) => {
+                                    // infinite loop check: the parser must always consume
+                                    if i1.input_len() == len {
+                                        return Err(nom::Err::Error(ParsingError::from_error_kind(i1, ErrorKind::SeparatedList)));
+                                    }
+
+                                    match self.element_types[position].parse(i1.clone(), element_flags) {
+                                        Err(nom::Err::Error(_)) => return Ok((i, Value::Tuple(res))),
+                                        Err(e) => return Err(e),
+                                        Ok((i2, o)) => {
+                                            res.push(o);
+                                            i = i2;
+                                            position += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    // separated_list0(
+                    //     white_space(char(',')),
+                    //     element_parser
+                    // ),
+                    preceded(
+                        space,
+                        char(')')
+                    ),
+                ),
             )
         )(input)
     }
