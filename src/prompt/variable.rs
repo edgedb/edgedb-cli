@@ -152,12 +152,9 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
                     char(quote),
                     move |str: &'a str| {
                         let mut pos = 0;
-
-                        let chars = str.char_indices();
-
                         let mut prev = None;
 
-                        for (i, c) in chars {
+                        for (i, c) in str.char_indices() {
                             if prev == None {
                                 prev = Some(c);
                                 continue;
