@@ -101,7 +101,6 @@ bitflags::bitflags! {
     pub struct InputFlags: u8 {
         const NONE = 0;
         const FORCE_QUOTED_STRINGS = 1 << 0;
-        const JSON_REMAINDER = 1 << 1;
     }
 }
 
@@ -357,7 +356,7 @@ pub struct Json;
 
 impl VariableInput for Json {
     fn type_name(&self) -> &str { "json" }
-    fn parse<'a>(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a> {
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
             "json",
             |s: &'a str| {
@@ -368,7 +367,6 @@ impl VariableInput for Json {
                 match stream.next() {
                     Some(r) => match r {
                         Ok(_) => {},
-                        Err(_) if flags.contains(InputFlags::JSON_REMAINDER) => {},
                         Err(e) => return Err(Error(ParsingError::External {
                             error: e.into(),
                             kind: None,
@@ -409,7 +407,7 @@ impl VariableInput for Array {
                             white_space(char(',')),
                             |s| self.element_type.parse(
                                 s,
-                                InputFlags::FORCE_QUOTED_STRINGS | InputFlags::JSON_REMAINDER
+                                InputFlags::FORCE_QUOTED_STRINGS
                             )
                         ),
                         preceded(
@@ -437,7 +435,6 @@ impl Parser<&str, Value, ParsingError> for TupleParser<'_> {
     fn parse<'a>(&mut self, mut input: &'a str) -> IResult<&'a str, Value, ParsingError> {
         let mut res = Vec::new();
         let mut position = 0;
-        let element_flags: InputFlags = InputFlags::FORCE_QUOTED_STRINGS | InputFlags::JSON_REMAINDER;
 
         loop {
             if position >= self.tuple.element_types.len() {
@@ -446,7 +443,7 @@ impl Parser<&str, Value, ParsingError> for TupleParser<'_> {
             }
 
             // match an the element
-            match self.tuple.element_types[position].parse(input, element_flags) {
+            match self.tuple.element_types[position].parse(input, InputFlags::FORCE_QUOTED_STRINGS) {
                 Err(e) => return Err(e),
                 Ok((remainder, result)) => {
                     res.push(result);
