@@ -154,17 +154,6 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
                     move |str: &'a str| {
                         let mut pos = 0;
 
-                        if str.is_empty() {
-                            return Err(Error(ParsingError::Incomplete));
-                        }
-
-                        if str.len() == 1 && str.chars().nth(0).unwrap() != quote {
-                            return Err(Error(ParsingError::Mistake {
-                                kind: None,
-                                description: "Missing end quote on string".to_string()
-                            }))
-                        }
-
                         let chars = str.char_indices();
 
                         let mut prev = None;
