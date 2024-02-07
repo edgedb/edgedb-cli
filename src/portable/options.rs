@@ -147,11 +147,21 @@ pub enum InstanceName {
 }
 
 fn billable_unit(s: &str) -> Result<String, String> {
-    let unit: usize = s
+    let (numerator, denominator) = match s.split_once("/") {
+        Some(v) => v,
+        None => (s, "1"),
+    };
+
+    let n: u64 = numerator
         .parse()
-        .map_err(|_| format!("`{s}` is not a positive number"))?;
-    if unit <= 0 {
-        Err(String::from("`{s}` is not a positive number"))
+        .map_err(|_| format!("`{s}` is not a positive number or valid fraction"))?;
+
+    let d: u64 = denominator
+        .parse()
+        .map_err(|_| format!("`{s}` is not a positive number or valid fraction"))?;
+
+    if n <= 0 || d <= 0 {
+        Err(String::from("`{s}` is not a positive number or valid fraction"))
     } else {
         Ok(s.to_string())
     }
