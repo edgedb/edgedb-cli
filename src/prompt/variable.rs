@@ -409,28 +409,18 @@ impl VariableInput for Json {
                 let de = serde_json::Deserializer::from_str(s);
                 let mut stream = de.into_iter::<serde_json::Value>();
 
-                // let the stream do the tokenization gradually until we hit EOF or a syntax error
-                while let Some(r) = stream.next() {
-                    // if we want the json parsing to be less greedy, we can skip the below check for any syntax errors
-                    // and let the stream parse all it can
-                    if flags.contains(InputFlags::JSON_REMAINDER) {
-                        continue;
-                    }
-
-                    // if there is any errors at all with the input, reflect that back out and stop parsing
-                    match r {
-                        Ok(_a) => {},
+                // consume a single json value
+                match stream.next() {
+                    Some(r) => match r {
+                        Ok(_) => {},
+                        Err(_) if flags.contains(InputFlags::JSON_REMAINDER) => {},
                         Err(e) => return Err(Error(ParsingError::External {
                             error: e.into(),
                             kind: None,
                             description: "Failed to parse json token".to_string()
-                        })),
+                        }))
                     }
-                }
-
-                // if we've parsed nothing, its incomplete
-                if stream.byte_offset() == 0 {
-                    return Err(Error(ParsingError::Incomplete))
+                    None => return Err(Error(ParsingError::Incomplete))
                 }
 
                 // we grab the substring that was successfully parsed from the stream as well as return the slice that
