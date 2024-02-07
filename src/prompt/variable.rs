@@ -241,17 +241,16 @@ pub struct Str;
 impl VariableInput for Str {
     fn type_name(&self) -> &str { "str" }
     fn parse<'a>(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a> {
-        match flags {
-            InputFlags::FORCE_QUOTED_STRINGS => {
-                context(
-                    "str",
-                    map(
-                        quoted_str,
-                        Value::Str
-                    )
-                )(input)
-            }
-            _ => context(
+        if flags.contains(InputFlags::FORCE_QUOTED_STRINGS) {
+            context(
+                "quoted_str",
+                map(
+                    quoted_str,
+                    Value::Str
+                )
+            )(input)
+        } else {
+            context(
                 "str",
                 |s: &str| Ok(("", Value::Str(s.to_string())))
             )(input)
@@ -487,31 +486,49 @@ pub struct Tuple {
 
 pub struct TupleParser<'a> {
     tuple: &'a Tuple,
-    position: usize,
 }
 
 impl Parser<&str, Value, ParsingError> for TupleParser<'_> {
-    fn parse<'a>(&mut self, input: &'a str) -> IResult<&'a str, Value, ParsingError> {
-        if self.tuple.element_types.len() <= self.position {
-            return Err(Error(ParsingError::Mistake {
-                kind: None,
-                description: "Too many elements for tuple type".to_string()
-            }));
+    fn parse<'a>(&mut self, mut input: &'a str) -> IResult<&'a str, Value, ParsingError> {
+        let mut res = Vec::new();
+        let mut position = 0;
+        let element_flags: InputFlags = InputFlags::FORCE_QUOTED_STRINGS | InputFlags::JSON_REMAINDER;
+
+        loop {
+            if position >= self.tuple.element_types.len() {
+                // we've read all the elements in the tuple, return the remainder
+                return Ok((input, Value::Tuple(res)));
+            }
+
+            // match an the element
+            match self.tuple.element_types[position].parse(input, element_flags) {
+                Err(e) => return Err(e),
+                Ok((remainder, result)) => {
+                    res.push(result);
+                    input = remainder;
+                    position += 1;
+                }
+            }
+
+            // don't try to match a separator if we've match all elements in the tuple
+            if position >= self.tuple.element_types.len() {
+                return Ok((input, Value::Tuple(res)));
+            }
+
+            match white_space(char(',')).parse(input) {
+                Err(e) => {
+                    if position >= self.tuple.element_types.len() {
+                        // end of tuple
+                        return Ok((input, Value::Tuple(res)));
+                    }
+
+                    return Err(e);
+                }
+                Ok((remainder, _)) => {
+                    input = remainder;
+                }
+            }
         }
-
-        let result = context(
-            "tuple_element",
-            |s| self.tuple.element_types[self.position].parse(
-                s,
-                InputFlags::FORCE_QUOTED_STRINGS | InputFlags::JSON_REMAINDER
-            )
-        )(input);
-
-        self.position += 1;
-
-        println!(" <-> {}: {}", self.position, result.is_ok());
-
-        result
     }
 }
 
@@ -522,11 +539,8 @@ impl VariableInput for Tuple {
 
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         let element_parser = TupleParser {
-            position: 0,
             tuple: self,
         };
-
-        let element_flags: InputFlags = InputFlags::FORCE_QUOTED_STRINGS | InputFlags::JSON_REMAINDER;
 
 
         context(
@@ -534,45 +548,7 @@ impl VariableInput for Tuple {
             preceded(
                 char('('),
                 terminated(
-                    move |mut i: &str| {
-                        let mut res = Vec::new();
-                        let mut position = 0;
-
-
-                        match self.element_types[position].parse(i.clone(), element_flags) {
-                            Err(nom::Err::Error(_)) => return Ok((i, Value::Tuple(res))),
-                            Err(e) => return Err(e),
-                            Ok((i1, o)) => {
-                                res.push(o);
-                                i = i1;
-                                position += 1;
-                            }
-                        }
-
-                        loop {
-                            let len = i.input_len();
-                            match white_space(char(',')).parse(i.clone()) {
-                                Err(nom::Err::Error(_)) => return Ok((i, Value::Tuple(res))),
-                                Err(e) => return Err(e),
-                                Ok((i1, _)) => {
-                                    // infinite loop check: the parser must always consume
-                                    if i1.input_len() == len {
-                                        return Err(nom::Err::Error(ParsingError::from_error_kind(i1, ErrorKind::SeparatedList)));
-                                    }
-
-                                    match self.element_types[position].parse(i1.clone(), element_flags) {
-                                        Err(nom::Err::Error(_)) => return Ok((i, Value::Tuple(res))),
-                                        Err(e) => return Err(e),
-                                        Ok((i2, o)) => {
-                                            res.push(o);
-                                            i = i2;
-                                            position += 1;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
+                    element_parser,
                     // separated_list0(
                     //     white_space(char(',')),
                     //     element_parser
