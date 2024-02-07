@@ -481,17 +481,12 @@ impl VariableInput for Tuple {
             tuple: self,
         };
 
-
         context(
             "tuple",
             preceded(
                 char('('),
                 terminated(
                     element_parser,
-                    // separated_list0(
-                    //     white_space(char(',')),
-                    //     element_parser
-                    // ),
                     preceded(
                         space,
                         char(')')
