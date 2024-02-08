@@ -176,7 +176,7 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
                         }
 
                         // slice out the actual string part, and the remainder based on the 'pos'
-                        Ok((&str[pos..], &str[..pos]))
+                        Ok((&str[pos..], ()))
                     },
                     char(quote),
                 )),
