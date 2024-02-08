@@ -119,6 +119,10 @@ pub struct Migrate {
     /// a regular `.edgeql` file, after which the above query will return nothing.
     #[arg(long)]
     pub dev_mode: bool,
+
+    /// Runs the migration(s) in a single transaction.
+    #[arg(long="single-transaction")]
+    pub single_transaction: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
