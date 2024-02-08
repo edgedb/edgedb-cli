@@ -566,9 +566,8 @@ pub fn make_default_expression_interactive(
                             // If so, then check if any link and regular properties share a name
                             match info.properties.property_check(pointer_name) {
                                 PropertyKind::BothProperties => {
-                                    println!("Note: Your schema has both object and link properties with the name `{pointer_name}`.");
-                                    println!("If this object has both, then:\n <{new_type}>.{pointer_name} will cast from the object type property, while\n <{new_type}>@{pointer_name} will cast from the link property.");
-                                    format!("<{new_type}>_{pointer_name}")
+                                    println!(" Note: Change .{pointer_name} to @{pointer_name} if `{pointer_name}` refers to a link property.");
+                                    format!("<{new_type}>.{pointer_name}")
                                 }
                                 PropertyKind::LinkProperty => {
                                     format!("<{new_type}>@{pointer_name}")
@@ -581,17 +580,10 @@ pub fn make_default_expression_interactive(
                         _ => {
                             // No matching casts between old and new type. Now try to print out any matching functions
                             let available_functions = info.function_info.iter().filter(|func| {
-                        // First see if old and new types outright match
-                        (func.input == old_type && func.returns == new_type) ||
-                        // Then see if old type is an array of anything and return matches
-                        (func.input.contains("array") && func.returns == new_type) ||
-                        // Finally, see if function takes an anyreal and new type is any of its extending types
-                        (func.input.contains("anyreal") && func.returns.contains("anyreal") && [
-                            "int16", "int32", "int64", "float32", "float64", "decimal"].iter().any(|e| func.returns.contains(e))
-                        )
+                        func.input == old_type && func.returns == new_type
                     }).collect::<Vec<_>>();
                             if !available_functions.is_empty() {
-                                println!("Note: The following function{plural} may help you convert from {old_type} to {new_type}:", plural = if available_functions.len() > 2 {"s"} else {""});
+                                println!(" Note: The following function{plural} may help you convert from {old_type} to {new_type}:", plural = if available_functions.len() > 2 {"s"} else {""});
                                 for function in available_functions {
                                     let FunctionInfo {
                                         name,
@@ -604,9 +596,8 @@ pub fn make_default_expression_interactive(
                             // Then return the pointer (maybe with matching functions, maybe not)
                             match info.properties.property_check(pointer_name) {
                                 PropertyKind::BothProperties => {
-                                    println!("Note: Your schema has both object and link properties with the name `{pointer_name}`.");
-                                    println!("If this object has both, then:\n .{pointer_name} will access the object type property, while\n @{pointer_name} will access the link property.");
-                                    format!("{pointer_name}")
+                                    println!(" Note: Change .{pointer_name} to @{pointer_name} if `{pointer_name}` refers to a link property.");
+                                    format!(".{pointer_name}")
                                 }
                                 PropertyKind::LinkProperty => {
                                     format!("@{pointer_name}")
