@@ -577,11 +577,9 @@ pub fn make_default_expression_interactive(
                             // No matching casts between old and new type. Now try to print out any matching functions
                             let available_functions = info.function_info.iter().filter(|func| {
                         // First see if old and new types outright match
-                        (func.input.contains(&old_type.to_string()) && func.returns.contains(&new_type)) ||
-                        // Then see if old type is anytype and return matches
-                        (func.input.contains("anytype") && func.returns.contains(&new_type)) ||
+                        (func.input == old_type && func.returns == new_type) ||
                         // Then see if old type is an array of anything and return matches
-                        (func.input.contains("array") && func.returns.contains(&new_type)) ||
+                        (func.input.contains("array") && func.returns == new_type) ||
                         // Finally, see if function takes an anyreal and new type is any of its extending types
                         (func.input.contains("anyreal") && func.returns.contains("anyreal") && [
                             "int16", "int32", "int64", "float32", "float64", "decimal"].iter().any(|e| func.returns.contains(e))
