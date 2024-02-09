@@ -156,6 +156,11 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
 
                         for (i, c) in str.char_indices() {
                             if prev == None {
+                                // first iteration, we want to make sure that this is not a quote
+                                if c == quote {
+                                    break;
+                                }
+
                                 prev = Some(c);
                                 continue;
                             }
@@ -608,5 +613,198 @@ impl Completer for VarHelper {
         -> Result<(usize, Vec<Self::Candidate>), ReadlineError>
     {
         Ok((pos, Vec::new()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::{Any, TypeId};
+    use edgedb_protocol::value::Value;
+    use nom::Err::{Error, Failure, Incomplete};
+    use nom::Parser;
+    use crate::prompt::variable::{InputFlags, Int16, Int32, Int64, ParseResult, ParsingError, Str, Uuid, VariableInput};
+
+    fn assert_value(result: ParseResult, expected: Value) {
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+
+        assert!(parsed.0.is_empty());
+        assert_eq!(parsed.1, expected);
+    }
+
+    fn assert_excess(result: ParseResult, expected: Value) {
+        assert!(result.is_ok());
+
+        let parsed = result.unwrap();
+
+        assert!(!parsed.0.is_empty());
+        assert_eq!(parsed.1, expected);
+    }
+
+
+    fn assert_error(result: ParseResult) {
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_str() {
+        assert_value(Str.parse("ABC123", InputFlags::NONE), Value::Str("ABC123".to_string()));
+        assert_value(Str.parse("\"AA\'\\BC", InputFlags::NONE), Value::Str("\"AA\'\\BC".to_string()));
+    }
+
+
+    #[test]
+    fn test_quoted_str() {
+        assert_value(
+            Str.parse("\"ABC\"", InputFlags::FORCE_QUOTED_STRINGS),
+            Value::Str("ABC".to_string())
+        );
+
+        assert_value(
+            Str.parse(
+                "\"DEF \\\" \' \\x23\"", InputFlags::FORCE_QUOTED_STRINGS
+            ),
+            Value::Str("DEF \" \' \x23".to_string())
+        );
+
+        assert_value(
+            Str.parse(
+                "\'\\u263A\'", InputFlags::FORCE_QUOTED_STRINGS
+            ),
+            Value::Str("\u{263A}".to_string())
+        );
+
+        assert_value(
+            Str.parse(
+                "\'\"\\\'\'", InputFlags::FORCE_QUOTED_STRINGS
+            ),
+            Value::Str("\"\'".to_string())
+        );
+
+        assert_excess(
+            Str.parse("\"\"\"", InputFlags::FORCE_QUOTED_STRINGS),
+            Value::Str("".to_string())
+        );
+
+        assert_error(
+            Str.parse("\"\\\"", InputFlags::FORCE_QUOTED_STRINGS),
+        )
+    }
+
+    #[test]
+    fn test_uuid() {
+        assert_value(
+            Uuid.parse("dad2752f-9224-4a1e-93fa-a25ffdfd44ea", InputFlags::NONE),
+            Value::Uuid(uuid::Uuid::parse_str("dad2752f-9224-4a1e-93fa-a25ffdfd44ea").unwrap())
+        );
+
+        assert_value(
+            Uuid.parse("dad2752f92244a1e93faa25ffdfd44ea", InputFlags::NONE),
+            Value::Uuid(uuid::Uuid::parse_str("dad2752f-9224-4a1e-93fa-a25ffdfd44ea").unwrap())
+        );
+
+        assert_error(
+            Uuid.parse("dad2752f9224-4a1e-93fa-a25ffdfd44ea", InputFlags::NONE)
+        );
+
+        assert_error(
+            Uuid.parse("dad2752f92244a1e93faa25ffdfd44eaa", InputFlags::NONE),
+        );
+
+        assert_excess(
+            Uuid.parse("dad2752f-9224-4a1e-93fa-a25ffdfd44eaa", InputFlags::NONE),
+            Value::Uuid(uuid::Uuid::parse_str("dad2752f-9224-4a1e-93fa-a25ffdfd44ea").unwrap())
+        );
+    }
+
+    #[test]
+    fn test_int16() {
+        assert_value(
+            Int16.parse("10", InputFlags::NONE),
+            Value::Int16(10)
+        );
+
+        assert_error(
+            Int16.parse("abc", InputFlags::NONE),
+        );
+
+        assert_excess(
+            Int16.parse("10abc", InputFlags::NONE),
+            Value::Int16(10)
+        );
+
+        assert_error(
+            Int16.parse("32768", InputFlags::NONE),
+        );
+
+        assert_error(
+            Int16.parse("-32769", InputFlags::NONE),
+        );
+
+        assert_value(
+            Int16.parse("32767", InputFlags::NONE),
+            Value::Int16(32767)
+        );
+    }
+
+    #[test]
+    fn test_int32() {
+        assert_value(
+            Int32.parse("10", InputFlags::NONE),
+            Value::Int32(10)
+        );
+
+        assert_error(
+            Int32.parse("abc", InputFlags::NONE),
+        );
+
+        assert_excess(
+            Int32.parse("10abc", InputFlags::NONE),
+            Value::Int32(10)
+        );
+
+        assert_error(
+            Int32.parse("2147483648", InputFlags::NONE),
+        );
+
+        assert_error(
+            Int32.parse("-2147483649", InputFlags::NONE),
+        );
+
+        assert_value(
+            Int32.parse("2147483647", InputFlags::NONE),
+            Value::Int32(32767)
+        );
+    }
+
+    #[test]
+    fn test_int64() {
+        assert_value(
+            Int64.parse("10", InputFlags::NONE),
+            Value::Int64(10)
+        );
+
+        assert_error(
+            Int64.parse("abc", InputFlags::NONE),
+        );
+
+        assert_excess(
+            Int64.parse("10abc", InputFlags::NONE),
+            Value::Int64(10)
+        );
+
+        assert_error(
+            Int64.parse("9223372036854775808", InputFlags::NONE),
+        );
+
+        assert_error(
+            Int64.parse("-9223372036854775809", InputFlags::NONE),
+        );
+
+        assert_value(
+            Int64.parse("9223372036854775807", InputFlags::NONE),
+            Value::Int64(9223372036854775807)
+        );
     }
 }
