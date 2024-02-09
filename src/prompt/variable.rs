@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
 use std::convert::TryInto;
-use std::ops::Deref;
 use std::str::FromStr;
 use anyhow::Context as _;
 
@@ -11,16 +10,16 @@ use bigdecimal::BigDecimal;
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use edgeql_parser::helpers::unquote_string;
-use nom::combinator::{map_opt, recognize, value, verify, map, map_res, opt, cut};
-use nom::bytes::complete::{is_not, tag, tag_no_case, take, take_while, take_while_m_n};
+use nom::combinator::{recognize, value, map, map_res, opt, cut};
+use nom::bytes::complete::{tag_no_case, take_while, take_while_m_n};
 use nom::character::complete::{char, digit1, i16, i32, i64, multispace0};
-use nom::{InputLength, IResult, Needed, Parser};
+use nom::{IResult, Needed, Parser};
 use nom::branch::alt;
 use nom::Err::{Error, Failure, Incomplete};
 use nom::error::{context, ContextError, ErrorKind, FromExternalError, ParseError};
-use nom::multi::{fold_many0, separated_list0};
+use nom::multi::{separated_list0};
 use nom::number::complete::{double, float, recognize_float_parts};
-use nom::sequence::{delimited, pair, preceded, terminated, tuple};
+use nom::sequence::{delimited, preceded, terminated, tuple};
 use num_bigint::ToBigInt;
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
@@ -55,7 +54,6 @@ impl ParseError<&str> for ParsingError {
     }
 
     fn from_char(input: &str, c: char) -> Self {
-
         let message = if input != "" {
             format!("Expected '{}' in {:?}", c, input)
         } else {
@@ -81,7 +79,7 @@ impl FromExternalError<&str, String> for ParsingError {
     fn from_external_error(input: &str, kind: ErrorKind, e: String) -> Self {
         ParsingError::Mistake {
             kind: Some(kind),
-            description: format!("{} at {}", e, input)
+            description: format!("{} at {}", e, input),
         }
     }
 }
@@ -91,7 +89,7 @@ impl FromExternalError<&str, anyhow::Error> for ParsingError {
         ParsingError::External {
             error: e,
             kind: Some(kind),
-            description: format!("Failed at '{}'", input)
+            description: format!("Failed at '{}'", input),
         }
     }
 }
@@ -105,7 +103,7 @@ bitflags::bitflags! {
 
 pub trait VariableInput: fmt::Debug + Send + Sync + 'static {
     fn type_name(&self) -> &str;
-    fn parse<'a >(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a>;
+    fn parse<'a>(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a>;
 }
 
 fn white_space<'a, O, E: ParseError<&'a str>, F: Parser<&'a str, O, E>>(
@@ -113,6 +111,7 @@ fn white_space<'a, O, E: ParseError<&'a str>, F: Parser<&'a str, O, E>>(
 ) -> impl Parser<&'a str, O, E> {
     delimited(multispace0, f, multispace0)
 }
+
 fn space(i: &str) -> IResult<&str, &str, ParsingError> {
     let chars = " \t\r\n";
     take_while(move |c| chars.contains(c))(i)
@@ -124,21 +123,21 @@ fn quoted_str(input: &str) -> IResult<&str, String, ParsingError> {
         alt((
             single_quoted_str,
             double_quoted_str
-        ))
+        )),
     )(input)
 }
 
 fn single_quoted_str(input: &str) -> IResult<&str, String, ParsingError> {
     context(
         "single_quote_str",
-        |s| quoted_str_parser(s, '\'')
+        |s| quoted_str_parser(s, '\''),
     )(input)
 }
 
 fn double_quoted_str(input: &str) -> IResult<&str, String, ParsingError> {
     context(
         "double_quote_str",
-        |s| quoted_str_parser(s, '\"')
+        |s| quoted_str_parser(s, '\"'),
     )(input)
 }
 
@@ -185,8 +184,8 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
                     char(quote),
                 )),
             ),
-            |s| unquote_string(s).map(|v| v.into()).context("Invalid quoted string")
-        )
+            |s| unquote_string(s).map(|v| v.into()).context("Invalid quoted string"),
+        ),
     )(input)
 }
 
@@ -201,13 +200,13 @@ impl VariableInput for Str {
                 "quoted_str",
                 map(
                     quoted_str,
-                    Value::Str
-                )
+                    Value::Str,
+                ),
             )(input)
         } else {
             context(
                 "str",
-                |s: &str| Ok(("", Value::Str(s.to_string())))
+                |s: &str| Ok(("", Value::Str(s.to_string()))),
             )(input)
         }
     }
@@ -228,10 +227,10 @@ impl VariableInput for Uuid {
                         36usize,
                         |c: char| c.is_alphanumeric() || c == '-',
                     ),
-                    |s| uuid::Uuid::from_str(s).context("Cannot parse to UUID")
+                    |s| uuid::Uuid::from_str(s).context("Cannot parse to UUID"),
                 ),
-                |v| Value::Uuid(v)
-            )
+                |v| Value::Uuid(v),
+            ),
         )(input)
     }
 }
@@ -254,7 +253,7 @@ impl VariableInput for Int32 {
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
             "int32",
-            map(i32, Value::Int32)
+            map(i32, Value::Int32),
         )(input)
     }
 }
@@ -267,7 +266,7 @@ impl VariableInput for Int64 {
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
             "int64",
-            map(i64, Value::Int64)
+            map(i64, Value::Int64),
         )(input)
     }
 }
@@ -303,7 +302,7 @@ impl VariableInput for Bool {
             alt((
                 value(Value::Bool(true), tag_no_case("true")),
                 value(Value::Bool(false), tag_no_case("false"))
-            ))
+            )),
         )(input)
     }
 }
@@ -334,8 +333,8 @@ impl VariableInput for BigInt {
                         .context("number is not an integer")?;
                     let int = int.try_into()?;
                     Ok(Value::BigInt(int))
-                }
-            )
+                },
+            ),
         )(input)
     }
 }
@@ -352,12 +351,12 @@ impl VariableInput for Decimal {
                 map_res(
                     map_res(
                         recognize(recognize_float_parts),
-                        |v| BigDecimal::from_str(v).context("format doesn't represent a big decimal")
+                        |v| BigDecimal::from_str(v).context("format doesn't represent a big decimal"),
                     ),
-                    |v| v.try_into().context("BigDecimal cannot be interpolated")
+                    |v| v.try_into().context("BigDecimal cannot be interpolated"),
                 ),
-                |v| Value::Decimal(v)
-            )
+                |v| Value::Decimal(v),
+            ),
         )(input)
     }
 }
@@ -377,11 +376,11 @@ impl VariableInput for Json {
                 // consume a single json value
                 match stream.next() {
                     Some(r) => match r {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(e) => return Err(Error(ParsingError::External {
                             error: e.into(),
                             kind: None,
-                            description: "Failed to parse json token".to_string()
+                            description: "Failed to parse json token".to_string(),
                         }))
                     }
                     None => return Err(Error(ParsingError::Incomplete))
@@ -395,14 +394,14 @@ impl VariableInput for Json {
                         model::Json::new_unchecked(s[0..stream.byte_offset()].into())
                     )
                 ))
-            }
+            },
         )(input)
     }
 }
 
 #[derive(Debug)]
 pub struct Array {
-    pub element_type: Arc<dyn VariableInput>
+    pub element_type: Arc<dyn VariableInput>,
 }
 
 impl VariableInput for Array {
@@ -418,24 +417,24 @@ impl VariableInput for Array {
                             white_space(char(',')),
                             |s| self.element_type.parse(
                                 s,
-                                InputFlags::FORCE_QUOTED_STRINGS
-                            )
+                                InputFlags::FORCE_QUOTED_STRINGS,
+                            ),
                         ),
                         preceded(
                             space,
-                            char(']')
+                            char(']'),
                         ),
                     ),
                 ),
-                |v| Value::Array(v)
-            )
+                |v| Value::Array(v),
+            ),
         )(input)
     }
 }
 
 #[derive(Debug)]
 pub struct Tuple {
-    pub element_types: Vec<Arc<dyn VariableInput>>
+    pub element_types: Vec<Arc<dyn VariableInput>>,
 }
 
 pub struct TupleParser<'a> {
@@ -503,10 +502,10 @@ impl VariableInput for Tuple {
                     element_parser,
                     preceded(
                         space,
-                        char(')')
+                        char(')'),
                     ),
                 ),
-            )
+            ),
         )(input)
     }
 }
@@ -550,10 +549,11 @@ impl VarHelper {
 }
 
 impl Helper for VarHelper {}
+
 impl Hinter for VarHelper {
     type Hint = ErrorHint;
     fn hint(&self, line: &str, _pos: usize, _ctx: &Context)
-        -> Option<Self::Hint>
+            -> Option<Self::Hint>
     {
         if line == "" {  // be friendly from the start
             return None;
@@ -561,11 +561,11 @@ impl Hinter for VarHelper {
         match self.var_type.parse(line, InputFlags::NONE) {
             Ok(r) => {
                 if r.0.len() == 0 {
-                    return None
+                    return None;
                 }
 
-                return Some(ErrorHint(" -- excess unparsed content".to_string()))
-            },
+                return Some(ErrorHint(" -- excess unparsed content".to_string()));
+            }
             Err(e) => {
                 Some(ErrorHint(format_parsing_error(e)))
             }
@@ -578,7 +578,7 @@ impl Highlighter for VarHelper {
         match self.var_type.parse(line, InputFlags::NONE) {
             Ok(r) => {
                 if r.0.len() == 0 {
-                    return line.into()
+                    return line.into();
                 }
 
                 // remove the remaining unparsed content from the original str
@@ -587,7 +587,7 @@ impl Highlighter for VarHelper {
                 // add it back, but with it highlighted red
                 str.push_str(&r.0.light_red().to_string());
                 str.into()
-            },
+            }
             Err(_) => line.light_red().to_string().into(),
         }
     }
@@ -595,7 +595,7 @@ impl Highlighter for VarHelper {
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        return hint.rgb(0x56, 0x56, 0x56).to_string().into()
+        return hint.rgb(0x56, 0x56, 0x56).to_string().into();
     }
     fn highlight_char<'l>(&self, _line: &'l str, _pos: usize) -> bool {
         // needed to highlight hint
@@ -605,7 +605,7 @@ impl Highlighter for VarHelper {
 
 impl Validator for VarHelper {
     fn validate(&self, ctx: &mut ValidationContext)
-        -> Result<ValidationResult, ReadlineError>
+                -> Result<ValidationResult, ReadlineError>
     {
         match self.var_type.parse(ctx.input(), InputFlags::NONE) {
             Ok(_) => Ok(ValidationResult::Valid(None)),
@@ -619,7 +619,7 @@ impl Validator for VarHelper {
 impl Completer for VarHelper {
     type Candidate = String;
     fn complete(&self, _line: &str, pos: usize, _ctx: &Context)
-        -> Result<(usize, Vec<Self::Candidate>), ReadlineError>
+                -> Result<(usize, Vec<Self::Candidate>), ReadlineError>
     {
         Ok((pos, Vec::new()))
     }
@@ -669,33 +669,33 @@ mod tests {
     fn test_quoted_str() {
         assert_value(
             Str.parse("\"ABC\"", InputFlags::FORCE_QUOTED_STRINGS),
-            Value::Str("ABC".to_string())
+            Value::Str("ABC".to_string()),
         );
 
         assert_value(
             Str.parse(
-                "\"DEF \\\" \' \\x23\"", InputFlags::FORCE_QUOTED_STRINGS
+                "\"DEF \\\" \' \\x23\"", InputFlags::FORCE_QUOTED_STRINGS,
             ),
-            Value::Str("DEF \" \' \x23".to_string())
+            Value::Str("DEF \" \' \x23".to_string()),
         );
 
         assert_value(
             Str.parse(
-                "\'\\u263A\'", InputFlags::FORCE_QUOTED_STRINGS
+                "\'\\u263A\'", InputFlags::FORCE_QUOTED_STRINGS,
             ),
-            Value::Str("\u{263A}".to_string())
+            Value::Str("\u{263A}".to_string()),
         );
 
         assert_value(
             Str.parse(
-                "\'\"\\\'\'", InputFlags::FORCE_QUOTED_STRINGS
+                "\'\"\\\'\'", InputFlags::FORCE_QUOTED_STRINGS,
             ),
-            Value::Str("\"\'".to_string())
+            Value::Str("\"\'".to_string()),
         );
 
         assert_excess(
             Str.parse("\"\"\"", InputFlags::FORCE_QUOTED_STRINGS),
-            Value::Str("".to_string())
+            Value::Str("".to_string()),
         );
 
         assert_error(
@@ -707,12 +707,12 @@ mod tests {
     fn test_uuid() {
         assert_value(
             Uuid.parse("dad2752f-9224-4a1e-93fa-a25ffdfd44ea", InputFlags::NONE),
-            Value::Uuid(uuid::Uuid::parse_str("dad2752f-9224-4a1e-93fa-a25ffdfd44ea").unwrap())
+            Value::Uuid(uuid::Uuid::parse_str("dad2752f-9224-4a1e-93fa-a25ffdfd44ea").unwrap()),
         );
 
         assert_value(
             Uuid.parse("dad2752f92244a1e93faa25ffdfd44ea", InputFlags::NONE),
-            Value::Uuid(uuid::Uuid::parse_str("dad2752f-9224-4a1e-93fa-a25ffdfd44ea").unwrap())
+            Value::Uuid(uuid::Uuid::parse_str("dad2752f-9224-4a1e-93fa-a25ffdfd44ea").unwrap()),
         );
 
         assert_error(
@@ -725,7 +725,7 @@ mod tests {
 
         assert_excess(
             Uuid.parse("dad2752f-9224-4a1e-93fa-a25ffdfd44eaa", InputFlags::NONE),
-            Value::Uuid(uuid::Uuid::parse_str("dad2752f-9224-4a1e-93fa-a25ffdfd44ea").unwrap())
+            Value::Uuid(uuid::Uuid::parse_str("dad2752f-9224-4a1e-93fa-a25ffdfd44ea").unwrap()),
         );
     }
 
@@ -733,7 +733,7 @@ mod tests {
     fn test_int16() {
         assert_value(
             Int16.parse("10", InputFlags::NONE),
-            Value::Int16(10)
+            Value::Int16(10),
         );
 
         assert_error(
@@ -742,7 +742,7 @@ mod tests {
 
         assert_excess(
             Int16.parse("10abc", InputFlags::NONE),
-            Value::Int16(10)
+            Value::Int16(10),
         );
 
         assert_error(
@@ -755,7 +755,7 @@ mod tests {
 
         assert_value(
             Int16.parse("32767", InputFlags::NONE),
-            Value::Int16(32767)
+            Value::Int16(32767),
         );
     }
 
@@ -763,7 +763,7 @@ mod tests {
     fn test_int32() {
         assert_value(
             Int32.parse("10", InputFlags::NONE),
-            Value::Int32(10)
+            Value::Int32(10),
         );
 
         assert_error(
@@ -772,7 +772,7 @@ mod tests {
 
         assert_excess(
             Int32.parse("10abc", InputFlags::NONE),
-            Value::Int32(10)
+            Value::Int32(10),
         );
 
         assert_error(
@@ -785,7 +785,7 @@ mod tests {
 
         assert_value(
             Int32.parse("2147483647", InputFlags::NONE),
-            Value::Int32(2147483647)
+            Value::Int32(2147483647),
         );
     }
 
@@ -793,7 +793,7 @@ mod tests {
     fn test_int64() {
         assert_value(
             Int64.parse("10", InputFlags::NONE),
-            Value::Int64(10)
+            Value::Int64(10),
         );
 
         assert_error(
@@ -802,7 +802,7 @@ mod tests {
 
         assert_excess(
             Int64.parse("10abc", InputFlags::NONE),
-            Value::Int64(10)
+            Value::Int64(10),
         );
 
         assert_error(
@@ -815,7 +815,7 @@ mod tests {
 
         assert_value(
             Int64.parse("9223372036854775807", InputFlags::NONE),
-            Value::Int64(9223372036854775807)
+            Value::Int64(9223372036854775807),
         );
     }
 
@@ -823,22 +823,22 @@ mod tests {
     fn test_f32() {
         assert_value(
             Float32.parse("1.23", InputFlags::NONE),
-            Value::Float32(1.23f32)
+            Value::Float32(1.23f32),
         );
 
         assert_value(
             Float32.parse("-1.23", InputFlags::NONE),
-            Value::Float32(-1.23f32)
+            Value::Float32(-1.23f32),
         );
 
         assert_value(
             Float32.parse("3.40282347e+32", InputFlags::NONE),
-            Value::Float32(3.40282347e+32f32)
+            Value::Float32(3.40282347e+32f32),
         );
 
         assert_excess(
             Float32.parse("-24.a", InputFlags::NONE),
-            Value::Float32(-24f32)
+            Value::Float32(-24f32),
         );
     }
 
@@ -846,22 +846,22 @@ mod tests {
     fn test_f64() {
         assert_value(
             Float64.parse("1.23", InputFlags::NONE),
-            Value::Float64(1.23f64)
+            Value::Float64(1.23f64),
         );
 
         assert_value(
             Float64.parse("-1.23", InputFlags::NONE),
-            Value::Float64(-1.23f64)
+            Value::Float64(-1.23f64),
         );
 
         assert_value(
             Float64.parse("3.40282347e+32", InputFlags::NONE),
-            Value::Float64(3.40282347e+32f64)
+            Value::Float64(3.40282347e+32f64),
         );
 
         assert_excess(
             Float64.parse("-24.a", InputFlags::NONE),
-            Value::Float64(-24f64)
+            Value::Float64(-24f64),
         );
     }
 
@@ -869,22 +869,22 @@ mod tests {
     fn test_bool() {
         assert_value(
             Bool.parse("true", InputFlags::NONE),
-            Value::Bool(true)
+            Value::Bool(true),
         );
 
         assert_value(
             Bool.parse("false", InputFlags::NONE),
-            Value::Bool(false)
+            Value::Bool(false),
         );
 
         assert_value(
             Bool.parse("TRUE", InputFlags::NONE),
-            Value::Bool(true)
+            Value::Bool(true),
         );
 
         assert_value(
             Bool.parse("FALSE", InputFlags::NONE),
-            Value::Bool(false)
+            Value::Bool(false),
         );
 
         assert_error(
@@ -893,7 +893,7 @@ mod tests {
 
         assert_excess(
             Bool.parse("falsee", InputFlags::NONE),
-            Value::Bool(false)
+            Value::Bool(false),
         )
     }
 
@@ -901,17 +901,17 @@ mod tests {
     fn test_bigint() {
         assert_value(
             BigInt.parse("2e2", InputFlags::NONE),
-            Value::BigInt(model::BigInt::from(200))
+            Value::BigInt(model::BigInt::from(200)),
         );
 
         assert_value(
             BigInt.parse("-520912125", InputFlags::NONE),
-            Value::BigInt(model::BigInt::from(-520912125))
+            Value::BigInt(model::BigInt::from(-520912125)),
         );
 
         assert_excess(
             BigInt.parse("1.23", InputFlags::NONE),
-            Value::BigInt(model::BigInt::from(1))
+            Value::BigInt(model::BigInt::from(1)),
         );
 
         assert_error(
@@ -923,12 +923,12 @@ mod tests {
     fn test_decimal() {
         assert_value(
             Decimal.parse("2e2", InputFlags::NONE),
-            Value::Decimal(model::Decimal::try_from(BigDecimal::from_str("2e2").unwrap()).unwrap())
+            Value::Decimal(model::Decimal::try_from(BigDecimal::from_str("2e2").unwrap()).unwrap()),
         );
 
         assert_value(
             Decimal.parse("-22.54e229", InputFlags::NONE),
-            Value::Decimal(model::Decimal::try_from(BigDecimal::from_str("-22.54e229").unwrap()).unwrap())
+            Value::Decimal(model::Decimal::try_from(BigDecimal::from_str("-22.54e229").unwrap()).unwrap()),
         );
 
         assert_error(
@@ -940,17 +940,17 @@ mod tests {
     fn test_json() {
         assert_value(
             Json.parse("{\"ABC\":123}", InputFlags::NONE),
-            Value::Json(model::Json::new_unchecked("{\"ABC\":123}".to_string()))
+            Value::Json(model::Json::new_unchecked("{\"ABC\":123}".to_string())),
         );
 
         assert_value(
             Json.parse("123", InputFlags::NONE),
-            Value::Json(model::Json::new_unchecked("123".to_string()))
+            Value::Json(model::Json::new_unchecked("123".to_string())),
         );
 
         assert_value(
             Json.parse("{\"ABC\":[1,2,3]}", InputFlags::NONE),
-            Value::Json(model::Json::new_unchecked("{\"ABC\":[1,2,3]}".to_string()))
+            Value::Json(model::Json::new_unchecked("{\"ABC\":[1,2,3]}".to_string())),
         );
 
         assert_error(
@@ -967,13 +967,13 @@ mod tests {
             Value::Array(vec![
                 Value::Str("".to_string()),
                 Value::Str("ABC".to_string()),
-                Value::Str("a\"b\'c".to_string())
-            ])
+                Value::Str("a\"b\'c".to_string()),
+            ]),
         );
 
         assert_value(
-            Array{ element_type: Arc::new(Str)}.parse("[]", InputFlags::NONE),
-            Value::Array(vec![])
+            Array { element_type: Arc::new(Str) }.parse("[]", InputFlags::NONE),
+            Value::Array(vec![]),
         );
 
         assert_value(
@@ -984,8 +984,8 @@ mod tests {
                 Value::Json(model::Json::new_unchecked("{\"ABC\": [1,2,3]}".to_string())),
                 Value::Json(model::Json::new_unchecked("[1,2,3,4]".to_string())),
                 Value::Json(model::Json::new_unchecked("4".to_string())),
-                Value::Json(model::Json::new_unchecked("\"ABC\"".to_string()))
-            ])
+                Value::Json(model::Json::new_unchecked("\"ABC\"".to_string())),
+            ]),
         );
 
         assert_value(
@@ -994,7 +994,7 @@ mod tests {
             }.parse("[\"]\"]", InputFlags::NONE),
             Value::Array(vec![
                 Value::Str("]".to_string())
-            ])
+            ]),
         );
 
         assert_excess(
@@ -1005,7 +1005,7 @@ mod tests {
                 Value::Int64(1),
                 Value::Int64(2),
                 Value::Int64(3),
-            ])
+            ]),
         );
 
         assert_error(
@@ -1022,14 +1022,14 @@ mod tests {
                 element_types: vec![
                     Arc::new(Int64),
                     Arc::new(Str),
-                    Arc::new(Float32)
+                    Arc::new(Float32),
                 ]
             }.parse("(12345, \"ABC123\", 12.34)", InputFlags::NONE),
             Value::Tuple(vec![
                 Value::Int64(12345),
                 Value::Str("ABC123".to_string()),
-                Value::Float32(12.34f32)
-            ])
+                Value::Float32(12.34f32),
+            ]),
         );
 
         assert_value(
@@ -1053,17 +1053,17 @@ mod tests {
                 Value::Array(vec![
                     Value::Str("ABC".to_string()),
                     Value::Str("de\'f\"g".to_string()),
-                    Value::Str("\x23ABC".to_string())
+                    Value::Str("\x23ABC".to_string()),
                 ]),
-                Value::Str("ABC123".to_string())
-            ])
+                Value::Str("ABC123".to_string()),
+            ]),
         );
 
         assert_error(
             Tuple {
                 element_types: vec![
                     Arc::new(Str),
-                    Arc::new(Int64)
+                    Arc::new(Int64),
                 ]
             }.parse("()", InputFlags::NONE)
         )
