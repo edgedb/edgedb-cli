@@ -8,7 +8,6 @@ use anyhow::Context as _;
 
 use colorful::Colorful;
 use bigdecimal::BigDecimal;
-use combine::stream::Range;
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use edgeql_parser::helpers::unquote_string;
@@ -634,9 +633,7 @@ mod tests {
     use bigdecimal::BigDecimal;
     use edgedb_protocol::model;
     use edgedb_protocol::value::Value;
-    use nom::Err::{Error, Failure, Incomplete};
-    use nom::Parser;
-    use crate::prompt::variable::{Array, BigInt, Bool, Decimal, Float32, Float64, InputFlags, Int16, Int32, Int64, Json, ParseResult, ParsingError, Str, Tuple, Uuid, VariableInput};
+    use crate::prompt::variable::{Array, BigInt, Bool, Decimal, Float32, Float64, InputFlags, Int16, Int32, Int64, Json, ParseResult, Str, Tuple, Uuid, VariableInput};
 
     fn assert_value(result: ParseResult, expected: Value) {
         assert!(result.is_ok());
