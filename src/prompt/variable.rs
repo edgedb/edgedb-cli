@@ -12,16 +12,16 @@ use combine::stream::Range;
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use edgeql_parser::helpers::unquote_string;
-use nom::combinator::{map_opt, recognize, value, verify, map, map_res};
-use nom::bytes::complete::{is_not, tag, take, take_while, take_while_m_n};
-use nom::character::complete::{char, i16, i32, i64, multispace0};
+use nom::combinator::{map_opt, recognize, value, verify, map, map_res, opt, cut};
+use nom::bytes::complete::{is_not, tag, tag_no_case, take, take_while, take_while_m_n};
+use nom::character::complete::{char, digit1, i16, i32, i64, multispace0};
 use nom::{InputLength, IResult, Needed, Parser};
 use nom::branch::alt;
 use nom::Err::{Error, Failure, Incomplete};
 use nom::error::{context, ContextError, ErrorKind, FromExternalError, ParseError};
 use nom::multi::{fold_many0, separated_list0};
 use nom::number::complete::{double, float, recognize_float_parts};
-use nom::sequence::{delimited, preceded, terminated, tuple};
+use nom::sequence::{delimited, pair, preceded, terminated, tuple};
 use num_bigint::ToBigInt;
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
@@ -302,8 +302,8 @@ impl VariableInput for Bool {
         context(
             "bool",
             alt((
-                value(Value::Bool(true), tag("true")),
-                value(Value::Bool(false), tag("false"))
+                value(Value::Bool(true), tag_no_case("true")),
+                value(Value::Bool(false), tag_no_case("false"))
             ))
         )(input)
     }
@@ -318,7 +318,17 @@ impl VariableInput for BigInt {
         context(
             "bigint",
             map_res(
-                take_while(|c: char| c.is_digit(10)),
+                recognize(
+                    tuple((
+                        opt(alt((char('+'), char('-')))),
+                        digit1,
+                        opt(tuple((
+                            alt((char('e'), char('E'))),
+                            opt(alt((char('+'), char('-')))),
+                            cut(digit1)
+                        )))
+                    ))
+                ),
                 |v: &str| -> Result<Value, anyhow::Error> {
                     let dec: BigDecimal = v.parse()?;
                     let int = dec.to_bigint()
@@ -618,11 +628,15 @@ impl Completer for VarHelper {
 
 #[cfg(test)]
 mod tests {
-    use std::any::{Any, TypeId};
+    use std::convert::TryFrom;
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use bigdecimal::BigDecimal;
+    use edgedb_protocol::model;
     use edgedb_protocol::value::Value;
     use nom::Err::{Error, Failure, Incomplete};
     use nom::Parser;
-    use crate::prompt::variable::{InputFlags, Int16, Int32, Int64, ParseResult, ParsingError, Str, Uuid, VariableInput};
+    use crate::prompt::variable::{Array, BigInt, Bool, Decimal, Float32, Float64, InputFlags, Int16, Int32, Int64, Json, ParseResult, ParsingError, Str, Tuple, Uuid, VariableInput};
 
     fn assert_value(result: ParseResult, expected: Value) {
         assert!(result.is_ok());
@@ -774,7 +788,7 @@ mod tests {
 
         assert_value(
             Int32.parse("2147483647", InputFlags::NONE),
-            Value::Int32(32767)
+            Value::Int32(2147483647)
         );
     }
 
@@ -806,5 +820,255 @@ mod tests {
             Int64.parse("9223372036854775807", InputFlags::NONE),
             Value::Int64(9223372036854775807)
         );
+    }
+
+    #[test]
+    fn test_f32() {
+        assert_value(
+            Float32.parse("1.23", InputFlags::NONE),
+            Value::Float32(1.23f32)
+        );
+
+        assert_value(
+            Float32.parse("-1.23", InputFlags::NONE),
+            Value::Float32(-1.23f32)
+        );
+
+        assert_value(
+            Float32.parse("3.40282347e+32", InputFlags::NONE),
+            Value::Float32(3.40282347e+32f32)
+        );
+
+        assert_excess(
+            Float32.parse("-24.a", InputFlags::NONE),
+            Value::Float32(-24f32)
+        );
+    }
+
+    #[test]
+    fn test_f64() {
+        assert_value(
+            Float64.parse("1.23", InputFlags::NONE),
+            Value::Float64(1.23f64)
+        );
+
+        assert_value(
+            Float64.parse("-1.23", InputFlags::NONE),
+            Value::Float64(-1.23f64)
+        );
+
+        assert_value(
+            Float64.parse("3.40282347e+32", InputFlags::NONE),
+            Value::Float64(3.40282347e+32f64)
+        );
+
+        assert_excess(
+            Float64.parse("-24.a", InputFlags::NONE),
+            Value::Float64(-24f64)
+        );
+    }
+
+    #[test]
+    fn test_bool() {
+        assert_value(
+            Bool.parse("true", InputFlags::NONE),
+            Value::Bool(true)
+        );
+
+        assert_value(
+            Bool.parse("false", InputFlags::NONE),
+            Value::Bool(false)
+        );
+
+        assert_value(
+            Bool.parse("TRUE", InputFlags::NONE),
+            Value::Bool(true)
+        );
+
+        assert_value(
+            Bool.parse("FALSE", InputFlags::NONE),
+            Value::Bool(false)
+        );
+
+        assert_error(
+            Bool.parse("ASDF", InputFlags::NONE)
+        );
+
+        assert_excess(
+            Bool.parse("falsee", InputFlags::NONE),
+            Value::Bool(false)
+        )
+    }
+
+    #[test]
+    fn test_bigint() {
+        assert_value(
+            BigInt.parse("2e2", InputFlags::NONE),
+            Value::BigInt(model::BigInt::from(200))
+        );
+
+        assert_value(
+            BigInt.parse("-520912125", InputFlags::NONE),
+            Value::BigInt(model::BigInt::from(-520912125))
+        );
+
+        assert_excess(
+            BigInt.parse("1.23", InputFlags::NONE),
+            Value::BigInt(model::BigInt::from(1))
+        );
+
+        assert_error(
+            BigInt.parse("-abc", InputFlags::NONE),
+        );
+    }
+
+    #[test]
+    fn test_decimal() {
+        assert_value(
+            Decimal.parse("2e2", InputFlags::NONE),
+            Value::Decimal(model::Decimal::try_from(BigDecimal::from_str("2e2").unwrap()).unwrap())
+        );
+
+        assert_value(
+            Decimal.parse("-22.54e229", InputFlags::NONE),
+            Value::Decimal(model::Decimal::try_from(BigDecimal::from_str("-22.54e229").unwrap()).unwrap())
+        );
+
+        assert_error(
+            Decimal.parse("-abc", InputFlags::NONE),
+        );
+    }
+
+    #[test]
+    fn test_json() {
+        assert_value(
+            Json.parse("{\"ABC\":123}", InputFlags::NONE),
+            Value::Json(model::Json::new_unchecked("{\"ABC\":123}".to_string()))
+        );
+
+        assert_value(
+            Json.parse("123", InputFlags::NONE),
+            Value::Json(model::Json::new_unchecked("123".to_string()))
+        );
+
+        assert_value(
+            Json.parse("{\"ABC\":[1,2,3]}", InputFlags::NONE),
+            Value::Json(model::Json::new_unchecked("{\"ABC\":[1,2,3]}".to_string()))
+        );
+
+        assert_error(
+            Json.parse("123a", InputFlags::NONE),
+        );
+    }
+
+    #[test]
+    fn test_array() {
+        assert_value(
+            Array {
+                element_type: Arc::new(Str)
+            }.parse("['', 'ABC', 'a\"b\\\'c']", InputFlags::NONE),
+            Value::Array(vec![
+                Value::Str("".to_string()),
+                Value::Str("ABC".to_string()),
+                Value::Str("a\"b\'c".to_string())
+            ])
+        );
+
+        assert_value(
+            Array{ element_type: Arc::new(Str)}.parse("[]", InputFlags::NONE),
+            Value::Array(vec![])
+        );
+
+        assert_value(
+            Array {
+                element_type: Arc::new(Json)
+            }.parse("[{\"ABC\": [1,2,3]}, [1,2,3,4], 4, \"ABC\"]", InputFlags::NONE),
+            Value::Array(vec![
+                Value::Json(model::Json::new_unchecked("{\"ABC\": [1,2,3]}".to_string())),
+                Value::Json(model::Json::new_unchecked("[1,2,3,4]".to_string())),
+                Value::Json(model::Json::new_unchecked("4".to_string())),
+                Value::Json(model::Json::new_unchecked("\"ABC\"".to_string()))
+            ])
+        );
+
+        assert_value(
+            Array {
+                element_type: Arc::new(Str)
+            }.parse("[\"]\"]", InputFlags::NONE),
+            Value::Array(vec![
+                Value::Str("]".to_string())
+            ])
+        );
+
+        assert_excess(
+            Array {
+                element_type: Arc::new(Int64)
+            }.parse("[1,2,3]4", InputFlags::NONE),
+            Value::Array(vec![
+                Value::Int64(1),
+                Value::Int64(2),
+                Value::Int64(3),
+            ])
+        );
+
+        assert_error(
+            Array {
+                element_type: Arc::new(Str)
+            }.parse("['ABC',]", InputFlags::NONE)
+        );
+    }
+
+    #[test]
+    fn test_tuple() {
+        assert_value(
+            Tuple {
+                element_types: vec![
+                    Arc::new(Int64),
+                    Arc::new(Str),
+                    Arc::new(Float32)
+                ]
+            }.parse("(12345, \"ABC123\", 12.34)", InputFlags::NONE),
+            Value::Tuple(vec![
+                Value::Int64(12345),
+                Value::Str("ABC123".to_string()),
+                Value::Float32(12.34f32)
+            ])
+        );
+
+        assert_value(
+            Tuple {
+                element_types: vec![
+                    Arc::new(Array {
+                        element_type: Arc::new(Int64)
+                    }),
+                    Arc::new(Array {
+                        element_type: Arc::new(Str)
+                    }),
+                    Arc::new(Str),
+                ]
+            }.parse("([1,5,7], ['ABC', 'de\\\'f\"g', '\\x23ABC'], \"ABC123\")", InputFlags::NONE),
+            Value::Tuple(vec![
+                Value::Array(vec![
+                    Value::Int64(1),
+                    Value::Int64(5),
+                    Value::Int64(7),
+                ]),
+                Value::Array(vec![
+                    Value::Str("ABC".to_string()),
+                    Value::Str("de\'f\"g".to_string()),
+                    Value::Str("\x23ABC".to_string())
+                ]),
+                Value::Str("ABC123".to_string())
+            ])
+        );
+
+        assert_error(
+            Tuple {
+                element_types: vec![
+                    Arc::new(Str),
+                    Arc::new(Int64)
+                ]
+            }.parse("()", InputFlags::NONE)
+        )
     }
 }
