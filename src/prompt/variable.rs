@@ -151,34 +151,29 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
                     move |str: &'a str| {
                         let mut pos = 0;
                         let mut prev = None;
+                        let mut complete = false;
 
-                        for (i, c) in str.char_indices() {
-                            if prev == None {
-                                // first iteration, we want to make sure that this is not a quote
-                                if c == quote {
-                                    break;
-                                }
-
-                                prev = Some(c);
-                                continue;
-                            }
-
-                            if c == quote {
-                                // is it escaped?
-                                if prev.unwrap() == '\\' {
-                                    prev = Some(c);
-                                    continue;
-                                }
-
-                                // not escaped, it's the end of the quoted string
-                                pos = i;
+                        for c in str.chars() {
+                            // check for a quote, if prev is none then its the quote is the first char of the string
+                            // meaning it isn't escaped; but if we have a previous char then check whether it's the
+                            // escape char '\'
+                            if c == quote && (prev == None || (prev.is_some() && prev.unwrap() != '\\')) {
+                                complete = true;
                                 break;
                             }
 
-                            prev = Some(c)
+                            pos += 1;
+                            prev = Some(c);
                         }
 
-                        // slice out the actual string part, and the remainder based on the 'pos'
+                        if !complete {
+                            return Err(Failure(ParsingError::Mistake {
+                                kind: None,
+                                description: format!("Missing end quote in '{}'", str)
+                            }))
+                        }
+
+                        // we only need to return the remainder since we're calling 'recognize' above.
                         Ok((&str[pos..], ()))
                     },
                     char(quote),
