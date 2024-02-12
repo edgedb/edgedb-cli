@@ -157,7 +157,7 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
                             // check for a quote, if prev is none then its the quote is the first char of the string
                             // meaning it isn't escaped; but if we have a previous char then check whether it's the
                             // escape char '\'
-                            if c == quote && (prev == None || (prev.is_some() && prev.unwrap() != '\\')) {
+                            if c == quote && (prev == None || prev != Some('\\')) {
                                 complete = true;
                                 break;
                             }
