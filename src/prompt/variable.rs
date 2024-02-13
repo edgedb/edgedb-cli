@@ -13,7 +13,7 @@ use edgedb_protocol::codec::{NamedTupleShape};
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use edgeql_parser::helpers::unquote_string;
-use nom::combinator::{recognize, value, map, map_res, opt, cut};
+use nom::combinator::{recognize, value, map, map_res, opt, cut, flat_map, success};
 use nom::bytes::complete::{tag, tag_no_case, take_while, take_while_m_n};
 use nom::character::complete::{alphanumeric1, char, digit1, i16, i32, i64, multispace0};
 use nom::{IResult, Needed, Parser};
@@ -84,6 +84,12 @@ impl FromExternalError<&str, String> for ParsingError {
             kind: Some(kind),
             description: format!("{} at {}", e, input),
         }
+    }
+}
+
+impl FromExternalError<&str, ParsingError> for ParsingError {
+    fn from_external_error(_: &str, _: ErrorKind, e: ParsingError) -> Self {
+        return e;
     }
 }
 
@@ -514,130 +520,105 @@ pub struct NamedTuple {
     pub shape: NamedTupleShape
 }
 
-pub struct NamedTupleParser<'a> {
-    tuple: &'a NamedTuple,
-}
-
-impl Parser<&str, Value, ParsingError> for NamedTupleParser<'_> {
-    fn parse<'a>(&mut self, mut input: &'a str) -> IResult<&'a str, Value, ParsingError> {
-        let mut values: HashMap<&str, Value> = HashMap::new();
-
-        let expected_elements = |vals: HashMap<&str, Value>| {
-            self.tuple.shape.elements.iter()
-                .filter(|v| !vals.contains_key(v.name.as_str()))
-                .map(|v| v.name.clone())
-                .collect::<Vec<String>>()
-                .join(", ")
-        };
-
-
-        loop {
-            // match a name
-            let (remainder, name) = context(
-                "tuple_name",
-                recognize(
-                    many0_count(
-                        alt((
-                            alphanumeric1,
-                            tag("_"),
-                            tag("-")
-                        ))
-                    )
-                )
-            ).parse(input)?;
-            input = remainder;
-
-            if name.is_empty() {
-                return Err(Error(ParsingError::Incomplete {
-                    hint: Some(
-                        format!(
-                            "Expecting one of the following element name(s): {}",
-                            expected_elements(values)
-                        )
-                    )
-                }))
-            }
-
-            // verify we've not matched this name before and its apart of our tuple
-            if values.contains_key(name) || !self.tuple.element_types.contains_key(name) {
-                return Err(Failure(ParsingError::Mistake {
-                    description: format!(
-                        "Tuple doesn't contain any elements with the name '{}', expecting one of {}", name,
-                        expected_elements(values)
-                    ),
-                    kind: None
-                }));
-            }
-
-            let element = self.tuple.element_types.get(name).unwrap();
-
-            let (remainder, value) = preceded(
-                context(
-                    "assignment",
-                    white_space(tag(":="))
-                ),
-                |v| element.parse(v, InputFlags::FORCE_QUOTED_STRINGS)
-            ).parse(input)?;
-            input = remainder;
-
-            values.insert(name, value);
-
-            match white_space(char(',')).parse(input) {
-                Err(e) => {
-                    if values.len() >= self.tuple.element_types.len() {
-                        // end of tuple
-
-                        // important: we have to sort the values by the shape in order to preserve the input order
-                        let mut vals = values.into_iter()
-                            .map(|(name, value)| (name, value))
-                            .collect::<Vec<(&str, Value)>>();
-
-                        vals.sort_by(|a, b| -> Ordering {
-                            let apos = self.tuple.shape.elements.iter().position(|e| e.name == a.0).unwrap();
-                            let bpos = self.tuple.shape.elements.iter().position(|e| e.name == b.0).unwrap();
-
-                            apos.cmp(&bpos)
-                        });
-
-
-                        return Ok((input, Value::NamedTuple {
-                            shape: self.tuple.shape.clone(),
-                            fields: vals.into_iter()
-                                .map(|(_k, v)| v)
-                                .collect::<Vec<Value>>()
-                        }));
-                    }
-
-                    return Err(e);
-                }
-                Ok((remainder, _)) => {
-                    input = remainder;
-                }
-            }
-        }
-    }
-}
-
 impl VariableInput for NamedTuple {
     fn type_name(&self) -> &str {
         "named_tuple"
     }
 
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
-        let element_parser = NamedTupleParser {
-            tuple: self
-        };
-
         context(
             "named_tuple",
             preceded(
                 char('('),
-                terminated(
-                    element_parser,
-                    preceded(
-                        space,
-                        char(')'),
+                map_res(
+                    terminated(
+                        separated_list0(
+                            white_space(char(',')),
+                            cut(
+                                flat_map(
+                                    terminated(
+                                        context(
+                                            "identifier",
+                                            white_space(
+                                                map_res(
+                                                    recognize(
+                                                        many0_count(
+                                                            alt((
+                                                                alphanumeric1,
+                                                                tag("_"),
+                                                                tag("-")
+                                                            ))
+                                                        )
+                                                    ),
+                                                    |ident| {
+                                                        match self.element_types.get(ident) {
+                                                            Some(element_type) => Ok((ident, element_type)),
+                                                            None => Err(ParsingError::Mistake {
+                                                                kind: None,
+                                                                description: format!(
+                                                                    "Expecting one of the following identifier(s): {}",
+                                                                    self.shape.elements.iter()
+                                                                        .map(|v| v.name.clone())
+                                                                        .collect::<Vec<String>>()
+                                                                        .join(", ")
+                                                                )
+                                                            })
+                                                        }
+                                                    }
+                                                )
+                                            )
+                                        ),
+                                        context(
+                                            "assignment_op",
+                                            white_space(tag(":="))
+                                        )
+                                    ),
+                                    |element| tuple((
+                                        success(element.0),
+                                        context(
+                                            "named_tuple_element",
+                                            move |v| element.1.parse(v, InputFlags::FORCE_QUOTED_STRINGS)
+                                        )
+                                    ))
+                                )
+                            )
+                        ),
+                        preceded(
+                            space,
+                            char(')'),
+                        ),
                     ),
+                    |mut result: Vec<(&str, Value)>| {
+                        if result.len() < self.shape.elements.len() {
+                            return Err(ParsingError::Incomplete {
+                                hint: Some(
+                                    format!(
+                                        "Expecting one of the following element name(s): {}",
+                                        self.shape.elements.iter()
+                                            .filter(|v| !result.iter().any(|t| t.0 == v.name.as_str()))
+                                            .map(|v| v.name.clone())
+                                            .collect::<Vec<String>>()
+                                            .join(", ")
+                                    )
+                                )
+                            })
+                        }
+
+                        // sort the values by the order in the shape
+                        result.sort_by(|a, b| -> Ordering {
+                            let apos = self.shape.elements.iter().position(|e| e.name == a.0).unwrap();
+                            let bpos = self.shape.elements.iter().position(|e| e.name == b.0).unwrap();
+
+                            apos.cmp(&bpos)
+                        });
+
+                        Ok(Value::NamedTuple {
+                            shape: self.shape.clone(),
+                            fields: result.into_iter()
+                                .map(|v| v.1)
+                                .collect()
+                        })
+                    }
                 ),
             )
         )(input)
