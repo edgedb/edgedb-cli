@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::error::Error;
 use std::sync::Arc;
@@ -108,6 +109,21 @@ fn get_descriptor_type<'a>(mut desc: &'a Descriptor, all: &'a Typedesc) -> Resul
                 Err(e) => Err(e)
             }
 
+        },
+        Descriptor::NamedTuple(named_tuple) => {
+            let mut elements = HashMap::new();
+
+            for element in &named_tuple.elements {
+                elements.insert(
+                    element.name.clone(),
+                    get_descriptor_type(all.get(element.type_pos)?, all)?
+                );
+            }
+
+            return Ok(Arc::new(variable::NamedTuple {
+                element_types: elements,
+                shape: named_tuple.elements[..].into()
+            }))
         }
         _ => Err(anyhow::anyhow!(
                 "Unimplemented input type descriptor: {:?}", desc)),

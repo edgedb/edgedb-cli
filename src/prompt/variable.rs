@@ -1,23 +1,28 @@
 use std::borrow::Cow;
+use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::convert::TryInto;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use anyhow::Context as _;
 
 use colorful::Colorful;
 use bigdecimal::BigDecimal;
+use edgedb_protocol::codec::{NamedTupleShape, NamedTupleShapeInfo, TupleElement};
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use edgeql_parser::helpers::unquote_string;
+use futures_util::StreamExt;
 use nom::combinator::{recognize, value, map, map_res, opt, cut};
-use nom::bytes::complete::{tag_no_case, take_while, take_while_m_n};
-use nom::character::complete::{char, digit1, i16, i32, i64, multispace0};
+use nom::bytes::complete::{tag, tag_no_case, take_until, take_while, take_while_m_n};
+use nom::character::complete::{alphanumeric1, char, digit1, i16, i32, i64, multispace0};
 use nom::{IResult, Needed, Parser};
 use nom::branch::alt;
 use nom::Err::{Error, Failure, Incomplete};
 use nom::error::{context, ContextError, ErrorKind, FromExternalError, ParseError};
-use nom::multi::{separated_list0};
+use nom::multi::{many0_count, separated_list0};
 use nom::number::complete::{double, float, recognize_float_parts};
 use nom::sequence::{delimited, preceded, terminated, tuple};
 use num_bigint::ToBigInt;
@@ -36,8 +41,8 @@ pub enum ParsingError {
     Mistake { kind: Option<ErrorKind>, description: String },
     #[error("External error occurred: {}", error)]
     External { kind: Option<ErrorKind>, description: String, error: anyhow::Error },
-    #[error("value is incomplete")]
-    Incomplete,
+    #[error("{}", hint.clone().unwrap_or("value is incomplete".to_string()))]
+    Incomplete { hint: Option<String> },
 }
 
 impl ParseError<&str> for ParsingError {
@@ -378,7 +383,7 @@ impl VariableInput for Json {
                             description: "Failed to parse json token".to_string(),
                         }))
                     }
-                    None => return Err(Error(ParsingError::Incomplete))
+                    None => return Err(Error(ParsingError::Incomplete { hint: None }))
                 }
 
                 // we grab the substring that was successfully parsed from the stream as well as return the slice that
@@ -505,6 +510,143 @@ impl VariableInput for Tuple {
     }
 }
 
+#[derive(Debug)]
+pub struct NamedTuple {
+    pub element_types: HashMap<String, Arc<dyn VariableInput>>,
+    pub shape: NamedTupleShape
+}
+
+pub struct NamedTupleParser<'a> {
+    tuple: &'a NamedTuple,
+}
+
+impl Parser<&str, Value, ParsingError> for NamedTupleParser<'_> {
+    fn parse<'a>(&mut self, mut input: &'a str) -> IResult<&'a str, Value, ParsingError> {
+        let mut values: HashMap<&str, Value> = HashMap::new();
+
+        let expected_elements = |vals: HashMap<&str, Value>| {
+            self.tuple.shape.elements.iter()
+                .filter(|v| !vals.contains_key(v.name.as_str()))
+                .map(|v| v.name.clone())
+                .collect::<Vec<String>>()
+                .join(", ")
+        };
+
+
+        loop {
+            // match a name
+            let (remainder, name) = context(
+                "tuple_name",
+                recognize(
+                    many0_count(
+                        alt((
+                            alphanumeric1,
+                            tag("_"),
+                            tag("-")
+                        ))
+                    )
+                )
+            ).parse(input)?;
+            input = remainder;
+
+            if name.is_empty() {
+                return Err(Error(ParsingError::Incomplete {
+                    hint: Some(
+                        format!(
+                            "Expecting one of the following element name(s): {}",
+                            expected_elements(values)
+                            //self.tuple.element_types.into_iter().map(|(k, _v)| k.to_string()).collect::<Vec<String>>().join(", ")
+                        )
+                    )
+                }))
+            }
+
+            // verify we've not matched this name before and its apart of our tuple
+            if values.contains_key(name) || !self.tuple.element_types.contains_key(name) {
+                return Err(Failure(ParsingError::Mistake {
+                    description: format!(
+                        "Tuple doesn't contain any elements with the name '{}', expecting one of {}", name,
+                        expected_elements(values)
+                    ),
+                    kind: None
+                }));
+            }
+
+            let element = self.tuple.element_types.get(name).unwrap();
+
+            let (remainder, value) = preceded(
+                context(
+                    "assignment",
+                    white_space(tag(":="))
+                ),
+                |v| element.parse(v, InputFlags::FORCE_QUOTED_STRINGS)
+            ).parse(input)?;
+            input = remainder;
+
+            values.insert(name, value);
+
+            match white_space(char(',')).parse(input) {
+                Err(e) => {
+                    if values.len() >= self.tuple.element_types.len() {
+                        // end of tuple
+
+                        // important: we have to sort the values by the shape in order to preserve the input order
+                        let mut vals = values.into_iter()
+                            .map(|(name, value)| (name, value))
+                            .collect::<Vec<(&str, Value)>>();
+
+                        vals.sort_by(|a, b| -> Ordering {
+                            let apos = self.tuple.shape.elements.iter().position(|e| e.name == a.0).unwrap();
+                            let bpos = self.tuple.shape.elements.iter().position(|e| e.name == b.0).unwrap();
+
+                            apos.cmp(&bpos)
+                        });
+
+
+                        return Ok((input, Value::NamedTuple {
+                            shape: self.tuple.shape.clone(),
+                            fields: vals.into_iter()
+                                .map(|(_k, v)| v)
+                                .collect::<Vec<Value>>()
+                        }));
+                    }
+
+                    return Err(e);
+                }
+                Ok((remainder, _)) => {
+                    input = remainder;
+                }
+            }
+        }
+    }
+}
+
+impl VariableInput for NamedTuple {
+    fn type_name(&self) -> &str {
+        "named_tuple"
+    }
+
+    fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
+        let element_parser = NamedTupleParser {
+            tuple: self
+        };
+
+        context(
+            "named_tuple",
+            preceded(
+                char('('),
+                terminated(
+                    element_parser,
+                    preceded(
+                        space,
+                        char(')'),
+                    ),
+                ),
+            )
+        )(input)
+    }
+}
+
 fn format_parsing_error(e: nom::Err<ParsingError>) -> String {
     format!(" -- {}", match e {
         Error(p) | Failure(p) => match p {
@@ -517,7 +659,7 @@ fn format_parsing_error(e: nom::Err<ParsingError>) -> String {
                 error,
                 kind: _
             } => format!("External error occurred: {} {}", description, error),
-            ParsingError::Incomplete => "Incomplete input".to_string(),
+            ParsingError::Incomplete { hint: description } => description.unwrap_or("Incomplete input".to_string()),
         },
         Incomplete(Needed::Size(sz)) => format!("Incomplete input, needing {} more chars", sz),
         Incomplete(_n) => "Incomplete input".to_string(),
@@ -622,13 +764,16 @@ impl Completer for VarHelper {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::convert::TryFrom;
     use std::str::FromStr;
     use std::sync::Arc;
     use bigdecimal::BigDecimal;
+    use edgedb_protocol::codec::NamedTupleShape;
+    use edgedb_protocol::descriptors::{TupleElement, TypePos};
     use edgedb_protocol::model;
     use edgedb_protocol::value::Value;
-    use crate::prompt::variable::{Array, BigInt, Bool, Decimal, Float32, Float64, InputFlags, Int16, Int32, Int64, Json, ParseResult, Str, Tuple, Uuid, VariableInput};
+    use crate::prompt::variable::{Array, BigInt, Bool, Decimal, Float32, Float64, InputFlags, Int16, Int32, Int64, Json, NamedTuple, NamedTupleParser, ParseResult, Str, Tuple, Uuid, VariableInput};
 
     fn assert_value(result: ParseResult, expected: Value) {
         assert!(result.is_ok());
@@ -1061,6 +1206,123 @@ mod tests {
                     Arc::new(Int64),
                 ]
             }.parse("()", InputFlags::NONE)
+        )
+    }
+
+    fn create_named_tuple_parser(shape: Vec<(&str, Arc<dyn VariableInput>)>) -> (NamedTupleShape, NamedTuple) {
+        let tuple_shape: NamedTupleShape = shape.iter()
+            .map(|v| TupleElement {
+                name: v.0.to_string(),
+                type_pos: TypePos(0)
+            })
+            .collect::<Vec<TupleElement>>()[..].into();
+
+        let parser = NamedTuple {
+            shape: tuple_shape.clone(),
+            element_types: shape.into_iter()
+                .map(|(n, t)| (n.to_string(), t))
+                .collect::<HashMap<String, Arc<dyn VariableInput>>>()
+        };
+
+        (tuple_shape.clone(), parser)
+    }
+
+    fn assert_named_tuple_value(shape: Vec<(&str, Arc<dyn VariableInput>)>, expected: Vec<Value>, to_parse: &str) {
+        let (tuple_shape, parser) = create_named_tuple_parser(shape);
+
+        assert_value(parser.parse(to_parse, InputFlags::NONE), Value::NamedTuple {
+            shape: tuple_shape,
+            fields: expected
+        })
+    }
+
+    fn assert_named_tuple_err(shape: Vec<(&str, Arc<dyn VariableInput>)>, to_parse: &str) {
+        let (_, parser) = create_named_tuple_parser(shape);
+
+        assert_error(parser.parse(to_parse, InputFlags::NONE))
+    }
+
+    fn assert_named_tuple_excess(shape: Vec<(&str, Arc<dyn VariableInput>)>, expected: Vec<Value>, to_parse: &str) {
+        let (tuple_shape, parser) = create_named_tuple_parser(shape);
+
+        assert_excess(parser.parse(to_parse, InputFlags::NONE), Value::NamedTuple {
+            shape: tuple_shape,
+            fields: expected
+        })
+    }
+
+    #[test]
+    fn test_named_tuple() {
+        assert_named_tuple_value(
+            vec![
+                ("abc", Arc::new(Str) as Arc<dyn VariableInput>),
+                ("def", Arc::new(Str) as Arc<dyn VariableInput>)
+            ],
+            vec![
+                Value::Str("123".to_string()),
+                Value::Str("456".to_string())
+            ],
+            "(abc := '123', def:='456')"
+        );
+
+        assert_named_tuple_value(
+            vec![
+                ("abc", Arc::new(Str) as Arc<dyn VariableInput>),
+                ("def", Arc::new(Str) as Arc<dyn VariableInput>)
+            ],
+            vec![
+                Value::Str("123".to_string()),
+                Value::Str("456".to_string())
+            ],
+            "(def := '456', abc := '123')"
+        );
+
+        assert_named_tuple_value(
+            vec![
+                ("abc", Arc::new(Str)),
+                ("def", Arc::new(Array {
+                    element_type: Arc::new(Int64)
+                })),
+                ("ghi", Arc::new(Int32))
+            ],
+            vec![
+                Value::Str("123".to_string()),
+                Value::Array(vec![
+                    Value::Int64(123),
+                    Value::Int64(456),
+                    Value::Int64(789),
+                ]),
+                Value::Int32(-123)
+            ],
+            "(def := [123,456, 789], abc := '123', ghi := -123)"
+        );
+
+        assert_named_tuple_err(
+            vec![
+                ("abc", Arc::new(Str) as Arc<dyn VariableInput>),
+                ("def", Arc::new(Str) as Arc<dyn VariableInput>)
+            ],
+            "(def := 123, abc := 456)"
+        );
+
+        assert_named_tuple_err(
+            vec![
+                ("abc", Arc::new(Str) as Arc<dyn VariableInput>),
+                ("def", Arc::new(Str) as Arc<dyn VariableInput>)
+            ],
+            "(aaa := 123, abc := 456)"
+        );
+
+        assert_named_tuple_excess(
+            vec![
+                ("abc", Arc::new(Str) as Arc<dyn VariableInput>),
+                ("def", Arc::new(Str) as Arc<dyn VariableInput>)
+            ],
+            vec![
+                Value::Str("123".to_string()),
+                Value::Str("456".to_string())
+            ],
+            "(abc := '123', def := '456')abc"
         )
     }
 }
