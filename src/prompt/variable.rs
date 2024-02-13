@@ -4,19 +4,17 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::convert::TryInto;
-use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use anyhow::Context as _;
 
 use colorful::Colorful;
 use bigdecimal::BigDecimal;
-use edgedb_protocol::codec::{NamedTupleShape, NamedTupleShapeInfo, TupleElement};
+use edgedb_protocol::codec::{NamedTupleShape};
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use edgeql_parser::helpers::unquote_string;
-use futures_util::StreamExt;
 use nom::combinator::{recognize, value, map, map_res, opt, cut};
-use nom::bytes::complete::{tag, tag_no_case, take_until, take_while, take_while_m_n};
+use nom::bytes::complete::{tag, tag_no_case, take_while, take_while_m_n};
 use nom::character::complete::{alphanumeric1, char, digit1, i16, i32, i64, multispace0};
 use nom::{IResult, Needed, Parser};
 use nom::branch::alt;
@@ -555,7 +553,6 @@ impl Parser<&str, Value, ParsingError> for NamedTupleParser<'_> {
                         format!(
                             "Expecting one of the following element name(s): {}",
                             expected_elements(values)
-                            //self.tuple.element_types.into_iter().map(|(k, _v)| k.to_string()).collect::<Vec<String>>().join(", ")
                         )
                     )
                 }))
@@ -773,7 +770,7 @@ mod tests {
     use edgedb_protocol::descriptors::{TupleElement, TypePos};
     use edgedb_protocol::model;
     use edgedb_protocol::value::Value;
-    use crate::prompt::variable::{Array, BigInt, Bool, Decimal, Float32, Float64, InputFlags, Int16, Int32, Int64, Json, NamedTuple, NamedTupleParser, ParseResult, Str, Tuple, Uuid, VariableInput};
+    use crate::prompt::variable::{Array, BigInt, Bool, Decimal, Float32, Float64, InputFlags, Int16, Int32, Int64, Json, NamedTuple, ParseResult, Str, Tuple, Uuid, VariableInput};
 
     fn assert_value(result: ParseResult, expected: Value) {
         assert!(result.is_ok());
