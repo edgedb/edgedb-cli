@@ -460,75 +460,35 @@ pub struct Tuple {
     pub element_types: Vec<Arc<dyn VariableInput>>,
 }
 
-pub struct TupleParser<'a> {
-    tuple: &'a Tuple,
-}
-
-impl Parser<&str, Value, ParsingError> for TupleParser<'_> {
-    fn parse<'a>(&mut self, mut input: &'a str) -> IResult<&'a str, Value, ParsingError> {
-        let mut res = Vec::new();
-        let mut position = 0;
-
-        loop {
-            if position >= self.tuple.element_types.len() {
-                // we've read all the elements in the tuple, return the remainder
-                return Ok((input, Value::Tuple(res)));
-            }
-
-            // match an the element
-            match self.tuple.element_types[position].parse(input, InputFlags::FORCE_QUOTED_STRINGS) {
-                Err(e) => return Err(e),
-                Ok((remainder, result)) => {
-                    res.push(result);
-                    input = remainder;
-                    position += 1;
-                }
-            }
-
-            // don't try to match a separator if we've match all elements in the tuple
-            if position >= self.tuple.element_types.len() {
-                return Ok((input, Value::Tuple(res)));
-            }
-
-            match white_space(char(',')).parse(input) {
-                Err(e) => {
-                    if position >= self.tuple.element_types.len() {
-                        // end of tuple
-                        return Ok((input, Value::Tuple(res)));
-                    }
-
-                    return Err(e);
-                }
-                Ok((remainder, _)) => {
-                    input = remainder;
-                }
-            }
-        }
-    }
-}
-
 impl VariableInput for Tuple {
     fn type_name(&self) -> &str {
         "tuple"
     }
 
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
-        let element_parser = TupleParser {
-            tuple: self,
-        };
+        let mut body: Box<dyn Parser<_, _, _>> =
+            Box::new(success(Vec::<Value>::new()));
+        for (i, el) in self.element_types.iter().enumerate() {
+            let delim = cond(i > 0, white_space(char(',')));
+            let elp = move |s| el.parse(s, InputFlags::FORCE_QUOTED_STRINGS);
+            body = Box::new(
+                tuple((body, delim, elp))
+                    .map(|(mut vs, _, x)| { vs.push(x); vs })
+            );
+        }
 
         context(
             "tuple",
-            preceded(
+            delimited(
                 white_space(char('(')),
-                terminated(
-                    element_parser,
-                    preceded(
-                        space,
-                        char(')'),
-                    ),
-                ),
-            ),
+                body,
+                tuple((
+                    cond(self.element_types.len() > 0,
+                         opt(white_space(char(',')))),
+                    space,
+                    char(')'),
+                )),
+            ).map(|vs| Value::Tuple(vs))
         )(input)
     }
 }
@@ -1168,7 +1128,21 @@ mod tests {
                     Arc::new(Str),
                     Arc::new(Float32),
                 ]
-            }.parse("(12345, \"ABC123\", 12.34)", InputFlags::NONE),
+            }.parse(" (12345, \"ABC123\", 12.34)", InputFlags::NONE),
+            Value::Tuple(vec![
+                Value::Int64(12345),
+                Value::Str("ABC123".to_string()),
+                Value::Float32(12.34f32),
+            ]),
+        );
+        assert_value(
+            Tuple {
+                element_types: vec![
+                    Arc::new(Int64),
+                    Arc::new(Str),
+                    Arc::new(Float32),
+                ]
+            }.parse("(12345, \"ABC123\", 12.34,)", InputFlags::NONE),
             Value::Tuple(vec![
                 Value::Int64(12345),
                 Value::Str("ABC123".to_string()),
@@ -1210,7 +1184,21 @@ mod tests {
                     Arc::new(Int64),
                 ]
             }.parse("()", InputFlags::NONE)
-        )
+        );
+
+        assert_value(
+            Tuple {
+                element_types: vec![]
+            }.parse("()", InputFlags::NONE),
+            Value::Tuple(vec![]),
+        );
+
+        assert_error(
+            Tuple {
+                element_types: vec![]
+            }.parse("(,)", InputFlags::NONE),
+        );
+
     }
 
     fn create_named_tuple_parser(shape: Vec<(&str, Arc<dyn VariableInput>)>) -> (NamedTupleShape, NamedTuple) {
