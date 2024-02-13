@@ -262,7 +262,7 @@ async fn gen_start_migration(ctx: &Context)
         bld.add_lines(SourceName::File(path.clone()), &chunk);
         bld.add_lines(SourceName::Semicolon(path), ";");
     }
-    
+
     bld.add_lines(SourceName::Suffix, "};");
     Ok(bld.done())
 }
@@ -952,20 +952,22 @@ fn add_newline() {
 
 #[tokio::test]
  async fn start_migration() {
+    use std::env;
+
     let mut schema_dir = env::current_dir().unwrap();
     schema_dir.push("tests/migrations/db5");
 
     let ctx = Context{schema_dir, edgedb_version: None, quiet: false};
 
-    let res =  gen_start_migration(&ctx).await.unwrap(); 
+    let res =  gen_start_migration(&ctx).await.unwrap();
 
     // Replace windows line endings \r\n with \n.
     let  res_buf = res.0.replace("\r\n", "\n");
-    
-    let expected_buf = 
+
+    let expected_buf =
         "START MIGRATION TO {\ntype Type1 {\n    property field1 -> str;\n};\n;\ntype Type2 {
     property field2 -> str;\n};\n;\ntype Type3 {\n    property field3 -> str;\n};\n;\n};\n";
-   
+
 
     assert_eq!(res_buf, expected_buf);
 }
