@@ -415,7 +415,7 @@ impl VariableInput for Array {
             "array",
             map(
                 preceded(
-                    char('['),
+                    white_space(char('[')),
                     terminated(
                         separated_list0(
                             white_space(char(',')),
@@ -501,7 +501,7 @@ impl VariableInput for Tuple {
         context(
             "tuple",
             preceded(
-                char('('),
+                white_space(char('(')),
                 terminated(
                     element_parser,
                     preceded(
@@ -529,7 +529,7 @@ impl VariableInput for NamedTuple {
         context(
             "named_tuple",
             preceded(
-                char('('),
+                white_space(char('(')),
                 map_res(
                     terminated(
                         separated_list0(
