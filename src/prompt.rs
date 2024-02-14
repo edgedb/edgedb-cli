@@ -25,7 +25,7 @@ use crate::completion;
 use crate::print::Highlight;
 use crate::print::style::Styler;
 use crate::highlight;
-use crate::prompt::variable::VariableInput;
+use crate::prompt::variable::{InputFlags, VariableInput};
 use crate::repl::{TX_MARKER, FAILURE_MARKER};
 use crate::platform::editor_path;
 
@@ -330,8 +330,18 @@ pub fn main(mut control: Receiver<Control>)
                         }
                         Err(e) => Err(e)?,
                     };
-                    match var_type.parse(&text) {
-                        Ok(value) => break (text, value),
+                    match var_type.parse(&text, InputFlags::NONE) {
+                        Ok(parse_result) => {
+                            if parse_result.0.len() > 0 {
+                                // remaining input
+                                println!("Bad value: remaining text '{}' is unparsed", parse_result.0);
+                                initial = text;
+                            }
+                            else {
+                                break (text.to_owned(), parse_result.1)
+                            }
+
+                        },
                         Err(e) => {
                             println!("Bad value: {}", e);
                             initial = text;
