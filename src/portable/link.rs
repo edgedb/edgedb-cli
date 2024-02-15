@@ -216,10 +216,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             config = config.with_password(&password);
             creds.password = Some(password);
             if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
-                let pem = pem::encode(&pem::Pem {
-                    tag: "CERTIFICATE".into(),
-                    contents: cert.to_vec(),
-                });
+                let pem = pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec()));
                 config = config.with_pem_certificates(&pem)?;
             }
             connect(&config)?;
@@ -228,10 +225,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     }
     if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
-        creds.tls_ca = Some(pem::encode(&pem::Pem {
-            tag: "CERTIFICATE".into(),
-            contents: cert.to_vec(),
-        }));
+        creds.tls_ca = Some(pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec())));
     }
 
     let (cred_path, instance_name) = match &cmd.name {

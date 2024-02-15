@@ -179,6 +179,9 @@ mod jwt {
     use std::env;
     use std::path::PathBuf;
 
+    use base64::Engine;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+
     use fs_err as fs;
     use ring::rand::SecureRandom;
     use ring::signature::KeyPair;
@@ -261,25 +264,19 @@ mod jwt {
 
             let jws = signature::EcdsaKeyPair::from_pkcs8(
                 &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
-                jws_pem.contents.as_slice(),
+                jws_pem.contents(),
                 &rand,
             )?;
             let message = format!(
                 "{}.{}",
-                base64::encode_config(
-                    b"{\"typ\":\"JWT\",\"alg\":\"ES256\"}",
-                    base64::URL_SAFE_NO_PAD,
-                ),
-                base64::encode_config(
-                    b"{\"edgedb.server.any_role\":true}",
-                    base64::URL_SAFE_NO_PAD,
-                ),
+                URL_SAFE_NO_PAD.encode(b"{\"typ\":\"JWT\",\"alg\":\"ES256\"}"),
+                URL_SAFE_NO_PAD.encode(b"{\"edgedb.server.any_role\":true}"),
             );
             let signature = jws.sign(&self.rng, message.as_bytes())?;
             Ok(format!(
                 "{}.{}",
                 message,
-                base64::encode_config(signature, base64::URL_SAFE_NO_PAD),
+                URL_SAFE_NO_PAD.encode(signature),
             ))
         }
 
@@ -291,7 +288,7 @@ mod jwt {
 
             let jwe = signature::EcdsaKeyPair::from_pkcs8(
                 &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
-                jwe_pem.contents.as_slice(),
+                jwe_pem.contents(),
                 &rand,
             )?;
 
@@ -314,8 +311,8 @@ mod jwt {
             .map_err(|_| anyhow::anyhow!("Error occurred while deriving key for JWT"))?;
             let enc_key =
                 aead::LessSafeKey::new(aead::UnboundKey::new(&aead::AES_256_GCM, cek.as_ref())?);
-            let x = base64::encode_config(&epk[1..33], base64::URL_SAFE_NO_PAD);
-            let y = base64::encode_config(&epk[33..], base64::URL_SAFE_NO_PAD);
+            let x = URL_SAFE_NO_PAD.encode(&epk[1..33]);
+            let y = URL_SAFE_NO_PAD.encode(&epk[33..]);
             let protected = format!(
                 "{{\
                     \"alg\":\"ECDH-ES\",\"enc\":\"A256GCM\",\"epk\":{{\
@@ -324,7 +321,7 @@ mod jwt {
                 }}",
                 x, y
             );
-            let protected = base64::encode_config(protected.as_bytes(), base64::URL_SAFE_NO_PAD);
+            let protected = URL_SAFE_NO_PAD.encode(protected.as_bytes());
             let mut nonce = vec![0; 96 / 8];
             self.rng.fill(&mut nonce)?;
             let mut in_out = signed_token.as_bytes().to_vec();
@@ -337,9 +334,9 @@ mod jwt {
             Ok(format!(
                 "{}..{}.{}.{}",
                 protected,
-                base64::encode_config(nonce, base64::URL_SAFE_NO_PAD),
-                base64::encode_config(in_out, base64::URL_SAFE_NO_PAD),
-                base64::encode_config(tag.as_ref(), base64::URL_SAFE_NO_PAD),
+                URL_SAFE_NO_PAD.encode(nonce),
+                URL_SAFE_NO_PAD.encode(in_out),
+                URL_SAFE_NO_PAD.encode(tag.as_ref()),
             ))
         }
     }
