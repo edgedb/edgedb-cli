@@ -10,7 +10,7 @@
 <% endfor %>
 <% endif %>
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -88,7 +88,7 @@
 <% endif %>
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -117,7 +117,7 @@
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
 <% endif %>
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>/
@@ -132,17 +132,30 @@
 <% endif %>
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
       with:
-        toolchain: stable
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "<< tgt.arch >>-apple-darwin"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      with:
+        python-version: "3.x"
+
+    - name: Install dependencies
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -165,7 +178,7 @@
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>/
@@ -180,7 +193,7 @@
 <% endif %>
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -232,7 +245,7 @@
         password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
         folder: "artifacts/<< plat_id >>/"
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -244,7 +257,7 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>/
@@ -274,7 +287,7 @@
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>/
@@ -309,12 +322,12 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -344,12 +357,12 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master

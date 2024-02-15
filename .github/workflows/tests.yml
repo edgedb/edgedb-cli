@@ -26,7 +26,7 @@ jobs:
         # migrations tests work only on nightly
         edgedb-version: ["nightly"]
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - uses: actions-rs/toolchain@v1
@@ -56,7 +56,7 @@ jobs:
         # migrations tests work only on nightly
         edgedb-version: ["nightly"]
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
 
@@ -99,7 +99,7 @@ jobs:
         os: [ubuntu-20.04]
       fail-fast: false
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - uses: actions-rs/toolchain@v1
@@ -126,7 +126,7 @@ jobs:
         test: [portable_smoke, portable_project, portable_project_dir, portable_shared]
       fail-fast: false
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - uses: actions-rs/toolchain@v1
@@ -162,7 +162,7 @@ jobs:
       _EDGEDB_WSL_DISTRO: Debian
       _EDGEDB_WSL_LINUX_BINARY: ./linux-binary/edgedb
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - uses: actions-rs/toolchain@v1
@@ -208,7 +208,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
       - uses: actions-rs/toolchain@v1

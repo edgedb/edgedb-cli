@@ -15,7 +15,7 @@ jobs:
     env:
       RUST_BACKTRACE: 1
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
       - name: Install musl-tools
         run: "sudo apt-get install musl-tools"
       - name: Systemd version
@@ -43,7 +43,7 @@ jobs:
       matrix:
         os: [windows-2019, macos-latest]
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
