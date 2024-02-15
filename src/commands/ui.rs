@@ -257,10 +257,12 @@ mod jwt {
 
         fn generate_token(&mut self) -> anyhow::Result<String> {
             let jws_pem = pem::parse(self.jws_key.as_deref().expect("jws_key not set"))?;
+            let rand = ring::rand::SystemRandom::new();
 
             let jws = signature::EcdsaKeyPair::from_pkcs8(
                 &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
                 jws_pem.contents.as_slice(),
+                &rand,
             )?;
             let message = format!(
                 "{}.{}",
@@ -285,9 +287,12 @@ mod jwt {
             // Replace this ES256/ECDH-ES implementation using raw ring
             // with biscuit when the algorithms are supported in biscuit
             let jwe_pem = pem::parse(self.jwe_key.as_deref().expect("jwe_key not set"))?;
+            let rand = ring::rand::SystemRandom::new();
+
             let jwe = signature::EcdsaKeyPair::from_pkcs8(
                 &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
                 jwe_pem.contents.as_slice(),
+                &rand,
             )?;
 
             let priv_key =
@@ -295,7 +300,7 @@ mod jwt {
             let pub_key =
                 agreement::UnparsedPublicKey::new(&agreement::ECDH_P256, jwe.public_key().as_ref());
             let epk = priv_key.compute_public_key()?.as_ref().to_vec();
-            let cek = agreement::agree_ephemeral(priv_key, &pub_key, (), |key_material| {
+            let cek = agreement::agree_ephemeral(priv_key, &pub_key, |key_material| {
                 let mut ctx = digest::Context::new(&digest::SHA256);
                 ctx.update(&[0, 0, 0, 1]);
                 ctx.update(key_material);
@@ -304,7 +309,7 @@ mod jwt {
                 ctx.update(&[0, 0, 0, 0]); // PartyUInfo
                 ctx.update(&[0, 0, 0, 0]); // PartyVInfo
                 ctx.update(&[0, 0, 1, 0]); // SuppPubInfo (bitsize=256)
-                Ok(ctx.finish())
+                ctx.finish()
             })
             .map_err(|_| anyhow::anyhow!("Error occurred while deriving key for JWT"))?;
             let enc_key =
