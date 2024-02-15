@@ -30,7 +30,7 @@ color-print = "0.3.5"
 strsim = "0.10.0"
 whoami = "1.1"
 is-terminal = "0.4.4"
-scram = "0.6.0"
+scram = { git="https://github.com/elprans/scram" }
 rpassword = "6.0.1"
 colorful = "0.2.1"
 terminal_size = "0.2.5"
@@ -76,7 +76,7 @@ sha2 = "0.10.2"
 base32 = "0.4.0"
 rand = "0.8.2"
 downcast-rs = "1.2.0"
-base64 = "0.13"
+base64 = "0.21.7"
 ring = {version="0.17.7", features=["std"]}
 shell-escape = "0.1.5"
 wait-timeout = "0.2.0"
@@ -89,7 +89,7 @@ termimad = "0.20.1"
 minimad = "0.9.0"
 edgedb-cli-derive = { path="edgedb-cli-derive" }
 fs-err = "2.6.0"
-pem = "1.0.2"
+pem = "3.0.3"
 rustls = {version="0.22.2"}
 tokio-stream = "0.1.11"
 futures-util = "0.3.15" # used for signals
@@ -121,7 +121,7 @@ shutdown_hooks = "0.1.0"
 test-case = "2.0.0"
 openssl = "0.10.30"
 tokio = {version="1.1.0", features=["rt-multi-thread"]}
-warp = {version="0.3.6", default-features=false, features=["tls"]}
+warp = {git="https://github.com/seanmonstar/warp.git", rev="7b07043cee0ca24e912155db4e8f6d9ab7c049ed", default-features=false, features=["tls"]}
 
 [build-dependencies]
 serde_json = "1.0"
