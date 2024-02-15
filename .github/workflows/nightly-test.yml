@@ -27,7 +27,7 @@ jobs:
         - upgrade
         - project
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
       - name: Install musl-tools
         run: "sudo apt-get install musl-tools"
       - uses: actions-rs/toolchain@v1
