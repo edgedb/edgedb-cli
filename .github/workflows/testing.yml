@@ -12,7 +12,7 @@ jobs:
       scm_revision: ${{ steps.whatrev.outputs.rev }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -33,7 +33,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -54,7 +54,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster/
@@ -66,7 +66,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -87,7 +87,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster/
@@ -99,7 +99,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -120,7 +120,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye/
@@ -132,7 +132,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -153,7 +153,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye/
@@ -165,7 +165,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -186,7 +186,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm/
@@ -198,7 +198,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -219,7 +219,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm/
@@ -231,7 +231,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -252,7 +252,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic/
@@ -264,7 +264,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -285,7 +285,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic/
@@ -297,7 +297,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -318,7 +318,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal/
@@ -330,7 +330,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -351,7 +351,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal/
@@ -363,7 +363,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -384,7 +384,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy/
@@ -396,7 +396,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -417,7 +417,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy/
@@ -429,7 +429,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -450,7 +450,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7/
@@ -462,7 +462,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -483,7 +483,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8/
@@ -495,7 +495,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -516,7 +516,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8/
@@ -528,7 +528,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -549,7 +549,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9/
@@ -561,7 +561,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -582,7 +582,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9/
@@ -594,7 +594,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -619,7 +619,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linuxmusl-x86_64/
@@ -631,7 +631,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -656,7 +656,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linuxmusl-aarch64/
@@ -664,22 +664,35 @@ jobs:
 
 
   build-macos-x86_64:
-    runs-on: macos-latest
+    runs-on: ['macos-14']
     needs: prep
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       if: true
       with:
-        toolchain: stable
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "x86_64-apple-darwin"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      if: true
+      with:
+        python-version: "3.x"
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -698,29 +711,42 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64/
 
 
   build-macos-aarch64:
-    runs-on: ['self-hosted', 'macOS', 'ARM64']
+    runs-on: ['macos-14']
     needs: prep
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
-      if: false
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      if: true
       with:
-        toolchain: stable
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "aarch64-apple-darwin"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      if: true
+      with:
+        python-version: "3.x"
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -739,7 +765,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64/
@@ -752,7 +778,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -798,7 +824,7 @@ jobs:
         password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
         folder: "artifacts/win-x86_64/"
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-win-x86_64
         path: artifacts/win-x86_64
@@ -810,7 +836,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster/
@@ -836,7 +862,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster/
@@ -868,7 +894,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster/
@@ -894,7 +920,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster/
@@ -926,7 +952,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye/
@@ -952,7 +978,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye/
@@ -984,7 +1010,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye/
@@ -1010,7 +1036,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye/
@@ -1042,7 +1068,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm/
@@ -1068,7 +1094,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm/
@@ -1100,7 +1126,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm/
@@ -1126,7 +1152,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm/
@@ -1158,7 +1184,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic/
@@ -1184,7 +1210,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic/
@@ -1216,7 +1242,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic/
@@ -1242,7 +1268,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic/
@@ -1274,7 +1300,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal/
@@ -1300,7 +1326,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal/
@@ -1332,7 +1358,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal/
@@ -1358,7 +1384,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal/
@@ -1390,7 +1416,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy/
@@ -1416,7 +1442,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy/
@@ -1448,7 +1474,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy/
@@ -1474,7 +1500,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy/
@@ -1506,7 +1532,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7/
@@ -1532,7 +1558,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7/
@@ -1564,7 +1590,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8/
@@ -1590,7 +1616,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8/
@@ -1622,7 +1648,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8/
@@ -1648,7 +1674,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8/
@@ -1680,7 +1706,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9/
@@ -1706,7 +1732,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9/
@@ -1738,7 +1764,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9/
@@ -1764,7 +1790,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9/
@@ -1796,7 +1822,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linuxmusl-x86_64/
@@ -1824,7 +1850,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linuxmusl-x86_64/
@@ -1856,7 +1882,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linuxmusl-aarch64/
@@ -1884,7 +1910,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linuxmusl-aarch64/
@@ -1917,12 +1943,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -1949,12 +1975,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -1982,12 +2008,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-win-x86_64
         path: artifacts/win-x86_64
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
