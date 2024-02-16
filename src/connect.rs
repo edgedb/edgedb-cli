@@ -8,7 +8,7 @@ use bytes::Bytes;
 use tokio::time::sleep;
 use tokio_stream::Stream;
 
-use edgedb_errors::{Error, ErrorKind, ResultExt};
+use edgedb_errors::{Error, ErrorKind, ResultExt, AuthenticationError};
 use edgedb_errors::{NoDataError, ProtocolEncodingError, ClientError};
 use edgedb_protocol::QueryResult;
 use edgedb_protocol::client_message::{State, CompilationOptions};
@@ -176,7 +176,12 @@ impl Connector {
             _ =>
                 format!("EdgeDB instance at {}", cfg.display_addr())
         };
-        format!("Connecting to {}...", desc)
+        let wait = cfg.wait_until_available();
+        let wait_msg = match wait.as_secs() {
+            seconds if seconds < 1 => format!("{}ms", wait.as_millis()),
+            seconds => format!("{seconds}s")
+        };
+        format!("Connecting to {desc} (will try up to {wait_msg})...\n")
     }
 
     async fn print_warning(&self, cfg: &Config, interactive: bool)
@@ -198,8 +203,20 @@ impl Connector {
 
 impl Connection {
     pub async fn connect(cfg: &Config) -> Result<Connection, Error> {
+        let connection = match raw::Connection::connect(&cfg).await {
+            Ok(conn) => conn,
+            Err(err) => {
+                if err.is::<AuthenticationError>() {
+                    eprintln!("Failed to authenticate.\
+                        \nHint: Use `edgedb info` to find and check the config for this instance");
+                    return Err(err)
+                } else {
+                    return Err(err)
+                }
+            }
+        };
         Ok(Connection {
-            inner: raw::Connection::connect(&cfg).await?,
+            inner: connection,
             state: State::empty(),
             server_version: None,
             config: cfg.clone(),

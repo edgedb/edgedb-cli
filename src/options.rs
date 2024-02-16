@@ -647,7 +647,10 @@ impl Options {
                 }
             );
 
+        let extra_help = "Hint: Setting RUST_LOG to `info`, `debug`, or `trace` can provide extra debugging info when encountering an issue.\n";
+
         let app = clap::Command::new("edgedb")
+                    .after_help(extra_help)
                     .term_width(term_width())
                     .args(deglobalized);
 
