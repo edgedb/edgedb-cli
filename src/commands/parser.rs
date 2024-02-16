@@ -129,7 +129,7 @@ pub enum DatabaseCmd {
     /// Delete a database along with its data
     Drop(DropDatabase),
     /// Delete a database's data and reset its schema while
-    /// preserving the database itself (its cfg::DatabaseConfig) 
+    /// preserving the database itself (its cfg::DatabaseConfig)
     /// and existing migration scripts
     Wipe(WipeDatabase),
 }
@@ -523,6 +523,9 @@ pub enum ValueParameter {
 
     /// Allow setting user-specified object identifiers.
     AllowUserSpecifiedId(ConfigStr),
+
+    /// Web origins that are allowed to send HTTP requests to this server.
+    CorsAllowOrigins(ConfigStrs)
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -559,6 +562,8 @@ pub enum ConfigParameter {
     ApplyAccessPolicies,
     /// Reset allow_user_specified_id parameter to `false`
     AllowUserSpecifiedId,
+    /// Reset cors_allow_origins to an empty set
+    CorsAllowOrigins,
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -574,6 +579,11 @@ pub struct ListenPort {
 #[derive(clap::Args, Clone, Debug)]
 pub struct ConfigStr {
     pub value: String,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct ConfigStrs {
+    pub values: Vec<String>,
 }
 
 #[derive(clap::Args, Clone, Debug)]
