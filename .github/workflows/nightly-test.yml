@@ -30,21 +30,18 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install musl-tools
         run: "sudo apt-get install musl-tools"
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          profile: minimal
-          toolchain: 1.58.0
-          target: x86_64-unknown-linux-musl
-          default: true
+          components: "cargo,rustc,rust-std"
+          toolchain: "stable"
+          targets: "x86_64-unknown-linux-musl"
       - name: Docker Permissions
         run: sudo chmod a+rw /var/run/docker.sock
-
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: |
-            --target=x86_64-unknown-linux-musl
-            --test=github-nightly
-            --features=github_nightly
-            --
+      - run: |
+          cargo test \
+            --target=x86_64-unknown-linux-musl \
+            --test=github-nightly \
+            --features=github_nightly \
+            -- \
             ${{ matrix.test_suite }}::
