@@ -59,7 +59,7 @@ sha1 = "0.10.1"
 hex = {version="0.4.3", features=["serde"]}
 textwrap = {version="0.16.0", features=["terminal_size"]}
 log = "0.4.8"
-env_logger = "0.10.0"
+env_logger = "0.11.2"
 os-release = "0.1.0"
 reqwest = {version="0.11.11", features=["json", "native-tls"]}
 native-tls = {version="0.2.4"}
@@ -93,7 +93,7 @@ pem = "3.0.3"
 rustls = {version="0.22.2"}
 tokio-stream = "0.1.11"
 futures-util = "0.3.15" # used for signals
-clicolors-control = "1.0.1"
+clicolors-control = {git="https://github.com/elprans/clicolors-control.git"}
 backtrace = "0.3.61"
 arc-swap = "1.4.0"
 ctrlc = "3.2.0"
