@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
 use regex::Regex;
-use snafu::OptionExt;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::migrations::Context;
