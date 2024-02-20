@@ -5,12 +5,12 @@ use crate::commands::Options;
 use crate::connect::Connection;
 use crate::migrations::Context;
 use crate::migrations::migration::{file_num, read_file, read_names};
-use crate::migrations::options::{MigrationFormatUpgrade};
+use crate::migrations::options::{MigrationUpgradeFormat};
 
-pub async fn format_upgrade(
+pub async fn upgrade_format(
     _cli: &mut Connection,
     _opts: &Options,
-    params: &MigrationFormatUpgrade,
+    params: &MigrationUpgradeFormat,
 ) -> anyhow::Result<()> {
     let ctx = Context::from_project_or_config(&params.cfg, false).await?;
 

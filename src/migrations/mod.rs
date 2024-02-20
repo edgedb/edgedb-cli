@@ -18,7 +18,7 @@ mod timeout;
 pub mod dev_mode;
 pub mod options;
 pub mod upgrade_check;
-mod format_upgrade;
+mod upgrade_format;
 
 const NULL_MIGRATION: &str = "initial";
 
@@ -30,4 +30,4 @@ pub use self::log::{log, log_fs};
 pub use status::status;
 pub use upgrade_check::upgrade_check;
 pub use extract::extract;
-pub use format_upgrade::format_upgrade;
+pub use upgrade_format::upgrade_format;

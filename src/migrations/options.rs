@@ -46,7 +46,7 @@ pub enum MigrationCmd {
     /// migration history inside <schema-dir>/migrations.
     Extract(ExtractMigrations),
     /// Upgrades the format of migration files.
-    FormatUpgrade(MigrationFormatUpgrade)
+    UpgradeFormat(MigrationUpgradeFormat)
 }
 
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
@@ -229,7 +229,7 @@ pub struct ExtractMigrations {
 }
 
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
-pub struct MigrationFormatUpgrade {
+pub struct MigrationUpgradeFormat {
     #[command(flatten)]
     pub cfg: MigrationConfig,
 }
