@@ -111,7 +111,7 @@ async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
         Err(e) => Err(e)?,
     };
     let mut result = Vec::new();
-    let old_name_re = Regex::new(r"^\d{5}\.edgeql$").unwrap();
+    let old_name_re = Regex::new(r"^\d{5}\.edgeql$")?;
 
     let mut has_old_filename = false;
 
