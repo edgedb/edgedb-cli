@@ -694,7 +694,7 @@ pub async fn write_migration(ctx: &Context, descr: &impl MigrationToText,
     let filename = match &descr.key() {
         MigrationKey::Index(idx) => {
             let dir = ctx.schema_dir.join("migrations");
-            dir.join(format!("{:05}.edgeql", idx))
+            dir.join(format!("{:05}-{}.edgeql", idx, &descr.id()?[..7]))
         }
         MigrationKey::Fixup { target_revision } => {
             let dir = ctx.schema_dir.join("fixups");

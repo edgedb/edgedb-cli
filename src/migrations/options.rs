@@ -45,6 +45,8 @@ pub enum MigrationCmd {
     /// comply because the database migration history is ahead of the
     /// migration history inside <schema-dir>/migrations.
     Extract(ExtractMigrations),
+    /// Upgrades the format of migration files.
+    FormatUpgrade(MigrationFormatUpgrade)
 }
 
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
@@ -224,4 +226,10 @@ pub struct ExtractMigrations {
     /// Force overwrite existing migration files
     #[arg(long)]
     pub force: bool,
+}
+
+#[derive(clap::Args, IntoArgs, Clone, Debug)]
+pub struct MigrationFormatUpgrade {
+    #[command(flatten)]
+    pub cfg: MigrationConfig,
 }
