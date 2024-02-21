@@ -27,12 +27,5 @@ pub async fn main(options: &Drop, context: &Context, connection: &mut Connection
 
     print::completion(status);
 
-    if context.auto_config.current_branch == options.branch {
-        println!("Switching current branch to 'main'");
-        if !context.update_branch(&"main".to_string())? {
-            anyhow::bail!("Failed to update edgedb.auto.toml");
-        }
-    }
-
     Ok(())
 }
