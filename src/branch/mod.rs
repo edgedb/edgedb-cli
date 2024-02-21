@@ -6,5 +6,7 @@ mod drop;
 mod wipe;
 mod switch;
 pub mod config;
+mod rename;
+mod list;
 
 pub use main::branch_main;

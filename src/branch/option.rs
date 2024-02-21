@@ -13,6 +13,7 @@ pub enum Command {
     Rename(Rename),
     Rebase(Rebase),
     Merge(Merge),
+    List(List)
 }
 
 #[derive(clap::Args, Debug, Clone)]
@@ -63,6 +64,11 @@ pub struct Rebase {
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct Merge {
+
+}
+
+#[derive(clap::Args, Debug, Clone)]
+pub struct List {
 
 }
 
