@@ -14,7 +14,8 @@ use tokio::task::spawn_blocking as unblock;
 use edgedb_cli_derive::IntoArgs;
 
 use crate::cli::options::CliCommand;
-use crate::cli;
+use crate::{branch, cli};
+use crate::branch::config;
 use crate::cloud::options::CloudCommand;
 use crate::commands::ExitCode;
 use crate::commands::parser::Common;
@@ -29,6 +30,7 @@ use crate::print;
 use crate::repl::OutputFormat;
 use crate::tty_password;
 use crate::watch::options::WatchCommand;
+use crate::branch::option::BranchCommand;
 
 const MAX_TERM_WIDTH: usize = 100;
 const MIN_TERM_WIDTH: usize = 50;
@@ -104,6 +106,12 @@ pub struct ConnectionOptions {
     #[arg(hide=true)]
     #[arg(global=true)]
     pub database: Option<String>,
+
+    /// Branch to connect with
+    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(hide=true)]
+    #[arg(global=true)]
+    pub branch: Option<String>,
 
     /// Ask for password on terminal (TTY)
     #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
@@ -342,6 +350,8 @@ pub enum Command {
     /// Start a long-running process that watches for changes in schema files in
     /// a project's ``dbschema`` directory, applying them in real time.
     Watch(WatchCommand),
+    /// Manage branches
+    Branch(BranchCommand),
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -764,6 +774,7 @@ impl Options {
         match builder.build_env().await {
             Ok(config) => {
                 let mut cfg = with_password(&self.conn_options, config).await?;
+                cfg = with_branch(&self.conn_options, cfg).await?;
                 match (cfg.admin(), cfg.port(), cfg.local_instance_name()) {
                     (false, _, _) => {}
                     (true, None, _) => {}
@@ -837,6 +848,28 @@ async fn with_password(options: &ConnectionOptions, config: Config)
     }
 }
 
+async fn with_branch(options: &ConnectionOptions, config: Config) -> anyhow::Result<Config> {
+    if let Some(branch) = &options.branch {
+        return Ok(config.with_database(branch)?)
+    }
+
+    // try read from project
+    if let Ok(project_dir) = get_project_dir(None, true).await {
+        if let Some(dir) = project_dir {
+            return match branch::config::read(&dir.join("edgedb.auto.toml"))
+                .map(|v| v.current_branch)
+                .or_else(|_| portable::config::read(&dir.join("edgedb.toml"))
+                    .map(|v| v.edgedb.branch)
+                ) {
+                Ok(branch) => Ok(config.with_database(&branch)?),
+                Err(_) => Ok(config)
+            }
+        }
+    }
+
+    Ok(config)
+}
+
 pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     let tmp = &opts.conn_options;
     let mut bld = Builder::new();
@@ -874,9 +907,6 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     if let Some(user) = &tmp.user {
         bld.user(user)?;
     }
-    if let Some(database) = &tmp.database {
-        bld.database(database)?;
-    }
     if let Some(val) = tmp.wait_until_available {
         bld.wait_until_available(val);
     }
@@ -886,6 +916,14 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     if let Some(val) = &tmp.secret_key {
         bld.secret_key(val);
     }
+
+    if let Some(branch) = &tmp.branch {
+        bld.database(branch)?;
+    } else if let Some(database) = &tmp.database {
+        print::warn("database connection argument is deprecated in favour of 'branch'");
+        bld.database(database)?;
+    }
+
     load_tls_options(tmp, &mut bld)?;
     Ok(bld)
 }

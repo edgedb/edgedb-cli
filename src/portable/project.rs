@@ -1775,7 +1775,7 @@ pub fn update_toml(
     if !stash_dir.exists() {
         log::warn!("No associated instance found.");
 
-        if config::modify(&config_path, &query)? {
+        if config::modify_server_ver(&config_path, &query)? {
             print::success("Config updated successfully.");
         } else {
             print::success("Config is up to date.");
@@ -1809,7 +1809,7 @@ pub fn update_toml(
                     Query::from_version(&pkg_ver)?
                 };
 
-                if config::modify(&config_path, &config_version)? {
+                if config::modify_server_ver(&config_path, &config_version)? {
                     echo!("Remember to commit it to version control.");
                 }
                 let name_str = name.to_string();

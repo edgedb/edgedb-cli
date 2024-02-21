@@ -3,6 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use fn_error_context::context;
+use serde::Deserialize;
+use toml::{Deserializer, Spanned};
 
 use crate::commands::ExitCode;
 use crate::portable::exit_codes;
@@ -24,6 +26,8 @@ pub struct SrcConfig {
 pub struct SrcEdgedb {
     #[serde(default)]
     pub server_version: Option<toml::Spanned<Query>>,
+    #[serde(default)]
+    pub branch: Option<Spanned<String>>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }
@@ -47,6 +51,7 @@ pub struct Config {
 #[derive(Debug)]
 pub struct Edgedb {
     pub server_version: Query,
+    pub branch: String
 }
 
 #[derive(Debug)]
@@ -54,7 +59,7 @@ pub struct Project {
     pub schema_dir: PathBuf
 }
 
-fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
+pub fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
     for key in extra.keys() {
         log::warn!("Unknown config option `{}{}`",
                    prefix, key.escape_default());
@@ -84,6 +89,9 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
                     channel: Channel::Stable,
                     version: None,
                 }),
+            branch: val.edgedb.branch
+                .map(|x| x.into_inner())
+                .unwrap_or("main".to_string())
         },
         project: Project{
             schema_dir: val.project
@@ -127,22 +135,68 @@ fn toml_set_version(data: &str, version: &Query)
     return Err(ExitCode::new(exit_codes::INVALID_CONFIG).into());
 }
 
-#[context("cannot modify `{}`", config.display())]
-pub fn modify(config: &Path, ver: &Query) -> anyhow::Result<bool> {
-    let input = fs::read_to_string(&config)?;
-    if let Some(output) = toml_set_version(&input, ver)? {
-        echo!("Setting `server-version = ",
-               format_args!("{:?}", ver.as_config_value()).emphasize(),
-               "` in `edgedb.toml`");
+pub fn modify_core<T, U, V, W>(parsed: &W, input: &String, config: &Path, selector: T, value: &U, format: V) -> anyhow::Result<bool>
+    where
+        T: Fn(&W) -> &Option<Spanned<U>>,
+        U: std::cmp::PartialEq,
+        V: FnOnce(&U) -> String,
+{
+    use std::fmt::Write;
+
+    if let Some(selected) = selector(parsed) {
+        if selected.get_ref() == value {
+            return Ok(false);
+        }
+
+        let mut out = String::with_capacity(input.len() + 5);
+        write!(&mut out, "{}{:?}{}",
+               &input[..selected.start()],
+               format(value),
+               &input[selected.end()..]
+        ).unwrap();
+
         let tmp = tmp_file_path(config);
         fs::remove_file(&tmp).ok();
-        fs::write(&tmp, output)?;
+        fs::write(&tmp, out)?;
         fs::rename(&tmp, config)?;
-        Ok(true)
-    } else {
-        Ok(false)
+
+        return Ok(true)
     }
+
+    println!("No selector");
+
+    Ok(false)
 }
+
+fn modify<T, U, V>(config: &Path, selector: T, value: &U, format: V) -> anyhow::Result<bool>
+    where
+        T: Fn(&SrcConfig) -> &Option<Spanned<U>>,
+        U: std::cmp::PartialEq,
+        V: FnOnce(&U) -> String,
+{
+    let input = fs::read_to_string(&config)?;
+    let mut toml = toml::de::Deserializer::new(&input);
+    let parsed: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
+
+    return modify_core(&parsed, &input, config, selector, value, format);
+}
+
+#[context("cannot modify `{}`", config.display())]
+pub fn modify_server_ver(config: &Path, ver: &Query) -> anyhow::Result<bool> {
+    echo!("Setting `server-version = ",
+               format_args!("{:?}", ver.as_config_value()).emphasize(),
+               "` in `edgedb.toml`");
+    modify(config, |v: &SrcConfig| &v.edgedb.server_version, ver, Query::as_config_value)
+}
+
+#[context("cannot modify `{}`", config.display())]
+pub fn modify_branch(config: &Path, branch: &String) -> anyhow::Result<bool> {
+    echo!("Setting `branch = ",
+               format_args!("{:?}", branch).emphasize(),
+               "` in `edgedb.toml`");
+    modify(config, |v: &SrcConfig| &v.edgedb.branch, branch, |v| v.clone())
+}
+
 
 #[cfg(test)]
 mod test {
