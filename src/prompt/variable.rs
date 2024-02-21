@@ -13,10 +13,10 @@ use edgedb_protocol::codec::{NamedTupleShape};
 use edgedb_protocol::value::Value;
 use edgedb_protocol::model;
 use edgeql_parser::helpers::unquote_string;
-use nom::combinator::{recognize, value, map, map_res, opt, cut, flat_map, success};
+use nom::combinator::{recognize, value, map, map_res, opt, cut, flat_map, success, cond};
 use nom::bytes::complete::{tag, tag_no_case, take_while, take_while_m_n};
 use nom::character::complete::{alphanumeric1, char, digit1, i16, i32, i64, multispace0};
-use nom::{IResult, Needed, Parser};
+use nom::{IResult, Needed, Parser, InputLength};
 use nom::branch::alt;
 use nom::Err::{Error, Failure, Incomplete};
 use nom::error::{context, ContextError, ErrorKind, FromExternalError, ParseError};
@@ -114,6 +114,25 @@ pub trait VariableInput: fmt::Debug + Send + Sync + 'static {
     fn type_name(&self) -> &str;
     fn parse<'a>(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a>;
 }
+
+pub fn trailing_separated_list0<I, O, O2, E, F, G>(
+  mut sep: G,
+  mut f: F,
+) -> impl FnMut(I) -> IResult<I, Vec<O>, E>
+where
+  I: Clone + InputLength,
+  F: Parser<I, O, E>,
+  G: Parser<I, O2, E>,
+  E: ParseError<I>,
+{
+    move |i: I| {
+        let (i1, v) = separated_list0(
+            |i| sep.parse(i), |i| f.parse(i)).parse(i)?;
+        let (i2, _) = cond(v.len() > 0, opt(|i| sep.parse(i))).parse(i1)?;
+        Ok((i2, v))
+    }
+}
+
 
 fn white_space<'a, O, E: ParseError<&'a str>, F: Parser<&'a str, O, E>>(
     f: F,
@@ -417,7 +436,7 @@ impl VariableInput for Array {
                 preceded(
                     white_space(char('[')),
                     terminated(
-                        separated_list0(
+                        trailing_separated_list0(
                             white_space(char(',')),
                             |s| self.element_type.parse(
                                 s,
@@ -532,55 +551,53 @@ impl VariableInput for NamedTuple {
                 white_space(char('(')),
                 map_res(
                     terminated(
-                        separated_list0(
+                        trailing_separated_list0(
                             white_space(char(',')),
-                            cut(
-                                flat_map(
-                                    terminated(
-                                        context(
-                                            "identifier",
-                                            white_space(
-                                                map_res(
-                                                    recognize(
-                                                        many0_count(
-                                                            alt((
-                                                                alphanumeric1,
-                                                                tag("_"),
-                                                                tag("-")
-                                                            ))
-                                                        )
-                                                    ),
-                                                    |ident| {
-                                                        match self.element_types.get(ident) {
-                                                            Some(element_type) => Ok((ident, element_type)),
-                                                            None => Err(ParsingError::Mistake {
-                                                                kind: None,
-                                                                description: format!(
-                                                                    "Expecting one of the following identifier(s): {}",
-                                                                    self.shape.elements.iter()
-                                                                        .map(|v| v.name.clone())
-                                                                        .collect::<Vec<String>>()
-                                                                        .join(", ")
-                                                                )
-                                                            })
-                                                        }
+                            flat_map(
+                                terminated(
+                                    context(
+                                        "identifier",
+                                        white_space(
+                                            map_res(
+                                                recognize(
+                                                    many0_count(
+                                                        alt((
+                                                            alphanumeric1,
+                                                            tag("_"),
+                                                            tag("-")
+                                                        ))
+                                                    )
+                                                ),
+                                                |ident| {
+                                                    match self.element_types.get(ident) {
+                                                        Some(element_type) => Ok((ident, element_type)),
+                                                        None => Err(ParsingError::Mistake {
+                                                            kind: None,
+                                                            description: format!(
+                                                                "Expecting one of the following identifier(s): {}",
+                                                                self.shape.elements.iter()
+                                                                    .map(|v| v.name.clone())
+                                                                    .collect::<Vec<String>>()
+                                                                    .join(", ")
+                                                            )
+                                                        })
                                                     }
-                                                )
+                                                }
                                             )
-                                        ),
-                                        context(
-                                            "assignment_op",
-                                            white_space(tag(":="))
                                         )
                                     ),
-                                    |element| tuple((
-                                        success(element.0),
-                                        context(
-                                            "named_tuple_element",
-                                            move |v| element.1.parse(v, InputFlags::FORCE_QUOTED_STRINGS)
-                                        )
-                                    ))
-                                )
+                                    context(
+                                        "assignment_op",
+                                        white_space(tag(":="))
+                                    )
+                                ),
+                                |element| tuple((
+                                    success(element.0),
+                                    context(
+                                        "named_tuple_element",
+                                        move |v| element.1.parse(v, InputFlags::FORCE_QUOTED_STRINGS)
+                                    )
+                                ))
                             )
                         ),
                         preceded(
@@ -1126,10 +1143,19 @@ mod tests {
             ]),
         );
 
+        assert_value(
+            Array {
+                element_type: Arc::new(Str)
+            }.parse("['ABC',]", InputFlags::NONE),
+            Value::Array(vec![
+                Value::Str("ABC".to_string()),
+            ]),
+        );
+
         assert_error(
             Array {
                 element_type: Arc::new(Str)
-            }.parse("['ABC',]", InputFlags::NONE)
+            }.parse("[,]", InputFlags::NONE)
         );
     }
 
@@ -1241,6 +1267,18 @@ mod tests {
                 Value::Str("456".to_string())
             ],
             "(abc := '123', def:='456')"
+        );
+
+        assert_named_tuple_value(
+            vec![
+                ("abc", Arc::new(Str) as Arc<dyn VariableInput>),
+                ("def", Arc::new(Str) as Arc<dyn VariableInput>)
+            ],
+            vec![
+                Value::Str("123".to_string()),
+                Value::Str("456".to_string())
+            ],
+            "(abc := '123', def:='456',)"
         );
 
         assert_named_tuple_value(
