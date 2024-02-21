@@ -8,6 +8,8 @@ use sha1::Digest;
 
 use tokio_stream::StreamExt;
 
+use edgedb_errors::{UnknownDatabaseError};
+
 use crate::commands::Options;
 use crate::commands::list_databases::get_databases;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
@@ -157,11 +159,21 @@ pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path,
 
     let mut conn_params = options.conn_params.clone();
     for database in &databases {
-        let mut db_conn = conn_params
-            .database(database)?
-            .connect().await?;
-        let filename = dir.join(&(urlencoding::encode(database) + ".dump")[..]);
-        dump_db(&mut db_conn, options, &filename, include_secrets).await?;
+        match conn_params.database(database)?.connect().await {
+            Ok(mut db_conn) => {
+                let filename = dir.join(&(urlencoding::encode(database) + ".dump")[..]);
+                dump_db(&mut db_conn, options, &filename, include_secrets).await?;
+            },
+            Err(err) => {
+                if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
+                    if e.is::<UnknownDatabaseError>() {
+                        eprintln!("Database {database} no longer exists, skipping...");
+                        continue;
+                    }
+                }
+                return Err(err);
+            },
+        }
     }
 
     Ok(())
