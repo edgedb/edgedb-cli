@@ -11,11 +11,11 @@ pub async fn main(_options: &List, context: &Context, connection: &mut Connectio
 
     for branch in branches {
         if context.auto_config.current_branch == branch {
-            println!("'{}' - Current", branch.green());
+            println!("{} - Current", branch.green());
         } else if context.project_config.edgedb.branch == branch {
-            println!("'{}' - Project default", branch.blue());
+            println!("{} - Project default", branch.blue());
         } else {
-            println!("'{}'", branch);
+            println!("{}", branch);
         }
     }
 
