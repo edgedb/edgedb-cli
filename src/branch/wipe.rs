@@ -5,7 +5,7 @@ use crate::{print, question};
 use crate::commands::ExitCode;
 use crate::portable::exit_codes;
 
-pub async fn main(options: &Wipe, context: &Context, connection: &mut Connection) -> anyhow::Result<()> {
+pub async fn main(options: &Wipe, _context: &Context, connection: &mut Connection) -> anyhow::Result<()> {
     if !options.non_interactive {
         let q = question::Confirm::new_dangerous(
             format!("Do you really want to wipe \

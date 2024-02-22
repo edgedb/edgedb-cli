@@ -5,7 +5,7 @@ use crate::{print, question};
 use crate::commands::ExitCode;
 use crate::portable::exit_codes;
 
-pub async fn main(options: &Drop, context: &Context, connection: &mut Connection) -> anyhow::Result<()> {
+pub async fn main(options: &Drop, _context: &Context, connection: &mut Connection) -> anyhow::Result<()> {
     // TODO: do we implicitly switch branch here to drop? or do we let the user deal with the
     // 'cannot drop the currently open database branch' error?
 

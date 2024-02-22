@@ -106,35 +106,6 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
     })
 }
 
-fn toml_set_version(data: &str, version: &Query)
-    -> anyhow::Result<Option<String>>
-{
-    use std::fmt::Write;
-
-    let mut toml = toml::de::Deserializer::new(&data);
-    let parsed: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
-    if let Some(ver_position) = &parsed.edgedb.server_version {
-        if ver_position.get_ref() == version {
-            return Ok(None);
-        }
-        let mut out = String::with_capacity(data.len() + 5);
-        write!(&mut out, "{}{:?}{}",
-            &data[..ver_position.start()],
-            version.as_config_value(),
-            &data[ver_position.end()..],
-        ).unwrap();
-        return Ok(Some(out));
-    }
-    print::error("No server-version found in `edgedb.toml`.");
-    eprintln!("Please ensure that `edgedb.toml` contains:");
-    println!("  {}",
-        format_config(version)
-        .lines()
-        .collect::<Vec<_>>()
-        .join("\n  "));
-    return Err(ExitCode::new(exit_codes::INVALID_CONFIG).into());
-}
-
 pub fn modify_core<T, U, V, W>(parsed: &W, input: &String, config: &Path, selector: T, value: &U, format: V) -> anyhow::Result<bool>
     where
         T: Fn(&W) -> &Option<Spanned<U>>,
