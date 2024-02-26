@@ -4,7 +4,6 @@ use crate::branch::{create, drop, list, rename, switch, wipe};
 use crate::branch::option::{BranchCommand, Command};
 use crate::connect::Connection;
 use crate::options::Options;
-use crate::portable::config;
 use crate::portable::config::Config;
 
 #[tokio::main]

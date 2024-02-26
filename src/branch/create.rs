@@ -1,6 +1,6 @@
 use crate::branch::context::Context;
 use crate::branch::option::Create;
-use crate::connect::{Connection, Connector};
+use crate::connect::{Connection};
 use crate::{portable, print};
 
 pub async fn main(options: &Create, context: &Context, connection: &mut Connection) -> anyhow::Result<()> {
