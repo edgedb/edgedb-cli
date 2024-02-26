@@ -122,8 +122,8 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn _b64(s: &[u8]) -> Base64Display {
-    Base64Display::with_config(s, base64::STANDARD)
+fn _b64(s: &[u8]) -> Base64Display<base64::engine::GeneralPurpose> {
+    Base64Display::new(s, &base64::engine::general_purpose::STANDARD)
 }
 
 pub fn password_hash(password: &str) -> String {
@@ -155,8 +155,11 @@ fn _build_verifier(password: &str, salt: &[u8], iterations: u32) -> String {
 
 #[test]
 fn test_verifier() {
+    use base64::Engine;
+    use base64::engine::general_purpose::STANDARD;
+
     let salt = "W22ZaJ0SNY7soEsUEjb6gQ==";
-    let raw_salt = base64::decode(salt).unwrap();
+    let raw_salt = STANDARD.decode(salt).unwrap();
     let password = "pencil";
     let verifier = _build_verifier(password, &raw_salt, 4096);
     let stored_key = "WG5d8oPm3OtcPnkdi4Uo7BkeZkBFzpcXkuLmtbsT4qY=";

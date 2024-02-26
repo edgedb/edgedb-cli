@@ -15,25 +15,22 @@ jobs:
     env:
       RUST_BACKTRACE: 1
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
       - name: Install musl-tools
         run: "sudo apt-get install musl-tools"
       - name: Systemd version
         run: "systemd --version"
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          profile: minimal
-          toolchain: stable
-          target: x86_64-unknown-linux-musl
-          default: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target=x86_64-unknown-linux-musl --features github_action_install --test github-actions
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --features github_action_install --test github-actions
+          components: "cargo,rustc,rust-std"
+          toolchain: "stable"
+          targets: "x86_64-unknown-linux-musl"
+      - run: |
+          cargo build --target=x86_64-unknown-linux-musl \
+            --features github_action_install --test github-actions
+      - run: |
+          cargo test --features github_action_install --test github-actions
 
   test_other:
     runs-on: ${{ matrix.os }}
@@ -43,17 +40,13 @@ jobs:
       matrix:
         os: [windows-2019, macos-latest]
     steps:
-      - uses: actions/checkout@master
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          profile: minimal
-          toolchain: stable
-          default: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --features github_action_install --tests
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --features github_action_install -- github_action
+          components: "cargo,rustc,rust-std"
+          toolchain: "stable"
+      - run: |
+          cargo build --features github_action_install --tests
+      - run: |
+          cargo test --features github_action_install -- github_action

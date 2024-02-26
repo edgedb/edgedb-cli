@@ -4,7 +4,7 @@ use edgeql_parser::helpers::{quote_string, quote_name};
 use crate::commands::Options;
 use crate::print;
 use crate::connect::Connection;
-use crate::commands::parser::{Configure, ConfigStr, ListenAddresses, AuthParameter};
+use crate::commands::parser::{Configure, ConfigStr, ConfigStrs, ListenAddresses, AuthParameter};
 
 async fn set(cli: &mut Connection, name: &str, cast: Option<&str>, value: impl Display)
     -> Result<(), anyhow::Error>
@@ -103,6 +103,15 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
         C::Set(Set { parameter: S::AllowUserSpecifiedId(ConfigStr { value }) }) => {
             set(cli, "allow_user_specified_id", None, value).await
         }
+        C::Set(Set { parameter: S::CorsAllowOrigins(ConfigStrs {values}) }) => {
+            let values = values
+                .iter()
+                .map(|x| quote_string(x))
+                .collect::<Vec<_>>().join(", ");
+            print::completion(&cli.execute(
+                &format!("CONFIGURE INSTANCE SET cors_allow_origins := {{{values}}}"), &()).await?);
+            Ok(())
+        }
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
             let name = match parameter {
@@ -121,6 +130,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 C::AllowBareDdl => "allow_bare_ddl",
                 C::ApplyAccessPolicies => "apply_access_policies",
                 C::AllowUserSpecifiedId => "allow_user_specified_id",
+                C::CorsAllowOrigins => "cors_allow_origins",
             };
             print::completion(&cli.execute(
                 &format!("CONFIGURE INSTANCE RESET {name}"),

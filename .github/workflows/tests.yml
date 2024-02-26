@@ -26,14 +26,14 @@ jobs:
         # migrations tests work only on nightly
         edgedb-version: ["nightly"]
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          profile: minimal
-          toolchain: stable
-          default: true
+          components: "cargo,rustc,rust-std"
+          toolchain: "stable"
 
       - name: Install EdgeDB
         uses: edgedb/setup-edgedb@v1
@@ -41,10 +41,8 @@ jobs:
         with:
           server-version: ${{ matrix.edgedb-version }}
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --features github_action_install
+      - run: |
+          cargo test --features github_action_install
 
   musl-test:
     runs-on: ${{ matrix.os }}
@@ -56,24 +54,22 @@ jobs:
         # migrations tests work only on nightly
         edgedb-version: ["nightly"]
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
 
       - name: Install musl-tools
         run: "sudo apt-get install musl-tools"
 
-      - uses: actions-rs/toolchain@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          profile: minimal
-          toolchain: stable
-          target: x86_64-unknown-linux-musl
-          default: true
+          components: "cargo,rustc,rust-std"
+          toolchain: "stable"
+          targets: "x86_64-unknown-linux-musl"
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --target=x86_64-unknown-linux-musl
+      - run: |
+          cargo build --target=x86_64-unknown-linux-musl
 
       - uses: actions/upload-artifact@v2
         with:
@@ -86,10 +82,8 @@ jobs:
         with:
           server-version: ${{ matrix.edgedb-version }}
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --target=x86_64-unknown-linux-musl
+      - run: |
+          cargo test --target=x86_64-unknown-linux-musl
 
   portable-install-tests:
     runs-on: ${{ matrix.os }}
@@ -99,24 +93,22 @@ jobs:
         os: [ubuntu-20.04]
       fail-fast: false
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          default: true
 
-      - uses: actions-rs/cargo@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          command: build
-          args: --tests --features docker_test_wrapper,portable_tests
+          components: "cargo,rustc,rust-std"
+          toolchain: "stable"
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --test=docker_portable_wrapper --features docker_test_wrapper,portable_tests
+      - run: |
+          cargo build --tests --features docker_test_wrapper,portable_tests
+
+      - run: |
+          cargo test --test=docker_portable_wrapper \
+            --features docker_test_wrapper,portable_tests
 
   portable-tests-macos:
     runs-on: macos-latest
@@ -126,29 +118,26 @@ jobs:
         test: [portable_smoke, portable_project, portable_project_dir, portable_shared]
       fail-fast: false
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          default: true
 
-      - uses: actions-rs/cargo@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          command: build
-          args: --tests --features portable_tests
+          components: "cargo,rustc,rust-std"
+          toolchain: "stable"
+
+      - run: |
+          cargo build --tests --features portable_tests
 
       - run: |
           sudo cp target/debug/edgedb /usr/local/bin/
           mkdir home_edgedb
           sudo mv home_edgedb /Users/edgedb
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --test=${{ matrix.test }} --features portable_tests
+      - run: |
+          cargo test --test=${{ matrix.test }} --features portable_tests
 
   portable-tests-windows:
     needs: musl-test
@@ -162,24 +151,21 @@ jobs:
       _EDGEDB_WSL_DISTRO: Debian
       _EDGEDB_WSL_LINUX_BINARY: ./linux-binary/edgedb
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          default: true
 
-      - uses: actions-rs/cargo@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          command: build
-          args: --tests --features portable_tests
+          components: "cargo,rustc,rust-std"
+          toolchain: "stable"
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: -- cli install -y --no-wait-for-exit-prompt
+      - run: |
+          cargo build --tests --features portable_tests
+
+      - run: |
+          cargo run -- cli install -y --no-wait-for-exit-prompt
 
       - uses: actions/download-artifact@v2
         with:
@@ -196,10 +182,8 @@ jobs:
         with:
             distribution: Debian
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --test=${{ matrix.test }} --features portable_tests
+      - run: |
+          cargo test --test=${{ matrix.test }} --features portable_tests
 
   test-bin-installable:
     runs-on: ${{ matrix.os }}
@@ -208,16 +192,15 @@ jobs:
       matrix:
         os: [ubuntu-latest]
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
         with:
           submodules: true
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          default: true
 
-      - uses: actions-rs/cargo@v1
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
-          command: install
-          args: "--locked --path=. --root=$TMPDIR"
+          components: "cargo,rustc,rust-std"
+          toolchain: "stable"
+
+      - run: |
+          cargo install --locked --path=. --root=$TMPDIR
