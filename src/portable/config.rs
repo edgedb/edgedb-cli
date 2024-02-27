@@ -106,11 +106,11 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
     })
 }
 
-pub fn modify_core<T, U, V, W>(parsed: &W, input: &String, config: &Path, selector: T, value: &U, format: V) -> anyhow::Result<bool>
+pub fn modify_core<Selector, Value, Formatter, Config>(parsed: &Config, input: &String, config: &Path, selector: Selector, value: &Value, format: Formatter) -> anyhow::Result<bool>
     where
-        T: Fn(&W) -> &Option<Spanned<U>>,
-        U: std::cmp::PartialEq,
-        V: FnOnce(&U) -> String,
+        Selector: Fn(&Config) -> &Option<Spanned<Value>>,
+        Value: std::cmp::PartialEq,
+        Formatter: FnOnce(&Value) -> String,
 {
     use std::fmt::Write;
 
