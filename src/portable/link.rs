@@ -351,12 +351,6 @@ async fn prompt_conn_params(
                     .default("main")
                     .ask()?
             )?;
-        } else if options.database.is_none() {
-            builder.database(
-                &question::String::new("Specify database name")
-                    .default(config.database())
-                    .ask()?
-            )?;
         }
         Ok(builder.build_env().await?)
     } else {
