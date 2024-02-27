@@ -2,6 +2,7 @@
 members = [
     ".",
     "edgedb-cli-derive",
+    "tests/shared-client-tests",
 ]
 
 [package]
@@ -122,6 +123,7 @@ test-case = "2.0.0"
 openssl = "0.10.30"
 tokio = {version="1.1.0", features=["rt-multi-thread"]}
 warp = {git="https://github.com/seanmonstar/warp.git", rev="7b07043cee0ca24e912155db4e8f6d9ab7c049ed", default-features=false, features=["tls"]}
+shared-client-tests = {path = "./tests/shared-client-tests"}
 
 [build-dependencies]
 serde_json = "1.0"
@@ -130,7 +132,7 @@ serde_json = "1.0"
 dev_mode = []
 github_action_install = []
 github_nightly = []
-portable_tests = []
+portable_tests = ["shared-client-tests/portable_tests"]
 docker_test_wrapper = []
 
 [target.'cfg(unix)'.dependencies]

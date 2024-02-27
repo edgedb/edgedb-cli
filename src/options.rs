@@ -266,8 +266,7 @@ pub struct RawOptions {
     #[cfg_attr(not(feature="dev_mode"), arg(hide=true))]
     pub debug_print_codecs: bool,
 
-    #[cfg(feature="portable_tests")]
-    #[arg(long)]
+    #[arg(long, hide=true)]
     pub test_output_conn_params: bool,
 
     /// Print all available connection options
@@ -409,7 +408,6 @@ pub struct Options {
     pub debug_print_codecs: bool,
     pub output_format: Option<OutputFormat>,
     pub no_cli_update_check: bool,
-    #[cfg(feature="portable_tests")]
     pub test_output_conn_params: bool,
 }
 
@@ -747,7 +745,6 @@ impl Options {
                 None
             },
             no_cli_update_check,
-            #[cfg(feature="portable_tests")]
             test_output_conn_params: args.test_output_conn_params,
         })
     }
