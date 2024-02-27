@@ -11,9 +11,7 @@ pub enum Command {
     Wipe(Wipe),
     Switch(Switch),
     Rename(Rename),
-    Rebase(Rebase),
-    Merge(Merge),
-    List(List)
+    List(List),
 }
 
 #[derive(clap::Args, Debug, Clone)]
@@ -23,11 +21,11 @@ pub struct Create {
     #[arg(long)]
     pub from: Option<String>,
 
-    #[arg(long, conflicts_with="copy_data")]
+    #[arg(long, conflicts_with = "copy_data")]
     pub empty: bool,
 
     #[arg(long)]
-    pub copy_data: bool
+    pub copy_data: bool,
 }
 
 #[derive(clap::Args, Debug, Clone)]
@@ -56,22 +54,5 @@ pub struct Rename {
     pub old_name: String,
     pub new_name: String,
 }
-
 #[derive(clap::Args, Debug, Clone)]
-pub struct Rebase {
-
-}
-
-#[derive(clap::Args, Debug, Clone)]
-pub struct Merge {
-
-}
-
-#[derive(clap::Args, Debug, Clone)]
-pub struct List {
-
-}
-
-
-
-
+pub struct List {}

@@ -1,10 +1,10 @@
-use edgedb_tokio::get_project_dir;
 use crate::branch::context::Context;
-use crate::branch::{create, drop, list, rename, switch, wipe};
 use crate::branch::option::{BranchCommand, Command};
+use crate::branch::{create, drop, list, rename, switch, wipe};
 use crate::connect::Connection;
 use crate::options::Options;
 use crate::portable::config::Config;
+use edgedb_tokio::get_project_dir;
 
 #[tokio::main]
 pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Result<()> {
@@ -20,7 +20,6 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
         Command::Wipe(wipe) => wipe::main(wipe, &context, &mut connection).await,
         Command::List(list) => list::main(list, &context, &mut connection).await,
         Command::Rename(rename) => rename::main(rename, &context, &mut connection).await,
-        _ => anyhow::bail!("Unknown subcommand")
     }
 }
 
