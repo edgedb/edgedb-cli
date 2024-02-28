@@ -112,6 +112,9 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 &format!("CONFIGURE INSTANCE SET cors_allow_origins := {{{values}}}"), &()).await?);
             Ok(())
         }
+        C::Set(Set { parameter: S::AutoRebuildQueryCache(ConfigStr { value }) }) => {
+            set(cli, "auto_rebuild_query_cache", None, value).await
+        }
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
             let name = match parameter {
@@ -131,6 +134,7 @@ pub async fn configure(cli: &mut Connection, _options: &Options,
                 C::ApplyAccessPolicies => "apply_access_policies",
                 C::AllowUserSpecifiedId => "allow_user_specified_id",
                 C::CorsAllowOrigins => "cors_allow_origins",
+                C::AutoRebuildQueryCache => "auto_rebuild_query_cache",
             };
             print::completion(&cli.execute(
                 &format!("CONFIGURE INSTANCE RESET {name}"),
