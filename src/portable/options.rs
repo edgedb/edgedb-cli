@@ -196,6 +196,18 @@ pub struct CloudInstanceParams {
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct CloudBackupSourceParams {
+    // The name of the instance that should be used as the source
+    // of the backup.
+    #[arg(long)]
+    pub from_instance: Option<InstanceName>,
+
+    // The ID of the backup to restore from.
+    #[arg(long)]
+    pub from_backup_id: Option<String>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Create {
     #[command(flatten)]
     pub cloud_opts: CloudOptions,
@@ -221,6 +233,9 @@ pub struct Create {
 
     #[command(flatten)]
     pub cloud_params: CloudInstanceParams,
+
+    #[command(flatten)]
+    pub cloud_backup_source: CloudBackupSourceParams,
 
     /// Deprecated parameter, unused.
     #[arg(long, hide=true)]
