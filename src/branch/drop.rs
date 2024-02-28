@@ -10,7 +10,7 @@ pub async fn main(
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
-    if (context.auto_config.current_branch == options.branch) {
+    if context.auto_config.current_branch == options.branch {
         anyhow::bail!(
             "Dropping the currently active branch is not supported, please switch to a \
             different branch to drop this one with `edgedb branch switch <branch>`"

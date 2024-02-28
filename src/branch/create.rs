@@ -24,7 +24,7 @@ pub async fn main(
             _ => "schema",
         };
 
-        query = format!("create {} branch from {}", branch_type, source_branch)
+        query = format!("create {} branch {} from {}", branch_type, branch_name, source_branch)
     }
 
     eprintln!("Creating branch '{}'...", options.branch);
