@@ -28,6 +28,11 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
     }
 
     let last_source_migration_id = source_migrations.last().unwrap().0;
+
+    if !target_migrations.contains_key(last_source_migration_id) {
+        anyhow::bail!("Cannot fast-forward branch '{0}' to '{1}': The branch '{1}' contains migrations that are not apart of the branch '{0}'", source.database(), target.database())
+    }
+
     let target_migration_features = target_migrations.split_off(target_migrations.get_full(last_source_migration_id).unwrap().0);
 
     Ok(RebaseMigrations {
@@ -92,14 +97,6 @@ pub async fn do_rebase(connection: &mut Connection, context: &Context, rebase_mi
     let mut migrations = migration::read_all(context, true).await?;
 
     migrate::apply_migrations(connection, &migrations.split_off(feature_index_offset), context, true).await?;
-
-    Ok(())
-}
-
-pub async fn apply_branch_migrations(connection: &mut Connection, migrations: &IndexMap<String, DBMigration>) -> anyhow::Result<()> {
-    for migration in migrations {
-
-    }
 
     Ok(())
 }
