@@ -9,9 +9,9 @@ use crate::migrations::{create, migration, Context};
 use crate::portable::exit_codes;
 use crate::{print, question};
 
-struct DatabaseMigration {
-    key: MigrationKey,
-    migration: db_migration::DBMigration,
+pub struct DatabaseMigration {
+    pub key: MigrationKey,
+    pub migration: db_migration::DBMigration,
 }
 
 impl MigrationToText for DatabaseMigration {
