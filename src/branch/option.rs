@@ -34,6 +34,9 @@ pub struct Drop {
 
     #[arg(long)]
     pub non_interactive: bool,
+
+    #[arg(long)]
+    pub force: bool,
 }
 
 #[derive(clap::Args, Debug, Clone)]
@@ -53,6 +56,9 @@ pub struct Switch {
 pub struct Rename {
     pub old_name: String,
     pub new_name: String,
+
+    #[arg(long)]
+    pub force: bool,
 }
 #[derive(clap::Args, Debug, Clone)]
 pub struct List {}
