@@ -640,12 +640,9 @@ checksum = "98cc8fbded0c607b7ba9dd60cd98df59af97e84d24e49c8557331cfc26d301ce"
 [[package]]
 name = "clicolors-control"
 version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90082ee5dcdd64dc4e9e0d37fbf3ee325419e39c0092191e0393df65518f741e"
+source = "git+https://github.com/elprans/clicolors-control.git#31cc80350de78d8da7e406ee4c689651dc8b4610"
 dependencies = [
- "atty",
  "lazy_static",
- "libc",
  "winapi",
 ]
 
@@ -1041,7 +1038,7 @@ dependencies = [
  "edgedb-protocol",
  "edgedb-tokio",
  "edgeql-parser",
- "env_logger 0.10.2",
+ "env_logger 0.11.2",
  "fd-lock 3.0.13",
  "fn-error-context",
  "fs-err",
@@ -1261,6 +1258,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
 
 [[package]]
+name = "env_filter"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a009aa4810eb158359dda09d0c87378e4bbb89b5a801f016885a4707ba24f7ea"
+dependencies = [
+ "log",
+ "regex",
+]
+
+[[package]]
 name = "env_logger"
 version = "0.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1275,15 +1282,15 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.10.2"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd405aab171cb85d6735e5c8d9db038c17d3ca007a4d2c25f337935c3d90580"
+checksum = "6c012a26a7f605efc424dd53697843a72be7dc86ad2d01f7814337794a12231d"
 dependencies = [
+ "anstream",
+ "anstyle",
+ "env_filter",
  "humantime 2.1.0",
- "is-terminal",
  "log",
- "regex",
- "termcolor",
 ]
 
 [[package]]
