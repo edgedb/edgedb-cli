@@ -15,7 +15,7 @@ use edgedb_cli_derive::IntoArgs;
 
 use crate::cli::options::CliCommand;
 use crate::{branch, cli};
-use crate::branch::config;
+
 use crate::cloud::options::CloudCommand;
 use crate::commands::ExitCode;
 use crate::commands::parser::Common;

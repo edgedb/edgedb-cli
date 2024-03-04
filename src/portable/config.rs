@@ -3,14 +3,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use fn_error_context::context;
-use serde::Deserialize;
-use toml::{Deserializer, Spanned};
 
-use crate::commands::ExitCode;
-use crate::portable::exit_codes;
+use toml::{Spanned};
+
+
+
 use crate::portable::repository::{Channel, Query};
 use crate::platform::tmp_file_path;
-use crate::print::{self, echo, Highlight};
+use crate::print::{echo, Highlight};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all="kebab-case")]
@@ -172,7 +172,6 @@ pub fn modify_branch(config: &Path, branch: &String) -> anyhow::Result<bool> {
 #[cfg(test)]
 mod test {
     use test_case::test_case;
-    use super::toml_set_version;
 
     const TOML_BETA1: &str = "\
         [edgedb]\n\

@@ -1,6 +1,6 @@
 use crate::platform::tmp_file_path;
 use crate::portable::config::{modify_core, warn_extra};
-use colorful::core::StrMarker;
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
