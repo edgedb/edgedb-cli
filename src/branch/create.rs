@@ -1,7 +1,7 @@
 use crate::branch::context::Context;
 use crate::branch::option::Create;
 use crate::connect::Connection;
-use crate::{print};
+use crate::print;
 
 pub async fn main(
     options: &Create,

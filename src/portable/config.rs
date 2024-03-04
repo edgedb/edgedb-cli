@@ -6,9 +6,11 @@ use fn_error_context::context;
 
 use toml::Spanned;
 
+use crate::commands::ExitCode;
 use crate::platform::tmp_file_path;
+use crate::portable::exit_codes;
 use crate::portable::repository::{Channel, Query};
-use crate::print::{echo, Highlight};
+use crate::print::{self, echo, Highlight};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -107,24 +109,26 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
     });
 }
 
-pub fn modify_core<Selector, Value, Formatter, Config>(
-    parsed: &Config,
-    input: &String,
-    config: &Path,
+/// Modify a field in a config of type `Cfg` that was deserialized from `input`.
+/// The field is selected with the `selector` function.
+pub fn modify_config<Cfg, Selector, Val, ToStr>(
+    parsed: &Cfg,
+    input: &str,
     selector: Selector,
-    value: &Value,
-    format: Formatter,
-) -> anyhow::Result<bool>
+    field_name: &'static str,
+    value: &Val,
+    to_str: ToStr,
+) -> anyhow::Result<Option<String>>
 where
-    Selector: Fn(&Config) -> &Option<Spanned<Value>>,
-    Value: std::cmp::PartialEq,
-    Formatter: FnOnce(&Value) -> String,
+    Selector: Fn(&Cfg) -> &Option<Spanned<Val>>,
+    Val: std::cmp::PartialEq,
+    ToStr: FnOnce(&Val) -> String,
 {
     use std::fmt::Write;
 
     if let Some(selected) = selector(parsed) {
         if selected.get_ref() == value {
-            return Ok(false);
+            return Ok(None);
         }
 
         let mut out = String::with_capacity(input.len() + 5);
@@ -132,35 +136,46 @@ where
             &mut out,
             "{}{:?}{}",
             &input[..selected.start()],
-            format(value),
+            to_str(value),
             &input[selected.end()..]
         )
         .unwrap();
 
-        let tmp = tmp_file_path(config);
-        fs::remove_file(&tmp).ok();
-        fs::write(&tmp, out)?;
-        fs::rename(&tmp, config)?;
-
-        return Ok(true);
+        return Ok(Some(out));
     }
 
-    println!("No selector");
-
-    Ok(false)
+    print::error(format!("Invalid `edgedb.toml`: missing {}", field_name));
+    Err(ExitCode::new(exit_codes::INVALID_CONFIG).into())
 }
 
-fn modify<T, U, V>(config: &Path, selector: T, value: &U, format: V) -> anyhow::Result<bool>
+pub fn read_modify_write<Cfg, Selector, Val, ToStr>(
+    path: &Path,
+    selector: Selector,
+    field_name: &'static str,
+    value: &Val,
+    to_str: ToStr,
+) -> anyhow::Result<bool>
 where
-    T: Fn(&SrcConfig) -> &Option<Spanned<U>>,
-    U: std::cmp::PartialEq,
-    V: FnOnce(&U) -> String,
+    Cfg: for<'de> serde::Deserialize<'de>,
+    Selector: Fn(&Cfg) -> &Option<Spanned<Val>>,
+    Val: std::cmp::PartialEq,
+    ToStr: FnOnce(&Val) -> String,
 {
-    let input = fs::read_to_string(&config)?;
-    let mut toml = toml::de::Deserializer::new(&input);
-    let parsed: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
+    let input = fs::read_to_string(&path)?;
+    let mut deserializer = toml::de::Deserializer::new(&input);
+    let parsed: Cfg = serde_path_to_error::deserialize(&mut deserializer)?;
 
-    return modify_core(&parsed, &input, config, selector, value, format);
+    if let Some(new_contents) = modify_config(&parsed, &input, selector, field_name, value, to_str)?
+    {
+        let tmp = tmp_file_path(path);
+        fs::remove_file(&tmp).ok();
+        fs::write(&tmp, new_contents)?;
+        fs::rename(&tmp, path)?;
+
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 #[context("cannot modify `{}`", config.display())]
@@ -170,26 +185,12 @@ pub fn modify_server_ver(config: &Path, ver: &Query) -> anyhow::Result<bool> {
         format_args!("{:?}", ver.as_config_value()).emphasize(),
         "` in `edgedb.toml`"
     );
-    modify(
+    read_modify_write(
         config,
         |v: &SrcConfig| &v.edgedb.server_version,
+        "server-version",
         ver,
         Query::as_config_value,
-    )
-}
-
-#[context("cannot modify `{}`", config.display())]
-pub fn modify_branch(config: &Path, branch: &String) -> anyhow::Result<bool> {
-    echo!(
-        "Setting `branch = ",
-        format_args!("{:?}", branch).emphasize(),
-        "` in `edgedb.toml`"
-    );
-    modify(
-        config,
-        |v: &SrcConfig| &v.edgedb.branch,
-        branch,
-        |v| v.clone(),
     )
 }
 
@@ -282,6 +283,21 @@ mod test {
         edgedb = {server-version = \"nightly\"}\n\
         project = {schema-dir = \"custom-dir\"}\n\
     ";
+
+    fn set_toml_version(data: &str, version: &super::Query) -> anyhow::Result<Option<String>> {
+        let mut toml = toml::de::Deserializer::new(&data);
+        let parsed: super::SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
+
+        super::modify_config(
+            &parsed,
+            data,
+            |v: &super::SrcConfig| &v.edgedb.server_version,
+            "server-version",
+            version,
+            super::Query::as_config_value,
+        )
+    }
+
     #[test_case(TOML_BETA1, "1.0-beta.2" => Some(TOML_BETA2.into()))]
     #[test_case(TOML_BETA2, "1.0-beta.2" => None)]
     #[test_case(TOML_NIGHTLY, "1.0-beta.2" => Some(TOML_BETA2.into()))]
@@ -314,6 +330,6 @@ mod test {
     #[test_case(TOMLI_BETA2_CUSTOM_SCHEMA_DIR, "nightly"=> Some(TOMLI_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
     #[test_case(TOMLI_NIGHTLY, "nightly" => None)]
     fn modify(src: &str, ver: &str) -> Option<String> {
-        super::modify_core(src, &ver.parse().unwrap()).unwrap()
+        set_toml_version(src, &ver.parse().unwrap()).unwrap()
     }
 }
