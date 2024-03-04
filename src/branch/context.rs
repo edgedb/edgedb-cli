@@ -1,13 +1,13 @@
-use std::path::{Path, PathBuf};
 use crate::branch::config;
 use crate::branch::config::Config as AutoConfig;
 use crate::portable::config::Config as ProjectConfig;
+use std::path::{Path, PathBuf};
 
 pub struct Context {
     pub project_config: ProjectConfig,
     pub auto_config: AutoConfig,
 
-    project_dir: PathBuf
+    project_dir: PathBuf,
 }
 
 impl Context {
@@ -16,8 +16,11 @@ impl Context {
         let branch = project_config.edgedb.branch.clone();
         Ok(Context {
             project_config,
-            auto_config: config::create_or_read(&project_dir.join("edgedb.auto.toml"), Some(&branch))?,
-            project_dir: PathBuf::from(project_dir)
+            auto_config: config::create_or_read(
+                &project_dir.join("edgedb.auto.toml"),
+                Some(&branch),
+            )?,
+            project_dir: PathBuf::from(project_dir),
         })
     }
 

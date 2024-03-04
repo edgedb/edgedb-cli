@@ -1,12 +1,12 @@
-pub mod option;
-pub mod main;
-mod create;
-mod context;
-mod drop;
-mod wipe;
-mod switch;
 pub mod config;
-mod rename;
+mod context;
+mod create;
+mod drop;
 mod list;
+pub mod main;
+pub mod option;
+mod rename;
+mod switch;
+mod wipe;
 
 pub use main::branch_main;

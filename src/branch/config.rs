@@ -1,13 +1,13 @@
+use crate::platform::tmp_file_path;
+use crate::portable::config::{modify_core, warn_extra};
+use colorful::core::StrMarker;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
-use colorful::core::StrMarker;
 use toml::Spanned;
-use crate::platform::tmp_file_path;
-use crate::portable::config::{modify_core, warn_extra};
 
 #[derive(serde::Deserialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub struct SrcConfig {
     #[serde(default)]
     pub current_branch: Option<Spanned<String>>,
@@ -16,7 +16,7 @@ pub struct SrcConfig {
 }
 
 pub struct Config {
-    pub current_branch: String
+    pub current_branch: String,
 }
 
 pub fn create_or_read(path: &Path, default_branch: Option<&str>) -> anyhow::Result<Config> {
@@ -31,7 +31,7 @@ pub fn create_or_read(path: &Path, default_branch: Option<&str>) -> anyhow::Resu
     fs::rename(&tmp, path)?;
 
     Ok(Config {
-        current_branch: branch.to_string()
+        current_branch: branch.to_string(),
     })
 }
 
@@ -43,17 +43,18 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
     warn_extra(&val.extra, "");
 
     Ok(Config {
-        current_branch: val.current_branch
+        current_branch: val
+            .current_branch
             .map(|x| x.into_inner())
-            .unwrap_or("main".to_string())
+            .unwrap_or("main".to_string()),
     })
 }
 
 fn modify<T, U, V>(config: &Path, selector: T, value: &U, format: V) -> anyhow::Result<bool>
-    where
-        T: Fn(&SrcConfig) -> &Option<Spanned<U>>,
-        U: std::cmp::PartialEq,
-        V: FnOnce(&U) -> String,
+where
+    T: Fn(&SrcConfig) -> &Option<Spanned<U>>,
+    U: std::cmp::PartialEq,
+    V: FnOnce(&U) -> String,
 {
     let input = fs::read_to_string(&config)?;
     let mut toml = toml::de::Deserializer::new(&input);
@@ -63,6 +64,10 @@ fn modify<T, U, V>(config: &Path, selector: T, value: &U, format: V) -> anyhow::
 }
 
 pub fn modify_current_branch(config: &Path, branch: &String) -> anyhow::Result<bool> {
-    modify(config, |v: &SrcConfig| &v.current_branch, branch, |v| v.clone())
+    modify(
+        config,
+        |v: &SrcConfig| &v.current_branch,
+        branch,
+        |v| v.clone(),
+    )
 }
-

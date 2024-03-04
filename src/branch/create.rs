@@ -26,7 +26,9 @@ pub async fn main(
 
         query = format!(
             "create {} branch {} from {}",
-            branch_type, branch_name, edgeql_parser::helpers::quote_name(source_branch)
+            branch_type,
+            branch_name,
+            edgeql_parser::helpers::quote_name(source_branch)
         )
     }
 

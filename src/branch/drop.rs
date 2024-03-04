@@ -28,15 +28,16 @@ pub async fn main(
         }
     }
 
-    let mut statement = format!("drop branch {}", edgeql_parser::helpers::quote_name(&options.branch));
+    let mut statement = format!(
+        "drop branch {}",
+        edgeql_parser::helpers::quote_name(&options.branch)
+    );
 
     if options.force {
         statement = format!("{} force", &statement);
     }
 
-    let status = connection
-        .execute(&statement, &())
-        .await?;
+    let status = connection.execute(&statement, &()).await?;
 
     print::completion(status);
 
