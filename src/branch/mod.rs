@@ -9,5 +9,6 @@ pub mod config;
 mod rename;
 mod list;
 mod rebase;
+mod connections;
 
 pub use main::branch_main;
