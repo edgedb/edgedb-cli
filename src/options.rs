@@ -108,7 +108,8 @@ pub struct ConnectionOptions {
     pub database: Option<String>,
 
     /// Branch to connect with
-    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(short='b', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete database
     #[arg(hide=true)]
     #[arg(global=true)]
     pub branch: Option<String>,
@@ -223,6 +224,18 @@ pub struct ConnectionOptions {
     #[arg(hide=true)]
     #[arg(global=true)]
     pub connect_timeout: Option<Duration>,
+}
+
+impl ConnectionOptions {
+    pub(crate) fn get_branch(&self) -> Option<&String> {
+        self.database.as_ref().or(self.branch.as_ref())
+    }
+
+    pub(crate) fn validate(&self) {
+        if self.database.is_some() {
+            print::warn("database connection argument is deprecated in favour of 'branch'");
+        }
+    }
 }
 
 #[derive(clap::Parser, Debug)]
@@ -849,7 +862,7 @@ async fn with_password(options: &ConnectionOptions, config: Config)
 }
 
 async fn with_branch(options: &ConnectionOptions, config: Config) -> anyhow::Result<Config> {
-    if let Some(branch) = &options.branch {
+    if let Some(branch) = &options.get_branch() {
         return Ok(config.with_database(branch)?)
     }
 
@@ -917,11 +930,8 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.secret_key(val);
     }
 
-    if let Some(branch) = &tmp.branch {
+    if let Some(branch) = tmp.get_branch() {
         bld.database(branch)?;
-    } else if let Some(database) = &tmp.database {
-        print::warn("database connection argument is deprecated in favour of 'branch'");
-        bld.database(database)?;
     }
 
     load_tls_options(tmp, &mut bld)?;
