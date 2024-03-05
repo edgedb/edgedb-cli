@@ -1,7 +1,7 @@
 use is_terminal::IsTerminal;
 
 use crate::cli::directory_check;
-use crate::cli;
+use crate::{branch, cli};
 use crate::cloud::main::cloud_main;
 use crate::commands::parser::Common;
 use crate::commands;
@@ -94,6 +94,9 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         }
         Command::Watch(c) => {
             watch::watch(options, c)
+        },
+        Command::Branch(c) => {
+            branch::branch_main(options, c)
         }
     }
 }

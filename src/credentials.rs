@@ -48,6 +48,12 @@ pub fn all_instance_names() -> anyhow::Result<BTreeSet<String>> {
 pub async fn write(path: &Path, credentials: &Credentials)
     -> anyhow::Result<()>
 {
+    write_async(path, credentials).await?;
+    Ok(())
+}
+
+#[context("cannot write credentials file {}", path.display())]
+pub async fn write_async(path: &Path, credentials: &Credentials) -> anyhow::Result<()> {
     use tokio::fs;
 
     fs::create_dir_all(path.parent().unwrap()).await?;
@@ -55,6 +61,13 @@ pub async fn write(path: &Path, credentials: &Credentials)
     fs::write(&tmp_path, serde_json::to_vec_pretty(&credentials)?).await?;
     fs::rename(&tmp_path, path).await?;
     Ok(())
+}
+
+pub async fn read(path: &Path) -> anyhow::Result<Credentials> {
+    use tokio::fs;
+
+    let text = fs::read_to_string(path).await?;
+    Ok(serde_json::from_str(&text)?)
 }
 
 pub fn maybe_update_credentials_file(

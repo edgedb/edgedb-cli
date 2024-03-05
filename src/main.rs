@@ -48,6 +48,7 @@ mod tty_password;
 mod variables;
 mod version_check;
 mod watch;
+mod branch;
 
 fn main() {
     match _main() {
@@ -117,6 +118,7 @@ fn _main() -> anyhow::Result<()> {
     }
 
     let opt = Options::from_args_and_env()?;
+    opt.conn_options.validate();
     let cfg = config::get_config();
 
     let mut builder = env_logger::Builder::from_env(
