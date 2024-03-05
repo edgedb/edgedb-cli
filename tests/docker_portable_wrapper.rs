@@ -1,5 +1,9 @@
-#![cfg_attr(not(feature="test_docker_wrapper"),
-            allow(dead_code, unused_imports))]
+//! Tests that compile the tests in the current environment
+//! and then copy the test binaries to a docker container where they are executed.
+//!
+//! Note: these tests likely won't run on non-Ubuntu OSs, since the test binaries
+//! might have dynamic library dependencies into the host system.
+#![cfg_attr(not(feature="test_docker_wrapper"), allow(dead_code, unused_imports))]
 
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;

@@ -1,3 +1,4 @@
+//! Utils for invoking docker via spawning new processes.
 #![allow(dead_code)]
 
 use std::env;
