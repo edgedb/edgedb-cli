@@ -2,6 +2,7 @@ use std::ops::Deref;
 use uuid::Uuid;
 use crate::connect::Connection;
 use crate::options::Options;
+use crate::print;
 
 pub struct BranchConnection<'a> {
     pub connection: Connection,
@@ -19,7 +20,7 @@ impl BranchConnection<'_> {
                 &mut self.options.create_connector().await?.connect().await?
             ).await?;
 
-            branch.connection.execute(&format!("drop branch {}", self.branch_name), &()).await?;
+            print::completion(branch.connection.execute(&format!("drop branch {} force", self.branch_name), &()).await?);
 
             // should never happen, but just to make sure
             if branch.is_temp {
@@ -61,7 +62,7 @@ pub async fn get_connection_that_is_not<'a>(target_branch: &String, options: &'a
                 branch_name: branch.deref().to_string(),
                 is_temp: false,
                 options
-            }.into())
+            })
         }
     }
 

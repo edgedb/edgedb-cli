@@ -13,21 +13,18 @@ pub async fn main(options: &Rebase, context: &Context, connection: &mut Connecti
 
     let mut temp_branch_connection = cli_opts.create_connector().await?.database(&temp_branch)?.connect().await?;
 
-    async_try! {
-        async {
-            rebase(&temp_branch, &mut temp_branch_connection, connection, context, cli_opts).await
-        },
-        except async {
-            // clean up the temp branch
-            let mut rename_connection = get_connection_to_modify(&temp_branch, cli_opts, connection).await?;
+    match rebase(&temp_branch, &mut temp_branch_connection, connection, context, cli_opts).await {
+        Err(e) => {
+            print::error(e);
 
-            rename_connection.connection.execute(&format!("drop branch {} force", &temp_branch), &()).await?;
+            let mut rename_connection = get_connection_to_modify(&temp_branch, cli_opts, connection).await?;
+            let result = rename_connection.connection.execute(&format!("drop branch {} force", edgeql_parser::helpers::quote_name(&temp_branch)), &()).await?;
+
+            print::completion(result);
 
             rename_connection.clean().await
-        },
-        else async {
-            anyhow::Ok(())
         }
+        Ok(_) => anyhow::Ok(())
     }
 }
 
