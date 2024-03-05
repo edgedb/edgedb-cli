@@ -5,7 +5,7 @@ use crate::branch::option::Rebase;
 use crate::connect::Connection;
 use crate::migrations::branch::{do_rebase, get_diverging_migrations};
 use crate::options::Options;
-use crate::{async_try, migrations, print};
+use crate::{migrations, print};
 use crate::branch::connections::get_connection_to_modify;
 
 pub async fn main(options: &Rebase, context: &Context, connection: &mut Connection, cli_opts: &Options) -> anyhow::Result<()> {
