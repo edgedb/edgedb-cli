@@ -12,6 +12,7 @@ pub enum Command {
     Switch(Switch),
     Rename(Rename),
     List(List),
+    Rebase(Rebase)
 }
 
 #[derive(clap::Args, Debug, Clone)]
@@ -62,3 +63,8 @@ pub struct Rename {
 }
 #[derive(clap::Args, Debug, Clone)]
 pub struct List {}
+
+#[derive(clap::Args, Debug, Clone)]
+pub struct Rebase {
+    pub target_branch: String
+}

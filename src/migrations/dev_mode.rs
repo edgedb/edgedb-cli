@@ -201,7 +201,7 @@ async fn _migrate_to_schema(cli: &mut Connection, ctx: &Context)
     Ok(())
 }
 
-async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
+pub async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
                           migrations: &IndexMap<String, MigrationFile>)
     -> anyhow::Result<()>
 {
