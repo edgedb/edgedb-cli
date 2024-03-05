@@ -14,7 +14,7 @@ use tokio::task::spawn_blocking as unblock;
 use edgedb_cli_derive::IntoArgs;
 
 use crate::cli::options::CliCommand;
-use crate::{branch, cli};
+use crate::cli;
 
 use crate::cloud::options::CloudCommand;
 use crate::commands::ExitCode;

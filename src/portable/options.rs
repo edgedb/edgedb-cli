@@ -226,10 +226,6 @@ pub struct Create {
     #[arg(long, hide=true)]
     pub start_conf: Option<StartConf>,
 
-    /// Default database name (created during initialization and saved in
-    /// credentials file)
-    #[arg(long, default_value="edgedb")]
-    pub default_database: String,
     /// Default user name (created during initialization and saved in
     /// credentials file)
     #[arg(long, default_value="edgedb")]

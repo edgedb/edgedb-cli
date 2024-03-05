@@ -154,8 +154,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
             installation: Some(inst),
             port,
         };
-        bootstrap(&paths, &info,
-                  &cmd.default_database, &cmd.default_user)?;
+        bootstrap(&paths, &info, &cmd.default_user)?;
         info
     };
 
@@ -337,17 +336,11 @@ fn create_cloud(
     return Ok(())
 }
 
-pub fn bootstrap_script(database: &str, user: &str, password: &str) -> String {
+fn bootstrap_script(user: &str, password: &str) -> String {
     use std::fmt::Write;
     use edgeql_parser::helpers::{quote_string, quote_name};
 
     let mut output = String::with_capacity(1024);
-    if database != "edgedb" {
-        write!(&mut output,
-            "CREATE DATABASE {};",
-            quote_name(&database),
-        ).unwrap();
-    }
     if user == "edgedb" {
         write!(&mut output, r###"
             ALTER ROLE {name} {{
@@ -370,8 +363,7 @@ pub fn bootstrap_script(database: &str, user: &str, password: &str) -> String {
 }
 
 #[context("cannot bootstrap EdgeDB instance")]
-pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
-                 database: &str, user: &str)
+pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str)
     -> anyhow::Result<()>
 {
     let server_path = info.server_path()?;
@@ -385,7 +377,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
             .with_context(|| format!("creating {:?}", &tmp_data))?;
 
     let password = generate_password();
-    let script = bootstrap_script(database, user, &password);
+    let script = bootstrap_script(user, &password);
 
     echo!("Initializing EdgeDB instance...");
     let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
@@ -409,7 +401,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     let mut creds = Credentials::default();
     creds.port = info.port;
     creds.user = user.into();
-    creds.database = Some(database.into());
+    creds.database = Some("edgedb".into());
     creds.password = Some(password.into());
     creds.tls_ca = Some(cert);
     credentials::write(&paths.credentials, &creds)?;
