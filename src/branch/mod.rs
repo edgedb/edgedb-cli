@@ -1,4 +1,3 @@
-pub mod config;
 mod context;
 mod create;
 mod drop;

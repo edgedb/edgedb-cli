@@ -787,7 +787,6 @@ impl Options {
         match builder.build_env().await {
             Ok(config) => {
                 let mut cfg = with_password(&self.conn_options, config).await?;
-                cfg = with_branch(&self.conn_options, cfg).await?;
                 match (cfg.admin(), cfg.port(), cfg.local_instance_name()) {
                     (false, _, _) => {}
                     (true, None, _) => {}
@@ -859,28 +858,6 @@ async fn with_password(options: &ConnectionOptions, config: Config)
     } else {
         Ok(config)
     }
-}
-
-async fn with_branch(options: &ConnectionOptions, config: Config) -> anyhow::Result<Config> {
-    if let Some(branch) = &options.get_branch() {
-        return Ok(config.with_database(branch)?)
-    }
-
-    // try read from project
-    if let Ok(project_dir) = get_project_dir(None, true).await {
-        if let Some(dir) = project_dir {
-            return match branch::config::read(&dir.join("edgedb.auto.toml"))
-                .map(|v| v.current_branch)
-                .or_else(|_| portable::config::read(&dir.join("edgedb.toml"))
-                    .map(|v| v.edgedb.branch)
-                ) {
-                Ok(branch) => Ok(config.with_database(&branch)?),
-                Err(_) => Ok(config)
-            }
-        }
-    }
-
-    Ok(config)
 }
 
 pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {

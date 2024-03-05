@@ -16,7 +16,7 @@ pub async fn main(
         .await?;
 
     for branch in branches {
-        if context.auto_config.current_branch == branch {
+        if context.branch == branch {
             println!("{} - Current", branch.green());
         } else if context.project_config.edgedb.branch == branch {
             println!("{} - Project default", branch.blue());

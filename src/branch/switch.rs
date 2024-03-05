@@ -22,12 +22,10 @@ pub async fn main(
 
     println!(
         "Switching from '{}' to '{}'",
-        context.auto_config.current_branch, options.branch
+        context.branch, options.branch
     );
 
-    if !context.update_branch(&options.branch)? {
-        anyhow::bail!("Failed to update branch in edgedb.auto.toml")
-    }
+    context.update_branch(&options.branch).await?;
 
     println!("Now on '{}'", options.branch);
 

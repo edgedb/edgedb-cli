@@ -1503,7 +1503,7 @@ fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
 }
 
 #[context("cannot read instance name of {:?}", stash_dir)]
-fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
+pub fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
     let inst = fs::read_to_string(&stash_dir.join("instance-name"))?;
     Ok(InstanceName::from_str(inst.trim())?)
 }
