@@ -706,7 +706,6 @@ fn do_init(name: &str, pkg: &PackageInfo,
             },
             port: Some(port),
             start_conf: None,
-            default_database: "edgedb".into(),
             default_user: "edgedb".into(),
             non_interactive: true,
             cloud_opts: options.cloud_opts.clone(),
@@ -724,7 +723,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             installation: Some(inst),
             port,
         };
-        create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
+        create::bootstrap(&paths, &info, "edgedb")?;
         match create::create_service(&info) {
             Ok(()) => {},
             Err(e) => {
