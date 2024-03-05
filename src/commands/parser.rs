@@ -525,7 +525,10 @@ pub enum ValueParameter {
     AllowUserSpecifiedId(ConfigStr),
 
     /// Web origins that are allowed to send HTTP requests to this server.
-    CorsAllowOrigins(ConfigStrs)
+    CorsAllowOrigins(ConfigStrs),
+
+    /// Recompile all cached queries on DDL if enabled.
+    AutoRebuildQueryCache(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -564,6 +567,8 @@ pub enum ConfigParameter {
     AllowUserSpecifiedId,
     /// Reset cors_allow_origins to an empty set
     CorsAllowOrigins,
+    /// Reset auto_rebuild_query_cache to `true`
+    AutoRebuildQueryCache,
 }
 
 #[derive(clap::Args, Clone, Debug)]
