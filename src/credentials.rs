@@ -8,8 +8,6 @@ use fs_err as fs;
 
 use edgedb_tokio::Config;
 use edgedb_tokio::credentials::Credentials;
-use serde::Deserialize;
-use serde_json::Deserializer;
 
 use crate::platform::{config_dir, tmp_file_name};
 use crate::question;
