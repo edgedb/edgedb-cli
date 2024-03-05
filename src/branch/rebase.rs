@@ -38,13 +38,13 @@ async fn rebase(branch: &String, source_connection: &mut Connection, target_conn
     do_rebase(source_connection, &migration_context, migrations).await?;
 
     // drop old feature branch
-    let status = source_connection.execute(&format!("drop branch {} force", edgeql_parser::helpers::quote_name(&context.auto_config.current_branch)), &()).await?;
+    let status = source_connection.execute(&format!("drop branch {} force", edgeql_parser::helpers::quote_name(&context.branch)), &()).await?;
 
     print::completion(status);
 
     // rename temp branch to feature
-    eprintln!("Recreating branch {}...", &context.auto_config.current_branch.clone().light_gray());
-    rename_temp_to_feature(branch, &context.auto_config.current_branch, cli_opts, source_connection).await?;
+    eprintln!("Recreating branch {}...", &context.branch.clone().light_gray());
+    rename_temp_to_feature(branch, &context.branch, cli_opts, source_connection).await?;
 
     anyhow::Ok(())
 }
