@@ -3,17 +3,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use fn_error_context::context;
-use serde::Deserialize;
-use toml::{Deserializer, Spanned};
+
+use toml::Spanned;
 
 use crate::commands::ExitCode;
+use crate::platform::tmp_file_path;
 use crate::portable::exit_codes;
 use crate::portable::repository::{Channel, Query};
-use crate::platform::tmp_file_path;
 use crate::print::{self, echo, Highlight};
 
 #[derive(serde::Deserialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub struct SrcConfig {
     pub edgedb: SrcEdgedb,
     pub project: Option<SrcProject>,
@@ -22,7 +22,7 @@ pub struct SrcConfig {
 }
 
 #[derive(serde::Deserialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub struct SrcEdgedb {
     #[serde(default)]
     pub server_version: Option<toml::Spanned<Query>>,
@@ -33,14 +33,13 @@ pub struct SrcEdgedb {
 }
 
 #[derive(serde::Deserialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub struct SrcProject {
     #[serde(default)]
     pub schema_dir: Option<String>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }
-
 
 #[derive(Debug)]
 pub struct Config {
@@ -51,26 +50,28 @@ pub struct Config {
 #[derive(Debug)]
 pub struct Edgedb {
     pub server_version: Query,
-    pub branch: String
+    pub branch: String,
 }
 
 #[derive(Debug)]
 pub struct Project {
-    pub schema_dir: PathBuf
+    pub schema_dir: PathBuf,
 }
 
 pub fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
     for key in extra.keys() {
-        log::warn!("Unknown config option `{}{}`",
-                   prefix, key.escape_default());
+        log::warn!("Unknown config option `{}{}`", prefix, key.escape_default());
     }
 }
 
 pub fn format_config(version: &Query) -> String {
-    return format!("\
+    return format!(
+        "\
         [edgedb]\n\
         server-version = {:?}\n\
-    ", version.as_config_value())
+    ",
+        version.as_config_value()
+    );
 }
 
 #[context("error reading project config `{}`", path.display())]
@@ -83,96 +84,119 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
 
     return Ok(Config {
         edgedb: Edgedb {
-            server_version: val.edgedb.server_version
+            server_version: val
+                .edgedb
+                .server_version
                 .map(|x| x.into_inner())
                 .unwrap_or(Query {
                     channel: Channel::Stable,
                     version: None,
                 }),
-            branch: val.edgedb.branch
+            branch: val
+                .edgedb
+                .branch
                 .map(|x| x.into_inner())
-                .unwrap_or("main".to_string())
+                .unwrap_or("main".to_string()),
         },
-        project: Project{
-            schema_dir: val.project
+        project: Project {
+            schema_dir: val
+                .project
                 .map(|p| p.schema_dir)
                 .flatten()
                 .map(|s| s.into())
-                .unwrap_or_else(|| {
-                    path.parent().unwrap_or(&Path::new(""))
-                    .join("dbschema")
-                })
+                .unwrap_or_else(|| path.parent().unwrap_or(&Path::new("")).join("dbschema")),
         },
-    })
+    });
 }
 
-pub fn modify_core<Selector, Value, Formatter, Config>(parsed: &Config, input: &String, config: &Path, selector: Selector, value: &Value, format: Formatter) -> anyhow::Result<bool>
-    where
-        Selector: Fn(&Config) -> &Option<Spanned<Value>>,
-        Value: std::cmp::PartialEq,
-        Formatter: FnOnce(&Value) -> String,
+/// Modify a field in a config of type `Cfg` that was deserialized from `input`.
+/// The field is selected with the `selector` function.
+pub fn modify_config<Cfg, Selector, Val, ToStr>(
+    parsed: &Cfg,
+    input: &str,
+    selector: Selector,
+    field_name: &'static str,
+    value: &Val,
+    to_str: ToStr,
+) -> anyhow::Result<Option<String>>
+where
+    Selector: Fn(&Cfg) -> &Option<Spanned<Val>>,
+    Val: std::cmp::PartialEq,
+    ToStr: FnOnce(&Val) -> String,
 {
     use std::fmt::Write;
 
     if let Some(selected) = selector(parsed) {
         if selected.get_ref() == value {
-            return Ok(false);
+            return Ok(None);
         }
 
         let mut out = String::with_capacity(input.len() + 5);
-        write!(&mut out, "{}{:?}{}",
-               &input[..selected.start()],
-               format(value),
-               &input[selected.end()..]
-        ).unwrap();
+        write!(
+            &mut out,
+            "{}{:?}{}",
+            &input[..selected.start()],
+            to_str(value),
+            &input[selected.end()..]
+        )
+        .unwrap();
 
-        let tmp = tmp_file_path(config);
-        fs::remove_file(&tmp).ok();
-        fs::write(&tmp, out)?;
-        fs::rename(&tmp, config)?;
-
-        return Ok(true)
+        return Ok(Some(out));
     }
 
-    println!("No selector");
-
-    Ok(false)
+    print::error(format!("Invalid `edgedb.toml`: missing {}", field_name));
+    Err(ExitCode::new(exit_codes::INVALID_CONFIG).into())
 }
 
-fn modify<T, U, V>(config: &Path, selector: T, value: &U, format: V) -> anyhow::Result<bool>
-    where
-        T: Fn(&SrcConfig) -> &Option<Spanned<U>>,
-        U: std::cmp::PartialEq,
-        V: FnOnce(&U) -> String,
+pub fn read_modify_write<Cfg, Selector, Val, ToStr>(
+    path: &Path,
+    selector: Selector,
+    field_name: &'static str,
+    value: &Val,
+    to_str: ToStr,
+) -> anyhow::Result<bool>
+where
+    Cfg: for<'de> serde::Deserialize<'de>,
+    Selector: Fn(&Cfg) -> &Option<Spanned<Val>>,
+    Val: std::cmp::PartialEq,
+    ToStr: FnOnce(&Val) -> String,
 {
-    let input = fs::read_to_string(&config)?;
-    let mut toml = toml::de::Deserializer::new(&input);
-    let parsed: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
+    let input = fs::read_to_string(&path)?;
+    let mut deserializer = toml::de::Deserializer::new(&input);
+    let parsed: Cfg = serde_path_to_error::deserialize(&mut deserializer)?;
 
-    return modify_core(&parsed, &input, config, selector, value, format);
+    if let Some(new_contents) = modify_config(&parsed, &input, selector, field_name, value, to_str)?
+    {
+        let tmp = tmp_file_path(path);
+        fs::remove_file(&tmp).ok();
+        fs::write(&tmp, new_contents)?;
+        fs::rename(&tmp, path)?;
+
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 #[context("cannot modify `{}`", config.display())]
 pub fn modify_server_ver(config: &Path, ver: &Query) -> anyhow::Result<bool> {
-    echo!("Setting `server-version = ",
-               format_args!("{:?}", ver.as_config_value()).emphasize(),
-               "` in `edgedb.toml`");
-    modify(config, |v: &SrcConfig| &v.edgedb.server_version, ver, Query::as_config_value)
+    echo!(
+        "Setting `server-version = ",
+        format_args!("{:?}", ver.as_config_value()).emphasize(),
+        "` in `edgedb.toml`"
+    );
+    read_modify_write(
+        config,
+        |v: &SrcConfig| &v.edgedb.server_version,
+        "server-version",
+        ver,
+        Query::as_config_value,
+    )
 }
-
-#[context("cannot modify `{}`", config.display())]
-pub fn modify_branch(config: &Path, branch: &String) -> anyhow::Result<bool> {
-    echo!("Setting `branch = ",
-               format_args!("{:?}", branch).emphasize(),
-               "` in `edgedb.toml`");
-    modify(config, |v: &SrcConfig| &v.edgedb.branch, branch, |v| v.clone())
-}
-
 
 #[cfg(test)]
 mod test {
     use test_case::test_case;
-    use super::toml_set_version;
 
     const TOML_BETA1: &str = "\
         [edgedb]\n\
@@ -259,6 +283,21 @@ mod test {
         edgedb = {server-version = \"nightly\"}\n\
         project = {schema-dir = \"custom-dir\"}\n\
     ";
+
+    fn set_toml_version(data: &str, version: &super::Query) -> anyhow::Result<Option<String>> {
+        let mut toml = toml::de::Deserializer::new(&data);
+        let parsed: super::SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
+
+        super::modify_config(
+            &parsed,
+            data,
+            |v: &super::SrcConfig| &v.edgedb.server_version,
+            "server-version",
+            version,
+            super::Query::as_config_value,
+        )
+    }
+
     #[test_case(TOML_BETA1, "1.0-beta.2" => Some(TOML_BETA2.into()))]
     #[test_case(TOML_BETA2, "1.0-beta.2" => None)]
     #[test_case(TOML_NIGHTLY, "1.0-beta.2" => Some(TOML_BETA2.into()))]
@@ -270,7 +309,6 @@ mod test {
     #[test_case(TOML_BETA2_CUSTOM_SCHEMA_DIR, "nightly" => Some(TOML_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
     #[test_case(TOML_NIGHTLY, "nightly" => None)]
     #[test_case(TOML_2_3, "=2.3" => Some(TOML_2_3_EXACT.into()))]
-
     #[test_case(TOML2_BETA1, "1.0-beta.2" => Some(TOML2_BETA2.into()))]
     #[test_case(TOML2_BETA2, "1.0-beta.2" => None)]
     #[test_case(TOML2_NIGHTLY, "1.0-beta.2" => Some(TOML2_BETA2.into()))]
@@ -281,7 +319,6 @@ mod test {
     #[test_case(TOML2_BETA2, "nightly" => Some(TOML2_NIGHTLY.into()))]
     #[test_case(TOML2_BETA2_CUSTOM_SCHEMA_DIR, "nightly" => Some(TOML2_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
     #[test_case(TOML2_NIGHTLY, "nightly" => None)]
-
     #[test_case(TOMLI_BETA1, "1.0-beta.2" => Some(TOMLI_BETA2.into()))]
     #[test_case(TOMLI_BETA2, "1.0-beta.2" => None)]
     #[test_case(TOMLI_NIGHTLY, "1.0-beta.2" => Some(TOMLI_BETA2.into()))]
@@ -293,7 +330,6 @@ mod test {
     #[test_case(TOMLI_BETA2_CUSTOM_SCHEMA_DIR, "nightly"=> Some(TOMLI_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
     #[test_case(TOMLI_NIGHTLY, "nightly" => None)]
     fn modify(src: &str, ver: &str) -> Option<String> {
-        toml_set_version(src, &ver.parse().unwrap()).unwrap()
+        set_toml_version(src, &ver.parse().unwrap()).unwrap()
     }
-
 }

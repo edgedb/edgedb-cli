@@ -123,7 +123,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     let paths = Paths::get(&name)?;
     paths.check_exists()
         .with_context(|| format!("instance {:?} detected", name))
-        .with_hint(|| format!("Use `edgedb destroy {}` \
+        .with_hint(|| format!("Use `edgedb instance destroy -I {}` \
                               to remove rest of unused instance",
                               name))?;
 

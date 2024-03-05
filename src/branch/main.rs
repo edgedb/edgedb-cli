@@ -3,7 +3,7 @@ use crate::branch::option::{BranchCommand, Command};
 use crate::branch::{create, drop, list, rebase, rename, switch, wipe};
 use crate::connect::Connection;
 use crate::options::Options;
-use crate::portable::config::Config;
+
 use edgedb_tokio::get_project_dir;
 
 #[tokio::main]
@@ -26,5 +26,5 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
 
 async fn create_context() -> anyhow::Result<Context> {
     let project_dir = get_project_dir(None, true).await?.expect("Missing project");
-    Context::new(&project_dir)
+    Context::new(&project_dir).await
 }

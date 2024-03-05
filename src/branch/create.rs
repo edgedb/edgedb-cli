@@ -1,7 +1,7 @@
 use crate::branch::context::Context;
 use crate::branch::option::Create;
 use crate::connect::Connection;
-use crate::{portable, print};
+use crate::print;
 
 pub async fn main(
     options: &Create,
@@ -11,7 +11,7 @@ pub async fn main(
     let source_branch = options
         .from
         .as_ref()
-        .unwrap_or(&context.auto_config.current_branch);
+        .unwrap_or(&context.branch);
 
     let query: String;
     let branch_name = edgeql_parser::helpers::quote_name(&options.branch);
@@ -26,7 +26,9 @@ pub async fn main(
 
         query = format!(
             "create {} branch {} from {}",
-            branch_type, branch_name, edgeql_parser::helpers::quote_name(source_branch)
+            branch_type,
+            branch_name,
+            edgeql_parser::helpers::quote_name(source_branch)
         )
     }
 
@@ -36,9 +38,7 @@ pub async fn main(
 
     print::completion(&status);
 
-    if !context.update_branch(&branch_name.as_ref().to_string())? {
-        anyhow::bail!("Failed to update branch in edgedb.auto.toml")
-    }
+    context.update_branch(&branch_name.as_ref().to_string()).await?;
 
     Ok(())
 }

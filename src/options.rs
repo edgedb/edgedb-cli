@@ -15,7 +15,7 @@ use edgedb_cli_derive::IntoArgs;
 
 use crate::cli::options::CliCommand;
 use crate::{branch, cli};
-use crate::branch::config;
+
 use crate::cloud::options::CloudCommand;
 use crate::commands::ExitCode;
 use crate::commands::parser::Common;
@@ -108,7 +108,8 @@ pub struct ConnectionOptions {
     pub database: Option<String>,
 
     /// Branch to connect with
-    #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(short='b', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete database
     #[arg(hide=true)]
     #[arg(global=true)]
     pub branch: Option<String>,
@@ -223,6 +224,18 @@ pub struct ConnectionOptions {
     #[arg(hide=true)]
     #[arg(global=true)]
     pub connect_timeout: Option<Duration>,
+}
+
+impl ConnectionOptions {
+    pub(crate) fn get_branch(&self) -> Option<&String> {
+        self.database.as_ref().or(self.branch.as_ref())
+    }
+
+    pub(crate) fn validate(&self) {
+        if self.database.is_some() {
+            print::warn("database connection argument is deprecated in favour of 'branch'");
+        }
+    }
 }
 
 #[derive(clap::Parser, Debug)]
@@ -774,7 +787,6 @@ impl Options {
         match builder.build_env().await {
             Ok(config) => {
                 let mut cfg = with_password(&self.conn_options, config).await?;
-                cfg = with_branch(&self.conn_options, cfg).await?;
                 match (cfg.admin(), cfg.port(), cfg.local_instance_name()) {
                     (false, _, _) => {}
                     (true, None, _) => {}
@@ -848,28 +860,6 @@ async fn with_password(options: &ConnectionOptions, config: Config)
     }
 }
 
-async fn with_branch(options: &ConnectionOptions, config: Config) -> anyhow::Result<Config> {
-    if let Some(branch) = &options.branch {
-        return Ok(config.with_database(branch)?)
-    }
-
-    // try read from project
-    if let Ok(project_dir) = get_project_dir(None, true).await {
-        if let Some(dir) = project_dir {
-            return match branch::config::read(&dir.join("edgedb.auto.toml"))
-                .map(|v| v.current_branch)
-                .or_else(|_| portable::config::read(&dir.join("edgedb.toml"))
-                    .map(|v| v.edgedb.branch)
-                ) {
-                Ok(branch) => Ok(config.with_database(&branch)?),
-                Err(_) => Ok(config)
-            }
-        }
-    }
-
-    Ok(config)
-}
-
 pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     let tmp = &opts.conn_options;
     let mut bld = Builder::new();
@@ -917,11 +907,8 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
         bld.secret_key(val);
     }
 
-    if let Some(branch) = &tmp.branch {
+    if let Some(branch) = tmp.get_branch() {
         bld.database(branch)?;
-    } else if let Some(database) = &tmp.database {
-        print::warn("database connection argument is deprecated in favour of 'branch'");
-        bld.database(database)?;
     }
 
     load_tls_options(tmp, &mut bld)?;
