@@ -246,7 +246,7 @@ pub async fn do_rebase(connection: &mut Connection, context: &Context, rebase_mi
         let to = context
             .schema_dir
             .join("migrations")
-            .join(from.file_name().expect(""));
+            .join(from.file_name().unwrap());
 
         if let Some(migration) = rebase_migration {
             if last != Some(&migration.kind) {
