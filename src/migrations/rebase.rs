@@ -224,7 +224,7 @@ pub async fn do_rebase(connection: &mut Connection, context: &Context, rebase_mi
         quiet: false,
     };
 
-    // write all the migrations to disc.
+    // write all the migrations to disk.
     let flattened_migrations = rebase_migrations.flatten()?;
     for migration in &flattened_migrations {
         create::write_migration(&temp_ctx, migration, false).await?;
