@@ -38,7 +38,7 @@ pub async fn main(
 
     print::completion(&status);
 
-    context.update_branch(&branch_name.as_ref().to_string()).await?;
+    context.update_branch(&options.branch).await?;
 
     Ok(())
 }
