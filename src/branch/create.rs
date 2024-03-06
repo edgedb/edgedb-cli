@@ -8,6 +8,15 @@ pub async fn main(
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
+    let branches: Vec<String> = connection.query(
+        "SELECT (SELECT sys::Database FILTER NOT .builtin).name",
+        &(),
+    ).await?;
+
+    if branches.contains(&options.branch) {
+        anyhow::bail!("Branch '{}' already exists!", options.branch)
+    }
+
     let source_branch = options
         .from
         .as_ref()
