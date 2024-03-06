@@ -13,7 +13,7 @@ pub async fn create(cli: &mut Connection, options: &CreateDatabase, _: &Options)
     -> Result<(), anyhow::Error>
 {
     if cli.get_version().await?.specific().major >= 5 {
-        anyhow::bail!("'edgedb database create' is deprecated in EdgeDB 5+. Please use 'edgedb branch create'");
+        eprintln!("'edgedb database create' is deprecated in EdgeDB 5+. Please use 'edgedb branch create'");
     }
 
     let status = cli.execute(
@@ -28,7 +28,7 @@ pub async fn drop(cli: &mut Connection, options: &DropDatabase, _: &Options)
     -> Result<(), anyhow::Error>
 {
     if cli.get_version().await?.specific().major >= 5 {
-        anyhow::bail!("'edgedb database drop' is deprecated in EdgeDB 5+. Please use 'edgedb branch drop'");
+        eprintln!("'edgedb database drop' is deprecated in EdgeDB 5+. Please use 'edgedb branch drop'");
     }
 
     if !options.non_interactive {
@@ -53,7 +53,7 @@ pub async fn wipe(cli: &mut Connection, options: &WipeDatabase, _: &Options)
     -> Result<(), anyhow::Error>
 {
     if cli.get_version().await?.specific().major >= 5 {
-        anyhow::bail!("'edgedb database wipe' is deprecated in EdgeDB 5+. Please use 'edgedb branch wipe'");
+        eprintln!("'edgedb database wipe' is deprecated in EdgeDB 5+. Please use 'edgedb branch wipe'");
     }
 
     if cli.get_version().await?.specific() < "3.0-alpha.2".parse().unwrap() {
