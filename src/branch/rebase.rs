@@ -1,9 +1,10 @@
 use colorful::Colorful;
+use indexmap::IndexMap;
 use uuid::Uuid;
 use crate::branch::context::Context;
 use crate::branch::option::Rebase;
 use crate::connect::Connection;
-use crate::migrations::rebase::{do_rebase, get_diverging_migrations};
+use crate::migrations::rebase::{do_rebase, get_diverging_migrations, write_rebased_migration_files};
 use crate::options::Options;
 use crate::{migrations, print};
 use crate::branch::connections::get_connection_to_modify;
@@ -35,7 +36,9 @@ async fn rebase(branch: &String, source_connection: &mut Connection, target_conn
     migrations.print_status();
 
     let migration_context = migrations::Context::for_project(&context.project_config)?;
-    do_rebase(source_connection, &migration_context, migrations).await?;
+    do_rebase(&migrations, &migration_context).await?;
+
+    write_rebased_migration_files(&migrations, &migration_context, source_connection).await?;
 
     // drop old feature branch
     eprintln!("\nReplacing '{}' with rebased version...", &context.branch);

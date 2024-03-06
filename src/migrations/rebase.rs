@@ -216,7 +216,7 @@ async fn rebase_migration_ids(context: &Context) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn do_rebase(connection: &mut Connection, context: &Context, rebase_migrations: RebaseMigrations) -> anyhow::Result<()> {
+pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) -> anyhow::Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let temp_ctx = Context {
         schema_dir: temp_dir.path().to_path_buf(),
@@ -269,18 +269,19 @@ pub async fn do_rebase(connection: &mut Connection, context: &Context, rebase_mi
             }
         }
 
-
         fs::copy(from, to)?;
 
         last = rebase_migration.map(|v| &v.kind);
     }
 
+    Ok(())
+}
+
+pub async fn write_rebased_migration_files(rebase_migrations: &RebaseMigrations, context: &Context, connection: &mut Connection) -> anyhow::Result<()> {
     // apply the new migrations
     let migrations: IndexMap<String, MigrationFile> = migration::read_all(context, true).await?.into_iter()
         .filter(|(id, _)| rebase_migrations.target_migrations.contains_key(id))
         .collect();
 
-    migrate::apply_migrations(connection, &migrations, context, true).await?;
-
-    Ok(())
+    migrate::apply_migrations(connection, &migrations, context, true).await
 }
