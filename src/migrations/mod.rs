@@ -18,7 +18,7 @@ mod timeout;
 pub mod dev_mode;
 pub mod options;
 pub mod upgrade_check;
-pub mod branch;
+pub mod rebase;
 
 const NULL_MIGRATION: &str = "initial";
 
