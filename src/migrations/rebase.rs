@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::iter::FromIterator;
 use fs_err as fs;
 
@@ -16,10 +17,18 @@ use crate::migrations::migrate::apply_migrations_inner;
 use crate::migrations::migration::MigrationFile;
 use crate::print;
 
+#[derive(PartialEq)]
+enum RebaseMigrationKind {
+    Base,
+    Source,
+    Target,
+}
+
 struct RebaseMigration<'a> {
     key: MigrationKey,
     migration: &'a DBMigration,
     parent: Option<&'a str>,
+    kind: RebaseMigrationKind
 }
 
 impl MigrationToText for RebaseMigration<'_> {
@@ -60,6 +69,21 @@ pub struct RebaseMigrations {
 }
 
 impl RebaseMigrations {
+    pub fn print_status(&self) {
+        let last_common = self.base_migrations.last().map(|v| v.0.as_str()).unwrap_or("initial").green();
+
+        let format_migration_on_length = |c: usize| {
+             if c > 1 {"migrations"} else {"migration"}
+        };
+
+        eprintln!("Last common migration is {}", last_common);
+        eprintln!(
+            "Since then, there are:\n- {} new {} on the target branch,\n- {} {} to rebase",
+            self.target_migrations.len().to_string().green(), format_migration_on_length(self.target_migrations.len()),
+            self.source_migrations.len().to_string().green(), format_migration_on_length(self.source_migrations.len())
+        );
+    }
+
     fn flatten(&self) -> anyhow::Result<Vec<RebaseMigration>> {
         let mut result = Vec::new();
         let mut key_index = 0;
@@ -73,7 +97,8 @@ impl RebaseMigrations {
             result.push(RebaseMigration {
                 key: next_key(),
                 parent: None,
-                migration
+                migration,
+                kind: RebaseMigrationKind::Base,
             });
         }
 
@@ -84,7 +109,8 @@ impl RebaseMigrations {
             result.push(RebaseMigration {
                 key: next_key(),
                 migration: first_migration,
-                parent: base_last.map(|v| v.migration.name.as_str())
+                parent: base_last.map(|v| v.migration.name.as_str()),
+                kind: RebaseMigrationKind::Source,
             });
 
 
@@ -92,7 +118,8 @@ impl RebaseMigrations {
                 result.push(RebaseMigration {
                     key: next_key(),
                     migration,
-                    parent: None
+                    parent: None,
+                    kind: RebaseMigrationKind::Source,
                 });
             }
         }
@@ -104,14 +131,16 @@ impl RebaseMigrations {
             result.push(RebaseMigration {
                 key: next_key(),
                 migration: first_migration,
-                parent: source_last.map(|v| v.migration.name.as_str())
+                parent: source_last.map(|v| v.migration.name.as_str()),
+                kind: RebaseMigrationKind::Target,
             });
 
             for (_, migration) in &self.target_migrations[1..] {
                 result.push(RebaseMigration {
                     key: next_key(),
                     migration,
-                    parent: None
+                    parent: None,
+                    kind: RebaseMigrationKind::Target,
                 });
             }
         }
@@ -141,7 +170,7 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
 
             let source_index = source_migrations.get_index_of(id).context("Expected source_migrations to contain ID")?;
 
-            let new_source_migrations = source_migrations.split_off(source_index);
+            let new_source_migrations = source_migrations.split_off(source_index + 1);
 
             // add 1 to index since we want the migrations not apart of source
             return Ok(RebaseMigrations {
@@ -161,16 +190,27 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
 
 async fn rebase_migration_ids(context: &Context) -> anyhow::Result<()> {
     let migrations = migration::read_all(context, false).await?;
+    let mut changed_ids: HashMap<String, String> = HashMap::new();
 
-    for (id, migration_file) in migrations {
+    for (id, mut migration_file) in migrations {
         let mut migration_text = fs::read_to_string(&migration_file.path)?;
+
+        // its important to change parent before the main ID, since parent effects the hash id of the migration
+        if changed_ids.contains_key(&migration_file.data.parent_id) {
+            let new_parent_id = changed_ids.get(&migration_file.data.parent_id).unwrap();
+            migration_text = migration_file.data.replace_parent_id(&migration_text, new_parent_id);
+            migration_file.data.parent_id = new_parent_id.clone(); // change for hash computation below
+        }
+
         let expected_id = migration_file.data.expected_id(&migration_text)?;
 
         if id != expected_id {
-            eprintln!("Updating migration {} to {}", id.red(), expected_id.clone().green());
             migration_text = migration_file.data.replace_id(&migration_text, &expected_id);
-            fs::write(&migration_file.path, migration_text)?;
+            migration_file.data.id = expected_id.clone();
+            changed_ids.insert(id, expected_id);
         }
+
+        fs::write(&migration_file.path, migration_text)?;
     }
 
     Ok(())
@@ -186,8 +226,8 @@ pub async fn do_rebase(connection: &mut Connection, context: &Context, rebase_mi
 
     // write all the migrations to disc.
     let flattened_migrations = rebase_migrations.flatten()?;
-    for migration in flattened_migrations {
-        create::write_migration(&temp_ctx, &migration, false).await?;
+    for migration in &flattened_migrations {
+        create::write_migration(&temp_ctx, migration, false).await?;
     }
 
     // update the IDs of the migrations for the rebase, since we're changing the history the IDs can be invalid so we
@@ -200,13 +240,39 @@ pub async fn do_rebase(connection: &mut Connection, context: &Context, rebase_mi
     }
 
     // move the new migrations from temp to schema dir
-    for from in migration::read_names(&temp_ctx).await? {
+    let mut last: Option<&RebaseMigrationKind> = None;
+    for (index, from) in migration::read_names(&temp_ctx).await?.iter().enumerate() {
+        let rebase_migration = flattened_migrations.get(index);
         let to = context
             .schema_dir
             .join("migrations")
             .join(from.file_name().expect(""));
-        print::success_msg("Writing", to.display());
+
+        if let Some(migration) = rebase_migration {
+            if last != Some(&migration.kind) {
+                match migration.kind {
+                    RebaseMigrationKind::Target => {
+                        eprintln!("\nNew migrations on target branch:")
+                    },
+                    RebaseMigrationKind::Source => {
+                        eprintln!("\nMigrations to rebase:")
+                    },
+                    RebaseMigrationKind::Base => {}
+                }
+            }
+
+            match migration.kind {
+                RebaseMigrationKind::Target | RebaseMigrationKind::Source => {
+                    print::success_msg("Writing", to.display());
+                }
+                RebaseMigrationKind::Base => {}
+            }
+        }
+
+
         fs::copy(from, to)?;
+
+        last = rebase_migration.map(|v| &v.kind);
     }
 
     // apply the new migrations

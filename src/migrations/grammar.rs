@@ -190,7 +190,7 @@ fn migration<'a>()
     kw("create").and(kw("migration"))
         .with((position(), kind(Kind::Ident)))
         .skip(kw("onto"))
-        .and(kind(Kind::Ident))
+        .and((position(), kind(Kind::Ident)))
         .and(between(kind(Kind::OpenBrace), kind(Kind::CloseBrace),
             (position(), many::<Vec<_>, _, _>(statement()), position())
         ))
@@ -199,12 +199,15 @@ fn migration<'a>()
     .and_then(|((id, parent_id), brace_block)| -> Result<_, Error<'_>> {
         let (id_start, id) = id;
         let id_end = id_start.offset as usize + id.text.len();
+        let (parent_id_start, parent_id) = parent_id;
+        let parent_id_end = parent_id_start.offset as usize + parent_id.text.len();
         let (start, statements, end) = brace_block;
         let mut m = Migration {
             message: None,
             id: id.text.into(),
             id_range: (id_start.offset as usize, id_end),
             parent_id: parent_id.text.into(),
+            parent_id_range: (parent_id_start.offset as usize, parent_id_end),
             text_range: (start.offset as usize, end.offset as usize),
         };
 
