@@ -224,7 +224,7 @@ pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) 
         quiet: false,
     };
 
-    // write all the migrations to disc.
+    // write all the migrations to disk.
     let flattened_migrations = rebase_migrations.flatten()?;
     for migration in &flattened_migrations {
         create::write_migration(&temp_ctx, migration, false).await?;
@@ -246,7 +246,7 @@ pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) 
         let to = context
             .schema_dir
             .join("migrations")
-            .join(from.file_name().expect(""));
+            .join(from.file_name().unwrap());
 
         if let Some(migration) = rebase_migration {
             if last != Some(&migration.kind) {
