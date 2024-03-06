@@ -3,7 +3,7 @@ use uuid::Uuid;
 use crate::branch::context::Context;
 use crate::branch::option::Rebase;
 use crate::connect::Connection;
-use crate::migrations::branch::{do_rebase, get_diverging_migrations};
+use crate::migrations::rebase::{do_rebase, get_diverging_migrations};
 use crate::options::Options;
 use crate::{migrations, print};
 use crate::branch::connections::get_connection_to_modify;

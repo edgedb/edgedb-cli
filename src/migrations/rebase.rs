@@ -2,8 +2,8 @@ use std::iter::FromIterator;
 use fs_err as fs;
 
 use std::ops::Index;
-use anyhow::anyhow;
-use crossterm::style::Stylize;
+use anyhow::{anyhow, Context as _};
+use colorful::Colorful;
 use indexmap::IndexMap;
 use crate::connect::Connection;
 use crate::migrations::{Context, create, db_migration, migrate, migration};
@@ -51,61 +51,68 @@ impl MigrationToText for RebaseMigration<'_> {
 }
 
 pub struct RebaseMigrations {
+    /// initial..base : the commonly shared migrations between both 'source' and 'target'
+    base_migrations: IndexMap<String, DBMigration>,
+    /// base..source : the migrations that are unique to 'source'
     source_migrations: IndexMap<String, DBMigration>,
+    /// base..target : the migrations that are unique to 'target'
     target_migrations: IndexMap<String, DBMigration>,
 }
 
 impl RebaseMigrations {
     fn flatten(&self) -> anyhow::Result<Vec<RebaseMigration>> {
         let mut result = Vec::new();
-
         let mut key_index = 0;
-        let last_source_migration_id = self.source_migrations.last().map(|v| v.0.as_str()).unwrap_or("initial");
-        let mut iter = self.source_migrations.iter();
 
-        loop {
-            match iter.next() {
-                Some((id, migration)) => {
-                    eprintln!("Rebasing {} as base", id.clone().blue());
+        let mut next_key = || -> MigrationKey {
+            key_index += 1;
+            MigrationKey::Index(key_index)
+        };
 
-                    result.push(RebaseMigration {
-                        key: MigrationKey::Index(key_index + 1),
-                        parent: None,
-                        migration
-                    });
-                    key_index += 1;
-                },
-                None => break
-            }
+        for (_, migration) in &self.base_migrations {
+            result.push(RebaseMigration {
+                key: next_key(),
+                parent: None,
+                migration
+            });
         }
 
-        iter = self.target_migrations.iter();
+        if self.source_migrations.len() > 0 {
+            let (_, first_migration) = self.source_migrations.first().unwrap();
+            let base_last = result.last();
 
-        match iter.next() {
-            Some((id, migration)) => {
-                eprintln!("Rebasing {} as feature onto {}", id.clone().green(), last_source_migration_id.blue());
+            result.push(RebaseMigration {
+                key: next_key(),
+                migration: first_migration,
+                parent: base_last.map(|v| v.migration.name.as_str())
+            });
 
+
+            for (_, migration) in &self.source_migrations[1..] {
                 result.push(RebaseMigration {
-                    key: MigrationKey::Index(key_index + 1),
-                    parent: Some(last_source_migration_id),
-                    migration
+                    key: next_key(),
+                    migration,
+                    parent: None
                 });
             }
-            None => return Ok(result)
         }
 
-        loop {
-            match iter.next() {
-                Some((id, migration)) => {
-                    eprintln!("Rebasing {} as feature", id.clone().green());
-                    result.push(RebaseMigration {
-                        key: MigrationKey::Index(key_index + 1),
-                        parent: None,
-                        migration
-                    });
-                    key_index += 1;
-                },
-                None => break
+        if self.target_migrations.len() > 0 {
+            let (_, first_migration) = self.target_migrations.first().unwrap();
+            let source_last = result.last();
+
+            result.push(RebaseMigration {
+                key: next_key(),
+                migration: first_migration,
+                parent: source_last.map(|v| v.migration.name.as_str())
+            });
+
+            for (_, migration) in &self.target_migrations[1..] {
+                result.push(RebaseMigration {
+                    key: next_key(),
+                    migration,
+                    parent: None
+                });
             }
         }
 
@@ -114,42 +121,39 @@ impl RebaseMigrations {
 }
 
 pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Connection) -> anyhow::Result<RebaseMigrations> {
-    let source_migrations = read_all(source, true, false).await?;
+    let mut source_migrations = read_all(source, true, false).await?;
     let mut target_migrations = read_all(target, true, false).await?;
 
     if source_migrations.is_empty() {
         return Ok(RebaseMigrations {
-            target_migrations,
-            source_migrations
+            base_migrations: IndexMap::new(),
+            source_migrations: IndexMap::new(),
+            target_migrations
         });
     }
 
-    let mut iter = target_migrations.iter().rev();
-    loop {
-        match iter.next() {
-            Some((id, _)) => {
-                if source_migrations.contains_key(id) {
-                    // diverging point
-                    let mut diverging_index = target_migrations.get_index_of(id).unwrap();
-
-                    if diverging_index == target_migrations.len() - 1 {
-                        // target is up to date with source
-                        anyhow::bail!("Branch {} is already up-to-date", target.database())
-                    }
-
-                    // add 1 to diverging_index since we want the migrations not apart of source
-                    diverging_index += 1;
-
-                    return Ok(RebaseMigrations {
-                        source_migrations,
-                        target_migrations: target_migrations.split_off(diverging_index)
-                    })
-                }
+    for (index, (id, _)) in target_migrations.iter().enumerate().rev() {
+        if source_migrations.contains_key(id) {
+            if index == target_migrations.len() - 1 {
+                // target is up to date with source
+                anyhow::bail!("Branch {} is already up-to-date", target.database())
             }
-            None => break
+
+            let source_index = source_migrations.get_index_of(id).context("Expected source_migrations to contain ID")?;
+
+            let new_source_migrations = source_migrations.split_off(source_index);
+
+            // add 1 to index since we want the migrations not apart of source
+            return Ok(RebaseMigrations {
+                base_migrations: source_migrations,
+                source_migrations: new_source_migrations,
+                target_migrations: target_migrations.split_off(index + 1)
+            })
         }
     }
+
     Ok(RebaseMigrations {
+        base_migrations: IndexMap::new(),
         source_migrations,
         target_migrations
     })
@@ -206,11 +210,11 @@ pub async fn do_rebase(connection: &mut Connection, context: &Context, rebase_mi
     }
 
     // apply the new migrations
-    let mut migrations = migration::read_all(context, true).await?;
+    let migrations: IndexMap<String, MigrationFile> = migration::read_all(context, true).await?.into_iter()
+        .filter(|(id, _)| rebase_migrations.target_migrations.contains_key(id))
+        .collect();
 
-    let split_index = rebase_migrations.source_migrations.len();
-
-    migrate::apply_migrations(connection, &migrations.split_off(split_index), context, true).await?;
+    migrate::apply_migrations(connection, &migrations, context, true).await?;
 
     Ok(())
 }
