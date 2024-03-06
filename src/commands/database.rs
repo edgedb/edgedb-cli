@@ -12,6 +12,10 @@ use crate::question;
 pub async fn create(cli: &mut Connection, options: &CreateDatabase, _: &Options)
     -> Result<(), anyhow::Error>
 {
+    if cli.get_version().await?.specific().major >= 5 {
+        eprintln!("'edgedb database create' is deprecated in EdgeDB 5+. Please use 'edgedb branch create'");
+    }
+
     let status = cli.execute(
         &format!("CREATE DATABASE {}", quote_name(&options.database_name)),
         &(),
@@ -23,6 +27,10 @@ pub async fn create(cli: &mut Connection, options: &CreateDatabase, _: &Options)
 pub async fn drop(cli: &mut Connection, options: &DropDatabase, _: &Options)
     -> Result<(), anyhow::Error>
 {
+    if cli.get_version().await?.specific().major >= 5 {
+        eprintln!("'edgedb database drop' is deprecated in EdgeDB 5+. Please use 'edgedb branch drop'");
+    }
+
     if !options.non_interactive {
         let q = question::Confirm::new_dangerous(
             format!("Do you really want to delete database {:?}?",
@@ -44,6 +52,10 @@ pub async fn drop(cli: &mut Connection, options: &DropDatabase, _: &Options)
 pub async fn wipe(cli: &mut Connection, options: &WipeDatabase, _: &Options)
     -> Result<(), anyhow::Error>
 {
+    if cli.get_version().await?.specific().major >= 5 {
+        eprintln!("'edgedb database wipe' is deprecated in EdgeDB 5+. Please use 'edgedb branch wipe'");
+    }
+
     if cli.get_version().await?.specific() < "3.0-alpha.2".parse().unwrap() {
         return Err(
             anyhow::anyhow!("The `database wipe` command is only \

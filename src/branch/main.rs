@@ -12,6 +12,11 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
 
     let mut connection: Connection = options.create_connector().await?.connect().await?;
 
+    let server_version = connection.get_version().await?;
+    if server_version.specific().major < 5 {
+        anyhow::bail!("Branches are not supported on server version {}, please upgrade to EdgeDB 5+", server_version)
+    }
+
     // match commands that don't require a connection to run, then match the ones that do with a connection.
     match &cmd.subcommand {
         Command::Switch(switch) => switch::main(switch, &context, &mut connection).await,
