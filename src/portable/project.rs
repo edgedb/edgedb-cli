@@ -706,7 +706,6 @@ fn do_init(name: &str, pkg: &PackageInfo,
             },
             port: Some(port),
             start_conf: None,
-            default_database: "edgedb".into(),
             default_user: "edgedb".into(),
             non_interactive: true,
             cloud_opts: options.cloud_opts.clone(),
@@ -724,7 +723,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             installation: Some(inst),
             port,
         };
-        create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
+        create::bootstrap(&paths, &info, "edgedb")?;
         match create::create_service(&info) {
             Ok(()) => {},
             Err(e) => {
@@ -1503,7 +1502,7 @@ fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
 }
 
 #[context("cannot read instance name of {:?}", stash_dir)]
-fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
+pub fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
     let inst = fs::read_to_string(&stash_dir.join("instance-name"))?;
     Ok(InstanceName::from_str(inst.trim())?)
 }
@@ -1775,7 +1774,7 @@ pub fn update_toml(
     if !stash_dir.exists() {
         log::warn!("No associated instance found.");
 
-        if config::modify(&config_path, &query)? {
+        if config::modify_server_ver(&config_path, &query)? {
             print::success("Config updated successfully.");
         } else {
             print::success("Config is up to date.");
@@ -1809,7 +1808,7 @@ pub fn update_toml(
                     Query::from_version(&pkg_ver)?
                 };
 
-                if config::modify(&config_path, &config_version)? {
+                if config::modify_server_ver(&config_path, &config_version)? {
                     echo!("Remember to commit it to version control.");
                 }
                 let name_str = name.to_string();

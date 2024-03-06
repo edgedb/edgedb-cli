@@ -344,10 +344,11 @@ async fn prompt_conn_params(
                     .ask()?
             )?;
         }
-        if options.database.is_none() {
+
+        if options.branch.is_none() {
             builder.database(
-                &question::String::new("Specify database name")
-                    .default(config.database())
+                &question::String::new("Specify branch")
+                    .default("main")
                     .ask()?
             )?;
         }

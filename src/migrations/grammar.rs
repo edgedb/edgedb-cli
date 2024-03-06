@@ -207,6 +207,7 @@ fn migration<'a>()
             parent_id: parent_id.text.into(),
             text_range: (start.offset as usize, end.offset as usize),
         };
+
         for item in statements {
             match item {
                 SetMessage(text) => {
