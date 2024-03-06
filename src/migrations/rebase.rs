@@ -27,7 +27,7 @@ enum RebaseMigrationKind {
 struct RebaseMigration<'a> {
     key: MigrationKey,
     migration: &'a DBMigration,
-    parent: Option<&'a str>,
+    parent_override: Option<&'a str>,
     kind: RebaseMigrationKind
 }
 
@@ -39,7 +39,7 @@ impl MigrationToText for RebaseMigration<'_> {
     }
 
     fn parent(&self) -> anyhow::Result<&str> {
-        if let Some(parent) = self.parent {
+        if let Some(parent) = self.parent_override {
             return Ok(parent)
         }
 
@@ -96,7 +96,7 @@ impl RebaseMigrations {
         for (_, migration) in &self.base_migrations {
             result.push(RebaseMigration {
                 key: next_key(),
-                parent: None,
+                parent_override: None,
                 migration,
                 kind: RebaseMigrationKind::Base,
             });
@@ -109,7 +109,7 @@ impl RebaseMigrations {
             result.push(RebaseMigration {
                 key: next_key(),
                 migration: first_migration,
-                parent: base_last.map(|v| v.migration.name.as_str()),
+                parent_override: base_last.map(|v| v.migration.name.as_str()),
                 kind: RebaseMigrationKind::Source,
             });
 
@@ -118,7 +118,7 @@ impl RebaseMigrations {
                 result.push(RebaseMigration {
                     key: next_key(),
                     migration,
-                    parent: None,
+                    parent_override: None,
                     kind: RebaseMigrationKind::Source,
                 });
             }
@@ -131,7 +131,7 @@ impl RebaseMigrations {
             result.push(RebaseMigration {
                 key: next_key(),
                 migration: first_migration,
-                parent: source_last.map(|v| v.migration.name.as_str()),
+                parent_override: source_last.map(|v| v.migration.name.as_str()),
                 kind: RebaseMigrationKind::Target,
             });
 
@@ -139,7 +139,7 @@ impl RebaseMigrations {
                 result.push(RebaseMigration {
                     key: next_key(),
                     migration,
-                    parent: None,
+                    parent_override: None,
                     kind: RebaseMigrationKind::Target,
                 });
             }
