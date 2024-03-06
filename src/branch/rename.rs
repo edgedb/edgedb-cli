@@ -22,5 +22,6 @@ pub async fn main(
 
     print::completion(status);
 
+    eprintln!("Renamed branch {} to {}", options.old_name, options.new_name);
     Ok(())
 }

@@ -2,7 +2,6 @@ use crate::branch::context::Context;
 use crate::branch::option::Switch;
 use crate::connect::Connection;
 
-
 pub async fn main(
     options: &Switch,
     context: &Context,
@@ -20,14 +19,11 @@ pub async fn main(
         anyhow::bail!("Branch '{}' doesn't exists", options.branch)
     }
 
-    println!(
+    eprintln!(
         "Switching from '{}' to '{}'",
         context.branch, options.branch
     );
-
     context.update_branch(&options.branch).await?;
-
-    println!("Now on '{}'", options.branch);
 
     Ok(())
 }
