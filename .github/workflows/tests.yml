@@ -115,7 +115,7 @@ jobs:
     timeout-minutes: 45
     strategy:
       matrix:
-        test: [portable_smoke, portable_project, portable_project_dir, portable_shared"]
+        test: [portable_smoke, portable_project, portable_project_dir, portable_shared]
       fail-fast: false
     steps:
       - uses: actions/checkout@v4
