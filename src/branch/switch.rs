@@ -8,6 +8,10 @@ pub async fn main(
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
+    if context.branch == options.branch {
+        anyhow::bail!("Already on '{}'", options.branch);
+    }
+
     // verify the branch exists
     let branches: Vec<String> = connection
         .query(
