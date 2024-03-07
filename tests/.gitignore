@@ -10,3 +10,6 @@
 /migrations/db4/created1/00002.edgeql
 /migrations/db1/project/priv/dbschema/migrations/00002.edgeql
 /migrations/db1/project/priv/dbschema/migrations/00003.edgeql
+/migrations/db1/squash
+/migrations/db4/created1/migrations/00002.edgeql
+/migrations/db4/modified1/migrations/00001.edgeql
