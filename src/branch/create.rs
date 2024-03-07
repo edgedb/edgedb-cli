@@ -5,7 +5,7 @@ use crate::print;
 
 pub async fn main(
     options: &Create,
-    context: &Context,
+    _context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
     eprintln!("Creating branch '{}'...", options.branch);
