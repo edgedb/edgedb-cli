@@ -1,4 +1,5 @@
 use crate::branch::context::Context;
+use crate::branch::create::create_branch;
 use crate::branch::option::Switch;
 use crate::connect::Connection;
 
@@ -7,6 +8,10 @@ pub async fn main(
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
+    if context.branch == options.branch {
+        anyhow::bail!("Already on '{}'", options.branch);
+    }
+
     // verify the branch exists
     let branches: Vec<String> = connection
         .query(
@@ -16,7 +21,12 @@ pub async fn main(
         .await?;
 
     if !branches.contains(&options.branch) {
-        anyhow::bail!("Branch '{}' doesn't exists", options.branch)
+        if options.create {
+            eprintln!("Creating '{}'...", &options.branch);
+            create_branch(connection, &options.branch, options.from.as_ref(), options.empty, options.copy_data).await?;
+        } else {
+            anyhow::bail!("Branch '{}' doesn't exists", options.branch)
+        }
     }
 
     eprintln!(
