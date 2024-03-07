@@ -41,6 +41,9 @@ jobs:
         os: [windows-2019, macos-latest]
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
