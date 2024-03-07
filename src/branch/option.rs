@@ -26,11 +26,11 @@ pub struct Create {
     pub from: Option<String>,
 
     /// Whether or not the new branch should contain no data.
-    #[arg(long, conflicts_with = "copy_data")]
+    #[arg(short='e', long, conflicts_with = "copy_data")]
     pub empty: bool,
 
     /// Whether or not to copy data from the 'base' branch.
-    #[arg(long)]
+    #[arg(alias="cp", long)]
     pub copy_data: bool,
 }
 
@@ -66,6 +66,22 @@ pub struct Wipe {
 pub struct Switch {
     /// The branch to switch to.
     pub branch: String,
+
+    /// Whether or not to create the branch if it doesn't exist.
+    #[arg(short='c', long)]
+    pub create: bool,
+
+    /// If creating a new branch: whether or not the new branch should be empty.
+    #[arg(short='e', long, conflicts_with = "copy_data")]
+    pub empty: bool,
+
+    /// If creating a new branch: the optional 'base' of the branch to create.
+    #[arg(long)]
+    pub from: Option<String>,
+
+    /// If creating a new branch: whether or not to copy data from the 'base' branch.
+    #[arg(alias="cp", long)]
+    pub copy_data: bool,
 }
 
 /// Renames a branch.
