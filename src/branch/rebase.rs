@@ -14,7 +14,7 @@ pub async fn main(options: &Rebase, context: &Context, connection: &mut Connecti
 
     let mut temp_branch_connection = cli_opts.create_connector().await?.database(&temp_branch)?.connect().await?;
 
-    match rebase(&temp_branch, &mut temp_branch_connection, connection, context, cli_opts).await {
+    match rebase(&temp_branch, &mut temp_branch_connection, connection, context, cli_opts, !options.no_apply).await {
         Err(e) => {
             print::error(e);
 
@@ -30,7 +30,7 @@ pub async fn main(options: &Rebase, context: &Context, connection: &mut Connecti
     }
 }
 
-async fn rebase(branch: &String, source_connection: &mut Connection, target_connection: &mut Connection, context: &Context, cli_opts: &Options) -> anyhow::Result<()> {
+async fn rebase(branch: &String, source_connection: &mut Connection, target_connection: &mut Connection, context: &Context, cli_opts: &Options, apply_migrations: bool) -> anyhow::Result<()> {
     let migrations = get_diverging_migrations(source_connection, target_connection).await?;
 
     migrations.print_status();
@@ -38,7 +38,9 @@ async fn rebase(branch: &String, source_connection: &mut Connection, target_conn
     let migration_context = migrations::Context::for_project(&context.project_config)?;
     do_rebase(&migrations, &migration_context).await?;
 
-    write_rebased_migration_files(&migrations, &migration_context, source_connection).await?;
+    if apply_migrations {
+        write_rebased_migration_files(&migrations, &migration_context, source_connection).await?;
+    }
 
     // drop old feature branch
     eprintln!("\nReplacing '{}' with rebased version...", &context.branch);
