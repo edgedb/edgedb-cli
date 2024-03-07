@@ -1,5 +1,5 @@
 use colorful::Colorful;
-use indexmap::IndexMap;
+
 use uuid::Uuid;
 use crate::branch::context::Context;
 use crate::branch::option::Rebase;
