@@ -140,7 +140,7 @@ fn _main() -> anyhow::Result<()> {
         commands::cli::main(&opt)
     } else {
         cli::directory_check::check_and_warn();
-        #[cfg(feature="portable_tests")]
+
         if opt.test_output_conn_params {
             println!("{}", opt.block_on_create_connector()?.get()?.to_json());
             return Ok(());

@@ -1087,6 +1087,7 @@ dependencies = [
  "serde_str",
  "sha1",
  "sha2",
+ "shared-client-tests",
  "shell-escape",
  "shutdown_hooks",
  "signal-hook",
@@ -1127,7 +1128,7 @@ dependencies = [
  "clap 4.5.0",
  "clap_generate",
  "heck",
- "indexmap 1.9.3",
+ "indexmap 2.0.0-pre",
  "proc-macro-error",
  "proc-macro2",
  "quote",
@@ -3240,6 +3241,20 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "shared-client-tests"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "edgedb-protocol",
+ "hex",
+ "indexmap 2.0.0-pre",
+ "predicates 2.1.5",
+ "serde_json",
+ "sha1",
+ "tempfile",
 ]
 
 [[package]]

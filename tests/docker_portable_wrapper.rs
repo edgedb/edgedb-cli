@@ -35,6 +35,7 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
 
     let tests = std::process::Command::new("cargo")
         .arg("build")
+        .arg("--all")
         .arg("--tests")
         .arg("--features=docker_test_wrapper,portable_tests")
         .arg("--message-format=json")

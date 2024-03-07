@@ -83,7 +83,7 @@ jobs:
           server-version: ${{ matrix.edgedb-version }}
 
       - run: |
-          cargo test --target=x86_64-unknown-linux-musl
+          cargo test --target=x86_64-unknown-linux-musl --all
 
   portable-install-tests:
     runs-on: ${{ matrix.os }}
@@ -104,10 +104,10 @@ jobs:
           toolchain: "stable"
 
       - run: |
-          cargo build --tests --features docker_test_wrapper,portable_tests
+          cargo build --all --tests --features docker_test_wrapper,portable_tests
 
       - run: |
-          cargo test --test=docker_portable_wrapper \
+          cargo test --all --test=docker_portable_wrapper \
             --features docker_test_wrapper,portable_tests
 
   portable-tests-macos:
@@ -137,7 +137,7 @@ jobs:
           sudo mv home_edgedb /Users/edgedb
 
       - run: |
-          cargo test --test=${{ matrix.test }} --features portable_tests
+          cargo test --all --test=${{ matrix.test }} --features portable_tests
 
   portable-tests-windows:
     needs: musl-test
@@ -183,7 +183,7 @@ jobs:
             distribution: Debian
 
       - run: |
-          cargo test --test=${{ matrix.test }} --features portable_tests
+          cargo test --all --test=${{ matrix.test }} --features portable_tests
 
   test-bin-installable:
     runs-on: ${{ matrix.os }}

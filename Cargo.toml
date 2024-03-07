@@ -2,6 +2,7 @@
 members = [
     ".",
     "edgedb-cli-derive",
+    "tests/shared-client-tests",
 ]
 
 [package]
@@ -10,6 +11,26 @@ license = "MIT/Apache-2.0"
 version = "4.2.0-dev"
 authors = ["EdgeDB Inc. <hello@edgedb.com>"]
 edition = "2018"
+
+[[bin]]
+name = "edgedb"
+path = "src/main.rs"
+
+[features]
+dev_mode = []
+github_action_install = []
+github_nightly = []
+portable_tests = ["shared-client-tests/portable_tests"]
+docker_test_wrapper = []
+
+[workspace.dependencies]
+clap = "4.4.6"
+clap_generate = "3.0.3"
+termimad = "0.20.1"
+trybuild = "1.0.19"
+# we need slicing of indexmap, so need version 2.0
+indexmap = {git="https://github.com/bluss/indexmap", rev="11ac52c", features=["serde"]}
+heck = "0.4.0"
 
 [dependencies]
 edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
@@ -24,7 +45,7 @@ bytes = "1.5.0"
 blake2b_simd = "1.0.0"
 blake3 = "1.1.0"
 rustyline = { git="https://github.com/tailhook/rustyline", branch="edgedb_20210403"}
-clap = {version="4.4.6", features=["derive", "cargo", "deprecated", "wrap_help"]}
+clap = {workspace = true, features=["derive", "cargo", "deprecated", "wrap_help"]}
 clap_complete = "4.4.3"
 color-print = "0.3.5"
 strsim = "0.10.0"
@@ -65,8 +86,7 @@ reqwest = {version="0.11.11", features=["json", "native-tls"]}
 native-tls = {version="0.2.4"}
 thiserror = "1.0.16"
 which = {version="4", default-features=false}
-# we need slicing of indexmap, so need version 2.0
-indexmap = {git="https://github.com/bluss/indexmap", rev="11ac52c", features=["serde"]}
+indexmap = {workspace=true}
 term = "0.7"
 libc = "0.2.68"
 urlencoding = "2.1.0"
@@ -85,7 +105,7 @@ url = { version = "2.1.1", features=["serde"] }
 immutable-chunkmap = "1.0.1"
 regex = "1.4.5"
 toml = "0.5.8"
-termimad = "0.20.1"
+termimad = {workspace=true}
 minimad = "0.9.0"
 edgedb-cli-derive = { path="edgedb-cli-derive" }
 fs-err = "2.6.0"
@@ -122,16 +142,10 @@ test-case = "2.0.0"
 openssl = "0.10.30"
 tokio = {version="1.1.0", features=["rt-multi-thread"]}
 warp = {git="https://github.com/seanmonstar/warp.git", rev="7b07043cee0ca24e912155db4e8f6d9ab7c049ed", default-features=false, features=["tls"]}
+shared-client-tests = {path = "./tests/shared-client-tests"}
 
 [build-dependencies]
 serde_json = "1.0"
-
-[features]
-dev_mode = []
-github_action_install = []
-github_nightly = []
-portable_tests = []
-docker_test_wrapper = []
 
 [target.'cfg(unix)'.dependencies]
 signal-hook = {version="0.3.10", features=["iterator"]}
@@ -147,10 +161,6 @@ rexpect = {git="https://github.com/tailhook/rexpect", branch="default_terminal_s
 
 [target.'cfg(target_env="musl")'.dependencies]
 native-tls = {version="0.2.4", features=["vendored"]}
-
-[[bin]]
-name = "edgedb"
-path = "src/main.rs"
 
 [profile.dev]
 opt-level = 2 # 1 -- needed so windows don't get stack overflow, 2 - for GHA
