@@ -689,7 +689,7 @@ async fn run_interactive(_ctx: &Context, cli: &mut Connection,
 
 pub async fn write_migration(ctx: &Context, descr: &impl MigrationToText,
     verbose: bool)
-    -> anyhow::Result<()>
+    -> anyhow::Result<PathBuf>
 {
     let filename = match &descr.key() {
         MigrationKey::Index(idx) => {
@@ -701,7 +701,10 @@ pub async fn write_migration(ctx: &Context, descr: &impl MigrationToText,
             dir.join(format!("{}-{}.edgeql", descr.parent()?, target_revision))
         }
     };
-    _write_migration(descr, filename.as_ref(), verbose).await
+
+    _write_migration(descr, filename.as_ref(), verbose).await?;
+
+    Ok(filename)
 }
 
 #[context("could not write migration file {}", filepath.display())]

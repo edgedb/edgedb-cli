@@ -3,6 +3,7 @@ use std::iter::FromIterator;
 use fs_err as fs;
 
 use std::ops::Index;
+use std::path::PathBuf;
 use anyhow::{anyhow, Context as _};
 use colorful::Colorful;
 use indexmap::IndexMap;
@@ -59,6 +60,7 @@ impl MigrationToText for RebaseMigration<'_> {
     }
 }
 
+#[derive(Clone)]
 pub struct RebaseMigrations {
     /// initial..base : the commonly shared migrations between both 'source' and 'target'
     base_migrations: IndexMap<String, DBMigration>,
@@ -188,7 +190,7 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
     })
 }
 
-async fn rebase_migration_ids(context: &Context) -> anyhow::Result<()> {
+async fn rebase_migration_ids(context: &Context, rebase_migrations: &mut RebaseMigrations) -> anyhow::Result<()> {
     let migrations = migration::read_all(context, false).await?;
     let mut changed_ids: HashMap<String, String> = HashMap::new();
 
@@ -213,10 +215,23 @@ async fn rebase_migration_ids(context: &Context) -> anyhow::Result<()> {
         fs::write(&migration_file.path, migration_text)?;
     }
 
+    fn update_id(old: &String, new: &String, col: &mut IndexMap<String, DBMigration>) {
+        if let Some(value) = col.remove(old) {
+            col.insert(new.clone(), value);
+        }
+    }
+
+    // update rebase_migrations to match the updated IDs
+    for (old_id, new_id) in changed_ids {
+        update_id(&old_id, &new_id, &mut rebase_migrations.target_migrations);
+        update_id(&old_id, &new_id, &mut rebase_migrations.source_migrations);
+        update_id(&old_id, &new_id, &mut rebase_migrations.base_migrations);
+    }
+
     Ok(())
 }
 
-pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) -> anyhow::Result<()> {
+pub async fn do_rebase(rebase_migrations: &mut RebaseMigrations, context: &Context) -> anyhow::Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let temp_ctx = Context {
         schema_dir: temp_dir.path().to_path_buf(),
@@ -225,14 +240,18 @@ pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) 
     };
 
     // write all the migrations to disk.
-    let flattened_migrations = rebase_migrations.flatten()?;
+    let to_flatten = rebase_migrations.clone();
+    let flattened_migrations = to_flatten.flatten()?;
+    let mut migration_map = HashMap::new();
+
     for migration in &flattened_migrations {
-        create::write_migration(&temp_ctx, migration, false).await?;
+        let path = create::write_migration(&temp_ctx, migration, false).await?;
+        migration_map.insert(path, migration);
     }
 
     // update the IDs of the migrations for the rebase, since we're changing the history the IDs can be invalid so we
     // need to update them.
-    rebase_migration_ids(&temp_ctx).await?;
+    rebase_migration_ids(&temp_ctx, rebase_migrations).await?;
 
     // remove the old migrations
     for old in migration::read_names(context).await? {
@@ -241,37 +260,47 @@ pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) 
 
     // move the new migrations from temp to schema dir
     let mut last: Option<&RebaseMigrationKind> = None;
-    for (index, from) in migration::read_names(&temp_ctx).await?.iter().enumerate() {
-        let rebase_migration = flattened_migrations.get(index);
+
+    let migrations = migration::read_names(&temp_ctx).await?;
+    let mut migrations = migrations.iter()
+        .map(|v| (v, migration_map.get(v)))
+        .filter(|v| v.1.is_some())
+        .map(|v| (v.0, v.1.unwrap()))
+        .collect::<Vec<(&PathBuf, &&RebaseMigration)>>();
+
+    migrations.sort_by_key(|v| match v.1.key {
+        MigrationKey::Index(i) => i,
+        _ => 0
+    });
+
+    for (from, migration) in migrations {
         let to = context
             .schema_dir
             .join("migrations")
             .join(from.file_name().unwrap());
 
-        if let Some(migration) = rebase_migration {
-            if last != Some(&migration.kind) {
-                match migration.kind {
-                    RebaseMigrationKind::Target => {
-                        eprintln!("\nNew migrations on target branch:")
-                    },
-                    RebaseMigrationKind::Source => {
-                        eprintln!("\nMigrations to rebase:")
-                    },
-                    RebaseMigrationKind::Base => {}
-                }
-            }
-
+        if last != Some(&migration.kind) {
             match migration.kind {
-                RebaseMigrationKind::Target | RebaseMigrationKind::Source => {
-                    print::success_msg("Writing", to.display());
-                }
+                RebaseMigrationKind::Target => {
+                    eprintln!("\nNew migrations on target branch:")
+                },
+                RebaseMigrationKind::Source => {
+                    eprintln!("\nMigrations to rebase:")
+                },
                 RebaseMigrationKind::Base => {}
             }
         }
 
+        match migration.kind {
+            RebaseMigrationKind::Target | RebaseMigrationKind::Source => {
+                print::success_msg("Writing", to.display());
+            }
+            RebaseMigrationKind::Base => {}
+        }
+
         fs::copy(from, to)?;
 
-        last = rebase_migration.map(|v| &v.kind);
+        last = Some(&migration.kind)
     }
 
     Ok(())
@@ -282,6 +311,8 @@ pub async fn write_rebased_migration_files(rebase_migrations: &RebaseMigrations,
     let migrations: IndexMap<String, MigrationFile> = migration::read_all(context, true).await?.into_iter()
         .filter(|(id, _)| rebase_migrations.target_migrations.contains_key(id))
         .collect();
+
+    eprintln!("Applying {} migrations..", migrations.len());
 
     migrate::apply_migrations(connection, &migrations, context, true).await
 }
