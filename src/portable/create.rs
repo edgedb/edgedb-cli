@@ -97,33 +97,33 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         }
     };
 
-    if let Some(cp) = &cmd.cloud_params {
-        if cp.region.is_some() {
-            return Err(opts.error(
-                clap::error::ErrorKind::ArgumentConflict,
-                cformat!("The <bold>--region</bold> option is only applicable to cloud instances."),
-            ))?;
-        }
+    let cp = &cmd.cloud_params;
 
-        if cp.compute_size.is_some() {
-            return Err(opts.error(
-                clap::error::ErrorKind::ArgumentConflict,
-                cformat!("The <bold>--compute-size</bold> option is only applicable to cloud instances."),
-            ))?;
-        }
+    if cp.region.is_some() {
+        return Err(opts.error(
+            clap::error::ErrorKind::ArgumentConflict,
+            cformat!("The <bold>--region</bold> option is only applicable to cloud instances."),
+        ))?;
+    }
 
-        if cp.storage_size.is_some() {
-            return Err(opts.error(
-                clap::error::ErrorKind::ArgumentConflict,
-                cformat!("The <bold>--storage-size</bold> option is only applicable to cloud instances."),
-            ))?;
-        }
+    if cp.billables.compute_size.is_some() {
+        return Err(opts.error(
+            clap::error::ErrorKind::ArgumentConflict,
+            cformat!("The <bold>--compute-size</bold> option is only applicable to cloud instances."),
+        ))?;
+    }
+
+    if cp.billables.storage_size.is_some() {
+        return Err(opts.error(
+            clap::error::ErrorKind::ArgumentConflict,
+            cformat!("The <bold>--storage-size</bold> option is only applicable to cloud instances."),
+        ))?;
     }
 
     let paths = Paths::get(&name)?;
     paths.check_exists()
         .with_context(|| format!("instance {:?} detected", name))
-        .with_hint(|| format!("Use `edgedb destroy {}` \
+        .with_hint(|| format!("Use `edgedb instance destroy -I {}` \
                               to remove rest of unused instance",
                               name))?;
 
@@ -154,8 +154,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
             installation: Some(inst),
             port,
         };
-        bootstrap(&paths, &info,
-                  &cmd.default_database, &cmd.default_user)?;
+        bootstrap(&paths, &info, &cmd.default_user)?;
         info
     };
 
@@ -200,9 +199,9 @@ fn create_cloud(
 
     client.ensure_authenticated()?;
 
-    let cp = cmd.cloud_params.as_ref();
+    let cp = &cmd.cloud_params;
 
-    let region = match &cp.and_then(|p| p.region.clone()) {
+    let region = match &cp.region {
         None => cloud::ops::get_current_region(&client)?.name,
         Some(region) => region.to_string(),
     };
@@ -222,10 +221,10 @@ fn create_cloud(
 
     let server_ver = cloud::versions::get_version(&query, client)?;
 
-    let compute_size = cp.and_then(|p| p.compute_size);
-    let storage_size = cp.and_then(|p| p.storage_size);
+    let compute_size = &cp.billables.compute_size;
+    let storage_size = &cp.billables.storage_size;
 
-    let tier = if let Some(tier) = cp.and_then(|p| p.tier) {
+    let tier = if let Some(tier) = cp.billables.tier {
         tier
     } else if compute_size.is_some() || storage_size.is_some() || org.preferred_payment_method.is_some() {
         cloud::ops::CloudTier::Pro
@@ -250,36 +249,51 @@ fn create_cloud(
         }
     }
 
-    let compute_size_v: String;
-    let storage_size_v: String;
+    let prices = cloud::ops::get_prices(client)?;
+    let tier_prices = prices.get(&tier)
+        .context(format!("could not download pricing information for the {} tier", tier))?;
+    let region_prices = tier_prices.get(&region)
+        .context(format!("could not download pricing information for the {} region", region))?;
+    let default_compute = region_prices.into_iter()
+        .find(|&price| price.billable == "compute")
+        .context("could not download pricing information for compute")?
+        .units_default.clone()
+        .context("could not find default value for compute")?;
+
+    let default_storage = region_prices.into_iter()
+        .find(|&price| price.billable == "storage")
+        .context("could not download pricing information for storage")?
+        .units_default.clone()
+        .context("could not find default value for storage")?;
+
     let mut req_resources: Vec<cloud::ops::CloudInstanceResourceRequest> = vec![];
 
-    if org.preferred_payment_method.is_some() {
-        compute_size_v = compute_size.unwrap_or(1).to_string();
-        storage_size_v = storage_size.unwrap_or(20).to_string();
-    } else {
-        compute_size_v = compute_size.and_then(|v| Some(v.to_string()))
-            .unwrap_or(String::from("1/4"));
-        storage_size_v = storage_size.and_then(|v| Some(v.to_string()))
-            .unwrap_or(String::from("1"));
-    }
+    let compute_size_v = match compute_size {
+        None => default_compute,
+        Some(v) => v.clone(),
+    };
 
-    if let Some(compute_size) = compute_size {
+    let storage_size_v = match storage_size {
+        None => default_storage,
+        Some(v) => v.clone(),
+    };
+
+    if compute_size.is_some() {
         req_resources.push(
             cloud::ops::CloudInstanceResourceRequest{
                 name: "compute".to_string(),
-                value: compute_size,
+                value: compute_size_v.clone(),
             },
-        )
+        );
     }
 
-    if let Some(storage_size) = storage_size {
+    if storage_size.is_some() {
         req_resources.push(
             cloud::ops::CloudInstanceResourceRequest{
                 name: "storage".to_string(),
-                value: storage_size,
+                value: storage_size_v.clone(),
             },
-        )
+        );
     }
 
     let resources_display = format!(
@@ -322,17 +336,11 @@ fn create_cloud(
     return Ok(())
 }
 
-pub fn bootstrap_script(database: &str, user: &str, password: &str) -> String {
+fn bootstrap_script(user: &str, password: &str) -> String {
     use std::fmt::Write;
     use edgeql_parser::helpers::{quote_string, quote_name};
 
     let mut output = String::with_capacity(1024);
-    if database != "edgedb" {
-        write!(&mut output,
-            "CREATE DATABASE {};",
-            quote_name(&database),
-        ).unwrap();
-    }
     if user == "edgedb" {
         write!(&mut output, r###"
             ALTER ROLE {name} {{
@@ -355,8 +363,7 @@ pub fn bootstrap_script(database: &str, user: &str, password: &str) -> String {
 }
 
 #[context("cannot bootstrap EdgeDB instance")]
-pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
-                 database: &str, user: &str)
+pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str)
     -> anyhow::Result<()>
 {
     let server_path = info.server_path()?;
@@ -370,7 +377,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
             .with_context(|| format!("creating {:?}", &tmp_data))?;
 
     let password = generate_password();
-    let script = bootstrap_script(database, user, &password);
+    let script = bootstrap_script(user, &password);
 
     echo!("Initializing EdgeDB instance...");
     let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
@@ -394,7 +401,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo,
     let mut creds = Credentials::default();
     creds.port = info.port;
     creds.user = user.into();
-    creds.database = Some(database.into());
+    creds.database = Some("edgedb".into());
     creds.password = Some(password.into());
     creds.tls_ca = Some(cert);
     credentials::write(&paths.credentials, &creds)?;

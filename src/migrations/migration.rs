@@ -20,6 +20,7 @@ pub struct Migration {
     pub id: String,
     pub id_range: (usize, usize),
     pub parent_id: String,
+    pub parent_id_range: (usize, usize),
     pub text_range: (usize, usize),
 }
 
@@ -57,6 +58,14 @@ impl Migration {
         s.push_str(&text[..self.id_range.0]);
         s.push_str(new_id);
         s.push_str(&text[self.id_range.1..]);
+        return s;
+    }
+
+    pub fn replace_parent_id(&self, text: &str, new_id: &str) -> String {
+        let mut s = String::with_capacity(text.len());
+        s.push_str(&text[..self.parent_id_range.0]);
+        s.push_str(new_id);
+        s.push_str(&text[self.parent_id_range.1..]);
         return s;
     }
 }
@@ -250,6 +259,7 @@ mod test {
             id: "m124".into(),
             id_range: (30, 34),
             parent_id: "initial".into(),
+            parent_id_range: (40, 47),
             message: None,
             text_range: (62, 62),
         };
@@ -275,6 +285,7 @@ mod test {
                 .into(),
             id_range: (0, 0),
             parent_id: "initial".into(),
+            parent_id_range: (0, 0),
             message: None,
             text_range: (156, 156),
         };
@@ -302,6 +313,7 @@ mod test {
             id_range: (0, 0),
             parent_id: "m1g3qzqdr57pp3w2mdwdkq4g7dq4oefawqdavzgeiov7fiwntpb3lq"
                 .into(),
+            parent_id_range: (0, 0),
             message: None,
             text_range: (207, 238),
         };
@@ -329,6 +341,7 @@ mod test {
                 .into(),
             id_range: (0, 0),
             parent_id: "initial".into(),
+            parent_id_range: (0, 0),
             message: None,
             text_range: (160, 191),
         };
@@ -354,6 +367,7 @@ mod test {
                     id: id.into(),
                     id_range: (0, 0),
                     parent_id: parent.into(),
+                    parent_id_range: (0, 0),
                     message: None,
                     text_range: (0, 0),
                 }

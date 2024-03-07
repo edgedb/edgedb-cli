@@ -68,7 +68,7 @@ pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar)
                 .ok_or_else(|| bug::error("`skip` is out of range"))?;
             if !migrations.is_empty() {
                 bar.set_message("applying migrations");
-                apply_migrations(cli, migrations, &ctx).await?;
+                apply_migrations(cli, migrations, &ctx, false).await?;
             }
             bar.set_message("calculating diff");
             log::info!("Calculating schema diff.");
@@ -201,7 +201,7 @@ async fn _migrate_to_schema(cli: &mut Connection, ctx: &Context)
     Ok(())
 }
 
-async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
+pub async fn rebase_to_schema(cli: &mut Connection, ctx: &Context,
                           migrations: &IndexMap<String, MigrationFile>)
     -> anyhow::Result<()>
 {

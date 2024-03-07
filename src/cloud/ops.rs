@@ -1,4 +1,6 @@
 use std::time::{Duration, Instant};
+use std::collections::HashMap;
+use std::fmt;
 
 use anyhow::Context;
 use edgedb_tokio::Builder;
@@ -12,8 +14,8 @@ use crate::options::CloudOptions;
 use crate::portable::status::{RemoteStatus, RemoteType, try_connect};
 use crate::question;
 
-const OPERATION_WAIT_TIME: Duration = Duration::from_secs(5 * 60);
-const POLLING_INTERVAL: Duration = Duration::from_secs(1);
+const OPERATION_WAIT_TIME: Duration = Duration::from_secs(20 * 60);
+const POLLING_INTERVAL: Duration = Duration::from_secs(2);
 const SPINNER_TICK: Duration = Duration::from_millis(100);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -25,11 +27,22 @@ pub struct CloudInstance {
     pub status: String,
     pub version: String,
     pub region: String,
+    pub tier: CloudTier,
     #[serde(skip_serializing_if = "Option::is_none")]
     tls_ca: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_url: Option<String>,
+    pub billables: Vec<CloudInstanceResource>,
 }
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct CloudInstanceResource {
+    pub name: String,
+    pub display_name: String,
+    pub display_unit: String,
+    pub display_quota: String,
+}
+
 
 impl CloudInstance {
     pub async fn as_credentials(&self, secret_key: &str) -> anyhow::Result<Credentials> {
@@ -85,18 +98,48 @@ pub struct Version {
     pub version: String,
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct Price {
+    pub billable: String,
+    pub unit_price_cents: String,
+    pub units_bundled: Option<String>,
+    pub units_default: Option<String>,
+}
+
+pub type Prices = HashMap<CloudTier, HashMap<String, Vec<Price>>>;
+
+#[derive(Debug, serde::Deserialize)]
+struct Billable {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct PricesResponse {
+    prices: Prices,
+    billables: Vec<Billable>,
+}
+
+
 #[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceResourceRequest {
     pub name: String,
-    pub value: u16,
+    pub value: String,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Hash, PartialEq, Eq, Clone, Copy)]
 #[derive(clap::ValueEnum)]
 pub enum CloudTier {
     Pro,
     Free,
 }
+
+impl fmt::Display for CloudTier {
+    fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 
 #[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceCreate {
@@ -110,6 +153,14 @@ pub struct CloudInstanceCreate {
     // pub default_database: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub default_user: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CloudInstanceResize {
+    pub name: String,
+    pub org: String,
+    pub requested_resources: Option<Vec<CloudInstanceResourceRequest>>,
+    pub tier: Option<CloudTier>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -161,6 +212,34 @@ pub async fn get_versions(
         .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
             _ => Err(e),
         })
+}
+
+#[tokio::main]
+pub async fn get_prices(
+    client: &CloudClient,
+) -> anyhow::Result<Prices> {
+    let url = "pricing";
+    let mut resp: PricesResponse = client
+        .get(url)
+        .await
+        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
+            _ => Err(e),
+        })?;
+
+    let billable_id_to_name: HashMap<String, String> = resp.billables
+        .iter().map(|billable| (billable.id.clone(), billable.name.clone())).collect();
+
+    for (_, tier_prices) in &mut resp.prices {
+        for (_, region_prices) in tier_prices {
+            for price in region_prices {
+                price.billable = billable_id_to_name.get(&price.billable)
+                    .context(format!("could not map billable {} to name", price.billable))?
+                    .to_string();
+            }
+        }
+    }
+
+    Ok(resp.prices)
 }
 
 #[tokio::main]
@@ -227,24 +306,7 @@ async fn wait_for_operation(
         }
     }
 
-    anyhow::bail!("Timed out.")
-}
-
-async fn wait_instance_available_after_operation(
-    operation: CloudOperation,
-    org: &str,
-    name: &str,
-    client: &CloudClient,
-) -> anyhow::Result<CloudInstance> {
-    wait_for_operation(operation, client).await?;
-    let url = format!("orgs/{}/instances/{}", org, name);
-    let instance: CloudInstance = client.get(&url).await?;
-
-    if instance.dsn != "" && instance.status == "available" {
-        Ok(instance)
-    } else {
-        anyhow::bail!("Timed out.")
-    }
+    anyhow::bail!("Operation is taking too long, stopping monitor.")
 }
 
 #[tokio::main]
@@ -262,8 +324,27 @@ pub async fn create_cloud_instance(
             }
             _ => Err(e),
         })?;
-    wait_instance_available_after_operation(
-        operation, &request.org, &request.name, client).await?;
+    wait_for_operation(operation, client).await?;
+    Ok(())
+}
+
+#[tokio::main]
+pub async fn resize_cloud_instance(
+    client: &CloudClient,
+    request: &CloudInstanceResize,
+) -> anyhow::Result<()> {
+    let url = format!("orgs/{}/instances/{}", request.org, request.name);
+    let operation: CloudOperation = client
+        .put(url, request)
+        .await
+        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
+            Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => {
+                anyhow::bail!(
+                    "Instance \"{}/{}\" does not exist.", request.org, request.name);
+            }
+            _ => Err(e),
+        })?;
+    wait_for_operation(operation, client).await?;
     Ok(())
 }
 
@@ -276,8 +357,7 @@ pub async fn upgrade_cloud_instance(
     let operation: CloudOperation = client
         .put(url, request)
         .await?;
-    wait_instance_available_after_operation(
-        operation, &request.org, &request.name, client).await?;
+    wait_for_operation(operation, client).await?;
     Ok(())
 }
 

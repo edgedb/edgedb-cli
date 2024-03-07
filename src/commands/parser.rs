@@ -126,9 +126,11 @@ pub struct Database {
 pub enum DatabaseCmd {
     /// Create a new database
     Create(CreateDatabase),
-    /// Delete database along with its data
+    /// Delete a database along with its data
     Drop(DropDatabase),
-    /// Preserve database while deleting its data
+    /// Delete a database's data and reset its schema while
+    /// preserving the database itself (its cfg::DatabaseConfig)
+    /// and existing migration scripts
     Wipe(WipeDatabase),
 }
 
@@ -517,10 +519,16 @@ pub enum ValueParameter {
     ///
     /// User-specified access policies are not applied when set to `false`,
     /// allowing any queries to be executed.
-    ApplyAccessPolicies(ConfigBool),
+    ApplyAccessPolicies(ConfigStr),
 
     /// Allow setting user-specified object identifiers.
-    AllowUserSpecifiedId(ConfigBool),
+    AllowUserSpecifiedId(ConfigStr),
+
+    /// Web origins that are allowed to send HTTP requests to this server.
+    CorsAllowOrigins(ConfigStrs),
+
+    /// Recompile all cached queries on DDL if enabled.
+    AutoRebuildQueryCache(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -557,6 +565,10 @@ pub enum ConfigParameter {
     ApplyAccessPolicies,
     /// Reset allow_user_specified_id parameter to `false`
     AllowUserSpecifiedId,
+    /// Reset cors_allow_origins to an empty set
+    CorsAllowOrigins,
+    /// Reset auto_rebuild_query_cache to `true`
+    AutoRebuildQueryCache,
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -575,8 +587,8 @@ pub struct ConfigStr {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-pub struct ConfigBool {
-    pub value: bool,
+pub struct ConfigStrs {
+    pub values: Vec<String>,
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -588,7 +600,7 @@ pub struct AuthParameter {
 
     /// The name(s) of the database role(s) this rule applies to. Will apply
     /// to all roles if set to '*'
-    #[arg(long="user")]
+    #[arg(long="users")]
     pub users: Vec<String>,
 
     /// The name of the authentication method type. Valid values are: Trust

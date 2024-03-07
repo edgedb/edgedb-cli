@@ -216,17 +216,17 @@ async fn choice(prompt: &str) -> anyhow::Result<Choice> {
 
     let mut q = question::Choice::new(prompt.to_string());
     q.option(Yes, &["y", "yes"],
-        "Confirm the prompt, use the DDL statements");
+        r#"Confirm the prompt ("l" to see suggested statements)"#);
     q.option(No, &["n", "no"],
-        "Reject the prompt");
+        "Reject the prompt; server will attempt to generate another suggestion");
     q.option(List, &["l", "list"],
-        "List DDL statements associated with the prompt");
+        "List proposed DDL statements for the current prompt");
     q.option(Confirmed, &["c", "confirmed"],
-        "List already confirmed EdgeQL statements");
+        "List already confirmed EdgeQL statements for the current migration");
     q.option(Back, &["b", "back"],
-        "Revert to previous save point");
+        "Go back a step by reverting latest accepted statements");
     q.option(Split, &["s", "stop"],
-        "Stop and save changes (splits migration into multiple)");
+        "Stop and finalize migration with only current accepted changes");
     q.option(Quit, &["q", "quit"],
         "Quit without saving changes");
     q.async_ask().await
@@ -246,19 +246,23 @@ async fn gen_start_migration(ctx: &Context)
         }
         Err(e) => Err(e).context(format!("cannot read {:?}", ctx.schema_dir))?,
     };
+
+    let mut paths: Vec<PathBuf> = Vec::new();
     while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
-        if lossy_name.starts_with(".") || !lossy_name.ends_with(".esdl")
-            || !item.file_type().await?.is_file()
-        {
-            continue;
-        }
-        let path = item.path();
+        if !lossy_name.starts_with(".") && lossy_name.ends_with(".esdl")
+            && item.file_type().await?.is_file() { paths.push(item.path())}
+    }
+
+    paths.sort();
+
+    for path in paths {
         let chunk = read_schema_file(&path).await?;
         bld.add_lines(SourceName::File(path.clone()), &chunk);
         bld.add_lines(SourceName::Semicolon(path), ";");
     }
+
     bld.add_lines(SourceName::Suffix, "};");
     Ok(bld.done())
 }
@@ -600,7 +604,7 @@ impl InteractiveMigration<'_> {
                     }
                     Back => {
                         if self.save_point == 0 {
-                            eprintln!("Already at latest savepoint");
+                            eprintln!("No EdgeQL statements confirmed, nothing to move back from");
                             continue;
                         }
                         self.save_point -= 1;
@@ -944,4 +948,26 @@ fn add_newline() {
     assert_eq!(wrapper("1  #xx  "), "1  #xx  \n");
     assert_eq!(wrapper("(1 + 7) #xx"), "(1 + 7) #xx\n");
     assert_eq!(wrapper("(1 #one\n + 3 #three\n)"), "(1 #one\n + 3 #three\n)");
+}
+
+#[tokio::test]
+ async fn start_migration() {
+    use std::env;
+
+    let mut schema_dir = env::current_dir().unwrap();
+    schema_dir.push("tests/migrations/db5");
+
+    let ctx = Context{schema_dir, edgedb_version: None, quiet: false};
+
+    let res =  gen_start_migration(&ctx).await.unwrap();
+
+    // Replace windows line endings \r\n with \n.
+    let  res_buf = res.0.replace("\r\n", "\n");
+
+    let expected_buf =
+        "START MIGRATION TO {\ntype Type1 {\n    property field1 -> str;\n};\n;\ntype Type2 {
+    property field2 -> str;\n};\n;\ntype Type3 {\n    property field3 -> str;\n};\n;\n};\n";
+
+
+    assert_eq!(res_buf, expected_buf);
 }

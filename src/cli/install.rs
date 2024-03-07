@@ -9,14 +9,13 @@ use std::process::{exit};
 use std::str::FromStr;
 
 use anyhow::Context;
-use clap::CommandFactory;
 use clap_complete::{generate, shells};
 use fn_error_context::context;
 use prettytable::{Table, Row, Cell};
 
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
-use crate::options::RawOptions;
+use crate::options::Options;
 use crate::platform::{current_exe};
 use crate::platform::{home_dir, config_dir, binary_path};
 use crate::portable::project::{self, Init};
@@ -782,7 +781,7 @@ impl Shell {
     fn generate(&self, buf: &mut dyn Write) {
         use Shell::*;
 
-        let mut app = RawOptions::command();
+        let mut app = Options::command();
         let n = "edgedb";
         match self {
             Bash => generate(shells::Bash, &mut app, n, buf),

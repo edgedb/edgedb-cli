@@ -15,6 +15,7 @@ use edgedb_cli_derive::IntoArgs;
 
 use crate::cli::options::CliCommand;
 use crate::cli;
+
 use crate::cloud::options::CloudCommand;
 use crate::commands::ExitCode;
 use crate::commands::parser::Common;
@@ -29,6 +30,7 @@ use crate::print;
 use crate::repl::OutputFormat;
 use crate::tty_password;
 use crate::watch::options::WatchCommand;
+use crate::branch::option::BranchCommand;
 
 const MAX_TERM_WIDTH: usize = 100;
 const MIN_TERM_WIDTH: usize = 50;
@@ -104,6 +106,13 @@ pub struct ConnectionOptions {
     #[arg(hide=true)]
     #[arg(global=true)]
     pub database: Option<String>,
+
+    /// Branch to connect with
+    #[arg(short='b', long, help_heading=Some(CONN_OPTIONS_GROUP))]
+    #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete database
+    #[arg(hide=true)]
+    #[arg(global=true)]
+    pub branch: Option<String>,
 
     /// Ask for password on terminal (TTY)
     #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
@@ -215,6 +224,18 @@ pub struct ConnectionOptions {
     #[arg(hide=true)]
     #[arg(global=true)]
     pub connect_timeout: Option<Duration>,
+}
+
+impl ConnectionOptions {
+    pub(crate) fn get_branch(&self) -> Option<&String> {
+        self.database.as_ref().or(self.branch.as_ref())
+    }
+
+    pub(crate) fn validate(&self) {
+        if self.database.is_some() {
+            print::warn("database connection argument is deprecated in favour of 'branch'");
+        }
+    }
 }
 
 #[derive(clap::Parser, Debug)]
@@ -342,6 +363,8 @@ pub enum Command {
     /// Start a long-running process that watches for changes in schema files in
     /// a project's ``dbschema`` directory, applying them in real time.
     Watch(WatchCommand),
+    /// Manage branches
+    Branch(BranchCommand),
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -615,7 +638,7 @@ impl Options {
         UsageError::new(kind, msg)
     }
 
-    pub fn from_args_and_env() -> anyhow::Result<Options> {
+    pub fn command() -> clap::Command {
         // Connection/Cloud options apply *both* to the
         // root command when ran without arguments (i.e. REPL mode)
         // and to many, but, crucially, not ALL subcommands, so
@@ -652,8 +675,11 @@ impl Options {
                     .args(deglobalized);
 
         let app = <SubcommandOption as clap::Args>::augment_args(app);
-        let app = update_main_help(app);
+        update_main_help(app)
+    }
 
+    pub fn from_args_and_env() -> anyhow::Result<Options> {
+        let app = Options::command();
         let matches = app.clone().get_matches();
         let args = <RawOptions as clap::FromArgMatches>
             ::from_arg_matches(&matches)?;
@@ -871,9 +897,6 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     if let Some(user) = &tmp.user {
         bld.user(user)?;
     }
-    if let Some(database) = &tmp.database {
-        bld.database(database)?;
-    }
     if let Some(val) = tmp.wait_until_available {
         bld.wait_until_available(val);
     }
@@ -883,6 +906,11 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     if let Some(val) = &tmp.secret_key {
         bld.secret_key(val);
     }
+
+    if let Some(branch) = tmp.get_branch() {
+        bld.database(branch)?;
+    }
+
     load_tls_options(tmp, &mut bld)?;
     Ok(bld)
 }

@@ -121,9 +121,23 @@ impl PromptRpc {
 }
 
 impl State {
-    pub async fn reconnect(&mut self) -> anyhow::Result<()> {
+    pub async fn connect(&mut self) -> anyhow::Result<()> {
         let db = self.conn_params.get()?.database().to_owned();
         self.try_connect(&db).await?;
+        Ok(())
+    }
+    pub async fn reconnect(&mut self) -> anyhow::Result<()> {
+        let db = self.conn_params.get()?.database().to_owned();
+        let cur_state = self.edgeql_state.clone();
+        let cur_state_desc = self.edgeql_state_desc.clone();
+        self.try_connect(&db).await?;
+        if let Some(conn) = &mut self.connection {
+            if cur_state_desc == self.edgeql_state_desc {
+                conn.set_state(cur_state);
+            } else {
+                eprintln!("Discarding session configuration because server configuration layout has changed.");
+            }
+        }
         Ok(())
     }
     pub async fn set_idle_transaction_timeout(&mut self) -> anyhow::Result<()> {

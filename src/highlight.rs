@@ -139,7 +139,8 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
         T::Eq => Some(S::Operator),
         T::Ampersand => Some(S::Operator),
         T::Pipe => Some(S::Operator),
-        T::Argument => None, // TODO (tailhook)
+        T::Parameter => None, // TODO (tailhook)
+        T::ParameterAndType => None,
         T::DecimalConst => Some(S::Number),
         T::FloatConst => Some(S::Number),
         T::IntConst => Some(S::Number),

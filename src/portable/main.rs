@@ -11,6 +11,7 @@ use crate::portable::install;
 use crate::portable::link;
 use crate::portable::list_versions;
 use crate::portable::project;
+use crate::portable::resize;
 use crate::portable::revert;
 use crate::portable::status;
 use crate::portable::uninstall;
@@ -46,6 +47,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Link(c) => link::link(c, &options),
         List(c) if cfg!(windows) => windows::list(c, options),
         List(c) => status::list(c, options),
+        Resize(c) => resize::resize(c, options),
         Upgrade(c) => upgrade::upgrade(c, options),
         Start(c) => control::start(c),
         Stop(c) => control::stop(c),

@@ -33,13 +33,17 @@ pub enum MigrationCmd {
     /// Edit migration file
     ///
     /// Invokes $EDITOR on the last migration file, and then fixes
-    /// migration id after editor exits. Usually should be used for
-    /// migrations that have not been applied yet.
+    /// migration id after editor exits. Defaults to vi (Notepad
+    /// in Windows). Usually should be used for migrations that have
+    /// not been applied yet.
     Edit(MigrationEdit),
     /// Check if current schema is compatible with new EdgeDB version
     UpgradeCheck(UpgradeCheck),
     /// Extract migration history from the database and write it to
-    /// <schema-dir>/migrations.
+    /// <schema-dir>/migrations. Useful when a direct DDL command has
+    /// been used to change the schema and now `edgedb migrate` will not
+    /// comply because the database migration history is ahead of the
+    /// migration history inside <schema-dir>/migrations.
     Extract(ExtractMigrations),
 }
 
@@ -101,15 +105,24 @@ pub struct Migrate {
     #[arg(long, conflicts_with="dev_mode")]
     pub to_revision: Option<String>,
 
-    /// Apply current schema changes on top of those found in the migration history
+    /// Dev mode is used to temporarily apply schema on top of those found in
+    /// the migration history. Usually used for testing purposes, as well as
+    /// `edgedb watch` which creates a dev mode migration script each time
+    /// a file is saved by a user.
+    /// 
+    /// Current dev mode migrations can be seen with the following query:
+    /// 
+    /// `select schema::Migration {*} filter .generated_by = schema::MigrationGeneratedBy.DevMode;`
     ///
-    /// This is commonly used to apply schema temporarily before doing
-    /// `migration create` for testing purposes.
-    ///
-    /// This works the same way as `edgedb watch` but without starting
-    /// a long-running watch task.
+    /// `edgedb migration create` followed by `edgedb migrate --dev-mode` will
+    /// then finalize a migration by turning existing dev mode migrations into
+    /// a regular `.edgeql` file, after which the above query will return nothing.
     #[arg(long)]
     pub dev_mode: bool,
+
+    /// Runs the migration(s) in a single transaction.
+    #[arg(long="single-transaction")]
+    pub single_transaction: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]

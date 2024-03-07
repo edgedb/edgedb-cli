@@ -5,6 +5,9 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+
 use anyhow::Context;
 use reqwest::{header, StatusCode};
 
@@ -96,7 +99,7 @@ impl CloudClient {
                 .skip(1)
                 .next()
                 .context("malformed secret key: invalid JWT format")?;
-            let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)
+            let claims = URL_SAFE_NO_PAD.decode(claims_b64)
                 .context("malformed secret key: invalid base64 data")?;
             let claims: Claims = serde_json::from_slice(&claims)
                 .context("malformed secret key: invalid JSON data")?;

@@ -196,7 +196,7 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
         }
         return Ok(());
     }
-    apply_migrations(cli, migrations, &ctx).await?;
+    apply_migrations(cli, migrations, &ctx, migrate.single_transaction).await?;
     if db_migrations.is_empty() {
         disable_ddl(cli).await?;
     }
@@ -339,7 +339,7 @@ async fn fixup(
         }
     }
 
-    apply_migrations(cli, &operations, ctx).await?;
+    apply_migrations(cli, &operations, ctx, _options.single_transaction).await?;
     Ok(())
 }
 
@@ -431,23 +431,27 @@ fn backtrack<'a>(markup: &HashMap<&String, u32>,
 }
 
 pub async fn apply_migrations(cli: &mut Connection,
-    migrations: impl AsOperations<'_>, ctx: &Context)
+    migrations: impl AsOperations<'_>, ctx: &Context, single_transaction: bool)
     -> anyhow::Result<()>
 {
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     async_try! {
         async {
-            execute(cli, "START TRANSACTION").await?;
-            async_try! {
-                async {
-                    apply_migrations_inner(cli, migrations, ctx.quiet).await
-                },
-                except async {
-                    execute_if_connected(cli, "ROLLBACK").await
-                },
-                else async {
-                    execute(cli, "COMMIT").await
+            if single_transaction {
+                execute(cli, "START TRANSACTION").await?;
+                async_try! {
+                    async {
+                        apply_migrations_inner(cli, migrations, ctx.quiet).await
+                    },
+                    except async {
+                        execute_if_connected(cli, "ROLLBACK").await
+                    },
+                    else async {
+                        execute(cli, "COMMIT").await
+                    }
                 }
+            } else {
+                apply_migrations_inner(cli, migrations, ctx.quiet).await
             }
         },
         finally async {
@@ -596,6 +600,7 @@ mod test {
                 id: name.into(),
                 parent_id: parent.into(),
                 id_range: (0, 0),
+                parent_id_range: (0, 0),
                 text_range: (0, 0),
                 message: None,
             },
@@ -610,6 +615,7 @@ mod test {
                 id: format!("{target}{parent}"),
                 parent_id: parent.into(),
                 id_range: (0, 0),
+                parent_id_range: (0, 0),
                 text_range: (0, 0),
                 message: None,
             },

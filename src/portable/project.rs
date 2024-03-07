@@ -82,21 +82,11 @@ pub enum Command {
     Info(Info),
     /// Upgrade EdgeDB instance used for current project
     ///
-    /// This command has two modes of operation.
+    /// Data is preserved using a dump/restore mechanism.
     ///
-    /// Upgrade instance to version specified in `edgedb.toml`:
+    /// Upgrades to version specified in `edgedb.toml` unless other options specified.
     ///
-    ///     project upgrade
-    ///
-    /// Update `edgedb.toml` to new version and upgrade the instance:
-    ///
-    ///     project upgrade --to-latest
-    ///     project upgrade --to-version=1-beta2
-    ///     project upgrade --to-nightly
-    ///
-    /// In all cases your data is preserved and converted using dump/restore
-    /// mechanism. May fail if lower version is specified (e.g. if upgrading
-    /// from nightly to stable).
+    /// Note: May fail if lower version is specified (e.g. moving from nightly to stable).
     Upgrade(Upgrade),
 }
 
@@ -127,7 +117,7 @@ pub struct Init {
     pub database: Option<String>,
 
     /// Deprecated parameter, does nothing.
-    #[arg(long, hide=true, value_parser=["auto", "manual"])]
+    #[arg(long, hide=true)]
     pub server_start_conf: Option<StartConf>,
 
     /// Skip running migrations
@@ -199,7 +189,9 @@ pub struct Upgrade {
     ])]
     pub to_latest: bool,
 
-    /// Upgrade specified instance to a specified version
+    /// Upgrade specified instance to a specified version.
+    ///
+    /// e.g. --to-version 4.0-beta.1
     #[arg(long)]
     #[arg(conflicts_with_all=&[
         "to_testing", "to_latest", "to_nightly", "to_channel",
@@ -425,7 +417,11 @@ fn link(
     let schema_dir = &config.project.schema_dir;
     let mut inst = Handle::probe(&name, project_dir, schema_dir, &client)?;
     if matches!(name, InstanceName::Cloud {..}) {
-        inst.database = Some(ask_database(project_dir, options)?);
+        if options.non_interactive  {
+            inst.database = Some(options.database.clone().unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()))
+        } else {
+            inst.database = Some(ask_database(project_dir, options)?);
+        }
     } else {
         inst.database = options.database.clone();
     }
@@ -606,7 +602,11 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
         let mut inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
         inst.check_version(&ver_query);
         if matches!(name, InstanceName::Cloud { .. }) {
-            inst.database = Some(ask_database(project_dir, options)?);
+            if options.non_interactive  {
+                inst.database = Some(options.database.clone().unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()))
+            } else {
+                inst.database = Some(ask_database(project_dir, options)?);
+            }
         } else {
             inst.database = options.database.clone();
         }
@@ -696,10 +696,16 @@ fn do_init(name: &str, pkg: &PackageInfo,
             nightly: false,
             channel: q.cli_channel(),
             version: q.version,
-            cloud_params: None,
+            cloud_params: options::CloudInstanceParams {
+                region: None,
+                billables: options::CloudInstanceBillables {
+                    tier: None,
+                    compute_size: None,
+                    storage_size: None,
+                },
+            },
             port: Some(port),
             start_conf: None,
-            default_database: "edgedb".into(),
             default_user: "edgedb".into(),
             non_interactive: true,
             cloud_opts: options.cloud_opts.clone(),
@@ -717,7 +723,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             installation: Some(inst),
             port,
         };
-        create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
+        create::bootstrap(&paths, &info, "edgedb")?;
         match create::create_service(&info) {
             Ok(()) => {},
             Err(e) => {
@@ -851,7 +857,11 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             write_schema_default(&schema_dir_path, &ver)?;
         }
         if matches!(inst_name, InstanceName::Cloud { .. }) {
-            inst.database = Some(ask_database(project_dir, options)?);
+            if options.non_interactive  {
+                inst.database = Some(options.database.clone().unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()))
+            } else {
+                inst.database = Some(ask_database(project_dir, options)?);
+            }
         } else {
             inst.database = options.database.clone();
         }
@@ -1116,6 +1126,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
             quiet: false,
             to_revision: None,
             dev_mode: false,
+            single_transaction: false,
             conn: None,
         }).await?;
     Ok(())
@@ -1491,7 +1502,7 @@ fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
 }
 
 #[context("cannot read instance name of {:?}", stash_dir)]
-fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
+pub fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
     let inst = fs::read_to_string(&stash_dir.join("instance-name"))?;
     Ok(InstanceName::from_str(inst.trim())?)
 }
@@ -1763,7 +1774,7 @@ pub fn update_toml(
     if !stash_dir.exists() {
         log::warn!("No associated instance found.");
 
-        if config::modify(&config_path, &query)? {
+        if config::modify_server_ver(&config_path, &query)? {
             print::success("Config updated successfully.");
         } else {
             print::success("Config is up to date.");
@@ -1797,7 +1808,7 @@ pub fn update_toml(
                     Query::from_version(&pkg_ver)?
                 };
 
-                if config::modify(&config_path, &config_version)? {
+                if config::modify_server_ver(&config_path, &config_version)? {
                     echo!("Remember to commit it to version control.");
                 }
                 let name_str = name.to_string();
