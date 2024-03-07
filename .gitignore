@@ -4,6 +4,4 @@
 .vscode
 
 # Nix artifacts
-.direnv
-.devenv
 result
