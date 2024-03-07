@@ -93,5 +93,9 @@ pub struct List {}
 #[derive(clap::Args, Debug, Clone)]
 pub struct Rebase {
     /// The branch to rebase the current branch to.
-    pub target_branch: String
+    pub target_branch: String,
+
+    /// Whether or not to apply migrations generated from the rebase.
+    #[arg(long)]
+    pub no_apply: bool,
 }
