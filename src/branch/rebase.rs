@@ -9,17 +9,17 @@ use crate::options::Options;
 use crate::{migrations, print};
 use crate::branch::connections::get_connection_to_modify;
 
-pub async fn main(options: &Rebase, context: &Context, connection: &mut Connection, cli_opts: &Options) -> anyhow::Result<()> {
-    let temp_branch = clone_target_branch(&options.target_branch, connection).await?;
+pub async fn main(options: &Rebase, context: &Context, source_connection: &mut Connection, cli_opts: &Options) -> anyhow::Result<()> {
+    let temp_branch = clone_target_branch(&options.target_branch, source_connection).await?;
 
     let mut temp_branch_connection = cli_opts.create_connector().await?.database(&temp_branch)?.connect().await?;
 
-    match rebase(&temp_branch, &mut temp_branch_connection, connection, context, cli_opts, !options.no_apply).await {
+    match rebase(&temp_branch, source_connection, &mut temp_branch_connection, context, cli_opts, !options.no_apply).await {
         Err(e) => {
             print::error(e);
 
             eprintln!("Cleaning up cloned branch...");
-            let mut rename_connection = get_connection_to_modify(&temp_branch, cli_opts, connection).await?;
+            let mut rename_connection = get_connection_to_modify(&temp_branch, cli_opts, source_connection).await?;
             let result = rename_connection.connection.execute(&format!("drop branch {} force", edgeql_parser::helpers::quote_name(&temp_branch)), &()).await?;
 
             print::completion(result);
@@ -39,26 +39,26 @@ async fn rebase(branch: &String, source_connection: &mut Connection, target_conn
     do_rebase(&migrations, &migration_context).await?;
 
     if apply_migrations {
-        write_rebased_migration_files(&migrations, &migration_context, source_connection).await?;
+        write_rebased_migration_files(&migrations, &migration_context, target_connection).await?;
     }
 
-    // drop old feature branch
+    // drop source branch
     eprintln!("\nReplacing '{}' with rebased version...", &context.branch);
-    let status = source_connection.execute(&format!("drop branch {} force", edgeql_parser::helpers::quote_name(&context.branch)), &()).await?;
+    let status = target_connection.execute(&format!("drop branch {} force", edgeql_parser::helpers::quote_name(&context.branch)), &()).await?;
     print::completion(status);
-    rename_temp_to_feature(branch, &context.branch, cli_opts, source_connection).await?;
+    rename_temp_to_source(branch, &context.branch, cli_opts, target_connection).await?;
 
     eprintln!("Done!");
     anyhow::Ok(())
 }
 
-async fn rename_temp_to_feature(temp_branch: &String, feature_branch: &String, options: &Options, connection: &mut Connection) -> anyhow::Result<()> {
+async fn rename_temp_to_source(temp_branch: &String, source_branch: &String, options: &Options, connection: &mut Connection) -> anyhow::Result<()> {
     let mut rename_connection = get_connection_to_modify(&temp_branch, options, connection).await?;
 
     let status = rename_connection.connection.execute(&format!(
         "alter branch {} force rename to {}",
         edgeql_parser::helpers::quote_name(&temp_branch),
-        edgeql_parser::helpers::quote_name(&feature_branch)
+        edgeql_parser::helpers::quote_name(&source_branch)
     ), &()).await?;
 
     print::completion(status);

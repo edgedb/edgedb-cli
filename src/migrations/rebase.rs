@@ -102,28 +102,6 @@ impl RebaseMigrations {
             });
         }
 
-        if self.source_migrations.len() > 0 {
-            let (_, first_migration) = self.source_migrations.first().unwrap();
-            let base_last = result.last();
-
-            result.push(RebaseMigration {
-                key: next_key(),
-                migration: first_migration,
-                parent_override: base_last.map(|v| v.migration.name.as_str()),
-                kind: RebaseMigrationKind::Source,
-            });
-
-
-            for (_, migration) in &self.source_migrations[1..] {
-                result.push(RebaseMigration {
-                    key: next_key(),
-                    migration,
-                    parent_override: None,
-                    kind: RebaseMigrationKind::Source,
-                });
-            }
-        }
-
         if self.target_migrations.len() > 0 {
             let (_, first_migration) = self.target_migrations.first().unwrap();
             let source_last = result.last();
@@ -141,6 +119,27 @@ impl RebaseMigrations {
                     migration,
                     parent_override: None,
                     kind: RebaseMigrationKind::Target,
+                });
+            }
+        }
+
+        if self.source_migrations.len() > 0 {
+            let (_, first_migration) = self.source_migrations.first().unwrap();
+            let base_last = result.last();
+
+            result.push(RebaseMigration {
+                key: next_key(),
+                migration: first_migration,
+                parent_override: base_last.map(|v| v.migration.name.as_str()),
+                kind: RebaseMigrationKind::Source,
+            });
+
+            for (_, migration) in &self.source_migrations[1..] {
+                result.push(RebaseMigration {
+                    key: next_key(),
+                    migration,
+                    parent_override: None,
+                    kind: RebaseMigrationKind::Source,
                 });
             }
         }
@@ -282,7 +281,7 @@ pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) 
 pub async fn write_rebased_migration_files(rebase_migrations: &RebaseMigrations, context: &Context, connection: &mut Connection) -> anyhow::Result<()> {
     // apply the new migrations
     let migrations: IndexMap<String, MigrationFile> = migration::read_all(context, true).await?.into_iter()
-        .filter(|(id, _)| rebase_migrations.target_migrations.contains_key(id))
+        .filter(|(id, _)| rebase_migrations.source_migrations.contains_key(id))
         .collect();
 
     migrate::apply_migrations(connection, &migrations, context, true).await
