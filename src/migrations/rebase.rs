@@ -241,7 +241,9 @@ pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) 
 
     // move the new migrations from temp to schema dir
     let mut last: Option<&RebaseMigrationKind> = None;
-    for (index, from) in migration::read_names(&temp_ctx).await?.iter().enumerate() {
+    let mut new_migration_files = migration::read_names(&temp_ctx).await?;
+    new_migration_files.sort();
+    for (index, from) in new_migration_files.iter().enumerate() {
         let rebase_migration = flattened_migrations.get(index);
         let to = context
             .schema_dir
