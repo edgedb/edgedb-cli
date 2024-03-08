@@ -59,6 +59,7 @@ impl MigrationToText for RebaseMigration<'_> {
     }
 }
 
+#[derive(Clone)]
 pub struct RebaseMigrations {
     /// initial..base : the commonly shared migrations between both 'source' and 'target'
     base_migrations: IndexMap<String, DBMigration>,
@@ -187,7 +188,7 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
     })
 }
 
-async fn rebase_migration_ids(context: &Context) -> anyhow::Result<()> {
+async fn rebase_migration_ids(context: &Context, rebase_migrations: &mut RebaseMigrations) -> anyhow::Result<()> {
     let migrations = migration::read_all(context, false).await?;
     let mut changed_ids: HashMap<String, String> = HashMap::new();
 
@@ -212,10 +213,23 @@ async fn rebase_migration_ids(context: &Context) -> anyhow::Result<()> {
         fs::write(&migration_file.path, migration_text)?;
     }
 
+    fn update_id(old: &String, new: &String, col: &mut IndexMap<String, DBMigration>) {
+        if let Some(value) = col.remove(old) {
+            col.insert(new.clone(), value);
+        }
+    }
+
+    // update rebase_migrations to match the updated IDs
+    for (old_id, new_id) in changed_ids {
+        update_id(&old_id, &new_id, &mut rebase_migrations.target_migrations);
+        update_id(&old_id, &new_id, &mut rebase_migrations.source_migrations);
+        update_id(&old_id, &new_id, &mut rebase_migrations.base_migrations);
+    }
+
     Ok(())
 }
 
-pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) -> anyhow::Result<()> {
+pub async fn do_rebase(rebase_migrations: &mut RebaseMigrations, context: &Context) -> anyhow::Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let temp_ctx = Context {
         schema_dir: temp_dir.path().to_path_buf(),
@@ -224,14 +238,15 @@ pub async fn do_rebase(rebase_migrations: &RebaseMigrations, context: &Context) 
     };
 
     // write all the migrations to disk.
-    let flattened_migrations = rebase_migrations.flatten()?;
+    let to_flatten = rebase_migrations.clone();
+    let flattened_migrations = to_flatten.flatten()?;
     for migration in &flattened_migrations {
         create::write_migration(&temp_ctx, migration, false).await?;
     }
 
     // update the IDs of the migrations for the rebase, since we're changing the history the IDs can be invalid so we
     // need to update them.
-    rebase_migration_ids(&temp_ctx).await?;
+    rebase_migration_ids(&temp_ctx, rebase_migrations).await?;
 
     // remove the old migrations
     for old in migration::read_names(context).await? {
