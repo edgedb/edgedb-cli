@@ -233,7 +233,7 @@ impl ConnectionOptions {
 
     pub(crate) fn validate(&self) {
         if self.database.is_some() {
-            print::warn("database connection argument is deprecated in favour of 'branch'");
+            print::warn("database connection argument is deprecated in favor of 'branch'");
         }
     }
 }
