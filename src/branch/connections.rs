@@ -1,6 +1,7 @@
 use std::ops::Deref;
+use edgedb_tokio::Error;
 use uuid::Uuid;
-use crate::connect::Connection;
+use crate::connect::{Connection, Connector};
 use crate::options::Options;
 use crate::print;
 
@@ -32,6 +33,23 @@ impl BranchConnection<'_> {
     }
 }
 
+pub async fn try_connect(connector: &Connector) -> anyhow::Result<Option<Connection>> {
+    match connector.connect().await {
+        Ok(c) => Ok(Some(c)),
+        Err(e) => {
+            match e.downcast::<edgedb_tokio::Error>() {
+                Ok(e) => {
+                    if e.code() == 0x_FF_01_01_00 { // 0x_FF_01_01_00: ClientConnectionFailedError | https://www.edgedb.com/docs/reference/protocol/errors
+                        return Ok(None)
+                    }
+
+                    Err(e.into())
+                }
+                Err(e) => Err(e)
+            }
+        }
+    }
+}
 
 pub async fn get_connection_to_modify<'a>(branch: &String, options: &'a Options, connection: &mut Connection) -> anyhow::Result<BranchConnection<'a>> {
     match get_connection_that_is_not(branch, options, connection).await {
