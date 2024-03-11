@@ -33,7 +33,10 @@ impl BranchConnection<'_> {
     }
 }
 
-pub async fn try_connect(connector: &Connector) -> anyhow::Result<Option<Connection>> {
+/// Attempts to connect a provided connection, returning `Ok(Some)` if the connection was
+/// established, `Ok(None)` if the connection couldn't be established because of a
+/// `ClientConnectionFailedError`, and `Err` if any other type of error occurred.
+pub async fn connect_if_branch_exists(connector: &Connector) -> anyhow::Result<Option<Connection>> {
     match connector.connect().await {
         Ok(c) => Ok(Some(c)),
         Err(e) => {
