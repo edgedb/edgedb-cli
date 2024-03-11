@@ -41,7 +41,7 @@ pub async fn main(
             Some(mut connection) => {
                 verify_server_can_use_branches(&mut connection).await?;
             },
-            None => anyhow::bail!("The target branch doesn't exist, and cannot be created because the current branch cannot be connected to.")
+            None => anyhow::bail!("The target branch doesn't exist.")
         };
     }
 
