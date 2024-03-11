@@ -67,7 +67,7 @@ fn main() {
                 err = arc.inner();
             }
             if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
-                print::edgedb_error(e, true);
+                print::edgedb_error(e, false);
             } else {
                 print::error(err);
             }
