@@ -93,7 +93,7 @@ pub struct Rename {
     /// The new name of the branch.
     pub new_name: String,
 
-    /// Whether to force rename the branch, this will close any existing connection to the branch 
+    /// Whether to force rename the branch, this will close any existing connection to the branch
     /// before renaming it.
     #[arg(long)]
     pub force: bool,
@@ -111,8 +111,7 @@ pub struct Rebase {
     /// The branch to rebase the current branch to.
     pub target_branch: String,
 
-    /// Whether to apply migrations generated from the rebase, by default, all generated migrations
-    /// are applied automatically.
+    /// Skip applying migrations generated from the rebase
     #[arg(long)]
     pub no_apply: bool,
 }
