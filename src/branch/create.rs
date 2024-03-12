@@ -5,12 +5,12 @@ use crate::print;
 
 pub async fn main(
     options: &Create,
-    _context: &Context,
+    context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
-    eprintln!("Creating branch '{}'...", options.branch);
+    eprintln!("Creating branch '{}'...", options.name);
 
-    create_branch(connection, &options.branch, options.from.as_ref(), options.empty, options.copy_data).await?;
+    create_branch(connection, &options.name, options.from.as_ref().or(Some(&context.branch)), options.empty, options.copy_data).await?;
     Ok(())
 }
 
