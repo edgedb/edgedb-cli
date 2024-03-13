@@ -1,7 +1,7 @@
 use crate::branch::context::Context;
 use crate::branch::option::Wipe;
 use crate::commands::ExitCode;
-use crate::connect::{Connection, Connector};
+use crate::connect::{Connector};
 use crate::portable::exit_codes;
 use crate::{print, question};
 use crate::branch::connections::connect_if_branch_exists;
