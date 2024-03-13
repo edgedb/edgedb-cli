@@ -195,6 +195,16 @@ pub struct ConnectionOptions {
     #[arg(global=true)]
     tls_security: Option<String>,
 
+    /// Override server name used for TLS connections and certificate
+    /// verification.
+    ///
+    /// Useful when the server hostname cannot be used as it
+    /// does not resolve, or resolves to a wrong IP address,
+    /// and a different name or IP address is used in `--host`.
+    #[arg(long)]
+    #[arg(global=true)]
+    pub tls_server_name: Option<String>,
+
     /// Retry up to WAIT_TIME (e.g. '30s') in case EdgeDB connection
     /// cannot be established.
     #[arg(
@@ -955,6 +965,9 @@ pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
     }
     if let Some(s) = security {
         builder.tls_security(s);
+    }
+    if let Some(tls_server_name) = &options.tls_server_name {
+        builder.tls_server_name(tls_server_name)?;
     }
     Ok(())
 }
