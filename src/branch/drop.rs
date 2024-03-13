@@ -23,7 +23,7 @@ pub async fn main(
             options.branch
         ));
         if !connection.ping_while(q.async_ask()).await? {
-            print::error("Canceled.");
+            print::error("Canceled by user.");
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
         }
     }

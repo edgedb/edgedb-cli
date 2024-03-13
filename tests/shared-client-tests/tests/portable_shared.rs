@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature="portable_tests"), allow(dead_code, unused_imports))]
+#![cfg(feature="portable_tests")]
 
 use std::fmt::{Display, Formatter};
 use std::fs;

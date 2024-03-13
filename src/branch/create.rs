@@ -8,37 +8,35 @@ pub async fn main(
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
-    let source_branch = options
-        .from
-        .as_ref()
-        .unwrap_or(&context.branch);
+    eprintln!("Creating branch '{}'...", options.name);
 
+    create_branch(connection, &options.name, options.from.as_ref().or(Some(&context.branch)), options.empty, options.copy_data).await?;
+    Ok(())
+}
+
+
+pub async fn create_branch(connection: &mut Connection, name: &String, from: Option<&String>, empty: bool, copy_data: bool) -> anyhow::Result<()> {
+    let branch_name = edgeql_parser::helpers::quote_name(name);
     let query: String;
-    let branch_name = edgeql_parser::helpers::quote_name(&options.branch);
 
-    if options.empty {
+    if empty {
         query = format!("create empty branch {}", branch_name)
-    } else {
-        let branch_type = match options {
-            _ if options.copy_data => "data",
-            _ => "schema",
-        };
+    } else if let Some(from_branch) = from {
+        let branch_type = if copy_data { "data" } else { "schema" };
 
         query = format!(
             "create {} branch {} from {}",
             branch_type,
             branch_name,
-            edgeql_parser::helpers::quote_name(source_branch)
+            edgeql_parser::helpers::quote_name(&from_branch)
         )
+    } else {
+        anyhow::bail!("Invalid branch configuration");
     }
-
-    eprintln!("Creating branch '{}'...", options.branch);
 
     let status = connection.execute(&query, &()).await?;
 
-    print::completion(&status);
-
-    context.update_branch(&options.branch).await?;
+    print::completion(status);
 
     Ok(())
 }
