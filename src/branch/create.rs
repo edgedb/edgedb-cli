@@ -10,28 +10,26 @@ pub async fn main(
 ) -> anyhow::Result<()> {
     eprintln!("Creating branch '{}'...", options.name);
 
-    create_branch(connection, &options.name, options.from.as_ref().or(Some(&context.branch)), options.empty, options.copy_data).await?;
+    create_branch(connection, &options.name, options.from.as_ref().unwrap_or(&context.branch), options.empty, options.copy_data).await?;
     Ok(())
 }
 
 
-pub async fn create_branch(connection: &mut Connection, name: &String, from: Option<&String>, empty: bool, copy_data: bool) -> anyhow::Result<()> {
+pub async fn create_branch(connection: &mut Connection, name: &String, from: &String, empty: bool, copy_data: bool) -> anyhow::Result<()> {
     let branch_name = edgeql_parser::helpers::quote_name(name);
     let query: String;
 
     if empty {
         query = format!("create empty branch {}", branch_name)
-    } else if let Some(from_branch) = from {
+    } else {
         let branch_type = if copy_data { "data" } else { "schema" };
 
         query = format!(
             "create {} branch {} from {}",
             branch_type,
             branch_name,
-            edgeql_parser::helpers::quote_name(&from_branch)
+            edgeql_parser::helpers::quote_name(&from)
         )
-    } else {
-        anyhow::bail!("Invalid branch configuration");
     }
 
     let status = connection.execute(&query, &()).await?;
