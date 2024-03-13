@@ -29,7 +29,7 @@ async fn _upgrade_format(context: &Context) -> anyhow::Result<()> {
 
         if let Some(_) = old_filename.captures(fname) {
             // migrate to new filename
-            println!("Upgrading migration file layout for {}.edgeql...", fname);
+            eprintln!("Upgrading migration file layout for {}.edgeql...", fname);
             upgrade_format_of_file(&name, file_num(&name).unwrap()).await?;
         } else if let Some(_) = new_filename.captures(fname) {
             println!("Migration {} OK", fname)
