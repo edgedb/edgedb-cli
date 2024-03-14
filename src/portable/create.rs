@@ -317,6 +317,34 @@ fn create_cloud(
         return Ok(());
     }
 
+    let source_instance_id = match &cmd.cloud_backup_source.from_instance {
+        Some(InstanceName::Cloud{org_slug: org, name}) => {
+            match cloud::ops::find_cloud_instance_by_name(&name, &org, client) {
+                Ok(Some(instance)) => {
+                    Ok(Some(instance.id))
+                },
+                Ok(None) => {
+                    Err(opts.error(
+                        clap::error::ErrorKind::InvalidValue,
+                        cformat!("The instance specified by <bold>--from-instance</bold> does \
+                        not exist or is inaccessible."),
+                    ))?
+                },
+                Err(e) => {
+                    Err(e)
+                },
+            }
+        },
+        Some(InstanceName::Local(_)) => {
+            Err(opts.error(
+                clap::error::ErrorKind::InvalidValue,
+                cformat!("The instance specified by <bold>--from-instance</bold> does \
+                not specify a cloud instance, a name in the 'org/instance' format is expected."),
+            ))?
+        },
+        None => Ok(None),
+    }?;
+
     let request = cloud::ops::CloudInstanceCreate {
         name: name.to_string(),
         org: org_slug.to_string(),
@@ -324,6 +352,8 @@ fn create_cloud(
         region: Some(region),
         requested_resources: Some(req_resources),
         tier: Some(tier),
+        source_instance_id: source_instance_id,
+        source_backup_id: cmd.cloud_backup_source.from_backup_id.clone(),
     };
     cloud::ops::create_cloud_instance(&client, &request)?;
     echo!(

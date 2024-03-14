@@ -20,7 +20,7 @@ const SPINNER_TICK: Duration = Duration::from_millis(100);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudInstance {
-    id: String,
+    pub id: String,
     name: String,
     org_slug: String,
     dsn: String,
@@ -149,6 +149,8 @@ pub struct CloudInstanceCreate {
     pub region: Option<String>,
     pub requested_resources: Option<Vec<CloudInstanceResourceRequest>>,
     pub tier: Option<CloudTier>,
+    pub source_instance_id: Option<String>,
+    pub source_backup_id: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub default_database: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
