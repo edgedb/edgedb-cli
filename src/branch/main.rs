@@ -1,6 +1,6 @@
 use crate::branch::context::Context;
 use crate::branch::option::{BranchCommand, Command};
-use crate::branch::{create, drop, list, rebase, rename, switch, wipe};
+use crate::branch::{create, drop, list, merge, rebase, rename, switch, wipe};
 use crate::connect::{Connection, Connector};
 use crate::options::Options;
 
@@ -26,6 +26,7 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
                 Command::List(list) => list::main(list, &context, &mut connection).await,
                 Command::Rename(rename) => rename::main(rename, &context, &mut connection, &options).await,
                 Command::Rebase(rebase) => rebase::main(rebase, &context, &mut connection, &options).await,
+                Command::Merge(merge) => merge::main(merge, &context, &mut connection, &options).await,
                 unhandled => anyhow::bail!("unimplemented branch command '{:?}'", unhandled)
             }
         }
