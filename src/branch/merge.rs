@@ -30,5 +30,7 @@ pub async fn main(options: &Merge, context: &Context, source_connection: &mut Co
         apply_merge_migration_files(&merge_migrations, &migration_context, source_connection).await?;
     }
 
+    eprintln!("Done!");
+
     Ok(())
 }
