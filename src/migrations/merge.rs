@@ -6,7 +6,7 @@ use crate::migrations::{Context, migrate, migration};
 use crate::migrations::create::{MigrationKey, MigrationToText, write_migration};
 use crate::migrations::db_migration::{DBMigration, read_all};
 use crate::migrations::migration::MigrationFile;
-use crate::migrations::rebase::{fix_migration_ids, RebaseMigrations};
+use crate::migrations::rebase::{fix_migration_ids};
 
 pub struct MergeMigrations {
     pub base_migrations: IndexMap<String, MergeMigration>,

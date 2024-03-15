@@ -1,6 +1,6 @@
 use crate::branch::connections::connect_if_branch_exists;
 use crate::branch::context::Context;
-use crate::branch::option::{Merge, Rebase};
+use crate::branch::option::{Merge};
 use crate::connect::Connection;
 use crate::migrations;
 use crate::migrations::merge::{apply_merge_migration_files, get_merge_migrations, write_merge_migrations};
