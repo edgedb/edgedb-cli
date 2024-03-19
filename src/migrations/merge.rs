@@ -7,6 +7,7 @@ use crate::migrations::create::{MigrationKey, MigrationToText, write_migration};
 use crate::migrations::db_migration::{DBMigration, read_all};
 use crate::migrations::migration::MigrationFile;
 use crate::migrations::rebase::{fix_migration_ids};
+use crate::print;
 
 pub struct MergeMigrations {
     pub base_migrations: IndexMap<String, MergeMigration>,
@@ -64,14 +65,38 @@ pub async fn get_merge_migrations(base: &mut Connection, target: &mut Connection
         anyhow::bail!("Source branch contains more migrations than the target branch");
     }
 
+    let mut target_missing = Vec::new();
+    let mut diverging_migrations = Vec::new();
+
     for (index, (base_migration_id, _)) in base_migrations.iter().enumerate() {
         if let Some((target_migration_id, _)) = target_migrations.get_index(index) {
             if target_migration_id != base_migration_id {
-                anyhow::bail!("Migration histories of base and target diverge");
+                diverging_migrations.push((index, base_migration_id, target_migration_id))
             }
         } else {
-            anyhow::bail!("Target branch doesn't contain the migration {} (at index {})", base_migration_id, index)
+            target_missing.push((index, base_migration_id))
         }
+    }
+
+    if diverging_migrations.len() > 0 {
+        eprintln!("\nThe migration history of {} diverges from {}:", target.database(), base.database());
+
+        for (index, expecting, actual) in &diverging_migrations {
+            eprintln!("{}. Expecting {} but has {}", index, &expecting[..7], &actual[..7])
+        }
+    }
+
+    if target_missing.len() > 0 {
+        eprintln!("\nThe migration history of {} is missing the following migrations", target.database());
+
+        for (index, missing) in &target_missing {
+            eprintln!("{}. {}", index, &missing[..7])
+        }
+    }
+
+    if target_missing.len() > 0 || diverging_migrations.len() > 0 {
+        eprintln!("\n");
+        anyhow::bail!("Cannot complete fast-forward merge, the histories of {0} and {1} are incompatible. Try rebasing {1} onto {0}", base.database(), target.database())
     }
 
     let mut target_merge_migrations: IndexMap<String, MergeMigration> = IndexMap::new();
