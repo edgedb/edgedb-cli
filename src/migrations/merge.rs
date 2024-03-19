@@ -25,7 +25,7 @@ impl MergeMigrations {
             result.insert(migration.0, migration.1);
         }
 
-        return result;
+        result
     }
 }
 
