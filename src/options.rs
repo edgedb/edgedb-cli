@@ -109,7 +109,7 @@ pub struct ConnectionOptions {
 
     /// Branch to connect with
     #[arg(short='b', long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete database
+    #[arg(value_hint=clap::ValueHint::Other)]
     #[arg(hide=true)]
     #[arg(global=true)]
     pub branch: Option<String>,
@@ -903,9 +903,11 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     if let Some(val) = &tmp.secret_key {
         bld.secret_key(val);
     }
-
+    if let Some(database) = &tmp.database {
+        bld.database(database)?;
+    }
     if let Some(branch) = tmp.get_branch() {
-        bld.database(branch)?;
+        bld.branch(branch)?;
     }
 
     load_tls_options(tmp, &mut bld)?;
