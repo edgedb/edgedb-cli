@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use edgedb_tokio::Error;
+
 use uuid::Uuid;
 use crate::connect::{Connection, Connector};
 use crate::options::Options;

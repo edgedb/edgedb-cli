@@ -3,8 +3,8 @@ use crate::branch::context::Context;
 use crate::branch::create::create_branch;
 use crate::branch::main::verify_server_can_use_branches;
 use crate::branch::option::Switch;
-use crate::connect::{Connection, Connector};
-use crate::options::Options;
+use crate::connect::{Connector};
+
 
 pub async fn main(
     options: &Switch,
@@ -29,7 +29,7 @@ pub async fn main(
         if !branches.contains(&options.branch) {
             if options.create {
                 eprintln!("Creating '{}'...", &options.branch);
-                create_branch(&mut connection, &options.branch, options.from.as_ref(), options.empty, options.copy_data).await?;
+                create_branch(&mut connection, &options.branch, options.from.as_ref().unwrap_or(&context.branch), options.empty, options.copy_data).await?;
             } else {
                 anyhow::bail!("Branch '{}' doesn't exists", options.branch)
             }
