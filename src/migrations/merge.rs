@@ -61,11 +61,19 @@ pub async fn get_merge_migrations(base: &mut Connection, target: &mut Connection
     let base_migrations = read_all(base, true, false).await?;
     let mut target_migrations = read_all(target, true, false).await?;
 
-    if base_migrations.len() > target_migrations.len() {
-        anyhow::bail!("Source branch contains more migrations than the target branch");
+    // check if the base branch is up-to-date with target:
+    // we do this by verifying that all target migrations
+    // exist within the base migrations
+    if base_migrations.len() >= target_migrations.len() &&
+        target_migrations.iter().enumerate()
+            .all(|(i, (k, _))|
+                base_migrations.get_index(i)
+                    .map(|v| v.0 == k).unwrap_or(false)
+            )
+    {
+        anyhow::bail!("Already up to date.")
     }
-
-    let mut target_missing = Vec::new();
+    
     let mut diverging_migrations = Vec::new();
 
     for (index, (base_migration_id, _)) in base_migrations.iter().enumerate() {
@@ -73,8 +81,6 @@ pub async fn get_merge_migrations(base: &mut Connection, target: &mut Connection
             if target_migration_id != base_migration_id {
                 diverging_migrations.push((index, base_migration_id, target_migration_id))
             }
-        } else {
-            target_missing.push((index, base_migration_id))
         }
     }
 
@@ -84,18 +90,9 @@ pub async fn get_merge_migrations(base: &mut Connection, target: &mut Connection
         for (index, expecting, actual) in &diverging_migrations {
             eprintln!("{}. Expecting {} but has {}", index, &expecting[..7], &actual[..7])
         }
-    }
 
-    if target_missing.len() > 0 {
-        eprintln!("\nThe migration history of {} is missing the following migrations", target.database());
+        eprintln!();
 
-        for (index, missing) in &target_missing {
-            eprintln!("{}. {}", index, &missing[..7])
-        }
-    }
-
-    if target_missing.len() > 0 || diverging_migrations.len() > 0 {
-        eprintln!("\n");
         anyhow::bail!("Cannot complete fast-forward merge, the histories of {0} and {1} are incompatible. Try rebasing {1} onto {0}", base.database(), target.database())
     }
 
