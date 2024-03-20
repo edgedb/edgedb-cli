@@ -12,7 +12,8 @@ pub enum Command {
     Switch(Switch),
     Rename(Rename),
     List(List),
-    Rebase(Rebase)
+    Rebase(Rebase),
+    Merge(Merge)
 }
 
 /// Creates a new branch and switches to it.
@@ -112,6 +113,16 @@ pub struct Rebase {
     pub target_branch: String,
 
     /// Skip applying migrations generated from the rebase
+    #[arg(long)]
+    pub no_apply: bool,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct Merge {
+    /// The branch to merge into this one
+    pub target_branch: String,
+
+    /// Skip applying migrations generated from the merge
     #[arg(long)]
     pub no_apply: bool,
 }

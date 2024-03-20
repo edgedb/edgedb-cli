@@ -9,5 +9,6 @@ pub mod option;
 mod rename;
 mod switch;
 mod wipe;
+mod merge;
 
 pub use main::branch_main;
