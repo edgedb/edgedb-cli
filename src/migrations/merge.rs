@@ -32,9 +32,7 @@ impl MergeMigrations {
 
 pub struct MergeMigration {
     key: MigrationKey,
-    id_override: Option<String>,
-    migration: DBMigration,
-    parent_override: Option<String>
+    migration: DBMigration
 }
 
 impl MigrationToText for MergeMigration {
@@ -45,11 +43,11 @@ impl MigrationToText for MergeMigration {
     }
 
     fn parent(&self) -> anyhow::Result<&str> {
-        Ok(self.parent_override.as_ref().or(self.migration.parent_names.first()).map(|v| v.as_str()).unwrap_or("initial"))
+        Ok(self.migration.parent_names.first().map(String::as_str).unwrap_or("initial"))
     }
 
     fn id(&self) -> anyhow::Result<&str> {
-        Ok(self.id_override.as_ref().unwrap_or(&self.migration.name))
+        Ok(self.migration.name.as_str())
     }
 
     fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
@@ -73,7 +71,7 @@ pub async fn get_merge_migrations(base: &mut Connection, target: &mut Connection
     {
         anyhow::bail!("Already up to date.")
     }
-    
+
     let mut diverging_migrations = Vec::new();
 
     for (index, (base_migration_id, _)) in base_migrations.iter().enumerate() {
@@ -102,18 +100,14 @@ pub async fn get_merge_migrations(base: &mut Connection, target: &mut Connection
     for (index, (id, migration)) in target_migrations.split_off(base_migrations.len()).into_iter().enumerate() {
         target_merge_migrations.insert(id, MergeMigration {
             migration,
-            id_override: None,
             key: MigrationKey::Index((base_migrations.len() + index + 1) as u64),
-            parent_override: if index == 0 { base_migrations.last().map(|v| v.0.clone()) } else { None }
         });
     }
 
     for(index, (id, migration)) in target_migrations.into_iter().enumerate() {
         base_merge_migrations.insert(id, MergeMigration {
             migration,
-            id_override: None,
             key: MigrationKey::Index((index + 1) as u64),
-            parent_override: None
         });
     }
 
@@ -134,19 +128,7 @@ pub async fn write_merge_migrations(context: &Context, migrations: &mut MergeMig
     for (_, migration) in migrations.flatten() {
         write_migration(&temp_ctx, migration, false).await?;
     }
-
-    fn update_id(old: &String, new: &String, migrations: &mut IndexMap<String, MergeMigration>) {
-        if let Some(mut migration) = migrations.remove(old) {
-            migration.id_override = Some(new.clone());
-            migrations.insert(new.clone(), migration);
-        }
-    }
-
-    fix_migration_ids(&temp_ctx, |old, new| {
-        update_id(old, new, &mut migrations.base_migrations);
-        update_id(old, new, &mut migrations.target_migrations);
-    }).await?;
-
+    
     for from in migration::read_names(&temp_ctx).await? {
         let to = context
             .schema_dir
