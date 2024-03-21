@@ -913,11 +913,10 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     if let Some(val) = &tmp.secret_key {
         bld.secret_key(val);
     }
-    if let Some(database) = &tmp.database {
-        bld.database(database)?;
-    }
     if let Some(branch) = tmp.get_branch() {
         bld.branch(branch)?;
+    } else if let Some(database) = &tmp.database {
+        bld.database(database)?;
     }
 
     load_tls_options(tmp, &mut bld)?;
