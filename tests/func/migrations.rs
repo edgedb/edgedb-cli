@@ -573,7 +573,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
 
 #[test]
 fn modified3_interactive() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/modified3/migrations/00002.edgeql")
+    fs::remove_file("tests/migrations/db1/modified3/migrations/00002-m1czhvu.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("modified3")
@@ -585,7 +585,7 @@ fn modified3_interactive() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n"));
+            (00001-m12bulr.edgeql)\n"));
 
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=modified3");
