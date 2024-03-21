@@ -133,7 +133,7 @@ async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
             continue;
         }
 
-        if !has_old_filename && old_name_re.is_match(lossy_name) {
+        if !has_old_filename && old_name_re.is_match(&lossy_name) {
             has_old_filename = true;
         }
 
