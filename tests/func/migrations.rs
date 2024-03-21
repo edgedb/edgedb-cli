@@ -731,7 +731,7 @@ edgedb error: cannot proceed until .esdl files are fixed
 fn dev_mode() -> anyhow::Result<()> {
     fs::remove_file("tests/migrations/db4/modified1/migrations/00001-m1qfgvb.edgeql")
         .ok();
-    fs::remove_file("tests/migrations/db4/created1/migrations/00002-m1d3iwv.edgeql")
+    fs::remove_file("tests/migrations/db4/created1/migrations/00002-m1bzaqw.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db4")
@@ -771,7 +771,7 @@ fn dev_mode() -> anyhow::Result<()> {
         .env("NO_COLOR", "1")
         .assert().success();
     assert!(
-        Path::new("tests/migrations/db4/created1/migrations/00002-m1d3iwv.edgeql")
+        Path::new("tests/migrations/db4/created1/migrations/00002-m1bzaqw.edgeql")
         .exists()
     );
     Ok(())
