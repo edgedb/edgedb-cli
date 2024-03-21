@@ -770,6 +770,11 @@ fn dev_mode() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db4/created1")
         .env("NO_COLOR", "1")
         .assert().success();
+
+    for path in fs::read_dir("tests/migrations/db4/created1/migrations/").unwrap() {
+        eprintln!("File: {}", path.unwrap().path().display())
+    }
+
     assert!(
         Path::new("tests/migrations/db4/created1/migrations/00002-m1bzaqw.edgeql")
         .exists()
