@@ -20,6 +20,7 @@ pub mod options;
 pub mod upgrade_check;
 mod upgrade_format;
 pub mod rebase;
+pub mod merge;
 
 const NULL_MIGRATION: &str = "initial";
 

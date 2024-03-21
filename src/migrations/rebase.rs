@@ -10,10 +10,6 @@ use crate::connect::Connection;
 use crate::migrations::{Context, create, migrate, migration};
 use crate::migrations::create::{MigrationKey, MigrationToText};
 use crate::migrations::db_migration::{DBMigration, read_all};
-
-
-
-
 use crate::migrations::migration::MigrationFile;
 use crate::print;
 
@@ -189,6 +185,22 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
 }
 
 async fn rebase_migration_ids(context: &Context, rebase_migrations: &mut RebaseMigrations) -> anyhow::Result<()> {
+    fn update_id(old: &String, new: &String, col: &mut IndexMap<String, DBMigration>) {
+        if let Some(value) = col.remove(old) {
+            col.insert(new.clone(), value);
+        }
+    }
+
+    fix_migration_ids(context, |old, new| {
+        update_id(old, new, &mut rebase_migrations.base_migrations);
+        update_id(old, new, &mut rebase_migrations.target_migrations);
+        update_id(old, new, &mut rebase_migrations.source_migrations);
+    }).await
+}
+
+pub async fn fix_migration_ids<T>(context: &Context, mut on_update: T) -> anyhow::Result<()>
+    where T : FnMut(&String, &String)
+{
     let migrations = migration::read_all(context, false).await?;
     let mut changed_ids: HashMap<String, String> = HashMap::new();
 
@@ -213,17 +225,8 @@ async fn rebase_migration_ids(context: &Context, rebase_migrations: &mut RebaseM
         fs::write(&migration_file.path, migration_text)?;
     }
 
-    fn update_id(old: &String, new: &String, col: &mut IndexMap<String, DBMigration>) {
-        if let Some(value) = col.remove(old) {
-            col.insert(new.clone(), value);
-        }
-    }
-
-    // update rebase_migrations to match the updated IDs
     for (old_id, new_id) in changed_ids {
-        update_id(&old_id, &new_id, &mut rebase_migrations.target_migrations);
-        update_id(&old_id, &new_id, &mut rebase_migrations.source_migrations);
-        update_id(&old_id, &new_id, &mut rebase_migrations.base_migrations);
+        on_update(&old_id, &new_id);
     }
 
     Ok(())

@@ -29,6 +29,7 @@ fn main() {
         ("tlsSecurity", "--tls-security"),
         ("tlsCA", "--tls-ca-file"),
         ("tlsCAFile", "--tls-ca-file"),
+        ("tlsServerName", "--tls-server-name"),
         ("waitUntilAvailable", "--wait-until-available"),
         ("secretKey", "--secret-key"),
     ]);

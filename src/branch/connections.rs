@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use edgedb_tokio::Error;
+
 use uuid::Uuid;
 use crate::connect::{Connection, Connector};
 use crate::options::Options;
@@ -59,7 +59,7 @@ pub async fn get_connection_to_modify<'a>(branch: &String, options: &'a Options,
         Ok(connection) => Ok(connection),
         Err(_) => {
             let temp_name = Uuid::new_v4().to_string();
-            connection.execute(&format!("create empty branch {}", temp_name), &()).await?;
+            connection.execute(&format!("create empty branch {}", edgeql_parser::helpers::quote_name(&temp_name)), &()).await?;
             Ok(BranchConnection {
                 connection: options.create_connector().await?.database(&temp_name)?.connect().await?,
                 options,

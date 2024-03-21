@@ -1,6 +1,6 @@
 use crate::branch::context::Context;
 use crate::branch::option::{BranchCommand, Command};
-use crate::branch::{create, drop, list, rebase, rename, switch, wipe};
+use crate::branch::{create, drop, list, merge, rebase, rename, switch, wipe};
 use crate::connect::{Connection, Connector};
 use crate::options::Options;
 
@@ -15,6 +15,7 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
     // match commands that don't require a connection to run, then match the ones that do with a connection.
     match &cmd.subcommand {
         Command::Switch(switch) => switch::main(switch, &context, &mut connector).await,
+        Command::Wipe(wipe) => wipe::main(wipe, &context, &mut connector).await,
         command => {
             let mut connection = connector.connect().await?;
             verify_server_can_use_branches(&mut connection).await?;
@@ -22,10 +23,10 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
             match command {
                 Command::Create(create) => create::main(create, &context, &mut connection).await,
                 Command::Drop(drop) => drop::main(drop, &context, &mut connection).await,
-                Command::Wipe(wipe) => wipe::main(wipe, &context, &mut connection).await,
                 Command::List(list) => list::main(list, &context, &mut connection).await,
                 Command::Rename(rename) => rename::main(rename, &context, &mut connection, &options).await,
                 Command::Rebase(rebase) => rebase::main(rebase, &context, &mut connection, &options).await,
+                Command::Merge(merge) => merge::main(merge, &context, &mut connection, &options).await,
                 unhandled => anyhow::bail!("unimplemented branch command '{:?}'", unhandled)
             }
         }
