@@ -96,6 +96,7 @@ pub struct State {
     pub initial_text: String,
     pub edgeql_state_desc: RawTypedesc,
     pub edgeql_state: EdgeqlState,
+    pub current_database: Option<String>,
 }
 
 impl PromptRpc {
@@ -180,6 +181,7 @@ impl State {
         self.connection = Some(conn);
         self.read_state();
         self.set_idle_transaction_timeout().await?;
+        self.current_database = self.try_get_current_database().await?;
         Ok(())
     }
     pub async fn soft_reconnect(&mut self) -> anyhow::Result<()> {
@@ -248,7 +250,10 @@ impl State {
             None => "",
         };
 
-        let current_database = &self.get_current_database().await?;
+        let current_database = match self.try_get_current_database().await? {
+            Some(db) => db,
+            None => self.get_current_database().await?
+        };
 
         let inst = self.conn_params.get()?.instance_name().to_owned();
 
@@ -283,6 +288,13 @@ impl State {
 
     pub async fn get_current_database(&mut self) -> anyhow::Result<String> {
         self.ensure_connection().await?;
+        Ok(self.try_get_current_database().await?.unwrap())
+    }
+
+    pub async fn try_get_current_database(&mut self) -> anyhow::Result<Option<String>> {
+        if self.connection.is_none() {
+            return Ok(None);
+        }
 
         Ok(
             self.connection.as_mut().unwrap()
