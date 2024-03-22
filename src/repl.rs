@@ -241,12 +241,14 @@ impl State {
     {
         use TransactionState::*;
 
-        let txstate = match self.connection.as_ref().map(|c| c.transaction_state()) {
+        let txstate = match self.connection.as_mut().map(|c| c.transaction_state()) {
             Some(NotInTransaction) => "",
             Some(InTransaction) => TX_MARKER,
             Some(InFailedTransaction) => FAILURE_MARKER,
             None => "",
         };
+
+        let current_database = &self.get_current_database().await?;
 
         let inst = self.conn_params.get()?.instance_name().to_owned();
 
@@ -256,16 +258,16 @@ impl State {
                     "{}/{}:{}",
                     org,
                     name,
-                    self.database,
+                    current_database,
                 ),
             Some(edgedb_tokio::InstanceName::Local(name)) =>
                 format!(
                     "{}:{}",
                     name,
-                    self.database,
+                    current_database,
                 ),
             _ =>
-                format!("{}", self.database)
+                format!("{}", current_database)
         };
 
         let prompt = format!("{}{}> ", location, txstate);
@@ -278,6 +280,16 @@ impl State {
             }
         }).await
     }
+
+    pub async fn get_current_database(&mut self) -> anyhow::Result<String> {
+        self.ensure_connection().await?;
+
+        Ok(
+            self.connection.as_mut().unwrap()
+                .query_required_single("select sys::get_current_database()", &()).await?
+        )
+    }
+
     pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()>
     {
         self.input_mode = value;
