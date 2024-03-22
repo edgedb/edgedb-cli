@@ -5,7 +5,7 @@ use crate::commands::Options;
 use crate::connect::Connection;
 use crate::migrations::Context;
 use crate::migrations::migration::{file_num, read_file, read_names};
-use crate::migrations::options::{MigrationUpgradeFormat};
+use crate::migrations::options::MigrationUpgradeFormat;
 use crate::print;
 
 pub async fn upgrade_format(
@@ -64,10 +64,14 @@ mod test {
     async fn test_upgrade() {
         use std::env;
 
-        let mut schema_dir = env::current_dir().unwrap();
-        schema_dir.push("tests/migrations/db3");
+        let mut original_schema_dir = env::current_dir().unwrap();
+        original_schema_dir.push("tests/migrations/db3");
 
-        let ctx = Context{schema_dir, edgedb_version: None, quiet: false};
+        let tmp_dir = tempfile::tempdir().expect("tmpdir");
+        fs_extra::dir::copy(original_schema_dir, &tmp_dir, &Default::default()).unwrap();
+        let schema_dir = tmp_dir.path().to_path_buf();
+
+        let ctx = Context { schema_dir, edgedb_version: None, quiet: false };
 
         _upgrade_format(&ctx).await.unwrap();
 
@@ -86,7 +90,10 @@ mod test {
             assert!(migration.id.starts_with(migration_part));
 
             // rename the file back to the old one
-            let target = file.parent().unwrap().join(format!("{:05}.edgeql", re_match.get(1).unwrap().as_str()));
+            let target = file
+                .parent()
+                .unwrap()
+                .join(format!("{:05}.edgeql", re_match.get(1).unwrap().as_str()));
             fs::rename(file, target).unwrap();
         }
     }
