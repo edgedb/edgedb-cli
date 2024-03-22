@@ -34,8 +34,8 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
 }
 
 async fn create_context() -> anyhow::Result<Context> {
-    let project_dir = get_project_dir(None, true).await?.expect("Missing project");
-    Context::new(&project_dir).await
+    let project_dir = get_project_dir(None, true).await?;
+    Context::new(project_dir.as_ref()).await
 }
 
 pub async fn verify_server_can_use_branches(connection: &mut Connection) -> anyhow::Result<()> {

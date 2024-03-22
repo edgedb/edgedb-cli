@@ -16,9 +16,9 @@ pub async fn main(
         .await?;
 
     for branch in branches {
-        if context.branch == branch {
+        if context.branch.as_ref() == Some(&branch) {
             println!("{} - Current", branch.green());
-        } else if context.project_config.edgedb.branch == branch {
+        } else if context.project_config.as_ref().map(|v| &v.edgedb.branch) == Some(&branch) {
             println!("{} - Project default", branch.blue());
         } else {
             println!("{}", branch);

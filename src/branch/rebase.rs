@@ -10,7 +10,13 @@ use crate::{migrations, print};
 use crate::branch::connections::get_connection_to_modify;
 
 pub async fn main(options: &Rebase, context: &Context, source_connection: &mut Connection, cli_opts: &Options) -> anyhow::Result<()> {
-    if options.target_branch == context.branch {
+    if context.project_config.is_none() {
+        anyhow::bail!("Rebase must be used within a project");
+    }
+
+    let current_branch = context.branch.as_ref().unwrap();
+
+    if &options.target_branch == current_branch {
         anyhow::bail!("Cannot rebase the current branch on top of itself");
     }
 
@@ -36,10 +42,11 @@ pub async fn main(options: &Rebase, context: &Context, source_connection: &mut C
 
 async fn rebase(branch: &String, source_connection: &mut Connection, target_connection: &mut Connection, context: &Context, cli_opts: &Options, apply_migrations: bool) -> anyhow::Result<()> {
     let mut migrations = get_diverging_migrations(source_connection, target_connection).await?;
-
+    let current_branch = context.branch.as_ref().unwrap();
+    let project_config = context.project_config.as_ref().unwrap();
     migrations.print_status();
 
-    let migration_context = migrations::Context::for_project(&context.project_config)?;
+    let migration_context = migrations::Context::for_project(project_config)?;
     do_rebase(&mut migrations, &migration_context).await?;
 
     if apply_migrations {
@@ -47,10 +54,10 @@ async fn rebase(branch: &String, source_connection: &mut Connection, target_conn
     }
 
     // drop source branch
-    eprintln!("\nReplacing '{}' with rebased version...", &context.branch);
-    let status = target_connection.execute(&format!("drop branch {} force", edgeql_parser::helpers::quote_name(&context.branch)), &()).await?;
+    eprintln!("\nReplacing '{}' with rebased version...", current_branch);
+    let status = target_connection.execute(&format!("drop branch {} force", edgeql_parser::helpers::quote_name(current_branch)), &()).await?;
     print::completion(status);
-    rename_temp_to_source(branch, &context.branch, cli_opts, target_connection).await?;
+    rename_temp_to_source(branch, current_branch, cli_opts, target_connection).await?;
 
     eprintln!("Done!");
     anyhow::Ok(())
