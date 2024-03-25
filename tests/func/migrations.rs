@@ -21,9 +21,9 @@ fn bare_status() -> anyhow::Result<()> {
 
 #[test]
 fn initial() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/initial/migrations/00002.edgeql")
+    fs::remove_file("tests/migrations/db1/initial/migrations/00002-m1e5vq3.edgeql")
         .ok();
-    fs::remove_file("tests/migrations/db1/initial/migrations/00003.edgeql")
+    fs::remove_file("tests/migrations/db1/initial/migrations/00003-m1wrvvw.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("initial")
@@ -58,7 +58,7 @@ fn initial() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n"));
+            (00001-m12bulr.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
         .arg("migration").arg("log")
@@ -99,7 +99,7 @@ fn initial() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert().code(0)
         .stderr(ends_with("Created \
-            tests/migrations/db1/initial/migrations/00002.edgeql, \
+            tests/migrations/db1/initial/migrations/00002-m1e5vq3.edgeql, \
             id: m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq\n"));
     SERVER.admin_cmd()
         .arg("--database=initial")
@@ -108,7 +108,7 @@ fn initial() -> anyhow::Result<()> {
         .assert().success()
         .stderr(ends_with("Applied \
             m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
-            (00002.edgeql)\n"));
+            (00002-m1e5vq3.edgeql)\n"));
 
     SERVER.admin_cmd()
         .arg("--database=initial")
@@ -124,7 +124,7 @@ fn initial() -> anyhow::Result<()> {
         .assert().success()
         .stderr(ends_with("Applied \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
-            (00003.edgeql)\n"));
+            (00003-m1wrvvw.edgeql)\n"));
 
     // Now test partial migrations
     SERVER.admin_cmd()
@@ -138,10 +138,10 @@ fn initial() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n\
+            (00001-m12bulr.edgeql)\n\
             Applied \
             m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
-            (00002.edgeql)\n"));
+            (00002-m1e5vq3.edgeql)\n"));
 
     SERVER.admin_cmd()
         .arg("--database=initial_2")
@@ -171,16 +171,16 @@ fn initial() -> anyhow::Result<()> {
         .assert().success()
         .stderr(ends_with("Applied \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
-            (00003.edgeql)\n"));
+            (00003-m1wrvvw.edgeql)\n"));
 
     Ok(())
 }
 
 #[test]
 fn project() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/project/priv/dbschema/migrations/00002.edgeql")
+    fs::remove_file("tests/migrations/db1/project/priv/dbschema/migrations/00002-m1e5vq3.edgeql")
         .ok();
-    fs::remove_file("tests/migrations/db1/project/priv/dbschema/migrations/00003.edgeql")
+    fs::remove_file("tests/migrations/db1/project/priv/dbschema/migrations/00003-m1wrvvw.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("project")
@@ -215,7 +215,7 @@ fn project() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n"));
+            (00001-m12bulr.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=project")
         .arg("query").arg("SELECT cfg::DatabaseConfig.allow_bare_ddl")
@@ -248,7 +248,7 @@ fn project() -> anyhow::Result<()> {
         .current_dir("tests/migrations/db1/project")
         .assert().code(0)
         .stderr(ends_with("Created \
-            ./priv/dbschema/migrations/00002.edgeql, \
+            ./priv/dbschema/migrations/00002-m1e5vq3.edgeql, \
             id: m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq\n"));
     SERVER.admin_cmd()
         .arg("--database=project")
@@ -257,7 +257,7 @@ fn project() -> anyhow::Result<()> {
         .assert().success()
         .stderr(ends_with("Applied \
             m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
-            (00002.edgeql)\n"));
+            (00002-m1e5vq3.edgeql)\n"));
 
     SERVER.admin_cmd()
         .arg("--database=project")
@@ -273,7 +273,7 @@ fn project() -> anyhow::Result<()> {
         .assert().success()
         .stderr(ends_with("Applied \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
-            (00003.edgeql)\n"));
+            (00003-m1wrvvw.edgeql)\n"));
 
     // Now test partial migrations
     SERVER.admin_cmd()
@@ -287,10 +287,10 @@ fn project() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n\
+            (00001-m12bulr.edgeql)\n\
             Applied \
             m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
-            (00002.edgeql)\n"));
+            (00002-m1e5vq3.edgeql)\n"));
 
     SERVER.admin_cmd()
         .arg("--database=project_2")
@@ -320,14 +320,14 @@ fn project() -> anyhow::Result<()> {
         .assert().success()
         .stderr(ends_with("Applied \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
-            (00003.edgeql)\n"));
+            (00003-m1wrvvw.edgeql)\n"));
 
     Ok(())
 }
 
 #[test]
 fn modified1() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/modified1/migrations/00002.edgeql")
+    fs::remove_file("tests/migrations/db1/modified1/migrations/00002-m13wjyi.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("modified1")
@@ -357,7 +357,7 @@ fn modified1() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n"));
+            (00001-m12bulr.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("migration").arg("status")
@@ -389,7 +389,7 @@ fn modified1() -> anyhow::Result<()> {
             while sources contain 1 migrations ahead, \
             starting from \
             \"m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a\"\
-            (tests/migrations/db1/modified1/migrations/00002.edgeql)\n"));
+            (tests/migrations/db1/modified1/migrations/00002-m13wjyi.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("migrate")
@@ -397,7 +397,7 @@ fn modified1() -> anyhow::Result<()> {
         .assert().success()
         .stderr(ends_with("Applied \
             m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a \
-            (00002.edgeql)\n"));
+            (00002-m13wjyi.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=modified1")
         .arg("migrate")
@@ -444,10 +444,10 @@ fn modified1() -> anyhow::Result<()> {
     fs::create_dir_all("tests/migrations/db1/squash/migrations")?;
     fs::copy("tests/migrations/db1/modified1/default.esdl",
              "tests/migrations/db1/squash/default.esdl")?;
-    fs::copy("tests/migrations/db1/modified1/migrations/00001.edgeql",
-             "tests/migrations/db1/squash/migrations/00001.edgeql")?;
-    fs::copy("tests/migrations/db1/modified1/migrations/00002.edgeql",
-             "tests/migrations/db1/squash/migrations/00002.edgeql")?;
+    fs::copy("tests/migrations/db1/modified1/migrations/00001-m12bulr.edgeql",
+             "tests/migrations/db1/squash/migrations/00001-m12bulr.edgeql")?;
+    fs::copy("tests/migrations/db1/modified1/migrations/00002-m13wjyi.edgeql",
+             "tests/migrations/db1/squash/migrations/00002-m13wjyi.edgeql")?;
 
     SERVER.admin_cmd()
         .arg("--database=modified1")
@@ -522,7 +522,7 @@ edgedb error: cannot proceed until .esdl files are fixed
 
 #[test]
 fn modified2_interactive() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/modified2/migrations/00002.edgeql")
+    fs::remove_file("tests/migrations/db1/modified2/migrations/00002-m13wjyi.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("modified2")
@@ -534,7 +534,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n"));
+            (00001-m12bulr.edgeql)\n"));
 
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=modified2");
@@ -544,7 +544,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
     cmd.exp_string("[y,n,l,c,b,s,q,?]").unwrap();
     cmd.send_line("y").unwrap();
     cmd.exp_string("Created \
-        tests/migrations/db1/modified2/migrations/00002.edgeql, \
+        tests/migrations/db1/modified2/migrations/00002-m13wjyi.edgeql, \
         id: m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a").unwrap();
 
     SERVER.admin_cmd()
@@ -554,7 +554,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
         .assert().success()
         .stderr(ends_with("Applied \
             m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a \
-            (00002.edgeql)\n"));
+            (00002-m13wjyi.edgeql)\n"));
     SERVER.admin_cmd()
         .arg("--database=modified2")
         .arg("migration").arg("status")
@@ -573,7 +573,7 @@ fn modified2_interactive() -> anyhow::Result<()> {
 
 #[test]
 fn modified3_interactive() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/modified3/migrations/00002.edgeql")
+    fs::remove_file("tests/migrations/db1/modified3/migrations/00002-m1czhvu.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("modified3")
@@ -585,7 +585,7 @@ fn modified3_interactive() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001.edgeql)\n"));
+            (00001-m12bulr.edgeql)\n"));
 
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=modified3");
@@ -625,9 +625,9 @@ fn modified3_interactive() -> anyhow::Result<()> {
 
 #[test]
 fn prompt_id() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db2/initial/migrations/00001.edgeql")
+    fs::remove_file("tests/migrations/db2/initial/migrations/00001-m1fvz72.edgeql")
         .ok();
-    fs::remove_file("tests/migrations/db2/modified1/migrations/00002.edgeql")
+    fs::remove_file("tests/migrations/db2/modified1/migrations/00002-m1u6tot.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db2")
@@ -644,7 +644,7 @@ fn prompt_id() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m1fvz72asuad3xkor4unxshp524wp6stgdnbd34vxvjfjkrzemonkq \
-            (00001.edgeql)\n"));
+            (00001-m1fvz72.edgeql)\n"));
 
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=db2");
@@ -663,7 +663,7 @@ fn prompt_id() -> anyhow::Result<()> {
 
 #[test]
 fn input_required() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db3/migrations/00002.edgeql")
+    fs::remove_file("tests/migrations/db3/migrations/00002-m1bdkut.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db3")
@@ -675,7 +675,7 @@ fn input_required() -> anyhow::Result<()> {
         .assert().success()
         .stderr(contains("Applied \
             m1d6kfhjnqmrw4lleqvx6fibf5hpmndpw2tn2f6o4wm6fjyf55dhcq \
-            (00001.edgeql)\n"));
+            (00001-m1d6kfh.edgeql)\n"));
 
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=db3");
@@ -688,7 +688,7 @@ fn input_required() -> anyhow::Result<()> {
     cmd.send_line("").unwrap();  // default value
     cmd.exp_string("Created").unwrap();
 
-    fs::remove_file("tests/migrations/db3/migrations/00002.edgeql").unwrap();
+    fs::remove_file("tests/migrations/db3/migrations/00002-m1bdkut.edgeql").unwrap();
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--database=db3");
         cmd.arg("migration").arg("create");
@@ -729,9 +729,9 @@ edgedb error: cannot proceed until .esdl files are fixed
 
 #[test]
 fn dev_mode() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db4/modified1/migrations/00001.edgeql")
+    fs::remove_file("tests/migrations/db4/modified1/migrations/00001-m1qfgvb.edgeql")
         .ok();
-    fs::remove_file("tests/migrations/db4/created1/migrations/00002.edgeql")
+    fs::remove_file("tests/migrations/db4/created1/migrations/00002-m1dexnj.edgeql")
         .ok();
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db4")
@@ -755,7 +755,7 @@ fn dev_mode() -> anyhow::Result<()> {
         .env("NO_COLOR", "1")
         .assert().success();
     assert!(
-        Path::new("tests/migrations/db4/modified1/migrations/00001.edgeql")
+        Path::new("tests/migrations/db4/modified1/migrations/00001-m1qfgvb.edgeql")
         .exists()
     );
     SERVER.admin_cmd()
@@ -770,8 +770,9 @@ fn dev_mode() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db4/created1")
         .env("NO_COLOR", "1")
         .assert().success();
+
     assert!(
-        Path::new("tests/migrations/db4/created1/migrations/00002.edgeql")
+        Path::new("tests/migrations/db4/created1/migrations/00002-m1dexnj.edgeql")
         .exists()
     );
     Ok(())

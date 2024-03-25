@@ -117,6 +117,9 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             MigrationCmd::Extract(params) => {
                 migrations::extract(cli, &options, params).await?;
             }
+            MigrationCmd::UpgradeFormat(params) => {
+                migrations::upgrade_format(cli, &options, params).await?;
+            }
         }
     }
     Ok(())

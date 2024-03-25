@@ -6,12 +6,14 @@ use anyhow::Context as _;
 use edgeql_parser::hash::{self, Hasher};
 use fn_error_context::context;
 use indexmap::IndexMap;
+use regex::Regex;
 use tokio::fs;
 use tokio::io;
 
 use crate::migrations::NULL_MIGRATION;
 use crate::migrations::context::Context;
 use crate::migrations::grammar::parse_migration;
+use crate::print;
 
 
 #[derive(Debug)]
@@ -90,7 +92,7 @@ fn validate_text(text: &str, migration: &Migration) -> anyhow::Result<()> {
 }
 
 #[context("could not read migration file {}", path.display())]
-async fn read_file(path: &Path, validate_hashes:bool)
+pub async fn read_file(path: &Path, validate_hashes:bool)
     -> anyhow::Result<Migration>
 {
     let text = fs::read_to_string(&path).await?;
@@ -118,6 +120,10 @@ async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
         Err(e) => Err(e)?,
     };
     let mut result = Vec::new();
+    let old_name_re = Regex::new(r"^\d{5}\.edgeql$")?;
+
+    let mut has_old_filename = false;
+
     while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
@@ -126,13 +132,30 @@ async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
         {
             continue;
         }
+
+        if !has_old_filename && old_name_re.is_match(&lossy_name) {
+            has_old_filename = true;
+        }
+
         result.push(item.path());
     }
+
+    if has_old_filename {
+        print::warn("Legacy migration file names detected, consider running 'edgedb migration upgrade-format'")
+    }
+
     Ok(result)
 }
 
 pub fn file_num(path: &Path) -> Option<u64> {
-    path.file_stem().and_then(|x| x.to_str()).and_then(|x| x.parse().ok())
+    path.file_stem().and_then(|x| x.to_str()).and_then(|x| {
+        if x.contains('-') {
+            let spl: Vec<&str> = x.split('-').collect();
+            return spl[0].parse().ok();
+        }
+
+        return x.parse().ok();
+    })
 }
 
 #[context("could not read migrations in {}", dir.display())]
