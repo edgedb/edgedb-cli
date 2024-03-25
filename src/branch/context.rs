@@ -15,14 +15,6 @@ pub struct Context {
 }
 
 impl Context {
-    pub async fn get_branch_or_default(&self, connection: &mut Connection) -> anyhow::Result<String> {
-        if self.branch.is_some() {
-            return Ok(self.branch.as_ref().unwrap().clone());
-        }
-
-        return Ok(self.get_default_branch_name(connection).await?.to_string())
-    }
-
     pub async fn new(project_dir: Option<&PathBuf>) -> anyhow::Result<Context> {
         let project_config = match project_dir {
             Some(path) => Some(crate::portable::config::read(&path.join("edgedb.toml"))?),
