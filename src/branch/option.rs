@@ -117,6 +117,7 @@ pub struct Rebase {
     pub no_apply: bool,
 }
 
+/// Merges a branch into this one via a fast-forward merge.
 #[derive(clap::Args, Clone, Debug)]
 pub struct Merge {
     /// The branch to merge into this one
