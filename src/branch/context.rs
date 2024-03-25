@@ -8,7 +8,6 @@ use crate::portable::project::{instance_name, stash_path};
 
 pub struct Context {
     pub project_config: Option<Config>,
-    pub project_branch: Option<String>,
     pub branch: Option<String>,
 
     project_dir: Option<PathBuf>,
@@ -21,8 +20,6 @@ impl Context {
             None => None
         };
 
-        let project_branch = project_config.as_ref().map(|v| v.edgedb.branch.clone());
-
         let credentials = match project_dir {
             Some(path) => Some(credentials::read(&credentials::path(&get_instance_name(&path)?)?).await?),
             None => None
@@ -30,8 +27,7 @@ impl Context {
 
         Ok(Context {
             project_config,
-            branch: credentials.and_then(|v| v.database).or(project_branch.clone()),
-            project_branch,
+            branch: credentials.and_then(|v| v.database),
             project_dir: project_dir.map(PathBuf::from)
         })
     }
