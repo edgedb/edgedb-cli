@@ -10,7 +10,11 @@ pub async fn main(
 ) -> anyhow::Result<()> {
     eprintln!("Creating branch '{}'...", options.name);
 
-    create_branch(connection, &options.name, options.from.as_ref().unwrap_or(&context.branch), options.empty, options.copy_data).await?;
+    let from = options.from.clone().unwrap_or(async {
+        anyhow::Ok(context.get_default_branch_name(connection).await?.to_string())
+    }.await?);
+
+    create_branch(connection, &options.name, &from, options.empty, options.copy_data).await?;
     Ok(())
 }
 

@@ -11,7 +11,13 @@ pub async fn main(
     context: &Context,
     connector: &mut Connector,
 ) -> anyhow::Result<()> {
-    if context.branch == options.branch {
+    if context.branch.is_none() {
+        anyhow::bail!("Cannot switch branches: No project found");
+    }
+
+    let current_branch = context.branch.as_ref().unwrap();
+
+    if current_branch == &options.branch {
         anyhow::bail!("Already on '{}'", options.branch);
     }
 
@@ -29,7 +35,7 @@ pub async fn main(
         if !branches.contains(&options.branch) {
             if options.create {
                 eprintln!("Creating '{}'...", &options.branch);
-                create_branch(&mut connection, &options.branch, options.from.as_ref().unwrap_or(&context.branch), options.empty, options.copy_data).await?;
+                create_branch(&mut connection, &options.branch, options.from.as_ref().unwrap_or(current_branch), options.empty, options.copy_data).await?;
             } else {
                 anyhow::bail!("Branch '{}' doesn't exists", options.branch)
             }
@@ -47,7 +53,7 @@ pub async fn main(
 
     eprintln!(
         "Switching from '{}' to '{}'",
-        context.branch, options.branch
+        current_branch, options.branch
     );
 
     context.update_branch(&options.branch).await?;

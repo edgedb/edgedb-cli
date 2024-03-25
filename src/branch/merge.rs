@@ -7,7 +7,14 @@ use crate::migrations::merge::{apply_merge_migration_files, get_merge_migrations
 use crate::options::Options;
 
 pub async fn main(options: &Merge, context: &Context, source_connection: &mut Connection, cli_opts: &Options) -> anyhow::Result<()> {
-    if options.target_branch == context.branch {
+    if context.project_config.is_none() {
+        anyhow::bail!("Merge must be used within a project");
+    }
+
+    let current_branch = context.branch.as_ref().unwrap();
+    let project_config = context.project_config.as_ref().unwrap();
+
+    if &options.target_branch == current_branch {
         anyhow::bail!("Cannot merge the current branch into its self");
     }
 
@@ -18,7 +25,7 @@ pub async fn main(options: &Merge, context: &Context, source_connection: &mut Co
         None => anyhow::bail!("The branch '{}' doesn't exist", options.target_branch)
     };
 
-    let migration_context = migrations::Context::for_project(&context.project_config)?;
+    let migration_context = migrations::Context::for_project(project_config)?;
     let mut merge_migrations = get_merge_migrations(source_connection, &mut target_connection).await?;
 
     eprintln!("Merging {} migration(s) into '{}'...", merge_migrations.target_migrations.len(), source_connection.database());

@@ -26,8 +26,6 @@ pub struct SrcConfig {
 pub struct SrcEdgedb {
     #[serde(default)]
     pub server_version: Option<toml::Spanned<Query>>,
-    #[serde(default)]
-    pub branch: Option<Spanned<String>>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, toml::Value>,
 }
@@ -50,7 +48,6 @@ pub struct Config {
 #[derive(Debug)]
 pub struct Edgedb {
     pub server_version: Query,
-    pub branch: String,
 }
 
 #[derive(Debug)]
@@ -92,11 +89,6 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
                     channel: Channel::Stable,
                     version: None,
                 }),
-            branch: val
-                .edgedb
-                .branch
-                .map(|x| x.into_inner())
-                .unwrap_or("main".to_string()),
         },
         project: Project {
             schema_dir: val
