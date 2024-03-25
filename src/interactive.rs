@@ -136,6 +136,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         initial_text: "".into(),
         edgeql_state_desc: RawTypedesc::uninitialized(),
         edgeql_state: State::empty(),
+        current_database: None,
     };
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

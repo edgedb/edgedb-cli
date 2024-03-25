@@ -96,6 +96,7 @@ pub struct State {
     pub initial_text: String,
     pub edgeql_state_desc: RawTypedesc,
     pub edgeql_state: EdgeqlState,
+    pub current_database: Option<String>,
 }
 
 impl PromptRpc {
@@ -180,6 +181,7 @@ impl State {
         self.connection = Some(conn);
         self.read_state();
         self.set_idle_transaction_timeout().await?;
+        self.current_database = self.try_get_current_database().await?;
         Ok(())
     }
     pub async fn soft_reconnect(&mut self) -> anyhow::Result<()> {
@@ -241,11 +243,16 @@ impl State {
     {
         use TransactionState::*;
 
-        let txstate = match self.connection.as_ref().map(|c| c.transaction_state()) {
+        let txstate = match self.connection.as_mut().map(|c| c.transaction_state()) {
             Some(NotInTransaction) => "",
             Some(InTransaction) => TX_MARKER,
             Some(InFailedTransaction) => FAILURE_MARKER,
             None => "",
+        };
+
+        let current_database = match self.try_get_current_database().await? {
+            Some(db) => db,
+            None => self.get_current_database().await?
         };
 
         let inst = self.conn_params.get()?.instance_name().to_owned();
@@ -256,16 +263,16 @@ impl State {
                     "{}/{}:{}",
                     org,
                     name,
-                    self.database,
+                    current_database,
                 ),
             Some(edgedb_tokio::InstanceName::Local(name)) =>
                 format!(
                     "{}:{}",
                     name,
-                    self.database,
+                    current_database,
                 ),
             _ =>
-                format!("{}", self.database)
+                format!("{}", current_database)
         };
 
         let prompt = format!("{}{}> ", location, txstate);
@@ -278,6 +285,23 @@ impl State {
             }
         }).await
     }
+
+    pub async fn get_current_database(&mut self) -> anyhow::Result<String> {
+        self.ensure_connection().await?;
+        Ok(self.try_get_current_database().await?.unwrap())
+    }
+
+    pub async fn try_get_current_database(&mut self) -> anyhow::Result<Option<String>> {
+        if self.connection.is_none() {
+            return Ok(None);
+        }
+
+        Ok(
+            self.connection.as_mut().unwrap()
+                .query_required_single("select sys::get_current_database()", &()).await?
+        )
+    }
+
     pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()>
     {
         self.input_mode = value;
