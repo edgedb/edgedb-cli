@@ -504,7 +504,7 @@ impl InteractiveMigration<'_> {
             "ROLLBACK TO SAVEPOINT migration_{}", self.save_point)
         ).await
     }
-    async fn run(mut self, print_err: bool) -> anyhow::Result<CurrentMigration> {
+    async fn run(mut self, options: &CreateMigration) -> anyhow::Result<CurrentMigration> {
         self.save_point().await?;
         loop {
             let descr = query_row::<CurrentMigration>(self.cli,
@@ -522,7 +522,7 @@ impl InteractiveMigration<'_> {
                 }
             } else {
                 self.could_not_resolve(
-                    if print_err {descr.debug_diff} else {None}
+                    if options.debug_print_err {descr.debug_diff} else {None}
                 ).await?;
             }
         }
@@ -689,7 +689,7 @@ async fn run_interactive(_ctx: &Context, cli: &mut Connection,
                          key: MigrationKey, options: &CreateMigration)
     -> anyhow::Result<FutureMigration>
 {
-    let descr = InteractiveMigration::new(cli).run(options.debug_print_err).await?;
+    let descr = InteractiveMigration::new(cli).run(options).await?;
 
     if descr.confirmed.is_empty() && !options.allow_empty {
         print::warn("No schema changes detected.");
