@@ -97,6 +97,7 @@ pub struct CurrentMigration {
     pub parent: String,
     pub confirmed: Vec<String>,
     pub proposed: Option<Proposal>,
+    pub debug_diff: Option<String>,
 }
 
 #[derive(Debug)]
@@ -503,7 +504,7 @@ impl InteractiveMigration<'_> {
             "ROLLBACK TO SAVEPOINT migration_{}", self.save_point)
         ).await
     }
-    async fn run(mut self) -> anyhow::Result<CurrentMigration> {
+    async fn run(mut self, print_err: bool) -> anyhow::Result<CurrentMigration> {
         self.save_point().await?;
         loop {
             let descr = query_row::<CurrentMigration>(self.cli,
@@ -520,7 +521,9 @@ impl InteractiveMigration<'_> {
                     Ok(()) => {}
                 }
             } else {
-                self.could_not_resolve().await?;
+                self.could_not_resolve(
+                    if print_err {descr.debug_diff} else {None}
+                ).await?;
             }
         }
     }
@@ -664,11 +667,20 @@ impl InteractiveMigration<'_> {
         self.save_point().await?;
         Ok(())
     }
-    async fn could_not_resolve(&mut self) -> anyhow::Result<()> {
+    async fn could_not_resolve(&mut self, debug_info: Option<String>) -> anyhow::Result<()> {
         // TODO(tailhook) allow rollback
-        anyhow::bail!("EdgeDB could not resolve \
-            migration with the provided answers. \
-            Please retry with different answers.");
+        let msg = match debug_info {
+            Some(e) => format!(
+                "EdgeDB could not resolve migration with the provided answers. \
+                Please retry with different answers.\n\n \
+                Debug info:\n\n {}",
+                e
+            ),
+            None => String::from("EdgeDB could not resolve migration with the \
+            provided answers. Please retry with different answers.")
+        };
+    
+        anyhow::bail!("{}", msg)
     }
 }
 
@@ -677,7 +689,7 @@ async fn run_interactive(_ctx: &Context, cli: &mut Connection,
                          key: MigrationKey, options: &CreateMigration)
     -> anyhow::Result<FutureMigration>
 {
-    let descr = InteractiveMigration::new(cli).run().await?;
+    let descr = InteractiveMigration::new(cli).run(options.debug_print_err).await?;
 
     if descr.confirmed.is_empty() && !options.allow_empty {
         print::warn("No schema changes detected.");
