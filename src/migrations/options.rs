@@ -83,6 +83,9 @@ pub struct CreateMigration {
     /// Print queries executed
     #[arg(long, hide=true)]
     pub debug_print_queries: bool,
+    /// Show error details
+    #[arg(long, hide=true)]
+    pub debug_print_err: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
