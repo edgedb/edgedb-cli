@@ -26,6 +26,7 @@ use crate::process;
 use crate::question;
 
 use edgedb_tokio::credentials::Credentials;
+use crate::portable::project::get_default_branch_name;
 
 fn ask_name(
     cloud_client: &mut cloud::client::CloudClient
@@ -149,12 +150,19 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
             || anyhow::Ok(Query::stable()),
         )?;
         let inst = install::version(&query).context("error installing EdgeDB")?;
+        let specific_version = &inst.version.specific();
         let info = InstanceInfo {
             name: name.clone(),
             installation: Some(inst),
             port,
         };
-        bootstrap(&paths, &info, &cmd.default_user)?;
+        bootstrap(
+            &paths,
+            &info,
+            &cmd.default_user,
+            &cmd.default_branch.clone()
+                .unwrap_or_else(||get_default_branch_name(specific_version))
+        )?;
         info
     };
 
@@ -363,7 +371,7 @@ fn bootstrap_script(user: &str, password: &str) -> String {
 }
 
 #[context("cannot bootstrap EdgeDB instance")]
-pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str)
+pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str, database: &String)
     -> anyhow::Result<()>
 {
     let server_path = info.server_path()?;
@@ -401,7 +409,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str)
     let mut creds = Credentials::default();
     creds.port = info.port;
     creds.user = user.into();
-    creds.database = Some("edgedb".into());
+    creds.database = Some(database.clone());
     creds.password = Some(password.into());
     creds.tls_ca = Some(cert);
     credentials::write(&paths.credentials, &creds)?;

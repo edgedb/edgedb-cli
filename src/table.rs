@@ -32,7 +32,7 @@ pub fn header_cell(title: &str) -> Cell {
         .with_style(Attr::Dim)
 }
 
-pub fn settings(rows: &[(&str, &str)]) {
+pub fn settings(rows: &[(&str, String)]) {
     let mut table = Table::new();
     for (title, value) in rows {
         table.add_row(Row::new(vec![
