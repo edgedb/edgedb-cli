@@ -231,6 +231,10 @@ pub struct Create {
     #[arg(long, default_value="edgedb")]
     pub default_user: String,
 
+    /// The default branch name. This defaults to 'main' on EdgeDB >=5.x; otherwise
+    /// 'edgedb' is used.
+    pub default_branch: Option<String>,
+
     /// Do not ask questions, assume user wants to upgrade instance
     #[arg(long)]
     pub non_interactive: bool,

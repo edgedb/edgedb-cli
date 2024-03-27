@@ -39,7 +39,9 @@ use crate::portable::upgrade;
 use crate::portable::ver;
 use crate::portable::windows;
 use crate::options::CloudOptions;
+use crate::portable::ver::Specific;
 use crate::print::{self, echo, Highlight};
+use crate::prompt::variable::Str;
 use crate::question;
 use crate::table;
 
@@ -389,6 +391,43 @@ fn ask_database(project_dir: &Path, options: &Init) -> anyhow::Result<String> {
     }
 }
 
+fn ask_branch() -> anyhow::Result<String> {
+    let mut q = question::String::new("Specify branch name:");
+    q.default("main");
+    loop {
+        let name = q.ask()?;
+        if name.trim().is_empty() {
+            print::error(format!("Non-empty name is required"));
+        } else {
+            return Ok(name.trim().into());
+        }
+    }
+}
+
+fn ask_database_or_branch(version: &Specific, project_dir: &Path, options: &Init) -> anyhow::Result<String> {
+    if version.major >= 5 {
+        return ask_branch();
+    }
+
+    return ask_database(project_dir, options);
+}
+
+pub fn get_default_branch_name(version: &Specific) -> String {
+    if version.major >= 5 {
+        return String::from("main");
+    }
+
+    return String::from("edgedb");
+}
+
+pub fn get_default_branch_or_database(version: &Specific, project_dir: &Path) -> String {
+    if version.major >= 5 {
+        return String::from("main");
+    }
+
+    return directory_to_name(project_dir, "edgedb");
+}
+
 fn link(
     options: &Init, project_dir: &Path, cloud_options: &crate::options::CloudOptions
 ) -> anyhow::Result<ProjectInfo> {
@@ -600,12 +639,14 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
     if exists {
         let mut inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
+        let specific_version: &Specific = &inst.get_version()?.specific();
         inst.check_version(&ver_query);
+
         if matches!(name, InstanceName::Cloud { .. }) {
-            if options.non_interactive  {
-                inst.database = Some(options.database.clone().unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()))
+            if options.non_interactive {
+                inst.database = Some(options.database.clone().unwrap_or(get_default_branch_or_database(specific_version, project_dir)));
             } else {
-                inst.database = Some(ask_database(project_dir, options)?);
+                inst.database = Some(ask_database_or_branch(specific_version, project_dir, options)?);
             }
         } else {
             inst.database = options.database.clone();
@@ -623,14 +664,14 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             let database = ask_database(project_dir, options)?;
 
             table::settings(&[
-                ("Project directory", &project_dir.display().to_string()),
-                ("Project config", &config_path.display().to_string()),
+                ("Project directory", project_dir.display().to_string()),
+                ("Project config", config_path.display().to_string()),
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
-                 &schema_dir_path.display().to_string()),
-                ("Database name", &database.to_string()),
-                ("Version", &ver.to_string()),
-                ("Instance name", &name.to_string()),
+                 schema_dir_path.display().to_string()),
+                (if ver.major >= 5 { "Branch name" } else { "Database name" }, database.to_string()),
+                ("Version", ver.to_string()),
+                ("Instance name", name.to_string()),
             ]);
 
             if !schema_files {
@@ -654,35 +695,59 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                 .with_context(||
                     format!("cannot find package matching {}. \
                     (Use `edgedb server list-versions` to see all available)", ver_query.display()))?;
-            ver::print_version_hint(&pkg.version.specific(), &ver_query);
+            let specific_version = &pkg.version.specific();
+            ver::print_version_hint(specific_version, &ver_query);
+
+            let mut branch: Option<String> = None;
+            if specific_version.major >= 5 {
+                branch = Some(ask_branch()?);
+            }
 
             let meth = if cfg!(windows) {
-                "WSL"
+                "WSL".to_string()
             } else {
-                "portable package"
+                "portable package".to_string()
             };
-            table::settings(&[
-                ("Project directory", &project_dir.display().to_string()),
-                ("Project config", &config_path.display().to_string()),
-                (&format!("Schema dir {}",
-                          if schema_files { "(non-empty)" } else { "(empty)" }),
-                 &schema_dir_path.display().to_string()),
+
+            let schema_dir_key = &format!(
+                "Schema dir {}",
+                if schema_files { "(non-empty)" } else { "(empty)" }
+            );
+
+            let mut rows: Vec<(&str, String)> = vec![
+                ("Project directory", project_dir.display().to_string()),
+                ("Project config", config_path.display().to_string()),
+                (schema_dir_key, schema_dir_path.display().to_string()),
                 ("Installation method", meth),
-                ("Version", &pkg.version.to_string()),
-                ("Instance name", name),
-            ]);
+                ("Version", pkg.version.to_string()),
+                ("Instance name", name.clone()),
+            ];
+
+            if let Some(branch) = branch.clone() {
+                rows.push(("Branch", branch))
+            }
+
+            table::settings(rows.as_slice());
 
             if !schema_files {
                 write_schema_default(&schema_dir, &ver_query)?;
             }
 
-            do_init(name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
+            do_init(
+                name,
+                &pkg,
+                &stash_dir,
+                &project_dir,
+                &schema_dir,
+                &branch.unwrap_or(get_default_branch_or_database(specific_version, project_dir)),
+                options
+            )
         }
     }
 }
 
 fn do_init(name: &str, pkg: &PackageInfo,
-           stash_dir: &Path, project_dir: &Path, schema_dir: &Path, options: &Init)
+           stash_dir: &Path, project_dir: &Path, schema_dir: &Path, database: &String, options: &Init)
     -> anyhow::Result<ProjectInfo>
 {
     let port = allocate_port(name)?;
@@ -709,6 +774,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             default_user: "edgedb".into(),
             non_interactive: true,
             cloud_opts: options.cloud_opts.clone(),
+            default_branch: Some(database.clone())
         }, name, port, &paths)?;
         create::create_service(&InstanceInfo {
             name: name.into(),
@@ -723,7 +789,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             installation: Some(inst),
             port,
         };
-        create::bootstrap(&paths, &info, "edgedb")?;
+        create::bootstrap(&paths, &info, "edgedb", database)?;
         match create::create_service(&info) {
             Ok(()) => {},
             Err(e) => {
@@ -851,16 +917,17 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     if exists {
         let mut inst;
         inst = Handle::probe(&inst_name, project_dir, &schema_dir, &client)?;
-        let ver = Query::from_version(&inst.get_version()?.specific())?;
-        write_config(&config_path, &ver)?;
+        let specific_version: &Specific = &inst.get_version()?.specific();
+        let version_query = Query::from_version(specific_version)?;
+        write_config(&config_path, &version_query)?;
         if !schema_files {
-            write_schema_default(&schema_dir_path, &ver)?;
+            write_schema_default(&schema_dir_path, &version_query)?;
         }
         if matches!(inst_name, InstanceName::Cloud { .. }) {
-            if options.non_interactive  {
-                inst.database = Some(options.database.clone().unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()))
+            if options.non_interactive {
+                inst.database = Some(options.database.clone().unwrap_or(get_default_branch_or_database(specific_version, project_dir)));
             } else {
-                inst.database = Some(ask_database(project_dir, options)?);
+                inst.database = Some(ask_database_or_branch(specific_version, project_dir, options)?);
             }
         } else {
             inst.database = options.database.clone();
@@ -875,16 +942,16 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
 
             let (ver_query, version) = ask_cloud_version(options, &client)?;
             ver::print_version_hint(&version, &ver_query);
-            let database = ask_database(project_dir, options)?;
+            let database = ask_database_or_branch(&version, project_dir, options)?;
             table::settings(&[
-                ("Project directory", &project_dir.display().to_string()),
-                ("Project config", &config_path.display().to_string()),
+                ("Project directory", project_dir.display().to_string()),
+                ("Project config", config_path.display().to_string()),
                 (&format!("Schema dir {}",
                           if schema_files { "(non-empty)" } else { "(empty)" }),
-                 &schema_dir_path.display().to_string()),
-                ("Database", &database.to_string()),
-                ("Version", &version.to_string()),
-                ("Instance name", &name),
+                 schema_dir_path.display().to_string()),
+                (if version.major >= 5 { "Branch" } else { "Database" }, database.to_string()),
+                ("Version", version.to_string()),
+                ("Instance name", name.clone()),
             ]);
             write_config(&config_path, &ver_query)?;
             if !schema_files {
@@ -906,30 +973,54 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
         InstanceName::Local(name) => {
             echo!("Checking EdgeDB versions...");
             let (ver_query, pkg) = ask_local_version(options)?;
-            ver::print_version_hint(&pkg.version.specific(), &ver_query);
+            let specific_version = &pkg.version.specific();
+            ver::print_version_hint(specific_version, &ver_query);
+
+            let mut branch: Option<String> = None;
+            if specific_version.major >= 5 {
+                branch = Some(ask_branch()?);
+            }
 
             let meth = if cfg!(windows) {
-                "WSL"
+                "WSL".to_string()
             } else {
-                "portable package"
+                "portable package".to_string()
             };
-            table::settings(&[
-                ("Project directory", &project_dir.display().to_string()),
-                ("Project config", &config_path.display().to_string()),
-                (&format!("Schema dir {}",
-                          if schema_files { "(non-empty)" } else { "(empty)" }),
-                 &schema_dir_path.display().to_string()),
+
+            let schema_dir_key = &format!(
+                "Schema dir {}",
+                if schema_files { "(non-empty)" } else { "(empty)" }
+            );
+
+            let mut rows: Vec<(&str, String)> = vec![
+                ("Project directory", project_dir.display().to_string()),
+                ("Project config", config_path.display().to_string()),
+                (schema_dir_key, schema_dir_path.display().to_string()),
                 ("Installation method", meth),
-                ("Version", &pkg.version.to_string()),
-                ("Instance name", &name),
-            ]);
+                ("Version", pkg.version.to_string()),
+                ("Instance name", name.clone()),
+            ];
+
+            if let Some(branch) = branch.clone() {
+                rows.push(("Branch", branch))
+            }
+
+            table::settings(rows.as_slice());
 
             write_config(&config_path, &ver_query)?;
             if !schema_files {
                 write_schema_default(&schema_dir_path, &ver_query)?;
             }
 
-            do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
+            do_init(
+                &name,
+                &pkg,
+                &stash_dir,
+                &project_dir,
+                &schema_dir,
+                &branch.unwrap_or(get_default_branch_or_database(specific_version, project_dir)),
+                options
+            )
         }
     }
 }
@@ -1655,12 +1746,12 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         })?);
     } else {
         let root = root.display().to_string();
-        let mut rows = vec![
-            ("Instance name", instance_name.as_str()),
-            ("Project root", root.as_str()),
+        let mut rows: Vec<(&str, String)> = vec![
+            ("Instance name", instance_name),
+            ("Project root", root),
         ];
         if let Some(profile) = cloud_profile.as_deref() {
-            rows.push(("Cloud profile", profile));
+            rows.push(("Cloud profile", profile.to_string()));
         }
         table::settings(rows.as_slice());
     }

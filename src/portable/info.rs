@@ -65,8 +65,8 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         })?)
     } else {
         table::settings(&[
-            ("Version", &inst.version.to_string()),
-            ("Binary path", &inst.server_path()?.display().to_string()),
+            ("Version", inst.version.to_string()),
+            ("Binary path", inst.server_path()?.display().to_string()),
         ]);
     }
     Ok(())
