@@ -699,7 +699,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             ver::print_version_hint(specific_version, &ver_query);
 
             let mut branch: Option<String> = None;
-            if specific_version.major >= 5 {
+            if !options.non_interactive && specific_version.major >= 5 {
                 branch = Some(ask_branch()?);
             }
 
@@ -739,7 +739,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
                 &stash_dir,
                 &project_dir,
                 &schema_dir,
-                &branch.unwrap_or(get_default_branch_or_database(specific_version, project_dir)),
+                &branch.unwrap_or(get_default_branch_name(specific_version)),
                 options
             )
         }
@@ -977,7 +977,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
             ver::print_version_hint(specific_version, &ver_query);
 
             let mut branch: Option<String> = None;
-            if specific_version.major >= 5 {
+            if !options.non_interactive && specific_version.major >= 5 {
                 branch = Some(ask_branch()?);
             }
 
@@ -1018,7 +1018,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
                 &stash_dir,
                 &project_dir,
                 &schema_dir,
-                &branch.unwrap_or(get_default_branch_or_database(specific_version, project_dir)),
+                &branch.unwrap_or(get_default_branch_name(specific_version)),
                 options
             )
         }
