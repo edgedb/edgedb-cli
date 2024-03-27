@@ -41,7 +41,7 @@ use crate::portable::windows;
 use crate::options::CloudOptions;
 use crate::portable::ver::Specific;
 use crate::print::{self, echo, Highlight};
-use crate::prompt::variable::Str;
+
 use crate::question;
 use crate::table;
 
