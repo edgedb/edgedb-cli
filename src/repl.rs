@@ -300,8 +300,6 @@ impl State {
             return Ok(None);
         }
 
-        eprintln!("GCD");
-
         Ok(
             self.connection.as_mut().unwrap()
                 .query_required_single("select sys::get_current_database()", &()).await?
