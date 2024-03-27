@@ -156,7 +156,13 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
             installation: Some(inst),
             port,
         };
-        bootstrap(&paths, &info, &cmd.default_user, cmd.default_branch.as_ref().unwrap_or(&get_default_branch_name(specific_version)))?;
+        bootstrap(
+            &paths,
+            &info,
+            &cmd.default_user,
+            &cmd.default_branch.clone()
+                .unwrap_or_else(||get_default_branch_name(specific_version))
+        )?;
         info
     };
 
