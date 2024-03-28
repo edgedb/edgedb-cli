@@ -181,7 +181,7 @@ impl State {
         self.connection = Some(conn);
         self.read_state();
         self.set_idle_transaction_timeout().await?;
-        self.current_database = Some(database.to_string());
+        self.current_database = Some(self.try_get_current_database().await?.unwrap_or(database.to_string()));
         Ok(())
     }
     pub async fn soft_reconnect(&mut self) -> anyhow::Result<()> {
