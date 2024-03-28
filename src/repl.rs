@@ -181,7 +181,7 @@ impl State {
         self.connection = Some(conn);
         self.read_state();
         self.set_idle_transaction_timeout().await?;
-        self.current_database = self.try_get_current_database().await?;
+        self.current_database = Some(self.try_get_current_database().await?.unwrap_or(database.to_string()));
         Ok(())
     }
     pub async fn soft_reconnect(&mut self) -> anyhow::Result<()> {
@@ -292,6 +292,10 @@ impl State {
     }
 
     pub async fn try_get_current_database(&mut self) -> anyhow::Result<Option<String>> {
+        if let Some(current_database) = &self.current_database {
+            return Ok(Some(current_database.clone()))
+        }
+
         if self.connection.is_none() {
             return Ok(None);
         }
