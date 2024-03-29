@@ -1,4 +1,3 @@
-use std::env;
 use std::path::{PathBuf, MAIN_SEPARATOR};
 
 use prettytable::{Table, Row, Cell};
@@ -66,16 +65,6 @@ pub fn info(_options: &Options, info: &Info)-> Result<(), anyhow::Error> {
         Cell::new("Config"),
         Cell::new(&dir_to_str(platform::config_dir()?)),
     ]));
-    if let Ok(current_exe) = env::current_exe() {
-        table.add_row(Row::new(vec![
-            if current_exe == platform::binary_path()? {
-                Cell::new("CLI Binary")
-            } else {
-                Cell::new("Custom Binary")
-            },
-            Cell::new(&current_exe.display().to_string()),
-        ]));
-    }
     if let Some(dir) = platform::binary_path()?.parent() {
         table.add_row(Row::new(vec![
             Cell::new("Install"),
