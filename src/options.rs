@@ -416,7 +416,6 @@ pub struct UI {
 pub struct Info {
    #[arg(long, value_parser=[
         "install-dir",
-        "binary-dir",
         "config-dir",
         "cache-dir",
         "data-dir",
@@ -425,7 +424,6 @@ pub struct Info {
     /// Get specific value:
     ///
     /// * `install-dir` -- Directory where EdgeDB CLI is installed
-    /// * `binary-dir` -- Directory where the current binary is located
     /// * `config-dir` -- Base configuration directory
     /// * `cache-dir` -- Base cache directory
     /// * `data-dir` -- Base data directory (except on Windows)

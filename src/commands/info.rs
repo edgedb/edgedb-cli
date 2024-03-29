@@ -21,11 +21,6 @@ pub fn specific_info(item: &str) -> Result<(), anyhow::Error> {
                 println!("{}", dir_to_str(path.to_path_buf()));
             }
         }
-        "binary-dir" => {
-            if let Some(path) = env::current_exe()?.parent() {
-                println!("{}", dir_to_str(path.to_path_buf()));
-            }
-        }
         "config-dir" => {
             println!("{}", dir_to_str(platform::config_dir()?));
         }
