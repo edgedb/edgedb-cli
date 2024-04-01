@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::{Mutex, Arc};
 
 
@@ -15,11 +16,12 @@ use rustls::client::danger::HandshakeSignatureValid;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use rustls::{SignatureScheme, DigitallySignedStruct};
 
-use edgedb_tokio::credentials::TlsSecurity;
+use edgedb_tokio::credentials::{Credentials, TlsSecurity};
 use edgedb_errors::{Error, PasswordRequired, ClientNoCredentialsError};
+use edgedb_protocol::common::{Capabilities, State};
 use edgedb_tokio::tls;
 use edgedb_tokio::{Builder, Config};
-use edgedb_tokio::raw::Connection;
+use crate::connect::{Connection, Connector};
 
 use crate::credentials;
 use crate::hint::HintExt;
@@ -29,6 +31,7 @@ use crate::portable::destroy::with_projects;
 use crate::portable::local::{InstanceInfo, is_valid_local_instance_name};
 use crate::portable::options::{Link, Unlink, instance_arg, InstanceName};
 use crate::portable::project;
+use crate::portable::ver::Build;
 use crate::print;
 use crate::question;
 use crate::tty_password;
@@ -162,18 +165,30 @@ fn gen_default_instance_name(input: impl fmt::Display) -> String {
     return name;
 }
 
-#[tokio::main]
-async fn connect(cfg: &edgedb_tokio::Config) -> Result<Connection, Error> {
-    Connection::connect(cfg).await
+async fn connect(cfg: &edgedb_tokio::Config) -> anyhow::Result<Connection> {
+    Connector::new(Ok(cfg.clone())).connect().await
 }
 
-#[tokio::main]
+async fn ask_branch(conn: &mut Connection, creds: &mut Credentials, config: Config) -> anyhow::Result<Config> {
+    let version = conn.get_version().await?;
+    if version.specific().major >= 5 {
+        let branch = question::String::new("Specify branch")
+            .default("main")
+            .ask()?;
+
+        creds.database = Some(branch.clone());
+        return Ok(config.with_database(&branch)?)
+    }
+
+    Ok(config)
+}
+
 async fn conn_params(cmd: &Link, opts: &Options) -> anyhow::Result<Config> {
     let mut builder = options::prepare_conn_params(&opts)?;
     prompt_conn_params(&opts.conn_options, &mut builder, cmd).await
 }
 
-pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
+pub async fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     if matches!(cmd.name, Some(InstanceName::Cloud { .. })) {
         anyhow::bail!(
             "cloud instances cannot be linked\
@@ -181,7 +196,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             \n  edgedb -I {}", cmd.name.as_ref().unwrap());
     }
 
-    let config = conn_params(cmd, opts)?;
+    let config = conn_params(cmd, opts).await?;
 
     let mut creds = config.as_credentials()?;
     let root_cert_store = config.root_cert_store()?;
@@ -198,32 +213,43 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     );
     let mut config = config.with_cert_verifier(verifier.clone());
-    let connect_result = connect(&config);
-    if let Err(e) = connect_result {
-        if e.is::<PasswordRequired>() {
-            let password;
+    let mut conn = connect(&config).await;
 
-            if opts.conn_options.password_from_stdin {
-                password = tty_password::read_stdin()?
-            } else if !cmd.non_interactive {
-                password = tty_password::read(format!(
+    if let Err(e) = conn {
+        if let Some(err) = e.downcast_ref::<edgedb_tokio::Error>() {
+            if err.is::<PasswordRequired>() {
+                let password;
+
+                if opts.conn_options.password_from_stdin {
+                    password = tty_password::read_stdin()?
+                } else if !cmd.non_interactive {
+                    password = tty_password::read(format!(
                         "Password for '{}': ",
                         config.user().escape_default()))?;
-            } else {
+                } else {
+                    return Err(e.into());
+                }
+
+                config = config.with_password(&password);
+                creds.password = Some(password);
+                if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
+                    let pem = pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec()));
+                    config = config.with_pem_certificates(&pem)?;
+                }
+
+                let mut conn: Connection = connect(&config).await?;
+                config = ask_branch(&mut conn, &mut creds, config).await?
+            }
+            else {
                 return Err(e.into());
             }
-
-            config = config.with_password(&password);
-            creds.password = Some(password);
-            if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
-                let pem = pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec()));
-                config = config.with_pem_certificates(&pem)?;
-            }
-            connect(&config)?;
         } else {
             return Err(e.into());
         }
+    } else if let Ok(mut conn) = conn {
+        config = ask_branch(&mut conn, &mut creds, config).await?
     }
+
     if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
         creds.tls_ca = Some(pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec())));
     }
@@ -341,14 +367,6 @@ async fn prompt_conn_params(
             builder.user(
                 &question::String::new("Specify database user")
                     .default(config.user())
-                    .ask()?
-            )?;
-        }
-
-        if options.branch.is_none() {
-            builder.database(
-                &question::String::new("Specify branch")
-                    .default("main")
                     .ask()?
             )?;
         }
