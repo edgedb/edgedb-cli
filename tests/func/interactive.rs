@@ -25,6 +25,19 @@ fn two_queries() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_switch_database() -> Result<(), Box<dyn Error>> {
+    let mut cmd = SERVER.admin_interactive();
+    cmd.exp_string("main>")?;
+    cmd.send_line("create empty branch _test_switch_asdf;")?;
+    cmd.send_line("\\c _test_switch_asdf")?;
+    cmd.exp_string("_test_switch_asdf>")?;
+    cmd.send_line("\\c main")?;
+    cmd.exp_string("main>")?;
+    cmd.send_line("drop branch _test_switch_asdf;")?;
+    Ok(())
+}
+
+#[test]
 fn create_report() -> Result<(), Box<dyn Error>> {
     let mut cmd = SERVER.admin_interactive();
     cmd.exp_string("main>")?;
