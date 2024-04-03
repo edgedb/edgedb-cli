@@ -26,7 +26,7 @@ pub struct Create {
     #[arg(long)]
     pub from: Option<String>,
 
-    /// Create the branch without any schema or data
+    /// Create the branch without any schema or data.
     #[arg(short='e', long, conflicts_with = "copy_data")]
     pub empty: bool,
 
@@ -41,7 +41,7 @@ pub struct Drop {
     /// The branch to drop.
     pub branch: String,
 
-    /// Drop the branch without asking for confirmation
+    /// Drop the branch without asking for confirmation.
     #[arg(long)]
     pub non_interactive: bool,
 
@@ -56,7 +56,7 @@ pub struct Wipe {
     /// The branch to wipe.
     pub branch: String,
 
-    /// Wipe without asking for confirmation
+    /// Wipe without asking for confirmation.
     #[arg(long)]
     pub non_interactive: bool,
 }
@@ -110,7 +110,7 @@ pub struct Rebase {
     /// The branch to rebase the current branch to.
     pub target_branch: String,
 
-    /// Skip applying migrations generated from the rebase
+    /// Skip applying migrations generated from the rebase.
     #[arg(long)]
     pub no_apply: bool,
 }
@@ -118,10 +118,10 @@ pub struct Rebase {
 /// Merges a branch into this one via a fast-forward merge.
 #[derive(clap::Args, Clone, Debug)]
 pub struct Merge {
-    /// The branch to merge into this one
+    /// The branch to merge into this one.
     pub target_branch: String,
 
-    /// Skip applying migrations generated from the merge
+    /// Skip applying migrations generated from the merge.
     #[arg(long)]
     pub no_apply: bool,
 }

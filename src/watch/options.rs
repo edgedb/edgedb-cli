@@ -6,7 +6,7 @@ pub struct WatchCommand {
     #[command(flatten)]
     pub conn: ConnectionOptions,
 
-    /// Print DDLs applied to the schema
+    /// Print DDLs applied to the schema.
     #[arg(short='v', long)]
     pub verbose: bool,
 }
