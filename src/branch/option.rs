@@ -26,11 +26,11 @@ pub struct Create {
     #[arg(long)]
     pub from: Option<String>,
 
-    /// Whether the new branch should contain no data.
+    /// Create the branch without any schema or data.
     #[arg(short='e', long, conflicts_with = "copy_data")]
     pub empty: bool,
 
-    /// Whether to copy data from the 'base' branch.
+    /// Copy data from the 'base' branch.
     #[arg(alias="cp", long)]
     pub copy_data: bool,
 }
@@ -41,12 +41,11 @@ pub struct Drop {
     /// The branch to drop.
     pub branch: String,
 
-    /// Whether to drop the branch non-interactively.
+    /// Drop the branch without asking for confirmation.
     #[arg(long)]
     pub non_interactive: bool,
 
-    /// Whether to force drop the branch, this will close any existing connections to the branch
-    /// before dropping it.
+    /// Close any existing connections to the branch before dropping it.
     #[arg(long)]
     pub force: bool,
 }
@@ -57,7 +56,7 @@ pub struct Wipe {
     /// The branch to wipe.
     pub branch: String,
 
-    /// Whether to wipe it non-interactively.
+    /// Wipe without asking for confirmation.
     #[arg(long)]
     pub non_interactive: bool,
 }
@@ -68,7 +67,7 @@ pub struct Switch {
     /// The branch to switch to.
     pub branch: String,
 
-    /// Whether to create the branch if it doesn't exist.
+    /// Create the branch if it doesn't exist.
     #[arg(short='c', long)]
     pub create: bool,
 
@@ -94,13 +93,12 @@ pub struct Rename {
     /// The new name of the branch.
     pub new_name: String,
 
-    /// Whether to force rename the branch, this will close any existing connection to the branch
-    /// before renaming it.
+    /// Close any existing connection to the branch before renaming it.
     #[arg(long)]
     pub force: bool,
 }
 
-/// Lists all branches.
+/// List all branches.
 #[derive(clap::Args, Debug, Clone)]
 pub struct List {}
 
@@ -112,7 +110,7 @@ pub struct Rebase {
     /// The branch to rebase the current branch to.
     pub target_branch: String,
 
-    /// Skip applying migrations generated from the rebase
+    /// Skip applying migrations generated from the rebase.
     #[arg(long)]
     pub no_apply: bool,
 }
@@ -120,10 +118,10 @@ pub struct Rebase {
 /// Merges a branch into this one via a fast-forward merge.
 #[derive(clap::Args, Clone, Debug)]
 pub struct Merge {
-    /// The branch to merge into this one
+    /// The branch to merge into this one.
     pub target_branch: String,
 
-    /// Skip applying migrations generated from the merge
+    /// Skip applying migrations generated from the merge.
     #[arg(long)]
     pub no_apply: bool,
 }
