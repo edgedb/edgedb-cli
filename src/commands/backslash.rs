@@ -41,7 +41,7 @@ Introspection
 
   \d [-v] NAME              Describe schema object
   \ds                       Describe whole schema   (alias: \describe schema)
-  \l                        List databases          (alias: \list databases)
+  \l                        List databases/branches (alias: \list branches)
   \ls [-sc]  [PATTERN]      List scalar types       (alias: \list scalars)
   \lt [-sc]  [PATTERN]      List object types       (alias: \list types)
   \lr [-c]   [PATTERN]      List roles              (alias: \list roles)
@@ -306,7 +306,7 @@ impl CommandCache {
         let mut aliases = BTreeMap::new();
         aliases.insert("d", &["describe", "object"][..]);
         aliases.insert("ds", &["describe", "schema"]);
-        aliases.insert("l", &["list", "databases"]);
+        aliases.insert("l", &["list", "branches"]);
         aliases.insert("ls", &["list", "scalars"]);
         aliases.insert("lt", &["list", "types"]);
         aliases.insert("lr", &["list", "roles"]);

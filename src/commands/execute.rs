@@ -29,6 +29,9 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             }
             ListCmd::Databases => {
                 commands::list_databases(cli, &options).await?;
+            },
+            ListCmd::Branches => {
+                commands::list_branches(cli, &options).await?;
             }
             ListCmd::Scalars(c) => {
                 commands::list_scalar_types(cli, &options,

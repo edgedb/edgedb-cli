@@ -96,8 +96,10 @@ pub enum ListCmd {
     Aliases(ListAliases),
     /// Display list of casts defined in the schema
     Casts(ListCasts),
-    /// Display list of databases for an EdgeDB instance
+    /// On EdgeDB < 5.x: Display list of databases for an EdgeDB instance
     Databases,
+    /// On EdgeDB >= 5.x: Display list of branches for an EdgeDB instance
+    Branches,
     /// Display list of indexes defined in the schema
     Indexes(ListIndexes),
     /// Display list of modules defined in the schema
