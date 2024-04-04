@@ -7,7 +7,7 @@ pub async fn main(
     options: &Current,
     context: &Context,
 ) -> anyhow::Result<()> {
-    if options.shell {
+    if options.plain {
         if let Some(branch) = &context.branch {
             println!("{}", branch);
         }
