@@ -1,6 +1,6 @@
 use crate::commands::Options;
 use crate::commands::list;
-use crate::commands::list_branches::{list_branches, list_branches0};
+use crate::commands::list_branches::{list_branches0};
 use crate::connect::Connection;
 use crate::print;
 
