@@ -130,5 +130,5 @@ pub struct Merge {
 #[derive(clap::Args, Clone, Debug)]
 pub struct Current {
     #[arg(long)]
-    pub shell: bool
+    pub plain: bool
 }
