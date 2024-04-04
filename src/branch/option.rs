@@ -130,8 +130,8 @@ pub struct Merge {
 /// Prints the current branch.
 #[derive(clap::Args, Clone, Debug)]
 pub struct Current {
-    /// Print as plain output to stdout; printing nothing instead of erroring if the current branch
-    /// can't be resolved
+    /// Print as plain text output to stdout. Prints nothing instead of erroring if the current branch
+    /// can't be resolved.
     #[arg(long)]
     pub plain: bool
 }
