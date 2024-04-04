@@ -1,6 +1,6 @@
 use crate::branch::context::Context;
 use crate::branch::option::{BranchCommand, Command};
-use crate::branch::{create, drop, list, merge, rebase, rename, switch, wipe};
+use crate::branch::{create, current, drop, list, merge, rebase, rename, switch, wipe};
 use crate::connect::{Connection, Connector};
 use crate::options::Options;
 
@@ -16,6 +16,7 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
     match &cmd.subcommand {
         Command::Switch(switch) => switch::main(switch, &context, &mut connector).await,
         Command::Wipe(wipe) => wipe::main(wipe, &context, &mut connector).await,
+        Command::Current(current) => current::main(current, &context).await,
         command => {
             let mut connection = connector.connect().await?;
             verify_server_can_use_branches(&mut connection).await?;

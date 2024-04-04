@@ -13,7 +13,8 @@ pub enum Command {
     Rename(Rename),
     List(List),
     Rebase(Rebase),
-    Merge(Merge)
+    Merge(Merge),
+    Current(Current)
 }
 
 /// Creates a new branch and switches to it.
@@ -124,4 +125,13 @@ pub struct Merge {
     /// Skip applying migrations generated from the merge.
     #[arg(long)]
     pub no_apply: bool,
+}
+
+/// Prints the current branch.
+#[derive(clap::Args, Clone, Debug)]
+pub struct Current {
+    /// Print as plain text output to stdout. Prints nothing instead of erroring if the current branch
+    /// can't be resolved.
+    #[arg(long)]
+    pub plain: bool
 }

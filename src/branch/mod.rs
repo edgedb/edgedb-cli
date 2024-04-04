@@ -10,5 +10,6 @@ mod rename;
 mod switch;
 mod wipe;
 mod merge;
+mod current;
 
 pub use main::branch_main;
