@@ -9,7 +9,7 @@ pub async fn main(
 ) -> anyhow::Result<()> {
     if options.shell {
         if let Some(branch) = &context.branch {
-            eprintln!("{}", branch);
+            println!("{}", branch);
         }
 
         return Ok(())
