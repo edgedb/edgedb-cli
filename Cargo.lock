@@ -1141,7 +1141,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.5.1"
-source = "git+https://github.com/edgedb/edgedb-rust/#0bf094963ed2f29d825d3cdae37a136a72999ee5"
+source = "git+https://github.com/edgedb/edgedb-rust/#ca67c5480800c58a538327aaa96aff15023f560f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1152,7 +1152,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.4.1"
-source = "git+https://github.com/edgedb/edgedb-rust/#0bf094963ed2f29d825d3cdae37a136a72999ee5"
+source = "git+https://github.com/edgedb/edgedb-rust/#ca67c5480800c58a538327aaa96aff15023f560f"
 dependencies = [
  "bytes",
 ]
@@ -1160,7 +1160,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.6.0"
-source = "git+https://github.com/edgedb/edgedb-rust/#0bf094963ed2f29d825d3cdae37a136a72999ee5"
+source = "git+https://github.com/edgedb/edgedb-rust/#ca67c5480800c58a538327aaa96aff15023f560f"
 dependencies = [
  "bigdecimal",
  "bitflags 2.4.2",
@@ -1176,7 +1176,7 @@ dependencies = [
 [[package]]
 name = "edgedb-tokio"
 version = "0.5.0"
-source = "git+https://github.com/edgedb/edgedb-rust/#0bf094963ed2f29d825d3cdae37a136a72999ee5"
+source = "git+https://github.com/edgedb/edgedb-rust/#ca67c5480800c58a538327aaa96aff15023f560f"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1819,7 +1819,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.5.5",
+ "socket2 0.4.10",
  "tokio",
  "tower-service",
  "tracing",
