@@ -237,14 +237,14 @@ pub struct ConnectionOptions {
 }
 
 impl ConnectionOptions {
-    pub(crate) fn get_branch(&self) -> Option<&String> {
-        self.database.as_ref().or(self.branch.as_ref())
-    }
-
-    pub(crate) fn validate(&self) {
+    pub(crate) fn validate(&self) -> anyhow::Result<()> {
         if self.database.is_some() {
             print::warn("database connection argument is deprecated in favor of 'branch'");
         }
+        if let Some((d, b)) = self.database.as_ref().zip(self.branch.as_ref()) {
+            anyhow::bail!("Arguments --database={d} and --branch={b} are mutually exclusive");
+        }
+        Ok(())
     }
 }
 
@@ -915,10 +915,12 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     if let Some(val) = &tmp.secret_key {
         bld.secret_key(val);
     }
-    if let Some(branch) = tmp.get_branch() {
-        bld.branch(branch)?;
-    } else if let Some(database) = &tmp.database {
+    if let Some(database) = &tmp.database {
         bld.database(database)?;
+        bld.branch(database)?;
+    } else if let Some(branch) = &tmp.branch {
+        bld.branch(branch)?;
+        bld.database(branch)?;
     }
 
     load_tls_options(tmp, &mut bld)?;

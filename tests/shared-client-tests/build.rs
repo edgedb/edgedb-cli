@@ -35,7 +35,7 @@ fn main() {
         ("secretKey", "--secret-key"),
     ]);
     let error_mapping = HashMap::from([
-        ("invalid_dsn", "invalid DSN"),
+        ("invalid_dsn", "(invalid DSN|Invalid DSN)"),
         ("env_not_found", "is not set"),
         (
             "invalid_tls_security",
@@ -78,7 +78,7 @@ fn main() {
         ),
         (
             "exclusive_options",
-            "(provided more than once)|(cannot be used multiple times)",
+            "(provided more than once)|(cannot be used multiple times)|(are mutually exclusive)",
         ),
         (
             "credentials_file_not_found",
