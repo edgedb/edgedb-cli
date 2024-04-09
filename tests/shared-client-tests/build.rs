@@ -25,6 +25,7 @@ fn main() {
         ("host", "--host"),
         ("port", "--port"),
         ("database", "--database"),
+        ("branch", "--branch"),
         ("user", "--user"),
         ("tlsSecurity", "--tls-security"),
         ("tlsCA", "--tls-ca-file"),
