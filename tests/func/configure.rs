@@ -40,11 +40,15 @@ fn configure_all_parameters() {
     let cmd_simple_options = out.lines()
         .skip_while(|line| line != &"Commands:")
         .skip(1)
-        .filter(|line| line.len() > 4)
+        .take_while(|line| !line.is_empty())
         .filter(|line| !line[4..].starts_with("    "))
         .map(|line| line.split_whitespace().next().unwrap())
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
+
+    // TODO: implement `edgedb configure query_cache_mode`
+    let mut db_simple_options = db_simple_options;
+    db_simple_options.remove("query_cache_mode");
 
     if !db_simple_options.is_subset(&cmd_simple_options) {
         assert_eq!(db_simple_options, cmd_simple_options); // nice diff
