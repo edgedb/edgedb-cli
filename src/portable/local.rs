@@ -339,7 +339,8 @@ impl InstanceInfo {
         -> anyhow::Result<InstanceInfo>
     {
         let f = io::BufReader::new(fs::File::open(path)?);
-        let mut data: InstanceInfo = serde_json::from_reader(f)?;
+        let reader = std::io::BufReader::new(f);
+        let mut data: InstanceInfo = serde_json::from_reader(reader)?;
         data.name = name.into();
         Ok(data)
     }

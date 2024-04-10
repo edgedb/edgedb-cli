@@ -43,13 +43,15 @@ impl Cache {
 
 fn read_cache(dir: &Path) -> anyhow::Result<Cache> {
     let file = fs::File::open(dir.join("version_check.json"))?;
-    Ok(serde_json::from_reader(file)?)
+    let reader = std::io::BufReader::new(file);
+    Ok(serde_json::from_reader(reader)?)
 }
 
 #[context("error writing {}/version_check.json", dir.display())]
 fn write_cache(dir: &Path, data: &Cache) -> anyhow::Result<()> {
     let file = fs::File::create(dir.join("version_check.json"))?;
-    Ok(serde_json::to_writer_pretty(file, data)?)
+    let writer = std::io::BufWriter::new(file);
+    Ok(serde_json::to_writer_pretty(writer, data)?)
 }
 
 fn newer_warning(ver: &ver::Semver) {

@@ -267,7 +267,8 @@ pub fn destroy(options: &options::Destroy, name: &str) -> anyhow::Result<()> {
 #[context("cannot read {:?}", path)]
 fn read_wsl(path: &Path) -> anyhow::Result<WslInfo> {
     let file = io::BufReader::new(fs::File::open(path)?);
-    Ok(serde_json::from_reader(file)?)
+    let reader = std::io::BufReader::new(file);
+    Ok(serde_json::from_reader(reader)?)
 }
 
 #[context("cannot unpack debian distro from {:?}", zip_path)]
