@@ -348,7 +348,7 @@ pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn block_on_dump_instance(inst: &InstanceInfo, destination: &Path)
     -> anyhow::Result<()>
 {

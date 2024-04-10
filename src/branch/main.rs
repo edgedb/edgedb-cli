@@ -6,7 +6,7 @@ use crate::options::Options;
 
 use edgedb_tokio::get_project_dir;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Result<()> {
     let context = create_context().await?;
 

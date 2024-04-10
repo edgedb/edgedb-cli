@@ -842,7 +842,7 @@ impl Options {
         }
     }
 
-    #[tokio::main]
+    #[tokio::main(flavor = "current_thread")]
     pub async fn block_on_create_connector(&self) -> anyhow::Result<Connector>
     {
         self.create_connector().await

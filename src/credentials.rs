@@ -45,7 +45,7 @@ pub fn all_instance_names() -> anyhow::Result<BTreeSet<String>> {
     Ok(result)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 #[context("cannot write credentials file {}", path.display())]
 pub async fn write(path: &Path, credentials: &Credentials)
     -> anyhow::Result<()>
