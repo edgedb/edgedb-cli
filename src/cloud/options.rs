@@ -11,11 +11,11 @@ pub struct CloudCommand {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
-    /// Authenticate to EdgeDB Cloud and remember secret key locally
+    /// Authenticate to EdgeDB Cloud and remember secret key locally.
     Login(Login),
-    /// Forget the stored access token
+    /// Forget the stored access token.
     Logout(Logout),
-    /// Secret key management
+    /// Secret key management.
     #[command(name = "secretkey")]
     SecretKey(SecretKeyCommand),
 }
@@ -26,12 +26,12 @@ pub struct Login {
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct Logout {
-    /// Log out from all Cloud profiles
+    /// Log out from all Cloud profiles.
     #[arg(long)]
     #[arg(hide=true)]
     pub all_profiles: bool,
 
-    /// Force log out from all profiles, even if linked to a project
+    /// Force log out from all profiles, even if linked to a project.
     #[arg(long)]
     pub force: bool,
 
@@ -59,20 +59,20 @@ pub enum SecretKeySubCommand {
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct ListSecretKeys {
-    /// Output results as JSON
+    /// Output results as JSON.
     #[arg(long)]
     pub json: bool,
 }
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct CreateSecretKey {
-    /// Output results as JSON
+    /// Output results as JSON.
     #[arg(long)]
     pub json: bool,
-    /// Friendly key name
+    /// Friendly key name.
     #[arg(short='n', long)]
     pub name: Option<String>,
-    /// Long key description
+    /// Long key description.
     #[arg(long)]
     pub description: Option<String>,
 
@@ -90,7 +90,7 @@ pub struct CreateSecretKey {
         value_delimiter = ','
     )]
     pub scopes: Option<Vec<String>>,
-    /// Inherit key scopes from the currently used key.  Mutually exclusive
+    /// Inherit key scopes from the currently used key. Mutually exclusive
     /// with `--scopes`.
     #[arg(long, group = "key_scopes", conflicts_with = "scopes")]
     pub inherit_scopes: bool,
@@ -110,13 +110,13 @@ pub struct CreateSecretKey {
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct RevokeSecretKey {
-    /// Output results as JSON
+    /// Output results as JSON.
     #[arg(long)]
     pub json: bool,
-    /// Id of secret key to revoke
+    /// Id of secret key to revoke.
     #[arg(long)]
     pub secret_key_id: String,
-    /// Revoke key without asking for confirmation
+    /// Revoke key without asking for confirmation.
     #[arg(short='y', long)]
     pub non_interactive: bool,
 }

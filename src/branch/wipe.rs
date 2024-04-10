@@ -11,7 +11,7 @@ pub async fn main(
     _context: &Context,
     connector: &mut Connector,
 ) -> anyhow::Result<()> {
-    let connection = connect_if_branch_exists(connector.database(&options.branch)?).await?;
+    let connection = connect_if_branch_exists(connector.branch(&options.branch)?).await?;
 
     if connection.is_none() {
         anyhow::bail!("Branch '{}' doesn't exist", &options.branch)

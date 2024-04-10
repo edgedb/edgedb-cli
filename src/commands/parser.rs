@@ -377,7 +377,8 @@ pub struct Dump {
 #[derive(clap::Args, Clone, Debug)]
 #[command(override_usage(
     "edgedb restore [OPTIONS] <path>\n    \
-     edgedb restore -d <database-name> <path>"
+     Pre 5.0: edgedb restore -d <database-name> <path>\n    \
+     >=5.0:   edgedb restore -b <branch-name> <path>"
 ))]
 pub struct Restore {
     #[command(flatten)]

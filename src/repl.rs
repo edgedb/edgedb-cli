@@ -12,7 +12,7 @@ use edgedb_errors::{Error, ErrorKind};
 use edgedb_errors::{ProtocolEncodingError, ClientError};
 use edgedb_protocol::common::{State as EdgeqlState, RawTypedesc};
 use edgedb_protocol::model::Uuid;
-use edgedb_protocol::model::{Duration as EdbDuration};
+use edgedb_protocol::model::Duration as EdbDuration;
 use edgedb_protocol::server_message::TransactionState;
 use edgedb_protocol::value::Value;
 
@@ -90,13 +90,13 @@ pub struct State {
     pub print_stats: PrintStats,
     pub history_limit: usize,
     pub conn_params: Connector,
-    pub database: String,
+    pub branch: String,
     pub connection: Option<Connection>,
     pub last_version: Option<ver::Build>,
     pub initial_text: String,
     pub edgeql_state_desc: RawTypedesc,
     pub edgeql_state: EdgeqlState,
-    pub current_database: Option<String>,
+    pub current_branch: Option<String>,
 }
 
 impl PromptRpc {
@@ -123,15 +123,15 @@ impl PromptRpc {
 
 impl State {
     pub async fn connect(&mut self) -> anyhow::Result<()> {
-        let db = self.conn_params.get()?.database().to_owned();
-        self.try_connect(&db).await?;
+        let branch = self.conn_params.get()?.branch().to_owned();
+        self.try_connect(&branch).await?;
         Ok(())
     }
     pub async fn reconnect(&mut self) -> anyhow::Result<()> {
-        let db = self.conn_params.get()?.database().to_owned();
+        let branch = self.conn_params.get()?.branch().to_owned();
         let cur_state = self.edgeql_state.clone();
         let cur_state_desc = self.edgeql_state_desc.clone();
-        self.try_connect(&db).await?;
+        self.try_connect(&branch).await?;
         if let Some(conn) = &mut self.connection {
             if cur_state_desc == self.edgeql_state_desc {
                 conn.set_state(cur_state);
@@ -167,9 +167,9 @@ impl State {
         );
         Ok(())
     }
-    pub async fn try_connect(&mut self, database: &str) -> anyhow::Result<()> {
+    pub async fn try_connect(&mut self, branch: &str) -> anyhow::Result<()> {
         let mut params = self.conn_params.clone();
-        params.database(database)?;
+        params.branch(branch)?;
         let mut conn = params.connect_interactive().await?;
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_ref() != Some(&fetched_version) {
@@ -177,11 +177,11 @@ impl State {
             self.last_version = Some(fetched_version.to_owned());
         }
         self.conn_params = params;
-        self.database = database.into();
+        self.branch = branch.into();
+        self.current_branch = conn.query_required_single("select sys::get_current_database()", &()).await?;
         self.connection = Some(conn);
         self.read_state();
         self.set_idle_transaction_timeout().await?;
-        self.current_database = Some(self.try_get_current_database().await?.unwrap_or(database.to_string()));
         Ok(())
     }
     pub async fn soft_reconnect(&mut self) -> anyhow::Result<()> {
@@ -250,9 +250,9 @@ impl State {
             None => "",
         };
 
-        let current_database = match self.try_get_current_database().await? {
-            Some(db) => db,
-            None => self.get_current_database().await?
+        let current_database = match &self.current_branch {
+            Some(db) => &db,
+            None => &self.branch,
         };
 
         let inst = self.conn_params.get()?.instance_name().to_owned();
@@ -284,26 +284,6 @@ impl State {
                 response,
             }
         }).await
-    }
-
-    pub async fn get_current_database(&mut self) -> anyhow::Result<String> {
-        self.ensure_connection().await?;
-        Ok(self.try_get_current_database().await?.unwrap())
-    }
-
-    pub async fn try_get_current_database(&mut self) -> anyhow::Result<Option<String>> {
-        if let Some(current_database) = &self.current_database {
-            return Ok(Some(current_database.clone()))
-        }
-
-        if self.connection.is_none() {
-            return Ok(None);
-        }
-
-        Ok(
-            self.connection.as_mut().unwrap()
-                .query_required_single("select sys::get_current_database()", &()).await?
-        )
     }
 
     pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()>

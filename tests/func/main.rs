@@ -1,6 +1,7 @@
 #[cfg(not(windows))]
 #[macro_use] extern crate pretty_assertions;
 
+use std::str::FromStr;
 use std::sync::Mutex;
 use std::convert::TryInto;
 use std::io::{BufReader, BufRead};
@@ -89,6 +90,7 @@ pub struct ServerGuard {
     pub port: u16,
     runstate_dir: String,
     tls_cert_file: String,
+    pub default_branch: &'static str,
 }
 
 impl ServerGuard {
@@ -100,6 +102,10 @@ impl ServerGuard {
         } else {
             "edgedb-server".to_string()
         };
+
+        // TODO: execute this in parallel
+        let major_version = get_edgedb_server_version(&bin_name);
+        
         let mut cmd = Command::new(&bin_name);
         cmd.env("EDGEDB_SERVER_INSECURE_DEV_MODE", "1"); // deprecated
         cmd.env("EDGEDB_SERVER_SECURITY", "insecure_dev_mode");
@@ -119,10 +125,10 @@ impl ServerGuard {
 
         let mut process = cmd.spawn()
             .expect(&format!("Can run {}", bin_name));
-        let process_in = process.stdout.take().expect("stdout is pipe");
+        let server_stdout = process.stdout.take().expect("stdout is pipe");
         let (tx, rx) = sync_channel(1);
         let thread = thread::spawn(move || {
-            let buf = BufReader::new(process_in);
+            let buf = BufReader::new(server_stdout);
             for line in buf.lines() {
                 match line {
                     Ok(line) => {
@@ -170,6 +176,7 @@ impl ServerGuard {
             port,
             runstate_dir,
             tls_cert_file,
+            default_branch: if major_version < 5 { "edgedb" } else { "main" }
         }
     }
 
@@ -262,6 +269,38 @@ impl ServerGuard {
     }
 }
 
+fn get_edgedb_server_version(bin_name: &str) -> u8 {
+    use std::process::{Command, Stdio};
+
+    let mut cmd = Command::new(bin_name);
+    cmd.arg("--version");
+    cmd.stdout(Stdio::piped());
+
+    let mut process = cmd.spawn().unwrap();
+    let server_stdout = process.stdout.take().expect("stdout is pipe");
+    let buf = BufReader::new(server_stdout);
+    
+    let mut version_str = None;
+    for line in buf.lines() {
+        match line {
+            Ok(line) => {
+                if let Some(line) = line.strip_prefix("edgedb-server, version ") {
+                    version_str = Some(line.split('+').next().unwrap().to_string());
+                    break;
+                }
+            }
+            Err(e) => {
+                eprintln!("Error reading from server: {}", e);
+                break;
+            }
+        }
+    }
+    
+    let version_str = version_str.unwrap();
+    let major = version_str.split('.').next().unwrap();
+    major.parse::<u8>().unwrap()
+}
+
 extern fn stop_processes() {
     let mut items = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
     for item in items.iter_mut() {
@@ -285,5 +324,31 @@ impl Config {
     }
     pub fn path(&self) -> &Path {
         self.dir.path()
+    }
+}
+
+/// Remove a migration file, without needing to know its hash in advance.
+#[track_caller]
+fn rm_migration_files(schema_dir: &str, migration_indexes: &[u16]) {
+    let mut migrations_dir = std::path::PathBuf::from_str(schema_dir).unwrap();
+    migrations_dir.push("migrations");
+
+    let Ok(read_dir) = fs::read_dir(migrations_dir) else {
+        return
+    };
+    for entry in read_dir {
+        let Ok(entry) = entry else {
+            continue;
+        };
+
+        let file_name = entry.file_name().into_string().unwrap();
+        let mig_index = file_name.split('-').next().unwrap();
+
+        let mig_index: u16 = mig_index.parse().unwrap();
+        if !migration_indexes.contains(&mig_index) {
+            continue;
+        }
+
+        fs::remove_file(entry.path()).unwrap();
     }
 }

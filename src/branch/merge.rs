@@ -19,7 +19,7 @@ pub async fn main(options: &Merge, context: &Context, source_connection: &mut Co
     }
 
     let mut target_connection = match connect_if_branch_exists(
-        cli_opts.create_connector().await?.database(&options.target_branch)?
+        cli_opts.create_connector().await?.branch(&options.target_branch)?
     ).await? {
         Some(connection) => connection,
         None => anyhow::bail!("The branch '{}' doesn't exist", options.target_branch)
