@@ -22,7 +22,7 @@ pub async fn main(options: &Rebase, context: &Context, source_connection: &mut C
 
     let temp_branch = clone_target_branch(&options.target_branch, source_connection).await?;
 
-    let mut temp_branch_connection = cli_opts.create_connector().await?.database(&temp_branch)?.connect().await?;
+    let mut temp_branch_connection = cli_opts.create_connector().await?.branch(&temp_branch)?.connect().await?;
 
     match rebase(&temp_branch, source_connection, &mut temp_branch_connection, context, cli_opts, !options.no_apply).await {
         Err(e) => {

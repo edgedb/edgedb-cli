@@ -5,7 +5,7 @@ use predicates::str::{ends_with, contains};
 
 
 #[test]
-fn bare_status() -> anyhow::Result<()> {
+fn bare_status() {
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("empty")
         .assert().success();
@@ -16,15 +16,12 @@ fn bare_status() -> anyhow::Result<()> {
         .assert().code(2)
         .stderr(contains("CREATE PROPERTY field1"))
         .stderr(contains("edgedb error: Some migrations are missing"));
-    Ok(())
 }
 
 #[test]
-fn initial() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/initial/migrations/00002-m1e5vq3.edgeql")
-        .ok();
-    fs::remove_file("tests/migrations/db1/initial/migrations/00003-m1wrvvw.edgeql")
-        .ok();
+fn initial() {
+    crate::rm_migration_files("tests/migrations/db1/initial", &[2, 3]);
+
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("initial")
         .assert().success();
@@ -172,16 +169,12 @@ fn initial() -> anyhow::Result<()> {
         .stderr(ends_with("Applied \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
             (00003-m1wrvvw.edgeql)\n"));
-
-    Ok(())
 }
 
 #[test]
-fn project() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/project/priv/dbschema/migrations/00002-m1e5vq3.edgeql")
-        .ok();
-    fs::remove_file("tests/migrations/db1/project/priv/dbschema/migrations/00003-m1wrvvw.edgeql")
-        .ok();
+fn project() {
+    crate::rm_migration_files("tests/migrations/db1/project/priv/dbschema", &[2, 3]);
+
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("project")
         .assert().success();
@@ -321,14 +314,12 @@ fn project() -> anyhow::Result<()> {
         .stderr(ends_with("Applied \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
             (00003-m1wrvvw.edgeql)\n"));
-
-    Ok(())
 }
 
 #[test]
-fn modified1() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/modified1/migrations/00002-m13wjyi.edgeql")
-        .ok();
+fn modified1() {
+    crate::rm_migration_files("tests/migrations/db1/modified1", &[2]);
+
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("modified1")
         .assert().success();
@@ -440,14 +431,14 @@ fn modified1() -> anyhow::Result<()> {
         ");
 
     fs::remove_dir_all("tests/migrations/db1/squash").ok();
-    fs::create_dir_all("tests/migrations/db1/squash")?;
-    fs::create_dir_all("tests/migrations/db1/squash/migrations")?;
+    fs::create_dir_all("tests/migrations/db1/squash").unwrap();
+    fs::create_dir_all("tests/migrations/db1/squash/migrations").unwrap();
     fs::copy("tests/migrations/db1/modified1/default.esdl",
-             "tests/migrations/db1/squash/default.esdl")?;
+             "tests/migrations/db1/squash/default.esdl").unwrap();
     fs::copy("tests/migrations/db1/modified1/migrations/00001-m12bulr.edgeql",
-             "tests/migrations/db1/squash/migrations/00001-m12bulr.edgeql")?;
+             "tests/migrations/db1/squash/migrations/00001-m12bulr.edgeql").unwrap();
     fs::copy("tests/migrations/db1/modified1/migrations/00002-m13wjyi.edgeql",
-             "tests/migrations/db1/squash/migrations/00002-m13wjyi.edgeql")?;
+             "tests/migrations/db1/squash/migrations/00002-m13wjyi.edgeql").unwrap();
 
     SERVER.admin_cmd()
         .arg("--branch=modified1")
@@ -481,11 +472,10 @@ fn modified1() -> anyhow::Result<()> {
         .stdout("\
             m1fw3q62du3fmdbeuikq3tc4fsfhs3phafnjhoh3jzedk3sfgx3lha\n\
         ");
-    Ok(())
 }
 
 #[test]
-fn error() -> anyhow::Result<()> {
+fn error() {
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("empty_err")
         .assert().success();
@@ -517,13 +507,11 @@ edgedb error: cannot proceed until .esdl files are fixed
         .env("NO_COLOR", "1")
         .assert().code(1)
         .stderr(ends_with(err));
-    Ok(())
 }
 
 #[test]
-fn modified2_interactive() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/modified2/migrations/00002-m13wjyi.edgeql")
-        .ok();
+fn modified2_interactive() {
+    crate::rm_migration_files("tests/migrations/db1/modified2", &[2]);
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("modified2")
         .assert().success();
@@ -568,13 +556,11 @@ fn modified2_interactive() -> anyhow::Result<()> {
         .arg("migration").arg("create")
         .arg("--schema-dir=tests/migrations/db1/modified2")
         .assert().code(4).stderr(ends_with("No schema changes detected.\n"));
-    Ok(())
 }
 
 #[test]
-fn modified3_interactive() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db1/modified3/migrations/00002-m1czhvu.edgeql")
-        .ok();
+fn modified3_interactive() {
+    crate::rm_migration_files("tests/migrations/db1/modified3", &[2]);
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("modified3")
         .assert().success();
@@ -620,15 +606,13 @@ fn modified3_interactive() -> anyhow::Result<()> {
         .arg("--non-interactive")
         .arg("--schema-dir=tests/migrations/db1/modified3")
         .assert().code(4).stderr(ends_with("No schema changes detected.\n"));
-    Ok(())
 }
 
 #[test]
-fn prompt_id() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db2/initial/migrations/00001-m1fvz72.edgeql")
-        .ok();
-    fs::remove_file("tests/migrations/db2/modified1/migrations/00002-m1u6tot.edgeql")
-        .ok();
+fn prompt_id() {
+    crate::rm_migration_files("tests/migrations/db2/initial", &[1]);
+    crate::rm_migration_files("tests/migrations/db2/modified1", &[2]);
+
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db2")
         .assert().success();
@@ -658,13 +642,12 @@ fn prompt_id() -> anyhow::Result<()> {
     // on pre-prompt_id version this would require an extra prompt
     cmd.exp_string("extra DDL statements").unwrap();
     cmd.exp_string("Created").unwrap();
-    Ok(())
 }
 
 #[test]
-fn input_required() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db3/migrations/00002-m1bdkut.edgeql")
-        .ok();
+fn input_required() {
+    crate::rm_migration_files("tests/migrations/db3", &[2]);
+
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db3")
         .assert().success();
@@ -688,7 +671,7 @@ fn input_required() -> anyhow::Result<()> {
     cmd.send_line("").unwrap();  // default value
     cmd.exp_string("Created").unwrap();
 
-    fs::remove_file("tests/migrations/db3/migrations/00002-m1bdkut.edgeql").unwrap();
+    crate::rm_migration_files("tests/migrations/db3", &[2]);
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.arg("--branch=db3");
         cmd.arg("migration").arg("create");
@@ -700,11 +683,10 @@ fn input_required() -> anyhow::Result<()> {
     // just add a comment to the default value
     cmd.send_line("# comment").unwrap();
     cmd.exp_string("Created").unwrap();
-    Ok(())
 }
 
 #[test]
-fn eof_err() -> anyhow::Result<()> {
+fn eof_err() {
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db_eof_err")
         .assert().success();
@@ -724,15 +706,13 @@ fn eof_err() -> anyhow::Result<()> {
 
 edgedb error: cannot proceed until .esdl files are fixed
 "###));
-    Ok(())
 }
 
 #[test]
-fn dev_mode() -> anyhow::Result<()> {
-    fs::remove_file("tests/migrations/db4/modified1/migrations/00001-m1qfgvb.edgeql")
-        .ok();
-    fs::remove_file("tests/migrations/db4/created1/migrations/00002-m1dexnj.edgeql")
-        .ok();
+fn dev_mode() {
+    crate::rm_migration_files("tests/migrations/db4/modified1", &[1]);
+    crate::rm_migration_files("tests/migrations/db4/created1", &[2]);
+
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db4")
         .assert().success();
@@ -775,11 +755,10 @@ fn dev_mode() -> anyhow::Result<()> {
         Path::new("tests/migrations/db4/created1/migrations/00002-m1dexnj.edgeql")
         .exists()
     );
-    Ok(())
 }
 
 #[test]
-fn unsafe_migrations() -> anyhow::Result<()> {
+fn unsafe_migrations() {
     SERVER.admin_cmd()
         .arg("database").arg("create").arg("db_unsafe")
         .assert().success();
@@ -795,5 +774,4 @@ fn unsafe_migrations() -> anyhow::Result<()> {
         .arg("--schema-dir=tests/migrations/db_unsafe/modified1")
         .env("NO_COLOR", "1")
         .assert().success();
-    Ok(())
 }

@@ -40,7 +40,8 @@
               rustToolchain
 
               # needed for running tests
-              edgedb.packages.${system}.edgedb-server
+              # edgedb.packages.${system}.edgedb-server
+              edgedb.packages.${system}.edgedb-server-5_0_beta
             ]
             ++ pkgs.lib.optional pkgs.stdenv.isDarwin [
               pkgs.libiconv
