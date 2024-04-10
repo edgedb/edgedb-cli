@@ -61,7 +61,7 @@ pub async fn get_connection_to_modify<'a>(branch: &String, options: &'a Options,
             let temp_name = Uuid::new_v4().to_string();
             connection.execute(&format!("create empty branch {}", edgeql_parser::helpers::quote_name(&temp_name)), &()).await?;
             Ok(BranchConnection {
-                connection: options.create_connector().await?.database(&temp_name)?.connect().await?,
+                connection: options.create_connector().await?.branch(&temp_name)?.connect().await?,
                 options,
                 branch_name: temp_name,
                 is_temp: true
@@ -79,7 +79,7 @@ pub async fn get_connection_that_is_not<'a>(target_branch: &String, options: &'a
     for branch in &branches {
         if branch != target_branch {
             return Ok(BranchConnection {
-                connection: options.create_connector().await?.database(branch)?.connect().await?,
+                connection: options.create_connector().await?.branch(branch)?.connect().await?,
                 branch_name: branch.deref().to_string(),
                 is_temp: false,
                 options

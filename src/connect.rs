@@ -138,9 +138,13 @@ impl Connector {
     pub fn new(config: anyhow::Result<Config>) -> Connector {
         Connector { config: config.map_err(ArcError::from) }
     }
-    pub fn database(&mut self, name: &str) -> anyhow::Result<&mut Self> {
+    pub fn branch(&mut self, name: &str) -> anyhow::Result<&mut Self> {
         if let Ok(cfg) = self.config.as_mut() {
-            *cfg = cfg.clone().with_database(name)?;
+            let mut c = cfg.clone().with_branch(name)?;
+            if name != "__default__" {
+                c = c.with_database(name)?;
+            }
+            *cfg = c;
         }
         Ok(self)
     }

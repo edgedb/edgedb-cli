@@ -129,14 +129,14 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         input_mode: cfg.shell.input_mode.unwrap_or(repl::InputMode::Emacs),
         print_stats: cfg.shell.print_stats.unwrap_or(repl::PrintStats::Off),
         history_limit: cfg.shell.history_size.unwrap_or(10000),
-        database: conn_config.database().into(),
+        branch: conn_config.database().into(),
         conn_params: conn,
         last_version: None,
         connection: None,
         initial_text: "".into(),
         edgeql_state_desc: RawTypedesc::uninitialized(),
         edgeql_state: State::empty(),
-        current_database: None,
+        current_branch: None,
     };
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
