@@ -13,7 +13,7 @@ use crate::portable;
 use crate::print::style::Styler;
 use crate::watch;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn common_cmd(_options: &Options, cmdopt: commands::Options, cmd: &Common)
     -> Result<(), anyhow::Error>
 {

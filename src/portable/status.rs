@@ -301,7 +301,7 @@ pub async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStat
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn remote_status_with_feedback(name: &str, quiet: bool)
     -> anyhow::Result<RemoteStatus>
 {
@@ -477,7 +477,7 @@ async fn get_remote_and_cloud(
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn get_remote(
     visited: &BTreeSet<String>,
     opts: &crate::options::Options,

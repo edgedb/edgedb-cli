@@ -59,7 +59,7 @@ pub fn list(c: &options::ListSecretKeys, options: &CloudOptions) -> anyhow::Resu
     do_list(c, &CloudClient::new(options)?)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn do_list(c: &options::ListSecretKeys, client: &CloudClient) -> anyhow::Result<()> {
     _do_list(c, client).await
 }
@@ -107,7 +107,7 @@ pub fn create(c: &options::CreateSecretKey, options: &CloudOptions) -> anyhow::R
     do_create(c, &CloudClient::new(options)?)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn do_create(c: &options::CreateSecretKey, client: &CloudClient) -> anyhow::Result<()> {
     _do_create(c, client).await
 }
@@ -163,7 +163,7 @@ pub fn revoke(c: &options::RevokeSecretKey, options: &CloudOptions) -> anyhow::R
     do_revoke(c, &CloudClient::new(options)?)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn do_revoke(c: &options::RevokeSecretKey, client: &CloudClient) -> anyhow::Result<()> {
     _do_revoke(c, client).await
 }

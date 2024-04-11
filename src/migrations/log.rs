@@ -46,7 +46,7 @@ async fn _log_db(cli: &mut Connection, _common: &Options,
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn log_fs(common: &Options, options: &MigrationLog)
     -> Result<(), anyhow::Error>
 {

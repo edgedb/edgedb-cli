@@ -176,7 +176,7 @@ async fn _get_json<T>(url: &Url) -> Result<T, anyhow::Error>
 }
 
 #[context("failed to fetch JSON at URL: {}", url)]
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn get_json<T>(url: &Url, timeo: Duration) -> Result<T, anyhow::Error>
     where T: serde::de::DeserializeOwned,
 {
@@ -366,7 +366,7 @@ pub fn get_specific_package(version: &ver::Specific)
 }
 
 #[context("failed to download file at URL: {}", url)]
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn download(dest: impl AsRef<Path>, url: &Url, quiet: bool)
     -> Result<blake2b_simd::Hash, anyhow::Error>
 {

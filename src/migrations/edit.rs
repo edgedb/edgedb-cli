@@ -68,7 +68,7 @@ fn print_diff(path1: &Path, data1: &str, path2: &Path, data2: &str) {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
     -> Result<(), anyhow::Error>
 {
