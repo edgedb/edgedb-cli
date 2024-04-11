@@ -1106,7 +1106,7 @@ fn start(handle: &Handle) -> anyhow::Result<()> {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn create_database(inst: &Handle<'_>) -> anyhow::Result<()> {
     create_database_async(inst).await
 }
@@ -1133,7 +1133,7 @@ async fn create_database_async(inst: &Handle<'_>) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
     -> anyhow::Result<()>
 {

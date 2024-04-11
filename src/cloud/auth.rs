@@ -38,7 +38,7 @@ pub fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> 
     do_login(&mut client)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn do_login(client: &mut CloudClient) -> anyhow::Result<()> {
     _do_login(client).await
 }

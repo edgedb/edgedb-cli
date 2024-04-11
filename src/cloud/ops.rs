@@ -190,7 +190,7 @@ pub struct CloudOperation {
     pub subsequent_id: Option<String>,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn get_current_region(
     client: &CloudClient,
 ) -> anyhow::Result<Region> {
@@ -203,7 +203,7 @@ pub async fn get_current_region(
         })
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn get_versions(
     client: &CloudClient,
 ) -> anyhow::Result<Vec<Version>> {
@@ -216,7 +216,7 @@ pub async fn get_versions(
         })
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn get_prices(
     client: &CloudClient,
 ) -> anyhow::Result<Prices> {
@@ -244,7 +244,7 @@ pub async fn get_prices(
     Ok(resp.prices)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn find_cloud_instance_by_name(
     inst: &str,
     org: &str,
@@ -260,7 +260,7 @@ pub async fn find_cloud_instance_by_name(
         })
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn get_org(
     org: &str,
     client: &CloudClient,
@@ -311,7 +311,7 @@ async fn wait_for_operation(
     anyhow::bail!("Operation is taking too long, stopping monitor.")
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn create_cloud_instance(
     client: &CloudClient,
     request: &CloudInstanceCreate,
@@ -330,7 +330,7 @@ pub async fn create_cloud_instance(
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn resize_cloud_instance(
     client: &CloudClient,
     request: &CloudInstanceResize,
@@ -350,7 +350,7 @@ pub async fn resize_cloud_instance(
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn upgrade_cloud_instance(
     client: &CloudClient,
     request: &CloudInstanceUpgrade,
@@ -377,7 +377,7 @@ pub fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn destroy_cloud_instance(
     name: &str,
     org: &str,
@@ -422,7 +422,7 @@ pub async fn list(
     Ok(rv)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn get_status(
     client: &CloudClient,
     instance: &CloudInstance,
