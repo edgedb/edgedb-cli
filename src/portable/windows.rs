@@ -266,8 +266,7 @@ pub fn destroy(options: &options::Destroy, name: &str) -> anyhow::Result<()> {
 
 #[context("cannot read {:?}", path)]
 fn read_wsl(path: &Path) -> anyhow::Result<WslInfo> {
-    let file = io::BufReader::new(fs::File::open(path)?);
-    let reader = std::io::BufReader::new(file);
+    let reader = io::BufReader::new(fs::File::open(path)?);
     Ok(serde_json::from_reader(reader)?)
 }
 
