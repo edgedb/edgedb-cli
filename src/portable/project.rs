@@ -769,6 +769,10 @@ fn do_init(name: &str, pkg: &PackageInfo,
                     storage_size: None,
                 },
             },
+            cloud_backup_source: options::CloudBackupSourceParams {
+                from_backup_id: None,
+                from_instance: None,
+            },
             port: Some(port),
             start_conf: None,
             default_user: "edgedb".into(),
@@ -851,6 +855,8 @@ fn do_cloud_init(
         region: None,
         tier: None,
         requested_resources: None,
+        source_instance_id: None,
+        source_backup_id: None,
     };
     crate::cloud::ops::create_cloud_instance(client, &request)?;
     let full_name = format!("{}/{}", org, name);
