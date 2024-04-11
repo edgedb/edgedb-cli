@@ -38,8 +38,8 @@ enum PathElem<'a> {
 
 type OperationIter<'a> = Box<dyn Iterator<Item=Operation<'a>> + Send + 'a>;
 
-pub trait AsOperations<'a> {
-    fn as_operations(self) -> OperationIter<'a>;
+pub trait AsOperations {
+    fn as_operations(&self) -> OperationIter<'_>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -63,20 +63,20 @@ fn slice<'x, M>(migrations: &'x IndexMap<String, M>,
         .ok_or_else(|| bug::error("slicing error"))
 }
 
-impl<'a> AsOperations<'a> for &'a indexmap::map::Slice<String, MigrationFile> {
-    fn as_operations(self) -> OperationIter<'a> {
+impl AsOperations for indexmap::map::Slice<String, MigrationFile> {
+    fn as_operations(&self) -> OperationIter<'_> {
         Box::new(self.values().map(Operation::Apply))
     }
 }
 
-impl<'a> AsOperations<'a> for &'a IndexMap<String, MigrationFile> {
-    fn as_operations(self) -> OperationIter<'a> {
+impl AsOperations for IndexMap<String, MigrationFile> {
+    fn as_operations(&self) -> OperationIter<'_> {
         Box::new(self.values().map(Operation::Apply))
     }
 }
 
-impl<'a> AsOperations<'a> for &'a Vec<Operation<'a>> {
-    fn as_operations(self) -> OperationIter<'a> {
+impl<'a> AsOperations for Vec<Operation<'a>> {
+    fn as_operations(&self) -> OperationIter<'_> {
         Box::new(self.iter().cloned())
     }
 }
@@ -431,7 +431,7 @@ fn backtrack<'a>(markup: &HashMap<&String, u32>,
 }
 
 pub async fn apply_migrations(cli: &mut Connection,
-    migrations: impl AsOperations<'_>, ctx: &Context, single_transaction: bool)
+    migrations: &(impl AsOperations + ?Sized), ctx: &Context, single_transaction: bool)
     -> anyhow::Result<()>
 {
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
@@ -476,7 +476,7 @@ pub async fn apply_migration(cli: &mut Connection, migration: &MigrationFile)
 }
 
 pub async fn apply_migrations_inner(cli: &mut Connection,
-    migrations: impl AsOperations<'_>, quiet: bool)
+    migrations: &(impl AsOperations + ?Sized), quiet: bool)
     -> anyhow::Result<()>
 {
     for operation in migrations.as_operations() {

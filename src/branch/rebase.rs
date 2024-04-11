@@ -40,7 +40,7 @@ pub async fn main(options: &Rebase, context: &Context, source_connection: &mut C
     }
 }
 
-async fn rebase(branch: &String, source_connection: &mut Connection, target_connection: &mut Connection, context: &Context, cli_opts: &Options, apply_migrations: bool) -> anyhow::Result<()> {
+async fn rebase(branch: &str, source_connection: &mut Connection, target_connection: &mut Connection, context: &Context, cli_opts: &Options, apply_migrations: bool) -> anyhow::Result<()> {
     let mut migrations = get_diverging_migrations(source_connection, target_connection).await?;
     let current_branch = context.branch.as_ref().unwrap();
     let project_config = context.project_config.as_ref().unwrap();

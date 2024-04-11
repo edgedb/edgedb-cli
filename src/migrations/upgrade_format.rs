@@ -27,11 +27,11 @@ async fn _upgrade_format(context: &Context) -> anyhow::Result<()> {
     for name in names {
         let fname = name.file_stem().unwrap().to_str().unwrap();
 
-        if let Some(_) = old_filename.captures(fname) {
+        if old_filename.captures(fname).is_some() {
             // migrate to new filename
             eprintln!("Upgrading migration file layout for {}.edgeql...", fname);
             upgrade_format_of_file(&name, file_num(&name).unwrap()).await?;
-        } else if let Some(_) = new_filename.captures(fname) {
+        } else if new_filename.captures(fname).is_some() {
             println!("Migration {} OK", fname)
         } else {
             print::warn(format!("Unknown migration file naming schema: {fname}", ))

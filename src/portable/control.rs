@@ -108,7 +108,7 @@ fn write_lock_info(path: &Path, lock: &mut fs::File,
     use std::io::Write;
 
     lock.set_len(0)?;
-    lock.write(marker.as_ref().map(|x| &x[..]).unwrap_or("user").as_bytes())?;
+    lock.write_all(marker.as_ref().map(|x| &x[..]).unwrap_or("user").as_bytes())?;
     Ok(())
 }
 
@@ -149,7 +149,8 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     let notify_socket = runstate_dir(&meta.name)?.join(".s.daemon");
     if notify_socket.exists() {
         fs_err::remove_file(&notify_socket)?;
-    } if let Some(dir) = notify_socket.parent() {
+    }
+    if let Some(dir) = notify_socket.parent() {
         fs_err::create_dir_all(dir)?;
     }
     get_server_cmd(meta, false)?

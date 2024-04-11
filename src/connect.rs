@@ -385,11 +385,12 @@ fn make_ignore_error_state(desc: &RawTypedesc) -> State {
     _make_ignore_error_state(desc).unwrap_or(State::empty())
 }
 
+#[derive(edgedb_derive::ConfigDelta)]
+struct ErrorState {
+    force_database_error: &'static str,
+}
+
 fn _make_ignore_error_state(desc: &RawTypedesc) -> Option<State> {
-    #[derive(edgedb_derive::ConfigDelta)]
-    struct ErrorState {
-        force_database_error: &'static str,
-    }
     PoolState::default()
         .with_config(&ErrorState { force_database_error: "false" })
         .encode(desc).ok()

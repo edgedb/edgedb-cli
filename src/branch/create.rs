@@ -19,7 +19,7 @@ pub async fn main(
 }
 
 
-pub async fn create_branch(connection: &mut Connection, name: &String, from: &String, empty: bool, copy_data: bool) -> anyhow::Result<()> {
+pub async fn create_branch(connection: &mut Connection, name: &str, from: &str, empty: bool, copy_data: bool) -> anyhow::Result<()> {
     let branch_name = edgeql_parser::helpers::quote_name(name);
     
     let query = if empty {

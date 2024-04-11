@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 use anyhow::Context as _;
 use indicatif::ProgressBar;
 use once_cell::sync::Lazy;
-use edgedb_errors::{QueryError};
+use edgedb_errors::QueryError;
 
 use crate::async_try;
 use crate::bug;
@@ -26,7 +26,7 @@ enum Mode {
     Rebase,
 }
 
-const MINIMUM_VERSION: Lazy<ver::Build> =
+static MINIMUM_VERSION: Lazy<ver::Build> =
     Lazy::new(|| "3.0-alpha.1+05474ea".parse().unwrap());
 
 mod ddl {  // Just for nice log filter

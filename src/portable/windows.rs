@@ -35,11 +35,11 @@ use crate::print::{self, echo, Highlight};
 use crate::process;
 
 const CURRENT_DISTRO: &str = "EdgeDB.WSL.1";
-const DISTRO_URL: Lazy<Url> = Lazy::new(|| {
+static DISTRO_URL: Lazy<Url> = Lazy::new(|| {
     "https://aka.ms/wsl-debian-gnulinux".parse().expect("wsl url parsed")
 });
 const CERT_UPDATE_INTERVAL: Duration = Duration::from_secs(30*86400);
-const IS_IN_WSL: Lazy<bool> = Lazy::new(|| {
+static IS_IN_WSL: Lazy<bool> = Lazy::new(|| {
     if cfg!(target_os="linux") {
         fs::read_to_string("/proc/version")
             .map(|s| s.contains("Microsoft"))

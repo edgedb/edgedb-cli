@@ -49,7 +49,7 @@ impl Context {
         })
     }
 
-    pub async fn update_branch(&self, branch: &String) -> anyhow::Result<()> {
+    pub async fn update_branch(&self, branch: &str) -> anyhow::Result<()> {
         let instance_name = match self.get_instance_name()? {
             Some(i) => i,
             None => return Ok(())
@@ -59,7 +59,7 @@ impl Context {
 
         let mut credentials = credentials::read(&path).await?;
 
-        credentials.database = Some(branch.clone());
+        credentials.database = Some(branch.to_string());
 
         credentials::write_async(&path, &credentials).await
     }

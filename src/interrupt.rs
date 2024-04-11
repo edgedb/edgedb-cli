@@ -326,7 +326,7 @@ impl Trap {
     /// Create and activate the signal trap for specified signals. Signals not
     /// in list will be delivered asynchronously as always.
     #[cfg(unix)]
-    pub fn trap(signals: &[Signal]) -> Trap {
+    pub fn new(signals: &[Signal]) -> Trap {
         use nix::sys::signal::{SigSet, SigmaskHow};
         use nix::sys::signal::{sigaction, SigAction, SaFlags, SigHandler};
 
@@ -361,7 +361,7 @@ impl Trap {
     }
 
     #[cfg(not(unix))]
-    pub fn trap(_: &[Signal]) -> Trap {
+    pub fn new(_: &[Signal]) -> Trap {
         Trap {}
     }
 }

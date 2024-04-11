@@ -261,7 +261,7 @@ fn hint_command(input: &str) -> Option<Hint> {
                     let mut output = String::from(&matching[input.len()..]);
                     let complete = output.len() + 1;
                     output.push_str(" {");
-                    for (cmd, _) in &CMD_CACHE.settings {
+                    for cmd in CMD_CACHE.settings.keys() {
                         if !output.ends_with('{') {
                             output.push(',');
                         }

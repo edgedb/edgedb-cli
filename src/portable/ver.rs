@@ -302,7 +302,7 @@ impl Eq for Build {}
 
 impl PartialOrd for Build {
     fn partial_cmp(&self, other: &Build) -> Option<Ordering> {
-        self.comparator().partial_cmp(&other.comparator())
+        Some(self.cmp(other))
     }
 }
 
@@ -337,9 +337,7 @@ impl Eq for Semver {}
 
 impl PartialOrd for Semver {
     fn partial_cmp(&self, other: &Semver) -> Option<Ordering> {
-        let a = (&self.0.major, &self.0.minor, &self.0.patch, &self.0.pre);
-        let b = (&other.0.major, &other.0.minor, &other.0.patch, &other.0.pre);
-        a.partial_cmp(&b)
+        Some(self.cmp(other))
     }
 }
 

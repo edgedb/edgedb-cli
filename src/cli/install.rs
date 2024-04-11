@@ -5,7 +5,7 @@ use std::env;
 use std::fs;
 use std::io::{Write, stdout, BufWriter};
 use std::path::{PathBuf, Path};
-use std::process::{exit};
+use std::process::exit;
 use std::str::FromStr;
 
 use anyhow::Context;
@@ -16,7 +16,7 @@ use prettytable::{Table, Row, Cell};
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
 use crate::options::Options;
-use crate::platform::{current_exe};
+use crate::platform::current_exe;
 use crate::platform::{home_dir, config_dir, binary_path};
 use crate::portable::project::{self, Init};
 use crate::portable::platform;
@@ -61,6 +61,7 @@ pub struct CliInstall {
 #[derive(Debug, Clone, Copy)]
 #[derive(clap::ValueEnum)]
 #[value(rename_all="kebab-case")]
+#[allow(clippy::enum_variant_names)]
 pub enum Shell {
     Bash,
     Elvish,

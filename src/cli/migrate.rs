@@ -170,9 +170,9 @@ fn replace_line(path: &PathBuf, old_line: &str, new_line: &str)
     if let Some(idx) = text.find(old_line) {
         log::info!("File {:?} contains old path, replacing", path);
         let mut file = fs::File::create(path)?;
-        file.write(text[..idx].as_bytes())?;
-        file.write(new_line.as_bytes())?;
-        file.write(text[idx+old_line.len()..].as_bytes())?;
+        file.write_all(text[..idx].as_bytes())?;
+        file.write_all(new_line.as_bytes())?;
+        file.write_all(text[idx+old_line.len()..].as_bytes())?;
         Ok(true)
     } else {
         log::info!("File {:?} has no old path, skipping", path);

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::Context;
-use clap::{ValueHint};
+use clap::ValueHint;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use sha1::Digest;
@@ -33,7 +33,7 @@ use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::{InstanceInfo, Paths, allocate_port};
 use crate::portable::options::{self, StartConf, Start, InstanceName};
-use crate::portable::platform::{optional_docker_check};
+use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, Query, PackageInfo};
 use crate::portable::upgrade;
 use crate::portable::ver;
@@ -747,7 +747,7 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 }
 
 fn do_init(name: &str, pkg: &PackageInfo,
-           stash_dir: &Path, project_dir: &Path, schema_dir: &Path, database: &String, options: &Init)
+           stash_dir: &Path, project_dir: &Path, schema_dir: &Path, database: &str, options: &Init)
     -> anyhow::Result<ProjectInfo>
 {
     let port = allocate_port(name)?;
@@ -778,7 +778,7 @@ fn do_init(name: &str, pkg: &PackageInfo,
             default_user: "edgedb".into(),
             non_interactive: true,
             cloud_opts: options.cloud_opts.clone(),
-            default_branch: Some(database.clone())
+            default_branch: Some(database.to_string())
         }, name, port, &paths)?;
         create::create_service(&InstanceInfo {
             name: name.into(),
