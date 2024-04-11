@@ -16,7 +16,8 @@ macro_rules! async_try {
     ($block:expr, finally $finally:expr) => {
         {
             let result = $block.await;
-            match ($finally.await, result) {
+            let finally = $finally.await;
+            match (finally, result) {
                 (Ok(()), Ok(res)) => Ok(res),
                 (Err(e), Ok(_)) => Err(e.into()),
                 (Ok(()), Err(e)) => Err(e),
@@ -29,7 +30,8 @@ macro_rules! async_try {
     };
     ($block:expr, except $except:expr, else $else:expr) => {
         {
-            match $block.await {
+            let block = $block.await;
+            match block {
                 Ok(result) => {
                     $else.await.map_err(Into::into).and(Ok(result))
                 }
