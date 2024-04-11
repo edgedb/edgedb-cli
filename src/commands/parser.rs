@@ -19,7 +19,7 @@ pub enum Common {
     Configure(Configure),
 
     /// Migration management subcommands
-    Migration(Migration),
+    Migration(Box<Migration>),
     /// Apply migration (alias for `edgedb migration apply`)
     Migrate(Migrate),
 
@@ -38,6 +38,16 @@ pub enum Common {
     /// Run psql shell. Works on dev-mode database only.
     #[command(hide=true)]
     Psql,
+}
+
+impl Common {
+    pub fn as_migration(&self) -> Option<&Migration> {
+        if let Common::Migration(m) = self {
+            Some(m.as_ref())
+        } else {
+            None
+        }
+    }
 }
 
 
@@ -144,7 +154,7 @@ pub struct Backslash {
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum BackslashCmd {
     #[command(flatten)]
-    Common(Common),
+    Common(Box<Common>),
     Help,
     LastError,
     Expand,

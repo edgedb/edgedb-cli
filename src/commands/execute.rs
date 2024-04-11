@@ -4,7 +4,7 @@ use edgedb_tokio::server_params::PostgresAddress;
 use crate::analyze;
 use crate::commands::parser::{Common, DatabaseCmd, ListCmd, DescribeCmd};
 use crate::commands::{self, Options};
-use crate::migrations::options::{MigrationCmd};
+use crate::migrations::options::MigrationCmd;
 use crate::migrations;
 use crate::print;
 

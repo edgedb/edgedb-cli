@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use clap::{ValueHint};
+use clap::ValueHint;
 use serde::{Serialize, Deserialize};
 use edgedb_cli_derive::IntoArgs;
 
