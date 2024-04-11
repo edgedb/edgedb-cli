@@ -5,7 +5,9 @@ use std::sync::{Mutex, Arc};
 
 
 use anyhow::Context;
+use clap::builder::TypedValueParser;
 use colorful::Colorful;
+use colorful::core::StrMarker;
 use pem;
 use ring::digest;
 use rustls;
@@ -17,9 +19,11 @@ use rustls::{SignatureScheme, DigitallySignedStruct};
 
 use edgedb_tokio::credentials::TlsSecurity;
 use edgedb_errors::{Error, PasswordRequired, ClientNoCredentialsError};
-use edgedb_tokio::tls;
+use edgedb_protocol::common::{Capabilities, State};
+use edgedb_tokio::{Client, tls};
 use edgedb_tokio::{Builder, Config};
-use edgedb_tokio::raw::Connection;
+use futures_util::TryFutureExt;
+use rustyline::error::ReadlineError;
 
 use crate::credentials;
 use crate::hint::HintExt;
@@ -29,6 +33,7 @@ use crate::portable::destroy::with_projects;
 use crate::portable::local::{InstanceInfo, is_valid_local_instance_name};
 use crate::portable::options::{Link, Unlink, instance_arg, InstanceName};
 use crate::portable::project;
+use crate::portable::ver::Build;
 use crate::print;
 use crate::question;
 use crate::tty_password;
@@ -163,14 +168,41 @@ fn gen_default_instance_name(input: impl fmt::Display) -> String {
 }
 
 #[tokio::main]
-async fn connect(cfg: &edgedb_tokio::Config) -> Result<Connection, Error> {
-    Connection::connect(cfg).await
+async fn connect(cfg: &edgedb_tokio::Config) -> Result<Client, Error> {
+    //Connection::connect(cfg).await
+    let client = edgedb_tokio::Client::new(cfg);
+    client.ensure_connected().await?;
+
+    Ok(client)
 }
 
 #[tokio::main]
-async fn conn_params(cmd: &Link, opts: &Options) -> anyhow::Result<Config> {
+async fn conn_params(cmd: &Link, opts: &Options, has_branch: &mut bool) -> anyhow::Result<Config> {
     let mut builder = options::prepare_conn_params(&opts)?;
-    prompt_conn_params(&opts.conn_options, &mut builder, cmd).await
+    prompt_conn_params(&opts.conn_options, &mut builder, cmd, has_branch).await
+}
+
+#[tokio::main]
+async fn get_server_version(connection: &mut Client) -> anyhow::Result<Build> {
+    let ver: String = connection.query_required_single("SELECT sys::get_version_as_str()", &()).await?;
+    ver.parse()
+}
+
+#[tokio::main]
+async fn get_default_branch(connection: &mut Client) -> anyhow::Result<String> {
+    let default_branch = connection.query_required_single::<String, _>(
+        "select sys::get_current_database()",
+        &()
+    ).await;
+
+    // for context why '?' isn't used, tokio swallows the error here and prints:
+    // "edgedb error: ClientConnectionError: A Tokio 1.x context was found, but it is being shutdown."
+    // whereas this ensures that the result is properly handled and the actual error is reported.
+    if let Ok(branch) = default_branch {
+        return Ok(branch);
+    }
+
+    anyhow::bail!(default_branch.unwrap_err());
 }
 
 pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
@@ -181,8 +213,8 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
             \n  edgedb -I {}", cmd.name.as_ref().unwrap());
     }
 
-    let config = conn_params(cmd, opts)?;
-
+    let mut has_branch: bool = false;
+    let config: Config = conn_params(cmd, opts, &mut has_branch)?;
     let mut creds = config.as_credentials()?;
     let root_cert_store = config.root_cert_store()?;
     let inner = WebPkiServerVerifier::builder(Arc::new(root_cert_store)).build()?;
@@ -198,7 +230,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
     );
     let mut config = config.with_cert_verifier(verifier.clone());
-    let connect_result = connect(&config);
+    let mut connect_result = connect(&config);
     if let Err(e) = connect_result {
         if e.is::<PasswordRequired>() {
             let password;
@@ -219,11 +251,25 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 let pem = pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec()));
                 config = config.with_pem_certificates(&pem)?;
             }
-            connect(&config)?;
+            connect_result = Ok(connect(&config)?);
         } else {
             return Err(e.into());
         }
     }
+
+    let mut connection: Client = connect_result.unwrap();
+    let ver = get_server_version(&mut connection)?;
+
+    if !has_branch && opts.conn_options.branch.is_none() && opts.conn_options.database.is_none() {
+        config = config.with_database(&get_default_branch(&mut connection)?)?;
+
+        eprintln!(
+            "using the default {} '{}'",
+            if ver.specific().major >= 5 { "branch" } else { "database" },
+            config.database()
+        )
+    }
+
     if let Some(cert) = &*verifier.cert_out.lock().unwrap() {
         creds.tls_ca = Some(pem::encode(&pem::Pem::new("CERTIFICATE", cert.to_vec())));
     }
@@ -292,6 +338,7 @@ async fn prompt_conn_params(
     options: &ConnectionOptions,
     builder: &mut Builder,
     link: &Link,
+    has_branch: &mut bool
 ) -> anyhow::Result<Config> {
     if link.non_interactive && options.password {
         anyhow::bail!(
@@ -345,13 +392,21 @@ async fn prompt_conn_params(
             )?;
         }
 
-        if options.branch.is_none() {
-            builder.database(
-                &question::String::new("Specify branch")
-                    .default("main")
-                    .ask()?
-            )?;
+        if options.database.is_none() && options.branch.is_none() {
+            match question::String::new("Specify database/branch (CTRL + D for default)").ask() {
+                Ok(s) => {
+                    builder.database(&s)?.branch(&s)?;
+                    *has_branch = true;
+                },
+                Err(e) => {
+                    match e.downcast_ref() {
+                        Some(ReadlineError::Eof) => {}
+                        Some(_) | None => anyhow::bail!(e)
+                    }
+                }
+            };
         }
+
         Ok(builder.build_env().await?)
     } else {
         Ok(builder.build_env().await?)
