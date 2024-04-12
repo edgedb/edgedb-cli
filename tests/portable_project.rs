@@ -1,4 +1,4 @@
-#![cfg_attr(not(feature="portable_tests"), allow(dead_code, unused_imports))]
+#![cfg(feature="portable_tests")]
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -6,8 +6,6 @@ use predicates::prelude::*;
 mod util;
 use util::*;
 
-
-#[cfg(feature="portable_tests")]
 #[test]
 fn project_link_and_init() {
     Command::new("edgedb")

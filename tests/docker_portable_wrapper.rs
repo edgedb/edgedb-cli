@@ -3,7 +3,7 @@
 //!
 //! Note: these tests likely won't run on non-Ubuntu OSs, since the test binaries
 //! might have dynamic library dependencies into the host system.
-#![cfg_attr(not(feature="test_docker_wrapper"), allow(dead_code, unused_imports))]
+#![cfg(feature="docker_test_wrapper")]
 
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
@@ -109,7 +109,6 @@ fn dockerfile() -> String {
     "###)
 }
 
-#[cfg(feature="docker_test_wrapper")]
 #[test_case("portable_smoke")]
 #[test_case("portable_project")]
 #[test_case("portable_project_dir")]
