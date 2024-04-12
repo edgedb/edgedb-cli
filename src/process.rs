@@ -33,7 +33,7 @@ static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
             let c_utf8 = CString::new("C.UTF-8").unwrap();
             let loc = libc::newlocale(libc::LC_ALL,
                                       c_utf8.as_ptr(), null_mut());
-            if loc != null_mut() {
+            if !loc.is_null() {
                 libc::freelocale(loc);
                 log::debug!("UTF-8 locale is enabled");
                 true

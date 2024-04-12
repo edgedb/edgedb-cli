@@ -198,9 +198,6 @@ pub async fn get_current_region(
     client
         .get(url)
         .await
-        .map_err(|e| match e.downcast_ref::<ErrorResponse>() {
-            _ => e,
-        })
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -211,9 +208,6 @@ pub async fn get_versions(
     client
         .get(url)
         .await
-        .map_err(|e| match e.downcast_ref::<ErrorResponse>() {
-            _ => e,
-        })
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -223,16 +217,13 @@ pub async fn get_prices(
     let url = "pricing";
     let mut resp: PricesResponse = client
         .get(url)
-        .await
-        .map_err(|e| match e.downcast_ref::<ErrorResponse>() {
-            _ => e,
-        })?;
+        .await?;
 
     let billable_id_to_name: HashMap<String, String> = resp.billables
         .iter().map(|billable| (billable.id.clone(), billable.name.clone())).collect();
 
-    for (_, tier_prices) in &mut resp.prices {
-        for (_, region_prices) in tier_prices {
+    for tier_prices in resp.prices.values_mut() {
+        for region_prices in tier_prices.values_mut() {
             for price in region_prices {
                 price.billable = billable_id_to_name.get(&price.billable)
                     .context(format!("could not map billable {} to name", price.billable))?

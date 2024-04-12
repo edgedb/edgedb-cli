@@ -439,7 +439,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str, database: &str)
     let mut creds = Credentials::default();
     creds.port = info.port;
     creds.user = user.into();
-    creds.database = Some(database.clone());
+    creds.database = Some(database.to_string());
     creds.password = Some(password);
     creds.tls_ca = Some(cert);
     credentials::write(&paths.credentials, &creds)?;

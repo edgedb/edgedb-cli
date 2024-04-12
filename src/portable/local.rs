@@ -69,7 +69,7 @@ pub fn open_lock(instance: &str) -> anyhow::Result<fd_lock::RwLock<fs::File>> {
         fs_err::create_dir_all(parent)?;
     }
     let lock_file = fs::OpenOptions::new()
-        .create(true).write(true).read(true)
+        .create(true).truncate(false).write(true).read(true)
         .open(&lock_path)
         .with_context(|| format!("cannot open lock file {:?}", lock_path))?;
     Ok(fd_lock::RwLock::new(lock_file))

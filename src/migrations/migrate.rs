@@ -565,7 +565,7 @@ mod test {
             match (other, self) {
                 (Fixup(a), E::Fixup(b))
                 if Some(*a) == b.fixup_target.as_deref() => true,
-                (Normal(a), E::Normal(b)) if a == &&b.data.id => true,
+                (Normal(a), E::Normal(b)) if a == &b.data.id => true,
                 _ => false,
             }
         }
@@ -577,7 +577,7 @@ mod test {
             match (self, other) {
                 (Fixup(a), E::Fixup(b))
                 if Some(*a) == b.fixup_target.as_deref() => true,
-                (Normal(a), E::Normal(b)) if a == &&b.data.id => true,
+                (Normal(a), E::Normal(b)) if a == &b.data.id => true,
                 _ => false,
             }
         }

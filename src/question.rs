@@ -38,11 +38,14 @@ pub struct Choice<'a, T: 'a> {
 }
 
 pub fn read_choice() -> anyhow::Result<std::string::String> {
-    for line in stdin().lock().lines() {
-        let line = line.context("reading user input")?;
-        return Ok(line.trim().to_lowercase())
-    }
-    anyhow::bail!("Unexpected end of input");
+    let mut lines = stdin().lock().lines();
+
+    let Some(line) = lines.next() else {
+        anyhow::bail!("Unexpected end of input");
+    };
+
+    let line = line.context("reading user input")?;
+    Ok(line.trim().to_lowercase())
 }
 
 impl<'a, T: Clone + 'a> Numeric<'a, T> {
