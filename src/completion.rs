@@ -274,7 +274,7 @@ fn hint_command(input: &str) -> Option<Hint> {
                     let mut output = String::from(&matching[input.len()..]);
                     let complete = output.len() + 1;
                     output.push_str(" {");
-                    for (cmd, _) in sub {
+                    for cmd in sub.keys() {
                         if !output.ends_with('{') {
                             output.push(',');
                         }
@@ -498,7 +498,7 @@ impl BackslashFsm {
 
         match self {
             Command => match token.item {
-                T::Command(x) if x == "\\set" => Setting,
+                T::Command("\\set") => Setting,
                 T::Command(name) => {
                     let name = &name[1..];
                     let name_slice = &[name];

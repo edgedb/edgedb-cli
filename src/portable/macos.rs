@@ -192,10 +192,7 @@ fn bootout(name: &str) -> anyhow::Result<()> {
 }
 
 pub fn is_service_loaded(name: &str) -> bool {
-    match _service_status(name) {
-        Status::NotLoaded => false,
-        _ => true,
-    }
+    !matches!(_service_status(name), Status::NotLoaded)
 }
 
 pub fn service_status(name: &str) -> Service {
@@ -250,9 +247,10 @@ fn _service_status(name: &str) -> Status {
                 return Status::Ready;
             }
             Some(("last exit code", value)) => {
-                match value.parse() {
-                    Ok(value) => exit_code = Some(value),
-                    Err(_) => {}, // assuming "(never exited)"
+                if let Ok(value) = value.parse() {
+                    exit_code = Some(value)
+                } else {
+                    // assuming "(never exited)"
                 }
             }
             _ => {}

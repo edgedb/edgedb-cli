@@ -292,7 +292,7 @@ impl Signal {
 
 #[cfg(unix)]
 impl Signal {
-    fn to_unix(&self) -> i32 {
+    fn to_unix(self) -> i32 {
         use signal_hook::consts::signal::*;
 
         match self {
@@ -301,7 +301,7 @@ impl Signal {
             Signal::Hup => SIGHUP,
         }
     }
-    fn to_nix(&self) -> nix::sys::signal::Signal {
+    fn to_nix(self) -> nix::sys::signal::Signal {
         use nix::sys::signal::Signal::*;
 
         match self {

@@ -401,7 +401,7 @@ fn bootstrap_script(user: &str, password: &str) -> String {
 }
 
 #[context("cannot bootstrap EdgeDB instance")]
-pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str, database: &String)
+pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str, database: &str)
     -> anyhow::Result<()>
 {
     let server_path = info.server_path()?;

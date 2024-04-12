@@ -7,6 +7,7 @@ use colorful::core::color_string::CString;
 
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum Style {
     Decorator,
     Comment,

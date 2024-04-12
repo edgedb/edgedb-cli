@@ -70,11 +70,8 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
     state: &mut repl::PromptRpc, optional: bool)
     -> Result<Option<Value>, anyhow::Error>
 {
-    match item {
-        Descriptor::Scalar(s) => {
-            item = all.get(s.base_type_pos)?;
-        }
-        _ => {},
+    if let Descriptor::Scalar(s) = item {
+        item = all.get(s.base_type_pos)?;
     }
     match item {
         Descriptor::BaseScalar(s) => {

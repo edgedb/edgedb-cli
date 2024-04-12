@@ -21,20 +21,19 @@ pub async fn main(
 
 pub async fn create_branch(connection: &mut Connection, name: &String, from: &String, empty: bool, copy_data: bool) -> anyhow::Result<()> {
     let branch_name = edgeql_parser::helpers::quote_name(name);
-    let query: String;
-
-    if empty {
-        query = format!("create empty branch {}", branch_name)
+    
+    let query = if empty {
+        format!("create empty branch {}", branch_name)
     } else {
         let branch_type = if copy_data { "data" } else { "schema" };
 
-        query = format!(
+        format!(
             "create {} branch {} from {}",
             branch_type,
             branch_name,
             edgeql_parser::helpers::quote_name(from)
         )
-    }
+    };
 
     let status = connection.execute(&query, &()).await?;
 

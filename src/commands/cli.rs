@@ -80,7 +80,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         Command::_GenCompletions(s) => {
             cli::install::gen_completions(s)
         }
-        Command::CliCommand(c) => {
+        Command::Cli(c) => {
             cli::main(c)
         },
         Command::Info(info) => {

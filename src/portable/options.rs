@@ -160,7 +160,7 @@ fn billable_unit(s: &str) -> Result<String, String> {
         .parse()
         .map_err(|_| format!("`{s}` is not a positive number or valid fraction"))?;
 
-    if n <= 0 || d <= 0 {
+    if n == 0 || d == 0 {
         Err(String::from("`{s}` is not a positive number or valid fraction"))
     } else {
         Ok(s.to_string())

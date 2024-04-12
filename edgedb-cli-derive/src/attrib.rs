@@ -43,13 +43,13 @@ pub enum SubcommandAttr {
 }
 
 pub enum Case {
-    CamelCase,
-    SnakeCase,
-    KebabCase,
-    ShoutySnakeCase,
-    MixedCase,
-    TitleCase,
-    ShoutyKebabCase,
+    Camel,
+    Snake,
+    Kebab,
+    ShoutySnake,
+    Mixed,
+    Title,
+    ShoutyKebab,
 }
 
 pub struct ContainerAttrs {
@@ -117,9 +117,7 @@ impl Parse for ContainerAttr {
             let _eq: syn::Token![=] = input.parse()?;
             let value: syn::Expr = input.parse()?;
             Ok(Value { name, value })
-        } else if lookahead.peek(syn::Token![,]) {
-            Ok(Default(name))
-        } else if input.cursor().eof() {
+        } else if lookahead.peek(syn::Token![,]) || input.cursor().eof() {
             Ok(Default(name))
         } else {
             Err(lookahead.error())
@@ -187,9 +185,7 @@ impl Parse for FieldAttr {
                 let _eq: syn::Token![=] = input.parse()?;
                 let value: syn::Expr = input.parse()?;
                 Ok(Value { name, value })
-            } else if lookahead.peek(syn::Token![,]) {
-                Ok(Default(name))
-            } else if input.cursor().eof() {
+            } else if lookahead.peek(syn::Token![,]) || input.cursor().eof() {
                 Ok(Default(name))
             } else {
                 Err(lookahead.error())
@@ -222,9 +218,7 @@ impl Parse for SubcommandAttr {
                 let _eq: syn::Token![=] = input.parse()?;
                 let value: syn::Expr = input.parse()?;
                 Ok(Value { name, value })
-            } else if lookahead.peek(syn::Token![,]) {
-                Ok(Default(name))
-            } else if input.cursor().eof() {
+            } else if lookahead.peek(syn::Token![,]) || input.cursor().eof() {
                 Ok(Default(name))
             } else {
                 Err(lookahead.error())
@@ -257,7 +251,7 @@ impl ContainerAttrs {
 
         let mut res = ContainerAttrs {
             main: false,
-            rename_all: Case::KebabCase,
+            rename_all: Case::Kebab,
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer) &&
@@ -414,13 +408,13 @@ impl TryFrom<syn::Expr> for Case {
         match val {
             syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), ..}) => {
                 let case = match &s.value()[..] {
-                    "CamelCase" => Case::CamelCase,
-                    "snake_case" => Case::SnakeCase,
-                    "kebab-case" => Case::KebabCase,
-                    "SHOUTY_SNAKE_CASE" => Case::ShoutySnakeCase,
-                    "mixedCase" => Case::MixedCase,
-                    "Title Case" => Case::TitleCase,
-                    "SHOUTY-KEBAB-CASE" => Case::ShoutyKebabCase,
+                    "CamelCase" => Case::Camel,
+                    "snake_case" => Case::Snake,
+                    "kebab-case" => Case::Kebab,
+                    "SHOUTY_SNAKE_CASE" => Case::ShoutySnake,
+                    "mixedCase" => Case::Mixed,
+                    "Title Case" => Case::Title,
+                    "SHOUTY-KEBAB-CASE" => Case::ShoutyKebab,
                     _ => {
                         return Err(syn::Error::new_spanned(s,
                             format!("undefined case conversion")));
@@ -437,16 +431,14 @@ impl TryFrom<syn::Expr> for Case {
 
 impl Case {
     pub fn convert(&self, s: &str) -> String {
-        use Case::*;
-
         match self {
-            CamelCase => heck::ToUpperCamelCase::to_upper_camel_case(s),
-            SnakeCase => heck::ToSnakeCase::to_snake_case(s),
-            KebabCase => heck::ToKebabCase::to_kebab_case(s),
-            ShoutySnakeCase => heck::ToShoutySnakeCase::to_shouty_snake_case(s),
-            MixedCase => heck::ToLowerCamelCase::to_lower_camel_case(s),
-            TitleCase => heck::ToTitleCase::to_title_case(s),
-            ShoutyKebabCase => heck::ToShoutyKebabCase::to_shouty_kebab_case(s),
+            Case::Camel => heck::ToUpperCamelCase::to_upper_camel_case(s),
+            Case::Snake => heck::ToSnakeCase::to_snake_case(s),
+            Case::Kebab => heck::ToKebabCase::to_kebab_case(s),
+            Case::ShoutySnake => heck::ToShoutySnakeCase::to_shouty_snake_case(s),
+            Case::Mixed => heck::ToLowerCamelCase::to_lower_camel_case(s),
+            Case::Title => heck::ToTitleCase::to_title_case(s),
+            Case::ShoutyKebab => heck::ToShoutyKebabCase::to_shouty_kebab_case(s),
         }
     }
 }

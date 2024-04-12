@@ -727,15 +727,15 @@ async fn _write_migration(descr: &impl MigrationToText, filepath: &Path,
     }
     fs::remove_file(&tmp_file).await.ok();
     let mut file = io::BufWriter::new(fs::File::create(&tmp_file).await?);
-    file.write(format!("CREATE MIGRATION {}\n", id).as_bytes()).await?;
-    file.write(format!("    ONTO {}\n", descr.parent()?).as_bytes()).await?;
-    file.write(b"{\n").await?;
+    file.write_all(format!("CREATE MIGRATION {}\n", id).as_bytes()).await?;
+    file.write_all(format!("    ONTO {}\n", descr.parent()?).as_bytes()).await?;
+    file.write_all(b"{\n").await?;
     for statement in descr.statements() {
         for line in statement.lines() {
-            file.write(format!("  {}\n", line).as_bytes()).await?;
+            file.write_all(format!("  {}\n", line).as_bytes()).await?;
         }
     }
-    file.write(b"};\n").await?;
+    file.write_all(b"};\n").await?;
     file.flush().await?;
     drop(file);
     fs::rename(&tmp_file, &filepath).await?;

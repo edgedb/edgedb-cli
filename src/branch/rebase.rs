@@ -63,7 +63,7 @@ async fn rebase(branch: &String, source_connection: &mut Connection, target_conn
     anyhow::Ok(())
 }
 
-async fn rename_temp_to_source(temp_branch: &String, source_branch: &String, options: &Options, connection: &mut Connection) -> anyhow::Result<()> {
+async fn rename_temp_to_source(temp_branch: &str, source_branch: &str, options: &Options, connection: &mut Connection) -> anyhow::Result<()> {
     let mut rename_connection = get_connection_to_modify(temp_branch, options, connection).await?;
 
     let status = rename_connection.connection.execute(&format!(
@@ -79,8 +79,8 @@ async fn rename_temp_to_source(temp_branch: &String, source_branch: &String, opt
     Ok(())
 }
 
-async fn clone_target_branch(branch: &String, connection: &mut Connection) -> anyhow::Result<String> {
-    eprintln!("Cloning target branch '{}' for rebase...", branch.clone().green());
+async fn clone_target_branch(branch: &str, connection: &mut Connection) -> anyhow::Result<String> {
+    eprintln!("Cloning target branch '{}' for rebase...", branch.green());
 
     let temp_branch_name = Uuid::new_v4().to_string();
 

@@ -362,7 +362,7 @@ pub enum Command {
     _GenCompletions(cli::install::GenCompletions),
     /// Self-installation commands
     #[command(name="cli")]
-    CliCommand(CliCommand),
+    Cli(CliCommand),
     /// Install EdgeDB
     #[command(name="_self_install")]
     #[command(hide=true)]

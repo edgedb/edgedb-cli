@@ -938,7 +938,7 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
         } else {
             inst.database = options.database.clone();
         }
-        return do_link(&mut inst, options, &stash_dir);
+        return do_link(&inst, options, &stash_dir);
     };
 
     match &inst_name {

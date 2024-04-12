@@ -210,13 +210,12 @@ fn filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
 
 fn _filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
     let iref = pkg.installrefs.iter()
-        .filter(|r| (
+        .find(|r| (
                 r.kind == "application/x-tar" &&
                 r.encoding.as_ref().map(|x| &x[..]) == Some("zstd") &&
                 r.verification.blake2b.as_ref()
                     .map(valid_hash).unwrap_or(false)
-        ))
-        .next()?;
+        ))?;
     Some(PackageInfo {
         version: pkg.version.parse().ok()?,
         url: pkg_root.join(&iref.path).ok()?,
@@ -241,20 +240,18 @@ fn _filter_cli_package(pkg_root: &Url, pkg: &PackageData)
     -> Option<CliPackageInfo>
 {
     let iref = pkg.installrefs.iter()
-        .filter(|r| (
+        .find(|r| (
                 r.encoding.as_ref().map(|x| &x[..]) == Some("zstd") &&
                 r.verification.blake2b.as_ref()
                     .map(valid_hash).unwrap_or(false)
         ))
-        .next()
         .or_else(|| {
             pkg.installrefs.iter()
-            .filter(|r| (
-                    r.encoding.as_ref().map(|x| &x[..]) == Some("identity") &&
-                    r.verification.blake2b.as_ref()
-                        .map(valid_hash).unwrap_or(false)
-            ))
-            .next()
+                .find(|r| (
+                        r.encoding.as_ref().map(|x| &x[..]) == Some("identity") &&
+                        r.verification.blake2b.as_ref()
+                            .map(valid_hash).unwrap_or(false)
+                ))
         })?;
     let cmpr = if iref.encoding.as_ref().map(|x| &x[..]) == Some("zstd") {
         Some(Compression::Zstd)
