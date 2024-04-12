@@ -65,6 +65,7 @@ pub trait Highlight: fmt::Display + Sized {
             value: self,
         }
     }
+    #[allow(dead_code)]
     fn title(self) -> Colored<Self> {
         Colored {
             style: theme().title,

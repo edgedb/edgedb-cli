@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeSet, BTreeMap};
 use std::str::FromStr;
 
-use clap::{self, FromArgMatches, CommandFactory};
+use clap::{FromArgMatches, CommandFactory};
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
 use regex::Regex;

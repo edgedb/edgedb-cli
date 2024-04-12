@@ -53,9 +53,6 @@ pub struct DumpStream<'a> {
     state: &'a mut State,
 }
 
-trait AssertConn: Send + 'static {}
-impl AssertConn for Connection {}
-
 fn update_state<T>(state: &mut State, resp: &raw::Response<T>)
     -> Result<(), Error>
 {

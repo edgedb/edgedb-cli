@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::default::Default;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 

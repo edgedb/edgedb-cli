@@ -31,9 +31,6 @@ pub enum Style {
 }
 
 #[derive(Debug)]
-pub struct Styled<T>(T, Style);
-
-#[derive(Debug)]
 pub struct Item(Option<Color>, Option<TermStyle>);
 
 #[derive(Debug)]

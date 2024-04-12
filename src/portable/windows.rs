@@ -150,7 +150,7 @@ pub fn path_to_linux(path: &Path) -> anyhow::Result<String> {
     use std::path::Component::*;
     use std::path::Prefix::*;
     if !path.is_absolute() {
-        Err(bug::error("path must be absolute"))?;
+        return Err(bug::error("path must be absolute"));
     }
 
     let mut result = String::with_capacity(

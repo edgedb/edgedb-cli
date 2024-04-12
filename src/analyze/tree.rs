@@ -11,12 +11,6 @@ use crate::print::Highlight;
 struct Opt<'a, T>(&'a Option<T>);
 struct Border;
 
-#[derive(Clone, Copy, Debug)]
-struct Wide;
-
-#[derive(Clone, Copy, Debug)]
-struct Narrow;
-
 #[derive(Debug, Clone)]
 pub struct WideMarker {
     columns: bitvec::vec::BitVec,

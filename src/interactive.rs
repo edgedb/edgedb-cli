@@ -2,7 +2,7 @@
 use std::str;
 use std::time::Instant;
 
-use anyhow::{self, Context};
+use anyhow::Context;
 use colorful::Colorful;
 use is_terminal::IsTerminal;
 use terminal_size::{Width, terminal_size};
@@ -11,10 +11,10 @@ use tokio::sync::mpsc::channel;
 use tokio_stream::StreamExt;
 
 use edgedb_errors::{StateMismatchError,  ParameterTypeMismatchError};
-use edgedb_protocol::client_message::{CompilationOptions};
+use edgedb_protocol::client_message::CompilationOptions;
 use edgedb_protocol::client_message::{IoFormat, Cardinality};
 use edgedb_protocol::common::{Capabilities, State};
-use edgedb_protocol::common::{RawTypedesc};
+use edgedb_protocol::common::RawTypedesc;
 use edgedb_protocol::descriptors::Typedesc;
 use edgedb_protocol::model::Duration;
 use edgedb_protocol::value::Value;

@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::Path;
-use std::default::Default;
 use std::num::NonZeroU32;
 
 use base64::display::Base64Display;

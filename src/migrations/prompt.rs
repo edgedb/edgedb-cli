@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use anyhow::Context as _;
 use colorful::Colorful;
-use rustyline::{self, error::ReadlineError, KeyEvent, Modifiers, Cmd};
+use rustyline::{error::ReadlineError, KeyEvent, Modifiers, Cmd};
 use rustyline::{Editor, Config, Helper};
 use rustyline::config::EditMode;
 use rustyline::hint::Hinter;

@@ -1,11 +1,10 @@
-use std::default::Default;
 use std::fs;
 use std::path::Path;
 use std::str;
 
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
-use codespan_reporting::term::{emit};
+use codespan_reporting::term::emit;
 use termcolor::{StandardStream, ColorChoice};
 
 use edgedb_errors::{Error, InternalServerError};

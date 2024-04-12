@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use proc_macro_error::abort;
-use syn::{self, parse_macro_input};
+use syn::parse_macro_input;
 use quote::quote;
 
 mod attrib;

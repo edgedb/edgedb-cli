@@ -4,7 +4,6 @@
 
 use clap::Parser;
 
-use std::default::Default;
 use std::env;
 use std::path::Path;
 use std::process::exit;

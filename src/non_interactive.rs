@@ -1,16 +1,16 @@
 use std::str;
 use std::io::{stdout, Write};
 
-use anyhow::{self, Context};
-use bytes::{BytesMut};
+use anyhow::Context;
+use bytes::BytesMut;
 use is_terminal::IsTerminal;
 use terminal_size::{Width, terminal_size};
-use tokio::fs::{File as AsyncFile};
+use tokio::fs::File as AsyncFile;
 use tokio::io::{AsyncRead, stdin};
 
-use edgedb_protocol::client_message::{CompilationOptions};
+use edgedb_protocol::client_message::CompilationOptions;
 use edgedb_protocol::client_message::{IoFormat, Cardinality};
-use edgedb_protocol::common::{Capabilities};
+use edgedb_protocol::common::Capabilities;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
 use tokio_stream::StreamExt;

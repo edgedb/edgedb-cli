@@ -28,6 +28,7 @@ pub trait Formatter {
     fn const_enum<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
     fn nil(&mut self) -> Result<Self::Error>;
     fn typed<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error>;
+    #[allow(dead_code)]
     fn error<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error>;
     fn set<F>(&mut self, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;

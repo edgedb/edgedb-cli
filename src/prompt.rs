@@ -5,7 +5,7 @@ use std::env;
 use std::process::{Command, Stdio};
 use std::sync::Arc;
 
-use anyhow::{self, Context as _Context};
+use anyhow::Context as _Context;
 use dirs::data_local_dir;
 use rustyline::completion::Completer;
 use rustyline::config::{EditMode, CompletionType, Builder as ConfigBuilder};
@@ -14,7 +14,7 @@ use rustyline::hint::Hinter;
 use rustyline::history::History;
 use rustyline::validate::{Validator, ValidationResult, ValidationContext};
 use rustyline::{Editor, Config, Helper, Context};
-use rustyline::{self, error::ReadlineError, KeyEvent, Modifiers, Cmd};
+use rustyline::{error::ReadlineError, KeyEvent, Modifiers, Cmd};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
 
