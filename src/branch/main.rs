@@ -1,4 +1,4 @@
-use std::future::Future;
+
 use crate::branch::context::Context;
 use crate::branch::option::{BranchCommand, Command};
 use crate::branch::{create, current, drop, list, merge, rebase, rename, switch, wipe};
