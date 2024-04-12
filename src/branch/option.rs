@@ -1,3 +1,6 @@
+use crate::commands;
+use crate::commands::parser::BranchingCmd;
+
 #[derive(clap::Args, Debug, Clone)]
 pub struct BranchCommand {
     #[command(subcommand)]
@@ -15,6 +18,16 @@ pub enum Command {
     Rebase(Rebase),
     Merge(Merge),
     Current(Current)
+}
+
+impl From<&BranchingCmd> for Command {
+    fn from(cmd: &BranchingCmd) -> Self {
+        match cmd {
+            BranchingCmd::Create(args) => Command::Create(args.clone()),
+            BranchingCmd::Drop(args) => Command::Drop(args.clone()),
+            BranchingCmd::Wipe(args) => Command::Wipe(args.clone()),
+        }
+    }
 }
 
 /// Creates a new branch and switches to it.

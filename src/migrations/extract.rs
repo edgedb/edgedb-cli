@@ -1,3 +1,4 @@
+use std::iter::Once;
 use fs_err as fs;
 
 use crate::commands::{ExitCode, Options};
@@ -14,9 +15,7 @@ pub struct DatabaseMigration {
     pub migration: db_migration::DBMigration,
 }
 
-impl MigrationToText for DatabaseMigration {
-    type StatementsIter<'a> = std::iter::Once<&'a String>;
-
+impl<'a> MigrationToText<'a, Once<&'a String>> for DatabaseMigration {
     fn key(&self) -> &MigrationKey {
         &self.key
     }
@@ -35,7 +34,7 @@ impl MigrationToText for DatabaseMigration {
         Ok(&self.migration.name)
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&'a self) -> Once<&'a String> {
         std::iter::once(&self.migration.script)
     }
 }

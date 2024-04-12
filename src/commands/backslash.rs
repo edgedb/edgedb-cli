@@ -63,7 +63,7 @@ Editing
                             Defaults to vi (Notepad in Windows).
 
 Connection
-  \c, \connect [DBNAME]     Connect to database DBNAME
+  \c, \connect [DBNAME]     Connect to database/branch DBNAME
 
 Settings
   \set [OPTION [VALUE]]     Show/change settings. Type \set to list
@@ -322,6 +322,7 @@ impl CommandCache {
         aliases.insert("quit", &["exit"]);
         aliases.insert("?", &["help"]);
         aliases.insert("h", &["help"]);
+        aliases.insert("branch", &["branching"]);
         let mut setting_cmd = None;
         let commands: BTreeMap<_,_> = clap.get_subcommands_mut()
             .map(|cmd| {
@@ -547,7 +548,7 @@ fn list_settings(prompt: &mut repl::State) {
     table.printstd();
 }
 
-pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
+pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State, cli_opts: &crate::options::Options)
     -> Result<ExecuteResult, anyhow::Error>
 {
     use crate::commands::parser::BackslashCmd::*;
@@ -569,7 +570,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             prompt.soft_reconnect().await?;
             let cli = prompt.connection.as_mut()
                 .expect("connection established");
-            execute::common(cli, cmd, &options).await?;
+            execute::common(cli, cmd, &options, cli_opts).await?;
             Ok(Skip)
         }
         Set(SetCommand {setting: None}) => {

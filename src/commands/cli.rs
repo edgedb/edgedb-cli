@@ -19,7 +19,7 @@ async fn common_cmd(_options: &Options, cmdopt: commands::Options, cmd: &Common)
 {
     let mut conn = cmdopt.conn_params.connect().await?;
     commands::execute::common(
-        &mut conn, cmd, &cmdopt
+        &mut conn, cmd, &cmdopt, _options
     ).await?;
     Ok(())
 }

@@ -27,9 +27,7 @@ struct RebaseMigration<'a> {
     kind: RebaseMigrationKind
 }
 
-impl MigrationToText for RebaseMigration<'_> {
-    type StatementsIter<'a> = std::iter::Once<&'a String> where Self: 'a;
-
+impl<'a> MigrationToText<'a, std::iter::Once<&'a String>> for RebaseMigration<'_> {
     fn key(&self) -> &MigrationKey {
         &self.key
     }
@@ -50,7 +48,7 @@ impl MigrationToText for RebaseMigration<'_> {
         Ok(&self.migration.name)
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&'a self) -> std::iter::Once<&'a String> {
         std::iter::once(&self.migration.script)
     }
 }

@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::slice::Iter;
 
 use anyhow::Context as _;
 use colorful::Colorful;
@@ -106,12 +107,11 @@ pub enum MigrationKey {
     Fixup { target_revision: String },
 }
 
-pub trait MigrationToText {
-    type StatementsIter<'a>: Iterator<Item = &'a String> where Self: 'a;
+pub trait MigrationToText<'a, T: Iterator<Item = &'a String> = std::iter::Once<&'a String>> {
     fn key(&self) -> &MigrationKey;
     fn parent(&self) -> anyhow::Result<&str>;
     fn id(&self) -> anyhow::Result<&str>;
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a>;
+    fn statements(&'a self) -> T;
 }
 
 #[derive(Debug)]
@@ -165,9 +165,7 @@ impl FutureMigration {
     }
 }
 
-impl MigrationToText for FutureMigration {
-    type StatementsIter<'a> = std::slice::Iter<'a, String>;
-
+impl<'a> MigrationToText<'a, Iter<'a, String> > for FutureMigration {
     fn key(&self) -> &MigrationKey {
         &self.key
     }
@@ -188,7 +186,7 @@ impl MigrationToText for FutureMigration {
         }).map(|s| &s[..])
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&'a self) -> Iter<'a, String> {
         self.statements.iter()
     }
 }
@@ -699,9 +697,10 @@ async fn run_interactive(_ctx: &Context, cli: &mut Connection,
     Ok(FutureMigration::new(key, descr))
 }
 
-pub async fn write_migration(ctx: &Context, descr: &impl MigrationToText,
+pub async fn write_migration<'a, T>(ctx: &Context, descr: &'a impl MigrationToText<'a, T>,
     verbose: bool)
     -> anyhow::Result<()>
+    where T : Iterator<Item = &'a String>
 {
     let filename = match &descr.key() {
         MigrationKey::Index(idx) => {
@@ -717,9 +716,10 @@ pub async fn write_migration(ctx: &Context, descr: &impl MigrationToText,
 }
 
 #[context("could not write migration file {}", filepath.display())]
-async fn _write_migration(descr: &impl MigrationToText, filepath: &Path,
+async fn _write_migration<'a, T>(descr: &'a impl MigrationToText<'a, T>, filepath: &Path,
     verbose: bool)
     -> anyhow::Result<()>
+    where T : Iterator<Item = &'a String>
 {
     let id = descr.id()?;
     let dir = filepath.parent().unwrap();

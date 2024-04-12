@@ -1,4 +1,4 @@
-mod context;
+pub mod context;
 mod create;
 mod drop;
 mod list;

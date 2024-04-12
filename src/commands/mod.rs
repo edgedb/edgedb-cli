@@ -25,6 +25,7 @@ pub mod options;
 pub mod parser;
 mod ui;
 mod list_branches;
+mod branching;
 
 pub use self::configure::configure;
 pub use self::dump::{dump, dump_all};
