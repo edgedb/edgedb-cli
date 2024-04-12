@@ -64,7 +64,7 @@ fn term_process(proc: &mut process::Child) {
 
 pub static SHUTDOWN_INFO: Lazy<Mutex<Vec<ShutdownInfo>>> =
     Lazy::new(|| Mutex::new(Vec::new()));
-pub static SERVER: Lazy<ServerGuard> = Lazy::new(|| ServerGuard::start());
+pub static SERVER: Lazy<ServerGuard> = Lazy::new(ServerGuard::start);
 
 #[cfg(not(windows))]
 #[test]
@@ -124,7 +124,7 @@ impl ServerGuard {
         cmd.stdout(Stdio::piped());
 
         let mut process = cmd.spawn()
-            .expect(&format!("Can run {}", bin_name));
+            .unwrap_or_else(|_| panic!("Can run {}", bin_name));
         let server_stdout = process.stdout.take().expect("stdout is pipe");
         let (tx, rx) = sync_channel(1);
         let thread = thread::spawn(move || {
@@ -194,7 +194,7 @@ impl ServerGuard {
             ")
             .unwrap();
         std::str::from_utf8(&output.stdout).unwrap()
-            .strip_suffix("\n").unwrap().parse().unwrap()
+            .strip_suffix('\n').unwrap().parse().unwrap()
     }
 
     pub fn admin_cmd(&self) -> Command {
@@ -204,7 +204,7 @@ impl ServerGuard {
         cmd.arg("--unix-path").arg(&self.runstate_dir);
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("CLICOLOR", "0");
-        return cmd
+        cmd
     }
 
     pub fn admin_cmd_deprecated(&self) -> Command {
@@ -215,14 +215,14 @@ impl ServerGuard {
         cmd.arg("--host").arg(&self.runstate_dir);
         cmd.arg("--port").arg(self.port.to_string());
         cmd.env("CLICOLOR", "0");
-        return cmd
+        cmd
     }
 
     pub fn raw_cmd(&self) -> Command {
         let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
         cmd.arg("--no-cli-update-check");
         cmd.env("CLICOLOR", "0");
-        return cmd
+        cmd
     }
 
     #[cfg(not(windows))]
@@ -236,7 +236,7 @@ impl ServerGuard {
         cmd.arg("--admin");
         cmd.arg("--unix-path").arg(&self.runstate_dir);
         cmd.arg("--port").arg(self.port.to_string());
-        return spawn_command(cmd, Some(10000)).expect("start interactive");
+        spawn_command(cmd, Some(10000)).expect("start interactive")
     }
     #[cfg(not(windows))]
     pub fn custom_interactive(&self, f: impl FnOnce(&mut process::Command))
@@ -254,7 +254,7 @@ impl ServerGuard {
         cmd.arg("--tls-ca-file").arg(&self.tls_cert_file);
         cmd.env("CLICOLOR", "0");
         f(&mut cmd);
-        return spawn_command(cmd, Some(10000)).expect("start interactive");
+        spawn_command(cmd, Some(10000)).expect("start interactive")
     }
 
     pub fn database_cmd(&self, database_name: &str) -> Command {
@@ -265,7 +265,7 @@ impl ServerGuard {
         cmd.arg("--port").arg(self.port.to_string());
         cmd.arg("--database").arg(database_name);
         cmd.arg("--tls-ca-file").arg(&self.tls_cert_file);
-        return cmd
+        cmd
     }
 }
 

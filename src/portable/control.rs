@@ -39,7 +39,7 @@ fn daemon_start(instance: &str) -> anyhow::Result<()> {
             log::info!("Instance {:?} is already running", instance);
             return Ok(())
         }
-        process::Native::new("edgedb cli", "edgedb-cli", &current_exe()?)
+        process::Native::new("edgedb cli", "edgedb-cli", current_exe()?)
             .arg("instance")
             .arg("start")
             .arg("-I").arg(instance)
@@ -140,7 +140,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     let pid_path = pid_file_path(&meta.name)?;
     let log_path = log_file(&meta.name)?;
     if let Some(dir) = log_path.parent() {
-        fs_err::create_dir_all(&dir)?;
+        fs_err::create_dir_all(dir)?;
     }
     let log_file = fs_err::OpenOptions::new()
         .create(true).write(true).append(true)
@@ -152,7 +152,7 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
     } if let Some(dir) = notify_socket.parent() {
         fs_err::create_dir_all(dir)?;
     }
-    get_server_cmd(&meta, false)?
+    get_server_cmd(meta, false)?
         .env("NOTIFY_SOCKET", &notify_socket)
         .pid_file(&pid_path)
         .log_file(&log_path)?
@@ -186,7 +186,8 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
                 }
                 drop(null);
 
-                Ok(pending::<()>().await)
+                pending::<()>().await;
+                Ok(())
             })
         })
 }
@@ -234,7 +235,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
         let mut needs_restart = false;
         let try_write = lock.try_write();
         let lock = if let Ok(mut lock) = try_write {
-            write_lock_info(&lock_path, &mut *lock, &options.managed_by)?;
+            write_lock_info(&lock_path, &mut lock, &options.managed_by)?;
             lock
         } else {
             drop(try_write);
@@ -258,7 +259,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
                     locked_by.escape_default());
             }
             let mut lock = lock.write()?;
-            write_lock_info(&lock_path, &mut *lock, &options.managed_by)?;
+            write_lock_info(&lock_path, &mut lock, &options.managed_by)?;
             lock
         };
         if matches!(options.managed_by.as_deref(), Some("edgedb-cli")) {
@@ -340,8 +341,8 @@ pub fn read_pid(instance: &str) -> anyhow::Result<Option<u32>> {
             Ok(None)
         }
         Err(e) => {
-            return Err(e)
-                .context(format!("cannot read pid file {:?}", pid_path))?;
+            Err(e)
+                .context(format!("cannot read pid file {:?}", pid_path))?
         }
     }
 }
@@ -365,17 +366,15 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
     if lock.try_read().is_err() {  // properly running
         if supervisor && is_run_by_supervisor(lock) {
             supervisor_stop(name)
+        } else if let Some(pid) = read_pid(name)? {
+            log::info!("Stopping EdgeDB with pid {}", pid);
+            process::term(pid)?;
+            // wait for unlock
+            let _ = open_lock(name)?
+                .read().context("cannot acquire read lock")?;
+            Ok(())
         } else {
-            if let Some(pid) = read_pid(name)? {
-                log::info!("Stopping EdgeDB with pid {}", pid);
-                process::term(pid)?;
-                // wait for unlock
-                let _ = open_lock(name)?
-                    .read().context("cannot acquire read lock")?;
-                Ok(())
-            } else {
-                return Err(bug::error("cannot find pid"));
-            }
+            Err(bug::error("cannot find pid"))
         }
     } else {  // probably not running
         if supervisor {
@@ -412,11 +411,11 @@ pub fn stop(options: &Stop) -> anyhow::Result<()> {
 
 fn supervisor_stop_and_disable(instance: &str) -> anyhow::Result<bool> {
     if cfg!(target_os="macos") {
-        macos::stop_and_disable(&instance)
+        macos::stop_and_disable(instance)
     } else if cfg!(target_os="linux") {
-        linux::stop_and_disable(&instance)
+        linux::stop_and_disable(instance)
     } else if cfg!(windows) {
-        windows::stop_and_disable(&instance)
+        windows::stop_and_disable(instance)
     } else {
         anyhow::bail!("service is not supported on the platform");
     }

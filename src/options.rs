@@ -508,7 +508,7 @@ fn make_subcommand_help(parent: &clap::Command) -> String {
 
         let text = textwrap::fill(text, details_width);
         let mut lines = text.lines();
-        let mut new_lines = vec![lines.nth(0).unwrap().to_string()];
+        let mut new_lines = vec![lines.next().unwrap().to_string()];
         for line in lines {
             new_lines.push(
                 format!("  {:padding$} {}", " ", line, padding=padding)
@@ -575,7 +575,7 @@ fn make_subcommand_help(parent: &clap::Command) -> String {
     }
     buf.truncate(buf.trim_end().len());
 
-    return buf;
+    buf
 }
 
 fn update_main_help(mut app: clap::Command) -> clap::Command {
@@ -588,15 +588,13 @@ fn update_main_help(mut app: clap::Command) -> clap::Command {
     let subcmd_index = help.find("Commands:").unwrap();
     let opt_index = help.find("Options:").unwrap();
 
-    let help = vec![
-        &help[..subcmd_index],
+    let help = [&help[..subcmd_index],
         &sub_cmd,
         &color_print::cformat!("\n\n<bold><underline>Options:</underline></bold>"),
-        &help[(opt_index + 8)..]
-    ].join("");
+        &help[(opt_index + 8)..]].join("");
 
     let help = std::str::from_utf8(Vec::leak(help.into())).unwrap();
-    return app.override_help(help);
+    app.override_help(help)
 }
 
 fn print_full_connection_options() {
@@ -764,7 +762,7 @@ impl Options {
         }
 
         Ok(Options {
-            app: app,
+            app,
             conn_options: args.conn,
             cloud_options: args.cloud,
             interactive,
@@ -785,7 +783,7 @@ impl Options {
     }
 
     pub async fn create_connector(&self) -> anyhow::Result<Connector> {
-        let mut builder = prepare_conn_params(&self)?;
+        let mut builder = prepare_conn_params(self)?;
         if self.conn_options.password_from_stdin || self.conn_options.password {
             // Temporary set an empty password. It will be overriden by
             // `config.with_password()` but we need it here so that
@@ -853,7 +851,7 @@ async fn with_password(options: &ConnectionOptions, config: Config)
     -> anyhow::Result<Config>
 {
     if options.password_from_stdin {
-        let password = unblock(|| tty_password::read_stdin()).await??;
+        let password = unblock(tty_password::read_stdin).await??;
         Ok(config.with_password(&password))
     } else if options.no_password {
         Ok(config)
@@ -931,7 +929,7 @@ pub fn load_tls_options(options: &ConnectionOptions, builder: &mut Builder)
     -> anyhow::Result<()>
 {
     if let Some(cert_file) = &options.tls_ca_file {
-        builder.tls_ca_file(&cert_file);
+        builder.tls_ca_file(cert_file);
     }
     let mut security = match options.tls_security.as_deref() {
         None => None,

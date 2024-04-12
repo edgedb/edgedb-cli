@@ -30,13 +30,13 @@ impl<I: Clone> Stream for UnfusedStream<'_, I> {
         -> task::Poll<Option<Self::Item>>
     {
         let val = self.0.as_mut().expect("no poll after EOS");
-        if val.len() == 0 {
+        if val.is_empty() {
             self.0.take().unwrap();
             return task::Poll::Ready(None);
         }
         let item = val[0].clone();
         *val = &val[1..];
-        return task::Poll::Ready(Some(Ok(item)));
+        task::Poll::Ready(Some(Ok(item)))
     }
 }
 
@@ -81,7 +81,7 @@ fn json_fmt_width(w: usize, j: &str) -> String {
     print::json_to_string(
         serde_json::from_str::<serde_json::Value>(j).unwrap()
         .as_array().unwrap(),
-        &Config::new().max_width(w))
+        Config::new().max_width(w))
     .unwrap()
 }
 
@@ -204,30 +204,30 @@ fn set_ellipsis() {
 fn vector() {
     use crate::repl::VectorLimit::*;
     assert_eq!(test_format(&[
-        Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+        Value::Vector((0..10).map(|v| v as _).collect()),
     ]).unwrap(), "{<ext::pgvector::vector>[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}");
     assert_eq!(
         test_format_cfg(&[
-            Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+            Value::Vector((0..10).map(|v| v as _).collect()),
         ], Config::new().max_vector_length(Fixed(2))).unwrap(),
         "{<ext::pgvector::vector>[0, 1, ...]}",
     );
     assert_eq!(
         test_format_cfg(&[
-            Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+            Value::Vector((0..10).map(|v| v as _).collect()),
         ], Config::new().max_vector_length(Unlimited)).unwrap(),
         "{<ext::pgvector::vector>[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}",
     );
     assert_eq!(
         test_format_cfg(&[
-            Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+            Value::Vector((0..10).map(|v| v as _).collect()),
         ], Config::new().max_width(20).max_vector_length(Auto)).unwrap(),
         "{\n  \
            <ext::pgvector::vector>[\n    0,\n    1,\n    2,\n    ...\n  ],\n}",
     );
     assert_eq!(
         test_format_cfg(&[
-            Value::Vector((0..10).into_iter().map(|v| v as _).collect()),
+            Value::Vector((0..10).map(|v| v as _).collect()),
         ], Config::new().max_width(50).max_vector_length(Auto)).unwrap(),
         "{\n  <ext::pgvector::vector>[0, 1, 2, 3, 4, 5, ...],\n}",
     );
@@ -404,7 +404,7 @@ fn all_widths_vec_obj() {
             test_format_cfg(&[
                 Value::Object { shape: shape.clone(), fields: vec![
                     Some(Value::Vector(
-                        (0..200).into_iter().map(|v| v as _).collect()
+                        (0..200).map(|v| v as _).collect()
                     )),
                 ]},
             ], Config::new().max_width(width).max_vector_length(mvec)).unwrap();
@@ -418,7 +418,7 @@ fn all_widths_vec() {
     for mvec in [Auto, Unlimited, Fixed(8), Fixed(35)] {
         for width in 0..100 {
             test_format_cfg(&[
-                Value::Vector((0..200).into_iter().map(|v| v as _).collect()),
+                Value::Vector((0..200).map(|v| v as _).collect()),
             ], Config::new().max_width(width).max_vector_length(mvec)).unwrap();
         }
     }

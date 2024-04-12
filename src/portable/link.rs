@@ -6,9 +6,9 @@ use std::sync::{Mutex, Arc};
 
 use anyhow::Context;
 use colorful::Colorful;
-use pem;
+
 use ring::digest;
-use rustls;
+
 use rustls::client::WebPkiServerVerifier;
 use rustls::client::danger::{ServerCertVerifier, ServerCertVerified};
 use rustls::client::danger::HandshakeSignatureValid;
@@ -86,7 +86,7 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                 // Acquire consensus to trust the root of presented_certs chain
                 let fingerprint = digest::digest(
                     &digest::SHA1_FOR_LEGACY_USE_ONLY,
-                    &end_entity,
+                    end_entity,
                 );
                 if self.trust_tls_cert {
                     if !self.quiet {
@@ -97,19 +97,17 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                     }
                 } else if self.non_interactive {
                     return Err(e);
-                } else {
-                    if let Ok(answer) = question::Confirm::new(
-                        format!(
-                            "Unknown server certificate: {:?}. Trust?",
-                            fingerprint,
-                        )
-                    ).default(false).ask() {
-                        if !answer {
-                            return Err(e);
-                        }
-                    } else {
+                } else if let Ok(answer) = question::Confirm::new(
+                    format!(
+                        "Unknown server certificate: {:?}. Trust?",
+                        fingerprint,
+                    )
+                ).default(false).ask() {
+                    if !answer {
                         return Err(e);
                     }
+                } else {
+                    return Err(e);
                 }
 
                 // Export the cert in PEM format and return verification success
@@ -156,10 +154,10 @@ fn gen_default_instance_name(input: impl fmt::Display) -> String {
     if name.is_empty() {
         return "inst1".into();
     }
-    if matches!(name.chars().next().unwrap(), '0'..='9') {
+    if name.chars().next().unwrap().is_ascii_digit() {
         name.insert(0, '_');
     }
-    return name;
+    name
 }
 
 #[tokio::main]
@@ -169,7 +167,7 @@ async fn connect(cfg: &edgedb_tokio::Config) -> Result<Connection, Error> {
 
 #[tokio::main]
 async fn conn_params(cmd: &Link, opts: &Options) -> anyhow::Result<Config> {
-    let mut builder = options::prepare_conn_params(&opts)?;
+    let mut builder = options::prepare_conn_params(opts)?;
     prompt_conn_params(&opts.conn_options, &mut builder, cmd).await
 }
 
@@ -188,7 +186,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let inner = WebPkiServerVerifier::builder(Arc::new(root_cert_store)).build()?;
     let verifier = Arc::new(
         InteractiveCertVerifier {
-            inner: inner,
+            inner,
             cert_out: Mutex::new(None),
             tls_security: creds.tls_security,
             system_ca_only: creds.tls_ca.is_none(),
@@ -383,7 +381,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
             "use `edgedb instance destroy -I {}` to remove the instance",
              name))?;
     }
-    with_projects(&name, options.force, print_warning, || {
+    with_projects(name, options.force, print_warning, || {
         fs::remove_file(credentials::path(name)?)
             .with_context(|| format!("cannot unlink {}", name))
     })?;

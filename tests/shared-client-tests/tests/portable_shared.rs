@@ -79,17 +79,17 @@ impl Drop for MockFile {
             return;
         }
         if self.is_dir {
-            fs::remove_dir(&self.path).expect(&format!("rmdir {:?}", self.path));
+            fs::remove_dir(&self.path).unwrap_or_else(|_| panic!("rmdir {:?}", self.path));
         } else {
-            fs::remove_file(&self.path).expect(&format!("rm {:?}", self.path));
+            fs::remove_file(&self.path).unwrap_or_else(|_| panic!("rm {:?}", self.path));
         }
     }
 }
 
 fn mock_file(path: &str, content: &str) -> MockFile {
     let path = PathBuf::from(path);
-    ensure_dir(&path.parent().unwrap());
-    fs::write(&path, content).expect(&format!("write {path:?}"));
+    ensure_dir(path.parent().unwrap());
+    fs::write(&path, content).unwrap_or_else(|_| panic!("write {path:?}"));
     MockFile { path, is_dir: false }
 }
 
@@ -148,7 +148,7 @@ fn mock_project(
 
 fn ensure_dir(path: &Path) {
     if !path.exists() {
-        fs::create_dir_all(path).expect(&format!("mkdir -p {path:?}"));
+        fs::create_dir_all(path).unwrap_or_else(|_| panic!("mkdir -p {path:?}"));
     }
 }
 

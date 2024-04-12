@@ -45,7 +45,7 @@ pub async fn list_casts<'x>(cli: &mut Connection, options: &Options,
         ORDER BY .kind THEN .from_type.name THEN .to_type.name;
     "###, filter=filter);
     let items = filter::query::<Cast>(cli,
-        &query, &pattern, case_sensitive).await?;
+        query, pattern, case_sensitive).await?;
     if !options.command_line || std::io::stdout().is_terminal() {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);

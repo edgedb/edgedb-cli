@@ -104,7 +104,7 @@ pub trait Highlight: fmt::Display + Sized {
 }
 
 fn theme() -> &'static Theme {
-    &*THEME
+    &THEME
 }
 
 impl<T: fmt::Display> Highlight for &T {

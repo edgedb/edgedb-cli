@@ -22,7 +22,7 @@ fn end_of_last_token(data: &str) -> Option<u64> {
     for tok in &mut tokenizer {
         off = tok.ok()?.span.end;
     }
-    return Some(off);
+    Some(off)
 }
 
 fn get_error_info<'x>(err: &Error, source_map: &'x SourceMap<SourceName>)
@@ -33,17 +33,17 @@ fn get_error_info<'x>(err: &Error, source_map: &'x SourceMap<SourceName>)
     let (src, offset) = source_map.translate_range(pstart, pend).ok()?;
     let res = match src {
         SourceName::File(path) => {
-            let data = fs::read_to_string(&path).ok()?;
+            let data = fs::read_to_string(path).ok()?;
             (path.as_ref(), data, pstart - offset, pend - offset, false)
         }
         SourceName::Semicolon(path) => {
-            let data = fs::read_to_string(&path).ok()?;
+            let data = fs::read_to_string(path).ok()?;
             let tok_offset = end_of_last_token(&data)? as usize;
             (path.as_ref(), data, tok_offset, tok_offset, true)
         }
         _ => return None,
     };
-    return Some(res);
+    Some(res)
 }
 
 pub fn print_migration_error(err: &Error, source_map: &SourceMap<SourceName>)
@@ -61,7 +61,7 @@ pub fn print_migration_error(err: &Error, source_map: &SourceMap<SourceName>)
     let message = if eof {
         "Unexpected end of file"
     } else {
-        &err.initial_message().unwrap_or(err.kind_name())
+        err.initial_message().unwrap_or(err.kind_name())
     };
     let hint = err.hint().unwrap_or("error");
     let detail = err.details().map(|s| s.into());

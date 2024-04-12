@@ -50,7 +50,7 @@ impl MigrationToText for MergeMigration {
         Ok(self.migration.name.as_str())
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&self) -> Self::StatementsIter<'_> {
         std::iter::once(&self.migration.script)
     }
 }
@@ -82,7 +82,7 @@ pub async fn get_merge_migrations(base: &mut Connection, target: &mut Connection
         }
     }
 
-    if diverging_migrations.len() > 0 {
+    if !diverging_migrations.is_empty() {
         eprintln!("\nThe migration history of {} diverges from {}:", target.database(), base.database());
 
         for (index, expecting, actual) in &diverging_migrations {

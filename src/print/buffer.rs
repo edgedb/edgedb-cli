@@ -131,7 +131,7 @@ impl<T: Output> Printer<T> {
     pub(in crate::print) fn write_indent(&mut self) -> Result<T::Error> {
         //debug_assert_eq!(self.column, 0);
         //debug_assert!(!self.flow);
-        const INDENT32: &'static str = "                                ";
+        const INDENT32: &str = "                                ";
         for _ in 0..(self.cur_indent / INDENT32.len()) {
             self.buffer.push_str(INDENT32);
         }

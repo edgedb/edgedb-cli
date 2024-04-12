@@ -51,9 +51,9 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
                            cand.version, inst_name);
             }
             all = false;
-            return false;
+            false
         } else {
-            return true;
+            true
         }
     });
     let mut uninstalled = 0;
@@ -72,7 +72,7 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
     if !all && !options.unused {
         echo!("Uninstalled", uninstalled.emphasize(), "versions.");
         print::error("some instances are in use. See messages above.");
-        return Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS))?;
+        Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS))?;
     } else if uninstalled > 0 {
         echo!("Successfully uninstalled",
                uninstalled.emphasize(), "versions.");

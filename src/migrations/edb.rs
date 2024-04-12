@@ -36,7 +36,7 @@ pub async fn query_row<R>(cli: &mut Connection, text: &str)
     -> Result<R, Error>
     where R: Queryable
 {
-    let text = text.as_ref();
+    let text = text;
     log::debug!(target: "edgedb::migrations::query", "Executing `{}`", text);
     cli.query_required_single(text, &()).await
 }

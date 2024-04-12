@@ -120,14 +120,14 @@ fn unpack_package(cache_file: &Path, target_dir: &Path)
     -> anyhow::Result<()>
 {
     if target_dir.exists() {
-        fs::remove_dir_all(&target_dir)?;
+        fs::remove_dir_all(target_dir)?;
     }
-    fs::create_dir_all(&target_dir)?;
+    fs::create_dir_all(target_dir)?;
 
     // needed for long paths on windows
     let target_dir = target_dir.canonicalize()?;
 
-    let file = fs::File::open(&cache_file)?;
+    let file = fs::File::open(cache_file)?;
     let bar = ProgressBar::new(file.metadata()?.len());
     bar.set_style(
         ProgressStyle::default_bar()
@@ -140,7 +140,7 @@ fn unpack_package(cache_file: &Path, target_dir: &Path)
     for entry in arch.entries()? {
         let mut entry = entry?;
         let path = entry.path()?;
-        if let Some(path) = build_path(&target_dir, &*path)? {
+        if let Some(path) = build_path(&target_dir, &path)? {
             entry.unpack(path)?;
         }
     }
@@ -149,7 +149,7 @@ fn unpack_package(cache_file: &Path, target_dir: &Path)
 }
 
 fn unlink_cache(cache_file: &Path) {
-    fs::remove_file(&cache_file)
+    fs::remove_file(cache_file)
         .map_err(|e| {
             log::warn!("Failed to remove cache {:?}: {}", cache_file, e);
         }).ok();
@@ -160,7 +160,7 @@ pub fn install(options: &Install) -> anyhow::Result<()> {
         print::error(
             "`edgedb server install` not supported in Docker containers.",
         );
-        return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
+        Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     let (query, _) = Query::from_options(QueryOptions {
             nightly: options.nightly,
@@ -183,9 +183,9 @@ pub fn version(query: &Query) -> anyhow::Result<InstallInfo> {
 }
 
 pub fn specific(version: &ver::Specific) -> anyhow::Result<InstallInfo> {
-    let target_dir = platform::portable_dir()?.join(&version.to_string());
+    let target_dir = platform::portable_dir()?.join(version.to_string());
     if target_dir.exists() {
-        return Ok(InstallInfo::read(&target_dir)?);
+        return InstallInfo::read(&target_dir);
     }
     let pkg = get_specific_package(version)?
         .with_context(|| format!("cannot find package {}", version))?;
@@ -194,9 +194,9 @@ pub fn specific(version: &ver::Specific) -> anyhow::Result<InstallInfo> {
 
 pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     let ver_name = pkg_info.version.specific().to_string();
-    let target_dir = platform::portable_dir()?.join(&ver_name);
+    let target_dir = platform::portable_dir()?.join(ver_name);
     if target_dir.exists() {
-        let meta = check_metadata(&target_dir, &pkg_info)?;
+        let meta = check_metadata(&target_dir, pkg_info)?;
         if INSTALLED_VERSIONS.lock().unwrap().insert(meta.version.clone()) {
             echo!("Version", meta.version.emphasize(),
                   "is already downloaded");
@@ -205,7 +205,7 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     }
 
     echo!("Downloading package...");
-    let cache_path = download_package(&pkg_info)?;
+    let cache_path = download_package(pkg_info)?;
     let tmp_target = platform::tmp_file_path(&target_dir);
     unpack_package(&cache_path, &tmp_target)?;
     let info = InstallInfo {

@@ -91,7 +91,7 @@ pub fn read_ports() -> anyhow::Result<BTreeMap<String, u16>> {
 
 #[context("failed reading port mapping {}", path.display())]
 fn _read_ports(path: &Path) -> anyhow::Result<BTreeMap<String, u16>> {
-    let data = match fs::read_to_string(&path) {
+    let data = match fs::read_to_string(path) {
         Ok(data) if data.is_empty() => {
             return Ok(BTreeMap::new());
         }
@@ -187,13 +187,13 @@ pub fn write_json<T: serde::Serialize>(path: &Path, title: &str, data: &T)
     Ok(())
 }
 
-fn list_installed<'x>(dir: &'x Path)
+fn list_installed(dir: &Path)
     -> anyhow::Result<
-        impl Iterator<Item=anyhow::Result<(ver::Specific, PathBuf)>> + 'x
+        impl Iterator<Item=anyhow::Result<(ver::Specific, PathBuf)>> + '_
     >
 {
     let err_ctx = move || format!("error reading directory {:?}", dir);
-    let dir = fs::read_dir(&dir).with_context(err_ctx)?;
+    let dir = fs::read_dir(dir).with_context(err_ctx)?;
     Ok(dir.filter_map(move |result| {
         let entry = match result {
             Ok(entry) => entry,
@@ -202,10 +202,10 @@ fn list_installed<'x>(dir: &'x Path)
         let ver_opt = entry.file_name().to_str()
             .and_then(|x| x.parse().ok());
         if let Some(ver) = ver_opt {
-            return Some(Ok((ver, entry.path())))
+            Some(Ok((ver, entry.path())))
         } else {
             log::info!("Skipping directory {:?}", entry.path());
-            return None
+            None
         }
     }))
 }
@@ -368,7 +368,7 @@ fn installation_path(ver: &ver::Specific) -> anyhow::Result<PathBuf> {
 
 impl InstallInfo {
     pub fn base_path(&self) -> anyhow::Result<PathBuf> {
-        Ok(installation_path(&self.version.specific())?)
+        installation_path(&self.version.specific())
     }
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
         Ok(self.base_path()?.join("bin").join("edgedb-server"))
@@ -400,7 +400,7 @@ pub fn is_valid_local_instance_name(name: &str) -> bool {
             was_dash = false;
         }
     }
-    return !was_dash;
+    !was_dash
 }
 
 pub fn is_valid_cloud_name(name: &str) -> bool {
@@ -428,7 +428,7 @@ pub fn is_valid_cloud_name(name: &str) -> bool {
             was_dash = false;
         }
     }
-    return !was_dash;
+    !was_dash
 }
 
 #[derive(Debug, thiserror::Error)]

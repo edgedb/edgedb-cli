@@ -44,23 +44,23 @@ fn print_diff(path1: &Path, data1: &str, path2: &Path, data2: &str) {
     println!("--- {}", path1.display());
     println!("+++ {}", path2.display());
     let changeset = diff(data1, data2);
-    let n1 = data1.split("\n").count();
-    let n2 = data2.split("\n").count();
+    let n1 = data1.split('\n').count();
+    let n2 = data2.split('\n').count();
     println!("@@ -1,{} +1,{}", n1, n2);
     for item in &changeset {
         match item {
             Chunk::Equal(block) => {
-                for line in block.split("\n") {
+                for line in block.split('\n') {
                     println!(" {}", line);
                 }
             }
             Chunk::Insert(block) => {
-                for line in block.split("\n") {
+                for line in block.split('\n') {
                     println!("+{}", line.added());
                 }
             }
             Chunk::Delete(block) => {
-                for line in block.split("\n") {
+                for line in block.split('\n') {
                     println!("-{}", line.deleted());
                 }
             }
@@ -108,9 +108,9 @@ async fn check_migration(cli: &mut Connection, text: &str, path: &Path)
     -> anyhow::Result<()>
 {
     cli.execute("START TRANSACTION", &()).await?;
-    let res = cli.execute(&text, &()).await.map_err(|err| {
+    let res = cli.execute(text, &()).await.map_err(|err| {
         let fname = path.display().to_string();
-        match print_query_error(&err, &text, false, &fname) {
+        match print_query_error(&err, text, false, &fname) {
             Ok(()) => err.into(),
             Err(err) => err,
         }
@@ -118,7 +118,7 @@ async fn check_migration(cli: &mut Connection, text: &str, path: &Path)
     cli.execute("ROLLBACK", &()).await
         .map_err(|e| log::warn!("Error rolling back the transaction: {:#}", e))
         .ok();
-    return res.map(|_| ());
+    res.map(|_| ())
 }
 
 pub async fn edit(cli: &mut Connection,
@@ -128,7 +128,7 @@ pub async fn edit(cli: &mut Connection,
     let old_state = cli.set_ignore_error_state();
     let res = _edit(cli, common, options).await;
     cli.restore_state(old_state);
-    return res;
+    res
 }
 
 async fn _edit(cli: &mut Connection,
@@ -309,9 +309,9 @@ fn default() {
             CREATE TYPE X;
         };
     ";
-    let migration = parse_migration(&original).unwrap();
-    let new_id = migration.expected_id(&original).unwrap();
-    assert_eq!(migration.replace_id(&original, &new_id), "
+    let migration = parse_migration(original).unwrap();
+    let new_id = migration.expected_id(original).unwrap();
+    assert_eq!(migration.replace_id(original, &new_id), "
         CREATE MIGRATION m1uaw5ik4wg4w33jj35sjgdgg3pai23ysqy5pi7xmxqnd3gtneb57q
         ONTO m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq
         {
@@ -329,9 +329,9 @@ fn space() {
             CREATE TYPE X;
         };
     ";
-    let migration = parse_migration(&original).unwrap();
-    let new_id = migration.expected_id(&original).unwrap();
-    assert_eq!(migration.replace_id(&original, &new_id), "
+    let migration = parse_migration(original).unwrap();
+    let new_id = migration.expected_id(original).unwrap();
+    assert_eq!(migration.replace_id(original, &new_id), "
         CREATE MIGRATION \
             m1uaw5ik4wg4w33jj35sjgdgg3pai23ysqy5pi7xmxqnd3gtneb57q \
             ONTO m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq

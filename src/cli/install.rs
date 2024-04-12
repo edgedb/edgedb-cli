@@ -157,14 +157,14 @@ pub fn no_dir_in_path(dir: &Path) -> bool {
             }
         }
     }
-    return true;
+    true
 }
 
 fn is_zsh() -> bool {
     if let Ok(shell) = env::var("SHELL") {
         return shell.contains("zsh");
     }
-    return false;
+    false
 }
 
 pub fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
@@ -249,7 +249,7 @@ fn print_post_install_message(settings: &Settings,
         let func_dir = home_dir().ok().map(|p| p.join(".zfunc"));
         let func_dir = func_dir.as_ref().and_then(|p| p.to_str());
         if let Some((fpath, func_dir)) = fpath.zip(func_dir) {
-            if !fpath.split(" ").any(|s| s == func_dir) {
+            if !fpath.split(' ').any(|s| s == func_dir) {
                 print_markdown!("\n\
                     To enable zsh completion, add:\n\
                     ```\n\
@@ -521,15 +521,15 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
             let line = format!("\nexport PATH=\"{}:$PATH\"",
                                settings.installation_path.display());
             for path in &settings.rc_files {
-                ensure_line(&path, &line)
+                ensure_line(path, &line)
                     .with_context(|| format!(
                         "failed to update profile file {:?}", path))?;
             }
             if let Some(dir) = settings.env_file.parent() {
-                fs::create_dir_all(&dir)
+                fs::create_dir_all(dir)
                     .with_context(|| format!("failed to create {:?}", dir))?;
             }
-            fs::write(&settings.env_file, &(line + "\n"))
+            fs::write(&settings.env_file, line + "\n")
                 .with_context(|| format!("failed to write env file {:?}",
                                          settings.env_file))?;
         }
@@ -696,9 +696,9 @@ pub fn windows_augment_path<F: FnOnce(&[PathBuf]) -> Option<std::ffi::OsString>>
 #[context("writing completion file {:?}", path)]
 fn write_completion(path: &Path, shell: Shell) -> anyhow::Result<()> {
     if let Some(dir) = path.parent() {
-        fs::create_dir_all(&dir)?;
+        fs::create_dir_all(dir)?;
     }
-    shell.generate(&mut BufWriter::new(fs::File::create(&path)?));
+    shell.generate(&mut BufWriter::new(fs::File::create(path)?));
     Ok(())
 }
 

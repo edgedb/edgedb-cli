@@ -53,7 +53,7 @@ pub fn all_packages() -> Vec<PackageInfo> {
         Ok(nightly) => pkgs.extend(nightly),
         Err(e) => log::warn!("Unable to fetch nightly packages: {:#}", e),
     }
-    return pkgs;
+    pkgs
 }
 
 pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
@@ -111,8 +111,7 @@ pub fn list_versions(options: &ListVersions) -> Result<(), anyhow::Error> {
                     .collect::<Vec<_>>()
             )?);
         } else {
-            print_table(version_set.into_iter()
-                        .map(|(_, vp)| match vp.install {
+            print_table(version_set.into_values().map(|vp| match vp.install {
                             Some(v) => (v.version, true),
                             None => (vp.package.unwrap().version, false),
                         }));
@@ -132,7 +131,7 @@ fn print_table(items: impl Iterator<Item=(ver::Build, bool)>) {
     for (ver, installed) in items {
         let channel = Channel::from_version(&ver.specific());
         table.add_row(Row::new(vec![
-            Cell::new(&channel.as_ref().map_or("nightly", |x| x.as_str())),
+            Cell::new(channel.as_ref().map_or("nightly", |x| x.as_str())),
             Cell::new(&ver.to_string()),
             Cell::new(if installed { "✓" } else { "" }),
         ]));

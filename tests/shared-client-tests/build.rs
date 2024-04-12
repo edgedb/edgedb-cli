@@ -129,7 +129,7 @@ static MUTEX: Mutex<()> = Mutex::new(());
         let fs = case
             .get("fs")
             .and_then(|v| v.as_object())
-            .unwrap_or_else(|| &empty_map);
+            .unwrap_or(&empty_map);
         let platform = match case.get("platform").and_then(|p| p.as_str()) {
             Some("macos") => {
                 write!(testcase, "#[cfg(target_os=\"macos\")]");
@@ -170,7 +170,7 @@ static MUTEX: Mutex<()> = Mutex::new(());
             }
             if let Some(host) = opts.get("host") {
                 if let Some(host) = host.as_str() {
-                    if host.starts_with("/") {
+                    if host.starts_with('/') {
                         should_panic = true;
                     }
                 }

@@ -198,8 +198,8 @@ pub async fn get_current_region(
     client
         .get(url)
         .await
-        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
-            _ => Err(e),
+        .map_err(|e| match e.downcast_ref::<ErrorResponse>() {
+            _ => e,
         })
 }
 
@@ -211,8 +211,8 @@ pub async fn get_versions(
     client
         .get(url)
         .await
-        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
-            _ => Err(e),
+        .map_err(|e| match e.downcast_ref::<ErrorResponse>() {
+            _ => e,
         })
 }
 
@@ -224,8 +224,8 @@ pub async fn get_prices(
     let mut resp: PricesResponse = client
         .get(url)
         .await
-        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
-            _ => Err(e),
+        .map_err(|e| match e.downcast_ref::<ErrorResponse>() {
+            _ => e,
         })?;
 
     let billable_id_to_name: HashMap<String, String> = resp.billables

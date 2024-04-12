@@ -42,12 +42,12 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
                 Common::Migration(
                     Migration { subcommand: M::Log(mlog), .. }
                 ) if mlog.from_fs => {
-                    migrations::log_fs(&cmdopt, &mlog).into()
+                    migrations::log_fs(&cmdopt, mlog)
                 }
                 Common::Migration(
                     Migration { subcommand: M::Edit(params), .. }
                 ) if params.no_check => {
-                    migrations::edit_no_check(&cmdopt, &params).into()
+                    migrations::edit_no_check(&cmdopt, params)
                 }
                 Common::Migration(
                     Migration { subcommand: M::UpgradeCheck(params), .. }
@@ -72,7 +72,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         }
         Command::Query(q) => {
             directory_check::check_and_warn();
-            non_interactive::noninteractive_main(&q, options).into()
+            non_interactive::noninteractive_main(q, options)
         }
         Command::_SelfInstall(s) => {
             cli::install::main(s)
@@ -84,7 +84,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
             cli::main(c)
         },
         Command::Info(info) => {
-            commands::info(options, info).into()
+            commands::info(options, info)
         }
         Command::UI(c) => {
             commands::show_ui(c, options)

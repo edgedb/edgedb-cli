@@ -96,7 +96,7 @@ fn print_table(items: impl Iterator<Item=SecretKey>) {
             Cell::new(&key.scopes.join(", ")),
         ]));
     }
-    if table.len() > 0 {
+    if !table.is_empty() {
         table.printstd();
     } else {
         println!("No secret keys present.")

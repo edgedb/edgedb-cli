@@ -32,7 +32,7 @@ pub async fn create_branch(connection: &mut Connection, name: &String, from: &St
             "create {} branch {} from {}",
             branch_type,
             branch_name,
-            edgeql_parser::helpers::quote_name(&from)
+            edgeql_parser::helpers::quote_name(from)
         )
     }
 

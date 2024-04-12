@@ -57,7 +57,7 @@ impl<N> SourceMap<N> {
                 return Ok((&slice.name, slice.byte_offset));
             }
         }
-        return Err(())
+        Err(())
     }
 }
 

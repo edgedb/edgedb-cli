@@ -109,8 +109,7 @@ fn configure_all_parameters() {
         .map(|line| line.split_whitespace().next().unwrap())
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
-    let db_reset_options = db_object_options.union(&db_simple_options)
-        .map(|x| *x).collect::<BTreeSet<_>>();
+    let db_reset_options = db_object_options.union(&db_simple_options).copied().collect::<BTreeSet<_>>();
     if !db_reset_options.is_subset(&cmd_reset_options) {
         assert_eq!(db_reset_options, cmd_reset_options); // nice diff
     }

@@ -84,7 +84,7 @@ pub async fn migrations_applied(cli: &mut Connection, ctx: &Context,
     if db_migration.as_ref() != migrations.keys().last() {
         if !ctx.quiet {
             if let Some(db_migration) = &db_migration {
-                if let Some(_) = migrations.get(db_migration) {
+                if migrations.get(db_migration).is_some() {
                     let mut iter = migrations.keys()
                         .skip_while(|k| k != &db_migration);
                     iter.next(); // skip db_migration itself

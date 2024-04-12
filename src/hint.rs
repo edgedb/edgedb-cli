@@ -71,7 +71,7 @@ impl fmt::Display for HintedError {
 
 impl ArcError {
     pub fn inner(&self) -> &anyhow::Error {
-        &*self.0
+        &self.0
     }
 }
 

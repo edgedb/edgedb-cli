@@ -100,7 +100,7 @@ fn _check(cache_dir: &Path, strict: bool) -> anyhow::Result<()> {
         });
     if let Some(ver) = &pkg {
         if &self_version < ver {
-            newer_warning(&ver);
+            newer_warning(ver);
         }
     }
     log::debug!("Remote version {:?}", pkg);

@@ -45,8 +45,8 @@ pub fn create_service(info: &InstanceInfo)
         .with_context(|| format!("cannot create directory {:?}", unit_dir))?;
     let unit_name = unit_name(name);
     let socket_name = socket_name(name);
-    let unit_path = unit_dir.join(&unit_name);
-    let socket_unit_path = unit_dir.join(&socket_name);
+    let unit_path = unit_dir.join(unit_name);
+    let socket_unit_path = unit_dir.join(socket_name);
     fs::write(&unit_path, systemd_unit(name, info)?)
         .with_context(|| format!("cannot write {:?}", unit_path))?;
     if info.get_version()?.specific().major >= 2 {
@@ -258,11 +258,11 @@ fn _detect_systemd(instance: &str) -> Option<PathBuf> {
     }
     log::debug!("service is-enabled returned: {:?}",
                 String::from_utf8_lossy(&out.stdout));
-    return Some(path);
+    Some(path)
 }
 
 pub fn start_service(instance: &str) -> anyhow::Result<()> {
-    let socket_name = socket_name(&instance);
+    let socket_name = socket_name(instance);
     let socket_file = unit_dir()?.join(&socket_name);
     if socket_file.exists() {
         process::Native::new("service start", "systemctl", "systemctl")
@@ -279,12 +279,12 @@ pub fn start_service(instance: &str) -> anyhow::Result<()> {
     process::Native::new("service start", "systemctl", "systemctl")
         .arg("--user")
         .arg("enable")
-        .arg(&unit_name(&instance))
+        .arg(&unit_name(instance))
         .run()?;
     process::Native::new("service start", "systemctl", "systemctl")
         .arg("--user")
         .arg("start")
-        .arg(&unit_name(&instance))
+        .arg(&unit_name(instance))
         .run()?;
     Ok(())
 }
@@ -307,12 +307,12 @@ pub fn stop_service(name: &str) -> anyhow::Result<()> {
     process::Native::new("stop service", "systemctl", "systemctl")
         .arg("--user")
         .arg("stop")
-        .arg(unit_name(&name))
+        .arg(unit_name(name))
         .run()?;
     process::Native::new("stop service", "systemctl", "systemctl")
         .arg("--user")
         .arg("disable")
-        .arg(unit_name(&name))
+        .arg(unit_name(name))
         .run()?;
     Ok(())
 }
@@ -351,7 +351,7 @@ fn is_ready(name: &str) -> bool {
             return state.trim() == "active";
         }
     }
-    return false;
+    false
 }
 
 pub fn service_status(name: &str) -> Service {
@@ -418,10 +418,10 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
             return Err(ExitCode::new(1))?;
         },
     };
-    if detect_systemd(&name) {
+    if detect_systemd(name) {
         let mut cmd = process::Native::new(
             "logs", "journalctl", "journalctl");
-        cmd.arg("--user-unit").arg(unit_name(&name));
+        cmd.arg("--user-unit").arg(unit_name(name));
         if let Some(n) = options.tail  {
             cmd.arg(format!("--lines={}", n));
         }
@@ -437,7 +437,7 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
         if options.follow {
             cmd.arg("-F");
         }
-        cmd.arg(log_file(&name)?);
+        cmd.arg(log_file(name)?);
         cmd.no_proxy().run()
     }
 }

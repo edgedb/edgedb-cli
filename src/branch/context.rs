@@ -21,7 +21,7 @@ impl Context {
         };
 
         let credentials = match project_dir {
-            Some(path) => Some(credentials::read(&credentials::path(&get_instance_name(&path)?)?).await?),
+            Some(path) => Some(credentials::read(&credentials::path(&get_instance_name(path)?)?).await?),
             None => None
         };
 
@@ -44,7 +44,7 @@ impl Context {
 
     pub fn get_instance_name(&self) -> anyhow::Result<Option<String>> {
         Ok(match &self.project_dir {
-            Some(dir) => Some(get_instance_name(&dir)?),
+            Some(dir) => Some(get_instance_name(dir)?),
             None => None
         })
     }

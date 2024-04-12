@@ -18,7 +18,7 @@ pub async fn list_roles<'x>(cli: &mut Connection, options: &Options,
         {filter}
         ORDER BY name
     "###, filter=filter);
-    let items = filter::query(cli, &query, &pattern, case_sensitive).await?;
+    let items = filter::query(cli, &query, pattern, case_sensitive).await?;
     list::print(items, "List of roles", options).await?;
     Ok(())
 }

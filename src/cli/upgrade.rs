@@ -76,11 +76,11 @@ pub fn unpack_file(src: &Path, tgt: &Path,
                compression: Option<repository::Compression>)
     -> anyhow::Result<()>
 {
-    fs::remove_file(&tgt).ok();
+    fs::remove_file(tgt).ok();
     match compression {
         Some(repository::Compression::Zstd) => {
-            fs::remove_file(&tgt).ok();
-            let src_f = fs::File::open(&src)?;
+            fs::remove_file(tgt).ok();
+            let src_f = fs::File::open(src)?;
 
             let mut opt = fs::OpenOptions::new();
             opt.write(true).create_new(true);
@@ -88,7 +88,7 @@ pub fn unpack_file(src: &Path, tgt: &Path,
                 use fs_err::os::unix::fs::OpenOptionsExt;
                 opt.mode(0o755);
             }
-            let mut tgt_f = opt.open(&tgt)?;
+            let mut tgt_f = opt.open(tgt)?;
 
             let bar = ProgressBar::new(src.metadata()?.len());
             bar.set_style(
@@ -100,15 +100,15 @@ pub fn unpack_file(src: &Path, tgt: &Path,
                 bar.wrap_read(src_f)
             ))?;
             io::copy(&mut decoded, &mut tgt_f)?;
-            fs::remove_file(&src).ok();
+            fs::remove_file(src).ok();
             Ok(())
         }
         None => {
             #[cfg(unix)] {
                 use std::os::unix::fs::PermissionsExt;
-                fs::set_permissions(&src, PermissionsExt::from_mode(0o755))?;
+                fs::set_permissions(src, PermissionsExt::from_mode(0o755))?;
             }
-            fs::rename(&src, &tgt)?;
+            fs::rename(src, tgt)?;
             Ok(())
         }
     }
@@ -118,7 +118,7 @@ pub fn unpack_file(src: &Path, tgt: &Path,
 pub fn channel_of(ver: &str) -> repository::Channel {
     if ver.contains("-dev.") {
         Channel::Nightly
-    } else if ver.contains("-") {
+    } else if ver.contains('-') {
         Channel::Testing
     } else {
         Channel::Stable

@@ -7,7 +7,7 @@ use anyhow::Context;
 pub fn get_cli() -> anyhow::Result<&'static str> {
     if cfg!(target_arch="x86_64") {
         if cfg!(target_os="macos") {
-            return Ok("x86_64-apple-darwin");
+            Ok("x86_64-apple-darwin")
         } else if cfg!(target_os="linux") {
             return Ok("x86_64-unknown-linux-musl");
         } else if cfg!(windows) {
@@ -31,7 +31,7 @@ pub fn get_cli() -> anyhow::Result<&'static str> {
 pub fn get_server() -> anyhow::Result<&'static str> {
     if cfg!(target_arch="x86_64") {
         if cfg!(target_os="macos") {
-            return Ok("x86_64-apple-darwin");
+            Ok("x86_64-apple-darwin")
         } else if cfg!(target_os="linux") {
             return Ok("x86_64-unknown-linux-gnu");
         } else if cfg!(windows) {
@@ -63,7 +63,7 @@ fn docker_check() -> anyhow::Result<bool> {
             return Ok(true);
         }
     }
-    return Ok(false)
+    Ok(false)
 }
 
 pub fn optional_docker_check() -> anyhow::Result<bool> {

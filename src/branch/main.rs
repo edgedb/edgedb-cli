@@ -25,9 +25,9 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
                 Command::Create(create) => create::main(create, &context, &mut connection).await,
                 Command::Drop(drop) => drop::main(drop, &context, &mut connection).await,
                 Command::List(list) => list::main(list, &context, &mut connection).await,
-                Command::Rename(rename) => rename::main(rename, &context, &mut connection, &options).await,
-                Command::Rebase(rebase) => rebase::main(rebase, &context, &mut connection, &options).await,
-                Command::Merge(merge) => merge::main(merge, &context, &mut connection, &options).await,
+                Command::Rename(rename) => rename::main(rename, &context, &mut connection, options).await,
+                Command::Rebase(rebase) => rebase::main(rebase, &context, &mut connection, options).await,
+                Command::Merge(merge) => merge::main(merge, &context, &mut connection, options).await,
                 unhandled => anyhow::bail!("unimplemented branch command '{:?}'", unhandled)
             }
         }

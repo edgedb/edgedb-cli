@@ -64,12 +64,12 @@ async fn rebase(branch: &String, source_connection: &mut Connection, target_conn
 }
 
 async fn rename_temp_to_source(temp_branch: &String, source_branch: &String, options: &Options, connection: &mut Connection) -> anyhow::Result<()> {
-    let mut rename_connection = get_connection_to_modify(&temp_branch, options, connection).await?;
+    let mut rename_connection = get_connection_to_modify(temp_branch, options, connection).await?;
 
     let status = rename_connection.connection.execute(&format!(
         "alter branch {} force rename to {}",
-        edgeql_parser::helpers::quote_name(&temp_branch),
-        edgeql_parser::helpers::quote_name(&source_branch)
+        edgeql_parser::helpers::quote_name(temp_branch),
+        edgeql_parser::helpers::quote_name(source_branch)
     ), &()).await?;
 
     print::completion(status);

@@ -227,7 +227,7 @@ impl<T: Output> Formatter for Printer<T>
             )?;
         } else {
             self.block(
-                self.styler.apply(Style::ArrayLiteral, &"["),
+                self.styler.apply(Style::ArrayLiteral, "["),
                 f,
                 self.styler.apply(Style::ArrayLiteral, "]"),
             )?;

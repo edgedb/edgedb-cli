@@ -9,7 +9,7 @@ use crate::types;
 pub fn structure(s: &types::Struct) -> TokenStream {
     use ParserKind::*;
 
-    let ref ident = s.ident;
+    let ident = &s.ident;
     let (impl_gen, ty_gen, where_cl) = s.generics.split_for_impl();
 
     let mut args = Vec::new();

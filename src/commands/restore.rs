@@ -51,7 +51,7 @@ async fn read_packet(input: &mut Input, buf: &mut BytesMut,
         let n = input.read_buf(buf).await
             .context("Cannot read packet header")?;
         if n == 0 {  // EOF
-            if buf.len() == 0 {
+            if buf.is_empty() {
                 return Ok(None)
             } else {
                 return Err(io::Error::from(io::ErrorKind::UnexpectedEof))
@@ -100,7 +100,7 @@ impl Stream for Packets<'_> {
     {
         let next = self.next();
         tokio::pin!(next);
-        return next.poll(cx);
+        next.poll(cx)
     }
 }
 
@@ -203,7 +203,7 @@ async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
             .context("can't decode statement")?;
         if !is_empty(stmt) {
             log::trace!("Executing {:?}", stmt);
-            cli.execute(&stmt, &()).await
+            cli.execute(stmt, &()).await
                 .with_context(|| format!("failed statement {:?}", stmt))?;
         }
     }
@@ -243,7 +243,7 @@ pub async fn restore_all<'x>(cli: &mut Connection, options: &Options,
         conn_params.branch(&database)?;
         let mut db_conn = conn_params.connect().await.with_context(||
              format!("cannot connect to database {:?}", database))?;
-        params.path = path.into();
+        params.path = path;
         restore_db(&mut db_conn, options, &params).await
             .with_context(|| format!("restoring database {:?}", database))?;
     }

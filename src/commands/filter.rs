@@ -17,8 +17,8 @@ pub async fn query<R>(cli: &mut Connection, query: &str,
         } else {
             Cow::Owned(String::from("(?i)") + pat)
         };
-        cli.query(&query, &(&pat[..],)).await
+        cli.query(query, &(&pat[..],)).await
     } else {
-        cli.query(&query, &()).await
+        cli.query(query, &()).await
     }
 }

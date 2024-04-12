@@ -50,7 +50,7 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
         };
         executables.insert(art.target.name.clone(), art.executable.into());
     }
-    assert!(executables.len() > 0);
+    assert!(!executables.is_empty());
 
     let mut context = docker::Context::new();
     context = context.add_file("Dockerfile", dockerfile()).unwrap();
@@ -73,7 +73,7 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
     docker::build_image(context, "edgedb_test_portable").unwrap();
     shutdown_hooks::add_shutdown_hook(delete_docker_image);
 
-    return executables;
+    executables
 });
 
 extern fn delete_docker_image() {
@@ -142,7 +142,7 @@ fn run_test(name: &'static str) {
         .arg("--tmpfs=/run/systemd/system")
         .arg("--privileged")
         .arg("edgedb_test_portable")
-        .args(&["sh", "-exc", &script])
+        .args(["sh", "-exc", &script])
         .assert()
         .context(name, "running test in docker")
         .success();

@@ -124,14 +124,14 @@ pub async fn command(cli: &mut Connection, options: &Analyze)
             let mut out = io::stdout();
             out.write_all(data.as_bytes()).await?;
             out.flush().await?;
-        } else if is_special(&out_path).await? {
+        } else if is_special(out_path).await? {
             async {
                 let mut out = fs::File::create(&out_path).await?;
                 out.write_all(data.as_bytes()).await?;
                 out.flush().await
             }.await.with_context(|| format!("error writing to {out_path:?}"))?;
         } else {
-            let tmp = tmp_file_path(&out_path);
+            let tmp = tmp_file_path(out_path);
             async {
                 let mut out = fs::File::create(&tmp).await?;
                 out.write_all(data.as_bytes()).await?;

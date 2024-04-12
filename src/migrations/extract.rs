@@ -35,7 +35,7 @@ impl MigrationToText for DatabaseMigration {
         Ok(&self.migration.name)
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&self) -> Self::StatementsIter<'_> {
         std::iter::once(&self.migration.script)
     }
 }

@@ -88,7 +88,7 @@ pub async fn migrate(cli: &mut Connection, options: &Options,
     let old_state = cli.set_ignore_error_state();
     let res = _migrate(cli, options, migrate).await;
     cli.restore_state(old_state);
-    return res;
+    res
 }
 
 async fn _migrate(cli: &mut Connection, _options: &Options,
@@ -103,7 +103,7 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
     }
     let migrations = migration::read_all(&ctx, true).await?;
     let db_migrations = db_migration::read_all(cli, false, true).await?;
-    let last_db_rev = db_migrations.last().and_then(|kv| Some(kv.0));
+    let last_db_rev = db_migrations.last().map(|kv| kv.0);
 
     let target_rev = if let Some(prefix) = &migrate.to_revision {
         let db_rev = db_migration::find_by_prefix(cli, prefix).await?;
@@ -120,7 +120,7 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
                     prefix);
             }
             (None, Some(targ)) => &targ.id,
-            (Some(a), Some(b)) if a.name != (*b).id => {
+            (Some(a), Some(b)) if a.name != b.id => {
                 anyhow::bail!("More than one revision matches prefix {:?}",
                     prefix);
             }
@@ -154,7 +154,7 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
         if let Some(last) = migrations.last() {
             if !migrations.contains_key(last_db_rev) {
                     let target_rev = target_rev.as_ref()
-                        .unwrap_or_else(|| last.0);
+                        .unwrap_or(last.0);
                     return fixup(
                         cli,
                         &ctx,
@@ -200,7 +200,7 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
     if db_migrations.is_empty() {
         disable_ddl(cli).await?;
     }
-    return Ok(())
+    Ok(())
 }
 
 async fn fixup(
@@ -390,7 +390,7 @@ fn find_path<'a>(migrations: &'a IndexMap<String, MigrationFile>,
             }
         }
     }
-    return Ok(None);
+    Ok(None)
 }
 
 fn backtrack<'a>(markup: &HashMap<&String, u32>,
@@ -411,12 +411,12 @@ fn backtrack<'a>(markup: &HashMap<&String, u32>,
                 // Normal, non-fixup path takes priority, so that
                 // we can skip rebase if revision equals to fixup revision
                 _ if markup.get(&item.data.id) == Some(&idx) => {
-                    result.push(PathElem::Normal(*item));
+                    result.push(PathElem::Normal(item));
                     cur_target = &item.data.id;
                     break;
                 }
                 Some(ref fixup) if markup.get(fixup) == Some(&idx) => {
-                    result.push(PathElem::Fixup(*item));
+                    result.push(PathElem::Fixup(item));
                     cur_target = fixup;
                     break;
                 }

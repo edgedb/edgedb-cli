@@ -147,7 +147,7 @@ pub enum InstanceName {
 }
 
 fn billable_unit(s: &str) -> Result<String, String> {
-    let (numerator, denominator) = match s.split_once("/") {
+    let (numerator, denominator) = match s.split_once('/') {
         Some(v) => v,
         None => (s, "1"),
     };
@@ -784,5 +784,5 @@ pub fn instance_arg<'x>(positional: &'x Option<InstanceName>,
         return Ok(name);
     }
     echo!(err_marker(), "Instance name argument is required, use '-I name'");
-    return Err(ExitCode::new(2).into());
+    Err(ExitCode::new(2).into())
 }

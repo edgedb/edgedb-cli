@@ -62,18 +62,18 @@ pub fn warn_extra(extra: &BTreeMap<String, toml::Value>, prefix: &str) {
 }
 
 pub fn format_config(version: &Query) -> String {
-    return format!(
+    format!(
         "\
         [edgedb]\n\
         server-version = {:?}\n\
     ",
         version.as_config_value()
-    );
+    )
 }
 
 #[context("error reading project config `{}`", path.display())]
 pub fn read(path: &Path) -> anyhow::Result<Config> {
-    let text = fs::read_to_string(&path)?;
+    let text = fs::read_to_string(path)?;
     let mut toml = toml::de::Deserializer::new(&text);
     let val: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
     warn_extra(&val.extra, "");
@@ -93,10 +93,9 @@ pub fn read(path: &Path) -> anyhow::Result<Config> {
         project: Project {
             schema_dir: val
                 .project
-                .map(|p| p.schema_dir)
-                .flatten()
+                .and_then(|p| p.schema_dir)
                 .map(|s| s.into())
-                .unwrap_or_else(|| path.parent().unwrap_or(&Path::new("")).join("dbschema")),
+                .unwrap_or_else(|| path.parent().unwrap_or(Path::new("")).join("dbschema")),
         },
     });
 }
@@ -153,7 +152,7 @@ where
     Val: std::cmp::PartialEq,
     ToStr: FnOnce(&Val) -> String,
 {
-    let input = fs::read_to_string(&path)?;
+    let input = fs::read_to_string(path)?;
     let mut deserializer = toml::de::Deserializer::new(&input);
     let parsed: Cfg = serde_path_to_error::deserialize(&mut deserializer)?;
 
@@ -277,7 +276,7 @@ mod test {
     ";
 
     fn set_toml_version(data: &str, version: &super::Query) -> anyhow::Result<Option<String>> {
-        let mut toml = toml::de::Deserializer::new(&data);
+        let mut toml = toml::de::Deserializer::new(data);
         let parsed: super::SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
 
         super::modify_config(

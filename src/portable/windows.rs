@@ -87,7 +87,7 @@ impl Wsl {
         }
         pro.arg("/usr/bin/edgedb");
         pro.no_proxy();
-        return pro
+        pro
     }
     #[cfg(windows)]
     fn copy_out(&self, src: impl AsRef<str>, destination: impl AsRef<Path>)
@@ -150,7 +150,7 @@ pub fn path_to_linux(path: &Path) -> anyhow::Result<String> {
     use std::path::Component::*;
     use std::path::Prefix::*;
     if !path.is_absolute() {
-        return Err(bug::error("path must be absolute"))?;
+        Err(bug::error("path must be absolute"))?;
     }
 
     let mut result = String::with_capacity(
@@ -216,9 +216,9 @@ pub fn create_instance(options: &options::Create, name: &str,
         .run()?;
 
     if let Some(dir) = paths.credentials.parent() {
-        fs_err::create_dir_all(&dir)?;
+        fs_err::create_dir_all(dir)?;
     }
-    wsl.copy_out(credentials_linux(&name), &paths.credentials)?;
+    wsl.copy_out(credentials_linux(name), &paths.credentials)?;
 
     Ok(())
 }
@@ -273,7 +273,7 @@ fn read_wsl(path: &Path) -> anyhow::Result<WslInfo> {
 #[context("cannot unpack debian distro from {:?}", zip_path)]
 fn unpack_appx(zip_path: &Path, dest: &Path) -> anyhow::Result<()> {
     let mut zip = zip::ZipArchive::new(
-        io::BufReader::new(fs::File::open(&zip_path)?))?;
+        io::BufReader::new(fs::File::open(zip_path)?))?;
     let name = zip.file_names()
         .find(|name| {
             let lower = name.to_lowercase();
@@ -292,7 +292,7 @@ fn unpack_appx(zip_path: &Path, dest: &Path) -> anyhow::Result<()> {
 #[context("cannot unpack root filesystem from {:?}", zip_path)]
 fn unpack_root(zip_path: &Path, dest: &Path) -> anyhow::Result<()> {
     let mut zip = zip::ZipArchive::new(
-        io::BufReader::new(fs::File::open(&zip_path)?))?;
+        io::BufReader::new(fs::File::open(zip_path)?))?;
     let name = zip.file_names()
         .find(|name| name.eq_ignore_ascii_case("install.tar.gz"))
         .ok_or_else(|| anyhow::anyhow!(
@@ -577,8 +577,8 @@ fn try_get_wsl() -> anyhow::Result<&'static Wsl> {
     match WSL.get_or_try_init(|| get_wsl_distro(false)) {
         Ok(v) => Ok(v),
         Err(e) if e.is::<NoDistribution>() => {
-            return Err(e).hint("WSL is initialized automatically on \
-              `edgedb project init` or `edgedb instance create`")?;
+            Err(e).hint("WSL is initialized automatically on \
+              `edgedb project init` or `edgedb instance create`")?
         }
         Err(e) => Err(e),
     }
@@ -607,8 +607,8 @@ pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 fn create_and_start(wsl: &Wsl, name: &str) -> anyhow::Result<()> {
-    wsl.edgedb().arg("instance").arg("start").arg("-I").arg(&name).run()?;
-    fs_err::write(service_file(&name)?, format!("wsl \
+    wsl.edgedb().arg("instance").arg("start").arg("-I").arg(name).run()?;
+    fs_err::write(service_file(name)?, format!("wsl \
         --distribution {} --user edgedb \
         /usr/bin/edgedb instance start -I {}",
         &wsl.distribution, &name))?;
@@ -642,7 +642,7 @@ pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
 pub fn daemon_start(instance: &str) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     wsl.edgedb()
-        .arg("instance").arg("start").arg("-I").arg(&instance)
+        .arg("instance").arg("start").arg("-I").arg(instance)
         .no_proxy().run()?;
     Ok(())
 }
@@ -945,7 +945,7 @@ pub fn revert(options: &options::Revert, name: &str) -> anyhow::Result<()> {
 fn get_instance_data_dir(name: &str, wsl: &Wsl) -> anyhow::Result<String> {
     let data_dir = if name == "_localdev" {
         match env::var("EDGEDB_SERVER_DEV_DIR") {
-            Ok(path) => if path.ends_with("/") {
+            Ok(path) => if path.ends_with('/') {
                 path
             } else {
                 path + "/"

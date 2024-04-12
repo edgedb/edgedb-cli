@@ -130,17 +130,17 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
 "###,
         instance_name=name,
         executable=current_exe()?.display(),
-        log_path=log_file(&name)?.display(),
+        log_path=log_file(name)?.display(),
     ))
 }
 
 fn _create_service(info: &InstanceInfo) -> anyhow::Result<()>
 {
     let name = &info.name;
-    let plist_dir_path;
-    plist_dir_path = plist_dir()?;
+    
+    let plist_dir_path = plist_dir()?;
     fs::create_dir_all(&plist_dir_path)?;
-    let plist_path = plist_dir_path.join(&plist_name(name));
+    let plist_path = plist_dir_path.join(plist_name(name));
     let unit_name = launchd_name(name);
     fs::write(&plist_path, plist_data(name, info)?)?;
     if let Some(dir) = runstate_dir(name)?.parent() {
@@ -215,7 +215,7 @@ fn _service_status(name: &str) -> Status {
 
     let list = process::Native::new("service info", "launchctl", "launchctl")
             .arg("print")
-            .arg(launchd_name(&name))
+            .arg(launchd_name(name))
             .get_output();
     let output = match list {
         Ok(output) => output,
@@ -228,7 +228,7 @@ fn _service_status(name: &str) -> Status {
     if !output.status.success() {
         log::debug!("`launchctl print {}` errored out with {:?}. \
                       Assuming service is not loaded.",
-                    launchd_name(&name), output.stderr);
+                    launchd_name(name), output.stderr);
         return NotLoaded;
     }
     let mut pid: Option<u32> = None;
@@ -261,23 +261,23 @@ fn _service_status(name: &str) -> Status {
     if let Some(pid) = pid {
         return Running { pid }
     }
-    if exit_code != None && exit_code != Some(0) {
+    if exit_code.is_some() && exit_code != Some(0) {
         return Failed { exit_code }
     }
     Inactive { error: "no pid found".into() }
 }
 
 pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
-    if is_service_loaded(&name) {
+    if is_service_loaded(name) {
         // bootout will fail if the service is not loaded (e.g. manually-
         // starting services that never started after reboot), also it's
         // unnecessary to unload the service if it wasn't loaded.
         log::info!("Unloading service");
-        bootout(&name)?;
+        bootout(name)?;
     }
 
     let mut found = false;
-    let unit_path = plist_path(&name)?;
+    let unit_path = plist_path(name)?;
     if unit_path.exists() {
         found = true;
         log::info!("Removing unit file {}", unit_path.display());
@@ -315,20 +315,20 @@ pub fn detect_launchd() -> bool {
     } else {
         return false;
     };
-    let out = process::Native::new("detect launchd", "launchctl", &path)
+    let out = process::Native::new("detect launchd", "launchctl", path)
         .arg("print-disabled")  // Faster than bare print
         .arg(get_domain_target())
         .get_output();
     match out {
-        Ok(out) if out.status.success() => return true,
+        Ok(out) if out.status.success() => true,
         Ok(out) => {
             log::info!("detecting launchd session: {:?}",
                        String::from_utf8_lossy(&out.stderr));
-            return false;
+            false
         }
         Err(e) => {
             log::info!("detecting launchd session: {:#}", e);
-            return false;
+            false
         }
     }
 }

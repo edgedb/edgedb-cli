@@ -103,7 +103,7 @@ impl<'a, T: QueryResult> Stream for ResponseStream<'a, T>
     {
         let next = self.get_mut().next();
         tokio::pin!(next);
-        return next.poll(cx);
+        next.poll(cx)
     }
 }
 
@@ -130,7 +130,7 @@ impl Stream for DumpStream<'_> {
     {
         let next = self.get_mut().next();
         tokio::pin!(next);
-        return next.poll(cx);
+        next.poll(cx)
     }
 }
 
@@ -165,7 +165,7 @@ impl Connector {
     async fn _connect(&self, interactive: bool) -> Result<Connection, anyhow::Error> {
         let cfg = self.config.as_ref().map_err(Clone::clone)?;
         let conn = tokio::select!(
-            conn = Connection::connect(&cfg) => conn?,
+            conn = Connection::connect(cfg) => conn?,
             _ = self.print_warning(cfg, interactive) => unreachable!(),
         );
         Ok(conn)
@@ -203,7 +203,7 @@ impl Connector {
 impl Connection {
     pub async fn connect(cfg: &Config) -> Result<Connection, Error> {
         Ok(Connection {
-            inner: raw::Connection::connect(&cfg).await?,
+            inner: raw::Connection::connect(cfg).await?,
             state: State::empty(),
             server_version: None,
             config: cfg.clone(),
@@ -214,7 +214,7 @@ impl Connection {
     }
     pub fn set_ignore_error_state(&mut self) -> State {
         let new_state = make_ignore_error_state(self.inner.state_descriptor());
-        return mem::replace(&mut self.state, new_state);
+        mem::replace(&mut self.state, new_state)
     }
     pub fn restore_state(&mut self, state: State) {
         self.state = state;
@@ -241,7 +241,7 @@ impl Connection {
             query, arguments, &self.state, Capabilities::ALL,
         ).await?;
         update_state(&mut self.state, &resp)?;
-        return Ok(resp.data);
+        Ok(resp.data)
     }
     pub async fn query_single<R, A>(&mut self, query: &str, arguments: &A)
         -> Result<Option<R>, Error>
@@ -252,7 +252,7 @@ impl Connection {
             query, arguments, &self.state, Capabilities::ALL,
         ).await?;
         update_state(&mut self.state, &resp)?;
-        return Ok(resp.data);
+        Ok(resp.data)
     }
     pub async fn query_required_single<R, A>(
         &mut self, query: &str, arguments: &A)
@@ -261,8 +261,8 @@ impl Connection {
               R: QueryResult,
     {
         let res = self.query_single(query, arguments).await?;
-        return res.ok_or_else(|| NoDataError::with_message(
-            "query row returned zero results"));
+        res.ok_or_else(|| NoDataError::with_message(
+            "query row returned zero results"))
     }
     pub async fn execute<A>(&mut self, query: &str, arguments: &A)
         -> Result<Bytes, Error>
@@ -272,7 +272,7 @@ impl Connection {
             query, arguments, &self.state, Capabilities::ALL
         ).await?;
         update_state(&mut self.state, &resp)?;
-        return Ok(resp.status_data);
+        Ok(resp.status_data)
     }
     pub async fn execute_stream<R, A>(&mut self,
         opts: &CompilationOptions, query: &str,
@@ -285,10 +285,10 @@ impl Connection {
         let stream = self.inner.execute_stream(
             opts, query, &self.state, desc, arguments,
         ).await?;
-        return Ok(ResponseStream {
+        Ok(ResponseStream {
             inner: stream,
             state: &mut self.state,
-        });
+        })
     }
     pub async fn try_execute_stream<R, A>(&mut self,
         opts: &CompilationOptions,
@@ -304,10 +304,10 @@ impl Connection {
         let stream = self.inner.try_execute_stream(
             opts, query, &self.state, input_desc, output_desc, arguments,
         ).await?;
-        return Ok(ResponseStream {
+        Ok(ResponseStream {
             inner: stream,
             state: &mut self.state,
-        });
+        })
     }
     pub fn get_server_param<T: ServerParam>(&self) -> Option<&T::Value> {
         self.inner.get_server_param::<T>()

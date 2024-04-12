@@ -25,7 +25,7 @@ fn prepare_markdown(text: &str) -> String {
         }
         buf.push('\n');
     }
-    return buf;
+    buf
 }
 
 static MADSKIN: Lazy<termimad::MadSkin> = Lazy::new(|| {
@@ -51,11 +51,11 @@ fn parse_markdown(text: &str) -> minimad::Text {
     use minimad::Line::*;
     use minimad::CompositeStyle::*;
 
-    let lines = Text::from(&text[..]).lines;
+    let lines = Text::from(text).lines;
     let mut text = Text { lines: Vec::with_capacity(lines.len()) };
     for line in lines.into_iter() {
         if let Normal(Composite { style, compounds: cmps }) = line {
-            if cmps.len() == 0  {
+            if cmps.is_empty()  {
                 text.lines.push(
                     Normal(Composite { style, compounds: cmps })
                 );
@@ -63,7 +63,7 @@ fn parse_markdown(text: &str) -> minimad::Text {
             }
             match (style, text.lines.last_mut()) {
                 (_, Some(&mut Normal(Composite { ref compounds , ..})))
-                    if compounds.len() == 0
+                    if compounds.is_empty()
                 => {
                     text.lines.push(
                         Normal(Composite { style, compounds: cmps })
@@ -87,11 +87,11 @@ fn parse_markdown(text: &str) -> minimad::Text {
             }
         }
     }
-    return text;
+    text
 }
 
 pub fn format_title(text: &str) -> String {
-    let text = prepare_markdown(&text);
+    let text = prepare_markdown(text);
     let mut text = parse_markdown(&text);
     if !text.lines.is_empty() {
         text.lines.drain(1..);

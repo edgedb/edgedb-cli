@@ -42,7 +42,7 @@ pub fn check_and_error() -> anyhow::Result<()> {
                 edgedb cli migrate\n\
                 ```
             ");
-            return Err(ExitCode::new(11).into());
+            Err(ExitCode::new(11).into())
         }
         None => Ok(())
     }

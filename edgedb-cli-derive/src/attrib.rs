@@ -423,7 +423,7 @@ impl TryFrom<syn::Expr> for Case {
                     "SHOUTY-KEBAB-CASE" => Case::ShoutyKebabCase,
                     _ => {
                         return Err(syn::Error::new_spanned(s,
-                            &format!("undefined case conversion")));
+                            format!("undefined case conversion")));
                     }
                 };
                 Ok(case)

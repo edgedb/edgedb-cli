@@ -133,7 +133,7 @@ fn external_status(options: &Status) -> anyhow::Result<()> {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => todo!(),
     };
-    let ref meta = InstanceInfo::read(name)?;
+    let meta = &(InstanceInfo::read(name)?);
     if cfg!(windows) {
         windows::external_status(meta)
     } else if cfg!(target_os="macos") {
@@ -196,12 +196,10 @@ fn status_from_meta(name: &str, paths: &Paths,
     let data_status = if paths.data_dir.exists() {
         if paths.upgrade_marker.exists() {
             DataDirectory::Upgrading(read_upgrade(&paths.upgrade_marker))
+        } else if instance.is_ok() {
+            DataDirectory::Normal
         } else {
-            if instance.is_ok() {
-                DataDirectory::Normal
-            } else {
-                DataDirectory::NoMetadata
-            }
+            DataDirectory::NoMetadata
         }
     } else {
         DataDirectory::Absent
@@ -209,7 +207,7 @@ fn status_from_meta(name: &str, paths: &Paths,
     let backup = backup_status(name, &paths.backup_dir);
     let credentials_file_exists = paths.credentials.exists();
     let service_exists = paths.service_files.iter().any(|f| f.exists());
-    return FullStatus {
+    FullStatus {
         name: name.into(),
         service,
         instance,
@@ -224,7 +222,7 @@ fn status_from_meta(name: &str, paths: &Paths,
 
 pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
     let paths = Paths::get(name)?;   // the only error case
-    let meta = InstanceInfo::read(&name);
+    let meta = InstanceInfo::read(name);
     Ok(status_from_meta(name, &paths, meta))
 }
 
@@ -314,7 +312,7 @@ async fn remote_status_with_feedback(name: &str, quiet: bool)
 async fn _remote_status(name: &str, quiet: bool)
     -> anyhow::Result<RemoteStatus>
 {
-    let cred_path = credentials::path(&name)?;
+    let cred_path = credentials::path(name)?;
     if !cred_path.exists() {
         if !quiet {
             echo!(print::err_marker(),
@@ -328,14 +326,14 @@ async fn _remote_status(name: &str, quiet: bool)
     let location = format!("{}:{}",
         credentials.host.as_deref().unwrap_or("localhost"),
         credentials.port.clone());
-    return Ok(RemoteStatus {
+    Ok(RemoteStatus {
         name: name.into(),
         type_: RemoteType::Remote,
         credentials,
         version,
         connection: Some(connection),
         instance_status: None,
-        location: location,
+        location,
     })
 }
 
@@ -387,25 +385,25 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
     status.exit()
 }
 
-pub fn list_local<'x>(dir: &'x Path)
+pub fn list_local(dir: &Path)
     -> anyhow::Result<
-        impl Iterator<Item=anyhow::Result<(String, PathBuf)>> + 'x
+        impl Iterator<Item=anyhow::Result<(String, PathBuf)>> + '_
     >
 {
     let err_ctx = move || format!("error reading directory {:?}", dir);
-    let dir = fs::read_dir(&dir).with_context(err_ctx)?;
+    let dir = fs::read_dir(dir).with_context(err_ctx)?;
     Ok(dir.filter_map(move |result| {
         let entry = match result {
             Ok(entry) => entry,
             res => return Some(Err(res.with_context(err_ctx).unwrap_err())),
         };
         let fname = entry.file_name();
-        let name_op = fname.to_str().and_then(|x| is_valid_local_instance_name(x).then(|| x));
+        let name_op = fname.to_str().and_then(|x| is_valid_local_instance_name(x).then_some(x));
         if let Some(name) = name_op {
-            return Some(Ok((name.into(), entry.path())))
+            Some(Ok((name.into(), entry.path())))
         } else {
             log::info!("Skipping directory {:?}", entry.path());
-            return None
+            None
         }
     }))
 }
@@ -645,8 +643,8 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
             }),
             Cell::new(&status.name),
             Cell::new(&status.location),
-            Cell::new(&status.version.as_ref()
-                .map(|m| m.to_string()).as_deref().unwrap_or("?".into())),
+            Cell::new(status.version.as_ref()
+                .map(|m| m.to_string()).as_deref().unwrap_or("?")),
             Cell::new(
                 status
                     .instance_status
@@ -754,7 +752,7 @@ impl FullStatus {
             cloud_instance_id: None,
         }
     }
-    pub fn print_json_and_exit<'x>(&'x self) -> ! {
+    pub fn print_json_and_exit(&self) -> ! {
         println!("{}",
             serde_json::to_string_pretty(&self.json())
             .expect("status is not json-serializable"));
@@ -853,7 +851,7 @@ impl RemoteStatus {
         }
     }
 
-    pub fn print_json_and_exit<'x>(&'x self) -> ! {
+    pub fn print_json_and_exit(&self) -> ! {
         println!("{}",
             serde_json::to_string_pretty(&self.json())
             .expect("status is not json-serializable"));
@@ -914,5 +912,5 @@ pub fn backup_status(name: &str, dir: &Path) -> BackupStatus {
 
 #[context("failed to read upgrade marker {:?}", file)]
 pub fn read_upgrade(file: &Path) -> anyhow::Result<UpgradeMeta> {
-    Ok(serde_json::from_slice(&fs::read(&file)?)?)
+    Ok(serde_json::from_slice(&fs::read(file)?)?)
 }

@@ -316,10 +316,10 @@ pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
 
         styler: config.styler.clone(),
     };
-    match format_rows_str(&mut prn, &items, "[", "]", false) {
+    match format_rows_str(&mut prn, items, "[", "]", false) {
         Ok(()) => {},
         Err(Exception::DisableFlow) => {
-            format_rows_str(&mut prn, &items, "[", "]", true).unwrap_exc()?;
+            format_rows_str(&mut prn, items, "[", "]", true).unwrap_exc()?;
         }
         Err(Exception::Error(e)) => return Err(e),
     };

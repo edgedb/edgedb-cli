@@ -97,7 +97,7 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
         cmd.arg("--temp-dir");
         cmd.arg("--auto-shutdown-after=0");
         cmd.arg("--default-auth-method=Trust");
-        cmd.arg("--emit-server-status").arg(&status_path);
+        cmd.arg("--emit-server-status").arg(status_path);
         cmd.arg("--port=auto");
         cmd.arg("--compiler-pool-mode=on_demand");
         cmd.arg("--tls-cert-mode=generate_self_signed");
@@ -112,7 +112,7 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
     let ctx = runtime.block_on(
         Context::from_project_or_config(&options.cfg, false)
     )?;
-    return spawn_and_check(&info, ctx, options.watch);
+    spawn_and_check(&info, ctx, options.watch)
 }
 
 #[cfg(windows)]
@@ -124,7 +124,7 @@ pub fn to_version(_: &PackageInfo, _: &Config) -> anyhow::Result<()> {
 pub fn to_version(pkg: &PackageInfo, config: &Config) -> anyhow::Result<()> {
     let info = install::package(pkg).context("error installing EdgeDB")?;
     let ctx = Context::for_project(config)?;
-    return spawn_and_check(&info, ctx, false);
+    spawn_and_check(&info, ctx, false)
 }
 
 #[cfg(unix)]
@@ -147,7 +147,7 @@ fn spawn_and_check(info: &InstallInfo, ctx: Context, watch: bool)
     cmd.arg("--log-level=warn");
     cmd.background_for(move || {
         // this is not async, but requires async context
-        let sock = UnixDatagram::bind(&status_dir.path().join("notify"))
+        let sock = UnixDatagram::bind(status_dir.path().join("notify"))
             .context("cannot create notify socket")?;
         Ok(async move {
             let mut buf = [0u8; 1024];
@@ -188,7 +188,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
         .context("cannot build connection params")?;
     let cli = &mut Connection::connect(&config).await?;
 
-    if !fs::metadata(&ctx.schema_dir).await.is_ok() {
+    if fs::metadata(&ctx.schema_dir).await.is_err() {
         anyhow::bail!("No schema dir found at {:?}", ctx.schema_dir);
     }
 
@@ -210,7 +210,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
         }
         eprintln!("Monitoring {:?} for changes.", &ctx.schema_dir);
         watch_loop(rx, ctx, cli, ok).await?;
-        return Ok(());
+        Ok(())
     } else {
         match single_check(ctx, cli).await? {
             Okay => {}
@@ -228,7 +228,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
         if !ctx.quiet {
             echo!("The schema is forward compatible. Ready for upgrade.");
         }
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -254,7 +254,7 @@ async fn single_check(ctx: &Context, cli: &mut Connection)
     }
 
     bar.set_message("checking migrations");
-    let migrations = migration::read_all(&ctx, true).await?;
+    let migrations = migration::read_all(ctx, true).await?;
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     async_try! {
         async {

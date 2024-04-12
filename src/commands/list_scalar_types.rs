@@ -56,7 +56,7 @@ pub async fn list_scalar_types<'x>(cli: &mut Connection, options: &Options,
     "###, filter=filter);
 
     let items = filter::query::<ScalarType>(cli,
-        &query, &pattern, case_sensitive).await?;
+        query, pattern, case_sensitive).await?;
     if !options.command_line || std::io::stdout().is_terminal() {
         let term_width = terminal_size()
             .map(|(Width(w), _h)| w).unwrap_or(80);

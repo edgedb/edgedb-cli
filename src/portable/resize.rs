@@ -34,7 +34,7 @@ fn resize_cloud_cmd(
         && billables.compute_size.is_none()
         && billables.storage_size.is_none()
     {
-        return Err(opts.error(
+        Err(opts.error(
             clap::error::ErrorKind::MissingRequiredArgument,
             cformat!("Either <bold>--tier</bold>, <bold>--compute-size</bold>, \
             or <bold>--storage-size</bold> must be specified."),
@@ -58,7 +58,7 @@ fn resize_cloud_cmd(
 
     if let Some(tier) = billables.tier {
         if tier == inst.tier && compute_size.is_none() && storage_size.is_none() {
-            return Err(opts.error(
+            Err(opts.error(
                 clap::error::ErrorKind::InvalidValue,
                 cformat!("Instance \"{org_slug}/{name}\" is already a {tier:?} \
                 instance."),
@@ -67,14 +67,14 @@ fn resize_cloud_cmd(
 
         if tier == cloud::ops::CloudTier::Free {
             if compute_size.is_some() {
-                return Err(opts.error(
+                Err(opts.error(
                     clap::error::ErrorKind::ArgumentConflict,
                     cformat!("The <bold>--compute-size</bold> option can \
                     only be specified for Pro instances."),
                 ))?;
             }
             if storage_size.is_some() {
-                return Err(opts.error(
+                Err(opts.error(
                     clap::error::ErrorKind::ArgumentConflict,
                     cformat!("The <bold>--storage-size</bold> option can \
                     only be specified for Pro instances."),
@@ -94,14 +94,14 @@ fn resize_cloud_cmd(
                 let region_prices = tier_prices.get(&inst.region)
                     .context(format!("could not download pricing information for the {} region", inst.region))?;
                 if compute_size.is_none() {
-                    compute_size = Some(region_prices.into_iter()
+                    compute_size = Some(region_prices.iter()
                         .find(|&price| price.billable == "compute")
                         .context("could not download pricing information for compute")?
                         .units_default.clone()
                         .context("could not find default value for compute")?);
                 }
                 if storage_size.is_none() {
-                    storage_size = Some(region_prices.into_iter()
+                    storage_size = Some(region_prices.iter()
                         .find(|&price| price.billable == "storage")
                         .context("could not download pricing information for storage")?
                         .units_default.clone()
@@ -142,7 +142,7 @@ fn resize_cloud_cmd(
     }
 
     let mut resources_display = resources_display_vec.join("\n");
-    if resources_display != "" {
+    if !resources_display.is_empty() {
         resources_display = format!("\n{resources_display}");
     }
 
@@ -173,5 +173,5 @@ fn resize_cloud_cmd(
     );
     echo!("To connect to the instance run:");
     echo!("  edgedb -I", inst_name);
-    return Ok(())
+    Ok(())
 }

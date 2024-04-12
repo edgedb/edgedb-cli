@@ -9,7 +9,7 @@ use crate::completion::{BackslashFsm, ValidationResult};
 
 
 static UNRESERVED_KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-    keywords::UNRESERVED_KEYWORDS.iter().map(|x| *x).collect()
+    keywords::UNRESERVED_KEYWORDS.iter().copied().collect()
 });
 
 
@@ -25,7 +25,7 @@ pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
             }
         };
         if tok.span.start as usize > pos {
-            emit_insignificant(outbuf, &styler,
+            emit_insignificant(outbuf, styler,
                 &text[pos..tok.span.start as usize]);
         }
         if let Some(st) = token_style(tok.kind, &tok.text)
@@ -36,7 +36,7 @@ pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
         }
         pos = tok.span.end as usize;
     }
-    emit_insignificant(outbuf, &styler, &text[pos..]);
+    emit_insignificant(outbuf, styler, &text[pos..]);
 }
 
 pub fn backslash(outbuf: &mut String, text: &str, styler: &Styler) {
@@ -47,7 +47,7 @@ pub fn backslash(outbuf: &mut String, text: &str, styler: &Styler) {
     let mut fsm = BackslashFsm::Command;
     for token in &mut tokens {
         if token.span.0 > pos {
-            emit_insignificant(outbuf, &styler, &text[pos..token.span.0]);
+            emit_insignificant(outbuf, styler, &text[pos..token.span.0]);
         }
         let style = match fsm.validate(&token) {
             ValidationResult::Valid => Some(Style::BackslashCommand),
@@ -60,10 +60,10 @@ pub fn backslash(outbuf: &mut String, text: &str, styler: &Styler) {
         } else {
             outbuf.push_str(value);
         }
-        pos = token.span.1 as usize;
+        pos = token.span.1;
         fsm = fsm.advance(token);
     }
-    emit_insignificant(outbuf, &styler, &text[pos..]);
+    emit_insignificant(outbuf, styler, &text[pos..]);
 }
 
 fn emit_insignificant(buf: &mut String, styler: &Styler, mut chunk: &str) {

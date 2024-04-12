@@ -50,7 +50,7 @@ impl MigrationToText for RebaseMigration<'_> {
         Ok(&self.migration.name)
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&self) -> Self::StatementsIter<'_> {
         std::iter::once(&self.migration.script)
     }
 }
@@ -99,7 +99,7 @@ impl RebaseMigrations {
             });
         }
 
-        if self.target_migrations.len() > 0 {
+        if !self.target_migrations.is_empty() {
             let (_, first_migration) = self.target_migrations.first().unwrap();
             let source_last = result.last();
 
@@ -120,7 +120,7 @@ impl RebaseMigrations {
             }
         }
 
-        if self.source_migrations.len() > 0 {
+        if !self.source_migrations.is_empty() {
             let (_, first_migration) = self.source_migrations.first().unwrap();
             let base_last = result.last();
 

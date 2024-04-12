@@ -161,7 +161,7 @@ impl State {
     }
     fn print_banner(&self, version: &ver::Build) -> anyhow::Result<()> {
         echo!(
-            format!("{}\rEdgeDB", ansi_escapes::EraseLine.to_string()).light_gray(),
+            format!("{}\rEdgeDB", ansi_escapes::EraseLine).light_gray(),
             version.to_string().light_gray(),
             format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade(),
         );
@@ -172,8 +172,8 @@ impl State {
         params.branch(branch)?;
         let mut conn = params.connect_interactive().await?;
         let fetched_version = conn.get_version().await?;
-        if self.last_version.as_ref() != Some(&fetched_version) {
-            self.print_banner(&fetched_version)?;
+        if self.last_version.as_ref() != Some(fetched_version) {
+            self.print_banner(fetched_version)?;
             self.last_version = Some(fetched_version.to_owned());
         }
         self.conn_params = params;
@@ -251,7 +251,7 @@ impl State {
         };
 
         let current_database = match &self.current_branch {
-            Some(db) => &db,
+            Some(db) => db,
             None => &self.branch,
         };
 
@@ -336,7 +336,7 @@ impl State {
     }
     pub fn try_update_state(&mut self) -> anyhow::Result<bool> {
         if let Some(conn) = &mut self.connection {
-            if self.edgeql_state.data.len() > 0 {
+            if !self.edgeql_state.data.is_empty() {
                 let desc = self.edgeql_state_desc.decode()?;
                 let codec = desc.build_codec()?;
                 let value = codec.decode(&self.edgeql_state.data)?;
@@ -457,7 +457,7 @@ impl std::str::FromStr for VectorLimit {
             "unlimited" => Ok(VectorLimit::Unlimited),
             "auto" => Ok(VectorLimit::Auto),
             _ => s.parse().map(VectorLimit::Fixed)
-                .map_err(|_| "expected integer, `unlimited` or `auto`".into()),
+                .map_err(|_| "expected integer, `unlimited` or `auto`"),
         }
     }
 }

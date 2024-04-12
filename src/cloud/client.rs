@@ -94,10 +94,7 @@ impl CloudClient {
         let is_logged_in;
         let dns_zone;
         if let Some(secret_key) = secret_key.clone() {
-            let claims_b64 = secret_key
-                .splitn(3, ".")
-                .skip(1)
-                .next()
+            let claims_b64 = secret_key.split('.').nth(1)
                 .context("malformed secret key: invalid JWT format")?;
             let claims = URL_SAFE_NO_PAD.decode(claims_b64)
                 .context("malformed secret key: invalid base64 data")?;

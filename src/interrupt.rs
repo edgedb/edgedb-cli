@@ -92,7 +92,7 @@ impl Event {
         self.waker.wake()
     }
     fn wait(&self) -> EventWait {
-        EventWait(&*self)
+        EventWait(self)
     }
     fn clear(&self) {
         self.first.store(None);
@@ -159,7 +159,7 @@ fn signal_message(signal: Signal) -> i32 {
         log::warn!("Exiting on signal {}",
             signal_hook::low_level::signal_name(id).unwrap_or("<unknown>"));
     }
-    return id;
+    id
 }
 
 #[cfg(windows)]
@@ -170,7 +170,7 @@ fn signal_message(_signal: Signal) -> i32 {
 
 fn exit_on(signal: Signal) -> ! {
     if let Some(sentinel) = &*CUR_TERM.load() {
-        reset_terminal(&*sentinel);
+        reset_terminal(sentinel);
     }
     let id = signal_message(signal);
     process::exit(128 + id);
@@ -191,7 +191,7 @@ pub fn init_signals() {
         use signal_hook::iterator::Signals;
         use signal_hook::consts::signal::{SIGINT, SIGHUP, SIGTERM};
 
-        let mut signals = Signals::new(&[SIGINT, SIGHUP, SIGTERM])
+        let mut signals = Signals::new([SIGINT, SIGHUP, SIGTERM])
             .expect("signals initialized");
         for signal in signals.into_iter() {
             if let Some(state) = CUR_INTERRUPT.load_full()  {
@@ -279,7 +279,7 @@ impl Future for EventWait<'_> {
 
 impl Signal {
     fn all_bits() -> SigMask {
-        return 0b111;
+        0b111
     }
     fn as_bit(&self) -> SigMask {
         match self {
@@ -354,8 +354,8 @@ impl Trap {
                 ));
             }
             Trap {
-                oldset: oldset,
-                oldsigs: oldsigs,
+                oldset,
+                oldsigs,
             }
         }
     }
