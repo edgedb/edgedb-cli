@@ -167,7 +167,7 @@ fn gen_default_instance_name(input: impl fmt::Display) -> String {
     return name;
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn connect(cfg: &edgedb_tokio::Config) -> Result<Client, Error> {
     //Connection::connect(cfg).await
     let client = edgedb_tokio::Client::new(cfg);
@@ -176,19 +176,19 @@ async fn connect(cfg: &edgedb_tokio::Config) -> Result<Client, Error> {
     Ok(client)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn conn_params(cmd: &Link, opts: &Options, has_branch: &mut bool) -> anyhow::Result<Config> {
     let mut builder = options::prepare_conn_params(&opts)?;
     prompt_conn_params(&opts.conn_options, &mut builder, cmd, has_branch).await
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn get_server_version(connection: &mut Client) -> anyhow::Result<Build> {
     let ver: String = connection.query_required_single("SELECT sys::get_version_as_str()", &()).await?;
     ver.parse()
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn get_default_branch(connection: &mut Client) -> anyhow::Result<String> {
     let default_branch = connection.query_required_single::<String, _>(
         "select sys::get_current_database()",

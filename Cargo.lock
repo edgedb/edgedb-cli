@@ -1037,8 +1037,8 @@ dependencies = [
  "downcast-rs",
  "edgedb-cli-derive",
  "edgedb-derive",
- "edgedb-errors 0.4.1 (git+https://github.com/edgedb/edgedb-rust/?rev=cf5043a)",
- "edgedb-protocol 0.6.0 (git+https://github.com/edgedb/edgedb-rust/?rev=cf5043a)",
+ "edgedb-errors",
+ "edgedb-protocol",
  "edgedb-tokio",
  "edgeql-parser",
  "env_logger 0.10.2",
@@ -1141,7 +1141,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.5.1"
-source = "git+https://github.com/edgedb/edgedb-rust/?rev=cf5043a#cf5043a27c49a2baf98c99e76acdc3432b77d431"
+source = "git+https://github.com/edgedb/edgedb-rust/#783438e6322acc6a4960e61ad2f46b0c8c9517cd"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1152,15 +1152,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.4.1"
-source = "git+https://github.com/edgedb/edgedb-rust/?rev=cf5043a#cf5043a27c49a2baf98c99e76acdc3432b77d431"
-dependencies = [
- "bytes",
-]
-
-[[package]]
-name = "edgedb-errors"
-version = "0.4.1"
-source = "git+https://github.com/edgedb/edgedb-rust/#cf5043a27c49a2baf98c99e76acdc3432b77d431"
+source = "git+https://github.com/edgedb/edgedb-rust/#783438e6322acc6a4960e61ad2f46b0c8c9517cd"
 dependencies = [
  "bytes",
 ]
@@ -1168,29 +1160,13 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.6.0"
-source = "git+https://github.com/edgedb/edgedb-rust/?rev=cf5043a#cf5043a27c49a2baf98c99e76acdc3432b77d431"
+source = "git+https://github.com/edgedb/edgedb-rust/#783438e6322acc6a4960e61ad2f46b0c8c9517cd"
 dependencies = [
  "bigdecimal",
  "bitflags 2.4.2",
  "bytes",
  "chrono",
- "edgedb-errors 0.4.1 (git+https://github.com/edgedb/edgedb-rust/?rev=cf5043a)",
- "num-bigint 0.4.4",
- "num-traits",
- "snafu 0.8.2",
- "uuid",
-]
-
-[[package]]
-name = "edgedb-protocol"
-version = "0.6.0"
-source = "git+https://github.com/edgedb/edgedb-rust/#cf5043a27c49a2baf98c99e76acdc3432b77d431"
-dependencies = [
- "bigdecimal",
- "bitflags 2.4.2",
- "bytes",
- "chrono",
- "edgedb-errors 0.4.1 (git+https://github.com/edgedb/edgedb-rust/)",
+ "edgedb-errors",
  "num-bigint 0.4.4",
  "num-traits",
  "snafu 0.8.2",
@@ -1200,7 +1176,7 @@ dependencies = [
 [[package]]
 name = "edgedb-tokio"
 version = "0.5.0"
-source = "git+https://github.com/edgedb/edgedb-rust/?rev=cf5043a#cf5043a27c49a2baf98c99e76acdc3432b77d431"
+source = "git+https://github.com/edgedb/edgedb-rust/#783438e6322acc6a4960e61ad2f46b0c8c9517cd"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1211,8 +1187,8 @@ dependencies = [
  "crc16",
  "dirs 5.0.1",
  "edgedb-derive",
- "edgedb-errors 0.4.1 (git+https://github.com/edgedb/edgedb-rust/?rev=cf5043a)",
- "edgedb-protocol 0.6.0 (git+https://github.com/edgedb/edgedb-rust/?rev=cf5043a)",
+ "edgedb-errors",
+ "edgedb-protocol",
  "log",
  "once_cell",
  "rand",
@@ -3274,7 +3250,7 @@ name = "shared-client-tests"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
- "edgedb-protocol 0.6.0 (git+https://github.com/edgedb/edgedb-rust/)",
+ "edgedb-protocol",
  "hex",
  "indexmap 2.0.0-pre",
  "predicates 2.1.5",
