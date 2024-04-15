@@ -1,8 +1,12 @@
 
 use crate::commands::parser::BranchingCmd;
+use crate::options::ConnectionOptions;
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct BranchCommand {
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+    
     #[command(subcommand)]
     pub subcommand: Command,
 }
