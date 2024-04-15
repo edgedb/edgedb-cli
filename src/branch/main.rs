@@ -2,7 +2,7 @@ use crate::branch::context::Context;
 use crate::branch::option::{BranchCommand, Command};
 use crate::branch::{create, current, drop, list, merge, rebase, rename, switch, wipe};
 use crate::connect::{Connection, Connector};
-use crate::options::Options;
+use crate::commands::Options;
 
 use edgedb_tokio::get_project_dir;
 
@@ -10,7 +10,7 @@ use edgedb_tokio::get_project_dir;
 pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Result<()> {
     let context = create_context().await?;
 
-    let mut connector: Connector = options.create_connector().await?;
+    let mut connector: Connector = options.conn_params.clone();
 
     // match commands that don't require a connection to run, then match the ones that do with a connection.
     match &cmd.subcommand {
