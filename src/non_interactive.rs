@@ -27,7 +27,7 @@ use crate::repl::OutputFormat;
 use crate::statement::{read_statement, EndOfFile};
 
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn noninteractive_main(q: &Query, options: &Options)
     -> Result<(), anyhow::Error>
 {
@@ -73,7 +73,7 @@ pub async fn noninteractive_main(q: &Query, options: &Options)
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn interpret_stdin(options: &Options, fmt: OutputFormat)
     -> Result<(), anyhow::Error>
 {

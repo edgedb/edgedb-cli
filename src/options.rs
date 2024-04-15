@@ -102,14 +102,14 @@ pub struct ConnectionOptions {
 
     /// Database name to connect to
     #[arg(short='d', long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete database
+    #[arg(value_hint=clap::ValueHint::Other)]  // TODO auto-complete for database
     #[arg(hide=true)]
     #[arg(global=true)]
     pub database: Option<String>,
 
     /// Branch to connect with
     #[arg(short='b', long, help_heading=Some(CONN_OPTIONS_GROUP))]
-    #[arg(value_hint=clap::ValueHint::Other)]  // TODO complete database
+    #[arg(value_hint=clap::ValueHint::Other)]  // TODO auto-complete for branch
     #[arg(hide=true)]
     #[arg(global=true)]
     pub branch: Option<String>,
@@ -237,14 +237,14 @@ pub struct ConnectionOptions {
 }
 
 impl ConnectionOptions {
-    pub(crate) fn get_branch(&self) -> Option<&String> {
-        self.database.as_ref().or(self.branch.as_ref())
-    }
-
-    pub(crate) fn validate(&self) {
+    pub(crate) fn validate(&self) -> anyhow::Result<()> {
         if self.database.is_some() {
             print::warn("database connection argument is deprecated in favor of 'branch'");
         }
+        if let Some((d, b)) = self.database.as_ref().zip(self.branch.as_ref()) {
+            anyhow::bail!("Arguments --database={d} and --branch={b} are mutually exclusive");
+        }
+        Ok(())
     }
 }
 
@@ -842,7 +842,7 @@ impl Options {
         }
     }
 
-    #[tokio::main]
+    #[tokio::main(flavor = "current_thread")]
     pub async fn block_on_create_connector(&self) -> anyhow::Result<Connector>
     {
         self.create_connector().await
@@ -915,8 +915,11 @@ pub fn prepare_conn_params(opts: &Options) -> anyhow::Result<Builder> {
     if let Some(val) = &tmp.secret_key {
         bld.secret_key(val);
     }
-
-    if let Some(branch) = tmp.get_branch() {
+    if let Some(database) = &tmp.database {
+        bld.database(database)?;
+        bld.branch(database)?;
+    } else if let Some(branch) = &tmp.branch {
+        bld.branch(branch)?;
         bld.database(branch)?;
     }
 

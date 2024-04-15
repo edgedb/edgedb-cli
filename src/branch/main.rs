@@ -3,11 +3,11 @@ use crate::branch::context::Context;
 use crate::branch::option::{BranchCommand, Command};
 use crate::branch::{create, current, drop, list, merge, rebase, rename, switch, wipe};
 use crate::connect::{Connection, Connector};
-use crate::options::Options;
+use crate::commands::Options;
 
 use edgedb_tokio::get_project_dir;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Result<()> {
     let context = create_context().await?;
 
@@ -15,7 +15,7 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
 }
 
 pub async fn run_branch_command(cmd: &Command, options: &Options, context: &Context, connection: Option<&mut Connection>) -> anyhow::Result<()> {
-    let mut connector: Connector = options.create_connector().await?;
+    let mut connector: Connector = options.conn_params.clone();
 
     match &cmd {
         Command::Switch(switch) => switch::main(switch, &context, &mut connector).await,

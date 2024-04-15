@@ -769,6 +769,10 @@ fn do_init(name: &str, pkg: &PackageInfo,
                     storage_size: None,
                 },
             },
+            cloud_backup_source: options::CloudBackupSourceParams {
+                from_backup_id: None,
+                from_instance: None,
+            },
             port: Some(port),
             start_conf: None,
             default_user: "edgedb".into(),
@@ -851,6 +855,8 @@ fn do_cloud_init(
         region: None,
         tier: None,
         requested_resources: None,
+        source_instance_id: None,
+        source_backup_id: None,
     };
     crate::cloud::ops::create_cloud_instance(client, &request)?;
     let full_name = format!("{}/{}", org, name);
@@ -1100,7 +1106,7 @@ fn start(handle: &Handle) -> anyhow::Result<()> {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn create_database(inst: &Handle<'_>) -> anyhow::Result<()> {
     create_database_async(inst).await
 }
@@ -1127,7 +1133,7 @@ async fn create_database_async(inst: &Handle<'_>) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
     -> anyhow::Result<()>
 {

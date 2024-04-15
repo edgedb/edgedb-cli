@@ -5,7 +5,7 @@ use crate::branch::context::Context;
 use crate::branch::option::Rebase;
 use crate::connect::Connection;
 use crate::migrations::rebase::{do_rebase, get_diverging_migrations, write_rebased_migration_files};
-use crate::options::Options;
+use crate::commands::Options;
 use crate::{migrations, print};
 use crate::branch::connections::get_connection_to_modify;
 
@@ -22,7 +22,8 @@ pub async fn main(options: &Rebase, context: &Context, source_connection: &mut C
 
     let temp_branch = clone_target_branch(&options.target_branch, source_connection).await?;
 
-    let mut temp_branch_connection = cli_opts.create_connector().await?.database(&temp_branch)?.connect().await?;
+    let mut connector = cli_opts.conn_params.clone();
+    let mut temp_branch_connection = connector.branch(&temp_branch)?.connect().await?;
 
     match rebase(&temp_branch, source_connection, &mut temp_branch_connection, context, cli_opts, !options.no_apply).await {
         Err(e) => {

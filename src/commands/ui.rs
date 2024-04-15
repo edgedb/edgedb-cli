@@ -163,7 +163,7 @@ fn _get_local_ui_secret_key(cfg: &edgedb_tokio::Config) -> anyhow::Result<Option
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn open_url(url: &str) -> Result<reqwest::Response, reqwest::Error> {
     reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
