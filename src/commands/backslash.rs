@@ -548,7 +548,7 @@ fn list_settings(prompt: &mut repl::State) {
     table.printstd();
 }
 
-pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State, cli_opts: &crate::options::Options)
+pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
     -> Result<ExecuteResult, anyhow::Error>
 {
     use crate::commands::parser::BackslashCmd::*;
@@ -570,7 +570,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State, cli_opts: &cr
             prompt.soft_reconnect().await?;
             let cli = prompt.connection.as_mut()
                 .expect("connection established");
-            execute::common(cli, cmd, &options, cli_opts).await?;
+            execute::common(cli, cmd, &options).await?;
             Ok(Skip)
         }
         Set(SetCommand {setting: None}) => {

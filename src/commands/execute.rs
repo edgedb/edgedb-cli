@@ -9,7 +9,7 @@ use crate::migrations;
 use crate::print;
 
 
-pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options, cli_opts: &options::Options)
+pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
     -> Result<(), anyhow::Error>
 {
     use Common::*;
@@ -96,7 +96,7 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options, cli_o
             }
         },
         Branching(branching) => {
-            branching::main(cli, &branching.subcommand, &cli_opts).await?
+            branching::main(cli, &branching.subcommand, &options).await?
         }
         Migrate(params) => {
             migrations::migrate(cli, &options, params).await?;
