@@ -1,7 +1,7 @@
 use crate::branch::connections::get_connection_to_modify;
 use crate::branch::context::Context;
 use crate::branch::option::Rename;
-use crate::options::Options;
+use crate::commands::Options;
 use crate::connect::Connection;
 use crate::print;
 

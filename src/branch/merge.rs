@@ -4,7 +4,7 @@ use crate::branch::option::{Merge};
 use crate::connect::Connection;
 use crate::migrations;
 use crate::migrations::merge::{apply_merge_migration_files, get_merge_migrations, write_merge_migrations};
-use crate::options::Options;
+use crate::commands::Options;
 
 pub async fn main(options: &Merge, context: &Context, source_connection: &mut Connection, cli_opts: &Options) -> anyhow::Result<()> {
     if context.project_config.is_none() {
@@ -18,8 +18,9 @@ pub async fn main(options: &Merge, context: &Context, source_connection: &mut Co
         anyhow::bail!("Cannot merge the current branch into its self");
     }
 
+    let mut connector = cli_opts.conn_params.clone();
     let mut target_connection = match connect_if_branch_exists(
-        cli_opts.create_connector().await?.branch(&options.target_branch)?
+        connector.branch(&options.target_branch)?
     ).await? {
         Some(connection) => connection,
         None => anyhow::bail!("The branch '{}' doesn't exist", options.target_branch)
