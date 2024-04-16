@@ -3,14 +3,14 @@ use edgedb_tokio::server_params::PostgresAddress;
 
 use crate::{analyze};
 use crate::commands::parser::{Common, DatabaseCmd, ListCmd, DescribeCmd};
-use crate::commands::{self, branching, Options};
+use crate::commands::{self, branching, CommandResult, Options};
 use crate::migrations::options::{MigrationCmd};
 use crate::migrations;
 use crate::print;
 
 
 pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
-    -> Result<(), anyhow::Error>
+    -> Result<Option<CommandResult>, anyhow::Error>
 {
     use Common::*;
     match cmd {
@@ -96,7 +96,7 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             }
         },
         Branching(branching) => {
-            branching::main(cli, &branching.subcommand, options).await?
+            return branching::main(cli, &branching.subcommand, options).await
         }
         Migrate(params) => {
             migrations::migrate(cli, options, params).await?;
@@ -128,5 +128,5 @@ pub async fn common(cli: &mut Connection, cmd: &Common, options: &Options)
             }
         }
     }
-    Ok(())
+    Ok(None)
 }

@@ -26,6 +26,7 @@ pub mod parser;
 mod ui;
 mod list_branches;
 mod branching;
+mod command_result;
 
 pub use self::configure::configure;
 pub use self::dump::{dump, dump_all};
@@ -46,3 +47,4 @@ pub use self::psql::psql;
 pub use self::exit::ExitCode;
 pub use self::info::info;
 pub use self::ui::show_ui;
+pub use self::command_result::CommandResult;

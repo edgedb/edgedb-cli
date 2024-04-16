@@ -144,6 +144,12 @@ pub enum BranchingCmd {
     /// preserving the branch itself (its cfg::DatabaseConfig)
     /// and existing migration scripts
     Wipe(crate::branch::option::Wipe),
+    /// List all branches.
+    List(crate::branch::option::List),
+    /// Switches the current branch to a different one.
+    Switch(crate::branch::option::Switch),
+    /// Renames a branch.
+    Rename(crate::branch::option::Rename)
 }
 
 #[derive(clap::Args, Clone, Debug)]
