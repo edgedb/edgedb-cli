@@ -171,7 +171,7 @@ async fn connect(cfg: &edgedb_tokio::Config) -> Result<Client, Error> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn conn_params(cmd: &Link, opts: &Options, has_branch: &mut bool) -> anyhow::Result<Config> {
-    let mut builder = options::prepare_conn_params(&opts)?;
+    let mut builder = options::prepare_conn_params(opts)?;
     prompt_conn_params(&opts.conn_options, &mut builder, cmd, has_branch).await
 }
 

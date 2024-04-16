@@ -248,7 +248,7 @@ impl<T: Output> Formatter for Printer<T>
             let mut printed = 0;
             let mut savepoint = (self.buffer.len(), self.column);
             let mut first_try = || {
-                for item in iter.clone() {
+                for item in iter {
                     self.const_number(item)?;
                     self.comma()?;
                     let col_left = self.max_width.saturating_sub(self.column);
