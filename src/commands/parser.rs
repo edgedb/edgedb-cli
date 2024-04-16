@@ -2,12 +2,11 @@ use std::path::PathBuf;
 
 use clap::ValueHint;
 
-use crate::repl::{self, VectorLimit};
-use crate::migrations::options::{Migration, Migrate};
+use crate::migrations::options::{Migrate, Migration};
 use crate::options::ConnectionOptions;
+use crate::repl::{self, VectorLimit};
 
 use edgedb_cli_derive::EdbSettings;
-
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Common {
@@ -34,10 +33,10 @@ pub enum Common {
     /// Analyze performance of query in quotes (e.g. `"select 9;"`)
     Analyze(Analyze),
     /// Show PostgreSQL address. Works on dev-mode database only.
-    #[command(hide=true)]
+    #[command(hide = true)]
     Pgaddr,
     /// Run psql shell. Works on dev-mode database only.
-    #[command(hide=true)]
+    #[command(hide = true)]
     Psql,
 }
 
@@ -51,10 +50,9 @@ impl Common {
     }
 }
 
-
 #[derive(clap::Args, Clone, Debug)]
 #[command(version = "help_expand")]
-#[command(disable_version_flag=true)]
+#[command(disable_version_flag = true)]
 pub struct Describe {
     #[command(flatten)]
     pub conn: ConnectionOptions,
@@ -93,7 +91,7 @@ pub struct Analyze {
     pub debug_output_file: Option<PathBuf>,
 
     /// Read JSON file instead of executing a query
-    #[arg(long, conflicts_with="query")]
+    #[arg(long, conflicts_with = "query")]
     pub read_json: Option<PathBuf>,
 
     /// Show detailed output of analyze command
@@ -124,8 +122,8 @@ pub enum ListCmd {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(version = "help_expand")]
-#[command(disable_version_flag=true)]
+#[command(version = "help_expand", hide = true)]
+#[command(disable_version_flag = true)]
 pub struct Branching {
     #[command(flatten)]
     pub conn: ConnectionOptions,
@@ -149,12 +147,12 @@ pub enum BranchingCmd {
     /// Switches the current branch to a different one.
     Switch(crate::branch::option::Switch),
     /// Renames a branch.
-    Rename(crate::branch::option::Rename)
+    Rename(crate::branch::option::Rename),
 }
 
 #[derive(clap::Args, Clone, Debug)]
 #[command(version = "help_expand")]
-#[command(disable_version_flag=true)]
+#[command(disable_version_flag = true)]
 pub struct Database {
     #[command(flatten)]
     pub conn: ConnectionOptions,
@@ -176,7 +174,7 @@ pub enum DatabaseCmd {
 }
 
 #[derive(clap::Parser, Clone, Debug)]
-#[command(no_binary_name=true, disable_help_subcommand(true))]
+#[command(no_binary_name = true, disable_help_subcommand(true))]
 pub struct Backslash {
     #[command(subcommand)]
     pub command: BackslashCmd,
@@ -204,7 +202,7 @@ pub struct StateParam {
     /// state
     ///
     /// Has no effect if currently not in a transaction
-    #[arg(short='b')]
+    #[arg(short = 'b')]
     pub base: bool,
 }
 
@@ -214,8 +212,7 @@ pub struct SetCommand {
     pub setting: Option<Setting>,
 }
 
-#[derive(clap::Subcommand, Clone, Debug)]
-#[derive(EdbSettings)]
+#[derive(clap::Subcommand, Clone, Debug, EdbSettings)]
 pub enum Setting {
     /// Set input mode. One of: vi, emacs
     InputMode(InputMode),
@@ -247,7 +244,7 @@ pub enum Setting {
 
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct InputMode {
-    #[arg(value_name="mode")]
+    #[arg(value_name = "mode")]
     pub value: Option<repl::InputMode>,
 }
 
@@ -259,19 +256,19 @@ pub struct SettingBool {
 
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct Limit {
-    #[arg(value_name="limit")]
+    #[arg(value_name = "limit")]
     pub value: Option<usize>,
 }
 
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct VectorLimitValue {
-    #[arg(value_name="limit")]
+    #[arg(value_name = "limit")]
     pub value: Option<VectorLimit>,
 }
 
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct IdleTransactionTimeout {
-    #[arg(value_name="duration")]
+    #[arg(value_name = "duration")]
     pub value: Option<String>,
 }
 
@@ -288,7 +285,7 @@ pub struct Edit {
 
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct OutputFormat {
-    #[arg(value_name="mode")]
+    #[arg(value_name = "mode")]
     pub value: Option<repl::OutputFormat>,
 }
 
@@ -325,68 +322,66 @@ pub struct WipeDatabase {
 #[derive(clap::Args, Clone, Debug)]
 pub struct ListAliases {
     pub pattern: Option<String>,
-    #[arg(long, short='c')]
+    #[arg(long, short = 'c')]
     pub case_sensitive: bool,
-    #[arg(long, short='s')]
+    #[arg(long, short = 's')]
     pub system: bool,
-    #[arg(long, short='v')]
+    #[arg(long, short = 'v')]
     pub verbose: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct ListCasts {
     pub pattern: Option<String>,
-    #[arg(long, short='c')]
+    #[arg(long, short = 'c')]
     pub case_sensitive: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct ListIndexes {
     pub pattern: Option<String>,
-    #[arg(long, short='c')]
+    #[arg(long, short = 'c')]
     pub case_sensitive: bool,
-    #[arg(long, short='s')]
+    #[arg(long, short = 's')]
     pub system: bool,
-    #[arg(long, short='v')]
+    #[arg(long, short = 'v')]
     pub verbose: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct ListTypes {
     pub pattern: Option<String>,
-    #[arg(long, short='c')]
+    #[arg(long, short = 'c')]
     pub case_sensitive: bool,
-    #[arg(long, short='s')]
+    #[arg(long, short = 's')]
     pub system: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct ListRoles {
     pub pattern: Option<String>,
-    #[arg(long, short='c')]
+    #[arg(long, short = 'c')]
     pub case_sensitive: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct ListModules {
     pub pattern: Option<String>,
-    #[arg(long, short='c')]
+    #[arg(long, short = 'c')]
     pub case_sensitive: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct DescribeObject {
     pub name: String,
-    #[arg(long, short='v')]
+    #[arg(long, short = 'v')]
     pub verbose: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
-pub struct DescribeSchema {
-}
+pub struct DescribeSchema {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(clap::ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum DumpFormat {
     Dir,
 }
@@ -436,7 +431,7 @@ pub struct Restore {
     pub all: bool,
 
     /// Verbose output
-    #[arg(long, short='v')]
+    #[arg(long, short = 'v')]
     pub verbose: bool,
 }
 
@@ -479,14 +474,13 @@ pub struct ConfigureSet {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum ListParameter {
-
     /// Insert a client authentication rule
-    #[command(name="Auth")]
+    #[command(name = "Auth")]
     Auth(AuthParameter),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
-#[command(rename_all="snake_case")]
+#[command(rename_all = "snake_case")]
 pub enum ValueParameter {
     /// Specifies the TCP/IP address(es) on which the server is to listen for
     /// connections from client applications.
@@ -574,14 +568,14 @@ pub enum ValueParameter {
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
-#[command(rename_all="snake_case")]
+#[command(rename_all = "snake_case")]
 pub enum ConfigParameter {
     /// Reset listen addresses to 127.0.0.1
     ListenAddresses,
     /// Reset port to 5656
     ListenPort,
     /// Clear authentication table (only admin socket can be used to connect)
-    #[command(name="Auth")]
+    #[command(name = "Auth")]
     Auth,
     /// Reset shared_buffers PostgreSQL configuration parameter to default value
     SharedBuffers,
@@ -642,7 +636,7 @@ pub struct AuthParameter {
 
     /// The name(s) of the database role(s) this rule applies to. Will apply
     /// to all roles if set to '*'
-    #[arg(long="users")]
+    #[arg(long = "users")]
     pub users: Vec<String>,
 
     /// The name of the authentication method type. Valid values are: Trust
@@ -655,7 +649,6 @@ pub struct AuthParameter {
     #[arg(long)]
     pub comment: Option<String>,
 }
-
 
 impl SettingBool {
     pub fn unwrap_value(&self) -> bool {
