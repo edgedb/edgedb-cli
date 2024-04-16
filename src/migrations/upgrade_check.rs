@@ -9,7 +9,7 @@ use tokio::fs;
 use tokio::sync::watch;
 
 use crate::async_try;
-use crate::commands::{Options, ExitCode};
+use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::migrations::context::Context;
 use crate::migrations::create::{execute_start_migration, EsdlError};
@@ -21,8 +21,8 @@ use crate::migrations::timeout;
 use crate::portable::config::Config;
 use crate::portable::install;
 use crate::portable::local::InstallInfo;
-use crate::portable::repository::{self, Query, PackageInfo};
-use crate::print::{warn, success, echo, Highlight};
+use crate::portable::repository::{self, PackageInfo, Query};
+use crate::print::{echo, success, warn, Highlight};
 use crate::process;
 use crate::watch::wait_changes;
 
@@ -39,9 +39,7 @@ enum CheckResult {
 }
 
 #[cfg(windows)]
-pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
-    -> anyhow::Result<()>
-{
+pub fn upgrade_check(_options: &Options, options: &UpgradeCheck) -> anyhow::Result<()> {
     use crate::portable::windows;
 
     let status_path = tempfile::NamedTempFile::new()
@@ -51,30 +49,25 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
     let mut cmd = windows::ensure_wsl()?.edgedb();
     cmd.arg("migration").arg("upgrade-check");
     cmd.args(&UpgradeCheck {
-        run_server_with_status: Some(
-            windows::path_to_linux(&status_path)?.into()
-        ),
-        .. options.clone()
+        run_server_with_status: Some(windows::path_to_linux(&status_path)?.into()),
+        ..options.clone()
     });
-    cmd.background_for(move || Ok(async move {
-        while let Ok(meta) = fs::metadata(&status_path).await {
-            if meta.len() > "READY={}".len() as u64 {
-                break;
+    cmd.background_for(move || {
+        Ok(async move {
+            while let Ok(meta) = fs::metadata(&status_path).await {
+                if meta.len() > "READY={}".len() as u64 {
+                    break;
+                }
             }
-        }
-        let ctx = Context::from_project_or_config(
-            &options.cfg, false,
-        ).await?;
+            let ctx = Context::from_project_or_config(&options.cfg, false).await?;
 
-        do_check(&ctx, &status_path, options.watch).await
-    }))
+            do_check(&ctx, &status_path, options.watch).await
+        })
+    })
 }
 
-
 #[cfg(unix)]
-pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
-    -> anyhow::Result<()>
-{
+pub fn upgrade_check(_options: &Options, options: &UpgradeCheck) -> anyhow::Result<()> {
     let (version, _) = Query::from_options(
         repository::QueryOptions {
             nightly: options.to_nightly,
@@ -83,11 +76,11 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
             version: options.to_version.as_ref(),
             channel: options.to_channel,
         },
-        || Ok(Query::stable()))?;
+        || Ok(Query::stable()),
+    )?;
 
     let pkg = repository::get_server_package(&version)?
-        .with_context(|| format!("no package matching {} found",
-                                 version.display()))?;
+        .with_context(|| format!("no package matching {} found", version.display()))?;
     let info = install::package(&pkg).context("error installing EdgeDB")?;
 
     // This is run from windows to do the upgrade check
@@ -106,12 +99,10 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck)
         unreachable!();
     }
 
-     let runtime = tokio::runtime::Builder::new_multi_thread()
-         .enable_all()
-         .build()?;
-    let ctx = runtime.block_on(
-        Context::from_project_or_config(&options.cfg, false)
-    )?;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    let ctx = runtime.block_on(Context::from_project_or_config(&options.cfg, false))?;
     spawn_and_check(&info, ctx, options.watch)
 }
 
@@ -128,9 +119,7 @@ pub fn to_version(pkg: &PackageInfo, config: &Config) -> anyhow::Result<()> {
 }
 
 #[cfg(unix)]
-fn spawn_and_check(info: &InstallInfo, ctx: Context, watch: bool)
-    -> anyhow::Result<()>
-{
+fn spawn_and_check(info: &InstallInfo, ctx: Context, watch: bool) -> anyhow::Result<()> {
     use tokio::net::UnixDatagram;
 
     let server_path = info.server_path()?;
@@ -140,7 +129,8 @@ fn spawn_and_check(info: &InstallInfo, ctx: Context, watch: bool)
     cmd.arg("--temp-dir");
     cmd.arg("--auto-shutdown-after=0");
     cmd.arg("--default-auth-method=Trust");
-    cmd.arg("--emit-server-status").arg(&status_dir.path().join("status"));
+    cmd.arg("--emit-server-status")
+        .arg(&status_dir.path().join("status"));
     cmd.arg("--port=auto");
     cmd.arg("--compiler-pool-mode=on_demand");
     cmd.arg("--tls-cert-mode=generate_self_signed");
@@ -153,7 +143,7 @@ fn spawn_and_check(info: &InstallInfo, ctx: Context, watch: bool)
             let mut buf = [0u8; 1024];
             while !matches!(sock.recv(&mut buf).await,
                            Ok(len) if &buf[..len] == b"READY=1")
-            { };
+            {}
 
             let status_file = status_dir.path().join("status");
             do_check(&ctx, &status_file, watch).await
@@ -161,25 +151,23 @@ fn spawn_and_check(info: &InstallInfo, ctx: Context, watch: bool)
     })
 }
 
-
-async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
-    -> anyhow::Result<()>
-{
+async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Result<()> {
     use CheckResult::*;
 
-    let status_data = fs::read_to_string(&status_file).await
+    let status_data = fs::read_to_string(&status_file)
+        .await
         .context("error reading status")?;
     let Some(json_data) = status_data.strip_prefix("READY=") else {
         anyhow::bail!("Invalid server status {status_data:?}");
     };
     let status: EdgedbStatus = serde_json::from_str(json_data)?;
     let cert_path = if cfg!(windows) {
-        crate::portable::windows::path_to_windows(
-            Path::new(&status.tls_cert_file))?
+        crate::portable::windows::path_to_windows(Path::new(&status.tls_cert_file))?
     } else {
         Path::new(&status.tls_cert_file).to_path_buf()
     };
-    let cert_data = fs::read_to_string(&cert_path).await
+    let cert_data = fs::read_to_string(&cert_path)
+        .await
         .with_context(|| format!("cannot read cert file {cert_path:?}"))?;
     let config = Builder::new()
         .port(status.port)?
@@ -197,7 +185,8 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
         let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
             res.map_err(|e| {
                 log::warn!("Error watching filesystem: {:#}", e);
-            }).ok();
+            })
+            .ok();
             tx.send(()).unwrap();
         })?;
         // TODO(tailhook) do we have to monitor `edgedb.toml` for the schema
@@ -216,8 +205,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
             Okay => {}
             SchemaIssue => {
                 echo!("For faster feedback loop use:");
-                echo!("    edgedb migration upgrade-check --watch"
-                      .command_hint());
+                echo!("    edgedb migration upgrade-check --watch".command_hint());
                 return Err(ExitCode::new(3))?;
             }
             MigrationsIssue => {
@@ -232,9 +220,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool)
     }
 }
 
-async fn single_check(ctx: &Context, cli: &mut Connection)
-    -> anyhow::Result<CheckResult>
-{
+async fn single_check(ctx: &Context, cli: &mut Connection) -> anyhow::Result<CheckResult> {
     use CheckResult::*;
 
     let bar = ProgressBar::new_spinner();
@@ -246,8 +232,10 @@ async fn single_check(ctx: &Context, cli: &mut Connection)
             execute(cli, "ABORT MIGRATION").await?;
         }
         Err(e) if e.is::<EsdlError>() => {
-            warn("Schema incompatibilities found. \
-                  Please fix the errors above to proceed.");
+            warn(
+                "Schema incompatibilities found. \
+                  Please fix the errors above to proceed.",
+            );
             return Ok(SchemaIssue);
         }
         Err(e) => return Err(e),
@@ -288,27 +276,34 @@ async fn single_check(ctx: &Context, cli: &mut Connection)
 }
 
 fn print_apply_migration_error() {
-    warn("The current schema is compatible, \
-         but some of the migrations are outdated.");
+    warn(
+        "The current schema is compatible, \
+         but some of the migrations are outdated.",
+    );
     echo!("Please squash all migrations to fix the issue:");
     echo!("    edgedb migration create --squash".command_hint());
 }
 
-pub async fn watch_loop(mut rx: watch::Receiver<()>,
-                        ctx: &Context, cli: &mut Connection, mut ok: bool)
-    -> anyhow::Result<()>
-{
+pub async fn watch_loop(
+    mut rx: watch::Receiver<()>,
+    ctx: &Context,
+    cli: &mut Connection,
+    mut ok: bool,
+) -> anyhow::Result<()> {
     let mut retry_deadline = None::<Instant>;
     loop {
         // note we don't wait for interrupt here because if interrupt happens
         // the `background_for` method of the process takes care of it.
-        cli.ping_while(wait_changes(&mut rx, retry_deadline)).await?;
+        cli.ping_while(wait_changes(&mut rx, retry_deadline))
+            .await?;
         retry_deadline = None;
         match single_check(ctx, cli).await {
             Ok(CheckResult::Okay) => {
                 if !ok {
-                    success("The schema is forward compatible. \
-                            Ready for upgrade.");
+                    success(
+                        "The schema is forward compatible. \
+                            Ready for upgrade.",
+                    );
                     ok = true;
                 }
             }
@@ -317,10 +312,12 @@ pub async fn watch_loop(mut rx: watch::Receiver<()>,
             }
             Err(e) => {
                 ok = false;
-                log::error!("Error updating database: {:#}. \
-                             Will retry in 10s.", e);
-                retry_deadline = Some(Instant::now() +
-                                      Duration::from_secs(10));
+                log::error!(
+                    "Error updating database: {:#}. \
+                             Will retry in 10s.",
+                    e
+                );
+                retry_deadline = Some(Instant::now() + Duration::from_secs(10));
             }
         }
     }

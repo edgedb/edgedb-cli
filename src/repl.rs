@@ -5,35 +5,32 @@ use std::time::Duration;
 use anyhow::Context;
 use bytes::BytesMut;
 use colorful::Colorful;
-use tokio::sync::oneshot;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::oneshot;
 
+use edgedb_errors::{ClientError, ProtocolEncodingError};
 use edgedb_errors::{Error, ErrorKind};
-use edgedb_errors::{ProtocolEncodingError, ClientError};
-use edgedb_protocol::common::{State as EdgeqlState, RawTypedesc};
-use edgedb_protocol::model::Uuid;
+use edgedb_protocol::common::{RawTypedesc, State as EdgeqlState};
 use edgedb_protocol::model::Duration as EdbDuration;
+use edgedb_protocol::model::Uuid;
 use edgedb_protocol::server_message::TransactionState;
 use edgedb_protocol::value::Value;
 
+use crate::analyze;
 use crate::async_util::timeout;
 use crate::connect::Connection;
 use crate::connect::Connector;
+use crate::echo;
 use crate::portable::ver;
 use crate::print::{self, Highlight};
-use crate::echo;
 use crate::prompt::variable::VariableInput;
 use crate::prompt::{self, Control};
-use crate::analyze;
-
 
 pub const TX_MARKER: &str = "[tx]";
 pub const FAILURE_MARKER: &str = "[tx:failed]";
 
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(clap::ValueEnum)]
-#[value(rename_all="kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[value(rename_all = "kebab-case")]
 pub enum OutputFormat {
     Default,
     Json,
@@ -42,17 +39,15 @@ pub enum OutputFormat {
     TabSeparated,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(clap::ValueEnum)]
-#[value(rename_all="kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[value(rename_all = "kebab-case")]
 pub enum InputMode {
     Vi,
     Emacs,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(clap::ValueEnum)]
-#[value(rename_all="kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[value(rename_all = "kebab-case")]
 pub enum PrintStats {
     Off,
     Query,
@@ -65,7 +60,6 @@ pub enum VectorLimit {
     Auto,
     Fixed(usize),
 }
-
 
 pub struct PromptRpc {
     pub control: Sender<Control>,
@@ -100,23 +94,29 @@ pub struct State {
 }
 
 impl PromptRpc {
-    pub async fn variable_input(&mut self,
-        name: &str, var_type: Arc<dyn VariableInput>, optional: bool,
-        initial: &str)
-        -> anyhow::Result<prompt::VarInput>
-    {
+    pub async fn variable_input(
+        &mut self,
+        name: &str,
+        var_type: Arc<dyn VariableInput>,
+        optional: bool,
+        initial: &str,
+    ) -> anyhow::Result<prompt::VarInput> {
         let (response, rx) = oneshot::channel();
-        self.control.send(
-            prompt::Control::ParameterInput {
+        self.control
+            .send(prompt::Control::ParameterInput {
                 name: name.to_owned(),
                 var_type,
                 optional,
                 initial: initial.to_owned(),
                 response,
-            }
-        ).await.ok().context("cannot send command to prompt thread")?;
-        let res = rx.await
-            .ok().context("cannot get response from the prompt thread")?;
+            })
+            .await
+            .ok()
+            .context("cannot send command to prompt thread")?;
+        let res = rx
+            .await
+            .ok()
+            .context("cannot get response from the prompt thread")?;
         Ok(res)
     }
 }
@@ -145,16 +145,17 @@ impl State {
         if let Some(conn) = &mut self.connection {
             if conn.protocol().is_at_least(0, 13) {
                 let d = self.idle_transaction_timeout;
-                log::info!(
-                    "Setting session_idle_transaction_timeout to {}", d
-                );
-                conn.execute(&format!(
-                    "CONFIGURE SESSION SET session_idle_transaction_timeout \
+                log::info!("Setting session_idle_transaction_timeout to {}", d);
+                conn.execute(
+                    &format!(
+                        "CONFIGURE SESSION SET session_idle_transaction_timeout \
                      := <std::duration>'{}us'",
-                    d.to_micros(),
-                ), &()).await.context(
-                    "cannot configure session_idle_transaction_timeout"
-                )?;
+                        d.to_micros(),
+                    ),
+                    &(),
+                )
+                .await
+                .context("cannot configure session_idle_transaction_timeout")?;
             }
         }
         Ok(())
@@ -178,7 +179,9 @@ impl State {
         }
         self.conn_params = params;
         self.branch = branch.into();
-        self.current_branch = conn.query_required_single("select sys::get_current_database()", &()).await?;
+        self.current_branch = conn
+            .query_required_single("select sys::get_current_database()", &())
+            .await?;
         self.connection = Some(conn);
         self.read_state();
         self.set_idle_transaction_timeout().await?;
@@ -186,8 +189,11 @@ impl State {
     }
     pub async fn soft_reconnect(&mut self) -> anyhow::Result<()> {
         if self.in_transaction() {
-            let is_closed = self.connection.as_ref()
-                .map(|c| !c.is_consistent()).unwrap_or(false);
+            let is_closed = self
+                .connection
+                .as_ref()
+                .map(|c| !c.is_consistent())
+                .unwrap_or(false);
             if is_closed {
                 anyhow::bail!("connection closed by server");
             }
@@ -202,8 +208,7 @@ impl State {
             Some(_) => {
                 eprintln!("Reconnecting...");
             }
-            None => {
-            }
+            None => {}
         };
         self.reconnect().await?;
         Ok(())
@@ -211,36 +216,46 @@ impl State {
     pub async fn terminate(&mut self) {
         if let Some(conn) = self.connection.take() {
             if conn.is_consistent() {
-                timeout(Duration::from_secs(1), conn.terminate()).await
+                timeout(Duration::from_secs(1), conn.terminate())
+                    .await
                     .map_err(|e| log::warn!("Termination error: {:#}", e))
                     .ok();
             }
         }
     }
-    async fn editor_cmd<T>(&mut self,
-                           f: impl FnOnce(oneshot::Sender<T>) -> Control)
-        -> anyhow::Result<T>
-    {
+    async fn editor_cmd<T>(
+        &mut self,
+        f: impl FnOnce(oneshot::Sender<T>) -> Control,
+    ) -> anyhow::Result<T> {
         let (tx, rx) = oneshot::channel();
         let request = f(tx);
         if let Some(conn) = &mut self.connection {
             let prompt = &self.prompt;
             conn.ping_while(async {
-                prompt.control.send(request).await
-                    .ok().context("error sending command to prompt thread")?;
+                prompt
+                    .control
+                    .send(request)
+                    .await
+                    .ok()
+                    .context("error sending command to prompt thread")?;
                 anyhow::Ok(rx.await?)
-            }).await
+            })
+            .await
         } else {
-            self.prompt.control.send(request).await
-                    .ok().context("error sending command to prompt thread")?;
-            let res = rx.await
-                    .ok().context("cannot get response from prompt thread")?;
+            self.prompt
+                .control
+                .send(request)
+                .await
+                .ok()
+                .context("error sending command to prompt thread")?;
+            let res = rx
+                .await
+                .ok()
+                .context("cannot get response from prompt thread")?;
             Ok(res)
         }
     }
-    pub async fn edgeql_input(&mut self, initial: &str)
-        -> anyhow::Result<prompt::Input>
-    {
+    pub async fn edgeql_input(&mut self, initial: &str) -> anyhow::Result<prompt::Input> {
         use TransactionState::*;
 
         let txstate = match self.connection.as_mut().map(|c| c.transaction_state()) {
@@ -258,68 +273,59 @@ impl State {
         let inst = self.conn_params.get()?.instance_name().to_owned();
 
         let location = match inst {
-            Some(edgedb_tokio::InstanceName::Cloud { org_slug: org, name }) =>
-                format!(
-                    "{}/{}:{}",
-                    org,
-                    name,
-                    current_database,
-                ),
-            Some(edgedb_tokio::InstanceName::Local(name)) =>
-                format!(
-                    "{}:{}",
-                    name,
-                    current_database,
-                ),
-            _ =>
-                format!("{}", current_database)
+            Some(edgedb_tokio::InstanceName::Cloud {
+                org_slug: org,
+                name,
+            }) => format!("{}/{}:{}", org, name, current_database,),
+            Some(edgedb_tokio::InstanceName::Local(name)) => {
+                format!("{}:{}", name, current_database,)
+            }
+            _ => format!("{}", current_database),
         };
 
         let prompt = format!("{}{}> ", location, txstate);
 
-        self.editor_cmd(|response| {
-            prompt::Control::EdgeqlInput {
-                prompt,
-                initial: initial.to_owned(),
-                response,
-            }
-        }).await
+        self.editor_cmd(|response| prompt::Control::EdgeqlInput {
+            prompt,
+            initial: initial.to_owned(),
+            response,
+        })
+        .await
     }
 
-    pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()>
-    {
+    pub async fn input_mode(&mut self, value: InputMode) -> anyhow::Result<()> {
         self.input_mode = value;
         let msg = match value {
             InputMode::Vi => prompt::Control::ViMode,
             InputMode::Emacs => prompt::Control::EmacsMode,
         };
-        self.prompt.control.send(msg).await
-            .ok().context("cannot send to input thread")
+        self.prompt
+            .control
+            .send(msg)
+            .await
+            .ok()
+            .context("cannot send to input thread")
     }
     pub async fn show_history(&mut self) -> anyhow::Result<()> {
-        self.editor_cmd(|ack| {
-            Control::ShowHistory { ack }
-        }).await
+        self.editor_cmd(|ack| Control::ShowHistory { ack }).await
     }
-    pub async fn spawn_editor(&mut self, entry: Option<isize>)
-        -> anyhow::Result<prompt::Input>
-    {
-        self.editor_cmd(|response| {
-            Control::SpawnEditor { entry, response }
-        }).await
+    pub async fn spawn_editor(&mut self, entry: Option<isize>) -> anyhow::Result<prompt::Input> {
+        self.editor_cmd(|response| Control::SpawnEditor { entry, response })
+            .await
     }
-    pub async fn set_history_limit(&mut self, val: usize)
-        -> anyhow::Result<()>
-    {
+    pub async fn set_history_limit(&mut self, val: usize) -> anyhow::Result<()> {
         self.history_limit = val;
-        self.prompt.control.send(Control::SetHistoryLimit(val)).await
-            .ok().context("cannot send to input thread")
+        self.prompt
+            .control
+            .send(Control::SetHistoryLimit(val))
+            .await
+            .ok()
+            .context("cannot send to input thread")
     }
     pub fn in_transaction(&self) -> bool {
         match &self.connection {
             Some(conn) => {
-                matches!(conn.transaction_state(),
-                         TransactionState::InTransaction)
+                matches!(conn.transaction_state(), TransactionState::InTransaction)
             }
             None => false,
         }
@@ -343,15 +349,14 @@ impl State {
 
                 let desc = conn.get_state_desc().decode()?;
                 let codec = desc.build_codec()?;
-                let mut buf = BytesMut::with_capacity(
-                    self.edgeql_state.data.len());
+                let mut buf = BytesMut::with_capacity(self.edgeql_state.data.len());
                 codec.encode(&mut buf, &value)?;
                 self.edgeql_state = EdgeqlState {
                     typedesc_id: desc.id().clone(),
                     data: buf.freeze(),
                 };
                 conn.set_state(self.edgeql_state.clone());
-                return Ok(true)
+                return Ok(true);
             }
         }
         Ok(false)
@@ -362,16 +367,18 @@ impl State {
         }
         let desc = &self.edgeql_state_desc;
         if desc.id != self.edgeql_state.typedesc_id {
-            return Err(ClientError::with_message(
-                    format!("State type descriptor id is {:?}, \
+            return Err(ClientError::with_message(format!(
+                "State type descriptor id is {:?}, \
                              but state is encoded using {:?}",
-                            desc.id, self.edgeql_state.typedesc_id)
-            ));
+                desc.id, self.edgeql_state.typedesc_id
+            )));
         }
         let desc = desc.decode().map_err(ProtocolEncodingError::with_source)?;
-        let codec = desc.build_codec()
+        let codec = desc
+            .build_codec()
             .map_err(ProtocolEncodingError::with_source)?;
-        let value = codec.decode(&self.edgeql_state.data[..])
+        let value = codec
+            .decode(&self.edgeql_state.data[..])
             .map_err(ProtocolEncodingError::with_source)?;
 
         Ok((desc.id().clone(), value))
@@ -415,7 +422,6 @@ impl std::str::FromStr for PrintStats {
     }
 }
 
-
 impl InputMode {
     pub fn as_str(&self) -> &'static str {
         use InputMode::*;
@@ -456,7 +462,9 @@ impl std::str::FromStr for VectorLimit {
         match s {
             "unlimited" => Ok(VectorLimit::Unlimited),
             "auto" => Ok(VectorLimit::Auto),
-            _ => s.parse().map(VectorLimit::Fixed)
+            _ => s
+                .parse()
+                .map(VectorLimit::Fixed)
                 .map_err(|_| "expected integer, `unlimited` or `auto`"),
         }
     }

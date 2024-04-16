@@ -1,10 +1,10 @@
 use std::borrow::Cow;
-use std::time::{SystemTime, Duration};
 use std::fmt;
-
+use std::time::{Duration, SystemTime};
 
 pub fn done_before(timestamp: SystemTime) -> impl fmt::Display {
-    timestamp.elapsed()
+    timestamp
+        .elapsed()
         .map(|duration| {
             let min = Duration::new(duration.as_secs() / 60 * 60, 0);
             Cow::Owned(format!("done {} ago", humantime::format_duration(min)))

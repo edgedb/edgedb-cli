@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::fmt::Display;
 use std::fs;
-use std::future::{Future, pending};
+use std::future::{pending, Future};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::exit;
@@ -15,8 +15,8 @@ use is_terminal::IsTerminal;
 use tokio::join;
 use tokio::time::sleep;
 
-use edgedb_tokio::{Builder, credentials::Credentials};
 use crate::connect::Connection;
+use edgedb_tokio::{credentials::Credentials, Builder};
 
 use crate::cloud;
 use crate::cloud::client::CloudClient;
@@ -24,18 +24,17 @@ use crate::collect::Collector;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::format;
-use crate::platform::{data_dir};
+use crate::platform::data_dir;
 use crate::portable::control;
 use crate::portable::exit_codes;
+use crate::portable::local::{is_valid_local_instance_name, lock_file, read_ports};
 use crate::portable::local::{InstanceInfo, Paths};
-use crate::portable::local::{read_ports, is_valid_local_instance_name, lock_file};
-use crate::portable::options::{Status, List, instance_arg, InstanceName};
-use crate::portable::upgrade::{UpgradeMeta, BackupMeta};
-use crate::portable::{windows, linux, macos};
+use crate::portable::options::{instance_arg, InstanceName, List, Status};
+use crate::portable::upgrade::{BackupMeta, UpgradeMeta};
+use crate::portable::{linux, macos, windows};
 use crate::print::{self, echo, Highlight};
 use crate::process;
-use crate::table::{self, Table, Row, Cell};
-
+use crate::table::{self, Cell, Row, Table};
 
 #[derive(Debug)]
 pub enum Service {
@@ -87,9 +86,7 @@ pub enum ConnectionStatus {
 #[derive(Debug)]
 pub enum RemoteType {
     Remote,
-    Cloud {
-        instance_id: String
-    },
+    Cloud { instance_id: String },
 }
 
 #[derive(Debug)]
@@ -104,21 +101,20 @@ pub struct RemoteStatus {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub struct JsonStatus {
     pub name: String,
     pub port: Option<u16>,
     pub version: Option<String>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub service_status: Option<String>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_status: Option<String>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_status: Option<String>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cloud_instance_id: Option<String>,
 }
-
 
 pub fn status(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result<()> {
     if cmd.service {
@@ -136,9 +132,9 @@ fn external_status(options: &Status) -> anyhow::Result<()> {
     let meta = &(InstanceInfo::read(name)?);
     if cfg!(windows) {
         windows::external_status(meta)
-    } else if cfg!(target_os="macos") {
+    } else if cfg!(target_os = "macos") {
         macos::external_status(meta)
-    } else if cfg!(target_os="linux") {
+    } else if cfg!(target_os = "linux") {
         linux::external_status(meta)
     } else {
         anyhow::bail!("unsupported platform");
@@ -148,8 +144,8 @@ fn external_status(options: &Status) -> anyhow::Result<()> {
 fn is_run_by_supervisor(name: &str) -> anyhow::Result<Option<bool>> {
     let lock_path = lock_file(name)?;
     match fs::read_to_string(&lock_path) {
-        Ok(s) if s == "systemd" && cfg!(target_os="linux") => Ok(Some(true)),
-        Ok(s) if s == "launchctl" && cfg!(target_os="macos") => Ok(Some(true)),
+        Ok(s) if s == "systemd" && cfg!(target_os = "linux") => Ok(Some(true)),
+        Ok(s) if s == "launchctl" && cfg!(target_os = "macos") => Ok(Some(true)),
         Ok(_) => Ok(Some(false)),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e).context(format!("cannot read {:?}", lock_path))?,
@@ -172,9 +168,9 @@ fn service_status(name: &str) -> anyhow::Result<Service> {
     } else if control::detect_supervisor(name) {
         if cfg!(windows) {
             windows::service_status(name)
-        } else if cfg!(target_os="macos") {
+        } else if cfg!(target_os = "macos") {
             macos::service_status(name)
-        } else if cfg!(target_os="linux") {
+        } else if cfg!(target_os = "linux") {
             linux::service_status(name)
         } else {
             anyhow::bail!("unsupported platform")
@@ -185,14 +181,15 @@ fn service_status(name: &str) -> anyhow::Result<Service> {
     Ok(service)
 }
 
-fn status_from_meta(name: &str, paths: &Paths,
-                    instance: anyhow::Result<InstanceInfo>)
-    -> FullStatus
-{
-    let service = service_status(name)
-        .unwrap_or_else(|e| Service::Inactive { error: e.to_string() });
-    let reserved_port = read_ports().ok()
-        .and_then(|map| map.get(name).cloned());
+fn status_from_meta(
+    name: &str,
+    paths: &Paths,
+    instance: anyhow::Result<InstanceInfo>,
+) -> FullStatus {
+    let service = service_status(name).unwrap_or_else(|e| Service::Inactive {
+        error: e.to_string(),
+    });
+    let reserved_port = read_ports().ok().and_then(|map| map.get(name).cloned());
     let data_status = if paths.data_dir.exists() {
         if paths.upgrade_marker.exists() {
             DataDirectory::Upgrading(read_upgrade(&paths.upgrade_marker))
@@ -221,7 +218,7 @@ fn status_from_meta(name: &str, paths: &Paths,
 }
 
 pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
-    let paths = Paths::get(name)?;   // the only error case
+    let paths = Paths::get(name)?; // the only error case
     let meta = InstanceInfo::read(name);
     Ok(status_from_meta(name, &paths, meta))
 }
@@ -229,9 +226,12 @@ pub fn instance_status(name: &str) -> anyhow::Result<FullStatus> {
 fn normal_status(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result<()> {
     let name = match instance_arg(&cmd.name, &cmd.instance)? {
         InstanceName::Local(name) => name,
-        InstanceName::Cloud { org_slug: org, name } => {
+        InstanceName::Cloud {
+            org_slug: org,
+            name,
+        } => {
             return cloud_status(cmd, org, name, opts);
-        },
+        }
     };
     let meta = InstanceInfo::try_read(name).transpose();
     if let Some(meta) = meta {
@@ -252,7 +252,12 @@ fn normal_status(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result
     }
 }
 
-fn cloud_status(cmd: &Status, org: &str, name: &str, opts: &crate::options::Options) -> anyhow::Result<()> {
+fn cloud_status(
+    cmd: &Status,
+    org: &str,
+    name: &str,
+    opts: &crate::options::Options,
+) -> anyhow::Result<()> {
     let client = CloudClient::new(&opts.cloud_options)?;
     client.ensure_authenticated()?;
 
@@ -271,18 +276,16 @@ fn cloud_status(cmd: &Status, org: &str, name: &str, opts: &crate::options::Opti
 }
 
 async fn try_get_version(creds: &Credentials) -> anyhow::Result<String> {
-    let config = Builder::new()
-        .credentials(creds)?
-        .constrained_build()?;
+    let config = Builder::new().credentials(creds)?.constrained_build()?;
     let mut conn = Connection::connect(&config).await?;
-    let ver = conn.query_required_single(
-        "SELECT sys::get_version_as_str()", &()
-    ).await.context("cannot fetch database version")?;
+    let ver = conn
+        .query_required_single("SELECT sys::get_version_as_str()", &())
+        .await
+        .context("cannot fetch database version")?;
     Ok(ver)
 }
 
-pub async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus)
-{
+pub async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStatus) {
     use tokio::time::timeout;
     match timeout(Duration::from_secs(2), try_get_version(creds)).await {
         Ok(Ok(ver)) => (Some(ver), ConnectionStatus::Connected),
@@ -295,37 +298,36 @@ pub async fn try_connect(creds: &Credentials) -> (Option<String>, ConnectionStat
             }
             (None, ConnectionStatus::Error(e))
         }
-        Err(_) => (None, ConnectionStatus::TimedOut)
+        Err(_) => (None, ConnectionStatus::TimedOut),
     }
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn remote_status_with_feedback(name: &str, quiet: bool)
-    -> anyhow::Result<RemoteStatus>
-{
-    intermediate_feedback(
-        _remote_status(name, quiet),
-        || "Trying to connect...",
-    ).await
+async fn remote_status_with_feedback(name: &str, quiet: bool) -> anyhow::Result<RemoteStatus> {
+    intermediate_feedback(_remote_status(name, quiet), || "Trying to connect...").await
 }
 
-async fn _remote_status(name: &str, quiet: bool)
-    -> anyhow::Result<RemoteStatus>
-{
+async fn _remote_status(name: &str, quiet: bool) -> anyhow::Result<RemoteStatus> {
     let cred_path = credentials::path(name)?;
     if !cred_path.exists() {
         if !quiet {
-            echo!(print::err_marker(),
-                  "No instance", name.emphasize(), "found");
+            echo!(
+                print::err_marker(),
+                "No instance",
+                name.emphasize(),
+                "found"
+            );
         }
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }
     let cred_data = tokio::fs::read(cred_path).await?;
     let credentials = serde_json::from_slice(&cred_data)?;
     let (version, connection) = try_connect(&credentials).await;
-    let location = format!("{}:{}",
+    let location = format!(
+        "{}:{}",
         credentials.host.as_deref().unwrap_or("localhost"),
-        credentials.port.clone());
+        credentials.port.clone()
+    );
     Ok(RemoteStatus {
         name: name.into(),
         type_: RemoteType::Remote,
@@ -337,10 +339,10 @@ async fn _remote_status(name: &str, quiet: bool)
     })
 }
 
-async fn intermediate_feedback<F, D>(future: F, text: impl FnOnce() -> D)
-    -> F::Output
-    where F: Future,
-          D: Display,
+async fn intermediate_feedback<F, D>(future: F, text: impl FnOnce() -> D) -> F::Output
+where
+    F: Future,
+    D: Display,
 {
     tokio::select!(
         r = future => r,
@@ -357,7 +359,7 @@ async fn intermediate_feedback<F, D>(future: F, text: impl FnOnce() -> D)
 pub fn remote_status(options: &Status) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => unreachable!("remote_status got cloud instance")
+        InstanceName::Cloud { .. } => unreachable!("remote_status got cloud instance"),
     };
 
     let status = remote_status_with_feedback(name, options.quiet)?;
@@ -370,8 +372,7 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
     } else if options.json {
         println!(
             "{}",
-            serde_json::to_string_pretty(&status.json())
-                .expect("status is json-serializable"),
+            serde_json::to_string_pretty(&status.json()).expect("status is json-serializable"),
         );
     } else if let Some(inst_status) = &status.instance_status {
         println!("{}", inst_status);
@@ -385,11 +386,9 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
     status.exit()
 }
 
-pub fn list_local(dir: &Path)
-    -> anyhow::Result<
-        impl Iterator<Item=anyhow::Result<(String, PathBuf)>> + '_
-    >
-{
+pub fn list_local(
+    dir: &Path,
+) -> anyhow::Result<impl Iterator<Item = anyhow::Result<(String, PathBuf)>> + '_> {
     let err_ctx = move || format!("error reading directory {:?}", dir);
     let dir = fs::read_dir(dir).with_context(err_ctx)?;
     Ok(dir.filter_map(move |result| {
@@ -398,7 +397,9 @@ pub fn list_local(dir: &Path)
             res => return Some(Err(res.with_context(err_ctx).unwrap_err())),
         };
         let fname = entry.file_name();
-        let name_op = fname.to_str().and_then(|x| is_valid_local_instance_name(x).then_some(x));
+        let name_op = fname
+            .to_str()
+            .and_then(|x| is_valid_local_instance_name(x).then_some(x));
         if let Some(name) = name_op {
             Some(Ok((name.into(), entry.path())))
         } else {
@@ -416,8 +417,7 @@ async fn get_remote_async(
     let mut tasks = tokio::task::JoinSet::new();
     for name in instances {
         let errors = errors.sender();
-        let permit = sem.clone().acquire_owned().await
-            .expect("semaphore is ok");
+        let permit = sem.clone().acquire_owned().await.expect("semaphore is ok");
         tasks.spawn(async move {
             let _permit = permit;
             match _remote_status(&name, false).await {
@@ -426,15 +426,13 @@ async fn get_remote_async(
                         errors.add(
                             // Can't use `e.context()` because can't clone
                             // the error
-                            anyhow::anyhow!("probing {:?}: {:#}", name, e)
+                            anyhow::anyhow!("probing {:?}: {:#}", name, e),
                         );
                     }
                     Some(status)
                 }
                 Err(e) => {
-                    errors.add(
-                        e.context(format!("probing {:?}", name))
-                    );
+                    errors.add(e.context(format!("probing {:?}", name)));
                     None
                 }
             }
@@ -505,12 +503,13 @@ async fn _get_remote(
                     format!("Checking cloud instances...")
                 }
             },
-        ).await
+        )
+        .await
     } else if num > 0 {
-        intermediate_feedback(
-            get_remote_async(instances, errors),
-            || format!("Checking {} remote instances...", num),
-        ).await
+        intermediate_feedback(get_remote_async(instances, errors), || {
+            format!("Checking {} remote instances...", num)
+        })
+        .await
     } else {
         Ok(Vec::new())
     }
@@ -525,8 +524,11 @@ fn list_local_status(visited: &mut BTreeSet<String>) -> anyhow::Result<Vec<FullS
             if path.join("metadata.json").exists() {
                 // consider deprecated instances remote,
                 // i.e. not adding them in "visited"
-                log::debug!("Instance {:?} has deprecated install method. \
-                            Skipping.", name);
+                log::debug!(
+                    "Instance {:?} has deprecated install method. \
+                            Skipping.",
+                    name
+                );
             } else {
                 visited.insert(name.clone());
                 local.push(instance_status(&name)?);
@@ -537,9 +539,7 @@ fn list_local_status(visited: &mut BTreeSet<String>) -> anyhow::Result<Vec<FullS
     Ok(local)
 }
 
-pub fn list(options: &List, opts: &crate::options::Options)
-    -> anyhow::Result<()>
-{
+pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()> {
     let errors = Collector::new();
     let mut visited = BTreeSet::new();
     let local = match list_local_status(&mut visited) {
@@ -572,7 +572,7 @@ pub fn list(options: &List, opts: &crate::options::Options)
                 print::warn("No instances found");
             }
             Ok(())
-        }
+        };
     }
     if options.debug {
         for status in local {
@@ -589,11 +589,16 @@ pub fn list(options: &List, opts: &crate::options::Options)
             status.print_extended();
         }
     } else if options.json {
-        println!("{}", serde_json::to_string_pretty(
-            &local.iter().map(|status| status.json())
-            .chain(remote.iter().map(|status| status.json()))
-            .collect::<Vec<_>>()
-        )?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(
+                &local
+                    .iter()
+                    .map(|status| status.json())
+                    .chain(remote.iter().map(|status| status.json()))
+                    .collect::<Vec<_>>()
+            )?
+        );
     } else {
         // using always JSON because we need that for windows impl
         let local_json = local.iter().map(|s| s.json()).collect::<Vec<_>>();
@@ -623,14 +628,23 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
     table.set_format(*table::FORMAT);
     table.set_titles(Row::new(
         ["Kind", "Name", "Location", "Version", "Status"]
-        .iter().map(|x| table::header_cell(x)).collect()));
+            .iter()
+            .map(|x| table::header_cell(x))
+            .collect(),
+    ));
     for status in local {
         table.add_row(Row::new(vec![
             Cell::new("local"),
             Cell::new(&status.name),
-            Cell::new(&format!("localhost:{}",
-                status.port.as_ref().map(ToString::to_string)
-                .as_deref().unwrap_or("?"))),
+            Cell::new(&format!(
+                "localhost:{}",
+                status
+                    .port
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .as_deref()
+                    .unwrap_or("?")
+            )),
             Cell::new(status.version.as_deref().unwrap_or("?")),
             Cell::new(status.service_status.as_deref().unwrap_or("?")),
         ]));
@@ -643,8 +657,14 @@ pub fn print_table(local: &[JsonStatus], remote: &[RemoteStatus]) {
             }),
             Cell::new(&status.name),
             Cell::new(&status.location),
-            Cell::new(status.version.as_ref()
-                .map(|m| m.to_string()).as_deref().unwrap_or("?")),
+            Cell::new(
+                status
+                    .version
+                    .as_ref()
+                    .map(|m| m.to_string())
+                    .as_deref()
+                    .unwrap_or("?"),
+            ),
             Cell::new(
                 status
                     .instance_status
@@ -674,7 +694,9 @@ impl FullStatus {
                 println!("running, pid {}", pid);
                 println!("  Pid: {}", pid);
             }
-            Service::Failed { exit_code: Some(code) } => {
+            Service::Failed {
+                exit_code: Some(code),
+            } => {
                 println!("stopped, exit code {}", code);
             }
             Service::Failed { exit_code: None } => {
@@ -685,14 +707,20 @@ impl FullStatus {
                 println!("  Inactivity assumed because: {}", error);
             }
         }
-        println!("  Service/Container: {}", match self.service_exists {
-            true => "exists",
-            false => "NOT FOUND",
-        });
-        println!("  Credentials: {}", match self.credentials_file_exists {
-            true => "exists",
-            false => "NOT FOUND",
-        });
+        println!(
+            "  Service/Container: {}",
+            match self.service_exists {
+                true => "exists",
+                false => "NOT FOUND",
+            }
+        );
+        println!(
+            "  Credentials: {}",
+            match self.credentials_file_exists {
+                true => "exists",
+                false => "NOT FOUND",
+            }
+        );
 
         match &self.instance {
             Ok(inst) => {
@@ -703,48 +731,62 @@ impl FullStatus {
                     if inst.port == port {
                         println!("  Port: {}", port);
                     } else {
-                        println!("  Port: {} (but {} reserved)",
-                                 inst.port, port);
+                        println!("  Port: {} (but {} reserved)", inst.port, port);
                     }
                 } else {
                     println!("  Port: {}", inst.port);
                 }
             }
-            _ => if let Some(port) = self.reserved_port {
-                println!("  Port: {} (reserved)", port);
-            },
+            _ => {
+                if let Some(port) = self.reserved_port {
+                    println!("  Port: {} (reserved)", port);
+                }
+            }
         }
 
         println!("  Data directory: {}", self.data_dir.display());
-        println!("  Data status: {}", match &self.data_status {
-            DataDirectory::Absent => "NOT FOUND".into(),
-            DataDirectory::NoMetadata => "METADATA ERROR".into(),
-            DataDirectory::Upgrading(Err(e)) => format!("upgrading ({:#})", e),
-            DataDirectory::Upgrading(Ok(up)) => {
-                format!("upgrading {} -> {} for {}",
-                        up.source, up.target,
-                        format_duration(
-                            up.started.elapsed().unwrap_or(Duration::new(0, 0))
-                        ))
+        println!(
+            "  Data status: {}",
+            match &self.data_status {
+                DataDirectory::Absent => "NOT FOUND".into(),
+                DataDirectory::NoMetadata => "METADATA ERROR".into(),
+                DataDirectory::Upgrading(Err(e)) => format!("upgrading ({:#})", e),
+                DataDirectory::Upgrading(Ok(up)) => {
+                    format!(
+                        "upgrading {} -> {} for {}",
+                        up.source,
+                        up.target,
+                        format_duration(up.started.elapsed().unwrap_or(Duration::new(0, 0)))
+                    )
+                }
+                DataDirectory::Normal => "normal".into(),
             }
-            DataDirectory::Normal => "normal".into(),
-        });
-        println!("  Backup: {}", match &self.backup {
-            BackupStatus::Absent => "absent".into(),
-            BackupStatus::Exists { backup_meta: Err(e), ..} => {
-                format!("present (error: {:#})", e)
+        );
+        println!(
+            "  Backup: {}",
+            match &self.backup {
+                BackupStatus::Absent => "absent".into(),
+                BackupStatus::Exists {
+                    backup_meta: Err(e),
+                    ..
+                } => {
+                    format!("present (error: {:#})", e)
+                }
+                BackupStatus::Exists {
+                    backup_meta: Ok(b), ..
+                } => {
+                    format!("present, {}", format::done_before(b.timestamp))
+                }
             }
-            BackupStatus::Exists { backup_meta: Ok(b), .. } => {
-                format!("present, {}", format::done_before(b.timestamp))
-            }
-        });
+        );
     }
     pub fn json(&self) -> JsonStatus {
         let meta = self.instance.as_ref().ok();
         JsonStatus {
             name: self.name.clone(),
             port: meta.map(|m| m.port),
-            version: meta.and_then(|m| m.get_version().ok())
+            version: meta
+                .and_then(|m| m.get_version().ok())
                 .map(|v| v.to_string()),
             service_status: Some(status_str(&self.service).to_string()),
             remote_status: None,
@@ -753,9 +795,10 @@ impl FullStatus {
         }
     }
     pub fn print_json_and_exit(&self) -> ! {
-        println!("{}",
-            serde_json::to_string_pretty(&self.json())
-            .expect("status is not json-serializable"));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&self.json()).expect("status is not json-serializable")
+        );
         self.exit()
     }
     pub fn print_and_exit(&self) -> ! {
@@ -768,13 +811,15 @@ impl FullStatus {
                 eprint!("Running, pid ");
                 println!("{}", pid);
             }
-            Failed { exit_code: Some(code) } => {
+            Failed {
+                exit_code: Some(code),
+            } => {
                 eprintln!("Stopped, exit code {}", code);
             }
             Failed { exit_code: None } => {
                 eprintln!("Not running");
             }
-            Inactive {..} => {
+            Inactive { .. } => {
                 eprintln!("Inactive");
             }
         }
@@ -789,9 +834,9 @@ impl FullStatus {
 
         match self.service {
             Ready => exit(0),
-            Running {..} => exit(0),
-            Failed {..} => exit(3),
-            Inactive {..} => exit(3),
+            Running { .. } => exit(0),
+            Failed { .. } => exit(3),
+            Inactive { .. } => exit(3),
         }
     }
 }
@@ -814,16 +859,22 @@ impl RemoteStatus {
         if !is_cloud {
             println!("  Credentials: exist");
         }
-        println!("  Version: {}",
-            self.version.as_ref().map_or("unknown", |x| &x[..]));
+        println!(
+            "  Version: {}",
+            self.version.as_ref().map_or("unknown", |x| &x[..])
+        );
         let creds = &self.credentials;
-        println!("  Host: {}",
-            creds.host.as_ref().map_or("localhost", |x| &x[..]));
+        println!(
+            "  Host: {}",
+            creds.host.as_ref().map_or("localhost", |x| &x[..])
+        );
         println!("  Port: {}", creds.port);
         if !is_cloud {
             println!("  User: {}", creds.user);
-            println!("  Database: {}",
-                     creds.database.as_ref().map_or("edgedb", |x| &x[..]));
+            println!(
+                "  Database: {}",
+                creds.database.as_ref().map_or("edgedb", |x| &x[..])
+            );
         }
         if let Some(ConnectionStatus::Error(e)) = &self.connection {
             println!("  Connection error: {:#}", e);
@@ -852,9 +903,10 @@ impl RemoteStatus {
     }
 
     pub fn print_json_and_exit(&self) -> ! {
-        println!("{}",
-            serde_json::to_string_pretty(&self.json())
-            .expect("status is not json-serializable"));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&self.json()).expect("status is not json-serializable")
+        );
         self.exit()
     }
 
@@ -870,7 +922,7 @@ impl RemoteStatus {
             None => match &self.instance_status {
                 Some(_) => exit(0),
                 None => exit(4),
-            }
+            },
         }
     }
 }
@@ -889,9 +941,9 @@ impl ConnectionStatus {
 fn status_str(status: &Service) -> &'static str {
     match status {
         Service::Ready => "ready",
-        Service::Running {..} => "running",
-        Service::Failed {..} => "not running",
-        Service::Inactive {..} => "inactive",
+        Service::Running { .. } => "running",
+        Service::Failed { .. } => "not running",
+        Service::Inactive { .. } => "inactive",
     }
 }
 
@@ -903,11 +955,16 @@ pub fn backup_status(name: &str, dir: &Path) -> BackupStatus {
     let bmeta_json = dir.join("backup.json");
     let backup_meta = fs::read(&bmeta_json)
         .with_context(|| format!("error reading {}", bmeta_json.display()))
-        .and_then(|data| serde_json::from_slice(&data)
-        .with_context(|| format!("error decoding {}", bmeta_json.display())));
+        .and_then(|data| {
+            serde_json::from_slice(&data)
+                .with_context(|| format!("error decoding {}", bmeta_json.display()))
+        });
     let dmeta_json = dir.join("instance_info.json");
     let data_meta = InstanceInfo::read_at(name, &dmeta_json);
-    Exists { backup_meta, data_meta }
+    Exists {
+        backup_meta,
+        data_meta,
+    }
 }
 
 #[context("failed to read upgrade marker {:?}", file)]

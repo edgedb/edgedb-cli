@@ -7,13 +7,14 @@ pub async fn get_branches(cli: &mut Connection) -> anyhow::Result<Vec<String>> {
     get_databases(cli).await
 }
 
-pub async fn list_branches(cli: &mut Connection, options: &Options)
-                            -> Result<(), anyhow::Error>
-{
+pub async fn list_branches(cli: &mut Connection, options: &Options) -> Result<(), anyhow::Error> {
     let version = cli.get_version().await?;
 
     if version.specific().major <= 4 {
-        print::warn(format!("Branches are not supported in EdgeDB {}, printing list of databases instead", version));
+        print::warn(format!(
+            "Branches are not supported in EdgeDB {}, printing list of databases instead",
+            version
+        ));
         return list_databases(cli, options).await;
     }
 

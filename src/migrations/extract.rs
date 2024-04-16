@@ -1,5 +1,5 @@
-use std::iter::Once;
 use fs_err as fs;
+use std::iter::Once;
 
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
@@ -62,7 +62,10 @@ pub async fn extract(
         match (disk_iter.next(), db_iter.next()) {
             (existing, Some((i, migration))) => {
                 let key = MigrationKey::Index((i + 1) as u64);
-                let dm = DatabaseMigration { key, migration: migration.1 };
+                let dm = DatabaseMigration {
+                    key,
+                    migration: migration.1,
+                };
                 if let Some((id, migration_file)) = existing {
                     if dm.id()? != id {
                         if params.non_interactive {

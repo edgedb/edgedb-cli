@@ -11,8 +11,11 @@ pub async fn main(
     connection: &mut Connection,
     cli_opts: &Options,
 ) -> anyhow::Result<()> {
-    if Some(&options.old_name) == context.branch.as_ref() || connection.database() == options.old_name {
-        let mut modify_connection = get_connection_to_modify(&options.old_name, cli_opts, connection).await?;
+    if Some(&options.old_name) == context.branch.as_ref()
+        || connection.database() == options.old_name
+    {
+        let mut modify_connection =
+            get_connection_to_modify(&options.old_name, cli_opts, connection).await?;
         rename(&mut modify_connection.connection, options).await?;
         modify_connection.clean().await?;
         context.update_branch(&options.new_name).await?;
@@ -20,7 +23,10 @@ pub async fn main(
         rename(connection, options).await?;
     }
 
-    eprintln!("Renamed branch {} to {}", options.old_name, options.new_name);
+    eprintln!(
+        "Renamed branch {} to {}",
+        options.old_name, options.new_name
+    );
 
     Ok(())
 }

@@ -2,13 +2,14 @@ use std::collections::BTreeSet;
 
 use crate::SERVER;
 
-
 #[test]
 fn configure_all_parameters() {
-    let cmd = SERVER.admin_cmd()
+    let cmd = SERVER
+        .admin_cmd()
         .arg("query")
         .arg("--output-format=tab-separated")
-        .arg(r###"
+        .arg(
+            r###"
             WITH Ptr := (SELECT schema::ObjectType
                          FILTER .name = 'cfg::Config'),
                  Props := (
@@ -27,17 +28,23 @@ fn configure_all_parameters() {
                 # xxx_* configs temporarily exist during the development of Auth
                 # Delete this after https://github.com/edgedb/edgedb/pull/6014
                 AND .name not like 'xxx_%'
-        "###)
-        .assert().success();
+        "###,
+        )
+        .assert()
+        .success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
     let db_simple_options = out.lines().collect::<BTreeSet<_>>();
 
-    let cmd = SERVER.admin_cmd()
-        .arg("configure").arg("set")
+    let cmd = SERVER
+        .admin_cmd()
+        .arg("configure")
+        .arg("set")
         .arg("-h")
-        .assert().success();
+        .assert()
+        .success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
-    let cmd_simple_options = out.lines()
+    let cmd_simple_options = out
+        .lines()
         .skip_while(|line| line != &"Commands:")
         .skip(1)
         .take_while(|line| !line.is_empty())
@@ -54,10 +61,12 @@ fn configure_all_parameters() {
         assert_eq!(db_simple_options, cmd_simple_options); // nice diff
     }
 
-    let cmd = SERVER.admin_cmd()
+    let cmd = SERVER
+        .admin_cmd()
         .arg("query")
         .arg("--output-format=tab-separated")
-        .arg(r###"
+        .arg(
+            r###"
             WITH Ptr := (SELECT schema::ObjectType
                          FILTER .name = 'cfg::Config'),
                  Links := (
@@ -74,17 +83,23 @@ fn configure_all_parameters() {
                 # xxx_* configs temporarily exist during the development of Auth
                 # Delete this after https://github.com/edgedb/edgedb/pull/6014
                 AND .name not like 'xxx_%'
-        "###)
-        .assert().success();
+        "###,
+        )
+        .assert()
+        .success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
     let db_object_options = out.lines().collect::<BTreeSet<_>>();
 
-    let cmd = SERVER.admin_cmd()
-        .arg("configure").arg("insert")
+    let cmd = SERVER
+        .admin_cmd()
+        .arg("configure")
+        .arg("insert")
         .arg("-h")
-        .assert().success();
+        .assert()
+        .success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
-    let cmd_object_options = out.lines()
+    let cmd_object_options = out
+        .lines()
         .skip_while(|line| line != &"Commands:")
         .skip(1)
         .filter(|line| line.len() > 4)
@@ -96,12 +111,16 @@ fn configure_all_parameters() {
         assert_eq!(db_object_options, cmd_object_options); // nice diff
     }
 
-    let cmd = SERVER.admin_cmd()
-        .arg("configure").arg("reset")
+    let cmd = SERVER
+        .admin_cmd()
+        .arg("configure")
+        .arg("reset")
         .arg("-h")
-        .assert().success();
+        .assert()
+        .success();
     let out = String::from_utf8(cmd.get_output().stdout.clone()).unwrap();
-    let cmd_reset_options = out.lines()
+    let cmd_reset_options = out
+        .lines()
         .skip_while(|line| line != &"Commands:")
         .skip(1)
         .filter(|line| line.len() > 4)
@@ -109,7 +128,10 @@ fn configure_all_parameters() {
         .map(|line| line.split_whitespace().next().unwrap())
         .filter(|line| !line.is_empty() && line != &"help")
         .collect::<BTreeSet<_>>();
-    let db_reset_options = db_object_options.union(&db_simple_options).copied().collect::<BTreeSet<_>>();
+    let db_reset_options = db_object_options
+        .union(&db_simple_options)
+        .copied()
+        .collect::<BTreeSet<_>>();
     if !db_reset_options.is_subset(&cmd_reset_options) {
         assert_eq!(db_reset_options, cmd_reset_options); // nice diff
     }

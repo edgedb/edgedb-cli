@@ -21,14 +21,13 @@ pub enum Command {
 }
 
 #[derive(clap::Args, Debug, Clone)]
-pub struct Login {
-}
+pub struct Login {}
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct Logout {
     /// Log out from all Cloud profiles.
     #[arg(long)]
-    #[arg(hide=true)]
+    #[arg(hide = true)]
     pub all_profiles: bool,
 
     /// Force log out from all profiles, even if linked to a project.
@@ -44,7 +43,7 @@ pub struct Logout {
 #[derive(clap::Args, Debug, Clone)]
 pub struct SecretKeyCommand {
     #[command(subcommand)]
-    pub subcommand: SecretKeySubCommand
+    pub subcommand: SecretKeySubCommand,
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -70,7 +69,7 @@ pub struct CreateSecretKey {
     #[arg(long)]
     pub json: bool,
     /// Friendly key name.
-    #[arg(short='n', long)]
+    #[arg(short = 'n', long)]
     pub name: Option<String>,
     /// Long key description.
     #[arg(long)]
@@ -99,7 +98,7 @@ pub struct CreateSecretKey {
     /// that have a default.  Requires key TTL and scopes to be explicitly
     /// specified via `--ttl` or `--no-expiration`, and `--scopes` or
     /// `--inherit-scopes`.
-    #[arg(short='y', long)]
+    #[arg(short = 'y', long)]
     #[arg(requires_ifs(
         ["expires", "key_scopes"].iter().map(
             |id| (clap::builder::ArgPredicate::IsPresent, id)
@@ -117,6 +116,6 @@ pub struct RevokeSecretKey {
     #[arg(long)]
     pub secret_key_id: String,
     /// Revoke key without asking for confirmation.
-    #[arg(short='y', long)]
+    #[arg(short = 'y', long)]
     pub non_interactive: bool,
 }

@@ -1,15 +1,15 @@
-#![cfg(feature="portable_tests")]
+#![cfg(feature = "portable_tests")]
 
+use assert_cmd::Command;
+use edgedb_protocol::model::Duration;
+use predicates::reflection::PredicateReflection;
+use predicates::Predicate;
+use serde_json::Value;
+use sha1::Digest;
 use std::fmt::{Display, Formatter};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use assert_cmd::Command;
-use edgedb_protocol::model::Duration;
-use predicates::Predicate;
-use predicates::reflection::PredicateReflection;
-use serde_json::Value;
-use sha1::Digest;
 
 struct ResultPredicate {
     result: Value,
@@ -58,7 +58,6 @@ impl Predicate<str> for ResultPredicate {
     }
 }
 
-
 impl PredicateReflection for ResultPredicate {}
 
 impl Display for ResultPredicate {
@@ -90,7 +89,10 @@ fn mock_file(path: &str, content: &str) -> MockFile {
     let path = PathBuf::from(path);
     ensure_dir(path.parent().unwrap());
     fs::write(&path, content).unwrap_or_else(|_| panic!("{}", "write {path:?}"));
-    MockFile { path, is_dir: false }
+    MockFile {
+        path,
+        is_dir: false,
+    }
 }
 
 fn mock_project(
@@ -134,13 +136,13 @@ fn mock_project(
     }
     let mut rv = vec![
         project_path_file,
-        MockFile { path: link_file, is_dir },
+        MockFile {
+            path: link_file,
+            is_dir,
+        },
     ];
     for (fname, data) in files {
-        rv.push(mock_file(
-            project_dir.join(fname).to_str().unwrap(),
-            data,
-        ));
+        rv.push(mock_file(project_dir.join(fname).to_str().unwrap(), data));
     }
     rv.push(project_dir_mock);
     rv
@@ -153,9 +155,7 @@ fn ensure_dir(path: &Path) {
 }
 
 fn expect(result: Value) -> ResultPredicate {
-    ResultPredicate {
-        result,
-    }
+    ResultPredicate { result }
 }
 
 include!(concat!(env!("OUT_DIR"), "/shared_client_testcases.rs"));

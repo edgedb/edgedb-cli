@@ -9,16 +9,16 @@ use crate::portable::local;
 use crate::portable::repository::USER_AGENT;
 use crate::print;
 
-
 pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
     let connector = opts.block_on_create_connector()?;
     let cfg = connector.get()?;
 
     let url = match cfg.instance_name() {
-        Some(edgedb_tokio::InstanceName::Cloud { org_slug: org, name }) =>
-            get_cloud_ui_url(cmd, org, name, cfg, opts)?,
-        _ =>
-            get_local_ui_url(cmd, cfg)?,
+        Some(edgedb_tokio::InstanceName::Cloud {
+            org_slug: org,
+            name,
+        }) => get_cloud_ui_url(cmd, org, name, cfg, opts)?,
+        _ => get_local_ui_url(cmd, cfg)?,
     };
 
     if cmd.print_url {
@@ -36,7 +36,9 @@ pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
             }
             Err(e) => {
                 print::error(format!("Cannot launch browser: {:#}", e));
-                print::prompt("Please paste the URL below into your browser to launch the EdgeDB UI:");
+                print::prompt(
+                    "Please paste the URL below into your browser to launch the EdgeDB UI:",
+                );
                 println!("{}", url);
                 Err(ExitCode::new(1).into())
             }
@@ -78,7 +80,9 @@ fn get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Stri
 }
 
 fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<String> {
-    let mut url = cfg.http_url(false).map(|s| s + "/ui")
+    let mut url = cfg
+        .http_url(false)
+        .map(|s| s + "/ui")
         .context("connected via unix socket")?;
     if cmd.no_server_check {
         // We'll always use HTTP if --no-server-check is specified, depending on
@@ -86,7 +90,9 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
     } else {
         let mut use_https = false;
         if cfg.local_instance_name().is_none() {
-            let https_url = cfg.http_url(true).map(|u| u + "/ui")
+            let https_url = cfg
+                .http_url(true)
+                .map(|u| u + "/ui")
                 .context("connected via unix socket")?;
             match open_url(&https_url).map(|r| r.status()) {
                 Ok(reqwest::StatusCode::OK) => {
@@ -94,11 +100,7 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                     use_https = true;
                 }
                 Ok(status) => {
-                    print::echo!(
-                        "{} returned status code {}, retry HTTP.",
-                        https_url,
-                        status
-                    );
+                    print::echo!("{} returned status code {}, retry HTTP.", https_url, status);
                 }
                 Err(e) => {
                     print::echo!("Failed to probe {}: {:#}, retry HTTP.", https_url, e);
@@ -125,8 +127,7 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                     return Err(ExitCode::new(3).into());
                 }
                 Err(e) => {
-                    print::error(format!("cannot connect to {}: {:#}",
-                                         url, e,));
+                    print::error(format!("cannot connect to {}: {:#}", url, e,));
                     return Err(ExitCode::new(4).into());
                 }
             }
@@ -140,23 +141,28 @@ fn _get_local_ui_secret_key(cfg: &edgedb_tokio::Config) -> anyhow::Result<Option
     let local_inst = cfg.local_instance_name();
     let local_info = local_inst
         .map(local::InstanceInfo::try_read)
-        .transpose()?.flatten();
+        .transpose()?
+        .flatten();
 
     if let Some(key) = cfg.secret_key() {
         Ok(Some(key.to_owned()))
     } else if let Some(instance) = local_info {
         let ver = instance.get_version()?.specific();
         let legacy = ver < "3.0-alpha.1".parse().unwrap();
-        let key = jwt::LocalJWT::new(instance.name, legacy).generate()
+        let key = jwt::LocalJWT::new(instance.name, legacy)
+            .generate()
             .map_err(|e| {
                 log::warn!("Cannot generate authToken: {:#}", e);
-            }).ok();
+            })
+            .ok();
         Ok(key)
     } else if matches!(local_inst, Some("_localdev")) {
-        let key = jwt::LocalJWT::new("_localdev", false).generate()
+        let key = jwt::LocalJWT::new("_localdev", false)
+            .generate()
             .map_err(|e| {
                 log::warn!("Cannot generate authToken: {:#}", e);
-            }).ok();
+            })
+            .ok();
         Ok(key)
     } else {
         Ok(None)
@@ -179,8 +185,8 @@ mod jwt {
     use std::env;
     use std::path::PathBuf;
 
-    use base64::Engine;
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use base64::Engine;
 
     use fs_err as fs;
     use ring::rand::SecureRandom;
@@ -273,11 +279,7 @@ mod jwt {
                 URL_SAFE_NO_PAD.encode(b"{\"edgedb.server.any_role\":true}"),
             );
             let signature = jws.sign(&self.rng, message.as_bytes())?;
-            Ok(format!(
-                "{}.{}",
-                message,
-                URL_SAFE_NO_PAD.encode(signature),
-            ))
+            Ok(format!("{}.{}", message, URL_SAFE_NO_PAD.encode(signature),))
         }
 
         fn generate_legacy_token(&self, signed_token: String) -> anyhow::Result<String> {

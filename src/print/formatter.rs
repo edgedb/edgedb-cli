@@ -3,7 +3,7 @@ use crate::print::Printer;
 
 use colorful::core::color_string::CString;
 
-use crate::print::buffer::{Result, Exception};
+use crate::print::buffer::{Exception, Result};
 
 use crate::print::style::Style;
 use crate::repl::VectorLimit;
@@ -18,7 +18,6 @@ impl<'a> ColorfulExt for &'a str {
     }
 }
 
-
 pub trait Formatter {
     type Error;
     fn const_number<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
@@ -31,24 +30,30 @@ pub trait Formatter {
     #[allow(dead_code)]
     fn error<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error>;
     fn set<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
     fn tuple<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
     fn array<F>(&mut self, type_name: Option<&str>, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
-    fn auto_sized_vector<'x>(&mut self,
-                             iter: impl IntoIterator<Item=&'x f32> + Copy)
-        -> Result<Self::Error>;
-    fn object<F>(&mut self, type_id: Option<&str>, f: F)
-        -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
-    fn json_object<F>(&mut self, f: F)
-        -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
+    fn auto_sized_vector<'x>(
+        &mut self,
+        iter: impl IntoIterator<Item = &'x f32> + Copy,
+    ) -> Result<Self::Error>;
+    fn object<F>(&mut self, type_id: Option<&str>, f: F) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
+    fn json_object<F>(&mut self, f: F) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
     fn named_tuple<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
     fn call<F>(&mut self, name: &str, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>;
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>;
     fn comma(&mut self) -> Result<Self::Error>;
     fn ellipsis(&mut self) -> Result<Self::Error>;
     fn object_field(&mut self, f: &str, linkprop: bool) -> Result<Self::Error>;
@@ -58,11 +63,11 @@ pub trait Formatter {
     fn expand_strings(&self) -> bool;
     fn max_items(&self) -> Option<usize>;
     fn max_vector_length(&self) -> VectorLimit;
-
 }
 
 impl<T: Output> Formatter for Printer<T>
-    where T::Error: std::fmt::Debug,
+where
+    T::Error: std::fmt::Debug,
 {
     type Error = T::Error;
     fn const_number<S: ToString>(&mut self, s: S) -> Result<Self::Error> {
@@ -93,20 +98,21 @@ impl<T: Output> Formatter for Printer<T>
         self.delimit()?;
         self.write(self.styler.apply(Style::Cast, &format!("<{}>", typ)))?;
         self.write(self.styler.apply(
-            Style::String, &format!("'{}'", s.to_string().escape_default())
+            Style::String,
+            &format!("'{}'", s.to_string().escape_default()),
         ))
     }
     fn error<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error> {
         self.delimit()?;
+        self.write(self.styler.apply(Style::Error, &format!("<err-{}>", typ)))?;
         self.write(self.styler.apply(
-            Style::Error, &format!("<err-{}>", typ)
-        ))?;
-        self.write(self.styler.apply(
-            Style::Error, &format!("'{}'", s.to_string().escape_default())
+            Style::Error,
+            &format!("'{}'", s.to_string().escape_default()),
         ))
     }
     fn set<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block(
@@ -122,9 +128,9 @@ impl<T: Output> Formatter for Printer<T>
     fn ellipsis(&mut self) -> Result<Self::Error> {
         Printer::ellipsis(self)
     }
-    fn object<F>(&mut self, type_name: Option<&str>, f: F)
-        -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    fn object<F>(&mut self, type_name: Option<&str>, f: F) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         match type_name {
@@ -137,8 +143,8 @@ impl<T: Output> Formatter for Printer<T>
                     )?;
                 } else {
                     self.block(
-                        self.styler.apply(Style::ObjectLiteral,
-                                          &(String::from(type_name) + " {")),
+                        self.styler
+                            .apply(Style::ObjectLiteral, &(String::from(type_name) + " {")),
                         f,
                         self.styler.apply(Style::ObjectLiteral, "}"),
                     )?;
@@ -154,9 +160,9 @@ impl<T: Output> Formatter for Printer<T>
         }
         Ok(())
     }
-    fn json_object<F>(&mut self, f: F)
-        -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    fn json_object<F>(&mut self, f: F) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block(
@@ -177,7 +183,8 @@ impl<T: Output> Formatter for Printer<T>
         Ok(())
     }
     fn tuple<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block(
@@ -188,7 +195,8 @@ impl<T: Output> Formatter for Printer<T>
         Ok(())
     }
     fn named_tuple<F>(&mut self, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block(
@@ -199,11 +207,13 @@ impl<T: Output> Formatter for Printer<T>
         Ok(())
     }
     fn call<F>(&mut self, name: &str, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         self.block(
-            self.styler.apply(Style::TupleLiteral, &format!("{}(", name)),
+            self.styler
+                .apply(Style::TupleLiteral, &format!("{}(", name)),
             f,
             self.styler.apply(Style::TupleLiteral, ")"),
         )?;
@@ -216,13 +226,14 @@ impl<T: Output> Formatter for Printer<T>
         Ok(())
     }
     fn array<F>(&mut self, type_name: Option<&str>, f: F) -> Result<Self::Error>
-        where F: FnMut(&mut Self) -> Result<Self::Error>
+    where
+        F: FnMut(&mut Self) -> Result<Self::Error>,
     {
         self.delimit()?;
         if let Some(type_name) = type_name {
             self.block(
-                self.styler.apply(Style::ArrayLiteral,
-                                  &format!("<{type_name}>[")),
+                self.styler
+                    .apply(Style::ArrayLiteral, &format!("<{type_name}>[")),
                 f,
                 self.styler.apply(Style::ArrayLiteral, "]"),
             )?;
@@ -235,13 +246,14 @@ impl<T: Output> Formatter for Printer<T>
         }
         Ok(())
     }
-    fn auto_sized_vector<'x>(&mut self,
-                             iter: impl IntoIterator<Item=&'x f32> + Copy)
-        -> Result<Self::Error>
-    {
+    fn auto_sized_vector<'x>(
+        &mut self,
+        iter: impl IntoIterator<Item = &'x f32> + Copy,
+    ) -> Result<Self::Error> {
         self.delimit()?;
         let flag = self.open_block(
-            self.styler.apply(Style::ArrayLiteral, "<ext::pgvector::vector>[")
+            self.styler
+                .apply(Style::ArrayLiteral, "<ext::pgvector::vector>["),
         )?;
         let close = self.styler.apply(Style::ArrayLiteral, "]");
         if self.flow {
@@ -267,7 +279,8 @@ impl<T: Output> Formatter for Printer<T>
                     if printed >= 3 {
                         self.buffer.truncate(savepoint.0);
                         self.column = savepoint.1;
-                        let tmp_res = self.delimit()
+                        let tmp_res = self
+                            .delimit()
                             .and_then(|()| self.write("...".clear()))
                             .and_then(|()| self.close_block(&close, flag));
                         match tmp_res {

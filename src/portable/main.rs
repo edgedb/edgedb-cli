@@ -1,6 +1,6 @@
 use crate::options::Options;
-use crate::portable::project::ProjectCommand;
 use crate::portable::options::{ServerCommand, ServerInstanceCommand};
+use crate::portable::project::ProjectCommand;
 
 use crate::portable::control;
 use crate::portable::create;
@@ -11,14 +11,13 @@ use crate::portable::install;
 use crate::portable::link;
 use crate::portable::list_versions;
 use crate::portable::project;
+use crate::portable::reset_password;
 use crate::portable::resize;
 use crate::portable::revert;
 use crate::portable::status;
 use crate::portable::uninstall;
 use crate::portable::upgrade;
-use crate::portable::reset_password;
 use crate::portable::windows;
-
 
 pub fn server_main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
     use crate::portable::options::Command::*;
@@ -35,9 +34,7 @@ pub fn server_main(cmd: &ServerCommand) -> Result<(), anyhow::Error> {
     }
 }
 
-pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
-    -> Result<(), anyhow::Error>
-{
+pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options) -> Result<(), anyhow::Error> {
     use crate::portable::options::InstanceCommand::*;
 
     match &cmd.subcommand {

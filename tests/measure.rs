@@ -1,5 +1,5 @@
 use std::io::{stderr, Write};
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 pub struct Time {
     start: Instant,
@@ -7,7 +7,9 @@ pub struct Time {
 
 impl Time {
     pub fn measure() -> Time {
-        Time { start: Instant::now() }
+        Time {
+            start: Instant::now(),
+        }
     }
 }
 
@@ -15,7 +17,6 @@ impl Drop for Time {
     fn drop(&mut self) {
         let dur = self.start.elapsed();
         let rounded = Duration::new(dur.as_secs(), 0);
-        write!(stderr(),
-            "(took {}) ", humantime::format_duration(rounded)).ok();
+        write!(stderr(), "(took {}) ", humantime::format_duration(rounded)).ok();
     }
 }

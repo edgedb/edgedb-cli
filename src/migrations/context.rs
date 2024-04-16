@@ -6,7 +6,6 @@ use crate::portable::repository::Query;
 
 use edgedb_tokio::get_project_dir;
 
-
 pub struct Context {
     pub schema_dir: PathBuf,
 
@@ -20,9 +19,10 @@ pub struct Context {
 }
 
 impl Context {
-    pub async fn from_project_or_config(cfg: &MigrationConfig, quiet: bool)
-        -> anyhow::Result<Context>
-    {
+    pub async fn from_project_or_config(
+        cfg: &MigrationConfig,
+        quiet: bool,
+    ) -> anyhow::Result<Context> {
         let mut edgedb_version = None;
         let schema_dir = if let Some(schema_dir) = &cfg.schema_dir {
             schema_dir.clone()

@@ -1,4 +1,3 @@
-
 use crate::commands::parser::BranchingCmd;
 use crate::options::ConnectionOptions;
 
@@ -6,7 +5,7 @@ use crate::options::ConnectionOptions;
 pub struct BranchCommand {
     #[command(flatten)]
     pub conn: ConnectionOptions,
-    
+
     #[command(subcommand)]
     pub subcommand: Command,
 }
@@ -21,7 +20,7 @@ pub enum Command {
     List(List),
     Rebase(Rebase),
     Merge(Merge),
-    Current(Current)
+    Current(Current),
 }
 
 impl From<&BranchingCmd> for Command {
@@ -45,11 +44,11 @@ pub struct Create {
     pub from: Option<String>,
 
     /// Create the branch without any schema or data.
-    #[arg(short='e', long, conflicts_with = "copy_data")]
+    #[arg(short = 'e', long, conflicts_with = "copy_data")]
     pub empty: bool,
 
     /// Copy data from the 'base' branch.
-    #[arg(alias="cp", long)]
+    #[arg(alias = "cp", long)]
     pub copy_data: bool,
 }
 
@@ -86,11 +85,11 @@ pub struct Switch {
     pub branch: String,
 
     /// Create the branch if it doesn't exist.
-    #[arg(short='c', long)]
+    #[arg(short = 'c', long)]
     pub create: bool,
 
     /// If creating a new branch: whether the new branch should be empty.
-    #[arg(short='e', long, conflicts_with = "copy_data")]
+    #[arg(short = 'e', long, conflicts_with = "copy_data")]
     pub empty: bool,
 
     /// If creating a new branch: the optional 'base' of the branch to create.
@@ -98,7 +97,7 @@ pub struct Switch {
     pub from: Option<String>,
 
     /// If creating a new branch: whether to copy data from the 'base' branch.
-    #[arg(alias="cp", long)]
+    #[arg(alias = "cp", long)]
     pub copy_data: bool,
 }
 
@@ -150,5 +149,5 @@ pub struct Current {
     /// Print as plain text output to stdout. Prints nothing instead of erroring if the current branch
     /// can't be resolved.
     #[arg(long)]
-    pub plain: bool
+    pub plain: bool,
 }

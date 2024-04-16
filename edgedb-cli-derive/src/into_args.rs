@@ -1,10 +1,9 @@
-use proc_macro2::{TokenStream};
-use proc_macro_error::{abort};
-use quote::{quote};
+use proc_macro2::TokenStream;
+use proc_macro_error::abort;
+use quote::quote;
 
-use crate::attrib::{ParserKind};
+use crate::attrib::ParserKind;
 use crate::types;
-
 
 pub fn structure(s: &types::Struct) -> TokenStream {
     use ParserKind::*;
@@ -30,11 +29,11 @@ pub fn structure(s: &types::Struct) -> TokenStream {
         } else if field.attrs.subcommand {
             abort!(field.ident, "subcommand is not implemented");
         } else if let Some(long) = &field.attrs.long {
-            let long = String::from("--") +
-                &long.as_ref()
-                .map(|s| s.value().to_string())
-                .unwrap_or_else(
-                    || s.attrs.rename_all.convert(&field.ident.to_string()));
+            let long = String::from("--")
+                + &long
+                    .as_ref()
+                    .map(|s| s.value().to_string())
+                    .unwrap_or_else(|| s.attrs.rename_all.convert(&field.ident.to_string()));
             if field.multiple {
                 abort!(field.ident, "multiple is not implemented");
             }
@@ -100,8 +99,10 @@ pub fn structure(s: &types::Struct) -> TokenStream {
                 }
             }
         } else if field.attrs.short.is_some() {
-            abort!(field.ident,
-                   "only long options and positionals are implemented");
+            abort!(
+                field.ident,
+                "only long options and positionals are implemented"
+            );
         } else {
             if field.multiple {
                 abort!(field.ident, "multiple is not implemented");
@@ -130,8 +131,7 @@ pub fn structure(s: &types::Struct) -> TokenStream {
                     }
                 }
                 FromFlag => {
-                    abort!(field.ident,
-                           "positional from_flag are not implemented");
+                    abort!(field.ident, "positional from_flag are not implemented");
                 }
                 ValueEnum => {
                     if field.optional {

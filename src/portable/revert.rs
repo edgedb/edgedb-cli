@@ -10,12 +10,11 @@ use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
 use crate::portable::local::Paths;
-use crate::portable::options::{Revert, instance_arg, InstanceName};
-use crate::portable::status::{instance_status, DataDirectory, BackupStatus};
+use crate::portable::options::{instance_arg, InstanceName, Revert};
+use crate::portable::status::{instance_status, BackupStatus, DataDirectory};
 use crate::print::{self, echo, Highlight};
 use crate::process;
 use crate::question;
-
 
 pub fn revert(options: &Revert) -> anyhow::Result<()> {
     use BackupStatus::*;
@@ -27,31 +26,40 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             } else {
                 name
             }
-        },
+        }
         InstanceName::Cloud { .. } => {
             print::error("This operation is not supported on cloud instances yet.");
             return Err(ExitCode::new(1))?;
-        },
+        }
     };
     let status = instance_status(name)?;
     let (backup_info, old_inst) = match status.backup {
         Absent => anyhow::bail!("cannot find backup directory to revert"),
-        Exists { backup_meta: Err(e), ..}
-        => anyhow::bail!("cannot read backup metadata: {}", e),
-        Exists { data_meta: Err(e), ..}
-        => anyhow::bail!("cannot read backup metadata: {}", e),
-        Exists { backup_meta: Ok(b), data_meta: Ok(d) } => (b, d),
+        Exists {
+            backup_meta: Err(e),
+            ..
+        } => anyhow::bail!("cannot read backup metadata: {}", e),
+        Exists {
+            data_meta: Err(e), ..
+        } => anyhow::bail!("cannot read backup metadata: {}", e),
+        Exists {
+            backup_meta: Ok(b),
+            data_meta: Ok(d),
+        } => (b, d),
     };
     echo!("EdgeDB version:", old_inst.get_version()?);
-    echo!("Backup timestamp:",
+    echo!(
+        "Backup timestamp:",
         humantime::format_rfc3339(backup_info.timestamp),
-        format!("({})", format::done_before(backup_info.timestamp)));
+        format!("({})", format::done_before(backup_info.timestamp))
+    );
     if !options.ignore_pid_check {
         match status.data_status {
             DataDirectory::Upgrading(Ok(up)) if process::exists(up.pid) => {
                 echo!(
                     "Upgrade appears to still be in progress \
-                    with pid", up.pid.emphasize(),
+                    with pid",
+                    up.pid.emphasize(),
                 );
                 echo!("Run with `--ignore-pid-check` to override");
                 Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
@@ -64,10 +72,12 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     }
     if !options.no_confirm {
         eprintln!();
-        echo!("Currently stored data", "will be lost".emphasize(),
-                  "and overwritten by the backup.");
-        let q = question::Confirm::new_dangerous(
-            "Do you really want to revert?");
+        echo!(
+            "Currently stored data",
+            "will be lost".emphasize(),
+            "and overwritten by the backup."
+        );
+        let q = question::Confirm::new_dangerous("Do you really want to revert?");
         if !q.ask()? {
             print::error("Canceled.");
             Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
@@ -99,12 +109,16 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     create::create_service(&inst)
         .map_err(|e| {
             log::warn!("Error running EdgeDB as a service: {e:#}");
-        }).ok();
+        })
+        .ok();
 
     control::do_restart(&inst)?;
-    echo!("Instance", inst.name.emphasize(),
-           "is successfully reverted to",
-           inst.get_version()?.emphasize());
+    echo!(
+        "Instance",
+        inst.name.emphasize(),
+        "is successfully reverted to",
+        inst.get_version()?.emphasize()
+    );
 
     fs::remove_file(paths.data_dir.join("backup.json"))?;
     fs::remove_dir_all(&tmp_path)?;
