@@ -1,8 +1,8 @@
-use crate::{branch, print};
+use crate::{branch};
 use crate::commands::parser::BranchingCmd;
 use crate::connect::Connection;
 use crate::commands::{CommandResult, Options};
-use crate::repl::State;
+
 
 pub async fn main(connection: &mut Connection, cmd: &BranchingCmd, options: &Options) -> anyhow::Result<Option<CommandResult>> {
     let context = branch::main::create_context().await?;
