@@ -53,6 +53,12 @@ edgedb.connect(process.argv[2])
     "###
 }
 
+impl Default for Context {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Context {
     pub fn new() -> Context {
         Context {
@@ -90,10 +96,9 @@ impl Context {
         self.add_file("sudoers", sudoers())
     }
     pub fn add_edbconnect(self) -> anyhow::Result<Self> {
-        Ok(self
+        self
             .add_file("edbconnect.py", edbconnect_py())?
-            .add_file("edbconnect.js", edbconnect_js())?
-        )
+            .add_file("edbconnect.js", edbconnect_js())
     }
     pub fn add_bin(self) -> anyhow::Result<Self> {
         self.add_file_mode("edgedb",
@@ -148,7 +153,7 @@ pub fn run(tagname: &str, script: &str) -> assert_cmd::assert::Assert {
         .arg("--mount=type=tmpfs,destination=/run/user/1000,tmpfs-mode=777")
         .arg("-u").arg("1000")
         .arg(tagname)
-        .args(&["sh", "-exc", &script])
+        .args(["sh", "-exc", &script])
         .assert()
 }
 
@@ -175,7 +180,7 @@ pub fn run_docker(tagname: &str, script: &str)
         .arg(format!("--volume={0}:{0}", path))
         .arg("--net=host")
         .arg(tagname)
-        .args(&["bash", "-exc", &script])
+        .args(["bash", "-exc", &script])
         .assert()
 }
 
@@ -203,7 +208,7 @@ pub fn run_systemd(tagname: &str, script: &str)
         .arg("--tmpfs=/run/systemd/system")
         .arg("--privileged")
         .arg(tagname)
-        .args(&["sh", "-exc", &script])
+        .args(["sh", "-exc", &script])
         .assert()
 }
 
@@ -216,7 +221,7 @@ pub fn run_with(tagname: &str, script: &str, link: &str)
         .arg("-u").arg("1000")
         .arg(format!("--link={0}:{0}", link))
         .arg(tagname)
-        .args(&["sh", "-exc", script])
+        .args(["sh", "-exc", script])
         .assert()
 }
 

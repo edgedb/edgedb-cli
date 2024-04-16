@@ -42,7 +42,7 @@ pub enum SortKey<'a> {
 pub fn hashing_error(_source: &str, e: hash::Error) -> anyhow::Error {
     match e {
         hash::Error::Tokenizer(msg, pos) => {
-            return anyhow::anyhow!("Tokenizer error at {}: {}", pos, msg);
+            anyhow::anyhow!("Tokenizer error at {}: {}", pos, msg)
         }
     }
 }
@@ -60,7 +60,7 @@ impl Migration {
         s.push_str(&text[..self.id_range.0]);
         s.push_str(new_id);
         s.push_str(&text[self.id_range.1..]);
-        return s;
+        s
     }
 
     pub fn replace_parent_id(&self, text: &str, new_id: &str) -> String {
@@ -68,7 +68,7 @@ impl Migration {
         s.push_str(&text[..self.parent_id_range.0]);
         s.push_str(new_id);
         s.push_str(&text[self.parent_id_range.1..]);
-        return s;
+        s
     }
 }
 
@@ -127,7 +127,7 @@ async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
-        if lossy_name.starts_with(".") || !lossy_name.ends_with(".edgeql")
+        if lossy_name.starts_with('.') || !lossy_name.ends_with(".edgeql")
             || !item.file_type().await?.is_file()
         {
             continue;
@@ -154,7 +154,7 @@ pub fn file_num(path: &Path) -> Option<u64> {
             return spl[0].parse().ok();
         }
 
-        return x.parse().ok();
+        x.parse().ok()
     })
 }
 
@@ -243,7 +243,7 @@ async fn _read_fixups(dir: &Path, validate_hashes: bool)
         let data = read_file(&path, validate_hashes).await?;
         let fixup_target = path.file_stem()
             .and_then(|s| s.to_str())
-            .and_then(|s| s.split("-").skip(1).next());
+            .and_then(|s| s.split('-').nth(1));
         let Some(fixup_target) = fixup_target else {
             log::warn!("Invalid fixup file name {:?}", path);
             continue;

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use anyhow::Context as _;
 use colorful::Colorful;
-use rustyline::{self, error::ReadlineError, KeyEvent, Modifiers, Cmd};
+use rustyline::{error::ReadlineError, KeyEvent, Modifiers, Cmd};
 use rustyline::{Editor, Config, Helper};
 use rustyline::config::EditMode;
 use rustyline::hint::Hinter;
@@ -29,22 +29,22 @@ impl Highlighter for ExpressionHelper {
         -> Cow<'b, str>
     {
         if info.line_no() > 0 {
-            return format!("{0:.>1$}", " ", prompt.len()).into();
+            format!("{0:.>1$}", " ", prompt.len()).into()
         } else {
-            return prompt.into();
+            prompt.into()
         }
     }
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
         let mut buf = String::with_capacity(line.len() + 8);
         highlight::edgeql(&mut buf, line, &self.styler);
-        return buf.into();
+        buf.into()
     }
-    fn highlight_char<'l>(&self, _line: &'l str, _pos: usize) -> bool {
+    fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
         // TODO(tailhook) optimize: only need to return true on insert
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        return hint.light_gray().to_string().into()
+        hint.light_gray().to_string().into()
     }
     fn has_continuation_prompt(&self) -> bool {
         true
@@ -86,7 +86,7 @@ pub fn expression(prompt: &str, history_name: &str, default: &str)
     editor.set_helper(Some(ExpressionHelper {
         styler: Styler::dark_256(),
     }));
-    let text = editor.readline_with_initial(&prompt, (default, ""))
+    let text = editor.readline_with_initial(prompt, (default, ""))
         .context("readline error")?;
     editor.add_history_entry(&text);
     save_history(&mut editor, &history_name);

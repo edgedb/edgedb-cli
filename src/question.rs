@@ -38,11 +38,14 @@ pub struct Choice<'a, T: 'a> {
 }
 
 pub fn read_choice() -> anyhow::Result<std::string::String> {
-    for line in stdin().lock().lines() {
-        let line = line.context("reading user input")?;
-        return Ok(line.trim().to_lowercase())
-    }
-    anyhow::bail!("Unexpected end of input");
+    let mut lines = stdin().lock().lines();
+
+    let Some(line) = lines.next() else {
+        anyhow::bail!("Unexpected end of input");
+    };
+
+    let line = line.context("reading user input")?;
+    Ok(line.trim().to_lowercase())
 }
 
 impl<'a, T: Clone + 'a> Numeric<'a, T> {
@@ -126,11 +129,11 @@ impl<'a> String<'a> {
             (initial, ""),
         )?;
         let mut val = val.trim();
-        if val == "" {
+        if val.is_empty() {
             val = self.default;
         }
         self.initial = Some(val.into());
-        return Ok(val.into());
+        Ok(val.into())
     }
 }
 
@@ -185,12 +188,12 @@ impl<'a> Confirm<'a> {
             let val = editor.readline_with_initial("> ", (&initial, ""))?;
             let val = val.trim();
             if self.is_dangerous {
-                match val.as_ref() {
+                match val {
                     "Yes" => return Ok(true),
                     _ => return Ok(false),
                 }
             } else {
-                match val.as_ref() {
+                match val {
                     "y" | "Y" | "yes" | "Yes" | "YES" => return Ok(true),
                     "n" | "N" | "no" | "No" | "NO" => return Ok(false),
                     "" if self.default.is_some() => {
@@ -243,7 +246,7 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
             let val = val.trim();
             if matches!(val, "?" | "h" | "help") {
                 const HELP: &str = "h or ?";
-                let pad = (&self.choices)
+                let pad = self.choices
                             .iter()
                             .map(|x| x.input.join(" or ").len())
                             .max()
@@ -257,7 +260,7 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
                         pad=pad
                     )
                 }
-                println!("{:pad$} - {}", HELP, "print help", pad=pad);
+                println!("{:pad$} - print help", HELP, pad=pad);
                 continue;
             }
             for choice in &self.choices {

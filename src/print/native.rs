@@ -32,7 +32,7 @@ fn format_string(s: &str, expanded: bool) -> String {
         }
     }
     buf.push('\'');
-    return buf;
+    buf
 }
 
 fn format_bytes(bytes: &[u8]) -> String {
@@ -55,7 +55,7 @@ fn format_bytes(bytes: &[u8]) -> String {
         }
     }
     buf.push('\'');
-    return buf;
+    buf
 }
 
 fn format_bigint(bint: BigInt) -> String {
@@ -63,9 +63,9 @@ fn format_bigint(bint: BigInt) -> String {
     let no_zeros = txt.trim_end_matches('0');
     let zeros = txt.len() - no_zeros.len();
     if zeros > 5 {
-        return format!("{}e{}n", no_zeros, zeros);
+        format!("{}e{}n", no_zeros, zeros)
     } else {
-        return format!("{}n", txt);
+        format!("{}n", txt)
     }
 }
 
@@ -75,17 +75,17 @@ fn format_decimal(value: BigDecimal) -> String {
         if txt.starts_with("0.00000") {
             let no_zeros = txt[2..].trim_start_matches('0');
             let zeros = txt.len()-2 - no_zeros.len();
-            return format!("0.{}e-{}", no_zeros, zeros);
+            format!("0.{}e-{}", no_zeros, zeros)
         } else {
-            return format!("{}n", txt);
+            format!("{}n", txt)
         }
     } else {
         let no_zeros = txt.trim_end_matches('0');
         let zeros = txt.len() - no_zeros.len();
         if zeros > 5 {
-            return format!("{}.0e{}n", no_zeros, zeros);
+            format!("{}.0e{}n", no_zeros, zeros)
         } else {
-            return format!("{}.0n", txt);
+            format!("{}.0n", txt)
         }
     }
 }

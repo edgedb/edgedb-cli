@@ -69,7 +69,7 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         ORDER BY .subject_name;
     "###, filter=filter);
     let items = filter::query::<Index>(cli,
-        &query, &pattern, case_sensitive).await?;
+        query, pattern, case_sensitive).await?;
     if !options.command_line || std::io::stdout().is_terminal() {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
@@ -110,16 +110,14 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         } else {
             table.printstd();
         }
+    } else if verbose {
+        for item in items {
+            println!("{}\t{}\t{}",
+                item.expr, item.is_implicit, item.subject_name);
+        }
     } else {
-        if verbose {
-            for item in items {
-                println!("{}\t{}\t{}",
-                    item.expr, item.is_implicit, item.subject_name);
-            }
-        } else {
-            for item in items {
-                println!("{}\t{}", item.expr, item.subject_name);
-            }
+        for item in items {
+            println!("{}\t{}", item.expr, item.subject_name);
         }
     }
     Ok(())

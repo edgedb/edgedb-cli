@@ -54,7 +54,7 @@ pub async fn connect_if_branch_exists(connector: &Connector) -> anyhow::Result<O
     }
 }
 
-pub async fn get_connection_to_modify<'a>(branch: &String, options: &'a Options, connection: &mut Connection) -> anyhow::Result<BranchConnection<'a>> {
+pub async fn get_connection_to_modify<'a>(branch: &str, options: &'a Options, connection: &mut Connection) -> anyhow::Result<BranchConnection<'a>> {
     match get_connection_that_is_not(branch, options, connection).await {
         Ok(connection) => Ok(connection),
         Err(_) => {
@@ -72,7 +72,7 @@ pub async fn get_connection_to_modify<'a>(branch: &String, options: &'a Options,
     }
 }
 
-pub async fn get_connection_that_is_not<'a>(target_branch: &String, options: &'a Options, connection: &mut Connection) -> anyhow::Result<BranchConnection<'a>> {
+pub async fn get_connection_that_is_not<'a>(target_branch: &str, options: &'a Options, connection: &mut Connection) -> anyhow::Result<BranchConnection<'a>> {
     let branches: Vec<String> = connection.query(
         "SELECT (SELECT sys::Database FILTER NOT .builtin).name",
         &(),

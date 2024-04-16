@@ -7,6 +7,7 @@ use colorful::core::color_string::CString;
 
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum Style {
     Decorator,
     Comment,
@@ -29,9 +30,6 @@ pub enum Style {
     BackslashCommand,
     Error,
 }
-
-#[derive(Debug)]
-pub struct Styled<T>(T, Style);
 
 #[derive(Debug)]
 pub struct Item(Option<Color>, Option<TermStyle>);
@@ -66,23 +64,23 @@ impl Styler {
         t.insert(Error,             Item(Some(Color::IndianRed1c), None));
         t.insert(BackslashCommand,  Item(Some(Color::MediumPurple2a), Some(Bold)));
 
-        return Styler(Arc::new(Theme {
+        Styler(Arc::new(Theme {
             items: t,
-        }));
+        }))
     }
     pub fn write(&self, style: Style, data: &str, buf: &mut String) {
         write!(buf, "{}", self.apply(style, data)).unwrap();
     }
     pub fn apply(&self, style: Style, data: &str) -> CString {
         if let Some(Item(col, style)) = self.0.items.get(&style) {
-            return match (col, style) {
+            match (col, style) {
                 (Some(c), Some(s)) => data.color(*c).style(*s),
                 (Some(c), None) => data.color(*c),
                 (None, Some(s)) => data.style(*s),
                 (None, None) => CString::new(data)
             }
         } else {
-            return CString::new(data);
+            CString::new(data)
         }
     }
 }

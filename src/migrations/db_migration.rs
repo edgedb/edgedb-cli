@@ -14,7 +14,7 @@ pub(crate) trait SortableMigration {
     type ParentsIter<'a>: Iterator<Item = &'a String> where Self: 'a;
     fn name(&self) -> &str;
     fn is_root(&self) -> bool;
-    fn iter_parents<'a>(&'a self) -> Self::ParentsIter<'a>;
+    fn iter_parents(&self) -> Self::ParentsIter<'_>;
 }
 
 // Database migration record
@@ -37,7 +37,7 @@ impl SortableMigration for DBMigration {
         self.parent_names.is_empty()
     }
 
-    fn iter_parents<'a>(&'a self) -> Self::ParentsIter<'a> {
+    fn iter_parents(&self) -> Self::ParentsIter<'_> {
         self.parent_names.iter()
     }
 }
@@ -56,8 +56,7 @@ pub(crate) fn linearize_db_migrations<M>(
     let mut output = IndexMap::new();
     let mut visited = BTreeSet::new();
     let mut queue = migrations.iter()
-        .filter(|item| item.is_root())
-        .map(|item| item.clone())
+        .filter(|item| item.is_root()).cloned()
         .collect::<Vec<_>>();
     while let Some(item) = queue.pop() {
         output.insert(item.name().to_owned(), item.clone());
@@ -70,7 +69,7 @@ pub(crate) fn linearize_db_migrations<M>(
             }
         }
     }
-    return output
+    output
 }
 
 pub(crate) async fn read_all(
@@ -162,5 +161,5 @@ pub(crate) async fn find_by_prefix(
     if all_similar.len() > 1 {
         anyhow::bail!("more than one migration matches prefix {:?}", prefix);
     }
-    return Ok(all_similar.pop())
+    Ok(all_similar.pop())
 }

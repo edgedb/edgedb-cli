@@ -1,9 +1,8 @@
-use std::default::Default;
 use std::str;
 
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
-use codespan_reporting::term::{emit};
+use codespan_reporting::term::emit;
 use termcolor::{StandardStream, ColorChoice};
 
 use edgedb_errors::{Error, InternalServerError};
@@ -20,7 +19,7 @@ pub fn print_query_error(err: &Error, query: &str, verbose: bool,
     let (pstart, pend) = match (pstart, pend) {
         (Some(s), Some(e)) => (s, e),
         _ => {
-            print::edgedb_error(&err, verbose);
+            print::edgedb_error(err, verbose);
             return Ok(());
         }
     };
@@ -31,11 +30,11 @@ pub fn print_query_error(err: &Error, query: &str, verbose: bool,
         .contexts()
         .rev()
         .collect::<Vec<_>>();
-    if context_error.len() > 0 {
+    if !context_error.is_empty() {
         print::error(context_error.join(": "));
     }
     let diag = Diagnostic::error()
-        .with_message(&format!(
+        .with_message(format!(
             "{}{}",
             err.kind_name(),
             err

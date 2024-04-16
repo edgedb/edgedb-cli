@@ -48,7 +48,7 @@ pub fn ident<'s>(value: &'static str)
 
 pub fn kind<'x>(kind: Kind) -> TokenMatch<'x> {
     TokenMatch {
-        kind: kind,
+        kind,
         phantom: PhantomData,
     }
 }
@@ -215,7 +215,7 @@ fn migration<'a>()
             match item {
                 SetMessage(text) => {
                     if m.message.is_some() {
-                        return Err(Error::Message(
+                        Err(Error::Message(
                             "duplicate `SET message` statement".into()))?;
                     }
                     m.message = Some(text);

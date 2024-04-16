@@ -79,7 +79,7 @@ struct TextPrinter<'a, 'b: 'a> {
 
 pub fn render(
     title: Option<impl fmt::Display>,
-    table: &Vec<Vec<Box<dyn Contents+'_>>>
+    table: &[Vec<Box<dyn Contents+'_>>]
 ) {
     let width = terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(200);
     let cols = table.iter().map(|r| r.len()).max().unwrap_or(1);
@@ -169,10 +169,10 @@ pub fn render(
                     col = next_col;
                 }
                 next_col = col + width + 1;
-                iter.next().map(|line| {
+                if let Some(line) = iter.next() {
                     col += str_width(line);
                     line_buf.push_str(line);
-                });
+                }
             }
             println!("{}", line_buf);
             line_buf.truncate(0);

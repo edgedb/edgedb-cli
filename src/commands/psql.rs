@@ -54,7 +54,7 @@ pub async fn psql<'x>(cli: &mut Connection, _options: &Options)
             }
 
 
-            let _trap = interrupt::Trap::trap(&[interrupt::Signal::Interrupt]);
+            let _trap = interrupt::Trap::new(&[interrupt::Signal::Interrupt]);
             cmd.status().with_context(|| {
                 format!("Error running {:?} (path: {:?})", cmd,
                         path.unwrap_or_else(OsString::new))

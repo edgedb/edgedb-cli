@@ -34,7 +34,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         .context("cannot find installed packages maching your criteria")?;
 
     let item = options.get.as_deref()
-        .or(options.bin_path.then(|| "bin-path"));
+        .or(options.bin_path.then_some("bin-path"));
     if let Some(item) = item {
         match item {
             "bin-path" => {

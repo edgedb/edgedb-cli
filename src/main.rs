@@ -4,7 +4,6 @@
 
 use clap::Parser;
 
-use std::default::Default;
 use std::env;
 use std::path::Path;
 use std::process::exit;
@@ -95,7 +94,7 @@ fn main() {
 }
 
 fn is_cli_upgrade(cmd: &Option<options::Command>) -> bool {
-    use options::Command::CliCommand as Cli;
+    use options::Command::Cli as Cli;
     use cli::options::CliCommand;
     use cli::options::Command::Upgrade;
     matches!(cmd, Some(Cli(CliCommand { subcommand: Upgrade(..) })))

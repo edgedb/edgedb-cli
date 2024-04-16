@@ -13,7 +13,7 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
                               log::LevelFilter::Debug);
     }
     match &opt.subcommand {
-        Some(Command::CliCommand(c)) => match &c.subcommand {
+        Some(Command::Cli(c)) => match &c.subcommand {
             Cli::Upgrade(s) if s.verbose => {
                 builder.filter_module("edgedb::self_upgrade",
                     log::LevelFilter::Info);

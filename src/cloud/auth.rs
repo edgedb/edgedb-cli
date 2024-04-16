@@ -176,7 +176,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             let item = item?;
             let sub_dir = item.path();
             let stem = sub_dir.file_stem().and_then(|s| s.to_str());
-            if stem.map(|n| n.starts_with(".")).unwrap_or(true) {
+            if stem.map(|n| n.starts_with('.')).unwrap_or(true) {
                 // skip hidden files, most likely .DS_Store
                 continue;
             }
@@ -256,7 +256,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             print::warn(message);
         } else {
             print::error(message);
-            return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
+            Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
         }
     }
     if !skipped {
@@ -274,8 +274,7 @@ fn make_project_warning(profile: &str, projects: Vec<PathBuf>) -> String {
         profile,
         projects
             .iter()
-            .map(|p| p.to_str())
-            .flatten()
+            .filter_map(|p| p.to_str())
             .collect::<Vec<_>>()
             .join("\n    "),
     )

@@ -33,7 +33,7 @@ pub async fn read_statement<T: AsyncRead>(buf: &mut BytesMut, stream: &mut T)
         }
     };
     let data = buf.split_to(statement_len).freeze();
-    return Ok(data);
+    Ok(data)
 }
 
 impl fmt::Display for EndOfFile {

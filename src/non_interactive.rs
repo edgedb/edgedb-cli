@@ -1,16 +1,16 @@
 use std::str;
 use std::io::{stdout, Write};
 
-use anyhow::{self, Context};
-use bytes::{BytesMut};
+use anyhow::Context;
+use bytes::BytesMut;
 use is_terminal::IsTerminal;
 use terminal_size::{Width, terminal_size};
-use tokio::fs::{File as AsyncFile};
+use tokio::fs::File as AsyncFile;
 use tokio::io::{AsyncRead, stdin};
 
-use edgedb_protocol::client_message::{CompilationOptions};
+use edgedb_protocol::client_message::CompilationOptions;
 use edgedb_protocol::client_message::{IoFormat, Cardinality};
-use edgedb_protocol::common::{Capabilities};
+use edgedb_protocol::common::Capabilities;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
 use tokio_stream::StreamExt;
@@ -63,7 +63,7 @@ pub async fn noninteractive_main(q: &Query, options: &Options)
                 anyhow::bail!("Analyze queries are not allowed. \
                                Use the dedicated `edgedb analyze` command.");
             }
-            run_query(&mut conn, query, &options, fmt).await?;
+            run_query(&mut conn, query, options, fmt).await?;
         }
     } else {
         print::error("either a --file option or \
@@ -101,7 +101,7 @@ async fn interpret_file<T>(file: &mut T, options: &Options, fmt: OutputFormat)
             anyhow::bail!("Analyze queries are not allowed. \
                            Use the dedicated `edgedb analyze` command.");
         }
-        run_query(&mut conn, &stmt, &options, fmt).await?;
+        run_query(&mut conn, stmt, options, fmt).await?;
     }
     Ok(())
 }
@@ -112,7 +112,7 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options,
 {
     _run_query(conn, stmt, options, fmt).await.map_err(|err| {
         if let Some(err) = err.downcast_ref::<edgedb_errors::Error>() {
-            match print_query_error(&err, stmt, false, "<query>") {
+            match print_query_error(err, stmt, false, "<query>") {
                 Ok(()) => ExitCode::new(1).into(),
                 Err(e) => e,
             }

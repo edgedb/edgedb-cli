@@ -50,7 +50,7 @@ pub fn unwrap_type<'x>(ty: &'x syn::Type, name: &str) -> (bool, &'x syn::Type)
                         if ang.args.len() == 1 {
                             match &ang.args[0] {
                                 syn::GenericArgument::Type(typ) => {
-                                    return (true, typ);
+                                    (true, typ)
                                 }
                                 _ => (false, ty),
                             }

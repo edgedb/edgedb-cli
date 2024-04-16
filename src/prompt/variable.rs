@@ -183,7 +183,7 @@ impl Hinter for VarHelper {
     fn hint(&self, line: &str, _pos: usize, _ctx: &Context)
         -> Option<Self::Hint>
     {
-        if line == "" {  // be friendly from the start
+        if line.is_empty() {  // be friendly from the start
             return None;
         }
         match self.var_type.parse(line) {
@@ -202,9 +202,9 @@ impl Highlighter for VarHelper {
         }
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        return hint.rgb(0x56, 0x56, 0x56).to_string().into()
+        hint.rgb(0x56, 0x56, 0x56).to_string().into()
     }
-    fn highlight_char<'l>(&self, _line: &'l str, _pos: usize) -> bool {
+    fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
         // needed to highlight hint
         true
     }

@@ -1,8 +1,8 @@
-use std::mem::replace;
+
 use std::str;
 use std::time::Instant;
 
-use anyhow::{self, Context};
+use anyhow::Context;
 use colorful::Colorful;
 use is_terminal::IsTerminal;
 use terminal_size::{Width, terminal_size};
@@ -11,10 +11,10 @@ use tokio::sync::mpsc::channel;
 use tokio_stream::StreamExt;
 
 use edgedb_errors::{StateMismatchError,  ParameterTypeMismatchError};
-use edgedb_protocol::client_message::{CompilationOptions};
+use edgedb_protocol::client_message::CompilationOptions;
 use edgedb_protocol::client_message::{IoFormat, Cardinality};
 use edgedb_protocol::common::{Capabilities, State};
-use edgedb_protocol::common::{RawTypedesc};
+use edgedb_protocol::common::RawTypedesc;
 use edgedb_protocol::descriptors::Typedesc;
 use edgedb_protocol::model::Duration;
 use edgedb_protocol::value::Value;
@@ -72,14 +72,14 @@ impl<'a> Iterator for ToDo<'a> {
     fn next(&mut self) -> Option<ToDoItem<'a>> {
         loop {
             let tail = self.tail.trim_start();
-            if tail.starts_with("\\") {
-                let len = backslash::full_statement(&tail);
+            if tail.starts_with('\\') {
+                let len = backslash::full_statement(tail);
                 self.tail = &tail[len..];
                 return Some(ToDoItem::Backslash(&tail[..len]));
             } else if preparser::is_empty(tail) {
                 return None;
             } else {
-                let len = full_statement(&tail.as_bytes(), None)
+                let len = full_statement(tail.as_bytes(), None)
                     .unwrap_or(tail.len());
                 let query = &tail[..len];
                 self.tail = &tail[len..];
@@ -120,7 +120,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         verbose_errors: cfg.shell.verbose_errors.unwrap_or(false),
         last_error: None,
         last_analyze: None,
-        implicit_limit: implicit_limit,
+        implicit_limit,
         idle_transaction_timeout: idle_tx_timeout,
         output_format: options.output_format
             .or(cfg.shell.output_format)
@@ -160,12 +160,12 @@ pub async fn _main(options: Options, mut state: repl::State, cfg: Config)
     echo!(r#"Type \help for help, \quit to quit."#.light_gray());
     state.set_history_limit(state.history_limit).await?;
     match _interactive_main(&options, &mut state).await {
-        Ok(()) => return Ok(()),
+        Ok(()) => Ok(()),
         Err(e) => {
             if e.is::<CleanShutdown>() {
                 return Ok(());
             }
-            return Err(e);
+            Err(e)
         }
     }
 }
@@ -197,7 +197,7 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize)
         }
         _ => {}
     }
-    return true;
+    true
 }
 
 fn print_json_limit_error(path: &str) {
@@ -214,10 +214,10 @@ fn check_json_limit(json: &serde_json::Value, path: &str, limit: usize) -> bool
         print_json_limit_error(&path_buf);
         return false;
     }
-    return true;
+    true
 }
 
-async fn execute_backslash(mut state: &mut repl::State, text: &str)
+async fn execute_backslash(state: &mut repl::State, text: &str)
     -> anyhow::Result<()>
 {
     use backslash::ExecuteResult::*;
@@ -236,7 +236,7 @@ async fn execute_backslash(mut state: &mut repl::State, text: &str)
             return Ok(());
         }
     };
-    let res = backslash::execute(&cmd.command, &mut state).await;
+    let res = backslash::execute(&cmd.command, state).await;
     match res {
         Ok(Skip) => {},
         Ok(Quit) => {
@@ -441,8 +441,8 @@ async fn execute_query(options: &Options, state: &mut repl::State,
                     _ => return Err(anyhow::anyhow!(
                         "the server returned a non-string value in JSON mode")),
                 };
-                let jitems: serde_json::Value;
-                jitems = serde_json::from_str(&text)
+                
+                let jitems: serde_json::Value = serde_json::from_str(&text)
                     .context("cannot decode json result")?;
                 if let Some(limit) = state.implicit_limit {
                     if !check_json_limit(&jitems, "", limit) {
@@ -474,8 +474,8 @@ async fn execute_query(options: &Options, state: &mut repl::State,
                     _ => return Err(anyhow::anyhow!(
                         "server returned a non-string value in JSON mode")),
                 };
-                let value: serde_json::Value;
-                value = serde_json::from_str(&text)
+                
+                let value: serde_json::Value = serde_json::from_str(&text)
                     .context("cannot decode json result")?;
                 let path = format!(".[{}]", index);
                 if let Some(limit) = state.implicit_limit {
@@ -512,7 +512,7 @@ async fn execute_query(options: &Options, state: &mut repl::State,
         );
     }
     state.last_error = None;
-    return Ok(());
+    Ok(())
 }
 
 async fn _interactive_main(options: &Options, state: &mut repl::State)
@@ -524,7 +524,7 @@ async fn _interactive_main(options: &Options, state: &mut repl::State)
             _ = state.ensure_connection() => {}
             res = ctrlc.wait_result() => res?,
         );
-        let cur_initial = replace(&mut state.initial_text, String::new());
+        let cur_initial = std::mem::take(&mut state.initial_text);
         let inp = match state.edgeql_input(&cur_initial).await? {
             prompt::Input::Eof => {
                 tokio::select!(

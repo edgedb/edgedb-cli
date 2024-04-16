@@ -38,7 +38,7 @@ impl Guard {
             Ok((Box::new(file), Guard { filenames: None }))
         } else {
             let tmp_path = filename.with_file_name(
-                tmp_file_name(filename.as_ref()));
+                tmp_file_name(filename));
             if fs::metadata(&tmp_path).await.is_ok() {
                 fs::remove_file(&tmp_path).await.ok();
             }

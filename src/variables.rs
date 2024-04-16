@@ -29,7 +29,7 @@ pub async fn input_variables(desc: &Typedesc, state: &mut repl::PromptRpc)
                     &format!("{}", idx), desc.get(*el)?, desc, state, false,
                 ).await?.expect("no optional"));
             }
-            return Ok(Value::Tuple(val));
+            Ok(Value::Tuple(val))
         }
         Some(Descriptor::NamedTuple(tuple)) if desc.proto().is_at_most(0, 11)
         => {
@@ -40,7 +40,7 @@ pub async fn input_variables(desc: &Typedesc, state: &mut repl::PromptRpc)
                     &el.name, desc.get(el.type_pos)?, desc, state, false
                 ).await?.expect("no optional"));
             }
-            return Ok(Value::NamedTuple { shape, fields });
+            Ok(Value::NamedTuple { shape, fields })
         }
         Some(Descriptor::ObjectShape(obj)) if desc.proto().is_at_least(0, 12)
         => {
@@ -53,15 +53,15 @@ pub async fn input_variables(desc: &Typedesc, state: &mut repl::PromptRpc)
                     &el.name, desc.get(el.type_pos)?, desc, state, optional,
                 ).await?);
             }
-            return Ok(Value::Object { shape, fields });
+            Ok(Value::Object { shape, fields })
         }
         Some(root) => {
-            return Err(anyhow::anyhow!(
-                "Unknown input type descriptor: {:?}", root));
+            Err(anyhow::anyhow!(
+                "Unknown input type descriptor: {:?}", root))
         }
         // Since protocol 0.12
         None => {
-            return Ok(Value::Nothing);
+            Ok(Value::Nothing)
         }
     }
 }
@@ -70,11 +70,8 @@ async fn input_item(name: &str, mut item: &Descriptor, all: &Typedesc,
     state: &mut repl::PromptRpc, optional: bool)
     -> Result<Option<Value>, anyhow::Error>
 {
-    match item {
-        Descriptor::Scalar(s) => {
-            item = all.get(s.base_type_pos)?;
-        }
-        _ => {},
+    if let Descriptor::Scalar(s) = item {
+        item = all.get(s.base_type_pos)?;
     }
     match item {
         Descriptor::BaseScalar(s) => {

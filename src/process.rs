@@ -33,18 +33,18 @@ static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
             let c_utf8 = CString::new("C.UTF-8").unwrap();
             let loc = libc::newlocale(libc::LC_ALL,
                                       c_utf8.as_ptr(), null_mut());
-            if loc != null_mut() {
+            if !loc.is_null() {
                 libc::freelocale(loc);
                 log::debug!("UTF-8 locale is enabled");
-                return true;
+                true
             } else {
                 log::debug!("Cannot load C.UTF-8");
-                return false;
+                false
             }
         }
     } else {
         log::debug!("UTF-8 not enabled (non-utf-8 locale)");
-        return false;
+        false
     }
 });
 
@@ -196,7 +196,7 @@ impl Native {
         if cfg!(target_os="macos") {
             me.env("LC_CTYPE", "UTF-8");
         }
-        return me;
+        me
     }
     pub fn no_proxy(&mut self) -> &mut Self {
         self.proxy = false;
@@ -212,11 +212,11 @@ impl Native {
     pub fn log_file(&mut self, path: &Path) -> anyhow::Result<&mut Self>
     {
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(&dir)?;
+            fs::create_dir_all(dir)?;
         }
         let file = fs::OpenOptions::new()
-            .write(true).append(true).create(true)
-            .open(&path)
+            .append(true).create(true)
+            .open(path)
             .with_context(|| format!("cannot open log file {:?}", path))?;
         self.command.stdout(file.try_clone().context("cannot clone file")?);
         self.command.stderr(file);
@@ -365,8 +365,8 @@ impl Native {
             (child_result, _, _) = async {
                 tokio::join!(
                     child.wait(),
-                    stdout_loop(mark, out, capture_out.then(|| &mut stdout)),
-                    stdout_loop(mark, err, capture_err.then(|| &mut stderr)),
+                    stdout_loop(mark, out, capture_out.then_some(&mut stdout)),
+                    stdout_loop(mark, err, capture_err.then_some(&mut stderr)),
                 )
             } => child_result,
             _ = self.signal_loop(pid, &term) => unreachable!(),
@@ -490,7 +490,7 @@ impl Native {
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
 
-        return result;
+        result
     }
 
     async fn _feed(&mut self, data: &[u8]) -> anyhow::Result<()> {
@@ -697,7 +697,7 @@ impl Native {
             cstr.extend(key.as_bytes());
             cstr.push(b'=');
             cstr.extend(val.as_bytes());
-            return Ok(CString::new(cstr)?);
+            Ok(CString::new(cstr)?)
         }
 
         let mut env = Vec::new();
@@ -804,14 +804,14 @@ fn write_pid_file(path: &Option<PathBuf>, pid: u32) {
 
 fn remove_pid_file(path: &Option<PathBuf>) {
     if let Some(path) = path {
-        fs::remove_file(&path).map_err(|e| {
+        fs::remove_file(path).map_err(|e| {
             log::error!("Cannot remove pid file {:?}: {:#}", path, e);
         }).ok();
     }
 }
 
 fn _write_pid_file(path: &Path, pid: u32) -> anyhow::Result<()> {
-    let tmp_path = tmp_file_path(&path);
+    let tmp_path = tmp_file_path(path);
     fs::remove_file(&tmp_path).ok();
     fs::write(&tmp_path, pid.to_string().as_bytes())?;
     fs::rename(&tmp_path, path)?;

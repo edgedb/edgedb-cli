@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use proc_macro_error::abort;
-use syn::{self, parse_macro_input};
+use syn::parse_macro_input;
 use quote::quote;
 
 mod attrib;
@@ -23,7 +23,7 @@ fn derive_edb_settings(item: syn::Item) -> proc_macro2::TokenStream {
         syn::Item::Enum(ref e) => &e.attrs,
         _ => abort!(item, "can only derive EdbSettings for enums"),
     };
-    let attrs = attrib::ContainerAttrs::from_syn(&attrs);
+    let attrs = attrib::ContainerAttrs::from_syn(attrs);
     match item {
         syn::Item::Enum(e) => {
             let mut subcommands = Vec::new();
@@ -56,7 +56,7 @@ fn derive_edb_settings(item: syn::Item) -> proc_macro2::TokenStream {
                 subcommands,
             };
 
-            let setting = into_app::mk_setting_impl(&e);
+            let setting = into_app::mk_setting_impl(e);
             quote! {
                 #setting
             }
@@ -78,7 +78,7 @@ fn derive_args(item: syn::Item) -> proc_macro2::TokenStream {
         syn::Item::Enum(ref e) => &e.attrs,
         _ => abort!(item, "can only derive EdbClap for structs and enums"),
     };
-    let attrs = attrib::ContainerAttrs::from_syn(&attrs);
+    let attrs = attrib::ContainerAttrs::from_syn(attrs);
     match item {
         syn::Item::Struct(s) => {
             let fields = match s.fields {

@@ -199,7 +199,7 @@ impl From<anyhow::Error> for ErrorJson {
             ErrorJson {
                 kind: "WatchError",
                 message: format!("error when trying to update the schema.\n  \
-                    Original error: {}", err.to_string()),
+                    Original error: {}", err),
                 hint: Some("see the window running \
                            `edgedb watch` for more info".into()),
                 details: None,

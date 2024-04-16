@@ -44,7 +44,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Create(c) => create::create(c, options),
         Destroy(c) => destroy::destroy(c, options),
         ResetPassword(c) => reset_password::reset_password(c),
-        Link(c) => link::link(c, &options),
+        Link(c) => link::link(c, options),
         List(c) if cfg!(windows) => windows::list(c, options),
         List(c) => status::list(c, options),
         Resize(c) => resize::resize(c, options),
@@ -59,7 +59,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options)
         Unlink(c) => link::unlink(c),
         Status(c) if cfg!(windows) => windows::status(c),
         Status(c) => status::status(c, options),
-        Credentials(c) => credentials::show_credentials(&options, &c),
+        Credentials(c) => credentials::show_credentials(options, c),
     }
 }
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use fs_err as fs;
 
 
-use anyhow::{Context as _};
+use anyhow::Context as _;
 use colorful::Colorful;
 use indexmap::IndexMap;
 use crate::connect::Connection;
@@ -97,7 +97,7 @@ impl RebaseMigrations {
             });
         }
 
-        if self.target_migrations.len() > 0 {
+        if !self.target_migrations.is_empty() {
             let (_, first_migration) = self.target_migrations.first().unwrap();
             let source_last = result.last();
 
@@ -118,7 +118,7 @@ impl RebaseMigrations {
             }
         }
 
-        if self.source_migrations.len() > 0 {
+        if !self.source_migrations.is_empty() {
             let (_, first_migration) = self.source_migrations.first().unwrap();
             let base_last = result.last();
 
@@ -183,9 +183,9 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
 }
 
 async fn rebase_migration_ids(context: &Context, rebase_migrations: &mut RebaseMigrations) -> anyhow::Result<()> {
-    fn update_id(old: &String, new: &String, col: &mut IndexMap<String, DBMigration>) {
+    fn update_id(old: &str, new: &str, col: &mut IndexMap<String, DBMigration>) {
         if let Some(value) = col.remove(old) {
-            col.insert(new.clone(), value);
+            col.insert(new.to_string(), value);
         }
     }
 

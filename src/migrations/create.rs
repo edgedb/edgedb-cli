@@ -179,7 +179,7 @@ impl<'a> MigrationToText<'a, Iter<'a, String> > for FutureMigration {
         id.get_or_try_init(|| {
             let mut hasher = Hasher::start_migration(parent);
             for statement in statements {
-                hasher.add_source(&statement)
+                hasher.add_source(statement)
                     .map_err(|e| migration::hashing_error(statement, e))?;
             }
             Ok(hasher.make_migration_id())
@@ -250,7 +250,7 @@ async fn gen_start_migration(ctx: &Context)
     while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
-        if !lossy_name.starts_with(".") && lossy_name.ends_with(".esdl")
+        if !lossy_name.starts_with('.') && lossy_name.ends_with(".esdl")
             && item.file_type().await?.is_file() { paths.push(item.path())}
     }
 
@@ -269,12 +269,12 @@ async fn gen_start_migration(ctx: &Context)
 pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
     -> anyhow::Result<()>
 {
-    let (text, source_map) = gen_start_migration(&ctx).await?;
+    let (text, source_map) = gen_start_migration(ctx).await?;
     match execute(cli, text).await {
         Ok(_) => Ok(()),
         Err(e) if e.is::<QueryError>() => {
             print_migration_error(&e, &source_map)?;
-            return Err(EsdlError)?;
+            Err(EsdlError)?
         }
         Err(e) => Err(e)?,
     }
@@ -284,7 +284,7 @@ pub async fn first_migration(cli: &mut Connection, ctx: &Context,
                          options: &CreateMigration)
     -> anyhow::Result<FutureMigration>
 {
-    execute_start_migration(&ctx, cli).await?;
+    execute_start_migration(ctx, cli).await?;
     async_try! {
         async {
             execute(cli, "POPULATE MIGRATION").await?;
@@ -375,7 +375,7 @@ pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
                     placeholders.insert(input.placeholder.clone(), expr);
                 }
             }
-            if !apply_proposal(cli, &proposal, &placeholders).await? {
+            if !apply_proposal(cli, proposal, &placeholders).await? {
                 execute(cli, "ALTER CURRENT MIGRATION REJECT PROPOSED").await?;
             }
         } else {
@@ -395,7 +395,7 @@ async fn apply_proposal(cli: &mut Connection, proposal: &Proposal,
         async {
             for statement in &proposal.statements {
                 let statement = substitute_placeholders(
-                    &statement.text, &placeholders)?;
+                    &statement.text, placeholders)?;
                 if let Err(e) = execute(cli, &statement).await {
                     if e.is::<InvalidSyntaxError>() {
                         log::error!("Error executing: {}", statement);
@@ -553,7 +553,7 @@ impl InteractiveMigration<'_> {
                         // TODO(tailhook) ask if we want to rollback or quit
                         continue;
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(e) => return Err(e),
                 };
             };
         } else {
@@ -573,7 +573,7 @@ impl InteractiveMigration<'_> {
                         match input_res {
                             Ok(data) => input = data,
                             Err(e) if e.is::<Refused>() => continue,
-                            Err(e) => return Err(e.into()),
+                            Err(e) => return Err(e),
                         };
                         break;
                     }
@@ -632,17 +632,15 @@ impl InteractiveMigration<'_> {
                 Err(e) => {
                     if e.is::<QueryError>() {
                         print_query_error(&e, &text, false, "<statement>")?;
+                    } else if print::use_color() {
+                        eprintln!(
+                            "{}: {:#}",
+                            "Error applying statement"
+                                .bold().light_red(),
+                            e.to_string().bold().white(),
+                        );
                     } else {
-                        if print::use_color() {
-                            eprintln!(
-                                "{}: {:#}",
-                                "Error applying statement"
-                                    .bold().light_red(),
-                                e.to_string().bold().white(),
-                            );
-                        } else {
-                            eprintln!("Error applying statement: {:#}", e);
-                        }
+                        eprintln!("Error applying statement: {:#}", e);
                     }
                     if self.cli.is_consistent() {
                         eprintln!("Rolling back last operation...");
@@ -723,21 +721,21 @@ async fn _write_migration<'a, T>(descr: &'a impl MigrationToText<'a, T>, filepat
 {
     let id = descr.id()?;
     let dir = filepath.parent().unwrap();
-    let tmp_file = filepath.with_file_name(tmp_file_name(&filepath.as_ref()));
-    if !fs::metadata(filepath).await.is_ok() {
+    let tmp_file = filepath.with_file_name(tmp_file_name(filepath));
+    if fs::metadata(filepath).await.is_err() {
         fs::create_dir_all(&dir).await?;
     }
     fs::remove_file(&tmp_file).await.ok();
     let mut file = io::BufWriter::new(fs::File::create(&tmp_file).await?);
-    file.write(format!("CREATE MIGRATION {}\n", id).as_bytes()).await?;
-    file.write(format!("    ONTO {}\n", descr.parent()?).as_bytes()).await?;
-    file.write(b"{\n").await?;
+    file.write_all(format!("CREATE MIGRATION {}\n", id).as_bytes()).await?;
+    file.write_all(format!("    ONTO {}\n", descr.parent()?).as_bytes()).await?;
+    file.write_all(b"{\n").await?;
     for statement in descr.statements() {
         for line in statement.lines() {
-            file.write(&format!("  {}\n", line).as_bytes()).await?;
+            file.write_all(format!("  {}\n", line).as_bytes()).await?;
         }
     }
-    file.write(b"};\n").await?;
+    file.write_all(b"};\n").await?;
     file.flush().await?;
     drop(file);
     fs::rename(&tmp_file, &filepath).await?;
@@ -766,7 +764,7 @@ pub async fn create(cli: &mut Connection, options: &Options,
         let old_state = cli.set_ignore_error_state();
         let res = _create(cli, options, create).await;
         cli.restore_state(old_state);
-        return res;
+        res
     }
 }
 
@@ -794,7 +792,7 @@ async fn _create(cli: &mut Connection, options: &Options,
             // This decision must be done early on because
             // of the bug in EdgeDB:
             //   https://github.com/edgedb/edgedb/issues/3958
-            if migrations.len() == 0 {
+            if migrations.is_empty() {
                 first_migration(cli, &ctx, create).await
             } else {
                 let key = MigrationKey::Index((migrations.len() + 1) as u64);
@@ -816,7 +814,7 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
                               create: &CreateMigration)
     -> anyhow::Result<FutureMigration>
 {
-    execute_start_migration(&ctx, cli).await?;
+    execute_start_migration(ctx, cli).await?;
     async_try! {
         async {
             let descr = query_row::<CurrentMigration>(cli,
@@ -834,13 +832,13 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
             }
 
             if create.non_interactive {
-                run_non_interactive(&ctx, cli, key, &create).await
+                run_non_interactive(ctx, cli, key, create).await
             } else {
                 if create.allow_unsafe {
                     log::warn!("The `--allow-unsafe` flag is unused \
                                 in interactive mode");
                 }
-                run_interactive(&ctx, cli, key, &create).await
+                run_interactive(ctx, cli, key, create).await
             }
         },
         finally async {
@@ -868,7 +866,7 @@ fn add_newline_after_comment(value: &mut String) -> Result<(), anyhow::Error> {
 
 fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
     let prompt = format!("{}> ", req.placeholder);
-    let mut prev = make_default_expression(req).unwrap_or(String::new());
+    let mut prev = make_default_expression(req).unwrap_or_default();
     loop {
         println!("{}:", req.prompt);
         let mut value = match prompt::expression(&prompt, &req.placeholder, &prev) {
@@ -920,7 +918,7 @@ fn substitute_placeholders<'x>(input: &'x str,
         if token.kind == TokenKind::Substitution {
             output.push_str(&input[start..token.span.start as usize]);
             let name = token.text.strip_prefix(r"\(")
-                .and_then(|item| item.strip_suffix(")"))
+                .and_then(|item| item.strip_suffix(')'))
                 .ok_or_else(|| bug::error(format!("bad substitution token")))?;
             let expr = placeholders.get(name)
                 .ok_or_else(|| bug::error(format!(
@@ -953,7 +951,7 @@ fn add_newline() {
     fn wrapper(s: &str) -> String {
         let mut data = s.to_string();
         add_newline_after_comment(&mut data).unwrap();
-        return data;
+        data
     }
     assert_eq!(wrapper("1+1"), "1+1");
     assert_eq!(wrapper("1    "), "1    ");

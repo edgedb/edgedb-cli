@@ -151,8 +151,9 @@ async fn format_rows_buf<S, I, E, O>(prn: &mut Printer<O>, rows: &mut S,
             if row_buf.len() > limit {
                 prn.ellipsis().wrap_err(PrintErr)?;
                 // consume extra items if any
-                while let Some(_) = rows.next().await
-                    .transpose().wrap_err(StreamErr)? {}
+                while rows.next().await
+                    .transpose().wrap_err(StreamErr)?
+                    .is_some() {}
                 break;
             }
         }
@@ -198,8 +199,9 @@ async fn format_rows<S, I, E, O>(prn: &mut Printer<O>,
             if counter > limit {
                 prn.ellipsis().wrap_err(PrintErr)?;
                 // consume extra items if any
-                while let Some(_) = rows.next().await
-                    .transpose().wrap_err(StreamErr)? {}
+                while rows.next().await
+                    .transpose().wrap_err(StreamErr)?
+                    .is_some() {}
                 break;
             }
         }
@@ -316,10 +318,10 @@ pub fn json_to_string<I: FormatExt>(items: &[I], config: &Config)
 
         styler: config.styler.clone(),
     };
-    match format_rows_str(&mut prn, &items, "[", "]", false) {
+    match format_rows_str(&mut prn, items, "[", "]", false) {
         Ok(()) => {},
         Err(Exception::DisableFlow) => {
-            format_rows_str(&mut prn, &items, "[", "]", true).unwrap_exc()?;
+            format_rows_str(&mut prn, items, "[", "]", true).unwrap_exc()?;
         }
         Err(Exception::Error(e)) => return Err(e),
     };

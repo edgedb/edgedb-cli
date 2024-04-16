@@ -37,7 +37,7 @@ pub fn get_version(query: &Query, client: &CloudClient) -> anyhow::Result<ver::S
         },
     }
 
-    if versions.len() == 0 {
+    if versions.is_empty() {
         anyhow::bail!(
             "no EdgeDB versions matching '{}' supported by EdgeDB Cloud",
             query.display(),

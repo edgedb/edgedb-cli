@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{ValueHint};
+use clap::ValueHint;
 
 use crate::options::ConnectionOptions;
 use crate::portable::repository::Channel;
@@ -23,7 +23,7 @@ pub struct Migration {
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum MigrationCmd {
     /// Apply migration from latest migration script.
-    Apply(Migrate),
+    Apply(Box<Migrate>),
     /// Create migration script inside /migrations.
     Create(CreateMigration),
     /// Show current migration status.

@@ -28,6 +28,7 @@ pub trait Formatter {
     fn const_enum<T: ToString>(&mut self, s: T) -> Result<Self::Error>;
     fn nil(&mut self) -> Result<Self::Error>;
     fn typed<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error>;
+    #[allow(dead_code)]
     fn error<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error>;
     fn set<F>(&mut self, f: F) -> Result<Self::Error>
         where F: FnMut(&mut Self) -> Result<Self::Error>;
@@ -227,7 +228,7 @@ impl<T: Output> Formatter for Printer<T>
             )?;
         } else {
             self.block(
-                self.styler.apply(Style::ArrayLiteral, &"["),
+                self.styler.apply(Style::ArrayLiteral, "["),
                 f,
                 self.styler.apply(Style::ArrayLiteral, "]"),
             )?;
@@ -247,7 +248,7 @@ impl<T: Output> Formatter for Printer<T>
             let mut printed = 0;
             let mut savepoint = (self.buffer.len(), self.column);
             let mut first_try = || {
-                for item in iter.clone() {
+                for item in iter {
                     self.const_number(item)?;
                     self.comma()?;
                     let col_left = self.max_width.saturating_sub(self.column);

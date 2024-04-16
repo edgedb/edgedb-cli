@@ -64,7 +64,7 @@ fn dir_is_non_empty(path: &Path) -> anyhow::Result<bool> {
 fn move_file(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
     use ConfirmOverwrite::*;
 
-    if file_is_non_empty(&dest)? {
+    if file_is_non_empty(dest)? {
         if dry_run {
             log::warn!("File {:?} exists in both locations, \
                         will prompt for overwrite", dest);
@@ -83,13 +83,11 @@ fn move_file(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
             Skip => return Ok(()),
             Quit => anyhow::bail!("Canceled by user"),
         }
-    } else {
-        if dry_run {
-            log::info!("Would move {:?} -> {:?}", src, dest);
-            return Ok(());
-        }
+    } else if dry_run {
+        log::info!("Would move {:?} -> {:?}", src, dest);
+        return Ok(());
     }
-    let tmp = tmp_file_path(&dest);
+    let tmp = tmp_file_path(dest);
     fs::copy(src, &tmp)?;
     fs::rename(tmp, dest)?;
     fs::remove_file(src)?;
@@ -99,7 +97,7 @@ fn move_file(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
 fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
     use ConfirmOverwrite::*;
 
-    if dir_is_non_empty(&dest)? {
+    if dir_is_non_empty(dest)? {
         if dry_run {
             log::warn!("Directory {:?} exists in both locations, \
                         will prompt for overwrite", dest);
@@ -118,16 +116,14 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
             Skip => return Ok(()),
             Quit => anyhow::bail!("Canceled by user"),
         }
-    } else {
-        if dry_run {
-            log::info!("Would move {:?} -> {:?}", src, dest);
-            return Ok(());
-        }
+    } else if dry_run {
+        log::info!("Would move {:?} -> {:?}", src, dest);
+        return Ok(());
     }
     fs::create_dir_all(dest)?;
     for item in fs::read_dir(src)? {
         let item = item?;
-        let ref dest_path = dest.join(item.file_name());
+        let dest_path = &dest.join(item.file_name());
         match item.file_type()? {
             typ if typ.is_file() => {
                 let tmp = tmp_file_path(dest_path);
@@ -156,9 +152,9 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
 fn try_move_bin(exe_path: &Path, bin_path: &Path) -> anyhow::Result<()> {
     let bin_dir = bin_path.parent().unwrap();
     if !bin_dir.exists() {
-        fs::create_dir_all(&bin_dir)?;
+        fs::create_dir_all(bin_dir)?;
     }
-    fs::rename(&exe_path, &bin_path)?;
+    fs::rename(exe_path, bin_path)?;
     Ok(())
 }
 
@@ -174,9 +170,9 @@ fn replace_line(path: &PathBuf, old_line: &str, new_line: &str)
     if let Some(idx) = text.find(old_line) {
         log::info!("File {:?} contains old path, replacing", path);
         let mut file = fs::File::create(path)?;
-        file.write(text[..idx].as_bytes())?;
-        file.write(new_line.as_bytes())?;
-        file.write(text[idx+old_line.len()..].as_bytes())?;
+        file.write_all(text[..idx].as_bytes())?;
+        file.write_all(new_line.as_bytes())?;
+        file.write_all(text[idx+old_line.len()..].as_bytes())?;
         Ok(true)
     } else {
         log::info!("File {:?} has no old path, skipping", path);
@@ -233,7 +229,7 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
         );
         let mut modified = false;
         for path in &rc_files {
-            if replace_line(&path, &old_line, &new_line)? {
+            if replace_line(path, &old_line, &new_line)? {
                 modified = true;
             }
         }
@@ -244,11 +240,11 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
         fs::create_dir_all(&cfg_dir)
             .with_context(
                 || format!("failed to create {:?}", cfg_dir))?;
-        fs::write(&env_file, &(new_line + "\n"))
+        fs::write(&env_file, new_line + "\n")
             .with_context(
                 || format!("failed to write env file {:?}", env_file))?;
 
-        if modified && no_dir_in_path(&new_bin_dir) {
+        if modified && no_dir_in_path(new_bin_dir) {
             print::success("The `edgedb` executable has moved!");
             print_markdown!("\
                 \n\
@@ -368,7 +364,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             return Err(ExitCode::new(2).into());
         }
     }
-    remove_dir_all(&base, dry_run)?;
+    remove_dir_all(base, dry_run)?;
     print::success("Directory layout migration successful!");
 
     Ok(())

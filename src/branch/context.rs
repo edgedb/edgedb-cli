@@ -21,7 +21,7 @@ impl Context {
         };
 
         let credentials = match project_dir {
-            Some(path) => Some(credentials::read(&credentials::path(&get_instance_name(&path)?)?).await?),
+            Some(path) => Some(credentials::read(&credentials::path(&get_instance_name(path)?)?).await?),
             None => None
         };
 
@@ -44,12 +44,12 @@ impl Context {
 
     pub fn get_instance_name(&self) -> anyhow::Result<Option<String>> {
         Ok(match &self.project_dir {
-            Some(dir) => Some(get_instance_name(&dir)?),
+            Some(dir) => Some(get_instance_name(dir)?),
             None => None
         })
     }
 
-    pub async fn update_branch(&self, branch: &String) -> anyhow::Result<()> {
+    pub async fn update_branch(&self, branch: &str) -> anyhow::Result<()> {
         let instance_name = match self.get_instance_name()? {
             Some(i) => i,
             None => return Ok(())
@@ -59,7 +59,7 @@ impl Context {
 
         let mut credentials = credentials::read(&path).await?;
 
-        credentials.database = Some(branch.clone());
+        credentials.database = Some(branch.to_string());
 
         credentials::write_async(&path, &credentials).await
     }

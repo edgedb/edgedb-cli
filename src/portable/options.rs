@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use clap::{ValueHint};
+use clap::ValueHint;
 use serde::{Serialize, Deserialize};
 use edgedb_cli_derive::IntoArgs;
 
@@ -147,7 +147,7 @@ pub enum InstanceName {
 }
 
 fn billable_unit(s: &str) -> Result<String, String> {
-    let (numerator, denominator) = match s.split_once("/") {
+    let (numerator, denominator) = match s.split_once('/') {
         Some(v) => v,
         None => (s, "1"),
     };
@@ -160,7 +160,7 @@ fn billable_unit(s: &str) -> Result<String, String> {
         .parse()
         .map_err(|_| format!("`{s}` is not a positive number or valid fraction"))?;
 
-    if n <= 0 || d <= 0 {
+    if n == 0 || d == 0 {
         Err(String::from("`{s}` is not a positive number or valid fraction"))
     } else {
         Ok(s.to_string())
@@ -784,5 +784,5 @@ pub fn instance_arg<'x>(positional: &'x Option<InstanceName>,
         return Ok(name);
     }
     echo!(err_marker(), "Instance name argument is required, use '-I name'");
-    return Err(ExitCode::new(2).into());
+    Err(ExitCode::new(2).into())
 }

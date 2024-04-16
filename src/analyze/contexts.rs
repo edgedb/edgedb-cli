@@ -41,7 +41,7 @@ impl<'a> Gather<'a> {
                 me.scan_debug(node);
             }
         }
-        return me;
+        me
     }
     fn scan_shape(&mut self, shape: &'a Shape) {
         for ctx in &shape.contexts {
@@ -92,8 +92,7 @@ pub fn preprocess(input: AnalysisData) -> Analysis {
         .collect::<Vec<_>>();
     for (&(buf, offset), &(len, ref items)) in &by_location {
         if let Some(&num) = items.iter().flat_map(|c| contexts.get(c)).next() {
-            buffers_ctx.get_mut(buf)
-                .map(|ctxs| ctxs.push(ContextSpan {offset, len, num}));
+            if let Some(ctxs) = buffers_ctx.get_mut(buf) { ctxs.push(ContextSpan {offset, len, num}) }
             continue;
         }
         let num = Number(index);
@@ -104,19 +103,15 @@ pub fn preprocess(input: AnalysisData) -> Analysis {
                 contexts.insert(*c_id, num);
                 if let Some(siblings) = siblings.get(c_id) {
                     for sub in *siblings {
-                        if !contexts.contains_key(&sub.context_id) {
-                            // TODO(tailhook) use try_insert when stable
-                            contexts.insert(sub.context_id, num);
-                        }
+                        contexts.entry(sub.context_id).or_insert(num);
                     }
                 }
             }
         }
-        buffers_ctx.get_mut(buf)
-            .map(|ctxs| ctxs.push(ContextSpan {offset, len, num}));
+        if let Some(ctxs) = buffers_ctx.get_mut(buf) { ctxs.push(ContextSpan {offset, len, num}) }
     }
     Analysis {
-        buffers: input.buffers.into_iter().zip(buffers_ctx.into_iter())
+        buffers: input.buffers.into_iter().zip(buffers_ctx)
             .map(|(text, contexts)| Buffer { text, contexts })
             .collect(),
         fine_grained: input.fine_grained,
@@ -128,7 +123,7 @@ pub fn preprocess(input: AnalysisData) -> Analysis {
 }
 
 pub fn print(explain: &Analysis) {
-    if let Some(first) = explain.buffers.get(0) {
+    if let Some(first) = explain.buffers.first() {
         print_buffer(first, "Query");
     }
     for (n, buf) in explain.buffers[1..].iter().enumerate() {
@@ -180,7 +175,7 @@ fn print_buffer(buffer: &Buffer, title: impl fmt::Display) {
     out.push_str(input.as_str());
 
     let width = out.lines()
-        .map(|line| table::str_width(line))
+        .map(table::str_width)
         .max()
         .unwrap_or(80);
 
@@ -209,7 +204,7 @@ impl fmt::Display for OptNumber {
 }
 
 impl Analysis {
-    pub fn context<'x>(&'x self, contexts: &[Context]) -> OptNumber {
+    pub fn context(&self, contexts: &[Context]) -> OptNumber {
         for ctx in contexts {
             if let Some(num) = self.contexts.get(&ctx.context_id) {
                 return OptNumber(Some(*num));

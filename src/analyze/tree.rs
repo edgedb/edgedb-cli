@@ -11,12 +11,6 @@ use crate::print::Highlight;
 struct Opt<'a, T>(&'a Option<T>);
 struct Border;
 
-#[derive(Clone, Copy, Debug)]
-struct Wide;
-
-#[derive(Clone, Copy, Debug)]
-struct Narrow;
-
 #[derive(Debug, Clone)]
 pub struct WideMarker {
     columns: bitvec::vec::BitVec,
@@ -81,7 +75,7 @@ pub fn print_debug_plan(explain: &Analysis) {
             let mut rows = vec![header, row];
 
             for (child, ch) in marker.children(&node.plans) {
-                visit_debug_tree(&mut rows, &explain, child, ch);
+                visit_debug_tree(&mut rows, explain, child, ch);
             }
 
             table::render(Some("Debug Plan"), &rows);
@@ -107,11 +101,11 @@ pub fn print_shape(explain: &Analysis) {
         for (child, ch) in WideMarker::new().children(&shape.children) {
             match &ch.name {
                 ChildName::Pointer { name } => {
-                    visit_subshape(&mut rows, &explain,
+                    visit_subshape(&mut rows, explain,
                                    child, Some(name), &ch.node);
                 }
                 _ => {
-                    visit_subshape(&mut rows, &explain,
+                    visit_subshape(&mut rows, explain,
                                    child, None, &ch.node);
                 }
             }
@@ -177,7 +171,7 @@ pub fn print_expanded_tree(explain: &Analysis) {
         }
 
         for (child, ch) in marker.children(&node.subplans) {
-            visit_expanded_tree(&mut rows, &explain, child, ch);
+            visit_expanded_tree(&mut rows, explain, child, ch);
         }
 
         table::render(Some("Fine-grained Query Plan"), &rows);
@@ -206,7 +200,7 @@ fn visit_expanded_tree<'x>(
     }
 
     for (child, ch) in marker.children(&node.subplans) {
-        visit_expanded_tree(result, &explain, child, ch);
+        visit_expanded_tree(result, explain, child, ch);
     }
 }
 
@@ -226,7 +220,7 @@ fn visit_debug_tree<'x>(
     result.push(row);
 
     for (child, ch) in marker.children(&node.plans) {
-        visit_debug_tree(result, &explain, child, ch);
+        visit_debug_tree(result, explain, child, ch);
     }
 }
 
@@ -267,13 +261,13 @@ impl<T: HasChildren> HasChildren for &T {
 
 impl HasChildren for Plan {
     fn has_children(&self) -> bool {
-        return !self.subplans.is_empty()
+        !self.subplans.is_empty()
     }
 }
 
 impl HasChildren for DebugNode {
     fn has_children(&self) -> bool {
-        return !self.plans.is_empty()
+        !self.plans.is_empty()
     }
 }
 
@@ -365,7 +359,7 @@ impl WideMarker {
         -> fmt::Result
     {
         for _ in 1..height {
-            write!(f, "\n")?;
+            writeln!(f)?;
             let mut iter = self.columns.iter();
             if let Some(first) = iter.next() {
                 if *first {
@@ -428,7 +422,7 @@ impl table::Contents for NarrowMarker {
 
 impl table::Contents for ShapeNode<'_> {
     fn width_bounds(&self) -> (usize, usize) {
-        let mwidth = self.marker.width() + table::display_width(&self.context);
+        let mwidth = self.marker.width() + table::display_width(self.context);
         let alen = if let Some(attr) = self.attribute {
             " .".len() + attr.len()
         } else {
@@ -463,7 +457,7 @@ impl table::Contents for Border {
         -> fmt::Result
     {
         for _ in 0..height {
-            write!(f, "{}\n", "│".emphasize())?;
+            writeln!(f, "{}", "│".emphasize())?;
         }
         Ok(())
     }

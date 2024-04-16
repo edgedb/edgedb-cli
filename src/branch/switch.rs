@@ -43,7 +43,7 @@ pub async fn main(
     } else {
         // try to connect to the target branch
         let target_branch_connector = connector.branch(&options.branch)?;
-        match connect_if_branch_exists(&target_branch_connector).await? {
+        match connect_if_branch_exists(target_branch_connector).await? {
             Some(mut connection) => {
                 verify_server_can_use_branches(&mut connection).await?;
             },

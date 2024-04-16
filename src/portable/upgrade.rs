@@ -78,12 +78,12 @@ pub fn print_project_upgrade_command(version: &Query,
 fn check_project(name: &str, force: bool, ver_query: &Query)
     -> anyhow::Result<()>
 {
-    let project_dirs = project::find_project_dirs_by_instance(&name)?;
+    let project_dirs = project::find_project_dirs_by_instance(name)?;
     if project_dirs.is_empty() {
         return Ok(())
     }
 
-    project::print_instance_in_use_warning(&name, &project_dirs);
+    project::print_instance_in_use_warning(name, &project_dirs);
     let current_project = project::project_dir_opt(None)?;
 
     if force {
@@ -96,7 +96,7 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
     }
     for pd in project_dirs {
         let pd = project::read_project_path(&pd)?;
-        print_project_upgrade_command(&ver_query, &current_project, &pd);
+        print_project_upgrade_command(ver_query, &current_project, &pd);
     }
     if !force {
         anyhow::bail!("Upgrade aborted.");
@@ -190,7 +190,7 @@ fn upgrade_cloud_cmd(
         cmd.force,
         |target_ver| {
             let target_ver_str = target_ver.to_string();
-            ver::print_version_hint(&target_ver, &query);
+            ver::print_version_hint(target_ver, &query);
             if !cmd.non_interactive {
                 question::Confirm::new(format!(
                     "This will upgrade {inst_name} to version {target_ver_str}.\
@@ -264,7 +264,7 @@ pub fn upgrade_cloud(
             force,
         };
 
-        cloud::ops::upgrade_cloud_instance(&client, &request)?;
+        cloud::ops::upgrade_cloud_instance(client, &request)?;
 
         Ok(UpgradeResult {
             action: UpgradeAction::Upgraded,
@@ -333,15 +333,15 @@ pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
     // in case not started for now
     echo!("Dumping the database...");
     log::info!("Ensuring instance is started");
-    let res = control::do_start(&inst);
+    let res = control::do_start(inst);
     if let Err(err) = res {
         log::warn!("Error starting service: {:#}. Trying to start manually.",
             err);
         control::ensure_runstate_dir(&inst.name)?;
         let mut cmd = control::get_server_cmd(inst, false)?;
-        cmd.background_for(|| Ok(dump_instance(inst, &path)))?;
+        cmd.background_for(|| Ok(dump_instance(inst, path)))?;
     } else {
-        block_on_dump_instance(inst, &path)?;
+        block_on_dump_instance(inst, path)?;
         log::info!("Stopping instance before executable upgrade");
         control::do_stop(&inst.name)?;
     }
@@ -375,7 +375,7 @@ pub async fn dump_instance(inst: &InstanceInfo, destination: &Path)
         styler: None,
         conn_params: Connector::new(Ok(config)),
     };
-    commands::dump_all(&mut cli, &options, destination.as_ref(),
+    commands::dump_all(&mut cli, &options, destination,
                        true /*include_secrets*/).await?;
     Ok(())
 }

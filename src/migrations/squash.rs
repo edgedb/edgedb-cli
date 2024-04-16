@@ -71,7 +71,7 @@ pub async fn main(cli: &mut Connection, _options: &Options,
         Some(FutureMigration::empty(key, &db_rev))
     };
     let mut drop = TwoStageRemove::new(&ctx);
-    drop.rename_fixups([&squashed.id()?, &db_rev[..]]).await?;
+    drop.rename_fixups([squashed.id()?, &db_rev[..]]).await?;
     drop.rename_revisions().await?;
     if let Some(fixup) = &fixup {
         write_migration(&ctx, fixup, false).await?;
@@ -113,7 +113,7 @@ async fn create_revision(cli: &mut Connection, ctx: &Context,
             execute(cli, "START MIGRATION REWRITE").await?;
             async_try! {
                 async {
-                    first_migration(cli, &ctx, create).await
+                    first_migration(cli, ctx, create).await
                 },
                 finally async {
                     execute_if_connected(cli, "ABORT MIGRATION REWRITE").await
@@ -184,7 +184,7 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
 }
 
 impl TwoStageRemove<'_> {
-    fn new<'a>(ctx: &'a Context) -> TwoStageRemove<'a> {
+    fn new(ctx: &Context) -> TwoStageRemove<'_> {
         TwoStageRemove {
             ctx,
             filenames: Vec::new(),
@@ -207,13 +207,13 @@ impl TwoStageRemove<'_> {
         while let Some(item) = dir.next_entry().await? {
             let fname = item.file_name();
             let lossy_name = fname.to_string_lossy();
-            if lossy_name.starts_with(".")
+            if lossy_name.starts_with('.')
                 || !item.file_type().await?.is_file()
             {
                 continue;
             }
             if let Some(stem) = lossy_name.strip_suffix(".edgeql") {
-                let mut pair = stem.split("-");
+                let mut pair = stem.split('-');
                 if let Some((from, to)) = pair.next().zip(pair.next()) {
                     by_target.entry(to.to_owned())
                         .or_insert_with(Vec::new)
@@ -236,7 +236,7 @@ impl TwoStageRemove<'_> {
 
         for pairs in by_target.values() {
             for (_to, path) in pairs {
-                self.rename(&path).await?;
+                self.rename(path).await?;
             }
         }
 
@@ -254,7 +254,7 @@ impl TwoStageRemove<'_> {
         while let Some(item) = dir.next_entry().await? {
             let fname = item.file_name();
             let lossy_name = fname.to_string_lossy();
-            if lossy_name.starts_with(".")
+            if lossy_name.starts_with('.')
                 || !item.file_type().await?.is_file()
             {
                 continue;

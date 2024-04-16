@@ -18,9 +18,9 @@ pub async fn run_branch_command(cmd: &Command, options: &Options, context: &Cont
     let mut connector: Connector = options.conn_params.clone();
 
     match &cmd {
-        Command::Switch(switch) => switch::main(switch, &context, &mut connector).await,
-        Command::Wipe(wipe) => wipe::main(wipe, &context, &mut connector).await,
-        Command::Current(current) => current::main(current, &context).await,
+        Command::Switch(switch) => switch::main(switch, context, &mut connector).await,
+        Command::Wipe(wipe) => wipe::main(wipe, context, &mut connector).await,
+        Command::Current(current) => current::main(current, context).await,
         command => {
             match connection {
                 Some(conn) => run_branch_command1(command, conn, context, options).await,
@@ -37,12 +37,12 @@ async fn run_branch_command1(command: &Command, connection: &mut Connection, con
     verify_server_can_use_branches(connection).await?;
 
     match command {
-        Command::Create(create) => create::main(create, &context, connection).await,
-        Command::Drop(drop) => drop::main(drop, &context, connection).await,
-        Command::List(list) => list::main(list, &context, connection).await,
-        Command::Rename(rename) => rename::main(rename, &context, connection, &options).await,
-        Command::Rebase(rebase) => rebase::main(rebase, &context, connection, &options).await,
-        Command::Merge(merge) => merge::main(merge, &context, connection, &options).await,
+        Command::Create(create) => create::main(create, context, connection).await,
+        Command::Drop(drop) => drop::main(drop, context, connection).await,
+        Command::List(list) => list::main(list, context, connection).await,
+        Command::Rename(rename) => rename::main(rename, context, connection, options).await,
+        Command::Rebase(rebase) => rebase::main(rebase, context, connection, options).await,
+        Command::Merge(merge) => merge::main(merge, context, connection, options).await,
         unhandled => anyhow::bail!("unimplemented branch command '{:?}'", unhandled)
     }
 }

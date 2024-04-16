@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeSet, BTreeMap};
 use std::str::FromStr;
 
-use clap::{self, FromArgMatches, CommandFactory};
+use clap::{FromArgMatches, CommandFactory};
 use once_cell::sync::Lazy;
 use prettytable::{Table, Row, Cell};
 use regex::Regex;
@@ -22,7 +22,7 @@ use crate::repl;
 use crate::table;
 
 
-pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(|| CommandCache::new());
+pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(CommandCache::new);
 
 pub enum ExecuteResult {
     Skip,
@@ -255,7 +255,7 @@ impl<'a> Parser<'a> {
         } else {
             Item::Argument(value)
         };
-        return Some(Token {
+        Some(Token {
             item,
             span: (offset, offset+end),
         })
@@ -272,7 +272,7 @@ impl<'a> Iterator for Parser<'a> {
             }
             self.offset = tok.span.1;
         }
-        return result;
+        result
     }
 }
 
@@ -349,12 +349,10 @@ impl CommandCache {
         let mut setting_cmd: BTreeMap<_, _> = setting_cmd.get_subcommands()
             .map(|cmd| (cmd.get_name(), cmd))
             .collect();
-        let settings = Setting::all_items().into_iter().map(|setting| {
+        let settings = Setting::all_items().iter().map(|setting| {
             let cmd = setting_cmd.remove(&setting.name())
                 .expect("all settings have cmd");
-            let arg = cmd.get_arguments()
-                .filter(|a| a.get_id() != "help" && a.get_id() != "version")
-                .next()
+            let arg = cmd.get_arguments().find(|a| a.get_id() != "help" && a.get_id() != "version")
                 .expect("setting has argument");
             let values = arg.get_value_parser().possible_values()
                 .map(|v| v.map(|x| x.get_name().to_owned()).collect());
@@ -376,7 +374,7 @@ impl CommandCache {
         CommandCache {
             settings,
             top_commands: commands.keys().map(|x| &x[..])
-                .chain(aliases.keys().map(|x| *x))
+                .chain(aliases.keys().copied())
                 .map(|n| String::from("\\") + n)
                 .collect(),
             commands,
@@ -392,10 +390,10 @@ pub fn full_statement(s: &str) -> usize {
             _ => {}
         }
     }
-    return s.len();
+    s.len()
 }
 
-pub fn backslashify_help<'x>(text: &'x str) -> Cow<'x, str> {
+pub fn backslashify_help(text: &str) -> Cow<'_, str> {
     pub static USAGE: Lazy<Regex> = Lazy::new(|| {
         Regex::new(r"(USAGE:\s*)(\w)").unwrap()
     });
@@ -474,7 +472,7 @@ fn unquote_argument(s: &str) -> String {
             _ => buf.push(c),
         }
     }
-    return buf;
+    buf
 }
 
 pub fn bool_str(val: bool) -> &'static str {
@@ -540,8 +538,8 @@ fn list_settings(prompt: &mut repl::State) {
         .iter().map(|x| table::header_cell(x)).collect()));
     for setting in CMD_CACHE.settings.values() {
         table.add_row(Row::new(vec![
-            Cell::new(&setting.name),
-            Cell::new(&get_setting(&setting.setting, prompt)),
+            Cell::new(setting.name),
+            Cell::new(&get_setting(setting.setting, prompt)),
             Cell::new(&textwrap::fill(&setting.description, 40)),
         ]));
     }
@@ -578,7 +576,7 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             Ok(Skip)
         }
         Set(SetCommand {setting: Some(ref cmd)}) if cmd.is_show() => {
-            println!("{}: {}", cmd.name(), get_setting(&cmd, prompt));
+            println!("{}: {}", cmd.name(), get_setting(cmd, prompt));
             Ok(Skip)
         }
         Set(SetCommand {setting: Some(ref cmd)}) => {
@@ -713,7 +711,7 @@ mod test {
     use super::Parser;
     use super::Item::{self, *};
 
-    fn tok_values<'x>(s: &'x str) -> Vec<Item<'x>> {
+    fn tok_values(s: &str) -> Vec<Item<'_>> {
         Parser::new(s).map(|tok| tok.item).collect::<Vec<_>>()
     }
 

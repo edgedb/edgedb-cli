@@ -205,18 +205,17 @@ fn filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
     if result.is_none() {
         log::info!("Skipping package {:?}", pkg);
     }
-    return result;
+    result
 }
 
 fn _filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
     let iref = pkg.installrefs.iter()
-        .filter(|r| (
+        .find(|r| (
                 r.kind == "application/x-tar" &&
                 r.encoding.as_ref().map(|x| &x[..]) == Some("zstd") &&
                 r.verification.blake2b.as_ref()
                     .map(valid_hash).unwrap_or(false)
-        ))
-        .next()?;
+        ))?;
     Some(PackageInfo {
         version: pkg.version.parse().ok()?,
         url: pkg_root.join(&iref.path).ok()?,
@@ -234,27 +233,25 @@ fn filter_cli_package(pkg_root: &Url, pkg: &PackageData)
     if result.is_none() {
         log::info!("Skipping package {:?}", pkg);
     }
-    return result;
+    result
 }
 
 fn _filter_cli_package(pkg_root: &Url, pkg: &PackageData)
     -> Option<CliPackageInfo>
 {
     let iref = pkg.installrefs.iter()
-        .filter(|r| (
+        .find(|r| (
                 r.encoding.as_ref().map(|x| &x[..]) == Some("zstd") &&
                 r.verification.blake2b.as_ref()
                     .map(valid_hash).unwrap_or(false)
         ))
-        .next()
         .or_else(|| {
             pkg.installrefs.iter()
-            .filter(|r| (
-                    r.encoding.as_ref().map(|x| &x[..]) == Some("identity") &&
-                    r.verification.blake2b.as_ref()
-                        .map(valid_hash).unwrap_or(false)
-            ))
-            .next()
+                .find(|r| (
+                        r.encoding.as_ref().map(|x| &x[..]) == Some("identity") &&
+                        r.verification.blake2b.as_ref()
+                            .map(valid_hash).unwrap_or(false)
+                ))
         })?;
     let cmpr = if iref.encoding.as_ref().map(|x| &x[..]) == Some("zstd") {
         Some(Compression::Zstd)
@@ -287,15 +284,15 @@ pub fn get_platform_cli_packages(channel: Channel, platform: &str,
     -> anyhow::Result<Vec<CliPackageInfo>>
 {
     let pkg_root = pkg_root()?;
-    let data: RepositoryData;
-    data = match get_json(&json_url(platform, channel)?, timeo) {
+    
+    let data: RepositoryData = match get_json(&json_url(platform, channel)?, timeo) {
         Ok(data) => data,
         Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
         Err(e) => return Err(e),
     };
     let packages = data.packages.iter()
         .filter(|pkg| pkg.basename == "edgedb-cli")
-        .filter_map(|p| filter_cli_package(&pkg_root, p))
+        .filter_map(|p| filter_cli_package(pkg_root, p))
         .collect();
     Ok(packages)
 }
@@ -311,15 +308,15 @@ fn get_platform_server_packages(channel: Channel, platform: &str)
     -> anyhow::Result<Vec<PackageInfo>>
 {
     let pkg_root = pkg_root()?;
-    let data: RepositoryData;
-    data = match get_json(&json_url(platform, channel)?, DEFAULT_TIMEOUT) {
+    
+    let data: RepositoryData = match get_json(&json_url(platform, channel)?, DEFAULT_TIMEOUT) {
         Ok(data) => data,
         Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
         Err(e) => return Err(e),
     };
     let packages = data.packages.iter()
         .filter(|pkg| pkg.basename == "edgedb-server")
-        .filter_map(|p| filter_package(&pkg_root, p))
+        .filter_map(|p| filter_package(pkg_root, p))
         .collect();
     Ok(packages)
 }
@@ -359,9 +356,7 @@ pub fn get_specific_package(version: &ver::Specific)
     } else {
         get_server_packages(channel)?
     };
-    let pkg = all.into_iter()
-        .filter(|pkg| &pkg.version.specific() == version)
-        .next();
+    let pkg = all.into_iter().find(|pkg| &pkg.version.specific() == version);
     Ok(pkg)
 }
 
@@ -382,7 +377,7 @@ pub async fn download(dest: impl AsRef<Path>, url: &Url, quiet: bool)
     let bar = if quiet {
         ProgressBar::hidden()
     } else if let Some(len) = req.content_length() {
-        ProgressBar::new(len as u64)
+        ProgressBar::new(len)
     } else {
         ProgressBar::new_spinner()
     };
@@ -416,7 +411,7 @@ impl PackageHash {
         match self {
             PackageHash::Blake2b(val) => &val[..7],
             PackageHash::Unknown(val) => {
-                let start = val.find(":")
+                let start = val.find(':')
                     .unwrap_or(val.len().saturating_sub(7));
                 &val[start..min(7, val.len() - start)]
             }
@@ -625,7 +620,7 @@ impl<'de> Deserialize<'de> for PackageHash {
             }
             return Ok(PackageHash::Blake2b(hash.into()));
         }
-        return Ok(PackageHash::Unknown(s.into()));
+        Ok(PackageHash::Unknown(s.into()))
     }
 }
 
@@ -633,10 +628,10 @@ impl std::str::FromStr for Query {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> anyhow::Result<Query> {
         if s == "*" {
-            return Ok(Query {
+            Ok(Query {
                 channel: Channel::Stable,
                 version: None,
-            });
+            })
         } else if s == "nightly" {
             return Ok(Query {
                 channel: Channel::Nightly,

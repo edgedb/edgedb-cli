@@ -10,7 +10,7 @@ pub async fn log(cli: &mut Connection,
     -> Result<(), anyhow::Error>
 {
     if options.from_fs {
-        return log_fs_async(common, options).await;
+        log_fs_async(common, options).await
     } else if options.from_db {
         return log_db(cli, common, options).await;
     } else {
@@ -25,7 +25,7 @@ pub async fn log_db(cli: &mut Connection, common: &Options,
     let old_state = cli.set_ignore_error_state();
     let res = _log_db(cli, common, options).await;
     cli.restore_state(old_state);
-    return res;
+    res
 }
 
 async fn _log_db(cli: &mut Connection, _common: &Options,

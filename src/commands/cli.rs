@@ -29,25 +29,21 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         Command::Common(cmd) => {
             let cmdopt = init_command_opts(options)?;
             directory_check::check_and_warn();
-            match cmd {
+            match cmd.as_migration() {
                 // Process commands that don't need connection first
-                Common::Migration(
-                    Migration { subcommand: M::Log(mlog), .. }
-                ) if mlog.from_fs => {
-                    migrations::log_fs(&cmdopt, &mlog).into()
+                Some(Migration { subcommand: M::Log(mlog), .. })
+                if mlog.from_fs => {
+                    migrations::log_fs(&cmdopt, mlog)
                 }
-                Common::Migration(
-                    Migration { subcommand: M::Edit(params), .. }
-                ) if params.no_check => {
-                    migrations::edit_no_check(&cmdopt, &params).into()
+                Some(Migration { subcommand: M::Edit(params), .. })
+                if params.no_check => {
+                    migrations::edit_no_check(&cmdopt, params)
                 }
-                Common::Migration(
-                    Migration { subcommand: M::UpgradeCheck(params), .. }
-                ) => {
+                Some(Migration { subcommand: M::UpgradeCheck(params), .. }) => {
                     migrations::upgrade_check(&cmdopt, params)
                 }
                 // Otherwise connect
-                cmd => common_cmd(options, cmdopt, cmd),
+                _ => common_cmd(options, cmdopt, cmd),
             }
         },
         Command::Server(cmd) => {
@@ -64,7 +60,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         }
         Command::Query(q) => {
             directory_check::check_and_warn();
-            non_interactive::noninteractive_main(&q, options).into()
+            non_interactive::noninteractive_main(q, options)
         }
         Command::_SelfInstall(s) => {
             cli::install::main(s)
@@ -72,11 +68,11 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
         Command::_GenCompletions(s) => {
             cli::install::gen_completions(s)
         }
-        Command::CliCommand(c) => {
+        Command::Cli(c) => {
             cli::main(c)
         },
         Command::Info(info) => {
-            commands::info(options, info).into()
+            commands::info(options, info)
         }
         Command::UI(c) => {
             commands::show_ui(c, options)

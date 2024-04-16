@@ -24,19 +24,10 @@ impl FormatExt for Value {
             V::Object(dict) => {
                 prn.json_object(|prn| {
                     for (key, value) in dict {
-                        if key.starts_with('@') {
-                            prn.object_field(
-                                serde_json::to_string(key)
-                                .expect("cannot serialize string")
-                                .as_ref(),
-                            false)?;
-                        } else {
-                            prn.object_field(
-                                serde_json::to_string(key)
-                                .expect("cannot serialize string")
-                                .as_ref(),
-                                false)?;
-                        }
+                        let json_str = serde_json::to_string(key)
+                            .expect("cannot serialize string");
+                        prn.object_field(json_str.as_str(), false)?;
+
                         value.format(prn)?;
                         prn.comma()?;
                     }

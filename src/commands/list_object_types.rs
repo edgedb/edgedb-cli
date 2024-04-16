@@ -45,7 +45,7 @@ pub async fn list_object_types(cli: &mut Connection, options: &Options,
     "###, filter=filter.join(") AND ("));
 
     let items = filter::query::<TypeRow>(cli,
-        &query, pattern, case_sensitive).await?;
+        query, pattern, case_sensitive).await?;
     if !options.command_line || std::io::stdout().is_terminal() {
         let term_width = terminal_size()
             .map(|(Width(w), _h)| w.into()).unwrap_or(80);

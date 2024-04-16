@@ -54,7 +54,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
                     with pid", up.pid.emphasize(),
                 );
                 echo!("Run with `--ignore-pid-check` to override");
-                return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
+                Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
             }
             DataDirectory::Upgrading(_) => {
                 echo!("Note: backup appears to be from a broken upgrade");
@@ -70,17 +70,17 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             "Do you really want to revert?");
         if !q.ask()? {
             print::error("Canceled.");
-            return Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
+            Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
         }
     }
 
-    if let Err(e) = control::do_stop(&name) {
+    if let Err(e) = control::do_stop(name) {
         print::error(format!("Error stopping service: {:#}", e));
         if !options.no_confirm {
             let q = question::Confirm::new("Do you want to proceed?");
             if !q.ask()? {
                 print::error("Canceled.");
-                return Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
+                Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
             }
         }
     }

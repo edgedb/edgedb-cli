@@ -71,7 +71,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         print::error(
             "`edgedb instance create` is not supported in Docker containers.",
         );
-        return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
+        Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     if cmd.start_conf.is_some() {
         print::warn("The option `--start-conf` is deprecated. \
@@ -101,21 +101,21 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     let cp = &cmd.cloud_params;
 
     if cp.region.is_some() {
-        return Err(opts.error(
+        Err(opts.error(
             clap::error::ErrorKind::ArgumentConflict,
             cformat!("The <bold>--region</bold> option is only applicable to cloud instances."),
         ))?;
     }
 
     if cp.billables.compute_size.is_some() {
-        return Err(opts.error(
+        Err(opts.error(
             clap::error::ErrorKind::ArgumentConflict,
             cformat!("The <bold>--compute-size</bold> option is only applicable to cloud instances."),
         ))?;
     }
 
     if cp.billables.storage_size.is_some() {
-        return Err(opts.error(
+        Err(opts.error(
             clap::error::ErrorKind::ArgumentConflict,
             cformat!("The <bold>--storage-size</bold> option is only applicable to cloud instances."),
         ))?;
@@ -210,7 +210,7 @@ fn create_cloud(
     let cp = &cmd.cloud_params;
 
     let region = match &cp.region {
-        None => cloud::ops::get_current_region(&client)?.name,
+        None => cloud::ops::get_current_region(client)?.name,
         Some(region) => region.to_string(),
     };
 
@@ -242,14 +242,14 @@ fn create_cloud(
 
     if tier == cloud::ops::CloudTier::Free {
         if compute_size.is_some() {
-            return Err(opts.error(
+            Err(opts.error(
                 clap::error::ErrorKind::ArgumentConflict,
                 cformat!("The <bold>--compute-size</bold> option can \
                 only be specified for Pro instances."),
             ))?;
         }
         if storage_size.is_some() {
-            return Err(opts.error(
+            Err(opts.error(
                 clap::error::ErrorKind::ArgumentConflict,
                 cformat!("The <bold>--storage-size</bold> option can \
                 only be specified for Pro instances."),
@@ -262,13 +262,13 @@ fn create_cloud(
         .context(format!("could not download pricing information for the {} tier", tier))?;
     let region_prices = tier_prices.get(&region)
         .context(format!("could not download pricing information for the {} region", region))?;
-    let default_compute = region_prices.into_iter()
+    let default_compute = region_prices.iter()
         .find(|&price| price.billable == "compute")
         .context("could not download pricing information for compute")?
         .units_default.clone()
         .context("could not find default value for compute")?;
 
-    let default_storage = region_prices.into_iter()
+    let default_storage = region_prices.iter()
         .find(|&price| price.billable == "storage")
         .context("could not download pricing information for storage")?
         .units_default.clone()
@@ -327,7 +327,7 @@ fn create_cloud(
 
     let source_instance_id = match &cmd.cloud_backup_source.from_instance {
         Some(InstanceName::Cloud{org_slug: org, name}) => {
-            match cloud::ops::find_cloud_instance_by_name(&name, &org, client) {
+            match cloud::ops::find_cloud_instance_by_name(name, org, client) {
                 Ok(Some(instance)) => {
                     Ok(Some(instance.id))
                 },
@@ -360,10 +360,10 @@ fn create_cloud(
         region: Some(region),
         requested_resources: Some(req_resources),
         tier: Some(tier),
-        source_instance_id: source_instance_id,
+        source_instance_id,
         source_backup_id: cmd.cloud_backup_source.from_backup_id.clone(),
     };
-    cloud::ops::create_cloud_instance(&client, &request)?;
+    cloud::ops::create_cloud_instance(client, &request)?;
     echo!(
         "EdgeDB Cloud instance",
         inst_name,
@@ -371,7 +371,7 @@ fn create_cloud(
     );
     echo!("To connect to the instance run:");
     echo!("  edgedb -I", inst_name);
-    return Ok(())
+    Ok(())
 }
 
 fn bootstrap_script(user: &str, password: &str) -> String {
@@ -385,7 +385,7 @@ fn bootstrap_script(user: &str, password: &str) -> String {
                 SET password_hash := {password_hash};
             }};
             "###,
-            name=quote_name(&user),
+            name=quote_name(user),
             password_hash=quote_string(&password_hash(password)),
         ).unwrap();
     } else {
@@ -393,15 +393,15 @@ fn bootstrap_script(user: &str, password: &str) -> String {
             CREATE SUPERUSER ROLE {name} {{
                 SET password_hash := {password_hash};
             }}"###,
-            name=quote_name(&user),
+            name=quote_name(user),
             password_hash=quote_string(&password_hash(password)),
         ).unwrap();
     }
-    return output;
+    output
 }
 
 #[context("cannot bootstrap EdgeDB instance")]
-pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str, database: &String)
+pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str, database: &str)
     -> anyhow::Result<()>
 {
     let server_path = info.server_path()?;
@@ -439,8 +439,8 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str, database: &Stri
     let mut creds = Credentials::default();
     creds.port = info.port;
     creds.user = user.into();
-    creds.database = Some(database.clone());
-    creds.password = Some(password.into());
+    creds.database = Some(database.to_string());
+    creds.password = Some(password);
     creds.tls_ca = Some(cert);
     credentials::write(&paths.credentials, &creds)?;
 
@@ -450,7 +450,7 @@ pub fn bootstrap(paths: &Paths, info: &InstanceInfo, user: &str, database: &Stri
 pub fn create_service(meta: &InstanceInfo) -> anyhow::Result<()>
 {
     if cfg!(target_os="macos") {
-        macos::create_service(&meta)
+        macos::create_service(meta)
     } else if cfg!(target_os="linux") {
         if windows::is_wrapped() {
             // No service. Managed by windows.
@@ -460,10 +460,10 @@ pub fn create_service(meta: &InstanceInfo) -> anyhow::Result<()>
             // function is called.
             Ok(())
         } else {
-            linux::create_service(&meta)
+            linux::create_service(meta)
         }
     } else if cfg!(windows) {
-        windows::create_service(&meta)
+        windows::create_service(meta)
     } else {
         anyhow::bail!("creating a service is not supported on the platform");
     }
