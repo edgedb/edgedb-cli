@@ -41,7 +41,7 @@ Introspection
 
   \d [-v] NAME              Describe schema object
   \ds                       Describe whole schema   (alias: \describe schema)
-  \l                        List databases          (alias: \list databases)
+  \l                        List databases/branches (alias: \list branches)
   \ls [-sc]  [PATTERN]      List scalar types       (alias: \list scalars)
   \lt [-sc]  [PATTERN]      List object types       (alias: \list types)
   \lr [-c]   [PATTERN]      List roles              (alias: \list roles)
@@ -63,7 +63,7 @@ Editing
                             Defaults to vi (Notepad in Windows).
 
 Connection
-  \c, \connect [DBNAME]     Connect to database DBNAME
+  \c, \connect [DBNAME]     Connect to database/branch DBNAME
 
 Settings
   \set [OPTION [VALUE]]     Show/change settings. Type \set to list
@@ -306,7 +306,7 @@ impl CommandCache {
         let mut aliases = BTreeMap::new();
         aliases.insert("d", &["describe", "object"][..]);
         aliases.insert("ds", &["describe", "schema"]);
-        aliases.insert("l", &["list", "databases"]);
+        aliases.insert("l", &["list", "branches"]);
         aliases.insert("ls", &["list", "scalars"]);
         aliases.insert("lt", &["list", "types"]);
         aliases.insert("lr", &["list", "roles"]);
@@ -322,6 +322,7 @@ impl CommandCache {
         aliases.insert("quit", &["exit"]);
         aliases.insert("?", &["help"]);
         aliases.insert("h", &["help"]);
+        aliases.insert("branch", &["branching"]);
         let mut setting_cmd = None;
         let commands: BTreeMap<_,_> = clap.get_subcommands_mut()
             .map(|cmd| {

@@ -35,9 +35,7 @@ pub struct MergeMigration {
     migration: DBMigration
 }
 
-impl MigrationToText for MergeMigration {
-    type StatementsIter<'a> = std::iter::Once<&'a String> where Self: 'a;
-
+impl<'a> MigrationToText<'a, std::iter::Once<&'a String>> for MergeMigration {
     fn key(&self) -> &MigrationKey {
         &self.key
     }
@@ -50,7 +48,7 @@ impl MigrationToText for MergeMigration {
         Ok(self.migration.name.as_str())
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&'a self) -> std::iter::Once<&'a String> {
         std::iter::once(&self.migration.script)
     }
 }
