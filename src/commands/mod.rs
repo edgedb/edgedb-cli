@@ -24,6 +24,8 @@ pub mod cli;
 pub mod options;
 pub mod parser;
 mod ui;
+mod list_branches;
+mod branching;
 
 pub use self::configure::configure;
 pub use self::dump::{dump, dump_all};
@@ -32,6 +34,7 @@ pub use self::describe_schema::describe_schema;
 pub use self::list_aliases::list_aliases;
 pub use self::list_casts::list_casts;
 pub use self::list_databases::list_databases;
+pub use self::list_branches::list_branches;
 pub use self::list_indexes::list_indexes;
 pub use self::list_modules::list_modules;
 pub use self::list_object_types::list_object_types;

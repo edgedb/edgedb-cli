@@ -25,6 +25,7 @@ pub enum Common {
 
     /// Database commands
     Database(Database),
+    Branching(Branching),
     /// Describe database schema or object
     Describe(Describe),
 
@@ -106,8 +107,10 @@ pub enum ListCmd {
     Aliases(ListAliases),
     /// Display list of casts defined in the schema
     Casts(ListCasts),
-    /// Display list of databases for an EdgeDB instance
+    /// On EdgeDB < 5.x: Display list of databases for an EdgeDB instance
     Databases,
+    /// On EdgeDB >= 5.x: Display list of branches for an EdgeDB instance
+    Branches,
     /// Display list of indexes defined in the schema
     Indexes(ListIndexes),
     /// Display list of modules defined in the schema
@@ -120,6 +123,28 @@ pub enum ListCmd {
     Types(ListTypes),
 }
 
+#[derive(clap::Args, Clone, Debug)]
+#[command(version = "help_expand")]
+#[command(disable_version_flag=true)]
+pub struct Branching {
+    #[command(flatten)]
+    pub conn: ConnectionOptions,
+
+    #[command(subcommand)]
+    pub subcommand: BranchingCmd,
+}
+
+#[derive(clap::Subcommand, Clone, Debug)]
+pub enum BranchingCmd {
+    /// Create a new branch
+    Create(crate::branch::option::Create),
+    /// Delete a branch along with its data
+    Drop(crate::branch::option::Drop),
+    /// Delete a branches data and reset its schema while
+    /// preserving the branch itself (its cfg::DatabaseConfig)
+    /// and existing migration scripts
+    Wipe(crate::branch::option::Wipe),
+}
 
 #[derive(clap::Args, Clone, Debug)]
 #[command(version = "help_expand")]

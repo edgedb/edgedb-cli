@@ -27,15 +27,7 @@ async fn common_cmd(_options: &Options, cmdopt: commands::Options, cmd: &Common)
 pub fn main(options: &Options) -> Result<(), anyhow::Error> {
     match options.subcommand.as_ref().expect("subcommand is present") {
         Command::Common(cmd) => {
-            let cmdopt = commands::Options {
-                command_line: true,
-                styler: if std::io::stdout().is_terminal() {
-                    Some(Styler::dark_256())
-                } else {
-                    None
-                },
-                conn_params: options.block_on_create_connector()?,
-            };
+            let cmdopt = init_command_opts(options)?;
             directory_check::check_and_warn();
             match cmd.as_migration() {
                 // Process commands that don't need connection first
@@ -92,7 +84,20 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
             watch::watch(options, c)
         },
         Command::Branch(c) => {
-            branch::branch_main(options, c)
+            let cmdopt = init_command_opts(options)?;
+            branch::branch_main(&cmdopt, c)
         }
     }
+}
+
+fn init_command_opts(options: &Options) -> Result<commands::Options, anyhow::Error> {
+    Ok(commands::Options {
+        command_line: true,
+        styler: if std::io::stdout().is_terminal() {
+            Some(Styler::dark_256())
+        } else {
+            None
+        },
+        conn_params: options.block_on_create_connector()?,
+    })
 }

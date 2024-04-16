@@ -2,7 +2,7 @@ use std::ops::Deref;
 
 use uuid::Uuid;
 use crate::connect::{Connection, Connector};
-use crate::options::Options;
+use crate::commands::Options;
 use crate::print;
 
 pub struct BranchConnection<'a> {
@@ -18,7 +18,7 @@ impl BranchConnection<'_> {
             let mut branch = get_connection_that_is_not(
                 &self.branch_name,
                 self.options,
-                &mut self.options.create_connector().await?.connect().await?
+                &mut self.options.conn_params.connect().await?
             ).await?;
 
             print::completion(branch.connection.execute(&format!("drop branch {} force", self.branch_name), &()).await?);
@@ -60,8 +60,10 @@ pub async fn get_connection_to_modify<'a>(branch: &str, options: &'a Options, co
         Err(_) => {
             let temp_name = Uuid::new_v4().to_string();
             connection.execute(&format!("create empty branch {}", edgeql_parser::helpers::quote_name(&temp_name)), &()).await?;
+
+            let mut conn_params = options.conn_params.clone();
             Ok(BranchConnection {
-                connection: options.create_connector().await?.branch(&temp_name)?.connect().await?,
+                connection: conn_params.branch(&temp_name)?.connect().await?,
                 options,
                 branch_name: temp_name,
                 is_temp: true
@@ -78,8 +80,9 @@ pub async fn get_connection_that_is_not<'a>(target_branch: &str, options: &'a Op
 
     for branch in &branches {
         if branch != target_branch {
+            let mut connector = options.conn_params.clone();
             return Ok(BranchConnection {
-                connection: options.create_connector().await?.branch(branch)?.connect().await?,
+                connection: connector.branch(branch)?.connect().await?,
                 branch_name: branch.deref().to_string(),
                 is_temp: false,
                 options
