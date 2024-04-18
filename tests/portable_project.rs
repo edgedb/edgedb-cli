@@ -3,6 +3,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
+#[path = "common/util.rs"]
 mod util;
 use util::*;
 

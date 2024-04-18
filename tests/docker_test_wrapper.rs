@@ -13,9 +13,11 @@ use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use test_case::test_case;
 
+#[path = "common/docker.rs"]
 mod docker;
-mod util;
 
+#[path = "common/util.rs"]
+mod util;
 use util::*;
 
 #[derive(serde::Deserialize)]
@@ -109,7 +111,7 @@ fn dockerfile() -> String {
 #[test_case("portable_smoke")]
 #[test_case("portable_project")]
 #[test_case("portable_project_dir")]
-#[test_case("portable_shared")]
+#[test_case("shared_client_tests")]
 fn run_test(name: &'static str) {
     let file_name = TEST_EXECUTABLES
         .get(name)

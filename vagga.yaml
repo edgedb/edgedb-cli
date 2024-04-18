@@ -73,7 +73,7 @@ commands:
     - cargo
     - test
     - --features=docker_test_wrapper,portable_tests
-    - --test=docker_portable_wrapper
+    - --test=docker_test_wrapper
     environ:
       DOCKER_HOST: unix:///var/docker.sock
     volumes:
