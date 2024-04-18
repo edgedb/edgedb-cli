@@ -2,16 +2,15 @@ use std::collections::HashMap;
 
 use fs_err as fs;
 
-
+use crate::connect::Connection;
+use crate::migrations::create::{MigrationKey, MigrationToText};
+use crate::migrations::db_migration::{read_all, DBMigration};
+use crate::migrations::migration::MigrationFile;
+use crate::migrations::{create, migrate, migration, Context};
+use crate::print;
 use anyhow::Context as _;
 use colorful::Colorful;
 use indexmap::IndexMap;
-use crate::connect::Connection;
-use crate::migrations::{Context, create, migrate, migration};
-use crate::migrations::create::{MigrationKey, MigrationToText};
-use crate::migrations::db_migration::{DBMigration, read_all};
-use crate::migrations::migration::MigrationFile;
-use crate::print;
 
 #[derive(PartialEq)]
 enum RebaseMigrationKind {
@@ -24,7 +23,7 @@ struct RebaseMigration<'a> {
     key: MigrationKey,
     migration: &'a DBMigration,
     parent_override: Option<&'a str>,
-    kind: RebaseMigrationKind
+    kind: RebaseMigrationKind,
 }
 
 impl<'a> MigrationToText<'a, std::iter::Once<&'a String>> for RebaseMigration<'_> {
@@ -34,7 +33,7 @@ impl<'a> MigrationToText<'a, std::iter::Once<&'a String>> for RebaseMigration<'_
 
     fn parent(&self) -> anyhow::Result<&str> {
         if let Some(parent) = self.parent_override {
-            return Ok(parent)
+            return Ok(parent);
         }
 
         if self.migration.parent_names.is_empty() {
@@ -65,17 +64,28 @@ pub struct RebaseMigrations {
 
 impl RebaseMigrations {
     pub fn print_status(&self) {
-        let last_common = self.base_migrations.last().map(|v| v.0.as_str()).unwrap_or("initial").green();
+        let last_common = self
+            .base_migrations
+            .last()
+            .map(|v| v.0.as_str())
+            .unwrap_or("initial")
+            .green();
 
         let format_migration_on_length = |c: usize| {
-             if c > 1 {"migrations"} else {"migration"}
+            if c > 1 {
+                "migrations"
+            } else {
+                "migration"
+            }
         };
 
         eprintln!("Last common migration is {}", last_common);
         eprintln!(
             "Since then, there are:\n- {} new {} on the target branch,\n- {} {} to rebase",
-            self.target_migrations.len().to_string().green(), format_migration_on_length(self.target_migrations.len()),
-            self.source_migrations.len().to_string().green(), format_migration_on_length(self.source_migrations.len())
+            self.target_migrations.len().to_string().green(),
+            format_migration_on_length(self.target_migrations.len()),
+            self.source_migrations.len().to_string().green(),
+            format_migration_on_length(self.source_migrations.len())
         );
     }
 
@@ -143,7 +153,10 @@ impl RebaseMigrations {
     }
 }
 
-pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Connection) -> anyhow::Result<RebaseMigrations> {
+pub async fn get_diverging_migrations(
+    source: &mut Connection,
+    target: &mut Connection,
+) -> anyhow::Result<RebaseMigrations> {
     let mut source_migrations = read_all(source, true, false).await?;
     let mut target_migrations = read_all(target, true, false).await?;
 
@@ -151,7 +164,7 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
         return Ok(RebaseMigrations {
             base_migrations: IndexMap::new(),
             source_migrations: IndexMap::new(),
-            target_migrations
+            target_migrations,
         });
     }
 
@@ -162,7 +175,9 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
                 anyhow::bail!("Branch {} is already up-to-date", target.database())
             }
 
-            let source_index = source_migrations.get_index_of(id).context("Expected source_migrations to contain ID")?;
+            let source_index = source_migrations
+                .get_index_of(id)
+                .context("Expected source_migrations to contain ID")?;
 
             let new_source_migrations = source_migrations.split_off(source_index + 1);
 
@@ -170,19 +185,22 @@ pub async fn get_diverging_migrations(source: &mut Connection, target: &mut Conn
             return Ok(RebaseMigrations {
                 base_migrations: source_migrations,
                 source_migrations: new_source_migrations,
-                target_migrations: target_migrations.split_off(index + 1)
-            })
+                target_migrations: target_migrations.split_off(index + 1),
+            });
         }
     }
 
     Ok(RebaseMigrations {
         base_migrations: IndexMap::new(),
         source_migrations,
-        target_migrations
+        target_migrations,
     })
 }
 
-async fn rebase_migration_ids(context: &Context, rebase_migrations: &mut RebaseMigrations) -> anyhow::Result<()> {
+async fn rebase_migration_ids(
+    context: &Context,
+    rebase_migrations: &mut RebaseMigrations,
+) -> anyhow::Result<()> {
     fn update_id(old: &str, new: &str, col: &mut IndexMap<String, DBMigration>) {
         if let Some(value) = col.remove(old) {
             col.insert(new.to_string(), value);
@@ -193,11 +211,13 @@ async fn rebase_migration_ids(context: &Context, rebase_migrations: &mut RebaseM
         update_id(old, new, &mut rebase_migrations.base_migrations);
         update_id(old, new, &mut rebase_migrations.target_migrations);
         update_id(old, new, &mut rebase_migrations.source_migrations);
-    }).await
+    })
+    .await
 }
 
 pub async fn fix_migration_ids<T>(context: &Context, mut on_update: T) -> anyhow::Result<()>
-    where T : FnMut(&String, &String)
+where
+    T: FnMut(&String, &String),
 {
     let migrations = migration::read_all(context, false).await?;
     let mut changed_ids: HashMap<String, String> = HashMap::new();
@@ -208,14 +228,18 @@ pub async fn fix_migration_ids<T>(context: &Context, mut on_update: T) -> anyhow
         // its important to change parent before the main ID, since parent effects the hash id of the migration
         if changed_ids.contains_key(&migration_file.data.parent_id) {
             let new_parent_id = changed_ids.get(&migration_file.data.parent_id).unwrap();
-            migration_text = migration_file.data.replace_parent_id(&migration_text, new_parent_id);
+            migration_text = migration_file
+                .data
+                .replace_parent_id(&migration_text, new_parent_id);
             migration_file.data.parent_id = new_parent_id.clone(); // change for hash computation below
         }
 
         let expected_id = migration_file.data.expected_id(&migration_text)?;
 
         if id != expected_id {
-            migration_text = migration_file.data.replace_id(&migration_text, &expected_id);
+            migration_text = migration_file
+                .data
+                .replace_id(&migration_text, &expected_id);
             migration_file.data.id = expected_id.clone();
             changed_ids.insert(id, expected_id);
         }
@@ -230,7 +254,10 @@ pub async fn fix_migration_ids<T>(context: &Context, mut on_update: T) -> anyhow
     Ok(())
 }
 
-pub async fn do_rebase(rebase_migrations: &mut RebaseMigrations, context: &Context) -> anyhow::Result<()> {
+pub async fn do_rebase(
+    rebase_migrations: &mut RebaseMigrations,
+    context: &Context,
+) -> anyhow::Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let temp_ctx = Context {
         schema_dir: temp_dir.path().to_path_buf(),
@@ -270,10 +297,10 @@ pub async fn do_rebase(rebase_migrations: &mut RebaseMigrations, context: &Conte
                 match migration.kind {
                     RebaseMigrationKind::Target => {
                         eprintln!("\nNew migrations on target branch:")
-                    },
+                    }
                     RebaseMigrationKind::Source => {
                         eprintln!("\nMigrations to rebase:")
-                    },
+                    }
                     RebaseMigrationKind::Base => {}
                 }
             }
@@ -294,9 +321,15 @@ pub async fn do_rebase(rebase_migrations: &mut RebaseMigrations, context: &Conte
     Ok(())
 }
 
-pub async fn write_rebased_migration_files(rebase_migrations: &RebaseMigrations, context: &Context, connection: &mut Connection) -> anyhow::Result<()> {
+pub async fn write_rebased_migration_files(
+    rebase_migrations: &RebaseMigrations,
+    context: &Context,
+    connection: &mut Connection,
+) -> anyhow::Result<()> {
     // apply the new migrations
-    let migrations: IndexMap<String, MigrationFile> = migration::read_all(context, true).await?.into_iter()
+    let migrations: IndexMap<String, MigrationFile> = migration::read_all(context, true)
+        .await?
+        .into_iter()
         .filter(|(id, _)| rebase_migrations.source_migrations.contains_key(id))
         .collect();
 

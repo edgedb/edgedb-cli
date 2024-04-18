@@ -1,9 +1,9 @@
 use test_case::test_case;
 
-use crate::measure::Time;
-use crate::docker::{Context, build_image};
+use crate::common::{dock_centos, dock_debian, dock_ubuntu};
+use crate::docker::{build_image, Context};
 use crate::docker::{run_docker, run_systemd};
-use crate::common::{dock_ubuntu, dock_centos, dock_debian};
+use crate::measure::Time;
 
 #[test_case("edbtest_centos7", &dock_centos(7))]
 fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
@@ -13,7 +13,9 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_systemd(tagname, r###"
+    run_systemd(
+        tagname,
+        r###"
         edgedb server install --version=1-alpha7
         edgedb instance create test1 --start-conf=manual || test "$?" -eq 2
         edgedb instance start --foreground test1 &
@@ -30,7 +32,9 @@ fn package_no_systemd(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
-    "###).success();
+    "###,
+    )
+    .success();
     Ok(())
 }
 
@@ -47,7 +51,9 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_systemd(tagname, r###"
+    run_systemd(
+        tagname,
+        r###"
         edgedb server install --version=1-alpha7
         edgedb instance create test1
 
@@ -92,7 +98,9 @@ fn package(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
-    "###).success();
+    "###,
+    )
+    .success();
     Ok(())
 }
 
@@ -110,7 +118,9 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         .add_sudoers()?
         .add_bin()?;
     build_image(context, tagname)?;
-    run_docker(tagname, r###"
+    run_docker(
+        tagname,
+        r###"
         mkdir /tmp/workdir
         cd /tmp/workdir
 
@@ -148,6 +158,8 @@ fn docker(tagname: &str, dockerfile: &str) -> anyhow::Result<()> {
         val=$(edgedb -Itest1 --wait-until-available=60s --tab-separated \
               query 'SELECT Type1 { prop1 }')
         test "$val" = "value1"
-    "###).success();
+    "###,
+    )
+    .success();
     Ok(())
 }

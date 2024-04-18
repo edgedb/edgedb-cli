@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::process;
 use std::sync::Arc;
-use std::task::{Poll, Context};
+use std::task::{Context, Poll};
 use std::thread;
 
 use arc_swap::ArcSwapOption;
@@ -12,16 +12,14 @@ use backtrace::Backtrace;
 use fn_error_context::context;
 use futures_util::task::AtomicWaker;
 
-use crate::commands::ExitCode;
 use crate::bug;
-
+use crate::commands::ExitCode;
 
 static CUR_INTERRUPT: ArcSwapOption<SignalState> = ArcSwapOption::const_empty();
 static CUR_TERM: ArcSwapOption<TermSentinel> = ArcSwapOption::const_empty();
 
 #[cfg(windows)]
-struct TermSentinel {
-}
+struct TermSentinel {}
 
 #[cfg(unix)]
 struct TermSentinel {
@@ -67,8 +65,7 @@ pub struct SignalState {
     signals: SigMask,
 }
 
-pub struct MemorizeTerm {
-}
+pub struct MemorizeTerm {}
 
 struct Event {
     first: crossbeam_utils::atomic::AtomicCell<Option<Signal>>,
@@ -115,8 +112,7 @@ impl MemorizeTerm {
         let sentinel = Arc::new(TermSentinel { tty, termios: mode });
         let old = CUR_TERM.compare_and_swap(&None::<Arc<_>>, Some(sentinel));
         if old.is_some() {
-            return Err(bug::error(
-                    "nested terminal mode change is unsupported"));
+            return Err(bug::error("nested terminal mode change is unsupported"));
         }
         Ok(MemorizeTerm {})
     }
@@ -140,8 +136,7 @@ fn reset_terminal(sentinel: &TermSentinel) {
     use std::os::unix::io::AsRawFd;
 
     unsafe {
-        libc::tcsetattr(sentinel.tty.as_raw_fd(),
-                         libc::TCSANOW, &sentinel.termios);
+        libc::tcsetattr(sentinel.tty.as_raw_fd(), libc::TCSANOW, &sentinel.termios);
     }
 }
 
@@ -156,8 +151,10 @@ fn signal_message(signal: Signal) -> i32 {
     if signal == Signal::Interrupt {
         log::warn!("Exiting due to interrupt");
     } else {
-        log::warn!("Exiting on signal {}",
-            signal_hook::low_level::signal_name(id).unwrap_or("<unknown>"));
+        log::warn!(
+            "Exiting on signal {}",
+            signal_hook::low_level::signal_name(id).unwrap_or("<unknown>")
+        );
     }
     id
 }
@@ -165,7 +162,7 @@ fn signal_message(signal: Signal) -> i32 {
 #[cfg(windows)]
 fn signal_message(_signal: Signal) -> i32 {
     log::warn!("Exiting due to interrupt");
-    return 2;  // same as SIGINT on linux
+    return 2; // same as SIGINT on linux
 }
 
 fn exit_on(signal: Signal) -> ! {
@@ -184,21 +181,22 @@ pub fn init_signals() {
         } else {
             exit_on(Signal::Interrupt);
         }
-    }).expect("Ctrl+C handler can be set");
+    })
+    .expect("Ctrl+C handler can be set");
 
     #[cfg(unix)]
     thread::spawn(|| {
+        use signal_hook::consts::signal::{SIGHUP, SIGINT, SIGTERM};
         use signal_hook::iterator::Signals;
-        use signal_hook::consts::signal::{SIGINT, SIGHUP, SIGTERM};
 
-        let mut signals = Signals::new([SIGINT, SIGHUP, SIGTERM])
-            .expect("signals initialized");
+        let mut signals = Signals::new([SIGINT, SIGHUP, SIGTERM]).expect("signals initialized");
         for signal in signals.into_iter() {
-            if let Some(state) = CUR_INTERRUPT.load_full()  {
+            if let Some(state) = CUR_INTERRUPT.load_full() {
                 if let Some(sig) = Signal::from_unix(signal) {
                     if sig.as_bit() & state.signals != 0 {
-                        state.event.set(Signal::from_unix(signal)
-                            .expect("known signal"));
+                        state
+                            .event
+                            .set(Signal::from_unix(signal).expect("known signal"));
                     } else {
                         exit_on(sig);
                     }
@@ -228,8 +226,11 @@ impl Interrupt {
         if let Some(state) = &*old {
             let mut old_bt = state.backtrace.clone();
             old_bt.resolve();
-            panic!("Second Interrupt created simultaneously.\n\n\
-                Previous was created at:\n{:?}", old_bt);
+            panic!(
+                "Second Interrupt created simultaneously.\n\n\
+                Previous was created at:\n{:?}",
+                old_bt
+            );
         };
         Interrupt { event }
     }
@@ -284,8 +285,8 @@ impl Signal {
     fn as_bit(&self) -> SigMask {
         match self {
             Signal::Interrupt => 0b001,
-            Signal::Term      => 0b010,
-            Signal::Hup       => 0b100,
+            Signal::Term => 0b010,
+            Signal::Hup => 0b100,
         }
     }
 }
@@ -314,10 +315,10 @@ impl Signal {
         use signal_hook::consts::signal::*;
 
         match sig {
-             SIGINT => Some(Signal::Interrupt),
-             SIGTERM => Some(Signal::Term),
-             SIGHUP => Some(Signal::Hup),
-             _ => None,
+            SIGINT => Some(Signal::Interrupt),
+            SIGTERM => Some(Signal::Term),
+            SIGHUP => Some(Signal::Hup),
+            _ => None,
         }
     }
 }
@@ -327,17 +328,18 @@ impl Trap {
     /// in list will be delivered asynchronously as always.
     #[cfg(unix)]
     pub fn new(signals: &[Signal]) -> Trap {
+        use nix::sys::signal::{sigaction, SaFlags, SigAction, SigHandler};
         use nix::sys::signal::{SigSet, SigmaskHow};
-        use nix::sys::signal::{sigaction, SigAction, SaFlags, SigHandler};
 
-        extern "C" fn empty_handler(_: libc::c_int) { }
+        extern "C" fn empty_handler(_: libc::c_int) {}
 
         unsafe {
             let mut sigset = SigSet::empty();
             for &sig in signals {
                 sigset.add(sig.to_nix());
             }
-            let oldset = sigset.thread_swap_mask(SigmaskHow::SIG_BLOCK)
+            let oldset = sigset
+                .thread_swap_mask(SigmaskHow::SIG_BLOCK)
                 .expect("can set thread mask");
             let mut oldsigs = Vec::new();
             // Set signal handlers to an empty function, this allows ignored
@@ -348,15 +350,16 @@ impl Trap {
                     sig,
                     sigaction(
                         sig.to_nix(),
-                        &SigAction::new(SigHandler::Handler(empty_handler),
-                            SaFlags::empty(), sigset)
-                    ).expect("sigaction works")
+                        &SigAction::new(
+                            SigHandler::Handler(empty_handler),
+                            SaFlags::empty(),
+                            sigset,
+                        ),
+                    )
+                    .expect("sigaction works"),
                 ));
             }
-            Trap {
-                oldset,
-                oldsigs,
-            }
+            Trap { oldset, oldsigs }
         }
     }
 
@@ -375,8 +378,7 @@ impl Drop for Trap {
             for &(sig, ref sigact) in self.oldsigs.iter() {
                 sigaction(sig.to_nix(), sigact).expect("sigaction works");
             }
-            self.oldset.thread_set_mask()
-                .expect("sigset works");
+            self.oldset.thread_set_mask().expect("sigset works");
         }
     }
 }

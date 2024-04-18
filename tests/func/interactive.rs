@@ -1,6 +1,5 @@
-use std::error::Error;
 use crate::{Config, SERVER};
-
+use std::error::Error;
 
 #[test]
 fn simple_query() {
@@ -21,7 +20,8 @@ fn two_queries() {
     let main = SERVER.default_branch;
 
     cmd.exp_string(&format!("{main}>")).unwrap();
-    cmd.send_line("SELECT 'AB'++'C'; SELECT 'XY'++'Z';\n").unwrap();
+    cmd.send_line("SELECT 'AB'++'C'; SELECT 'XY'++'Z';\n")
+        .unwrap();
     cmd.exp_string("ABC").unwrap();
     cmd.exp_string("XYZ").unwrap();
 }
@@ -54,10 +54,12 @@ fn create_report() {
 fn configured_limit() -> Result<(), Box<dyn Error>> {
     let main = SERVER.default_branch;
 
-    let config = Config::new(r###"
+    let config = Config::new(
+        r###"
 [shell]
 limit = 2
-"###);
+"###,
+    );
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.env("XDG_CONFIG_HOME", config.path());
     });
@@ -65,10 +67,12 @@ limit = 2
     cmd.send_line("SELECT {'abc', 'def', 'fgh'};\n").unwrap();
     cmd.exp_string("...").unwrap();
 
-    let config = Config::new(r###"
+    let config = Config::new(
+        r###"
 [shell]
 limit = 3
-"###);
+"###,
+    );
     let mut cmd = SERVER.custom_interactive(|cmd| {
         cmd.env("XDG_CONFIG_HOME", config.path());
     });

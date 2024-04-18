@@ -1,32 +1,37 @@
 use std::borrow::Cow;
+use std::convert::TryInto;
 use std::fmt;
 use std::sync::Arc;
-use std::convert::TryInto;
 
 use anyhow::Context as _;
-use colorful::Colorful;
 use bigdecimal::BigDecimal;
-use edgedb_protocol::value::Value;
+use colorful::Colorful;
 use edgedb_protocol::model;
+use edgedb_protocol::value::Value;
 use num_bigint::ToBigInt;
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
-use rustyline::validate::{Validator, ValidationResult, ValidationContext};
-use rustyline::{Helper, Context};
-
+use rustyline::validate::{ValidationContext, ValidationResult, Validator};
+use rustyline::{Context, Helper};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("{}", description)]
-    Mistake { offset: Option<usize>, description: String },
+    Mistake {
+        offset: Option<usize>,
+        description: String,
+    },
     #[error("value is incomplete")]
     Incomplete,
 }
 
 fn no_pos_err<E: fmt::Display>(err: E) -> Error {
-    Error::Mistake { offset: None, description: err.to_string() }
+    Error::Mistake {
+        offset: None,
+        description: err.to_string(),
+    }
 }
 
 pub trait VariableInput: fmt::Debug + Send + Sync + 'static {
@@ -38,7 +43,9 @@ pub trait VariableInput: fmt::Debug + Send + Sync + 'static {
 pub struct Str;
 
 impl VariableInput for Str {
-    fn type_name(&self) -> &str { "str" }
+    fn type_name(&self) -> &str {
+        "str"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         Ok(Value::Str(input.into()))
     }
@@ -48,7 +55,9 @@ impl VariableInput for Str {
 pub struct Uuid;
 
 impl VariableInput for Uuid {
-    fn type_name(&self) -> &str { "uuid" }
+    fn type_name(&self) -> &str {
+        "uuid"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         Ok(Value::Uuid(input.parse().map_err(no_pos_err)?))
     }
@@ -58,7 +67,9 @@ impl VariableInput for Uuid {
 pub struct Int16;
 
 impl VariableInput for Int16 {
-    fn type_name(&self) -> &str { "int16" }
+    fn type_name(&self) -> &str {
+        "int16"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         Ok(Value::Int16(input.parse().map_err(no_pos_err)?))
     }
@@ -68,7 +79,9 @@ impl VariableInput for Int16 {
 pub struct Int32;
 
 impl VariableInput for Int32 {
-    fn type_name(&self) -> &str { "int32" }
+    fn type_name(&self) -> &str {
+        "int32"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         Ok(Value::Int32(input.parse().map_err(no_pos_err)?))
     }
@@ -78,7 +91,9 @@ impl VariableInput for Int32 {
 pub struct Int64;
 
 impl VariableInput for Int64 {
-    fn type_name(&self) -> &str { "int64" }
+    fn type_name(&self) -> &str {
+        "int64"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         Ok(Value::Int64(input.parse().map_err(no_pos_err)?))
     }
@@ -88,7 +103,9 @@ impl VariableInput for Int64 {
 pub struct Float32;
 
 impl VariableInput for Float32 {
-    fn type_name(&self) -> &str { "float32" }
+    fn type_name(&self) -> &str {
+        "float32"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         Ok(Value::Float32(input.parse().map_err(no_pos_err)?))
     }
@@ -98,7 +115,9 @@ impl VariableInput for Float32 {
 pub struct Float64;
 
 impl VariableInput for Float64 {
-    fn type_name(&self) -> &str { "float64" }
+    fn type_name(&self) -> &str {
+        "float64"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         Ok(Value::Float64(input.parse().map_err(no_pos_err)?))
     }
@@ -108,7 +127,9 @@ impl VariableInput for Float64 {
 pub struct Bool;
 
 impl VariableInput for Bool {
-    fn type_name(&self) -> &str { "bool" }
+    fn type_name(&self) -> &str {
+        "bool"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         Ok(Value::Bool(input.parse().map_err(no_pos_err)?))
     }
@@ -118,10 +139,13 @@ impl VariableInput for Bool {
 pub struct BigInt;
 
 impl VariableInput for BigInt {
-    fn type_name(&self) -> &str { "bigint" }
+    fn type_name(&self) -> &str {
+        "bigint"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         let dec: BigDecimal = input.parse().map_err(no_pos_err)?;
-        let int = dec.to_bigint()
+        let int = dec
+            .to_bigint()
             .context("number is not an integer")
             .map_err(no_pos_err)?;
         let int = int.try_into().map_err(no_pos_err)?;
@@ -133,7 +157,9 @@ impl VariableInput for BigInt {
 pub struct Decimal;
 
 impl VariableInput for Decimal {
-    fn type_name(&self) -> &str { "decimal" }
+    fn type_name(&self) -> &str {
+        "decimal"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         let dec: BigDecimal = input.parse().map_err(no_pos_err)?;
         let dec = dec.try_into().map_err(no_pos_err)?;
@@ -145,15 +171,14 @@ impl VariableInput for Decimal {
 pub struct Json;
 
 impl VariableInput for Json {
-    fn type_name(&self) -> &str { "json" }
+    fn type_name(&self) -> &str {
+        "json"
+    }
     fn parse(&self, input: &str) -> Result<Value, Error> {
         match serde_json::from_str::<serde_json::Value>(input) {
-            Err(e) if e.classify()  == serde_json::error::Category::Eof
-            => Err(Error::Incomplete),
+            Err(e) if e.classify() == serde_json::error::Category::Eof => Err(Error::Incomplete),
             Err(e) => Err(no_pos_err(e)),
-            Ok(_) => Ok(Value::Json(
-                model::Json::new_unchecked(input.into())
-            )),
+            Ok(_) => Ok(Value::Json(model::Json::new_unchecked(input.into()))),
         }
     }
 }
@@ -165,25 +190,26 @@ pub struct VarHelper {
 pub struct ErrorHint(String);
 
 impl rustyline::hint::Hint for ErrorHint {
-    fn completion(&self) -> Option<&str> { None }
-    fn display(&self) -> &str { self.0.as_ref() }
+    fn completion(&self) -> Option<&str> {
+        None
+    }
+    fn display(&self) -> &str {
+        self.0.as_ref()
+    }
 }
 
 impl VarHelper {
     pub fn new(var_type: Arc<dyn VariableInput>) -> VarHelper {
-        VarHelper {
-            var_type,
-        }
+        VarHelper { var_type }
     }
 }
 
 impl Helper for VarHelper {}
 impl Hinter for VarHelper {
     type Hint = ErrorHint;
-    fn hint(&self, line: &str, _pos: usize, _ctx: &Context)
-        -> Option<Self::Hint>
-    {
-        if line.is_empty() {  // be friendly from the start
+    fn hint(&self, line: &str, _pos: usize, _ctx: &Context) -> Option<Self::Hint> {
+        if line.is_empty() {
+            // be friendly from the start
             return None;
         }
         match self.var_type.parse(line) {
@@ -214,24 +240,23 @@ impl Highlighter for VarHelper {
 }
 
 impl Validator for VarHelper {
-    fn validate(&self, ctx: &mut ValidationContext)
-        -> Result<ValidationResult, ReadlineError>
-    {
+    fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult, ReadlineError> {
         match self.var_type.parse(ctx.input()) {
             Ok(_) => Ok(ValidationResult::Valid(None)),
             Err(Error::Incomplete) => Ok(ValidationResult::Incomplete),
-            Err(e) => Ok(ValidationResult::Invalid(
-                Some(format!(" -- {}", e))
-            )),
+            Err(e) => Ok(ValidationResult::Invalid(Some(format!(" -- {}", e)))),
         }
     }
 }
 
 impl Completer for VarHelper {
     type Candidate = String;
-    fn complete(&self, _line: &str, pos: usize, _ctx: &Context)
-        -> Result<(usize, Vec<Self::Candidate>), ReadlineError>
-    {
+    fn complete(
+        &self,
+        _line: &str,
+        pos: usize,
+        _ctx: &Context,
+    ) -> Result<(usize, Vec<Self::Candidate>), ReadlineError> {
         Ok((pos, Vec::new()))
     }
 }

@@ -8,10 +8,9 @@ use crate::portable::ver;
 
 use edgedb_cli_derive::IntoArgs;
 
-
 #[derive(clap::Args, Clone, Debug)]
 #[command(version = "help_expand")]
-#[command(disable_version_flag=true)]
+#[command(disable_version_flag = true)]
 pub struct Migration {
     #[command(flatten)]
     pub conn: ConnectionOptions,
@@ -46,7 +45,7 @@ pub enum MigrationCmd {
     /// migration history inside <schema-dir>/migrations.
     Extract(ExtractMigrations),
     /// Upgrades the format of migration files.
-    UpgradeFormat(MigrationUpgradeFormat)
+    UpgradeFormat(MigrationUpgradeFormat),
 }
 
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
@@ -81,10 +80,10 @@ pub struct CreateMigration {
     #[arg(long)]
     pub allow_empty: bool,
     /// Print queries executed.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub debug_print_queries: bool,
     /// Show error details.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub debug_print_err: bool,
 }
 
@@ -107,16 +106,16 @@ pub struct Migrate {
     /// If this revision is applied, the command is a no-op. The command
     /// ensures that the revision is present, but additional applied revisions
     /// are not considered an error.
-    #[arg(long, conflicts_with="dev_mode")]
+    #[arg(long, conflicts_with = "dev_mode")]
     pub to_revision: Option<String>,
 
     /// Dev mode is used to temporarily apply schema on top of those found in
     /// the migration history. Usually used for testing purposes, as well as
     /// `edgedb watch` which creates a dev mode migration script each time
     /// a file is saved by a user.
-    /// 
+    ///
     /// Current dev mode migrations can be seen with the following query:
-    /// 
+    ///
     /// `select schema::Migration {*} filter .generated_by = schema::MigrationGeneratedBy.DevMode;`
     ///
     /// `edgedb migration create` followed by `edgedb migrate --dev-mode` will
@@ -126,7 +125,7 @@ pub struct Migrate {
     pub dev_mode: bool,
 
     /// Runs the migration(s) in a single transaction.
-    #[arg(long="single-transaction")]
+    #[arg(long = "single-transaction")]
     pub single_transaction: bool,
 }
 
@@ -215,7 +214,7 @@ pub struct UpgradeCheck {
     #[arg(long)]
     pub watch: bool,
 
-    #[arg(hide=true)]
+    #[arg(hide = true)]
     pub run_server_with_status: Option<PathBuf>,
 }
 

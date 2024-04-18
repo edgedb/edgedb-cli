@@ -1,9 +1,8 @@
-
 use crate::branch::context::Context;
 use crate::branch::option::{BranchCommand, Command};
 use crate::branch::{create, current, drop, list, merge, rebase, rename, switch, wipe};
-use crate::connect::{Connection, Connector};
 use crate::commands::Options;
+use crate::connect::{Connection, Connector};
 
 use edgedb_tokio::get_project_dir;
 
@@ -14,26 +13,34 @@ pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Resu
     run_branch_command(&cmd.subcommand, options, &context, None).await
 }
 
-pub async fn run_branch_command(cmd: &Command, options: &Options, context: &Context, connection: Option<&mut Connection>) -> anyhow::Result<()> {
+pub async fn run_branch_command(
+    cmd: &Command,
+    options: &Options,
+    context: &Context,
+    connection: Option<&mut Connection>,
+) -> anyhow::Result<()> {
     let mut connector: Connector = options.conn_params.clone();
 
     match &cmd {
         Command::Switch(switch) => switch::main(switch, context, &mut connector).await,
         Command::Wipe(wipe) => wipe::main(wipe, context, &mut connector).await,
         Command::Current(current) => current::main(current, context).await,
-        command => {
-            match connection {
-                Some(conn) => run_branch_command1(command, conn, context, options).await,
-                None => {
-                    let mut conn = connector.connect().await?;
-                    run_branch_command1(command, &mut conn, context, options).await
-                }
+        command => match connection {
+            Some(conn) => run_branch_command1(command, conn, context, options).await,
+            None => {
+                let mut conn = connector.connect().await?;
+                run_branch_command1(command, &mut conn, context, options).await
             }
-        }
+        },
     }
 }
 
-async fn run_branch_command1(command: &Command, connection: &mut Connection, context: &Context, options: &Options) -> anyhow::Result<()> {
+async fn run_branch_command1(
+    command: &Command,
+    connection: &mut Connection,
+    context: &Context,
+    options: &Options,
+) -> anyhow::Result<()> {
     verify_server_can_use_branches(connection).await?;
 
     match command {
@@ -43,7 +50,7 @@ async fn run_branch_command1(command: &Command, connection: &mut Connection, con
         Command::Rename(rename) => rename::main(rename, context, connection, options).await,
         Command::Rebase(rebase) => rebase::main(rebase, context, connection, options).await,
         Command::Merge(merge) => merge::main(merge, context, connection, options).await,
-        unhandled => anyhow::bail!("unimplemented branch command '{:?}'", unhandled)
+        unhandled => anyhow::bail!("unimplemented branch command '{:?}'", unhandled),
     }
 }
 
@@ -55,7 +62,10 @@ pub async fn create_context() -> anyhow::Result<Context> {
 pub async fn verify_server_can_use_branches(connection: &mut Connection) -> anyhow::Result<()> {
     let server_version = connection.get_version().await?;
     if server_version.specific().major < 5 {
-        anyhow::bail!("Branches are not supported on server version {}, please upgrade to EdgeDB 5+", server_version);
+        anyhow::bail!(
+            "Branches are not supported on server version {}, please upgrade to EdgeDB 5+",
+            server_version
+        );
     }
 
     Ok(())

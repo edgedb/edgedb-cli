@@ -3,13 +3,15 @@ use std::io;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use tokio::time::sleep;
 use anyhow::Context;
 use fs_err as fs;
+use tokio::time::sleep;
 
-use crate::cloud::client::{cloud_config_dir, cloud_config_file, CloudClient, CloudConfig, ErrorResponse};
-use crate::cloud::secret_keys::{CreateSecretKeyInput, SecretKey};
+use crate::cloud::client::{
+    cloud_config_dir, cloud_config_file, CloudClient, CloudConfig, ErrorResponse,
+};
 use crate::cloud::options;
+use crate::cloud::secret_keys::{CreateSecretKeyInput, SecretKey};
 use crate::commands::ExitCode;
 use crate::options::CloudOptions;
 use crate::portable::exit_codes;
@@ -49,16 +51,20 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
 
     match user_resp {
         Ok(user) => {
-            print::success(format!(
-                "Already logged in as {}.", user.name));
+            print::success(format!("Already logged in as {}.", user.name));
             return Ok(());
-        },
-        Err(ref err) if matches!(
-            err.downcast_ref::<ErrorResponse>(),
-            Some(ErrorResponse { code: reqwest::StatusCode::UNAUTHORIZED, .. })
-        ) => {
+        }
+        Err(ref err)
+            if matches!(
+                err.downcast_ref::<ErrorResponse>(),
+                Some(ErrorResponse {
+                    code: reqwest::StatusCode::UNAUTHORIZED,
+                    ..
+                })
+            ) =>
+        {
             // Fallthrough.
-        },
+        }
         Err(err) => {
             return Err(err);
         }
@@ -91,12 +97,17 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
                 // non-expiring secret key from the secretkeys/ API now.
                 client.set_secret_key(Some(&secret_key))?;
                 let hostname = gethostname::gethostname();
-                let key: SecretKey = client.post("secretkeys/", &CreateSecretKeyInput{
-                    name: Some(format!("CLI @ {hostname:#?}")),
-                    description: None,
-                    scopes: None,
-                    ttl: None,
-                }).await?;
+                let key: SecretKey = client
+                    .post(
+                        "secretkeys/",
+                        &CreateSecretKeyInput {
+                            name: Some(format!("CLI @ {hostname:#?}")),
+                            description: None,
+                            scopes: None,
+                            ttl: None,
+                        },
+                    )
+                    .await?;
 
                 write_json(
                     &cloud_config_file(&client.profile)?,
@@ -110,26 +121,22 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
                 let user: User = client.get("user").await?;
                 print::success(format!(
                     "Successfully logged in to EdgeDB Cloud as {}.",
-                    user.name));
+                    user.name
+                ));
                 return Ok(());
             }
-            Err(e) => print::warn(format!(
-                "Request failed: {:?}\nRetrying...", 
-                e
-            )),
+            Err(e) => print::warn(format!("Request failed: {:?}\nRetrying...", e)),
             _ => {}
         }
         sleep(AUTHENTICATION_POLL_INTERVAL).await;
     }
     anyhow::bail!(
         "Authentication expected to complete in {:?}.",
-         AUTHENTICATION_WAIT_TIME
+        AUTHENTICATION_WAIT_TIME
     )
 }
 
-fn find_project_dirs(
-    f: impl Fn(&str) -> bool,
-) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
+fn find_project_dirs(f: impl Fn(&str) -> bool) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
     let projects = find_project_stash_dirs("cloud-profile", f, false)?;
     Ok(projects
         .into_iter()

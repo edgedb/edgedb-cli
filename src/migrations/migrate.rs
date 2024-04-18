@@ -1,10 +1,10 @@
+use std::collections::{HashMap, VecDeque};
 use std::path::Path;
-use std::collections::{VecDeque, HashMap};
 
 use anyhow::Context as _;
 use colorful::Colorful;
-use indicatif::ProgressBar;
 use indexmap::IndexMap;
+use indicatif::ProgressBar;
 use tokio::fs;
 
 use crate::async_try;
@@ -15,11 +15,11 @@ use crate::connect::Connection;
 use crate::error_display::print_query_error;
 use crate::hint::HintExt;
 use crate::migrations::context::Context;
+use crate::migrations::db_migration;
+use crate::migrations::db_migration::{DBMigration, MigrationGeneratedBy};
 use crate::migrations::dev_mode;
 use crate::migrations::edb::{execute, execute_if_connected};
 use crate::migrations::migration::{self, MigrationFile};
-use crate::migrations::db_migration::{DBMigration, MigrationGeneratedBy};
-use crate::migrations::db_migration;
 use crate::migrations::options::Migrate;
 use crate::migrations::timeout;
 use crate::print;
@@ -36,7 +36,7 @@ enum PathElem<'a> {
     Normal(&'a MigrationFile),
 }
 
-type OperationIter<'a> = Box<dyn Iterator<Item=Operation<'a>> + Send + 'a>;
+type OperationIter<'a> = Box<dyn Iterator<Item = Operation<'a>> + Send + 'a>;
 
 pub trait AsOperations {
     fn as_operations(&self) -> OperationIter<'_>;
@@ -46,20 +46,23 @@ pub trait AsOperations {
 #[error("error in one of the migrations")]
 pub struct ApplyMigrationError;
 
-
-fn slice<'x, M>(migrations: &'x IndexMap<String, M>,
+fn slice<'x, M>(
+    migrations: &'x IndexMap<String, M>,
     // start is exclusive and end is inclusive
-    start: Option<&String>, end: Option<&String>)
-    -> anyhow::Result<&'x indexmap::map::Slice<String, M>>
-{
-    let start_index = start.and_then(|m| migrations.get_index_of(m))
+    start: Option<&String>,
+    end: Option<&String>,
+) -> anyhow::Result<&'x indexmap::map::Slice<String, M>> {
+    let start_index = start
+        .and_then(|m| migrations.get_index_of(m))
         .map(|idx| idx + 1)
-        .unwrap_or(0);  // this zero is for start=None, get_index_of returning
-                        // None should never happen as we switch for `fixup`
-    let end_index = end.and_then(|m| migrations.get_index_of(m))
-        .map(|idx| idx+1)
+        .unwrap_or(0); // this zero is for start=None, get_index_of returning
+                       // None should never happen as we switch for `fixup`
+    let end_index = end
+        .and_then(|m| migrations.get_index_of(m))
+        .map(|idx| idx + 1)
         .unwrap_or(migrations.len());
-    migrations.get_range(start_index..end_index)
+    migrations
+        .get_range(start_index..end_index)
         .ok_or_else(|| bug::error("slicing error"))
 }
 
@@ -81,22 +84,23 @@ impl<'a> AsOperations for Vec<Operation<'a>> {
     }
 }
 
-pub async fn migrate(cli: &mut Connection, options: &Options,
-    migrate: &Migrate)
-    -> Result<(), anyhow::Error>
-{
+pub async fn migrate(
+    cli: &mut Connection,
+    options: &Options,
+    migrate: &Migrate,
+) -> Result<(), anyhow::Error> {
     let old_state = cli.set_ignore_error_state();
     let res = _migrate(cli, options, migrate).await;
     cli.restore_state(old_state);
     res
 }
 
-async fn _migrate(cli: &mut Connection, _options: &Options,
-    migrate: &Migrate)
-    -> Result<(), anyhow::Error>
-{
-    let ctx = Context::from_project_or_config(&migrate.cfg, migrate.quiet)
-        .await?;
+async fn _migrate(
+    cli: &mut Connection,
+    _options: &Options,
+    migrate: &Migrate,
+) -> Result<(), anyhow::Error> {
+    let ctx = Context::from_project_or_config(&migrate.cfg, migrate.quiet).await?;
     if migrate.dev_mode {
         // TODO(tailhook) figure out progressbar in non-quiet mode
         return dev_mode::migrate(cli, &ctx, &ProgressBar::hidden()).await;
@@ -107,22 +111,21 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
 
     let target_rev = if let Some(prefix) = &migrate.to_revision {
         let db_rev = db_migration::find_by_prefix(cli, prefix).await?;
-        let file_revs = migrations.iter()
+        let file_revs = migrations
+            .iter()
             .filter(|r| r.0.starts_with(prefix))
-            .map(|r| &r.1.data).collect::<Vec<_>>();
+            .map(|r| &r.1.data)
+            .collect::<Vec<_>>();
         if file_revs.len() > 1 {
-            anyhow::bail!("More than one revision matches prefix {:?}",
-                prefix);
+            anyhow::bail!("More than one revision matches prefix {:?}", prefix);
         }
         let target_rev = match (&db_rev, file_revs.last()) {
             (None, None) => {
-                anyhow::bail!("No revision with prefix {:?} found",
-                    prefix);
+                anyhow::bail!("No revision with prefix {:?} found", prefix);
             }
             (None, Some(targ)) => &targ.id,
             (Some(a), Some(b)) if a.name != b.id => {
-                anyhow::bail!("More than one revision matches prefix {:?}",
-                    prefix);
+                anyhow::bail!("More than one revision matches prefix {:?}", prefix);
             }
             (Some(_), Some(targ)) => &targ.id,
             (Some(targ), None) => &targ.name,
@@ -136,7 +139,8 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
                 if Some(&db_rev.name) == last_db_rev {
                     eprintln!("{} Revision {}", msg, db_rev.name);
                 } else {
-                    eprintln!("{} Revision {} is the ancestor of the latest {}",
+                    eprintln!(
+                        "{} Revision {} is the ancestor of the latest {}",
                         msg,
                         db_rev.name,
                         last_db_rev.unwrap_or(&String::from("initial")),
@@ -153,28 +157,23 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
     if let Some(last_db_rev) = last_db_rev {
         if let Some(last) = migrations.last() {
             if !migrations.contains_key(last_db_rev) {
-                    let target_rev = target_rev.as_ref()
-                        .unwrap_or(last.0);
-                    return fixup(
-                        cli,
-                        &ctx,
-                        &migrations,
-                        &db_migrations,
-                        target_rev,
-                        migrate,
-                    ).await;
+                let target_rev = target_rev.as_ref().unwrap_or(last.0);
+                return fixup(cli, &ctx, &migrations, &db_migrations, target_rev, migrate).await;
             }
         } else {
             return Err(anyhow::anyhow!(
                 "there is applied migration history in the database \
                  but {:?} is empty",
-                 ctx.schema_dir.join("migrations"),
-            ).with_hint(|| format!(
-                 "You might have a wrong or outdated source checkout. \
+                ctx.schema_dir.join("migrations"),
+            )
+            .with_hint(|| {
+                format!(
+                    "You might have a wrong or outdated source checkout. \
                  If you don't, consider running `edgedb migration extract` \
                  to bring the history in {0:?} in sync with the database.",
-                ctx.schema_dir.join("migrations")
-            )))?;
+                    ctx.schema_dir.join("migrations")
+                )
+            }))?;
         }
     };
     let migrations = slice(&migrations, last_db_rev, target_rev.as_ref())?;
@@ -184,8 +183,11 @@ async fn _migrate(cli: &mut Connection, _options: &Options,
                 eprintln!(
                     "{} Revision {}",
                     "Everything is up to date.".bold().light_green(),
-                    last_db_rev.map(|m| &m[..]).unwrap_or("initial")
-                        .bold().white(),
+                    last_db_rev
+                        .map(|m| &m[..])
+                        .unwrap_or("initial")
+                        .bold()
+                        .white(),
                 );
             } else {
                 eprintln!(
@@ -210,10 +212,11 @@ async fn fixup(
     db_migrations: &IndexMap<String, DBMigration>,
     target: &String,
     _options: &Migrate,
-) -> anyhow::Result<()>
-{
+) -> anyhow::Result<()> {
     let fixups = migration::read_fixups(ctx, true).await?;
-    let last_db_migration = db_migrations.last().map(|kv| kv.1)
+    let last_db_migration = db_migrations
+        .last()
+        .map(|kv| kv.1)
         .context("database migration history is empty")?;
     let last_db_mname = &last_db_migration.name;
     let Some(path) = find_path(migrations, &fixups, last_db_mname, target)? else {
@@ -221,14 +224,16 @@ async fn fixup(
             Some(MigrationGeneratedBy::DevMode) => {
                 return Err(anyhow::anyhow!(
                     "database contains Dev mode / `edgedb watch` migrations."
-                ).hint(
+                )
+                .hint(
                     "Use `edgedb migration create` followed by \
-                    `edgedb migrate --dev-mode`, or resume `edgedb watch`"
+                    `edgedb migrate --dev-mode`, or resume `edgedb watch`",
                 ))?;
             }
             Some(MigrationGeneratedBy::DDLStatement) | None => {
                 let last_fs_rev = migrations
-                    .last().map(|kv| kv.0)
+                    .last()
+                    .map(|kv| kv.0)
                     .context("filesystem migration history is empty")?;
 
                 let migrations_dir = ctx.schema_dir.join("migrations");
@@ -242,26 +247,29 @@ async fn fixup(
                         migration history in {:?} by {} revision{}",
                         migrations_dir,
                         diff.len(),
-                        if diff.len() != 1 {"s"} else {""},
-                    ).with_hint(||
+                        if diff.len() != 1 { "s" } else { "" },
+                    )
+                    .with_hint(|| {
                         if matches!(
                             last_db_migration.generated_by,
                             Some(MigrationGeneratedBy::DDLStatement)
                         ) {
                             format!(
-                            "Last recorded database migration is the result of \
+                                "Last recorded database migration is the result of \
                             a direct DDL statement. \
                             Consider running `edgedb migration extract` \
                             to bring the history in {0:?} in sync with the database.",
-                            migrations_dir)
+                                migrations_dir
+                            )
                         } else {
                             format!(
-                            "You might have a wrong or outdated source checkout. \
+                                "You might have a wrong or outdated source checkout. \
                             If you don't, consider running `edgedb migration extract` \
                             to bring the history in {0:?} in sync with the database.",
-                            migrations_dir)
+                                migrations_dir
+                            )
                         }
-                    ))?;
+                    }))?;
                 }
 
                 let mut last_common_rev: Option<&str> = None;
@@ -269,7 +277,7 @@ async fn fixup(
                 // Check if there is common history.
                 for (fs_rev, db_rev) in migrations.keys().zip(db_migrations.keys()) {
                     if fs_rev != db_rev {
-                        break
+                        break;
                     }
                     last_common_rev = Some(fs_rev);
                 }
@@ -280,25 +288,28 @@ async fn fixup(
                         migration history in {:?} at revision {:?}",
                         migrations_dir,
                         last_common_rev,
-                    ).with_hint(||
+                    )
+                    .with_hint(|| {
                         if matches!(
                             last_db_migration.generated_by,
                             Some(MigrationGeneratedBy::DDLStatement)
                         ) {
                             format!(
-                            "Last recorded database migration is the result of \
+                                "Last recorded database migration is the result of \
                             a direct DDL statement. \
                             Consider running `edgedb migration extract` \
                             to bring the history in {0:?} in sync with the database.",
-                            migrations_dir)
+                                migrations_dir
+                            )
                         } else {
                             format!(
-                            "You might have a wrong or outdated source checkout. \
+                                "You might have a wrong or outdated source checkout. \
                             If you don't, consider running `edgedb migration extract` \
                             to bring the history in {0:?} in sync with the database.",
-                            migrations_dir)
+                                migrations_dir
+                            )
                         }
-                    ))?;
+                    }))?;
                 }
 
                 // No revisions in common
@@ -306,17 +317,20 @@ async fn fixup(
                     "database applied migration history is completely \
                     unrelated to migration history in {:?}",
                     migrations_dir,
-                ).with_hint(|| format!(
-                    "You might have a wrong or outdated source checkout. \
+                )
+                .with_hint(|| {
+                    format!(
+                        "You might have a wrong or outdated source checkout. \
                     If you don't, consider running `edgedb migration extract` \
                     to bring the history in {0:?} in sync with the database.",
-                    migrations_dir,
-                )))?;
+                        migrations_dir,
+                    )
+                }))?;
             }
         }
     };
 
-    let mut operations = Vec::with_capacity(path.len()*2);
+    let mut operations = Vec::with_capacity(path.len() * 2);
     for path_elem in path {
         match path_elem {
             PathElem::Normal(f) => {
@@ -324,15 +338,21 @@ async fn fixup(
             }
             PathElem::Fixup(f) => {
                 operations.push(Operation::Apply(f));
-                let target = f.fixup_target.as_ref()
+                let target = f
+                    .fixup_target
+                    .as_ref()
                     .ok_or_else(|| bug::error("not a fixup rev"))?;
-                let last = migrations.get_index_of(target)
-                    .ok_or_else(|| anyhow::anyhow!("\
+                let last = migrations.get_index_of(target).ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "\
                         target of fixup revision {target:?} \
                         is not in a target history. Implementation of \
                         subsequent fixups is limited.\
-                    "))?;
-                let slice = migrations.get_range(..last+1)
+                    "
+                    )
+                })?;
+                let slice = migrations
+                    .get_range(..last + 1)
                     .ok_or_else(|| bug::error("range slicing error"))?;
                 operations.push(Operation::Rewrite(slice));
             }
@@ -343,33 +363,40 @@ async fn fixup(
     Ok(())
 }
 
-fn find_path<'a>(migrations: &'a IndexMap<String, MigrationFile>,
-                 fixups: &'a [MigrationFile],
-                 db_migration: &String, target: &String)
-    -> anyhow::Result<Option<Vec<PathElem<'a>>>>
-{
+fn find_path<'a>(
+    migrations: &'a IndexMap<String, MigrationFile>,
+    fixups: &'a [MigrationFile],
+    db_migration: &String,
+    target: &String,
+) -> anyhow::Result<Option<Vec<PathElem<'a>>>> {
     let mut by_target = HashMap::new();
     let mut by_source = HashMap::new();
     for mig in fixups {
         if let Some(fixup_target) = &mig.fixup_target {
-            if fixup_target != &mig.data.id {  // do not push twice
-                by_target.entry(fixup_target)
+            if fixup_target != &mig.data.id {
+                // do not push twice
+                by_target
+                    .entry(fixup_target)
                     .or_insert_with(Vec::new)
                     .push(&mig.data.parent_id);
             }
         }
-        by_target.entry(&mig.data.id)
-                .or_insert_with(Vec::new)
-                .push(&mig.data.parent_id);
-        by_source.entry(&mig.data.parent_id)
+        by_target
+            .entry(&mig.data.id)
+            .or_insert_with(Vec::new)
+            .push(&mig.data.parent_id);
+        by_source
+            .entry(&mig.data.parent_id)
             .or_insert_with(Vec::new)
             .push(mig);
     }
     for mig in migrations.values() {
-        by_target.entry(&mig.data.id)
-                .or_insert_with(Vec::new)
-                .push(&mig.data.parent_id);
-        by_source.entry(&mig.data.parent_id)
+        by_target
+            .entry(&mig.data.id)
+            .or_insert_with(Vec::new)
+            .push(&mig.data.parent_id);
+        by_source
+            .entry(&mig.data.parent_id)
             .or_insert_with(Vec::new)
             .push(mig);
     }
@@ -385,23 +412,25 @@ fn find_path<'a>(migrations: &'a IndexMap<String, MigrationFile>,
         }
         if let Some(items) = by_target.get(migration) {
             for item in items {
-                markup.insert(item, num+1);
-                queue.push_back((item, num+1));
+                markup.insert(item, num + 1);
+                queue.push_back((item, num + 1));
             }
         }
     }
     Ok(None)
 }
 
-fn backtrack<'a>(markup: &HashMap<&String, u32>,
-                 by_source: &HashMap<&String, Vec<&'a MigrationFile>>,
-                 num: u32, db_revision: &String)
-    -> anyhow::Result<Vec<PathElem<'a>>>
-{
+fn backtrack<'a>(
+    markup: &HashMap<&String, u32>,
+    by_source: &HashMap<&String, Vec<&'a MigrationFile>>,
+    num: u32,
+    db_revision: &String,
+) -> anyhow::Result<Vec<PathElem<'a>>> {
     let mut result = Vec::with_capacity(num as usize);
     let mut cur_target = db_revision;
     for idx in (0..num).rev() {
-        let sources = by_source.get(cur_target)
+        let sources = by_source
+            .get(cur_target)
             .ok_or_else(|| bug::error("failed to backtrack BFS"))?;
         for item in sources {
             if &item.data.parent_id != cur_target {
@@ -430,10 +459,12 @@ fn backtrack<'a>(markup: &HashMap<&String, u32>,
     Ok(result)
 }
 
-pub async fn apply_migrations(cli: &mut Connection,
-    migrations: &(impl AsOperations + ?Sized), ctx: &Context, single_transaction: bool)
-    -> anyhow::Result<()>
-{
+pub async fn apply_migrations(
+    cli: &mut Connection,
+    migrations: &(impl AsOperations + ?Sized),
+    ctx: &Context,
+    single_transaction: bool,
+) -> anyhow::Result<()> {
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     async_try! {
         async {
@@ -460,10 +491,12 @@ pub async fn apply_migrations(cli: &mut Connection,
     }
 }
 
-pub async fn apply_migration(cli: &mut Connection, migration: &MigrationFile)
-    -> anyhow::Result<()>
-{
-    let data = fs::read_to_string(&migration.path).await
+pub async fn apply_migration(
+    cli: &mut Connection,
+    migration: &MigrationFile,
+) -> anyhow::Result<()> {
+    let data = fs::read_to_string(&migration.path)
+        .await
         .context("error re-reading migration file")?;
     cli.execute(&data, &()).await.map_err(|err| {
         let fname = migration.path.display().to_string();
@@ -475,10 +508,11 @@ pub async fn apply_migration(cli: &mut Connection, migration: &MigrationFile)
     Ok(())
 }
 
-pub async fn apply_migrations_inner(cli: &mut Connection,
-    migrations: &(impl AsOperations + ?Sized), quiet: bool)
-    -> anyhow::Result<()>
-{
+pub async fn apply_migrations_inner(
+    cli: &mut Connection,
+    migrations: &(impl AsOperations + ?Sized),
+    quiet: bool,
+) -> anyhow::Result<()> {
     for operation in migrations.as_operations() {
         match operation {
             Operation::Apply(migration) => {
@@ -526,7 +560,9 @@ pub async fn apply_migrations_inner(cli: &mut Connection,
 }
 
 pub async fn disable_ddl(cli: &mut Connection) -> Result<(), anyhow::Error> {
-    let ddl_setting = cli.query_required_single(r#"
+    let ddl_setting = cli
+        .query_required_single(
+            r#"
         SELECT exists(
             SELECT prop := (
                     SELECT schema::ObjectType
@@ -534,23 +570,29 @@ pub async fn disable_ddl(cli: &mut Connection) -> Result<(), anyhow::Error> {
                 ).properties.name
             FILTER prop = "allow_bare_ddl"
         )
-    "#, &()).await?;
+    "#,
+            &(),
+        )
+        .await?;
     if ddl_setting {
-        cli.execute(r#"
+        cli.execute(
+            r#"
             CONFIGURE CURRENT DATABASE SET allow_bare_ddl :=
                 cfg::AllowBareDDL.NeverAllow;
-        "#, &()).await?;
+        "#,
+            &(),
+        )
+        .await?;
     }
     Ok(())
 }
 
 #[cfg(test)]
 mod test {
-    use indexmap::{indexmap, IndexMap};
-    use crate::migrations::migration::{MigrationFile, Migration};
     use super::PathElem;
+    use crate::migrations::migration::{Migration, MigrationFile};
+    use indexmap::{indexmap, IndexMap};
     use PathMock::*;
-
 
     #[derive(Debug)]
     pub enum PathMock {
@@ -563,8 +605,7 @@ mod test {
             use PathElem as E;
 
             match (other, self) {
-                (Fixup(a), E::Fixup(b))
-                if Some(*a) == b.fixup_target.as_deref() => true,
+                (Fixup(a), E::Fixup(b)) if Some(*a) == b.fixup_target.as_deref() => true,
                 (Normal(a), E::Normal(b)) if a == &b.data.id => true,
                 _ => false,
             }
@@ -575,21 +616,22 @@ mod test {
             use PathElem as E;
 
             match (self, other) {
-                (Fixup(a), E::Fixup(b))
-                if Some(*a) == b.fixup_target.as_deref() => true,
+                (Fixup(a), E::Fixup(b)) if Some(*a) == b.fixup_target.as_deref() => true,
                 (Normal(a), E::Normal(b)) if a == &b.data.id => true,
                 _ => false,
             }
         }
     }
 
-    fn find_path<'a>(migrations: &'a IndexMap<String, MigrationFile>,
-                     fixups: &'a [MigrationFile],
-                     db: &str, target: &str)
-        -> Vec<PathElem<'a>>
-    {
+    fn find_path<'a>(
+        migrations: &'a IndexMap<String, MigrationFile>,
+        fixups: &'a [MigrationFile],
+        db: &str,
+        target: &str,
+    ) -> Vec<PathElem<'a>> {
         super::find_path(migrations, fixups, &db.into(), &target.into())
-            .expect("no error").expect("path found")
+            .expect("no error")
+            .expect("path found")
     }
 
     fn normal(name: &str, parent: &str) -> MigrationFile {
@@ -642,12 +684,15 @@ mod test {
             "m123".into() => normal("m123", "m122"),
             "m124".into() => normal("m124", "m123"),
         };
-        let fixups = vec![
-            fixup("m121", "m105")
-        ];
+        let fixups = vec![fixup("m121", "m105")];
         assert_eq!(
             find_path(&migrations, &fixups, "m105", "m124"),
-            vec![Fixup("m121"), Normal("m122"), Normal("m123"), Normal("m124")],
+            vec![
+                Fixup("m121"),
+                Normal("m122"),
+                Normal("m123"),
+                Normal("m124")
+            ],
         );
         assert_eq!(
             find_path(&migrations, &fixups, "m105", "m123"),
@@ -670,10 +715,7 @@ mod test {
             "m123".into() => normal("m123", "m122"),
             "m124".into() => normal("m124", "m123"),
         };
-        let fixups = vec![
-            fixup("m105", "m103"),
-            fixup("m121", "m105"),
-        ];
+        let fixups = vec![fixup("m105", "m103"), fixup("m121", "m105")];
         assert_eq!(
             find_path(&migrations, &fixups, "m103", "m123"),
             vec![Fixup("m105"), Fixup("m121"), Normal("m122"), Normal("m123")],
@@ -692,9 +734,7 @@ mod test {
             "m105".into() => normal("m105", "m104"),
             "m106".into() => normal("m106", "m105"),
         };
-        let fixups = vec![
-            fixup("m105", "m102")
-        ];
+        let fixups = vec![fixup("m105", "m102")];
         assert_eq!(
             find_path(&migrations, &fixups, "m101", "m106"),
             vec![Normal("m102"), Fixup("m105"), Normal("m106")],

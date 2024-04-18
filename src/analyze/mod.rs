@@ -1,35 +1,31 @@
+use std::borrow::Cow;
 use std::env;
 use std::path::Path;
-use std::borrow::Cow;
 
 use anyhow::Context;
 use tokio::fs;
 use tokio::io::{self, AsyncWriteExt};
 
-use edgedb_errors::{ParameterTypeMismatchError};
+use edgedb_errors::ParameterTypeMismatchError;
 use edgedb_tokio::raw::Description;
 
 use crate::classify;
 use crate::commands::parser::Analyze;
 use crate::connect::Connection;
+use crate::interactive::QueryError;
 use crate::platform::tmp_file_path;
 use crate::repl::{self, LastAnalyze};
 use crate::variables::input_variables;
-use crate::interactive::QueryError;
 
-mod model;
-mod tree;
-mod table;
 mod contexts;
+mod model;
+mod table;
+mod tree;
 
 pub use model::Analysis;
 
-
-pub async fn interactive(prompt: &mut repl::State, query: &str)
-    -> anyhow::Result<()>
-{
-    let cli = prompt.connection.as_mut()
-        .expect("connection established");
+pub async fn interactive(prompt: &mut repl::State, query: &str) -> anyhow::Result<()> {
+    let cli = prompt.connection.as_mut().expect("connection established");
     let data = match cli.query_required_single::<String, _>(query, &()).await {
         Ok(data) => data,
         Err(e) if e.is::<ParameterTypeMismatchError>() => {
@@ -37,8 +33,9 @@ pub async fn interactive(prompt: &mut repl::State, query: &str)
                 return Err(e)?;
             };
             let indesc = data_description.input()?;
-            let input = match
-                cli.ping_while(input_variables(&indesc, &mut prompt.prompt)).await
+            let input = match cli
+                .ping_while(input_variables(&indesc, &mut prompt.prompt))
+                .await
             {
                 Ok(input) => input,
                 Err(e) => {
@@ -47,20 +44,21 @@ pub async fn interactive(prompt: &mut repl::State, query: &str)
                     return Err(QueryError)?;
                 }
             };
-            cli.query_required_single::<String, _>(query, &input).await?
+            cli.query_required_single::<String, _>(query, &input)
+                .await?
         }
         Err(e) => return Err(e)?,
     };
 
     if env::var_os("_EDGEDB_ANALYZE_DEBUG_JSON")
-        .map(|x| !x.is_empty()).unwrap_or(false)
+        .map(|x| !x.is_empty())
+        .unwrap_or(false)
     {
         let json: serde_json::Value = serde_json::from_str(&data).unwrap();
         println!("JSON: {}", json);
     }
     let jd = &mut serde_json::Deserializer::from_str(&data);
-    let output = serde_path_to_error::deserialize(jd)
-        .context("parsing explain output")?;
+    let output = serde_path_to_error::deserialize(jd).context("parsing explain output")?;
     let output = contexts::preprocess(output);
 
     let analyze = prompt.last_analyze.insert(LastAnalyze {
@@ -71,17 +69,16 @@ pub async fn interactive(prompt: &mut repl::State, query: &str)
     Ok(())
 }
 
-pub async fn render_expanded_explain(data: &Analysis) -> anyhow::Result<()>
-{
+pub async fn render_expanded_explain(data: &Analysis) -> anyhow::Result<()> {
     tree::print_expanded_tree(data);
     Ok(())
 }
 
-fn render_explain(explain: &Analysis) -> anyhow::Result<()>
-{
+fn render_explain(explain: &Analysis) -> anyhow::Result<()> {
     contexts::print(explain);
     if env::var_os("_EDGEDB_ANALYZE_DEBUG_PLAN")
-        .map(|x| !x.is_empty()).unwrap_or(false)
+        .map(|x| !x.is_empty())
+        .unwrap_or(false)
     {
         tree::print_debug_plan(explain);
     }
@@ -98,13 +95,11 @@ async fn is_special(path: &Path) -> anyhow::Result<bool> {
     }
 }
 
-pub async fn command(cli: &mut Connection, options: &Analyze)
-    -> anyhow::Result<()>
-{
+pub async fn command(cli: &mut Connection, options: &Analyze) -> anyhow::Result<()> {
     let data = if let Some(json_path) = &options.read_json {
-        fs::read_to_string(&json_path).await
+        fs::read_to_string(&json_path)
+            .await
             .with_context(|| format!("cannot read {json_path:?}"))?
-
     } else {
         let Some(inner_query) = &options.query else {
             anyhow::bail!("Query argument is required");
@@ -129,18 +124,21 @@ pub async fn command(cli: &mut Connection, options: &Analyze)
                 let mut out = fs::File::create(&out_path).await?;
                 out.write_all(data.as_bytes()).await?;
                 out.flush().await
-            }.await.with_context(|| format!("error writing to {out_path:?}"))?;
+            }
+            .await
+            .with_context(|| format!("error writing to {out_path:?}"))?;
         } else {
             let tmp = tmp_file_path(out_path);
             async {
                 let mut out = fs::File::create(&tmp).await?;
                 out.write_all(data.as_bytes()).await?;
                 out.flush().await
-            }.await.with_context(|| format!("error writing to {tmp:?}"))?;
+            }
+            .await
+            .with_context(|| format!("error writing to {tmp:?}"))?;
             fs::rename(&tmp, &out_path)
-                .await.with_context(|| format!(
-                    "rename error {tmp:?} -> {out_path:?}"
-                ))?;
+                .await
+                .with_context(|| format!("rename error {tmp:?} -> {out_path:?}"))?;
         }
     } else {
         let jd = &mut serde_json::Deserializer::from_str(&data);

@@ -9,18 +9,17 @@ use crate::connect::Connection;
 use crate::error_display::print_query_error;
 use crate::migrations::context::Context;
 use crate::migrations::grammar::parse_migration;
-use crate::migrations::migration::{read_names, file_num};
+use crate::migrations::migration::{file_num, read_names};
 use crate::migrations::options::MigrationEdit;
-use crate::platform::{tmp_file_path, spawn_editor};
+use crate::platform::{spawn_editor, tmp_file_path};
 use crate::print::{echo, err_marker, Highlight};
 use crate::question::Choice;
-
 
 #[derive(Copy, Clone)]
 enum OldAction {
     Restore,
     Replace,
-    Diff
+    Diff,
 }
 
 #[derive(Copy, Clone)]
@@ -69,18 +68,24 @@ fn print_diff(path1: &Path, data1: &str, path2: &Path, data2: &str) {
 }
 
 #[tokio::main(flavor = "current_thread")]
-pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
-    -> Result<(), anyhow::Error>
-{
+pub async fn edit_no_check(
+    _common: &Options,
+    options: &MigrationEdit,
+) -> Result<(), anyhow::Error> {
     let ctx = Context::from_project_or_config(&options.cfg, false).await?;
     // TODO(tailhook) do we have to make the full check of whether there are no
     // gaps and parent revisions are okay?
-    let (_n, path) = read_names(&ctx).await?
+    let (_n, path) = read_names(&ctx)
+        .await?
         .into_iter()
         .filter_map(|p| file_num(&p).map(|n| (n, p)))
         .max_by(|(an, _), (bn, _)| an.cmp(bn))
-        .ok_or_else(|| anyhow::anyhow!("no migration exists. \
-                                       Run `edgedb migration create`"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "no migration exists. \
+                                       Run `edgedb migration create`"
+            )
+        })?;
 
     if !options.non_interactive {
         spawn_editor(path.as_ref()).await?;
@@ -104,9 +109,7 @@ pub async fn edit_no_check(_common: &Options, options: &MigrationEdit)
     Ok(())
 }
 
-async fn check_migration(cli: &mut Connection, text: &str, path: &Path)
-    -> anyhow::Result<()>
-{
+async fn check_migration(cli: &mut Connection, text: &str, path: &Path) -> anyhow::Result<()> {
     cli.execute("START TRANSACTION", &()).await?;
     let res = cli.execute(text, &()).await.map_err(|err| {
         let fname = path.display().to_string();
@@ -115,35 +118,44 @@ async fn check_migration(cli: &mut Connection, text: &str, path: &Path)
             Err(err) => err,
         }
     });
-    cli.execute("ROLLBACK", &()).await
+    cli.execute("ROLLBACK", &())
+        .await
         .map_err(|e| log::warn!("Error rolling back the transaction: {:#}", e))
         .ok();
     res.map(|_| ())
 }
 
-pub async fn edit(cli: &mut Connection,
-                  common: &Options, options: &MigrationEdit)
-    -> anyhow::Result<()>
-{
+pub async fn edit(
+    cli: &mut Connection,
+    common: &Options,
+    options: &MigrationEdit,
+) -> anyhow::Result<()> {
     let old_state = cli.set_ignore_error_state();
     let res = _edit(cli, common, options).await;
     cli.restore_state(old_state);
     res
 }
 
-async fn _edit(cli: &mut Connection,
-                  _common: &Options, options: &MigrationEdit)
-    -> anyhow::Result<()>
-{
+async fn _edit(
+    cli: &mut Connection,
+    _common: &Options,
+    options: &MigrationEdit,
+) -> anyhow::Result<()> {
     let ctx = Context::from_project_or_config(&options.cfg, false).await?;
     // TODO(tailhook) do we have to make the full check of whether there are no
     // gaps and parent revisions are okay?
-    let (n, path) = cli.ping_while(read_names(&ctx)).await?
+    let (n, path) = cli
+        .ping_while(read_names(&ctx))
+        .await?
         .into_iter()
         .filter_map(|p| file_num(&p).map(|n| (n, p)))
         .max_by(|(an, _), (bn, _)| an.cmp(bn))
-        .ok_or_else(|| anyhow::anyhow!("no migration exists. \
-                                       Run `edgedb migration create`"))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "no migration exists. \
+                                       Run `edgedb migration create`"
+            )
+        })?;
 
     if options.non_interactive {
         let text = cli.ping_while(fs::read_to_string(&path)).await?;
@@ -161,22 +173,30 @@ async fn _edit(cli: &mut Connection,
                 fs::write(&tmp_file, &new_data).await?;
                 fs::rename(&tmp_file, &path).await?;
                 anyhow::Ok(())
-            }).await?;
+            })
+            .await?;
             echo!("Updated migration id to", new_id.emphasize());
         } else {
             echo!("Id", migration.id.emphasize(), "is already correct.");
         }
     } else {
-        let temp_path = path.parent().unwrap()
+        let temp_path = path
+            .parent()
+            .unwrap()
             .join(format!(".editing.{}.edgeql", n));
         if cli.ping_while(fs::metadata(&temp_path)).await.is_ok() {
             loop {
-                let mut q = Choice::new(
-                    "Previously edited file exists. Restore?");
-                q.option(OldAction::Restore, &["y", "yes"],
-                         format!("use previously edited {:?}", temp_path));
-                q.option(OldAction::Replace, &["n", "no"],
-                         format!("use original {:?} instead", path));
+                let mut q = Choice::new("Previously edited file exists. Restore?");
+                q.option(
+                    OldAction::Restore,
+                    &["y", "yes"],
+                    format!("use previously edited {:?}", temp_path),
+                );
+                q.option(
+                    OldAction::Replace,
+                    &["n", "no"],
+                    format!("use original {:?} instead", path),
+                );
                 q.option(OldAction::Diff, &["d", "diff"], "show diff");
                 match cli.ping_while(q.async_ask()).await? {
                     OldAction::Restore => break,
@@ -192,9 +212,11 @@ async fn _edit(cli: &mut Connection,
                             let modif = fs::read_to_string(&temp_path).await?;
                             unblock(move || {
                                 print_diff(&path, &normal, &temp_path, &modif);
-                            }).await?;
+                            })
+                            .await?;
                             anyhow::Ok(())
-                        }).await?;
+                        })
+                        .await?;
                     }
                 }
             }
@@ -203,22 +225,29 @@ async fn _edit(cli: &mut Connection,
         }
         'edit: loop {
             cli.ping_while(spawn_editor(temp_path.as_ref())).await?;
-            let mut new_data =
-                cli.ping_while(fs::read_to_string(&temp_path)).await?;
+            let mut new_data = cli.ping_while(fs::read_to_string(&temp_path)).await?;
             let migration = match parse_migration(&new_data) {
                 Ok(migr) => migr,
                 Err(e) => {
                     echo!(err_marker(), "error parsing file:", e);
                     loop {
                         let mut q = Choice::new("Edit again?");
-                        q.option(InvalidAction::Edit, &["y", "yes"][..],
-                                 "edit the file again");
-                        q.option(InvalidAction::Diff, &["d", "diff"][..],
-                                 "show diff");
-                        q.option(InvalidAction::Restore, &["r", "restore"][..],
-                                 "restore original and abort");
-                        q.option(InvalidAction::Abort, &["q", "quit"][..],
-                                 "abort and keep temporary file");
+                        q.option(
+                            InvalidAction::Edit,
+                            &["y", "yes"][..],
+                            "edit the file again",
+                        );
+                        q.option(InvalidAction::Diff, &["d", "diff"][..], "show diff");
+                        q.option(
+                            InvalidAction::Restore,
+                            &["r", "restore"][..],
+                            "restore original and abort",
+                        );
+                        q.option(
+                            InvalidAction::Abort,
+                            &["q", "quit"][..],
+                            "abort and keep temporary file",
+                        );
                         match cli.ping_while(q.async_ask()).await? {
                             InvalidAction::Edit => continue 'edit,
                             InvalidAction::Diff => {
@@ -228,11 +257,12 @@ async fn _edit(cli: &mut Connection,
                                     let new_data = new_data.clone();
                                     let data = fs::read_to_string(&path).await?;
                                     unblock(move || {
-                                        print_diff(&path, &data,
-                                                   &temp_path, &new_data);
-                                    }).await?;
+                                        print_diff(&path, &data, &temp_path, &new_data);
+                                    })
+                                    .await?;
                                     anyhow::Ok(())
-                                }).await?;
+                                })
+                                .await?;
                             }
                             InvalidAction::Restore => {
                                 fs::copy(&path, &temp_path).await?;
@@ -259,28 +289,36 @@ async fn _edit(cli: &mut Connection,
                     echo!(err_marker(), "error checking migration:", e);
                     loop {
                         let mut q = Choice::new("Edit again?");
-                        q.option(FailAction::Edit, &["y", "yes"][..],
-                                 "edit the file again");
-                        q.option(FailAction::Force, &["f", "force"][..],
-                                 "force overwrite and quit");
-                        q.option(FailAction::Diff, &["d", "diff"][..],
-                                 "show diff");
-                        q.option(FailAction::Restore, &["r", "restore"][..],
-                                 "restore original and abort");
-                        q.option(FailAction::Abort, &["q", "quit"][..],
-                                 "abort and keep temporary file for later");
+                        q.option(FailAction::Edit, &["y", "yes"][..], "edit the file again");
+                        q.option(
+                            FailAction::Force,
+                            &["f", "force"][..],
+                            "force overwrite and quit",
+                        );
+                        q.option(FailAction::Diff, &["d", "diff"][..], "show diff");
+                        q.option(
+                            FailAction::Restore,
+                            &["r", "restore"][..],
+                            "restore original and abort",
+                        );
+                        q.option(
+                            FailAction::Abort,
+                            &["q", "quit"][..],
+                            "abort and keep temporary file for later",
+                        );
                         match q.async_ask().await? {
                             FailAction::Edit => continue 'edit,
                             FailAction::Force => {
                                 fs::rename(&temp_path, &path).await?;
-                                anyhow::bail!("Done. Replaced {:?} with \
+                                anyhow::bail!(
+                                    "Done. Replaced {:?} with \
                                                possibly invalid migration.",
-                                               std::path::Path::new(&path));
+                                    std::path::Path::new(&path)
+                                );
                             }
                             FailAction::Diff => {
                                 let data = fs::read_to_string(&path).await?;
-                                print_diff(&path, &data,
-                                           &temp_path, &new_data);
+                                print_diff(&path, &data, &temp_path, &new_data);
                             }
                             FailAction::Restore => {
                                 fs::copy(&path, &temp_path).await?;
@@ -311,13 +349,16 @@ fn default() {
     ";
     let migration = parse_migration(original).unwrap();
     let new_id = migration.expected_id(original).unwrap();
-    assert_eq!(migration.replace_id(original, &new_id), "
+    assert_eq!(
+        migration.replace_id(original, &new_id),
+        "
         CREATE MIGRATION m1uaw5ik4wg4w33jj35sjgdgg3pai23ysqy5pi7xmxqnd3gtneb57q
         ONTO m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq
         {
             CREATE TYPE X;
         };
-    ");
+    "
+    );
 }
 
 #[test]
@@ -331,12 +372,15 @@ fn space() {
     ";
     let migration = parse_migration(original).unwrap();
     let new_id = migration.expected_id(original).unwrap();
-    assert_eq!(migration.replace_id(original, &new_id), "
+    assert_eq!(
+        migration.replace_id(original, &new_id),
+        "
         CREATE MIGRATION \
             m1uaw5ik4wg4w33jj35sjgdgg3pai23ysqy5pi7xmxqnd3gtneb57q \
             ONTO m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq
         {
             CREATE TYPE X;
         };
-    ");
+    "
+    );
 }

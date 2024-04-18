@@ -41,13 +41,25 @@ pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Resul
             ("Host", creds.host.unwrap_or("localhost".to_string())),
             ("Port", creds.port.to_string()),
             ("User", creds.user),
-            ("Password", creds.password.map(|_| "<hidden>".to_string()).unwrap_or("<none>".to_string())),
-            ("Database", creds.database.unwrap_or("<default>".to_string())),
+            (
+                "Password",
+                creds
+                    .password
+                    .map(|_| "<hidden>".to_string())
+                    .unwrap_or("<none>".to_string()),
+            ),
+            (
+                "Database",
+                creds.database.unwrap_or("<default>".to_string()),
+            ),
             ("TLS Security", format!("{:?}", creds.tls_security)),
         ]);
         None
     } {
-        stdout().lock().write_all((result + "\n").as_bytes()).expect("stdout write succeeds");
+        stdout()
+            .lock()
+            .write_all((result + "\n").as_bytes())
+            .expect("stdout write succeeds");
     }
     Ok(())
 }

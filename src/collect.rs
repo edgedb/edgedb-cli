@@ -17,7 +17,8 @@ impl<T> Collector<T> {
         Sender(self.sender.clone())
     }
     pub fn add(&self, value: T) {
-        self.sender.send(value)
+        self.sender
+            .send(value)
             .expect("can always send in an unbounded channel")
     }
     pub fn list(self) -> Vec<T> {

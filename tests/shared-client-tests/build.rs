@@ -159,7 +159,10 @@ static MUTEX: Mutex<()> = Mutex::new(());
             if let Some(dsn) = opts.get("dsn") {
                 if let Some(dsn) = dsn.as_str() {
                     // servo/rust-url#424
-                    if dsn.contains("%25eth0") || dsn.starts_with("edgedbadmin://") || dsn.contains("host=/") {
+                    if dsn.contains("%25eth0")
+                        || dsn.starts_with("edgedbadmin://")
+                        || dsn.contains("host=/")
+                    {
                         should_panic = true;
                     }
                 }
