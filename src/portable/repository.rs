@@ -216,13 +216,13 @@ fn filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
 
 fn _filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
     let iref = pkg.installrefs.iter().find(|r| {
-        (r.kind == "application/x-tar"
+        r.kind == "application/x-tar"
             && r.encoding.as_ref().map(|x| &x[..]) == Some("zstd")
             && r.verification
                 .blake2b
                 .as_ref()
                 .map(valid_hash)
-                .unwrap_or(false))
+                .unwrap_or(false)
     })?;
     Some(PackageInfo {
         version: pkg.version.parse().ok()?,
@@ -246,21 +246,21 @@ fn _filter_cli_package(pkg_root: &Url, pkg: &PackageData) -> Option<CliPackageIn
         .installrefs
         .iter()
         .find(|r| {
-            (r.encoding.as_ref().map(|x| &x[..]) == Some("zstd")
+            r.encoding.as_ref().map(|x| &x[..]) == Some("zstd")
                 && r.verification
                     .blake2b
                     .as_ref()
                     .map(valid_hash)
-                    .unwrap_or(false))
+                    .unwrap_or(false)
         })
         .or_else(|| {
             pkg.installrefs.iter().find(|r| {
-                (r.encoding.as_ref().map(|x| &x[..]) == Some("identity")
+                r.encoding.as_ref().map(|x| &x[..]) == Some("identity")
                     && r.verification
                         .blake2b
                         .as_ref()
                         .map(valid_hash)
-                        .unwrap_or(false))
+                        .unwrap_or(false)
             })
         })?;
     let cmpr = if iref.encoding.as_ref().map(|x| &x[..]) == Some("zstd") {
