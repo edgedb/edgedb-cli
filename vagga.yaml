@@ -105,8 +105,7 @@ commands:
     run:
     - cargo
     - test
-    - --test=portable_shared
-    - --features=portable_tests
+    - --test=shared_client_tests
     environ:
       RUST_TEST_THREADS: 1
     volumes:
