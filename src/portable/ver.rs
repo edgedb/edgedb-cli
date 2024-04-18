@@ -1,15 +1,15 @@
+use std::cmp::Ordering;
 use std::fmt;
 use std::str::FromStr;
-use std::cmp::Ordering;
 
 use anyhow::Context;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::connect::Connection;
-use crate::process::{self, IntoArg};
 use crate::portable::repository::Query;
 use crate::print::{echo, Highlight};
+use crate::process::{self, IntoArg};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Build(Box<str>);
@@ -49,33 +49,37 @@ pub enum FilterMinor {
 }
 
 static BUILD: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^\d+\.\d+(?:-(?:alpha|beta|rc|dev)\.\d+)?\+(?:[a-f0-9]{7}|local)$"#)
-        .unwrap()
+    Regex::new(r#"^\d+\.\d+(?:-(?:alpha|beta|rc|dev)\.\d+)?\+(?:[a-f0-9]{7}|local)$"#).unwrap()
 });
 
 static SPECIFIC: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^(\d+)(?:\.0-(alpha|beta|rc|dev)\.(\d+)|\.(\d+))(?:$|\+)"#)
-        .unwrap()
+    Regex::new(r#"^(\d+)(?:\.0-(alpha|beta|rc|dev)\.(\d+)|\.(\d+))(?:$|\+)"#).unwrap()
 });
 
 static FILTER: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?x)
+    Regex::new(
+        r#"(?x)
         ^(?P<marker>=)?
         (?P<major>\d+)
         (?:
              \.0-(?P<dev>alpha|beta|rc)\.(?P<dev_num>\d+) |
              \.(?P<minor>\d+)
         )?$
-    "#).unwrap()
+    "#,
+    )
+    .unwrap()
 });
 static OLD_FILTER: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"(?x)
+    Regex::new(
+        r#"(?x)
         ^(?P<major>\d+)
         (?:
             (?:\.0)?-(?P<dev>alpha|beta|rc)\.?(?P<dev_num>\d+) |
             \.(?P<minor>\d+)
         )?$
-    "#).unwrap()
+    "#,
+    )
+    .unwrap()
 });
 
 impl FromStr for Build {
@@ -91,10 +95,11 @@ impl FromStr for Build {
 impl FromStr for Specific {
     type Err = anyhow::Error;
     fn from_str(value: &str) -> anyhow::Result<Specific> {
-        let m = SPECIFIC.captures(value)
-            .context("unsupported version format.\n\t\
+        let m = SPECIFIC.captures(value).context(
+            "unsupported version format.\n\t\
                     Examples: `1.15`, `7.0`, `4.0-rc.1`.\n\t\
-                    Use `edgedb server list-versions` to see all available versions.")?;
+                    Use `edgedb server list-versions` to see all available versions.",
+        )?;
         let major = m.get(1).unwrap().as_str().parse()?;
         let g3 = m.get(3).map(|m| m.as_str().parse()).transpose()?;
         let minor = match m.get(2).map(|m| m.as_str()) {
@@ -103,8 +108,7 @@ impl FromStr for Specific {
             Some("rc") => MinorVersion::Rc(g3.unwrap()),
             Some("dev") => MinorVersion::Dev(g3.unwrap()),
             Some(_) => unreachable!(),
-            None => MinorVersion::Minor(
-                m.get(4).map(|m| m.as_str().parse()).transpose()?.unwrap()),
+            None => MinorVersion::Minor(m.get(4).map(|m| m.as_str().parse()).transpose()?.unwrap()),
         };
         Ok(Specific { major, minor })
     }
@@ -121,10 +125,12 @@ impl FromStr for Filter {
                     deprecated = true;
                     m
                 }
-                None => anyhow::bail!("unsupported version format.\n\t\
+                None => anyhow::bail!(
+                    "unsupported version format.\n\t\
                     Examples: `1.15`, `7`, `4.0-rc.1`.\n\t\
-                    Use `edgedb server list-versions` to see all available versions."),
-            }
+                    Use `edgedb server list-versions` to see all available versions."
+                ),
+            },
         };
         let major = m.name("major").unwrap().as_str().parse()?;
         let g3 = m.name("dev_num").map(|m| m.as_str().parse()).transpose()?;
@@ -133,16 +139,25 @@ impl FromStr for Filter {
             Some("beta") => g3.map(FilterMinor::Beta),
             Some("rc") => g3.map(FilterMinor::Rc),
             Some(_) => unreachable!(),
-            None => m.name("minor").map(|m| m.as_str().parse()).transpose()?
-                    .map(FilterMinor::Minor),
+            None => m
+                .name("minor")
+                .map(|m| m.as_str().parse())
+                .transpose()?
+                .map(FilterMinor::Minor),
         };
-        let exact = m.name("marker")
-            .map(|m| m.as_str() == "=").unwrap_or(false)
-            && minor.is_some();
-        let result = Filter { major, minor, exact };
+        let exact = m.name("marker").map(|m| m.as_str() == "=").unwrap_or(false) && minor.is_some();
+        let result = Filter {
+            major,
+            minor,
+            exact,
+        };
         if deprecated {
-            log::warn!("Version numbers following {:?} format are deprecated. \
-                        Use: {:?}.", value, result.to_string());
+            log::warn!(
+                "Version numbers following {:?} format are deprecated. \
+                        Use: {:?}.",
+                value,
+                result.to_string()
+            );
         }
         Ok(result)
     }
@@ -198,8 +213,16 @@ impl Specific {
 
 impl Filter {
     pub fn with_exact(self) -> Filter {
-        let Filter { major, minor, exact: _ } = self;
-        Filter { major, minor, exact: true }
+        let Filter {
+            major,
+            minor,
+            exact: _,
+        } = self;
+        Filter {
+            major,
+            minor,
+            exact: true,
+        }
     }
 
     pub fn matches(&self, bld: &Build) -> bool {
@@ -207,8 +230,8 @@ impl Filter {
     }
 
     pub fn matches_exact(&self, spec: &Specific) -> bool {
-        use MinorVersion as M;
         use FilterMinor as Q;
+        use MinorVersion as M;
 
         if spec.major != self.major {
             return false;
@@ -225,8 +248,8 @@ impl Filter {
     }
 
     pub fn matches_specific(&self, spec: &Specific) -> bool {
-        use MinorVersion as M;
         use FilterMinor as Q;
+        use MinorVersion as M;
 
         if self.exact {
             self.matches_exact(spec)
@@ -251,7 +274,7 @@ impl Filter {
                 (M::Alpha(v), Q::Alpha(q)) => v >= q,
                 (M::Beta(_), Q::Alpha(_)) => true,
                 (M::Rc(_), Q::Alpha(_)) => true,
-                (M::Beta(v), Q::Beta(q))  => v >= q,
+                (M::Beta(v), Q::Beta(q)) => v >= q,
                 (M::Rc(_), Q::Beta(_)) => true,
                 (M::Rc(v), Q::Rc(q)) => v >= q,
                 (_, _) => false,
@@ -349,9 +372,7 @@ impl Ord for Semver {
     }
 }
 
-pub async fn check_client(cli: &mut Connection, minimum_version: &Build)
-    -> anyhow::Result<bool>
-{
+pub async fn check_client(cli: &mut Connection, minimum_version: &Build) -> anyhow::Result<bool> {
     let ver = cli.get_version().await?;
     Ok(ver.is_nightly() || ver >= minimum_version)
 }
@@ -366,27 +387,38 @@ pub fn print_version_hint(version: &Specific, ver_query: &Query) {
     }
 }
 
-
 #[test]
 fn filter() {
-    assert_eq!("2".parse::<Filter>().unwrap(), Filter {
-        major: 2,
-        minor: None,
-        exact: false,
-    });
-    assert_eq!("2.3".parse::<Filter>().unwrap(), Filter {
-        major: 2,
-        minor: Some(FilterMinor::Minor(3)),
-        exact: false,
-    });
-    assert_eq!("=2.3".parse::<Filter>().unwrap(), Filter {
-        major: 2,
-        minor: Some(FilterMinor::Minor(3)),
-        exact: true,
-    });
-    assert_eq!("=2".parse::<Filter>().unwrap(), Filter {
-        major: 2,
-        minor: None,
-        exact: false,
-    });
+    assert_eq!(
+        "2".parse::<Filter>().unwrap(),
+        Filter {
+            major: 2,
+            minor: None,
+            exact: false,
+        }
+    );
+    assert_eq!(
+        "2.3".parse::<Filter>().unwrap(),
+        Filter {
+            major: 2,
+            minor: Some(FilterMinor::Minor(3)),
+            exact: false,
+        }
+    );
+    assert_eq!(
+        "=2.3".parse::<Filter>().unwrap(),
+        Filter {
+            major: 2,
+            minor: Some(FilterMinor::Minor(3)),
+            exact: true,
+        }
+    );
+    assert_eq!(
+        "=2".parse::<Filter>().unwrap(),
+        Filter {
+            major: 2,
+            minor: None,
+            exact: false,
+        }
+    );
 }

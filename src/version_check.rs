@@ -1,41 +1,40 @@
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 use anyhow::Context as _;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::cli;
 use crate::platform;
-use crate::portable::ver;
 use crate::portable::repository;
-
+use crate::portable::ver;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Cache {
-    #[serde(with="humantime_serde")]
+    #[serde(with = "humantime_serde")]
     timestamp: SystemTime,
-    #[serde(with="humantime_serde")]
+    #[serde(with = "humantime_serde")]
     expires: SystemTime,
-    #[serde(with="serde_str::opt")]
+    #[serde(with = "serde_str::opt")]
     version: Option<ver::Semver>,
 }
 
 fn cache_age() -> Duration {
-    Duration::from_secs(thread_rng().gen_range(16*3600..32*3600))
+    Duration::from_secs(thread_rng().gen_range(16 * 3600..32 * 3600))
 }
 
 fn negative_cache_age() -> Duration {
-    Duration::from_secs(thread_rng().gen_range(6*3600..12*3600))
+    Duration::from_secs(thread_rng().gen_range(6 * 3600..12 * 3600))
 }
-
 
 impl Cache {
     fn channel_matches(&self, chan: &repository::Channel) -> bool {
-        self.version.as_ref()
+        self.version
+            .as_ref()
             .map(|v| cli::upgrade::channel_of(&v.to_string()) == *chan)
             .unwrap_or(true) // negative cache always matches
     }
@@ -59,11 +58,15 @@ fn newer_warning(ver: &ver::Semver) {
         log::warn!(
             "Newer version of edgedb tool exists {} (current {}). \
                 To upgrade run `edgedb cli upgrade`",
-            ver, env!("CARGO_PKG_VERSION"));
+            ver,
+            env!("CARGO_PKG_VERSION")
+        );
     } else {
         log::warn!(
             "Newer version of edgedb tool exists {} (current {})",
-            ver, env!("CARGO_PKG_VERSION"));
+            ver,
+            env!("CARGO_PKG_VERSION")
+        );
     }
 }
 
@@ -71,9 +74,7 @@ fn _check(cache_dir: &Path, strict: bool) -> anyhow::Result<()> {
     let self_version = cli::upgrade::self_version()?;
     let channel = cli::upgrade::channel();
     match read_cache(cache_dir) {
-        Ok(cache) if cache.expires > SystemTime::now()
-                  && cache.channel_matches(&channel)
-        => {
+        Ok(cache) if cache.expires > SystemTime::now() && cache.channel_matches(&channel) => {
             log::debug!("Cached version {:?}", cache.version);
             if let Some(ver) = cache.version {
                 if self_version < ver {
@@ -82,7 +83,7 @@ fn _check(cache_dir: &Path, strict: bool) -> anyhow::Result<()> {
             }
             return Ok(());
         }
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             if strict {
                 return Err(e).context("error reading CLI version cache");
@@ -92,24 +93,28 @@ fn _check(cache_dir: &Path, strict: bool) -> anyhow::Result<()> {
     }
     let timestamp = SystemTime::now();
     let pkg = repository::get_cli_packages(channel, Duration::new(1, 0))
-        .map_err(|e| log::info!("cli version check failed: {e:#}")).ok()
-        .and_then(|pkgs| {
-            pkgs.into_iter()
-            .map(|pkg| pkg.version)
-            .max()
-        });
+        .map_err(|e| log::info!("cli version check failed: {e:#}"))
+        .ok()
+        .and_then(|pkgs| pkgs.into_iter().map(|pkg| pkg.version).max());
     if let Some(ver) = &pkg {
         if &self_version < ver {
             newer_warning(ver);
         }
     }
     log::debug!("Remote version {:?}", pkg);
-    write_cache(cache_dir, &Cache {
-        timestamp,
-        expires: timestamp +
-            if pkg.is_some() { cache_age() } else { negative_cache_age() },
-        version: pkg.clone(),
-    })?;
+    write_cache(
+        cache_dir,
+        &Cache {
+            timestamp,
+            expires: timestamp
+                + if pkg.is_some() {
+                    cache_age()
+                } else {
+                    negative_cache_age()
+                },
+            version: pkg.clone(),
+        },
+    )?;
     Ok(())
 }
 
@@ -125,12 +130,16 @@ pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
         log::debug!("Skipping version check due to --no-cli-update-check");
         return Ok(());
     }
-    match env::var("EDGEDB_RUN_VERSION_CHECK").as_ref().map(|x| &x[..]) {
+    match env::var("EDGEDB_RUN_VERSION_CHECK")
+        .as_ref()
+        .map(|x| &x[..])
+    {
         Ok("never") => {
             log::debug!(
                 "EDGEDB_RUN_VERSION_CHECK set to `never`, \
                 skipping version check
-                ");
+                "
+            );
             return Ok(());
         }
         Ok("cached") | Ok("default") => {}
@@ -138,15 +147,19 @@ pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
             strict = true;
         }
         Ok(value) => {
-            anyhow::bail!("unexpected value for EDGEDB_RUN_VERSION_CHECK: {:?} \
+            anyhow::bail!(
+                "unexpected value for EDGEDB_RUN_VERSION_CHECK: {:?} \
                            Options: never, cached, strict, default.",
-                          value);
+                value
+            );
         }
         Err(env::VarError::NotPresent) => {}
         Err(env::VarError::NotUnicode(value)) => {
-            anyhow::bail!("unexpected value for EDGEDB_RUN_VERSION_CHECK: {:?} \
+            anyhow::bail!(
+                "unexpected value for EDGEDB_RUN_VERSION_CHECK: {:?} \
                            Options: never, cached, default.",
-                          value);
+                value
+            );
         }
     }
     let dir = match cache_dir() {

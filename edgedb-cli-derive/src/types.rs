@@ -2,7 +2,6 @@ use syn::spanned::Spanned;
 
 use crate::attrib;
 
-
 pub struct Struct {
     pub attrs: attrib::ContainerAttrs,
     pub vis: syn::Visibility,
@@ -36,22 +35,21 @@ pub struct Subcommand {
     pub ty: Option<syn::Type>,
 }
 
-pub fn unwrap_type<'x>(ty: &'x syn::Type, name: &str) -> (bool, &'x syn::Type)
-{
+pub fn unwrap_type<'x>(ty: &'x syn::Type, name: &str) -> (bool, &'x syn::Type) {
     match ty {
-        syn::Type::Path(syn::TypePath { qself: None, ref path })
-        => {
-            if path.leading_colon.is_none() &&
-                path.segments.len() == 1 &&
-                path.segments[0].ident == name
+        syn::Type::Path(syn::TypePath {
+            qself: None,
+            ref path,
+        }) => {
+            if path.leading_colon.is_none()
+                && path.segments.len() == 1
+                && path.segments[0].ident == name
             {
                 match &path.segments[0].arguments {
                     syn::PathArguments::AngleBracketed(ang) => {
                         if ang.args.len() == 1 {
                             match &ang.args[0] {
-                                syn::GenericArgument::Type(typ) => {
-                                    (true, typ)
-                                }
+                                syn::GenericArgument::Type(typ) => (true, typ),
                                 _ => (false, ty),
                             }
                         } else {
@@ -75,15 +73,18 @@ impl Field {
         let (optional, ty) = unwrap_type(&fld.ty, "Option");
         let (multiple, ty) = unwrap_type(ty, "Vec");
         let parse = attrs.parse.clone().unwrap_or_else(|| {
-            let kind = if
-                matches!(ty, syn::Type::Path(syn::TypePath {path,..})
+            let kind = if matches!(ty, syn::Type::Path(syn::TypePath {path,..})
                     if path.is_ident("bool"))
             {
                 attrib::ParserKind::FromFlag
             } else {
                 attrib::ParserKind::TryFromStr
             };
-            CliParse { kind, parser: None, span: fld.ty.span() }
+            CliParse {
+                kind,
+                parser: None,
+                span: fld.ty.span(),
+            }
         });
         Field {
             span: fld.span(),

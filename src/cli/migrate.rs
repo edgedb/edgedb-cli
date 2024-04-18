@@ -1,30 +1,29 @@
 use std::env;
-use std::path::{Path, PathBuf};
 use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use fs_err as fs;
 use fn_error_context::context;
+use fs_err as fs;
 
 use crate::cli::install::{get_rc_files, no_dir_in_path};
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::platform::binary_path;
-use crate::platform::{home_dir, tmp_file_path, symlink_dir, config_dir};
+use crate::platform::{config_dir, home_dir, symlink_dir, tmp_file_path};
 use crate::portable::project;
 use crate::print;
 use crate::print_markdown;
 use crate::question;
 
-
 #[derive(clap::Args, Clone, Debug)]
 pub struct CliMigrate {
     /// Dry run: do not actually move anything
-    #[arg(short='n', long)]
+    #[arg(short = 'n', long)]
     pub dry_run: bool,
 
     /// Dry run: do not actually move anything (with increased verbosity)
-    #[arg(short='v', long)]
+    #[arg(short = 'v', long)]
     pub verbose: bool,
 }
 
@@ -40,7 +39,10 @@ pub fn main(options: &CliMigrate) -> anyhow::Result<()> {
     if base.exists() {
         migrate(&base, options.dry_run)
     } else {
-        log::warn!("Directory {:?} does not exist. No actions will be taken.", base);
+        log::warn!(
+            "Directory {:?} does not exist. No actions will be taken.",
+            base
+        );
         Ok(())
     }
 }
@@ -66,20 +68,23 @@ fn move_file(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
 
     if file_is_non_empty(dest)? {
         if dry_run {
-            log::warn!("File {:?} exists in both locations, \
-                        will prompt for overwrite", dest);
+            log::warn!(
+                "File {:?} exists in both locations, \
+                        will prompt for overwrite",
+                dest
+            );
             return Ok(());
         }
         let mut q = question::Choice::new(format!(
             "Attempting to move {:?} -> {:?}, but \
             destination file exists. Do you want to overwrite?",
-            src, dest));
+            src, dest
+        ));
         q.option(Yes, &["y"], "overwrite the destination file");
-        q.option(Skip, &["s"],
-            "skip, keep destination file, remove source");
+        q.option(Skip, &["s"], "skip, keep destination file, remove source");
         q.option(Quit, &["q"], "quit now without overwriting");
         match q.ask()? {
-            Yes => {},
+            Yes => {}
             Skip => return Ok(()),
             Quit => anyhow::bail!("Canceled by user"),
         }
@@ -99,20 +104,23 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
 
     if dir_is_non_empty(dest)? {
         if dry_run {
-            log::warn!("Directory {:?} exists in both locations, \
-                        will prompt for overwrite", dest);
+            log::warn!(
+                "Directory {:?} exists in both locations, \
+                        will prompt for overwrite",
+                dest
+            );
             return Ok(());
         }
         let mut q = question::Choice::new(format!(
             "Attempting to move {:?} -> {:?}, but \
             destination directory exists. Do you want to overwrite?",
-            src, dest));
+            src, dest
+        ));
         q.option(Yes, &["y"], "overwrite the destination dir");
-        q.option(Skip, &["s"],
-            "skip, keep destination dir, remove source");
+        q.option(Skip, &["s"], "skip, keep destination dir, remove source");
         q.option(Quit, &["q"], "quit now without overwriting");
         match q.ask()? {
-            Yes => {},
+            Yes => {}
             Skip => return Ok(()),
             Quit => anyhow::bail!("Canceled by user"),
         }
@@ -135,10 +143,9 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
                 let path = fs::read_link(item.path())?;
                 symlink_dir(path, dest_path)
                     .map_err(|e| {
-                        log::info!(
-                            "Error symlinking project at {:?}: {}",
-                            dest_path, e);
-                    }).ok();
+                        log::info!("Error symlinking project at {:?}: {}", dest_path, e);
+                    })
+                    .ok();
             }
             _ => {
                 log::warn!("Skipping {:?} of unexpected type", item.path());
@@ -159,20 +166,17 @@ fn try_move_bin(exe_path: &Path, bin_path: &Path) -> anyhow::Result<()> {
 }
 
 #[context("error updating {:?}", path)]
-fn replace_line(path: &PathBuf, old_line: &str, new_line: &str)
-    -> anyhow::Result<bool>
-{
+fn replace_line(path: &PathBuf, old_line: &str, new_line: &str) -> anyhow::Result<bool> {
     if !path.exists() {
         return Ok(false);
     }
-    let text = fs::read_to_string(path)
-        .context("cannot read file")?;
+    let text = fs::read_to_string(path).context("cannot read file")?;
     if let Some(idx) = text.find(old_line) {
         log::info!("File {:?} contains old path, replacing", path);
         let mut file = fs::File::create(path)?;
         file.write_all(text[..idx].as_bytes())?;
         file.write_all(new_line.as_bytes())?;
-        file.write_all(text[idx+old_line.len()..].as_bytes())?;
+        file.write_all(text[idx + old_line.len()..].as_bytes())?;
         Ok(true)
     } else {
         log::info!("File {:?} has no old path, skipping", path);
@@ -184,7 +188,8 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
     log::info!("Updating PATH");
     let old_bin_dir = base.join("bin");
     let new_bin_dir = new_bin_path.parent().unwrap();
-    #[cfg(windows)] {
+    #[cfg(windows)]
+    {
         use std::env::join_paths;
 
         let mut modified = false;
@@ -192,41 +197,36 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
             if orig_path.iter().any(|p| p == new_bin_dir) {
                 return None;
             }
-            Some(join_paths(
-                orig_path.iter()
-                .map(|x| {
+            Some(
+                join_paths(orig_path.iter().map(|x| {
                     if x == &old_bin_dir {
                         modified = true;
                         new_bin_dir
                     } else {
                         x.as_ref()
                     }
-                })
-           ).expect("paths can be joined"))
+                }))
+                .expect("paths can be joined"),
+            )
         })?;
         if modified && no_dir_in_path(&new_bin_dir) {
             print::success("The `edgedb` executable has moved!");
-            print_markdown!("\
+            print_markdown!(
+                "\
                 \n\
                 `${dir}` has been added to your `PATH`.\n\
                 You may need to reopen the terminal for this change to\n\
                 take effect, and for the `edgedb` command to become\n\
                 available.\
                 ",
-                dir=new_bin_dir.display(),
+                dir = new_bin_dir.display(),
             );
         }
     }
     if cfg!(unix) {
         let rc_files = get_rc_files()?;
-        let old_line = format!(
-            "\nexport PATH=\"{}:$PATH\"\n",
-            old_bin_dir.display(),
-        );
-        let new_line = format!(
-            "\nexport PATH=\"{}:$PATH\"\n",
-            new_bin_dir.display(),
-        );
+        let old_line = format!("\nexport PATH=\"{}:$PATH\"\n", old_bin_dir.display(),);
+        let new_line = format!("\nexport PATH=\"{}:$PATH\"\n", new_bin_dir.display(),);
         let mut modified = false;
         for path in &rc_files {
             if replace_line(path, &old_line, &new_line)? {
@@ -237,16 +237,14 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
         let cfg_dir = config_dir()?;
         let env_file = cfg_dir.join("env");
 
-        fs::create_dir_all(&cfg_dir)
-            .with_context(
-                || format!("failed to create {:?}", cfg_dir))?;
+        fs::create_dir_all(&cfg_dir).with_context(|| format!("failed to create {:?}", cfg_dir))?;
         fs::write(&env_file, new_line + "\n")
-            .with_context(
-                || format!("failed to write env file {:?}", env_file))?;
+            .with_context(|| format!("failed to write env file {:?}", env_file))?;
 
         if modified && no_dir_in_path(new_bin_dir) {
             print::success("The `edgedb` executable has moved!");
-            print_markdown!("\
+            print_markdown!(
+                "\
                 \n\
                 Your shell profile has been updated to have ${dir} in your\n\
                 `PATH`. The next time you open the terminal\n\
@@ -259,8 +257,8 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
                 Depending on your shell type you might also need \
                 to run `rehash`.\
                 ",
-                dir=new_bin_dir.display(),
-                env_path=env_file.display(),
+                dir = new_bin_dir.display(),
+                env_path = env_file.display(),
             );
         }
     }
@@ -271,8 +269,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     if let Ok(exe_path) = env::current_exe() {
         if exe_path.starts_with(base) {
             let new_bin_path = binary_path()?;
-            try_move_bin(&exe_path, &new_bin_path)
-            .map_err(|e| {
+            try_move_bin(&exe_path, &new_bin_path).map_err(|e| {
                 print::error("Cannot move executable to new location.");
                 eprintln!("  Try `edgedb cli upgrade` instead.");
                 e
@@ -307,8 +304,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
         for item in fs::read_dir(&source)? {
             let item = item?;
             if item.metadata()?.is_dir() {
-                move_dir(&item.path(),
-                         &target.join(item.file_name()), dry_run)?;
+                move_dir(&item.path(), &target.join(item.file_name()), dry_run)?;
             }
         }
         if !dry_run {
@@ -342,25 +338,30 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     remove_dir_all(&base.join("cache"), dry_run)?;
 
     if !dry_run && dir_is_non_empty(base)? {
-        eprintln!("\
+        eprintln!(
+            "\
             Directory {:?} is no longer used by EdgeDB tools and must be \
             removed to finish migration, but some files or directories \
             remain after all known files have moved. \
             The files may have been left by a third party tool. \
-        ", base);
+        ",
+            base
+        );
         let q = question::Confirm::new(format!(
             "Do you want to remove all files and directories within {:?}?",
             base,
         ));
         if !q.ask()? {
             print::error("Canceled by user.");
-            print_markdown!("\
+            print_markdown!(
+                "\
                 Once all files are backed up, run one of:\n\
                 ```\n\
                 rm -rf ~/.edgedb\n\
                 edgedb cli migrate\n\
                 ```\
-            ");
+            "
+            );
             return Err(ExitCode::new(2).into());
         }
     }
@@ -372,7 +373,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
 
 fn remove_file(path: &Path, dry_run: bool) -> anyhow::Result<()> {
     if !path.exists() {
-        return Ok(())
+        return Ok(());
     }
     if dry_run {
         log::info!("Would remove {:?}", path);
@@ -385,7 +386,7 @@ fn remove_file(path: &Path, dry_run: bool) -> anyhow::Result<()> {
 
 fn remove_dir_all(path: &Path, dry_run: bool) -> anyhow::Result<()> {
     if !path.exists() {
-        return Ok(())
+        return Ok(());
     }
     if dry_run {
         log::info!("Would remove dir {:?} recursively", path);

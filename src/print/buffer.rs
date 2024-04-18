@@ -1,21 +1,20 @@
 use std::fmt::Write;
 
-use colorful::Colorful;
 use colorful::core::color_string::CString;
 use colorful::core::StrMarker;
+use colorful::Colorful;
+use snafu::{Error, ErrorCompat, IntoError};
 use unicode_segmentation::UnicodeSegmentation;
-use snafu::{IntoError, Error, ErrorCompat};
 
-use crate::print::Printer;
-use crate::print::stream::Output;
 use crate::print::formatter::ColorfulExt;
+use crate::print::stream::Output;
+use crate::print::Printer;
 
 use Delim::*;
 
 const HIGH_WATER_MARK: usize = 4096;
 
-
-#[derive(Debug)]  // no Error trait, this struct should not escape to user
+#[derive(Debug)] // no Error trait, this struct should not escape to user
 pub enum Exception<E> {
     DisableFlow,
     Error(E),
@@ -31,10 +30,10 @@ pub(in crate::print) enum Delim {
 pub(in crate::print) type Result<E> = std::result::Result<(), Exception<E>>;
 
 pub trait WrapErr<T, E>: Sized {
-    fn wrap_err<C, E2>(self, context: C)
-        -> std::result::Result<T, Exception<E2>>
-        where C: IntoError<E2, Source = E>,
-              E2: Error + ErrorCompat;
+    fn wrap_err<C, E2>(self, context: C) -> std::result::Result<T, Exception<E2>>
+    where
+        C: IntoError<E2, Source = E>,
+        E2: Error + ErrorCompat;
 }
 
 pub trait UnwrapExc<T, E>: Sized {
@@ -42,10 +41,10 @@ pub trait UnwrapExc<T, E>: Sized {
 }
 
 impl<T, E> WrapErr<T, E> for std::result::Result<T, Exception<E>> {
-    fn wrap_err<C, E2>(self, context: C)
-        -> std::result::Result<T, Exception<E2>>
-        where C: IntoError<E2, Source = E>,
-              E2: Error + ErrorCompat,
+    fn wrap_err<C, E2>(self, context: C) -> std::result::Result<T, Exception<E2>>
+    where
+        C: IntoError<E2, Source = E>,
+        E2: Error + ErrorCompat,
     {
         use Exception::*;
         match self {
@@ -67,10 +66,10 @@ impl<T, E> UnwrapExc<T, E> for std::result::Result<T, Exception<E>> {
 }
 
 impl<T, E> WrapErr<T, E> for std::result::Result<T, E> {
-    fn wrap_err<C, E2>(self, context: C)
-        -> std::result::Result<T, Exception<E2>>
-        where C: IntoError<E2, Source = E>,
-              E2: Error + ErrorCompat,
+    fn wrap_err<C, E2>(self, context: C) -> std::result::Result<T, Exception<E2>>
+    where
+        C: IntoError<E2, Source = E>,
+        E2: Error + ErrorCompat,
     {
         use Exception::*;
         match self {
@@ -103,8 +102,7 @@ impl<T: Output> Printer<T> {
             return Err(Exception::DisableFlow);
         }
         if self.colors {
-            write!(&mut self.buffer, "{}", s)
-                .expect("formatting CString always succeeds");
+            write!(&mut self.buffer, "{}", s).expect("formatting CString always succeeds");
         } else {
             self.buffer.push_str(&s.to_str());
         }
@@ -135,7 +133,8 @@ impl<T: Output> Printer<T> {
         for _ in 0..(self.cur_indent / INDENT32.len()) {
             self.buffer.push_str(INDENT32);
         }
-        self.buffer.push_str(&INDENT32[..(self.cur_indent % INDENT32.len())]);
+        self.buffer
+            .push_str(&INDENT32[..(self.cur_indent % INDENT32.len())]);
         self.column += self.cur_indent;
         Ok(())
     }
@@ -148,9 +147,10 @@ impl<T: Output> Printer<T> {
         self.commit()?;
         self.flush_buf()
     }
-    pub(in crate::print) fn open_block(&mut self, val: CString)
-        -> std::result::Result<bool, Exception<T::Error>>
-    {
+    pub(in crate::print) fn open_block(
+        &mut self,
+        val: CString,
+    ) -> std::result::Result<bool, Exception<T::Error>> {
         self.delim = None;
         self.write(val)?;
         if self.flow {
@@ -185,10 +185,14 @@ impl<T: Output> Printer<T> {
             self.write("...".clear())?;
         } else {
             self.write("...".clear())?;
-            self.write(format!(" (further results hidden \
+            self.write(
+                format!(
+                    " (further results hidden \
                 `\\set limit {limit}`)\n",
-                limit=self.max_items.unwrap_or(0))
-                .dark_gray())?;
+                    limit = self.max_items.unwrap_or(0)
+                )
+                .dark_gray(),
+            )?;
         }
         Ok(())
     }
@@ -196,9 +200,7 @@ impl<T: Output> Printer<T> {
         self.delim = Field;
         self.write(": ".clear())
     }
-    pub(in crate::print) fn close_block(&mut self, val: &CString, flag: bool)
-        -> Result<T::Error>
-    {
+    pub(in crate::print) fn close_block(&mut self, val: &CString, flag: bool) -> Result<T::Error> {
         if self.delim == Comma && !self.flow {
             debug_assert!(!self.trailing_comma);
             self.commit_line()?;
@@ -216,10 +218,14 @@ impl<T: Output> Printer<T> {
         }
         Ok(())
     }
-    pub(in crate::print) fn block<F>(&mut self,
-        open: CString, mut f: F, close: CString)
-        -> Result<T::Error>
-        where F: FnMut(&mut Self) -> Result<T::Error>
+    pub(in crate::print) fn block<F>(
+        &mut self,
+        open: CString,
+        mut f: F,
+        close: CString,
+    ) -> Result<T::Error>
+    where
+        F: FnMut(&mut Self) -> Result<T::Error>,
     {
         let flag = self.open_block(open)?;
         match f(self).and_then(|()| self.close_block(&close, flag)) {

@@ -1,23 +1,19 @@
-use crossterm::style::Stylize;
 use crate::branch::context::Context;
 use crate::branch::option::Current;
+use crossterm::style::Stylize;
 
-
-pub async fn main(
-    options: &Current,
-    context: &Context,
-) -> anyhow::Result<()> {
+pub async fn main(options: &Current, context: &Context) -> anyhow::Result<()> {
     if options.plain {
         if let Some(branch) = &context.branch {
             println!("{}", branch);
         }
 
-        return Ok(())
+        return Ok(());
     }
 
     match &context.branch {
         Some(branch) => eprintln!("The current branch is '{}'", branch.clone().green()),
-        None => anyhow::bail!("No project found")
+        None => anyhow::bail!("No project found"),
     }
 
     Ok(())

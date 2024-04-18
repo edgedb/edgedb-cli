@@ -1,6 +1,5 @@
 use std::process::exit;
 
-
 #[derive(Debug, thiserror::Error)]
 #[error("Exit with status {}", _0)]
 pub struct ExitCode(i32);

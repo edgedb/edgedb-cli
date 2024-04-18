@@ -6,14 +6,13 @@ use std::time;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
-use crate::platform::{home_dir, get_current_uid, data_dir};
 use crate::platform::{current_exe, detect_ipv6};
-use crate::portable::local::{InstanceInfo, log_file, runstate_dir};
-use crate::portable::options::{Logs, instance_arg, InstanceName};
+use crate::platform::{data_dir, get_current_uid, home_dir};
+use crate::portable::local::{log_file, runstate_dir, InstanceInfo};
+use crate::portable::options::{instance_arg, InstanceName, Logs};
 use crate::portable::status::Service;
 use crate::print::{self, echo, Highlight};
 use crate::process;
-
 
 enum Status {
     Ready,
@@ -22,7 +21,6 @@ enum Status {
     Inactive { error: String },
     NotLoaded,
 }
-
 
 pub fn plist_dir() -> anyhow::Result<PathBuf> {
     Ok(home_dir()?.join("Library/LaunchAgents"))
@@ -60,7 +58,8 @@ pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
 #[context("cannot compose plist file")]
 fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
     let sockets = if info.get_version()?.specific().major >= 2 {
-        format!(r###"
+        format!(
+            r###"
             <key>Sockets</key>
             <dict>
               <key>edgedb-server</key>
@@ -75,15 +74,18 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
               </array>
             </dict>
             "###,
-            port=info.port,
-            ipv6_listen=if detect_ipv6() {
-                format!("<dict>
+            port = info.port,
+            ipv6_listen = if detect_ipv6() {
+                format!(
+                    "<dict>
                       <key>SockNodeName</key><string>::1</string>
                       <key>SockServiceName</key><string>{port}</string>
                       <key>SockType</key><string>stream</string>
                       <key>SockFamily</key><string>IPv6</string>
                     </dict>
-                ", port=info.port)
+                ",
+                    port = info.port
+                )
             } else {
                 String::new()
             },
@@ -91,7 +93,8 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
     } else {
         "".into()
     };
-    Ok(format!(r###"
+    Ok(format!(
+        r###"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
         "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -128,16 +131,15 @@ fn plist_data(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
 </dict>
 </plist>
 "###,
-        instance_name=name,
-        executable=current_exe()?.display(),
-        log_path=log_file(name)?.display(),
+        instance_name = name,
+        executable = current_exe()?.display(),
+        log_path = log_file(name)?.display(),
     ))
 }
 
-fn _create_service(info: &InstanceInfo) -> anyhow::Result<()>
-{
+fn _create_service(info: &InstanceInfo) -> anyhow::Result<()> {
     let name = &info.name;
-    
+
     let plist_dir_path = plist_dir()?;
     fs::create_dir_all(&plist_dir_path)?;
     let plist_path = plist_dir_path.join(plist_name(name));
@@ -155,7 +157,8 @@ fn _create_service(info: &InstanceInfo) -> anyhow::Result<()>
     // Actually it is necessary to clear the disabled status even for manually-
     // starting services, because manual start won't work on disabled services.
     process::Native::new("create service", "launchctl", "launchctl")
-        .arg("enable").arg(&unit_name)
+        .arg("enable")
+        .arg(&unit_name)
         .run()?;
     process::Native::new("create service", "launchctl", "launchctl")
         .arg("bootstrap")
@@ -168,9 +171,9 @@ fn _create_service(info: &InstanceInfo) -> anyhow::Result<()>
 
 fn bootout(name: &str) -> anyhow::Result<()> {
     let unit_name = launchd_name(name);
-    let status = process::Native::new(
-        "remove service", "launchctl", "launchctl")
-        .arg("bootout").arg(&unit_name)
+    let status = process::Native::new("remove service", "launchctl", "launchctl")
+        .arg("bootout")
+        .arg(&unit_name)
         .status_only()?;
     if !status.success() && status.code() != Some(36) {
         // MacOS Catalina has a bug of returning:
@@ -201,9 +204,9 @@ pub fn service_status(name: &str) -> Service {
         Status::Running { pid } => Service::Running { pid },
         Status::Failed { exit_code } => Service::Failed { exit_code },
         Status::Inactive { error } => Service::Inactive { error },
-        Status::NotLoaded => {
-            Service::Inactive { error: "Service is not loaded".into() }
-        }
+        Status::NotLoaded => Service::Inactive {
+            error: "Service is not loaded".into(),
+        },
     }
 }
 
@@ -211,9 +214,9 @@ fn _service_status(name: &str) -> Status {
     use Status::*;
 
     let list = process::Native::new("service info", "launchctl", "launchctl")
-            .arg("print")
-            .arg(launchd_name(name))
-            .get_output();
+        .arg("print")
+        .arg(launchd_name(name))
+        .get_output();
     let output = match list {
         Ok(output) => output,
         Err(e) => {
@@ -223,9 +226,12 @@ fn _service_status(name: &str) -> Status {
         }
     };
     if !output.status.success() {
-        log::debug!("`launchctl print {}` errored out with {:?}. \
+        log::debug!(
+            "`launchctl print {}` errored out with {:?}. \
                       Assuming service is not loaded.",
-                    launchd_name(name), output.stderr);
+            launchd_name(name),
+            output.stderr
+        );
         return NotLoaded;
     }
     let mut pid: Option<u32> = None;
@@ -234,15 +240,12 @@ fn _service_status(name: &str) -> Status {
         let mut iter = line.splitn(2, '=');
         let pair = iter.next().zip(iter.next());
         match pair.map(|(k, v)| (k.trim(), v.trim())) {
-            Some(("pid", value)) => {
-                match value.parse() {
-                    Ok(value) => pid = Some(value),
-                    Err(_) => {
-                        log::warn!("launchctl returned invalid pid: {}",
-                                   value);
-                    }
+            Some(("pid", value)) => match value.parse() {
+                Ok(value) => pid = Some(value),
+                Err(_) => {
+                    log::warn!("launchctl returned invalid pid: {}", value);
                 }
-            }
+            },
             Some(("state", "waiting")) => {
                 return Status::Ready;
             }
@@ -257,12 +260,14 @@ fn _service_status(name: &str) -> Status {
         }
     }
     if let Some(pid) = pid {
-        return Running { pid }
+        return Running { pid };
     }
     if exit_code.is_some() && exit_code != Some(0) {
-        return Failed { exit_code }
+        return Failed { exit_code };
     }
-    Inactive { error: "no pid found".into() }
+    Inactive {
+        error: "no pid found".into(),
+    }
 }
 
 pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
@@ -284,9 +289,10 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     Ok(found)
 }
 
-pub fn server_cmd(inst: &InstanceInfo, is_shutdown_supported: bool)
-    -> anyhow::Result<process::Native>
-{
+pub fn server_cmd(
+    inst: &InstanceInfo,
+    is_shutdown_supported: bool,
+) -> anyhow::Result<process::Native> {
     let data_dir = data_dir()?.join(&inst.name);
     let runstate_dir = runstate_dir(&inst.name)?;
     let server_path = inst.server_path()?;
@@ -314,14 +320,16 @@ pub fn detect_launchd() -> bool {
         return false;
     };
     let out = process::Native::new("detect launchd", "launchctl", path)
-        .arg("print-disabled")  // Faster than bare print
+        .arg("print-disabled") // Faster than bare print
         .arg(get_domain_target())
         .get_output();
     match out {
         Ok(out) if out.status.success() => true,
         Ok(out) => {
-            log::info!("detecting launchd session: {:?}",
-                       String::from_utf8_lossy(&out.stderr));
+            log::info!(
+                "detecting launchd session: {:?}",
+                String::from_utf8_lossy(&out.stderr)
+            );
             false
         }
         Err(e) => {
@@ -338,7 +346,8 @@ pub fn start_service(inst: &InstanceInfo) -> anyhow::Result<()> {
         // or else it will try to (re-)start the server.
         let lname = launchd_name(&inst.name);
         process::Native::new("launchctl", "launchctl", "launchctl")
-            .arg("kickstart").arg(&lname)
+            .arg("kickstart")
+            .arg(&lname)
             .run()?;
         wait_started(&inst.name)?;
     } else {
@@ -354,7 +363,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
     loop {
         let service = service_status(name);
         match service {
-            Inactive {..} | Ready => {
+            Inactive { .. } | Ready => {
                 thread::sleep(time::Duration::from_millis(30));
                 if time::SystemTime::now() > cut_off {
                     print::error("EdgeDB failed to start for 30 seconds");
@@ -362,12 +371,18 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
                 }
                 continue;
             }
-            Running {..} => {
+            Running { .. } => {
                 return Ok(());
             }
-            Failed { exit_code: Some(code) } => {
-                echo!(print::err_marker(),
-                    "EdgeDB failed".emphasize(), "with exit code", code);
+            Failed {
+                exit_code: Some(code),
+            } => {
+                echo!(
+                    print::err_marker(),
+                    "EdgeDB failed".emphasize(),
+                    "with exit code",
+                    code
+                );
             }
             Failed { exit_code: None } => {
                 echo!(print::err_marker(), "EdgeDB failed".emphasize());
@@ -378,8 +393,10 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
     let mut cmd = process::Native::new("log", "tail", "tail");
     cmd.arg("-n").arg("10");
     cmd.arg(log_file(name)?);
-    cmd.no_proxy().run()
-        .map_err(|e| log::warn!("Cannot show log: {}", e)).ok();
+    cmd.no_proxy()
+        .run()
+        .map_err(|e| log::warn!("Cannot show log: {}", e))
+        .ok();
     println!("--- End of log ---");
     anyhow::bail!("Failed to start EdgeDB");
 }
@@ -394,8 +411,7 @@ pub fn restart_service(inst: &InstanceInfo) -> anyhow::Result<()> {
         // Only use kickstart -k to restart the service if it's loaded
         // already, or it will fail with an error. We assume the service is
         // loaded for auto-starting services.
-        process::Native::new("launchctl", "launchctl",
-            "launchctl")
+        process::Native::new("launchctl", "launchctl", "launchctl")
             .arg("kickstart")
             .arg("-k")
             .arg(launchd_name(&inst.name))

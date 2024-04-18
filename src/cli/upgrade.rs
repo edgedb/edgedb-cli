@@ -8,24 +8,22 @@ use fn_error_context::context;
 use fs_err as fs;
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::platform::{home_dir, binary_path, tmp_file_path, current_exe};
+use crate::platform::{binary_path, current_exe, home_dir, tmp_file_path};
 use crate::portable::platform;
 use crate::portable::repository::{self, download, Channel};
 use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
 use crate::process;
 
-
 const INDEX_TIMEOUT: Duration = Duration::new(60, 0);
-
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct CliUpgrade {
     /// Enable verbose output
-    #[arg(short='v', long)]
+    #[arg(short = 'v', long)]
     pub verbose: bool,
     /// Disable progress output
-    #[arg(short='q', long)]
+    #[arg(short = 'q', long)]
     pub quiet: bool,
     /// Force reinstall even if no newer version exists
     #[arg(long)]
@@ -48,12 +46,13 @@ pub struct CliUpgrade {
     pub to_channel: Option<Channel>,
 }
 
-
 pub fn can_upgrade() -> bool {
-    binary_path().and_then(|p| _can_upgrade(&p)).unwrap_or_else(|e| {
-        log::info!("Cannot compare current binary to default: {}", e);
-        false
-    })
+    binary_path()
+        .and_then(|p| _can_upgrade(&p))
+        .unwrap_or_else(|e| {
+            log::info!("Cannot compare current binary to default: {}", e);
+            false
+        })
 }
 
 pub fn old_binary_path() -> anyhow::Result<PathBuf> {
@@ -67,15 +66,15 @@ pub fn old_binary_path() -> anyhow::Result<PathBuf> {
 
 fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {
     let exe_path = current_exe()?;
-    Ok(exe_path == path ||
-       matches!(old_binary_path(), Ok(old) if exe_path == old))
+    Ok(exe_path == path || matches!(old_binary_path(), Ok(old) if exe_path == old))
 }
 
 #[context("error unpacking {:?} -> {:?}", src, tgt)]
-pub fn unpack_file(src: &Path, tgt: &Path,
-               compression: Option<repository::Compression>)
-    -> anyhow::Result<()>
-{
+pub fn unpack_file(
+    src: &Path,
+    tgt: &Path,
+    compression: Option<repository::Compression>,
+) -> anyhow::Result<()> {
     fs::remove_file(tgt).ok();
     match compression {
         Some(repository::Compression::Zstd) => {
@@ -84,7 +83,8 @@ pub fn unpack_file(src: &Path, tgt: &Path,
 
             let mut opt = fs::OpenOptions::new();
             opt.write(true).create_new(true);
-            #[cfg(unix)] {
+            #[cfg(unix)]
+            {
                 use fs_err::os::unix::fs::OpenOptionsExt;
                 opt.mode(0o755);
             }
@@ -93,18 +93,18 @@ pub fn unpack_file(src: &Path, tgt: &Path,
             let bar = ProgressBar::new(src.metadata()?.len());
             bar.set_style(
                 ProgressStyle::default_bar()
-                .template("Unpacking [{bar}] {bytes:>7.dim}/{total_bytes:7}")
-                .expect("template is ok")
-                .progress_chars("=> "));
-            let mut decoded = zstd::Decoder::new(io::BufReader::new(
-                bar.wrap_read(src_f)
-            ))?;
+                    .template("Unpacking [{bar}] {bytes:>7.dim}/{total_bytes:7}")
+                    .expect("template is ok")
+                    .progress_chars("=> "),
+            );
+            let mut decoded = zstd::Decoder::new(io::BufReader::new(bar.wrap_read(src_f)))?;
             io::copy(&mut decoded, &mut tgt_f)?;
             fs::remove_file(src).ok();
             Ok(())
         }
         None => {
-            #[cfg(unix)] {
+            #[cfg(unix)]
+            {
                 use std::os::unix::fs::PermissionsExt;
                 fs::set_permissions(src, PermissionsExt::from_mode(0o755))?;
             }
@@ -112,7 +112,6 @@ pub fn unpack_file(src: &Path, tgt: &Path,
             Ok(())
         }
     }
-
 }
 
 pub fn channel_of(ver: &str) -> repository::Channel {
@@ -130,10 +129,10 @@ pub fn channel() -> repository::Channel {
 }
 
 pub fn self_version() -> anyhow::Result<ver::Semver> {
-    env!("CARGO_PKG_VERSION").parse()
+    env!("CARGO_PKG_VERSION")
+        .parse()
         .context("cannot parse cli version")
 }
-
 
 pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
     let path = binary_path()?;
@@ -144,15 +143,18 @@ pub fn main(options: &CliUpgrade) -> anyhow::Result<()> {
 }
 
 pub fn upgrade_to_arm64() -> anyhow::Result<()> {
-    _main(&CliUpgrade {
-        verbose: false,
-        quiet: false,
-        force: true,
-        to_nightly: false,
-        to_stable: false,
-        to_testing: false,
-        to_channel: None,
-    }, binary_path()?)
+    _main(
+        &CliUpgrade {
+            verbose: false,
+            quiet: false,
+            force: true,
+            to_nightly: false,
+            to_stable: false,
+            to_testing: false,
+            to_channel: None,
+        },
+        binary_path()?,
+    )
 }
 
 fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
@@ -175,17 +177,15 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
     #[allow(unused_mut)]
     let mut force = options.force || cur_channel != channel;
 
-    if cfg!(all(target_os="macos", target_arch="x86_64")) &&
-        platform::is_arm64_hardware()
-    {
+    if cfg!(all(target_os = "macos", target_arch = "x86_64")) && platform::is_arm64_hardware() {
         target_plat = "aarch64-apple-darwin";
         // Always force upgrade when need to switch platform
         force = true;
     }
 
-    let pkg = repository::get_platform_cli_packages(channel, target_plat,
-                                                    INDEX_TIMEOUT)?
-        .into_iter().max_by(|a, b| a.version.cmp(&b.version))
+    let pkg = repository::get_platform_cli_packages(channel, target_plat, INDEX_TIMEOUT)?
+        .into_iter()
+        .max_by(|a, b| a.version.cmp(&b.version))
         .context("cannot find new version")?;
     if !force && pkg.version <= self_version()? {
         log::info!("Version is identical; no update needed.");
@@ -213,8 +213,11 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
         anyhow::bail!("unknown OS");
     }
     process::Native::new("upgrade", "cli", &tmp_path)
-        .arg("cli").arg("install").arg("--upgrade")
-        .no_proxy().run()?;
+        .arg("cli")
+        .arg("install")
+        .arg("--upgrade")
+        .no_proxy()
+        .run()?;
     fs::remove_file(&tmp_path).ok();
     if !options.quiet {
         echo!("Upgraded to version", pkg.version.emphasize());

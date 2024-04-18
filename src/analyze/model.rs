@@ -6,9 +6,7 @@ use serde::Deserialize;
 
 use crate::analyze::contexts::Number;
 
-
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
-
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct ContextId(u64);
@@ -58,40 +56,40 @@ pub struct DebugInfo {
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(tag="type", content="value")]
+#[serde(tag = "type", content = "value")]
 pub enum PropValue {
-    #[serde(rename="kB")]
+    #[serde(rename = "kB")]
     Kbytes(u64),
-    #[serde(rename="ms")]
+    #[serde(rename = "ms")]
     Millis(f64),
-    #[serde(rename="expr")]
+    #[serde(rename = "expr")]
     Expr(String),
-    #[serde(rename="index")]
+    #[serde(rename = "index")]
     Index(String),
-    #[serde(rename="relation")]
+    #[serde(rename = "relation")]
     Relation(String),
-    #[serde(rename="text")]
+    #[serde(rename = "text")]
     Text(String),
-    #[serde(rename="int")]
+    #[serde(rename = "int")]
     Int(i64),
-    #[serde(rename="float")]
+    #[serde(rename = "float")]
     Float(f64),
 
-    #[serde(rename="list:kB")]
+    #[serde(rename = "list:kB")]
     ListKbytes(Vec<u64>),
-    #[serde(rename="list:ms")]
+    #[serde(rename = "list:ms")]
     ListMillis(Vec<f64>),
-    #[serde(rename="list:expr")]
+    #[serde(rename = "list:expr")]
     ListExpr(Vec<String>),
-    #[serde(rename="list:index")]
+    #[serde(rename = "list:index")]
     ListIndex(Vec<String>),
-    #[serde(rename="list:relation")]
+    #[serde(rename = "list:relation")]
     ListRelation(Vec<String>),
-    #[serde(rename="list:text")]
+    #[serde(rename = "list:text")]
     ListText(Vec<String>),
-    #[serde(rename="list:int")]
+    #[serde(rename = "list:int")]
     ListInt(Vec<i64>),
-    #[serde(rename="list:float")]
+    #[serde(rename = "list:float")]
     ListFloat(Vec<f64>),
 }
 
@@ -121,7 +119,6 @@ pub struct Plan {
     pub subplans: Vec<Plan>,
 }
 
-
 #[derive(Deserialize, Debug)]
 pub struct Cost {
     pub plan_rows: u64,
@@ -136,14 +133,14 @@ pub struct Cost {
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(tag="kind")]
+#[serde(tag = "kind")]
 pub enum ChildName {
-    #[serde(rename="pointer")]
+    #[serde(rename = "pointer")]
     Pointer { name: String },
-    #[serde(rename="filter")]
+    #[serde(rename = "filter")]
     Filter,
     #[serde(other)]
-    Other
+    Other,
 }
 
 #[derive(Deserialize, Debug)]

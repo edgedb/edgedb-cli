@@ -2,8 +2,8 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use proc_macro_error::abort;
-use syn::parse_macro_input;
 use quote::quote;
+use syn::parse_macro_input;
 
 mod attrib;
 mod into_app;
@@ -31,9 +31,8 @@ fn derive_edb_settings(item: syn::Item) -> proc_macro2::TokenStream {
                 let ty = match sub.fields {
                     syn::Fields::Unit => None,
                     syn::Fields::Named(_) => {
-                        abort!(sub,
-                            "named fields are not supported for EdbClap");
-                    },
+                        abort!(sub, "named fields are not supported for EdbClap");
+                    }
                     syn::Fields::Unnamed(mut unn) => {
                         if unn.unnamed.len() != 1 {
                             abort!(unn, "single field required");
@@ -46,7 +45,7 @@ fn derive_edb_settings(item: syn::Item) -> proc_macro2::TokenStream {
                     ident: sub.ident,
                     ty,
                 });
-            };
+            }
 
             let e = &types::Enum {
                 attrs,
@@ -82,11 +81,10 @@ fn derive_args(item: syn::Item) -> proc_macro2::TokenStream {
     match item {
         syn::Item::Struct(s) => {
             let fields = match s.fields {
-                syn::Fields::Named(f) => f.named.into_iter()
-                    .map(|f| types::Field::new(
-                        attrib::FieldAttrs::from_syn(&f.attrs),
-                        f,
-                    ))
+                syn::Fields::Named(f) => f
+                    .named
+                    .into_iter()
+                    .map(|f| types::Field::new(attrib::FieldAttrs::from_syn(&f.attrs), f))
                     .collect::<Vec<_>>(),
                 _ => abort!(s, "only named fields are supported for EdbClap"),
             };

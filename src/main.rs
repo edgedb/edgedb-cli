@@ -1,6 +1,6 @@
 // We don't need to hunt of unused imports on windows, as they are harmless
 #![cfg_attr(windows, allow(unused_imports))]
-#![type_length_limit="8388608"]
+#![type_length_limit = "8388608"]
 
 use clap::Parser;
 
@@ -10,8 +10,11 @@ use std::process::exit;
 
 use crate::options::{Options, UsageError};
 
+mod analyze;
 mod async_util;
+mod branch;
 mod bug;
+mod classify;
 mod cli;
 mod cloud;
 mod collect;
@@ -20,9 +23,7 @@ mod completion;
 mod config;
 mod connect;
 mod credentials;
-mod classify;
 mod error_display;
-mod analyze;
 mod format;
 mod highlight;
 mod hint;
@@ -47,7 +48,6 @@ mod tty_password;
 mod variables;
 mod version_check;
 mod watch;
-mod branch;
 
 fn main() {
     match _main() {
@@ -72,19 +72,20 @@ fn main() {
             }
             for item in err.chain() {
                 if let Some(e) = item.downcast_ref::<hint::HintedError>() {
-                    eprintln!("  Hint: {}", e.hint
-                        .lines()
-                        .collect::<Vec<_>>()
-                        .join("\n        "));
+                    eprintln!(
+                        "  Hint: {}",
+                        e.hint.lines().collect::<Vec<_>>().join("\n        ")
+                    );
                 } else if item.is::<bug::Bug>() {
-                    eprintln!("  Hint: This is most likely a bug in EdgeDB \
+                    eprintln!(
+                        "  Hint: This is most likely a bug in EdgeDB \
                         or command-line tools. Please consider opening an \
                         issue at \
                         https://github.com/edgedb/edgedb-cli/issues/new\
-                        ?template=bug_report.md");
+                        ?template=bug_report.md"
+                    );
                     code = 13;
-                } else if let Some(e) = e.downcast_ref::<commands::ExitCode>()
-                {
+                } else if let Some(e) = e.downcast_ref::<commands::ExitCode>() {
                     code = e.code();
                 }
             }
@@ -94,10 +95,15 @@ fn main() {
 }
 
 fn is_cli_upgrade(cmd: &Option<options::Command>) -> bool {
-    use options::Command::Cli as Cli;
     use cli::options::CliCommand;
     use cli::options::Command::Upgrade;
-    matches!(cmd, Some(Cli(CliCommand { subcommand: Upgrade(..) })))
+    use options::Command::Cli;
+    matches!(
+        cmd,
+        Some(Cli(CliCommand {
+            subcommand: Upgrade(..)
+        }))
+    )
 }
 
 fn _main() -> anyhow::Result<()> {
@@ -120,9 +126,8 @@ fn _main() -> anyhow::Result<()> {
     opt.conn_options.validate()?;
     let cfg = config::get_config();
 
-    let mut builder = env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("warn")
-    );
+    let mut builder =
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"));
     log_levels::init(&mut builder, &opt);
     builder.init();
 
@@ -149,7 +154,7 @@ fn _main() -> anyhow::Result<()> {
         } else {
             non_interactive::interpret_stdin(
                 &opt,
-                opt.output_format.unwrap_or(repl::OutputFormat::JsonPretty)
+                opt.output_format.unwrap_or(repl::OutputFormat::JsonPretty),
             )
         }
     }

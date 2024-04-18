@@ -1,13 +1,12 @@
-use std::ops::Bound;
 use std::borrow::Borrow;
 use std::cmp::{min, Ordering};
 use std::collections::BTreeMap;
+use std::ops::Bound;
 use std::str::FromStr;
 
 use edgeql_parser::preparser;
 
 use crate::commands::backslash;
-
 
 #[derive(Debug)]
 pub enum Current<'a> {
@@ -20,10 +19,13 @@ pub enum Current<'a> {
 pub enum BackslashFsm {
     Command,
     Final,
-    Arguments(&'static backslash::CommandInfo, &'static [backslash::Argument]),
+    Arguments(
+        &'static backslash::CommandInfo,
+        &'static [backslash::Argument],
+    ),
     Subcommands(&'static BTreeMap<String, backslash::CommandInfo>),
     Setting,
-    SetValue(SettingValue)
+    SetValue(SettingValue),
 }
 
 #[derive(Debug)]
@@ -50,13 +52,11 @@ pub struct Hint {
 }
 
 trait SetRangeStrExt<K> {
-    fn range_from<'x>(&'x self, val: &str)
-        -> std::collections::btree_set::Range<'x, K>;
+    fn range_from<'x>(&'x self, val: &str) -> std::collections::btree_set::Range<'x, K>;
 }
 
 trait MapRangeStrExt<K, V> {
-    fn range_from<'x>(&'x self, val: &str)
-        -> std::collections::btree_map::Range<'x, K, V>;
+    fn range_from<'x>(&'x self, val: &str) -> std::collections::btree_map::Range<'x, K, V>;
 }
 
 pub fn current(data: &str, pos: usize) -> (usize, Current<'_>) {
@@ -68,16 +68,14 @@ pub fn current(data: &str, pos: usize) -> (usize, Current<'_>) {
         if data[offset..].trim_start().starts_with('\\') {
             let bytes = backslash::full_statement(&data[offset..]);
             if offset + bytes > pos || bytes == data.len() {
-                return (offset,
-                        Current::Backslash(&data[offset..][..bytes]));
+                return (offset, Current::Backslash(&data[offset..][..bytes]));
             }
             offset += bytes;
         } else {
             match preparser::full_statement(data[offset..].as_bytes(), None) {
                 Ok(bytes) => {
                     if offset + bytes > pos {
-                        return (offset, Current::Edgeql(
-                            &data[offset..][..bytes], true));
+                        return (offset, Current::Edgeql(&data[offset..][..bytes], true));
                     }
                     offset += bytes;
                 }
@@ -89,38 +87,39 @@ pub fn current(data: &str, pos: usize) -> (usize, Current<'_>) {
     }
 }
 
-
 fn complete_command(input: &str) -> Vec<Pair> {
-    backslash::CMD_CACHE.top_commands
+    backslash::CMD_CACHE
+        .top_commands
         .range_from(input)
         .filter(|x| x.starts_with(input))
-        .map(|x| Pair { value: x, description: x })
-        .collect()
-}
-
-fn complete_setting(input: &str) -> Vec<Pair> {
-    backslash::CMD_CACHE.settings.range_from(input)
-        .filter(|(name, _)| name.starts_with(input))
-        .map(|(name, setting)| {
-            Pair {
-                value: name,
-                description: &setting.name_description,
-            }
+        .map(|x| Pair {
+            value: x,
+            description: x,
         })
         .collect()
 }
 
-fn complete_subcommand(input: &str,
-    cmds: &'static BTreeMap<String, backslash::CommandInfo>)
-    -> Vec<Pair>
-{
+fn complete_setting(input: &str) -> Vec<Pair> {
+    backslash::CMD_CACHE
+        .settings
+        .range_from(input)
+        .filter(|(name, _)| name.starts_with(input))
+        .map(|(name, setting)| Pair {
+            value: name,
+            description: &setting.name_description,
+        })
+        .collect()
+}
+
+fn complete_subcommand(
+    input: &str,
+    cmds: &'static BTreeMap<String, backslash::CommandInfo>,
+) -> Vec<Pair> {
     cmds.range_from(input)
         .filter(|(name, _)| name.starts_with(input))
-        .map(|(name, cmdinfo)| {
-            Pair {
-                value: name,
-                description: &cmdinfo.name_description,
-            }
+        .map(|(name, cmdinfo)| Pair {
+            value: name,
+            description: &cmdinfo.name_description,
         })
         .collect()
 }
@@ -128,18 +127,18 @@ fn complete_subcommand(input: &str,
 fn complete_setting_value(input: &str, val: &SettingValue) -> Vec<Pair> {
     match val {
         SettingValue::Usize => Vec::new(),
-        SettingValue::Variants(v) => v.iter()
+        SettingValue::Variants(v) => v
+            .iter()
             .filter(|x| x.starts_with(input))
             .map(|x| Pair {
                 value: x,
                 description: x,
-            }).collect(),
+            })
+            .collect(),
     }
 }
 
-pub fn complete(input: &str, cursor: usize)
-    -> Option<(usize, Vec<Pair>)>
-{
+pub fn complete(input: &str, cursor: usize) -> Option<(usize, Vec<Pair>)> {
     match current(input, cursor) {
         (_, Current::Empty) => None,
         (_, Current::Edgeql(..)) => None,
@@ -162,12 +161,10 @@ pub fn complete(input: &str, cursor: usize)
                             return Some((token.span.0, complete_setting(arg)));
                         }
                         (Fsm::Subcommands(cmds), Argument(arg)) => {
-                            return Some((token.span.0,
-                                         complete_subcommand(arg, cmds)));
+                            return Some((token.span.0, complete_subcommand(arg, cmds)));
                         }
                         (Fsm::SetValue(cfg), Argument(arg)) => {
-                            return Some((token.span.0,
-                                         complete_setting_value(arg, cfg)));
+                            return Some((token.span.0, complete_setting_value(arg, cfg)));
                         }
                         _ => return None,
                     }
@@ -176,27 +173,17 @@ pub fn complete(input: &str, cursor: usize)
                 }
             }
             match &fsm {
-                Fsm::Command => {
-                    Some((cursor, complete_command("")))
-                }
-                Fsm::Subcommands(s) => {
-                    Some((cursor, complete_subcommand("", s)))
-                }
-                Fsm::Setting => {
-                    Some((cursor, complete_setting("")))
-                }
-                Fsm::SetValue(cfg) => {
-                    Some((cursor, complete_setting_value("", cfg)))
-                }
+                Fsm::Command => Some((cursor, complete_command(""))),
+                Fsm::Subcommands(s) => Some((cursor, complete_subcommand("", s))),
+                Fsm::Setting => Some((cursor, complete_setting(""))),
+                Fsm::SetValue(cfg) => Some((cursor, complete_setting_value("", cfg))),
                 _ => None,
             }
         }
     }
 }
 
-fn add_cmd_info(output: &mut String,
-    alias_of: Option<&[&str]>, cinfo: &backslash::CommandInfo)
-{
+fn add_cmd_info(output: &mut String, alias_of: Option<&[&str]>, cinfo: &backslash::CommandInfo) {
     if !cinfo.options.is_empty() {
         output.push_str(" [-");
         output.push_str(&cinfo.options);
@@ -221,9 +208,11 @@ fn add_cmd_info(output: &mut String,
 }
 
 fn hint_command(input: &str) -> Option<Hint> {
-    use backslash::{CMD_CACHE, Command};
+    use backslash::{Command, CMD_CACHE};
 
-    let mut rng = CMD_CACHE.top_commands.range_from(input)
+    let mut rng = CMD_CACHE
+        .top_commands
+        .range_from(input)
         .take_while(|x| x.starts_with(input));
     if let Some(matching) = rng.next() {
         let full_match = input.len() == matching.len();
@@ -234,11 +223,9 @@ fn hint_command(input: &str) -> Option<Hint> {
                 debug_assert!(aliased.len() <= 2);
                 match (aliased.get(1), cmd) {
                     (None, Some(cmd)) => Some(cmd),
-                    (Some(next), Some(Command::Subcommands(cmds)))
-                    => match cmds.get(*next) {
+                    (Some(next), Some(Command::Subcommands(cmds))) => match cmds.get(*next) {
                         Some(cinfo) => {
-                            let mut output
-                                = String::from(&matching[input.len()..]);
+                            let mut output = String::from(&matching[input.len()..]);
                             let complete = output.len() + 1;
                             add_cmd_info(&mut output, Some(aliased), cinfo);
                             return Some(Hint::new(output, complete));
@@ -285,21 +272,19 @@ fn hint_command(input: &str) -> Option<Hint> {
                 }
                 None => return None,
             }
-        } else  { // multiple choices possible
-            return None
+        } else {
+            // multiple choices possible
+            return None;
         }
     }
-    let mut candidates: Vec<(f64, &String)> = backslash::CMD_CACHE.top_commands
+    let mut candidates: Vec<(f64, &String)> = backslash::CMD_CACHE
+        .top_commands
         .iter()
         .map(|pv| (strsim::jaro_winkler(input, pv), pv))
         .filter(|(confidence, _pv)| *confidence > 0.8)
         .collect();
-    candidates.sort_by(|a, b| {
-        b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal)
-    });
-    let options: Vec<_> = candidates.into_iter()
-        .map(|(_c, pv)| &pv[..])
-        .collect();
+    candidates.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+    let options: Vec<_> = candidates.into_iter().map(|(_c, pv)| &pv[..]).collect();
     let text = match options.len() {
         0 => "  ← unknown backslash command".into(),
         1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
@@ -310,10 +295,9 @@ fn hint_command(input: &str) -> Option<Hint> {
     Some(Hint::new(text, 0))
 }
 
-fn hint_subcommand(cmd: &str, cmds: &BTreeMap<String, backslash::CommandInfo>)
-    -> Option<Hint>
-{
-    let mut rng = cmds.range_from(cmd)
+fn hint_subcommand(cmd: &str, cmds: &BTreeMap<String, backslash::CommandInfo>) -> Option<Hint> {
+    let mut rng = cmds
+        .range_from(cmd)
         .take_while(|(name, _)| name.starts_with(cmd));
     if let Some((matching, cinfo)) = rng.next() {
         let full_match = cmd.len() == matching.len();
@@ -335,20 +319,18 @@ fn hint_subcommand(cmd: &str, cmds: &BTreeMap<String, backslash::CommandInfo>)
                 output.push_str(descr.trim());
             }
             return Some(Hint::new(output, complete));
-        } else  { // multiple choices possible
-            return None
+        } else {
+            // multiple choices possible
+            return None;
         }
     }
-    let mut candidates: Vec<(f64, &String)> = cmds.keys()
+    let mut candidates: Vec<(f64, &String)> = cmds
+        .keys()
         .map(|pv| (strsim::jaro_winkler(cmd, pv), pv))
         .filter(|(confidence, _pv)| *confidence > 0.8)
         .collect();
-    candidates.sort_by(|a, b| {
-        b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal)
-    });
-    let options: Vec<_> = candidates.into_iter()
-        .map(|(_c, pv)| &pv[..])
-        .collect();
+    candidates.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+    let options: Vec<_> = candidates.into_iter().map(|(_c, pv)| &pv[..]).collect();
     let text = match options.len() {
         0 => "  ← unknown subcommand".into(),
         1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
@@ -361,14 +343,16 @@ fn hint_subcommand(cmd: &str, cmds: &BTreeMap<String, backslash::CommandInfo>)
 
 fn hint_setting_name(sname: &str) -> Option<Hint> {
     use backslash::CMD_CACHE;
-    let mut rng = CMD_CACHE.settings.range(sname..)
+    let mut rng = CMD_CACHE
+        .settings
+        .range(sname..)
         .take_while(|(name, _)| name.starts_with(sname));
 
     if let Some((matching, setting)) = rng.next() {
         let full_match = sname.len() == matching.len();
         if full_match || rng.next().is_none() {
             let mut output = String::from(&matching[sname.len()..]);
-            let complete = output.len()+1;
+            let complete = output.len() + 1;
             if let Some(ref values) = setting.values {
                 output.push_str(" [");
                 output.push_str(&values.join("|"));
@@ -381,19 +365,19 @@ fn hint_setting_name(sname: &str) -> Option<Hint> {
             output.push_str("  -- ");
             output.push_str(&setting.description);
             return Some(Hint::new(output, complete));
-        } else  { // multiple choices possible
-            return None
+        } else {
+            // multiple choices possible
+            return None;
         }
     }
-    let mut candidates: Vec<(f64, &str)> = backslash::CMD_CACHE.settings.keys().map(|pv| (strsim::jaro_winkler(sname, pv), *pv))
+    let mut candidates: Vec<(f64, &str)> = backslash::CMD_CACHE
+        .settings
+        .keys()
+        .map(|pv| (strsim::jaro_winkler(sname, pv), *pv))
         .filter(|(confidence, _pv)| *confidence > 0.8)
         .collect();
-    candidates.sort_by(|a, b| {
-        b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal)
-    });
-    let options: Vec<_> = candidates.into_iter()
-        .map(|(_c, pv)| pv)
-        .collect();
+    candidates.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+    let options: Vec<_> = candidates.into_iter().map(|(_c, pv)| pv).collect();
     let text = match options.len() {
         0 => "  ← unknown setting".into(),
         1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
@@ -412,8 +396,9 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<Hint> {
                 if full_match || matches.next().is_none() {
                     // TODO(tailhook) describe setting
                     return Some(Hint::new(&matching[input.len()..], 1000));
-                } else  { // multiple choices possible
-                    return None
+                } else {
+                    // multiple choices possible
+                    return None;
                 }
             }
             if variants == &["on", "off"] {
@@ -423,9 +408,10 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<Hint> {
                     _ => None,
                 };
                 if let Some(suggest) = suggest {
-                    return Some(Hint::new(format!(
-                        "  ← unknown boolean, did you mean: {}",
-                        suggest), 0));
+                    return Some(Hint::new(
+                        format!("  ← unknown boolean, did you mean: {}", suggest),
+                        0,
+                    ));
                 }
             };
             let mut candidates: Vec<(f64, &String)> = variants
@@ -433,18 +419,13 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<Hint> {
                 .map(|pv| (strsim::jaro_winkler(input, pv), pv))
                 .filter(|(confidence, _pv)| *confidence > 0.8)
                 .collect();
-            candidates.sort_by(|a, b| {
-                b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal)
-            });
-            let options: Vec<_> = candidates.into_iter()
-                .map(|(_c, pv)| &pv[..])
-                .collect();
+            candidates.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(Ordering::Equal));
+            let options: Vec<_> = candidates.into_iter().map(|(_c, pv)| &pv[..]).collect();
             let text = match options.len() {
                 0 => "  ← unknown value".into(),
                 1..=3 => format!("  ← unknown, try: {}", options.join(", ")),
                 _ => {
-                    format!("  ← unknown, try: {}, ...",
-                                 options[..2].join(", "))
+                    format!("  ← unknown, try: {}, ...", options[..2].join(", "))
                 }
             };
             Some(Hint::new(text, 0))
@@ -453,7 +434,6 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<Hint> {
 }
 
 pub fn hint(input: &str, pos: usize) -> Option<Hint> {
-
     match current(input, pos) {
         (_, Current::Empty) => None,
         (_, Current::Edgeql(..)) => None,
@@ -491,10 +471,10 @@ pub fn hint(input: &str, pos: usize) -> Option<Hint> {
 
 impl BackslashFsm {
     pub fn advance(self, token: backslash::Token) -> Self {
-        use BackslashFsm::*;
-        use backslash::Item as T;
         use backslash::Command;
+        use backslash::Item as T;
         use backslash::CMD_CACHE;
+        use BackslashFsm::*;
 
         match self {
             Command => match token.item {
@@ -502,10 +482,8 @@ impl BackslashFsm {
                 T::Command(name) => {
                     let name = &name[1..];
                     let name_slice = &[name];
-                    let path = CMD_CACHE.aliases.get(&name).copied()
-                        .unwrap_or(name_slice);
-                    match CMD_CACHE.commands.get(path[0])
-                    {
+                    let path = CMD_CACHE.aliases.get(&name).copied().unwrap_or(name_slice);
+                    match CMD_CACHE.commands.get(path[0]) {
                         Some(Command::Normal(cmd)) => {
                             if cmd.arguments.is_empty() {
                                 Final
@@ -529,14 +507,14 @@ impl BackslashFsm {
                     }
                 }
                 _ => Final,
-            }
+            },
             Subcommands(sub) => match token.item {
                 T::Argument(name) => match sub.get(name) {
                     Some(cmd) => Arguments(cmd, &cmd.arguments),
                     None => Final,
                 },
                 _ => Final,
-            }
+            },
             Final => Final,
             Arguments(cmd, args) => match token.item {
                 T::Argument(x) if x.starts_with('-') => Arguments(cmd, args),
@@ -564,13 +542,15 @@ impl BackslashFsm {
         }
     }
     pub fn validate(&self, token: &backslash::Token) -> ValidationResult {
+        use backslash::Item as T;
         use backslash::CMD_CACHE;
         use BackslashFsm::*;
-        use backslash::Item as T;
 
         match (self, &token.item) {
             (Command, T::Command(cmd)) => {
-                let mut rng = CMD_CACHE.top_commands.range_from(cmd)
+                let mut rng = CMD_CACHE
+                    .top_commands
+                    .range_from(cmd)
                     .take_while(|x| x.starts_with(cmd));
                 if let Some(matching) = rng.next() {
                     if cmd.len() == matching.len() {
@@ -583,7 +563,9 @@ impl BackslashFsm {
                 }
             }
             (Setting, T::Argument(arg)) => {
-                let mut rng = CMD_CACHE.settings.range_from(arg)
+                let mut rng = CMD_CACHE
+                    .settings
+                    .range_from(arg)
                     .map(|(sname, _)| sname)
                     .take_while(|x| x.starts_with(arg));
                 if let Some(matching) = rng.next() {
@@ -632,7 +614,10 @@ impl rustyline::completion::Candidate for Pair {
 impl Hint {
     fn new<S: Into<String>>(text: S, complete: usize) -> Hint {
         let text = text.into();
-        Hint { complete: min(complete, text.len()), text }
+        Hint {
+            complete: min(complete, text.len()),
+            text,
+        }
     }
 }
 
@@ -650,23 +635,19 @@ impl rustyline::hint::Hint for Hint {
 }
 
 impl<K> SetRangeStrExt<K> for std::collections::BTreeSet<K>
-    where K: Borrow<str> + Ord,
+where
+    K: Borrow<str> + Ord,
 {
-    fn range_from<'x>(&'x self, val: &str)
-        -> std::collections::btree_set::Range<'x, K>
-    {
-        self.range::<str, _>(
-            (Bound::<&str>::Included(val), Bound::<&str>::Unbounded))
+    fn range_from<'x>(&'x self, val: &str) -> std::collections::btree_set::Range<'x, K> {
+        self.range::<str, _>((Bound::<&str>::Included(val), Bound::<&str>::Unbounded))
     }
 }
 
 impl<K, V> MapRangeStrExt<K, V> for std::collections::BTreeMap<K, V>
-    where K: Borrow<str> + Ord,
+where
+    K: Borrow<str> + Ord,
 {
-    fn range_from<'x>(&'x self, val: &str)
-        -> std::collections::btree_map::Range<'x, K, V>
-    {
-        self.range::<str, _>(
-            (Bound::<&str>::Included(val), Bound::<&str>::Unbounded))
+    fn range_from<'x>(&'x self, val: &str) -> std::collections::btree_map::Range<'x, K, V> {
+        self.range::<str, _>((Bound::<&str>::Included(val), Bound::<&str>::Unbounded))
     }
 }

@@ -1,10 +1,9 @@
-use crate::branch::connections::{connect_if_branch_exists};
+use crate::branch::connections::connect_if_branch_exists;
 use crate::branch::context::Context;
 use crate::branch::create::create_branch;
 use crate::branch::main::verify_server_can_use_branches;
 use crate::branch::option::Switch;
-use crate::connect::{Connector};
-
+use crate::connect::Connector;
 
 pub async fn main(
     options: &Switch,
@@ -35,7 +34,14 @@ pub async fn main(
         if !branches.contains(&options.branch) {
             if options.create {
                 eprintln!("Creating '{}'...", &options.branch);
-                create_branch(&mut connection, &options.branch, options.from.as_ref().unwrap_or(current_branch), options.empty, options.copy_data).await?;
+                create_branch(
+                    &mut connection,
+                    &options.branch,
+                    options.from.as_ref().unwrap_or(current_branch),
+                    options.empty,
+                    options.copy_data,
+                )
+                .await?;
             } else {
                 anyhow::bail!("Branch '{}' doesn't exists", options.branch)
             }
@@ -46,8 +52,8 @@ pub async fn main(
         match connect_if_branch_exists(target_branch_connector).await? {
             Some(mut connection) => {
                 verify_server_can_use_branches(&mut connection).await?;
-            },
-            None => anyhow::bail!("The target branch doesn't exist.")
+            }
+            None => anyhow::bail!("The target branch doesn't exist."),
         };
     }
 

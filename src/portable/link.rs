@@ -1,38 +1,36 @@
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Mutex, Arc};
-
+use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
 use colorful::Colorful;
 use ring::digest;
 
-use rustls::client::WebPkiServerVerifier;
-use rustls::client::danger::{ServerCertVerifier, ServerCertVerified};
 use rustls::client::danger::HandshakeSignatureValid;
+use rustls::client::danger::{ServerCertVerified, ServerCertVerifier};
+use rustls::client::WebPkiServerVerifier;
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
-use rustls::{SignatureScheme, DigitallySignedStruct};
+use rustls::{DigitallySignedStruct, SignatureScheme};
 
+use edgedb_errors::{ClientNoCredentialsError, Error, PasswordRequired};
 use edgedb_tokio::credentials::TlsSecurity;
-use edgedb_errors::{Error, PasswordRequired, ClientNoCredentialsError};
-use edgedb_tokio::{Client, tls};
+use edgedb_tokio::{tls, Client};
 use edgedb_tokio::{Builder, Config};
 use rustyline::error::ReadlineError;
 
 use crate::credentials;
 use crate::hint::HintExt;
-use crate::options::{Options, ConnectionOptions};
 use crate::options;
+use crate::options::{ConnectionOptions, Options};
 use crate::portable::destroy::with_projects;
-use crate::portable::local::{InstanceInfo, is_valid_local_instance_name};
-use crate::portable::options::{Link, Unlink, instance_arg, InstanceName};
+use crate::portable::local::{is_valid_local_instance_name, InstanceInfo};
+use crate::portable::options::{instance_arg, InstanceName, Link, Unlink};
 use crate::portable::project;
 use crate::portable::ver::Build;
 use crate::print;
 use crate::question;
 use crate::tty_password;
-
 
 #[derive(Debug)]
 struct InteractiveCertVerifier {
@@ -46,7 +44,8 @@ struct InteractiveCertVerifier {
 }
 
 impl ServerCertVerifier for InteractiveCertVerifier {
-    fn verify_server_cert(&self,
+    fn verify_server_cert(
+        &self,
         end_entity: &CertificateDer<'_>,
         intermediates: &[CertificateDer<'_>],
         server_name: &ServerName,
@@ -59,13 +58,18 @@ impl ServerCertVerifier for InteractiveCertVerifier {
             return Ok(ServerCertVerified::assertion());
         }
         match self.inner.verify_server_cert(
-            end_entity, intermediates, server_name, ocsp_response, now)
-        {
+            end_entity,
+            intermediates,
+            server_name,
+            ocsp_response,
+            now,
+        ) {
             Ok(val) => {
                 return Ok(val);
             }
             Err(InvalidCertificate(cert_err))
-            if matches!(cert_err, rustls::CertificateError::UnknownIssuer) => {
+                if matches!(cert_err, rustls::CertificateError::UnknownIssuer) =>
+            {
                 // reconstruct Error for easier fallthrough
                 let e = InvalidCertificate(cert_err);
 
@@ -77,17 +81,16 @@ impl ServerCertVerifier for InteractiveCertVerifier {
 
                 let mut root_store = rustls::RootCertStore::empty();
                 root_store.add(end_entity.clone())?;
-                tls::NoHostnameVerifier::new(Arc::new(root_store))
-                    .verify_server_cert(
-                        end_entity, intermediates, server_name,
-                        ocsp_response, now
-                    )?;
+                tls::NoHostnameVerifier::new(Arc::new(root_store)).verify_server_cert(
+                    end_entity,
+                    intermediates,
+                    server_name,
+                    ocsp_response,
+                    now,
+                )?;
 
                 // Acquire consensus to trust the root of presented_certs chain
-                let fingerprint = digest::digest(
-                    &digest::SHA1_FOR_LEGACY_USE_ONLY,
-                    end_entity,
-                );
+                let fingerprint = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, end_entity);
                 if self.trust_tls_cert {
                     if !self.quiet {
                         print::warn(format!(
@@ -97,12 +100,13 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                     }
                 } else if self.non_interactive {
                     return Err(e);
-                } else if let Ok(answer) = question::Confirm::new(
-                    format!(
-                        "Unknown server certificate: {:?}. Trust?",
-                        fingerprint,
-                    )
-                ).default(false).ask() {
+                } else if let Ok(answer) = question::Confirm::new(format!(
+                    "Unknown server certificate: {:?}. Trust?",
+                    fingerprint,
+                ))
+                .default(false)
+                .ask()
+                {
                     if !answer {
                         return Err(e);
                     }
@@ -144,13 +148,17 @@ impl ServerCertVerifier for InteractiveCertVerifier {
 
 fn gen_default_instance_name(input: impl fmt::Display) -> String {
     let input = input.to_string();
-    let mut name = input.strip_suffix(":5656").unwrap_or(&input)
-        .chars().map(|x| match x {
+    let mut name = input
+        .strip_suffix(":5656")
+        .unwrap_or(&input)
+        .chars()
+        .map(|x| match x {
             'A'..='Z' => x,
             'a'..='z' => x,
             '0'..='9' => x,
             _ => '_',
-        }).collect::<String>();
+        })
+        .collect::<String>();
     if name.is_empty() {
         return "inst1".into();
     }
@@ -177,16 +185,17 @@ async fn conn_params(cmd: &Link, opts: &Options, has_branch: &mut bool) -> anyho
 
 #[tokio::main(flavor = "current_thread")]
 async fn get_server_version(connection: &mut Client) -> anyhow::Result<Build> {
-    let ver: String = connection.query_required_single("SELECT sys::get_version_as_str()", &()).await?;
+    let ver: String = connection
+        .query_required_single("SELECT sys::get_version_as_str()", &())
+        .await?;
     ver.parse()
 }
 
 #[tokio::main(flavor = "current_thread")]
 async fn get_default_branch(connection: &mut Client) -> anyhow::Result<String> {
-    let default_branch = connection.query_required_single::<String, _>(
-        "select sys::get_current_database()",
-        &()
-    ).await;
+    let default_branch = connection
+        .query_required_single::<String, _>("select sys::get_current_database()", &())
+        .await;
 
     // for context why '?' isn't used, tokio swallows the error here and prints:
     // "edgedb error: ClientConnectionError: A Tokio 1.x context was found, but it is being shutdown."
@@ -203,7 +212,9 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         anyhow::bail!(
             "cloud instances cannot be linked\
             \nTo connect run:\
-            \n  edgedb -I {}", cmd.name.as_ref().unwrap());
+            \n  edgedb -I {}",
+            cmd.name.as_ref().unwrap()
+        );
     }
 
     let mut has_branch: bool = false;
@@ -211,17 +222,15 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     let mut creds = config.as_credentials()?;
     let root_cert_store = config.root_cert_store()?;
     let inner = WebPkiServerVerifier::builder(Arc::new(root_cert_store)).build()?;
-    let verifier = Arc::new(
-        InteractiveCertVerifier {
-            inner,
-            cert_out: Mutex::new(None),
-            tls_security: creds.tls_security,
-            system_ca_only: creds.tls_ca.is_none(),
-            non_interactive: cmd.non_interactive,
-            quiet: cmd.quiet,
-            trust_tls_cert: cmd.trust_tls_cert,
-        }
-    );
+    let verifier = Arc::new(InteractiveCertVerifier {
+        inner,
+        cert_out: Mutex::new(None),
+        tls_security: creds.tls_security,
+        system_ca_only: creds.tls_ca.is_none(),
+        non_interactive: cmd.non_interactive,
+        quiet: cmd.quiet,
+        trust_tls_cert: cmd.trust_tls_cert,
+    });
     let mut config = config.with_cert_verifier(verifier.clone());
     let mut connect_result = connect(&config);
     if let Err(e) = connect_result {
@@ -232,8 +241,9 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 password = tty_password::read_stdin()?
             } else if !cmd.non_interactive {
                 password = tty_password::read(format!(
-                        "Password for '{}': ",
-                        config.user().escape_default()))?;
+                    "Password for '{}': ",
+                    config.user().escape_default()
+                ))?;
             } else {
                 return Err(e.into());
             }
@@ -258,7 +268,11 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
 
         eprintln!(
             "using the default {} '{}'",
-            if ver.specific().major >= 5 { "branch" } else { "database" },
+            if ver.specific().major >= 5 {
+                "branch"
+            } else {
+                "database"
+            },
             config.database()
         )
     }
@@ -279,13 +293,15 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                 (credentials::path(&default)?, default)
             } else {
                 loop {
-                    let name = question::String::new(
-                        "Specify a new instance name for the remote server"
-                    ).default(&default).ask()?;
+                    let name =
+                        question::String::new("Specify a new instance name for the remote server")
+                            .default(&default)
+                            .ask()?;
                     if !is_valid_local_instance_name(&name) {
                         print::error(
                             "Instance name must be a valid identifier, \
-                             (regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$)");
+                             (regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$)",
+                        );
                         continue;
                     }
                     break (credentials::path(&name)?, name);
@@ -301,9 +317,10 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         } else if cmd.non_interactive {
             anyhow::bail!("File {} exists; aborting.", cred_path.display());
         } else {
-            let mut q = question::Confirm::new_dangerous(
-                format!("{} already exists! Overwrite?", cred_path.display())
-            );
+            let mut q = question::Confirm::new_dangerous(format!(
+                "{} already exists! Overwrite?",
+                cred_path.display()
+            ));
             q.default(false);
             if !q.ask()? {
                 anyhow::bail!("Canceled.")
@@ -331,23 +348,21 @@ async fn prompt_conn_params(
     options: &ConnectionOptions,
     builder: &mut Builder,
     link: &Link,
-    has_branch: &mut bool
+    has_branch: &mut bool,
 ) -> anyhow::Result<Config> {
     if link.non_interactive && options.password {
-        anyhow::bail!(
-            "--password and --non-interactive are mutually exclusive."
-        )
+        anyhow::bail!("--password and --non-interactive are mutually exclusive.")
     }
 
     if link.non_interactive {
         let config = match builder.build_env().await {
             Ok(config) => config,
             Err(e) if e.is::<ClientNoCredentialsError>() => {
-                return Err(anyhow::anyhow!(
-                        "no connection options are specified")
-                    ).hint("Remove `--non-interactive` option or specify \
+                return Err(anyhow::anyhow!("no connection options are specified")).hint(
+                    "Remove `--non-interactive` option or specify \
                            `--host=localhost` and/or `--port=5656`. \
-                           See `edgedb --help-connect` for details")?;
+                           See `edgedb --help-connect` for details",
+                )?;
             }
             Err(e) => return Err(e)?,
         };
@@ -366,7 +381,7 @@ async fn prompt_conn_params(
             builder.host(
                 &question::String::new("Specify server host")
                     .default(config.host().unwrap_or("localhost"))
-                    .ask()?
+                    .ask()?,
             )?;
         };
         if options.port.is_none() {
@@ -374,14 +389,14 @@ async fn prompt_conn_params(
                 question::String::new("Specify server port")
                     .default(&config.port().unwrap_or(5656).to_string())
                     .ask()?
-                    .parse()?
+                    .parse()?,
             )?;
         }
         if options.user.is_none() {
             builder.user(
                 &question::String::new("Specify database user")
                     .default(config.user())
-                    .ask()?
+                    .ask()?,
             )?;
         }
 
@@ -390,13 +405,11 @@ async fn prompt_conn_params(
                 Ok(s) => {
                     builder.database(&s)?.branch(&s)?;
                     *has_branch = true;
-                },
-                Err(e) => {
-                    match e.downcast_ref() {
-                        Some(ReadlineError::Eof) => {}
-                        Some(_) | None => anyhow::bail!(e)
-                    }
                 }
+                Err(e) => match e.downcast_ref() {
+                    Some(ReadlineError::Eof) => {}
+                    Some(_) | None => anyhow::bail!(e),
+                },
             };
         }
 
@@ -416,24 +429,31 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
         inst_name => {
-            return Err(
-                anyhow::anyhow!("cannot unlink cloud instance {}.", inst_name)
-            ).with_hint(|| format!(
-                "use `edgedb instance destroy -I {}` to remove the instance",
-                inst_name))?;
+            return Err(anyhow::anyhow!(
+                "cannot unlink cloud instance {}.",
+                inst_name
+            ))
+            .with_hint(|| {
+                format!(
+                    "use `edgedb instance destroy -I {}` to remove the instance",
+                    inst_name
+                )
+            })?;
         }
     };
     let inst = InstanceInfo::try_read(name)?;
     if inst.is_some() {
-        return Err(
-            anyhow::anyhow!("cannot unlink local instance {:?}.", name)
-        ).with_hint(|| format!(
-            "use `edgedb instance destroy -I {}` to remove the instance",
-             name))?;
+        return Err(anyhow::anyhow!("cannot unlink local instance {:?}.", name)).with_hint(
+            || {
+                format!(
+                    "use `edgedb instance destroy -I {}` to remove the instance",
+                    name
+                )
+            },
+        )?;
     }
     with_projects(name, options.force, print_warning, || {
-        fs::remove_file(credentials::path(name)?)
-            .with_context(|| format!("cannot unlink {}", name))
+        fs::remove_file(credentials::path(name)?).with_context(|| format!("cannot unlink {}", name))
     })?;
     Ok(())
 }
