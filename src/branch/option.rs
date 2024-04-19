@@ -36,7 +36,7 @@ impl From<&BranchingCmd> for Command {
     }
 }
 
-/// Creates a new branch and switches to it.
+/// Creates a new branch.
 #[derive(clap::Args, Debug, Clone)]
 pub struct Create {
     /// The name of the branch to create.
