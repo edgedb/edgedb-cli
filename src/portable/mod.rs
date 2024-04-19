@@ -20,7 +20,7 @@ pub mod install;
 mod link;
 mod list_versions;
 pub mod project;
-mod reset_password;
+pub mod reset_password;
 mod resize;
 mod revert;
 pub mod status;
