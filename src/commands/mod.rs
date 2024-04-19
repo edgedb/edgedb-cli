@@ -1,6 +1,5 @@
 pub mod backslash;
 mod branching;
-mod branching;
 pub mod cli;
 mod command_result;
 mod configure;
@@ -15,7 +14,6 @@ mod helpers;
 mod info;
 mod list;
 mod list_aliases;
-mod list_branches;
 mod list_branches;
 mod list_casts;
 mod list_databases;

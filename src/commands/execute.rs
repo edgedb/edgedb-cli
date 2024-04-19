@@ -6,7 +6,6 @@ use crate::commands::parser::{Common, DatabaseCmd, DescribeCmd, ListCmd};
 use crate::commands::{self, branching, CommandResult, Options};
 use crate::migrations;
 use crate::migrations::options::MigrationCmd;
-use crate::migrations::options::MigrationCmd;
 use crate::print;
 
 pub async fn common(
