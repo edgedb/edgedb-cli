@@ -1,9 +1,8 @@
-
 use crate::branch::context::Context;
 use crate::branch::option::{BranchCommand, Command};
 use crate::branch::{create, current, drop, list, merge, rebase, rename, switch, wipe};
-use crate::connect::{Connection, Connector};
 use crate::commands::{CommandResult, Options};
+use crate::connect::{Connection, Connector};
 
 use edgedb_tokio::get_project_dir;
 
@@ -61,7 +60,10 @@ pub async fn create_context() -> anyhow::Result<Context> {
 pub async fn verify_server_can_use_branches(connection: &mut Connection) -> anyhow::Result<()> {
     let server_version = connection.get_version().await?;
     if server_version.specific().major < 5 {
-        anyhow::bail!("Branches are not supported on server version {}, please upgrade to EdgeDB 5+", server_version);
+        anyhow::bail!(
+            "Branches are not supported on server version {}, please upgrade to EdgeDB 5+",
+            server_version
+        );
     }
 
     Ok(())

@@ -2,21 +2,20 @@ use std::fmt;
 use std::str::FromStr;
 
 use clap::ValueHint;
-use serde::{Serialize, Deserialize};
 use edgedb_cli_derive::IntoArgs;
+use serde::{Deserialize, Serialize};
 
-use crate::commands::ExitCode;
-use crate::portable::local::{is_valid_local_instance_name, is_valid_cloud_name};
-use crate::portable::ver;
-use crate::portable::repository::Channel;
-use crate::print::{echo, warn, err_marker};
-use crate::process::{self, IntoArg};
-use crate::options::{ConnectionOptions, CloudOptions};
 use crate::cloud::ops::CloudTier;
-
+use crate::commands::ExitCode;
+use crate::options::{CloudOptions, ConnectionOptions};
+use crate::portable::local::{is_valid_cloud_name, is_valid_local_instance_name};
+use crate::portable::repository::Channel;
+use crate::portable::ver;
+use crate::print::{echo, err_marker, warn};
+use crate::process::{self, IntoArg};
 
 const DOMAIN_LABEL_MAX_LENGTH: usize = 63;
-const CLOUD_INSTANCE_NAME_MAX_LENGTH: usize = DOMAIN_LABEL_MAX_LENGTH - 2 + 1;  // "--" -> "/"
+const CLOUD_INSTANCE_NAME_MAX_LENGTH: usize = DOMAIN_LABEL_MAX_LENGTH - 2 + 1; // "--" -> "/"
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct ServerCommand {
@@ -26,7 +25,7 @@ pub struct ServerCommand {
 
 #[derive(clap::Args, Debug, Clone)]
 #[command(version = "help_expand")]
-#[command(disable_version_flag=true)]
+#[command(disable_version_flag = true)]
 pub struct ServerInstanceCommand {
     #[command(subcommand)]
     pub subcommand: InstanceCommand,
@@ -80,7 +79,7 @@ pub enum Command {
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Install {
-    #[arg(short='i', long)]
+    #[arg(short = 'i', long)]
     pub interactive: bool,
     #[arg(long, conflicts_with_all=&["channel", "version"])]
     pub nightly: bool,
@@ -109,7 +108,7 @@ pub struct Uninstall {
     #[arg(value_enum)]
     pub channel: Option<Channel>,
     /// Increase verbosity.
-    #[arg(short='v', long)]
+    #[arg(short = 'v', long)]
     pub verbose: bool,
 }
 
@@ -129,9 +128,8 @@ pub struct ListVersions {
     pub json: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[derive(clap::ValueEnum)]
-#[value(rename_all="kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, clap::ValueEnum)]
+#[value(rename_all = "kebab-case")]
 pub enum StartConf {
     Auto,
     Manual,
@@ -140,10 +138,7 @@ pub enum StartConf {
 #[derive(Clone, Debug)]
 pub enum InstanceName {
     Local(String),
-    Cloud {
-        org_slug: String,
-        name: String,
-    },
+    Cloud { org_slug: String, name: String },
 }
 
 fn billable_unit(s: &str) -> Result<String, String> {
@@ -161,7 +156,9 @@ fn billable_unit(s: &str) -> Result<String, String> {
         .map_err(|_| format!("`{s}` is not a positive number or valid fraction"))?;
 
     if n == 0 || d == 0 {
-        Err(String::from("`{s}` is not a positive number or valid fraction"))
+        Err(String::from(
+            "`{s}` is not a positive number or valid fraction",
+        ))
     } else {
         Ok(s.to_string())
     }
@@ -170,7 +167,7 @@ fn billable_unit(s: &str) -> Result<String, String> {
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct CloudInstanceBillables {
     /// Cloud instance subscription tier.
-    #[arg(long, value_name="tier")]
+    #[arg(long, value_name = "tier")]
     #[arg(value_enum)]
     pub tier: Option<CloudTier>,
 
@@ -238,12 +235,12 @@ pub struct Create {
     pub cloud_backup_source: CloudBackupSourceParams,
 
     /// Deprecated parameter, unused.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub start_conf: Option<StartConf>,
 
     /// Default user name (created during initialization and saved in
     /// credentials file).
-    #[arg(long, default_value="edgedb")]
+    #[arg(long, default_value = "edgedb")]
     pub default_user: String,
 
     /// The default branch name. This defaults to 'main' on EdgeDB >=5.x; otherwise
@@ -261,21 +258,21 @@ pub struct Destroy {
     pub cloud_opts: CloudOptions,
 
     /// Name of instance to destroy.
-    #[arg(hide=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(hide = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
     /// Name of instance to destroy.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 
     /// Verbose output.
-    #[arg(short='v', long, overrides_with="quiet")]
+    #[arg(short = 'v', long, overrides_with = "quiet")]
     pub verbose: bool,
 
     /// Quiet output.
-    #[arg(short='q', long, overrides_with="verbose")]
+    #[arg(short = 'q', long, overrides_with = "verbose")]
     pub quiet: bool,
 
     /// Force destroy even if instance is referred to by a project.
@@ -323,13 +320,13 @@ pub struct Link {
 #[command(long_about = "Unlink from a remote EdgeDB instance.")]
 pub struct Unlink {
     /// Specify remote instance name.
-    #[arg(hide=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(hide = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
     /// Specify remote instance name.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 
     /// Force destroy even if instance is referred to by a project.
@@ -340,62 +337,66 @@ pub struct Unlink {
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Start {
     /// Name of instance to start.
-    #[arg(hide=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(hide = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
     /// Name of instance to start.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 
     /// Start server in the foreground.
     #[arg(long)]
-    #[cfg_attr(target_os="linux",
-        arg(help="Start the server in the foreground rather than using \
+    #[cfg_attr(
+        target_os = "linux",
+        arg(help = "Start the server in the foreground rather than using \
                   systemd to manage the process (note: you might need to \
-                  stop the non-foreground instance first)"))]
-    #[cfg_attr(target_os="macos",
-        arg(help="Start the server in the foreground rather than using \
+                  stop the non-foreground instance first)")
+    )]
+    #[cfg_attr(
+        target_os = "macos",
+        arg(help = "Start the server in the foreground rather than using \
                   launchctl to manage the process (note: you might need to \
-                  stop the non-foreground instance first)"))]
+                  stop the non-foreground instance first)")
+    )]
     pub foreground: bool,
 
     /// With `--foreground`, stops server running in the background; also restarts
     /// the service on exit.
-    #[arg(long, conflicts_with="managed_by")]
+    #[arg(long, conflicts_with = "managed_by")]
     pub auto_restart: bool,
 
     /// Indicate whether managed by edgedb-cli, systemd, launchctl, or None.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     #[arg(value_parser=["systemd", "launchctl", "edgedb-cli"])]
-    #[arg(conflicts_with="auto_restart")]
+    #[arg(conflicts_with = "auto_restart")]
     pub managed_by: Option<String>,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Stop {
     /// Name of instance to stop.
-    #[arg(hide=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(hide = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
     /// Name of instance to stop.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Restart {
     /// Name of instance to restart.
-    #[arg(hide=true)]
+    #[arg(hide = true)]
     #[arg(value_hint=ValueHint::Other)]
     pub name: Option<InstanceName>,
 
     /// Name of instance to restart.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 }
 
@@ -409,7 +410,7 @@ pub struct List {
     pub extended: bool,
 
     /// Output all available debug info about each instance.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     #[arg(conflicts_with_all=&["extended", "json"])]
     pub debug: bool,
 
@@ -419,12 +420,12 @@ pub struct List {
 
     /// Query remote instances.
     //  Currently needed for WSL.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub no_remote: bool,
 
     /// Do not show warnings on no instances.
     //  Currently needed for WSL.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub quiet: bool,
 }
 
@@ -434,13 +435,13 @@ pub struct Status {
     pub cloud_opts: CloudOptions,
 
     /// Name of instance.
-    #[arg(hide=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(hide = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
     /// Name of instance.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 
     /// Show current systems service info.
@@ -452,7 +453,7 @@ pub struct Status {
     pub extended: bool,
 
     /// Output all available debug info about each instance.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     #[arg(conflicts_with_all=&["extended", "json", "service"])]
     pub debug: bool,
 
@@ -462,28 +463,28 @@ pub struct Status {
 
     /// Do not print error on "No instance found", only indicate by error code.
     //  Currently needed for WSL.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub quiet: bool,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Logs {
     /// Name of instance.
-    #[arg(hide=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(hide = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
     /// Name of instance.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 
     /// Number of lines to show.
-    #[arg(short='n', long)]
+    #[arg(short = 'n', long)]
     pub tail: Option<usize>,
 
     /// Show log tail and continue watching for new entries.
-    #[arg(short='f', long)]
+    #[arg(short = 'f', long)]
     pub follow: bool,
 }
 
@@ -493,8 +494,8 @@ pub struct Resize {
     pub cloud_opts: CloudOptions,
 
     /// Instance to resize.
-    #[arg(short='I', long, required=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long, required = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: InstanceName,
 
     #[command(flatten)]
@@ -546,17 +547,17 @@ pub struct Upgrade {
     pub to_channel: Option<Channel>,
 
     /// Instance to upgrade.
-    #[arg(hide=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(hide = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
     /// Instance to upgrade.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 
     /// Verbose output.
-    #[arg(short='v', long)]
+    #[arg(short = 'v', long)]
     pub verbose: bool,
 
     /// Force upgrade even if there is no new version.
@@ -566,7 +567,7 @@ pub struct Upgrade {
     /// Force dump-restore during upgrade even if version is compatible.
     ///
     /// Used by `project upgrade --force`.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub force_dump_restore: bool,
 
     /// Do not ask questions. Assume user wants to upgrade instance.
@@ -577,13 +578,13 @@ pub struct Upgrade {
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct Revert {
     /// Name of instance to revert.
-    #[arg(hide=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(hide = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
     /// Name of instance to revert.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 
     /// Do not check if upgrade is in progress.
@@ -591,20 +592,20 @@ pub struct Revert {
     pub ignore_pid_check: bool,
 
     /// Do not ask for confirmation.
-    #[arg(short='y', long)]
+    #[arg(short = 'y', long)]
     pub no_confirm: bool,
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct ResetPassword {
     /// Name of instance to reset.
-    #[arg(hide=true)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(hide = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub name: Option<InstanceName>,
 
     /// Name of instance to reset.
-    #[arg(short='I', long)]
-    #[arg(value_hint=ValueHint::Other)]  // TODO complete instance name
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
 
     /// User to change password for (default obtained from credentials file).
@@ -681,8 +682,10 @@ impl FromStr for StartConf {
         match s {
             "auto" => Ok(StartConf::Auto),
             "manual" => Ok(StartConf::Manual),
-            _ => anyhow::bail!("Unsupported start configuration, \
-                options: `auto`, `manual`"),
+            _ => anyhow::bail!(
+                "Unsupported start configuration, \
+                options: `auto`, `manual`"
+            ),
         }
     }
 }
@@ -739,7 +742,8 @@ impl FromStr for InstanceName {
                 anyhow::bail!(
                     "invalid cloud instance name \"{}\": \
                     length cannot exceed {} characters",
-                    name, CLOUD_INSTANCE_NAME_MAX_LENGTH,
+                    name,
+                    CLOUD_INSTANCE_NAME_MAX_LENGTH,
                 );
             }
             Ok(InstanceName::Cloud {
@@ -765,24 +769,33 @@ impl IntoArg for &InstanceName {
     }
 }
 
-pub fn instance_arg<'x>(positional: &'x Option<InstanceName>,
-                        named: &'x Option<InstanceName>)
-                        -> anyhow::Result<&'x InstanceName>
-{
+pub fn instance_arg<'x>(
+    positional: &'x Option<InstanceName>,
+    named: &'x Option<InstanceName>,
+) -> anyhow::Result<&'x InstanceName> {
     if let Some(name) = positional {
         if named.is_some() {
-            echo!(err_marker(), "Instance name is specified twice \
+            echo!(
+                err_marker(),
+                "Instance name is specified twice \
                 as positional argument and via `-I`. \
-                The latter is preferred.");
+                The latter is preferred."
+            );
             return Err(ExitCode::new(2).into());
         }
-        warn(format_args!("Specifying instance name as positional argument is \
-            deprecated. Use `-I {}` instead.", name));
+        warn(format_args!(
+            "Specifying instance name as positional argument is \
+            deprecated. Use `-I {}` instead.",
+            name
+        ));
         return Ok(name);
     }
     if let Some(name) = named {
         return Ok(name);
     }
-    echo!(err_marker(), "Instance name argument is required, use '-I name'");
+    echo!(
+        err_marker(),
+        "Instance name argument is required, use '-I name'"
+    );
     Err(ExitCode::new(2).into())
 }

@@ -20,7 +20,10 @@ pub async fn main(
         rename(connection, options).await?;
     }
 
-    eprintln!("Renamed branch {} to {}", options.old_name, options.new_name);
+    eprintln!(
+        "Renamed branch {} to {}",
+        options.old_name, options.new_name
+    );
 
     if connection.database() == options.old_name {
         return Ok(Some(CommandResult {

@@ -1,17 +1,14 @@
 use std::collections::HashSet;
 
-use edgeql_parser::tokenizer::{Tokenizer, Kind};
 use edgeql_parser::keywords::{self, Keyword};
+use edgeql_parser::tokenizer::{Kind, Tokenizer};
 use once_cell::sync::Lazy;
 
-use crate::print::style::{Styler, Style};
 use crate::completion::{BackslashFsm, ValidationResult};
+use crate::print::style::{Style, Styler};
 
-
-static UNRESERVED_KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
-    keywords::UNRESERVED_KEYWORDS.iter().copied().collect()
-});
-
+static UNRESERVED_KEYWORDS: Lazy<HashSet<&'static str>> =
+    Lazy::new(|| keywords::UNRESERVED_KEYWORDS.iter().copied().collect());
 
 pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
     let mut pos = 0;
@@ -25,11 +22,9 @@ pub fn edgeql(outbuf: &mut String, text: &str, styler: &Styler) {
             }
         };
         if tok.span.start as usize > pos {
-            emit_insignificant(outbuf, styler,
-                &text[pos..tok.span.start as usize]);
+            emit_insignificant(outbuf, styler, &text[pos..tok.span.start as usize]);
         }
-        if let Some(st) = token_style(tok.kind, &tok.text)
-        {
+        if let Some(st) = token_style(tok.kind, &tok.text) {
             styler.write(st, &tok.text, outbuf);
         } else {
             outbuf.push_str(&tok.text);
@@ -70,12 +65,12 @@ fn emit_insignificant(buf: &mut String, styler: &Styler, mut chunk: &str) {
     while let Some(pos) = chunk.find('#') {
         if let Some(end) = chunk[pos..].find('\n') {
             buf.push_str(&chunk[..pos]);
-            styler.write(Style::Comment, &chunk[pos..pos+end], buf);
+            styler.write(Style::Comment, &chunk[pos..pos + end], buf);
 
             // must be unstyled to work well at the end of input
             buf.push('\n');
 
-            chunk = &chunk[pos+end+1..];
+            chunk = &chunk[pos + end + 1..];
         } else {
             break;
         }
@@ -84,13 +79,11 @@ fn emit_insignificant(buf: &mut String, styler: &Styler, mut chunk: &str) {
 }
 
 fn token_style(kind: Kind, value: &str) -> Option<Style> {
-    use edgeql_parser::tokenizer::Kind as T;
     use crate::print::style::Style as S;
+    use edgeql_parser::tokenizer::Kind as T;
 
     match kind {
-        T::Keyword(Keyword("true" | "false")) => {
-            Some(S::Boolean)
-        },
+        T::Keyword(Keyword("true" | "false")) => Some(S::Boolean),
         T::Keyword(_) => Some(S::Keyword),
         T::Ident => {
             let lc = value.to_lowercase();
@@ -99,7 +92,7 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
             } else {
                 None
             }
-        },
+        }
 
         T::At => Some(S::Operator),
         T::Dot => Some(S::Punctuation),
@@ -150,6 +143,6 @@ fn token_style(kind: Kind, value: &str) -> Option<Style> {
         T::BacktickName => None,
         T::Substitution => Some(S::Decorator),
 
-        t => unreachable!("unexpected token kind: {:?}", t)
+        t => unreachable!("unexpected token kind: {:?}", t),
     }
 }

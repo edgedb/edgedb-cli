@@ -6,14 +6,12 @@ use crate::portable::repository::{Query, QueryOptions};
 use crate::portable::ver;
 use crate::table;
 
-
 #[derive(serde::Serialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 struct JsonInfo<'a> {
     version: &'a ver::Build,
     binary_path: Option<&'a str>,
 }
-
 
 pub fn info(options: &Info) -> anyhow::Result<()> {
     // note this assumes that latest is set if no nightly and version
@@ -25,28 +23,34 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
             channel: options.channel,
             version: options.version.as_ref(),
         },
-        || anyhow::bail!("One of `--latest`, `--channel=`, \
-                         `--version=` required")
+        || {
+            anyhow::bail!(
+                "One of `--latest`, `--channel=`, \
+                         `--version=` required"
+            )
+        },
     )?;
     let all = local::get_installed()?;
-    let inst = all.into_iter().filter(|item| query.matches(&item.version))
+    let inst = all
+        .into_iter()
+        .filter(|item| query.matches(&item.version))
         .max_by_key(|item| item.version.specific())
         .context("cannot find installed packages maching your criteria")?;
 
-    let item = options.get.as_deref()
+    let item = options
+        .get
+        .as_deref()
         .or(options.bin_path.then_some("bin-path"));
     if let Some(item) = item {
         match item {
             "bin-path" => {
                 let path = inst.server_path()?;
                 if options.json {
-                    let path = path.to_str()
-                        .context("cannot convert path to a string")?;
+                    let path = path.to_str().context("cannot convert path to a string")?;
                     println!("{}", serde_json::to_string(path)?);
                 } else {
                     println!("{}", path.display());
                 }
-
             }
             "version" => {
                 let version = &inst.version;
@@ -59,10 +63,13 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
             _ => unreachable!(),
         }
     } else if options.json {
-        println!("{}", serde_json::to_string_pretty(&JsonInfo {
-            version: &inst.version,
-            binary_path: inst.server_path()?.to_str(),
-        })?)
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&JsonInfo {
+                version: &inst.version,
+                binary_path: inst.server_path()?.to_str(),
+            })?
+        )
     } else {
         table::settings(&[
             ("Version", inst.version.to_string()),

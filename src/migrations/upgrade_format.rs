@@ -1,12 +1,12 @@
-use std::fs;
-use std::path::PathBuf;
-use regex::Regex;
 use crate::commands::Options;
 use crate::connect::Connection;
-use crate::migrations::Context;
 use crate::migrations::migration::{file_num, read_file, read_names};
 use crate::migrations::options::MigrationUpgradeFormat;
+use crate::migrations::Context;
 use crate::print;
+use regex::Regex;
+use std::fs;
+use std::path::PathBuf;
 
 pub async fn upgrade_format(
     _cli: &mut Connection,
@@ -34,7 +34,7 @@ async fn _upgrade_format(context: &Context) -> anyhow::Result<()> {
         } else if new_filename.captures(fname).is_some() {
             println!("Migration {} OK", fname)
         } else {
-            print::warn(format!("Unknown migration file naming schema: {fname}", ))
+            print::warn(format!("Unknown migration file naming schema: {fname}",))
         }
     }
 
@@ -45,7 +45,10 @@ async fn _upgrade_format(context: &Context) -> anyhow::Result<()> {
 
 async fn upgrade_format_of_file(file: &PathBuf, num: u64) -> anyhow::Result<()> {
     let migration = read_file(file, true).await?;
-    let new_name = file.parent().unwrap().join(format!("{:05}-{}.edgeql", num, &migration.id[..7]));
+    let new_name = file
+        .parent()
+        .unwrap()
+        .join(format!("{:05}-{}.edgeql", num, &migration.id[..7]));
 
     fs::rename(file, new_name)?;
 
@@ -54,11 +57,11 @@ async fn upgrade_format_of_file(file: &PathBuf, num: u64) -> anyhow::Result<()> 
 
 #[cfg(test)]
 mod test {
-    use std::fs;
-    use regex::Regex;
-    use crate::migrations::Context;
     use crate::migrations::migration::{read_file, read_names};
     use crate::migrations::upgrade_format::_upgrade_format;
+    use crate::migrations::Context;
+    use regex::Regex;
+    use std::fs;
 
     #[tokio::test]
     async fn test_upgrade() {
@@ -71,7 +74,11 @@ mod test {
         fs_extra::dir::copy(original_schema_dir, &tmp_dir, &Default::default()).unwrap();
         let schema_dir = tmp_dir.path().to_path_buf();
 
-        let ctx = Context { schema_dir, edgedb_version: None, quiet: false };
+        let ctx = Context {
+            schema_dir,
+            edgedb_version: None,
+            quiet: false,
+        };
 
         _upgrade_format(&ctx).await.unwrap();
 

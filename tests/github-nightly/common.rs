@@ -1,5 +1,6 @@
 pub fn dock_ubuntu(codename: &str) -> String {
-    format!(r###"
+    format!(
+        r###"
         FROM ubuntu:{codename}
         ENV DEBIAN_FRONTEND=noninteractive
         RUN apt-get update && apt-get install -y \
@@ -16,11 +17,14 @@ pub fn dock_ubuntu(codename: &str) -> String {
             user1
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
-    "###, codename=codename)
+    "###,
+        codename = codename
+    )
 }
 
 pub fn dock_ubuntu_jspy(codename: &str) -> String {
-    format!(r###"
+    format!(
+        r###"
         FROM ubuntu:{codename}
         ENV DEBIAN_FRONTEND=noninteractive
         RUN apt-get update && apt-get install -y \
@@ -42,11 +46,14 @@ pub fn dock_ubuntu_jspy(codename: &str) -> String {
         ADD ./sudoers /etc/sudoers
         ADD ./edbconnect.py /usr/bin/edbconnect.py
         ADD ./edbconnect.js /usr/bin/edbconnect.js
-    "###, codename=codename)
+    "###,
+        codename = codename
+    )
 }
 
 pub fn dock_centos(codename: u32) -> String {
-    format!(r###"
+    format!(
+        r###"
         FROM centos:{codename}
         RUN yum -y install sudo yum-utils systemd
         RUN yum-config-manager \
@@ -58,11 +65,14 @@ pub fn dock_centos(codename: u32) -> String {
             user1
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
-    "###, codename=codename)
+    "###,
+        codename = codename
+    )
 }
 
 pub fn dock_debian(codename: &str) -> String {
-    format!(r###"
+    format!(
+        r###"
         FROM debian:{codename}
         ENV DEBIAN_FRONTEND=noninteractive
         RUN apt-get update && apt-get install -y \
@@ -79,5 +89,7 @@ pub fn dock_debian(codename: &str) -> String {
             user1
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
-    "###, codename=codename)
+    "###,
+        codename = codename
+    )
 }

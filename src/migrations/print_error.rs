@@ -2,18 +2,17 @@ use std::fs;
 use std::path::Path;
 use std::str;
 
-use codespan_reporting::files::SimpleFile;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
+use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::emit;
-use termcolor::{StandardStream, ColorChoice};
+use termcolor::{ColorChoice, StandardStream};
 
 use edgedb_errors::{Error, InternalServerError};
 use edgeql_parser::tokenizer::Tokenizer;
 
-use crate::print;
-use crate::migrations::source_map::SourceMap;
 use crate::migrations::create::SourceName;
-
+use crate::migrations::source_map::SourceMap;
+use crate::print;
 
 fn end_of_last_token(data: &str) -> Option<u64> {
     let mut tokenizer = Tokenizer::new(data);
@@ -24,9 +23,10 @@ fn end_of_last_token(data: &str) -> Option<u64> {
     Some(off)
 }
 
-fn get_error_info<'x>(err: &Error, source_map: &'x SourceMap<SourceName>)
-    -> Option<(&'x Path, String, usize, usize, bool)>
-{
+fn get_error_info<'x>(
+    err: &Error,
+    source_map: &'x SourceMap<SourceName>,
+) -> Option<(&'x Path, String, usize, usize, bool)> {
     let pstart = err.position_start()?;
     let pend = err.position_end()?;
     let (src, offset) = source_map.translate_range(pstart, pend).ok()?;
@@ -45,17 +45,17 @@ fn get_error_info<'x>(err: &Error, source_map: &'x SourceMap<SourceName>)
     Some(res)
 }
 
-pub fn print_migration_error(err: &Error, source_map: &SourceMap<SourceName>)
-    -> Result<(), anyhow::Error>
-{
-    let (file_name, data, pstart, pend, eof) =
-        match get_error_info(err, source_map) {
-            Some(pair) => pair,
-            None => {
-                print::edgedb_error(err, false);
-                return Ok(());
-            }
-        };
+pub fn print_migration_error(
+    err: &Error,
+    source_map: &SourceMap<SourceName>,
+) -> Result<(), anyhow::Error> {
+    let (file_name, data, pstart, pend, eof) = match get_error_info(err, source_map) {
+        Some(pair) => pair,
+        None => {
+            print::edgedb_error(err, false);
+            return Ok(());
+        }
+    };
 
     let message = if eof {
         "Unexpected end of file"
@@ -68,18 +68,20 @@ pub fn print_migration_error(err: &Error, source_map: &SourceMap<SourceName>)
     let files = SimpleFile::new(&file_name_display, data);
     let diag = Diagnostic::error()
         .with_message(message)
-        .with_labels(vec![
-            Label {
-                file_id: (),
-                style: LabelStyle::Primary,
-                range: pstart..pend,
-                message: hint.into(),
-            },
-        ])
+        .with_labels(vec![Label {
+            file_id: (),
+            style: LabelStyle::Primary,
+            range: pstart..pend,
+            message: hint.into(),
+        }])
         .with_notes(detail.into_iter().collect());
 
-    emit(&mut StandardStream::stderr(ColorChoice::Auto),
-        &Default::default(), &files, &diag)?;
+    emit(
+        &mut StandardStream::stderr(ColorChoice::Auto),
+        &Default::default(),
+        &files,
+        &diag,
+    )?;
 
     if err.is::<InternalServerError>() {
         if let Some(traceback) = err.server_traceback() {

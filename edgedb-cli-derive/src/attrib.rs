@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 
-
 use proc_macro2::Span;
 use proc_macro_error::emit_error;
 use syn::parse::{Parse, ParseStream};
@@ -9,7 +8,6 @@ use syn::token::Paren;
 
 use crate::kw;
 
-
 #[derive(Debug)]
 pub enum FieldAttr {
     Default(syn::Ident),
@@ -17,29 +15,20 @@ pub enum FieldAttr {
     Parse(CliParse),
     Name(syn::LitStr),
     Flatten,
-    Value {
-        name: syn::Ident,
-        value: syn::Expr,
-    },
+    Value { name: syn::Ident, value: syn::Expr },
 }
 
 #[derive(Debug)]
 pub enum ContainerAttr {
     Default(syn::Ident),
-    Value {
-        name: syn::Ident,
-        value: syn::Expr,
-    },
+    Value { name: syn::Ident, value: syn::Expr },
 }
 
 #[derive(Debug)]
 pub enum SubcommandAttr {
     Name(syn::LitStr),
     Default(syn::Ident),
-    Value {
-        name: syn::Ident,
-        value: syn::Expr,
-    },
+    Value { name: syn::Ident, value: syn::Expr },
 }
 
 pub enum Case {
@@ -95,12 +84,14 @@ struct FieldAttrList(pub Punctuated<FieldAttr, syn::Token![,]>);
 struct SubcommandAttrList(pub Punctuated<SubcommandAttr, syn::Token![,]>);
 
 fn try_set<T, I>(dest: &mut T, value: I)
-    where T: TryFrom<I>,
-          <T as TryFrom<I>>::Error: Into<proc_macro_error::Diagnostic>,
+where
+    T: TryFrom<I>,
+    <T as TryFrom<I>>::Error: Into<proc_macro_error::Diagnostic>,
 {
     T::try_from(value)
-    .map(|val| *dest = val)
-    .map_err(|e| emit_error!(e.into())).ok();
+        .map(|val| *dest = val)
+        .map_err(|e| emit_error!(e.into()))
+        .ok();
 }
 
 impl Parse for ContainerAttr {
@@ -254,9 +245,8 @@ impl ContainerAttrs {
             rename_all: Case::Kebab,
         };
         for attr in attrs {
-            if matches!(attr.style, syn::AttrStyle::Outer) &&
-                (attr.path.is_ident("command")
-                 || attr.path.is_ident("arg"))
+            if matches!(attr.style, syn::AttrStyle::Outer)
+                && (attr.path.is_ident("command") || attr.path.is_ident("arg"))
             {
                 let chunk: ContainerAttrList = match attr.parse_args() {
                     Ok(attr) => attr,
@@ -270,7 +260,7 @@ impl ContainerAttrs {
                         Value { name, value } if name == "rename_all" => {
                             try_set(&mut res.rename_all, value);
                         }
-                        Value { name: _, value: _ } => { }
+                        Value { name: _, value: _ } => {}
                         Default(name) if name == "main" => {
                             res.main = true;
                         }
@@ -299,9 +289,8 @@ impl FieldAttrs {
             default_value: None,
         };
         for attr in attrs {
-            if matches!(attr.style, syn::AttrStyle::Outer) &&
-                (attr.path.is_ident("command")
-                 || attr.path.is_ident("arg"))
+            if matches!(attr.style, syn::AttrStyle::Outer)
+                && (attr.path.is_ident("command") || attr.path.is_ident("arg"))
             {
                 let chunk: FieldAttrList = match attr.parse_args() {
                     Ok(attr) => attr,
@@ -317,9 +306,7 @@ impl FieldAttrs {
                                 syn::Expr::Lit(syn::ExprLit {
                                     lit: syn::Lit::Str(s),
                                     ..
-                                }) => {
-                                    res.long = Some(Some(s))
-                                }
+                                }) => res.long = Some(Some(s)),
                                 _ => emit_error!(value, "expected string"),
                             };
                         }
@@ -328,13 +315,11 @@ impl FieldAttrs {
                                 syn::Expr::Lit(syn::ExprLit {
                                     lit: syn::Lit::Char(s),
                                     ..
-                                }) => {
-                                    res.short = Some(s)
-                                }
+                                }) => res.short = Some(s),
                                 _ => emit_error!(value, "expected character"),
                             };
                         }
-                        Value { name: _, value: _ } => { }
+                        Value { name: _, value: _ } => {}
                         Default(name) if name == "long" => {
                             res.long = Some(None);
                         }
@@ -373,9 +358,8 @@ impl SubcommandAttrs {
             flatten: false,
         };
         for attr in attrs {
-            if matches!(attr.style, syn::AttrStyle::Outer) &&
-                (attr.path.is_ident("arg")
-                 || attr.path.is_ident("command"))
+            if matches!(attr.style, syn::AttrStyle::Outer)
+                && (attr.path.is_ident("arg") || attr.path.is_ident("command"))
             {
                 let chunk: SubcommandAttrList = match attr.parse_args() {
                     Ok(attr) => attr,
@@ -387,7 +371,7 @@ impl SubcommandAttrs {
                 for item in chunk.0 {
                     match item {
                         Name(name) => res.name = Some(name.value()),
-                        Value { name: _, value: _ } => { }
+                        Value { name: _, value: _ } => {}
                         Default(name) if name == "flatten" => {
                             res.flatten = true;
                         }
@@ -406,7 +390,10 @@ impl TryFrom<syn::Expr> for Case {
     type Error = syn::Error;
     fn try_from(val: syn::Expr) -> syn::Result<Case> {
         match val {
-            syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), ..}) => {
+            syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Str(s),
+                ..
+            }) => {
                 let case = match &s.value()[..] {
                     "CamelCase" => Case::Camel,
                     "snake_case" => Case::Snake,
@@ -416,15 +403,15 @@ impl TryFrom<syn::Expr> for Case {
                     "Title Case" => Case::Title,
                     "SHOUTY-KEBAB-CASE" => Case::ShoutyKebab,
                     _ => {
-                        return Err(syn::Error::new_spanned(s,
-                            format!("undefined case conversion")));
+                        return Err(syn::Error::new_spanned(
+                            s,
+                            format!("undefined case conversion"),
+                        ));
                     }
                 };
                 Ok(case)
             }
-            _ => {
-                Err(syn::Error::new_spanned(val, "literal expected"))
-            }
+            _ => Err(syn::Error::new_spanned(val, "literal expected")),
         }
     }
 }

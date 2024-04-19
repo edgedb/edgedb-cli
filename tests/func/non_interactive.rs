@@ -1,29 +1,34 @@
 use assert_cmd::Command;
 
-use crate::SERVER;
 use crate::util::OutputExt;
-
+use crate::SERVER;
 
 #[test]
 fn with_comment() {
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .write_stdin("SELECT 1; # comment")
-        .assert().success();
+        .assert()
+        .success();
 }
 
 #[test]
 fn deprecated_unix_host() {
-    SERVER.admin_cmd_deprecated()
+    SERVER
+        .admin_cmd_deprecated()
         .write_stdin("SELECT 1")
-        .assert().success();
+        .assert()
+        .success();
 }
 
 #[test]
 fn stdin_password() {
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("--password-from-stdin")
         .write_stdin("password\n")
-        .assert().success();
+        .assert()
+        .success();
 }
 
 #[test]
@@ -38,15 +43,18 @@ fn strict_version_check() {
 
 #[test]
 fn list_indexes() {
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("list")
         .arg("indexes")
-        .assert().success();
+        .assert()
+        .success();
 }
 
 #[test]
 fn database_create_wipe_drop() {
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("database")
         .arg("create")
         .arg("test_create_wipe_drop")
@@ -54,7 +62,8 @@ fn database_create_wipe_drop() {
         .context("create", "create new database")
         .success();
 
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("query")
         .arg("--database=test_create_wipe_drop")
         .arg("CREATE TYPE Type1")
@@ -63,15 +72,18 @@ fn database_create_wipe_drop() {
         .context("add-data", "add some data to the new database")
         .success();
 
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("query")
         .arg("--database=test_create_wipe_drop")
         .arg("SELECT Type1")
         .assert()
         .context("check-data", "check that added data is still there")
-        .stdout(predicates::str::contains(r#"{"id":"#)).success();
+        .stdout(predicates::str::contains(r#"{"id":"#))
+        .success();
 
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("database")
         .arg("wipe")
         .arg("--database=test_create_wipe_drop")
@@ -80,7 +92,8 @@ fn database_create_wipe_drop() {
         .context("wipe", "wipe the data out")
         .success();
 
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("query")
         .arg("--database=test_create_wipe_drop")
         .arg("CREATE TYPE Type1")
@@ -88,7 +101,8 @@ fn database_create_wipe_drop() {
         .context("create-again", "check that type can be created again")
         .success();
 
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("--database=test_create_wipe_drop")
         .arg("database")
         .arg("drop")
@@ -98,7 +112,8 @@ fn database_create_wipe_drop() {
         .context("drop-same", "cannot drop the same database")
         .failure();
 
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("database")
         .arg("drop")
         .arg("test_create_wipe_drop")
@@ -107,7 +122,8 @@ fn database_create_wipe_drop() {
         .context("drop", "drop successfully")
         .success();
 
-    SERVER.admin_cmd()
+    SERVER
+        .admin_cmd()
         .arg("query")
         .arg("--database=test_create_wipe_drop")
         .arg("SELECT Type1")

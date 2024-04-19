@@ -10,18 +10,38 @@ pub async fn main(
 ) -> anyhow::Result<()> {
     eprintln!("Creating branch '{}'...", options.name);
 
-    let from = options.from.clone().unwrap_or(async {
-        anyhow::Ok(context.get_default_branch_name(connection).await?.to_string())
-    }.await?);
+    let from = options.from.clone().unwrap_or(
+        async {
+            anyhow::Ok(
+                context
+                    .get_default_branch_name(connection)
+                    .await?
+                    .to_string(),
+            )
+        }
+        .await?,
+    );
 
-    create_branch(connection, &options.name, &from, options.empty, options.copy_data).await?;
+    create_branch(
+        connection,
+        &options.name,
+        &from,
+        options.empty,
+        options.copy_data,
+    )
+    .await?;
     Ok(())
 }
 
-
-pub async fn create_branch(connection: &mut Connection, name: &str, from: &str, empty: bool, copy_data: bool) -> anyhow::Result<()> {
+pub async fn create_branch(
+    connection: &mut Connection,
+    name: &str,
+    from: &str,
+    empty: bool,
+    copy_data: bool,
+) -> anyhow::Result<()> {
     let branch_name = edgeql_parser::helpers::quote_name(name);
-    
+
     let query = if empty {
         format!("create empty branch {}", branch_name)
     } else {

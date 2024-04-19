@@ -1,12 +1,10 @@
 use std::fmt::{self, Write};
 
 use crate::analyze::contexts;
-use crate::analyze::model::{Analysis, Plan, Stage, Arguments};
-use crate::analyze::model::{Shape, ChildName, DebugNode, Cost};
+use crate::analyze::model::{Analysis, Arguments, Plan, Stage};
+use crate::analyze::model::{ChildName, Cost, DebugNode, Shape};
 use crate::analyze::table;
 use crate::print::Highlight;
-
-
 
 struct Opt<'a, T>(&'a Option<T>);
 struct Border;
@@ -56,7 +54,6 @@ pub trait HasChildren {
 pub fn print_debug_plan(explain: &Analysis) {
     if let Some(debug) = &explain.debug_info {
         if let Some(node) = &debug.full_plan {
-
             let mut header = Vec::with_capacity(9);
             header.push(Box::new("") as Box<_>);
             cost_header(&mut header, &explain.arguments);
@@ -101,12 +98,10 @@ pub fn print_shape(explain: &Analysis) {
         for (child, ch) in WideMarker::new().children(&shape.children) {
             match &ch.name {
                 ChildName::Pointer { name } => {
-                    visit_subshape(&mut rows, explain,
-                                   child, Some(name), &ch.node);
+                    visit_subshape(&mut rows, explain, child, Some(name), &ch.node);
                 }
                 _ => {
-                    visit_subshape(&mut rows, explain,
-                                   child, None, &ch.node);
+                    visit_subshape(&mut rows, explain, child, None, &ch.node);
                 }
             }
         }
@@ -143,7 +138,6 @@ fn visit_subshape<'x>(
         }
     }
 }
-
 
 pub fn print_expanded_tree(explain: &Analysis) {
     if let Some(node) = &explain.fine_grained {
@@ -239,9 +233,12 @@ impl WideMarker {
             columns: bitvec::vec::BitVec::new(),
         }
     }
-    pub fn children<'x, I: IntoIterator>(&'x self, children: I)
-        -> impl Iterator<Item=(WideMarker, I::Item)> + 'x
-        where I::IntoIter: ExactSizeIterator + 'x,
+    pub fn children<'x, I: IntoIterator>(
+        &'x self,
+        children: I,
+    ) -> impl Iterator<Item = (WideMarker, I::Item)> + 'x
+    where
+        I::IntoIter: ExactSizeIterator + 'x,
     {
         let children = children.into_iter();
         let last_idx = children.len().saturating_sub(1);
@@ -279,10 +276,13 @@ impl NarrowMarker {
             has_head: true,
         }
     }
-    pub fn children<'x, I: IntoIterator>(&'x self, children: I)
-        -> impl Iterator<Item=(NarrowMarker, I::Item)> + 'x
-        where I::IntoIter: ExactSizeIterator + 'x,
-              <I::IntoIter as Iterator>::Item: HasChildren,
+    pub fn children<'x, I: IntoIterator>(
+        &'x self,
+        children: I,
+    ) -> impl Iterator<Item = (NarrowMarker, I::Item)> + 'x
+    where
+        I::IntoIter: ExactSizeIterator + 'x,
+        <I::IntoIter as Iterator>::Item: HasChildren,
     {
         let children = children.into_iter();
         let last_idx = children.len().saturating_sub(1);
@@ -297,9 +297,12 @@ impl NarrowMarker {
             (marker, child)
         })
     }
-    pub fn subsequent<'x, I: IntoIterator>(&'x self, items: I)
-        -> impl Iterator<Item=(NarrowMarker, I::Item)> + 'x
-        where I::IntoIter: ExactSizeIterator + 'x,
+    pub fn subsequent<'x, I: IntoIterator>(
+        &'x self,
+        items: I,
+    ) -> impl Iterator<Item = (NarrowMarker, I::Item)> + 'x
+    where
+        I::IntoIter: ExactSizeIterator + 'x,
     {
         let items = items.into_iter();
         items.enumerate().map(move |(idx, child)| {
@@ -317,9 +320,7 @@ impl WideMarker {
     fn width(&self) -> usize {
         self.columns.len() * 3
     }
-    fn render_head(&self, f: &mut fmt::Formatter)
-        -> fmt::Result
-    {
+    fn render_head(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let cols = &self.columns;
         if cols.len() <= 1 {
             if let Some(last) = cols.last() {
@@ -355,9 +356,7 @@ impl WideMarker {
         }
         Ok(())
     }
-    fn render_tail(&self, height: usize, f: &mut fmt::Formatter)
-        -> fmt::Result
-    {
+    fn render_tail(&self, height: usize, f: &mut fmt::Formatter) -> fmt::Result {
         for _ in 1..height {
             writeln!(f)?;
             let mut iter = self.columns.iter();
@@ -387,9 +386,7 @@ impl table::Contents for NarrowMarker {
     fn height(&self, _width: usize) -> usize {
         1
     }
-    fn render(&self, width: usize, height: usize, f: &mut fmt::Formatter)
-        -> fmt::Result
-    {
+    fn render(&self, width: usize, height: usize, f: &mut fmt::Formatter) -> fmt::Result {
         let cols = &self.columns;
         if self.has_head {
             for i in cols.iter().take(self.columns.len().saturating_sub(1)) {
@@ -433,9 +430,7 @@ impl table::Contents for ShapeNode<'_> {
     fn height(&self, _width: usize) -> usize {
         1
     }
-    fn render(&self, _width: usize, height: usize, f: &mut fmt::Formatter)
-        -> fmt::Result
-    {
+    fn render(&self, _width: usize, height: usize, f: &mut fmt::Formatter) -> fmt::Result {
         self.marker.render_head(f)?;
         write!(f, "{}", self.context)?;
         if let Some(attr) = self.attribute {
@@ -453,9 +448,7 @@ impl table::Contents for Border {
     fn height(&self, _width: usize) -> usize {
         1
     }
-    fn render(&self, _width: usize, height: usize, f: &mut fmt::Formatter)
-        -> fmt::Result
-    {
+    fn render(&self, _width: usize, height: usize, f: &mut fmt::Formatter) -> fmt::Result {
         for _ in 0..height {
             writeln!(f, "{}", "│".emphasize())?;
         }
@@ -463,10 +456,7 @@ impl table::Contents for Border {
     }
 }
 
-fn cost_header(
-    header: &mut Vec<Box<dyn table::Contents + '_>>,
-    args: &Arguments
-) {
+fn cost_header(header: &mut Vec<Box<dyn table::Contents + '_>>, args: &Arguments) {
     header.push(Box::new(Border) as Box<_>);
     if args.execute {
         header.push(Box::new(table::Right("Time".emphasize())) as Box<_>);
@@ -482,11 +472,7 @@ fn cost_header(
     header.push(Box::new(Border) as Box<_>);
 }
 
-fn cost_columns(
-    row: &mut Vec<Box<dyn table::Contents + '_>>,
-    cost: &Cost,
-    args: &Arguments
-) {
+fn cost_columns(row: &mut Vec<Box<dyn table::Contents + '_>>, cost: &Cost, args: &Arguments) {
     row.push(Box::new(Border) as Box<_>);
     if args.execute {
         let loops = cost.actual_loops.unwrap_or(1.);
@@ -514,7 +500,10 @@ impl table::Words for Relations<'_> {
 impl table::Words for StageInfo<'_> {
     fn print<T: table::Printer>(&self, p: &mut T) -> fmt::Result {
         p.word(NodeTitle(self.context, &self.stage.plan_type))?;
-        let props = self.stage.properties.iter()
+        let props = self
+            .stage
+            .properties
+            .iter()
             .filter(|i| i.important)
             .map(|p| Property(&p.title, &p.value));
         p.words(add_commas(props))?;
@@ -545,15 +534,13 @@ impl table::Words for DebugPlanInfo<'_> {
 impl<T: Iterator> Iterator for CommaSeparated<T> {
     type Item = Comma<T::Item>;
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|element| {
-            Comma(element, self.0.peek().is_some())
-        })
+        self.0
+            .next()
+            .map(|element| Comma(element, self.0.peek().is_some()))
     }
 }
 
-fn add_commas<T>(input: impl IntoIterator<Item=T>)
-    -> impl Iterator<Item=Comma<T>>
-{
+fn add_commas<T>(input: impl IntoIterator<Item = T>) -> impl Iterator<Item = Comma<T>> {
     CommaSeparated(input.into_iter().peekable())
 }
 

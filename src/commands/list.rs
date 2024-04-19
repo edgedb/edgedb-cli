@@ -1,10 +1,10 @@
 use crate::commands::Options;
 
-
-pub async fn print(items: impl IntoIterator<Item=String>,
-                   title: &str, options: &Options)
-    -> Result<(), anyhow::Error>
-{
+pub async fn print(
+    items: impl IntoIterator<Item = String>,
+    title: &str,
+    options: &Options,
+) -> Result<(), anyhow::Error> {
     if !options.command_line {
         println!("{}:", title);
     }

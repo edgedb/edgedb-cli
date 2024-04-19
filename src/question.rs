@@ -2,11 +2,10 @@ use std::borrow::Cow;
 use std::io::{stdin, BufRead};
 
 use anyhow::Context;
-use rustyline::{Editor, Config};
+use rustyline::{Config, Editor};
 use tokio::task::spawn_blocking;
 
 use crate::print;
-
 
 pub struct Numeric<'a, T: Clone + 'a> {
     question: Cow<'a, str>,
@@ -56,9 +55,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
             suffix: "Type a number to select an option:",
         }
     }
-    pub fn option<S: Into<Cow<'a, str>>>(&mut self, name: S, value: T)
-        -> &mut Self
-    {
+    pub fn option<S: Into<Cow<'a, str>>>(&mut self, name: S, value: T) -> &mut Self {
         self.options.push((name.into(), value));
         self
     }
@@ -67,9 +64,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
         loop {
             print::prompt(&self.question);
             for (idx, (title, _)) in self.options.iter().enumerate() {
-                print::prompt(
-                    format!("{}. {}", idx+1, title)
-                );
+                print::prompt(format!("{}. {}", idx + 1, title));
             }
             print::prompt(self.suffix);
             let value = editor.readline("> ")?;
@@ -77,9 +72,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
             let choice = match value.parse::<u32>() {
                 Ok(choice) => choice,
                 Err(e) => {
-                    print::error(
-                        format!("Error reading choice: {}", e)
-                    );
+                    print::error(format!("Error reading choice: {}", e));
                     print::prompt("Please enter a number");
                     continue;
                 }
@@ -88,7 +81,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
                 print::error("Please specify a choice from the list above");
                 continue;
             }
-            return Ok(self.options[(choice-1) as usize].1.clone());
+            return Ok(self.options[(choice - 1) as usize].1.clone());
         }
     }
 }
@@ -113,21 +106,17 @@ impl<'a> String<'a> {
     }
     pub fn ask(&mut self) -> anyhow::Result<std::string::String> {
         if self.default.is_empty() {
-            print::prompt(
-                format!("{}: ", self.question)
-            );
+            print::prompt(format!("{}: ", self.question));
         } else {
-            print::prompt(
-                format!("{} [default: {}]: ", self.question, self.default)
-            );
+            print::prompt(format!("{} [default: {}]: ", self.question, self.default));
         }
         let mut editor = Editor::<()>::with_config(Config::builder().build());
-        let initial = self.initial.as_ref().map(|s| &s[..])
+        let initial = self
+            .initial
+            .as_ref()
+            .map(|s| &s[..])
             .unwrap_or(self.default);
-        let val = editor.readline_with_initial(
-            "> ",
-            (initial, ""),
-        )?;
+        let val = editor.readline_with_initial("> ", (initial, ""))?;
         let mut val = val.trim();
         if val.is_empty() {
             val = self.default;
@@ -166,24 +155,24 @@ impl<'a> Confirm<'a> {
     pub fn ask(&self) -> anyhow::Result<bool> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
         if self.is_dangerous {
-            print::prompt(
-                format!("{} (type `Yes`)", self.question)
-            );
+            print::prompt(format!("{} (type `Yes`)", self.question));
         } else {
-            print::prompt(
-                format!(
-                    "{} [{}]", self.question, match self.default {
-                        None => "y/n",
-                        Some(true) => "Y/n",
-                        Some(false) => "y/N",
-                })
-            );
+            print::prompt(format!(
+                "{} [{}]",
+                self.question,
+                match self.default {
+                    None => "y/n",
+                    Some(true) => "Y/n",
+                    Some(false) => "y/N",
+                }
+            ));
         };
         let mut initial = match self.default {
             None => "",
             Some(true) => "Y",
             Some(false) => "N",
-        }.to_string();
+        }
+        .to_string();
         loop {
             let val = editor.readline_with_initial("> ", (&initial, ""))?;
             let val = val.trim();
@@ -224,43 +213,51 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
             choices: Vec::new(),
         }
     }
-    pub fn option<H: Into<Cow<'a, str>>>(&mut self,
-        result: T, input: &'a [&'a str], help: H)
-        -> &mut Self
-    {
-        self.choices.push(Variant { result, input, help: help.into() });
+    pub fn option<H: Into<Cow<'a, str>>>(
+        &mut self,
+        result: T,
+        input: &'a [&'a str],
+        help: H,
+    ) -> &mut Self {
+        self.choices.push(Variant {
+            result,
+            input,
+            help: help.into(),
+        });
         self
     }
     pub fn ask(&self) -> anyhow::Result<T> {
         let mut editor = Editor::<()>::with_config(Config::builder().build());
-        let options = self.choices.iter()
+        let options = self
+            .choices
+            .iter()
             .map(|c| c.input[0])
             .chain(Some("?"))
             .collect::<Vec<_>>()
             .join(",");
         loop {
-            print::prompt(
-                format!("{} [{}]", self.question, options)
-            );
+            print::prompt(format!("{} [{}]", self.question, options));
             let val = editor.readline("> ")?;
             let val = val.trim();
             if matches!(val, "?" | "h" | "help") {
                 const HELP: &str = "h or ?";
-                let pad = self.choices
-                            .iter()
-                            .map(|x| x.input.join(" or ").len())
-                            .max()
-                            .unwrap_or(0);
+                let pad = self
+                    .choices
+                    .iter()
+                    .map(|x| x.input.join(" or ").len())
+                    .max()
+                    .unwrap_or(0);
                 let pad = std::cmp::max(pad, HELP.len());
 
                 for choice in &self.choices {
                     println!(
                         "{:pad$} - {}",
-                        choice.input.join(" or "), choice.help,
-                        pad=pad
+                        choice.input.join(" or "),
+                        choice.help,
+                        pad = pad
                     )
                 }
-                println!("{:pad$} - print help", HELP, pad=pad);
+                println!("{:pad$} - print help", HELP, pad = pad);
                 continue;
             }
             for choice in &self.choices {
@@ -270,10 +267,10 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
                     }
                 }
             }
-            print::error(
-                format!("Invalid option {:?}, please use one of: [{}]",
-                         val, options)
-            );
+            print::error(format!(
+                "Invalid option {:?}, please use one of: [{}]",
+                val, options
+            ));
         }
     }
 }

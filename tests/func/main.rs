@@ -1,16 +1,17 @@
 #[cfg(not(windows))]
-#[macro_use] extern crate pretty_assertions;
+#[macro_use]
+extern crate pretty_assertions;
 
-use std::str::FromStr;
-use std::sync::Mutex;
 use std::convert::TryInto;
-use std::io::{BufReader, BufRead};
-use std::fs;
-use std::sync::mpsc::sync_channel;
-use std::thread::{self, JoinHandle};
-use std::process;
 use std::env;
+use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
+use std::process;
+use std::str::FromStr;
+use std::sync::mpsc::sync_channel;
+use std::sync::Mutex;
+use std::thread::{self, JoinHandle};
 
 use assert_cmd::Command;
 use once_cell::sync::Lazy;
@@ -18,24 +19,24 @@ use serde_json::from_str;
 
 // Can't run server on windows
 #[cfg(not(windows))]
-mod dump_restore;
-#[cfg(not(windows))]
 mod configure;
 #[cfg(not(windows))]
-mod non_interactive;
+mod dump_restore;
+#[cfg(not(windows))]
+mod instance_link;
 #[cfg(not(windows))]
 mod migrations;
 #[cfg(not(windows))]
-mod instance_link;
+mod non_interactive;
 
 // for some reason rexpect doesn't work on macos
 // and also something wrong on musl libc
-#[cfg(all(target_os="linux", not(target_env="musl")))]
+#[cfg(all(target_os = "linux", not(target_env = "musl")))]
 mod interactive;
 
-#[path="../util.rs"]
-mod util;
 mod help;
+#[path = "../util.rs"]
+mod util;
 
 pub struct Config {
     dir: tempfile::TempDir,
@@ -43,12 +44,10 @@ pub struct Config {
 
 #[cfg(not(windows))]
 fn term_process(proc: &mut process::Child) {
-    use nix::unistd::Pid;
     use nix::sys::signal::{self, Signal};
+    use nix::unistd::Pid;
 
-    if let Err(e) = signal::kill(
-        Pid::from_raw(proc.id() as libc::pid_t), Signal::SIGTERM
-    ) {
+    if let Err(e) = signal::kill(Pid::from_raw(proc.id() as libc::pid_t), Signal::SIGTERM) {
         eprintln!("could not send SIGTERM to edgedb-server: {:?}", e);
     };
 }
@@ -62,8 +61,7 @@ fn term_process(proc: &mut process::Child) {
     }
 }
 
-pub static SHUTDOWN_INFO: Lazy<Mutex<Vec<ShutdownInfo>>> =
-    Lazy::new(|| Mutex::new(Vec::new()));
+pub static SHUTDOWN_INFO: Lazy<Mutex<Vec<ShutdownInfo>>> = Lazy::new(|| Mutex::new(Vec::new()));
 pub static SERVER: Lazy<ServerGuard> = Lazy::new(ServerGuard::start);
 
 #[cfg(not(windows))]
@@ -105,7 +103,7 @@ impl ServerGuard {
 
         // TODO: execute this in parallel
         let major_version = get_edgedb_server_version(&bin_name);
-        
+
         let mut cmd = Command::new(&bin_name);
         cmd.env("EDGEDB_SERVER_INSECURE_DEV_MODE", "1"); // deprecated
         cmd.env("EDGEDB_SERVER_SECURITY", "insecure_dev_mode");
@@ -123,7 +121,8 @@ impl ServerGuard {
         }
         cmd.stdout(Stdio::piped());
 
-        let mut process = cmd.spawn()
+        let mut process = cmd
+            .spawn()
             .unwrap_or_else(|_| panic!("Can run {}", bin_name));
         let server_stdout = process.stdout.take().expect("stdout is pipe");
         let (tx, rx) = sync_channel(1);
@@ -133,19 +132,22 @@ impl ServerGuard {
                 match line {
                     Ok(line) => {
                         if line.starts_with("EDGEDB_SERVER_DATA:") {
-                            let data: serde_json::Value = from_str(
-                                &line["EDGEDB_SERVER_DATA:".len()..])
-                                .expect("valid server data");
+                            let data: serde_json::Value =
+                                from_str(&line["EDGEDB_SERVER_DATA:".len()..])
+                                    .expect("valid server data");
                             println!("Server data {:?}", data);
-                            let port = data.get("port")
+                            let port = data
+                                .get("port")
                                 .and_then(|x| x.as_u64())
                                 .and_then(|x| x.try_into().ok())
                                 .expect("valid server data");
-                            let runstate_dir = data.get("runstate_dir")
+                            let runstate_dir = data
+                                .get("runstate_dir")
                                 .and_then(|x| x.as_str())
                                 .map(|x| x.to_owned())
                                 .expect("valid server data");
-                            let tls_cert_file = data.get("tls_cert_file")
+                            let tls_cert_file = data
+                                .get("tls_cert_file")
                                 .and_then(|x| x.as_str())
                                 .map(|x| x.to_owned())
                                 .expect("valid server data");
@@ -176,14 +178,17 @@ impl ServerGuard {
             port,
             runstate_dir,
             tls_cert_file,
-            default_branch: if major_version < 5 { "edgedb" } else { "main" }
+            default_branch: if major_version < 5 { "edgedb" } else { "main" },
         }
     }
 
     pub fn version(&self) -> semver::Version {
-        let output = SERVER.admin_cmd()
-            .arg("query").arg("--output-format=tab-separated")
-            .arg("
+        let output = SERVER
+            .admin_cmd()
+            .arg("query")
+            .arg("--output-format=tab-separated")
+            .arg(
+                "
             WITH v := sys::get_version()
             SELECT
                 <str>v.major ++ '.' ++ <str>v.minor ++ '.0'
@@ -191,10 +196,15 @@ impl ServerGuard {
                     IF v.stage != <sys::VersionStage>'final' ELSE '')
                 ++ (('+' ++ std::array_join(v.local, '.')) IF len(v.local) > 0
                     ELSE '')
-            ")
+            ",
+            )
             .unwrap();
-        std::str::from_utf8(&output.stdout).unwrap()
-            .strip_suffix('\n').unwrap().parse().unwrap()
+        std::str::from_utf8(&output.stdout)
+            .unwrap()
+            .strip_suffix('\n')
+            .unwrap()
+            .parse()
+            .unwrap()
     }
 
     pub fn admin_cmd(&self) -> Command {
@@ -230,8 +240,7 @@ impl ServerGuard {
         use assert_cmd::cargo::CommandCargoExt;
         use rexpect::session::spawn_command;
 
-        let mut cmd = process::Command::cargo_bin("edgedb")
-            .expect("binary found");
+        let mut cmd = process::Command::cargo_bin("edgedb").expect("binary found");
         cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
         cmd.arg("--unix-path").arg(&self.runstate_dir);
@@ -239,14 +248,14 @@ impl ServerGuard {
         spawn_command(cmd, Some(10000)).expect("start interactive")
     }
     #[cfg(not(windows))]
-    pub fn custom_interactive(&self, f: impl FnOnce(&mut process::Command))
-        -> rexpect::session::PtySession
-    {
+    pub fn custom_interactive(
+        &self,
+        f: impl FnOnce(&mut process::Command),
+    ) -> rexpect::session::PtySession {
         use assert_cmd::cargo::CommandCargoExt;
         use rexpect::session::spawn_command;
 
-        let mut cmd = process::Command::cargo_bin("edgedb")
-            .expect("binary found");
+        let mut cmd = process::Command::cargo_bin("edgedb").expect("binary found");
         cmd.arg("--no-cli-update-check");
         cmd.arg("--admin");
         cmd.arg("--unix-path").arg(&self.runstate_dir);
@@ -279,7 +288,7 @@ fn get_edgedb_server_version(bin_name: &str) -> u8 {
     let mut process = cmd.spawn().unwrap();
     let server_stdout = process.stdout.take().expect("stdout is pipe");
     let buf = BufReader::new(server_stdout);
-    
+
     let mut version_str = None;
     for line in buf.lines() {
         match line {
@@ -295,13 +304,13 @@ fn get_edgedb_server_version(bin_name: &str) -> u8 {
             }
         }
     }
-    
+
     let version_str = version_str.unwrap();
     let major = version_str.split('.').next().unwrap();
     major.parse::<u8>().unwrap()
 }
 
-extern fn stop_processes() {
+extern "C" fn stop_processes() {
     let mut items = SHUTDOWN_INFO.lock().expect("shutdown mutex works");
     for item in items.iter_mut() {
         term_process(&mut item.process);
@@ -318,9 +327,7 @@ impl Config {
         let dir = tmp_dir.path().join("edgedb");
         fs::create_dir(&dir).expect("mkdir");
         fs::write(dir.join("cli.toml"), data.as_bytes()).expect("config");
-        Config {
-            dir: tmp_dir,
-        }
+        Config { dir: tmp_dir }
     }
     pub fn path(&self) -> &Path {
         self.dir.path()
@@ -334,7 +341,7 @@ fn rm_migration_files(schema_dir: &str, migration_indexes: &[u16]) {
     migrations_dir.push("migrations");
 
     let Ok(read_dir) = fs::read_dir(migrations_dir) else {
-        return
+        return;
     };
     for entry in read_dir {
         let Ok(entry) = entry else {
