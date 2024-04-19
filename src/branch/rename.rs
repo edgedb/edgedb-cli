@@ -11,8 +11,11 @@ pub async fn main(
     connection: &mut Connection,
     cli_opts: &Options,
 ) -> anyhow::Result<Option<CommandResult>> {
-    if Some(&options.old_name) == context.branch.as_ref() || connection.database() == options.old_name {
-        let mut modify_connection = get_connection_to_modify(&options.old_name, cli_opts, connection).await?;
+    if Some(&options.old_name) == context.branch.as_ref()
+        || connection.database() == options.old_name
+    {
+        let mut modify_connection =
+            get_connection_to_modify(&options.old_name, cli_opts, connection).await?;
         rename(&mut modify_connection.connection, options).await?;
         modify_connection.clean().await?;
         context.update_branch(&options.new_name).await?;
@@ -27,8 +30,8 @@ pub async fn main(
 
     if connection.database() == options.old_name {
         return Ok(Some(CommandResult {
-            new_branch: Some(options.new_name.clone())
-        }))
+            new_branch: Some(options.new_name.clone()),
+        }));
     }
 
     Ok(None)

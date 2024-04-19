@@ -31,7 +31,7 @@ impl From<&BranchingCmd> for Command {
             BranchingCmd::Wipe(args) => Command::Wipe(args.clone()),
             BranchingCmd::List(args) => Command::List(args.clone()),
             BranchingCmd::Switch(args) => Command::Switch(args.clone()),
-            BranchingCmd::Rename(args) => Command::Rename(args.clone())
+            BranchingCmd::Rename(args) => Command::Rename(args.clone()),
         }
     }
 }

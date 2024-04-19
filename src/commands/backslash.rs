@@ -582,8 +582,7 @@ pub async fn execute(
         }
         Common(ref cmd) => {
             prompt.soft_reconnect().await?;
-            let cli = prompt.connection.as_mut()
-                .expect("connection established");
+            let cli = prompt.connection.as_mut().expect("connection established");
             let result = execute::common(cli, cmd, &options).await?;
 
             if let Some(result) = result {

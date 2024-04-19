@@ -4,8 +4,7 @@ use crate::branch::create::create_branch;
 use crate::branch::main::verify_server_can_use_branches;
 use crate::branch::option::Switch;
 use crate::commands::CommandResult;
-use crate::connect::{Connector};
-
+use crate::connect::Connector;
 
 pub async fn main(
     options: &Switch,
@@ -67,6 +66,6 @@ pub async fn main(
     context.update_branch(&options.branch).await?;
 
     Ok(Some(CommandResult {
-        new_branch: Some(options.branch.clone())
+        new_branch: Some(options.branch.clone()),
     }))
 }
