@@ -51,13 +51,6 @@ const DEFAULT_ESDL: &str = "\
     }\n\
 ";
 
-const FUTURES_ESDL: &str = "\
-    # Disable the application of access policies within access policies\n\
-    # themselves. This behavior will become the default in EdgeDB 3.0.\n\
-    # See: https://www.edgedb.com/docs/reference/ddl/access_policies#nonrecursive\n\
-    using future nonrecursive_access_policies;\n\
-";
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProjectInfo {
     instance_name: String,
@@ -693,7 +686,7 @@ pub fn init_existing(
             ]);
 
             if !schema_files {
-                write_schema_default(&schema_dir, &ver_query)?;
+                write_schema_default(&schema_dir)?;
             }
             do_cloud_init(
                 name.to_owned(),
@@ -756,7 +749,7 @@ pub fn init_existing(
             table::settings(rows.as_slice());
 
             if !schema_files {
-                write_schema_default(&schema_dir, &ver_query)?;
+                write_schema_default(&schema_dir)?;
             }
 
             do_init(
@@ -968,7 +961,7 @@ pub fn init_new(
         let version_query = Query::from_version(specific_version)?;
         write_config(&config_path, &version_query)?;
         if !schema_files {
-            write_schema_default(&schema_dir_path, &version_query)?;
+            write_schema_default(&schema_dir_path)?;
         }
         if matches!(inst_name, InstanceName::Cloud { .. }) {
             if options.non_interactive {
@@ -1023,7 +1016,7 @@ pub fn init_new(
             ]);
             write_config(&config_path, &ver_query)?;
             if !schema_files {
-                write_schema_default(&schema_dir_path, &ver_query)?;
+                write_schema_default(&schema_dir_path)?;
             }
 
             do_cloud_init(
@@ -1081,7 +1074,7 @@ pub fn init_new(
 
             write_config(&config_path, &ver_query)?;
             if !schema_files {
-                write_schema_default(&schema_dir_path, &ver_query)?;
+                write_schema_default(&schema_dir_path)?;
             }
 
             do_init(
@@ -1457,7 +1450,7 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
 }
 
 #[context("cannot create default schema in `{}`", dir.display())]
-fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
+fn write_schema_default(dir: &Path) -> anyhow::Result<()> {
     fs::create_dir_all(dir)?;
     fs::create_dir_all(dir.join("migrations"))?;
     let default = dir.join("default.esdl");
@@ -1465,13 +1458,6 @@ fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, DEFAULT_ESDL)?;
     fs::rename(&tmp, &default)?;
-    if version.is_nonrecursive_access_policies_needed() {
-        let futures = dir.join("futures.esdl");
-        let tmp = tmp_file_path(&futures);
-        fs::remove_file(&tmp).ok();
-        fs::write(&tmp, FUTURES_ESDL)?;
-        fs::rename(&tmp, &futures)?;
-    };
     Ok(())
 }
 
