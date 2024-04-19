@@ -32,7 +32,11 @@ impl Context {
             edgedb_version = Some(config.edgedb.server_version);
             config.project.schema_dir
         } else {
-            "./dbschema".into()
+            let default_dir: PathBuf = "./dbschema".into();
+            if !default_dir.exists() {
+                anyhow::bail!("`dbschema` directory doesn't exist. Either create one or provide path via --schema-dir.");
+            }
+            default_dir
         };
 
         Ok(Context {
