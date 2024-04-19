@@ -122,7 +122,7 @@ pub enum ListCmd {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(version = "help_expand")]
+#[command(version = "help_expand", hide = true)]
 #[command(disable_version_flag = true)]
 pub struct Branching {
     #[command(flatten)]
@@ -142,6 +142,12 @@ pub enum BranchingCmd {
     /// preserving the branch itself (its cfg::DatabaseConfig)
     /// and existing migration scripts
     Wipe(crate::branch::option::Wipe),
+    /// List all branches.
+    List(crate::branch::option::List),
+    /// Switches the current branch to a different one.
+    Switch(crate::branch::option::Switch),
+    /// Renames a branch.
+    Rename(crate::branch::option::Rename),
 }
 
 #[derive(clap::Args, Clone, Debug)]

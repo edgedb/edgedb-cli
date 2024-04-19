@@ -3,13 +3,14 @@ use crate::branch::context::Context;
 use crate::branch::create::create_branch;
 use crate::branch::main::verify_server_can_use_branches;
 use crate::branch::option::Switch;
+use crate::commands::CommandResult;
 use crate::connect::Connector;
 
 pub async fn main(
     options: &Switch,
     context: &Context,
     connector: &mut Connector,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Option<CommandResult>> {
     if context.branch.is_none() {
         anyhow::bail!("Cannot switch branches: No project found");
     }
@@ -64,5 +65,7 @@ pub async fn main(
 
     context.update_branch(&options.branch).await?;
 
-    Ok(())
+    Ok(Some(CommandResult {
+        new_branch: Some(options.branch.clone()),
+    }))
 }
