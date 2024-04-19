@@ -75,7 +75,7 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
             branch::branch_main(&cmdopt, c)
         },
         Command::HashPassword(cmd) => {
-            println!("{}", portable::reset_password::password_hash(&cmd.password));
+            println!("{}", portable::password_hash(&cmd.password));
             Ok(())
         }
     }
