@@ -300,6 +300,10 @@ pub fn server_cmd(
     pro.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
     pro.env_default("EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY", "optional");
     pro.env_default("EDGEDB_SERVER_INSTANCE_NAME", &inst.name);
+    pro.env_default(
+        "EDGEDB_SERVER_CONFIG_cfg::auto_rebuild_query_cache",
+        "false",
+    );
     pro.arg("--data-dir").arg(data_dir);
     pro.arg("--runstate-dir").arg(runstate_dir);
     pro.arg("--port").arg(inst.port.to_string());
