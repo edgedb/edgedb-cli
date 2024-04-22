@@ -44,7 +44,7 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
     let mut executables: HashMap<String, PathBuf> = HashMap::new();
     for line in tests.stdout.split(|&c| c == b'\n') {
         let art = match serde_json::from_slice::<Artifact>(line) {
-            Ok(art) if art.target.name.starts_with("portable") && art.target.test => art,
+            Ok(art) if art.target.test => art,
             Ok(_) | Err(_) => continue,
         };
         executables.insert(art.target.name.clone(), art.executable.into());

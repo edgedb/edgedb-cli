@@ -129,7 +129,7 @@ jobs:
           toolchain: "stable"
 
       - run: |
-          cargo build --tests --features portable_tests
+          cargo build --workspace --test=${{ matrix.test }} --features portable_tests
 
       - run: |
           sudo cp target/debug/edgedb /usr/local/bin/
@@ -137,7 +137,7 @@ jobs:
           sudo mv home_edgedb /Users/edgedb
 
       - run: |
-          cargo test --test=${{ matrix.test }} --features portable_tests
+          cargo test --workspace --test=${{ matrix.test }} --features portable_tests
 
   portable-tests-windows:
     needs: musl-test
