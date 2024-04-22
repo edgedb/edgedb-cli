@@ -17,8 +17,8 @@ pub async fn main(
 
     let current_branch = context.branch.as_ref().unwrap();
 
-    if current_branch == &options.branch {
-        anyhow::bail!("Already on '{}'", options.branch);
+    if current_branch == &options.target_branch {
+        anyhow::bail!("Already on '{}'", options.target_branch);
     }
 
     if let Some(mut connection) = connect_if_branch_exists(connector).await? {
@@ -32,24 +32,24 @@ pub async fn main(
             )
             .await?;
 
-        if !branches.contains(&options.branch) {
+        if !branches.contains(&options.target_branch) {
             if options.create {
-                eprintln!("Creating '{}'...", &options.branch);
+                eprintln!("Creating '{}'...", &options.target_branch);
                 create_branch(
                     &mut connection,
-                    &options.branch,
+                    &options.target_branch,
                     options.from.as_ref().unwrap_or(current_branch),
                     options.empty,
                     options.copy_data,
                 )
                 .await?;
             } else {
-                anyhow::bail!("Branch '{}' doesn't exists", options.branch)
+                anyhow::bail!("Branch '{}' doesn't exists", options.target_branch)
             }
         }
     } else {
         // try to connect to the target branch
-        let target_branch_connector = connector.branch(&options.branch)?;
+        let target_branch_connector = connector.branch(&options.target_branch)?;
         match connect_if_branch_exists(target_branch_connector).await? {
             Some(mut connection) => {
                 verify_server_can_use_branches(&mut connection).await?;
@@ -60,12 +60,12 @@ pub async fn main(
 
     eprintln!(
         "Switching from '{}' to '{}'",
-        current_branch, options.branch
+        current_branch, options.target_branch
     );
 
-    context.update_branch(&options.branch).await?;
+    context.update_branch(&options.target_branch).await?;
 
     Ok(Some(CommandResult {
-        new_branch: Some(options.branch.clone()),
+        new_branch: Some(options.target_branch.clone()),
     }))
 }
