@@ -625,7 +625,7 @@ impl Query {
                 (2, _) => true,
                 _ => false,
             })
-            .unwrap_or(true)
+            .unwrap_or(false)
     }
     pub fn cli_channel(&self) -> Option<Channel> {
         // Only one argument in CLI is allowed
