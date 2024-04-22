@@ -162,7 +162,7 @@ jobs:
           toolchain: "stable"
 
       - run: |
-          cargo build --tests --features portable_tests
+          cargo build --workspace --test=${{ matrix.test }} --features portable_tests
 
       - run: |
           cargo run -- cli install -y --no-wait-for-exit-prompt
@@ -183,7 +183,7 @@ jobs:
             distribution: Debian
 
       - run: |
-          cargo test --test=${{ matrix.test }} --features portable_tests
+          cargo test --workspace --test=${{ matrix.test }} --features portable_tests
 
   test-bin-installable:
     runs-on: ${{ matrix.os }}
