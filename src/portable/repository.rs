@@ -530,7 +530,14 @@ impl Query {
     pub fn from_version(ver: &ver::Specific) -> anyhow::Result<Query> {
         use crate::portable::repository::ver::{FilterMinor, MinorVersion};
         match ver.minor {
-            MinorVersion::Dev(_) => Ok(Query::nightly()),
+            MinorVersion::Dev(v) => Ok(Query {
+                channel: Channel::Nightly,
+                version: Some(ver::Filter {
+                    major: ver.major,
+                    minor: Some(FilterMinor::Minor(v)),
+                    exact: false,
+                }),
+            }),
             MinorVersion::Alpha(v) if ver.major == 1 => Ok(Query {
                 channel: Channel::Stable,
                 version: Some(ver::Filter {
