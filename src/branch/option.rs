@@ -59,7 +59,7 @@ pub struct Create {
 #[derive(clap::Args, Debug, Clone)]
 pub struct Drop {
     /// The branch to drop.
-    pub branch: String,
+    pub target_branch: String,
 
     /// Drop the branch without asking for confirmation.
     #[arg(long)]
@@ -74,7 +74,7 @@ pub struct Drop {
 #[derive(clap::Args, Debug, Clone)]
 pub struct Wipe {
     /// The branch to wipe.
-    pub branch: String,
+    pub target_branch: String,
 
     /// Wipe without asking for confirmation.
     #[arg(long)]
@@ -85,7 +85,7 @@ pub struct Wipe {
 #[derive(clap::Args, Debug, Clone)]
 pub struct Switch {
     /// The branch to switch to.
-    pub branch: String,
+    pub target_branch: String,
 
     /// Create the branch if it doesn't exist.
     #[arg(short = 'c', long)]
