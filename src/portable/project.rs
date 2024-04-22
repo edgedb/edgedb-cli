@@ -38,7 +38,7 @@ use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, PackageInfo, Query};
 use crate::portable::upgrade;
 use crate::portable::ver;
-use crate::portable::ver::Specific;
+use crate::portable::ver::{Specific};
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
 
@@ -693,7 +693,7 @@ pub fn init_existing(
             ]);
 
             if !schema_files {
-                write_schema_default(&schema_dir, &ver_query)?;
+                write_schema_default(&schema_dir, &Query::from_version(&ver)?)?;
             }
             do_cloud_init(
                 name.to_owned(),
@@ -756,7 +756,7 @@ pub fn init_existing(
             table::settings(rows.as_slice());
 
             if !schema_files {
-                write_schema_default(&schema_dir, &ver_query)?;
+                write_schema_default(&schema_dir, &Query::from_version(&specific_version)?)?;
             }
 
             do_init(
@@ -1023,7 +1023,7 @@ pub fn init_new(
             ]);
             write_config(&config_path, &ver_query)?;
             if !schema_files {
-                write_schema_default(&schema_dir_path, &ver_query)?;
+                write_schema_default(&schema_dir_path, &Query::from_version(&version)?)?;
             }
 
             do_cloud_init(
@@ -1081,7 +1081,7 @@ pub fn init_new(
 
             write_config(&config_path, &ver_query)?;
             if !schema_files {
-                write_schema_default(&schema_dir_path, &ver_query)?;
+                write_schema_default(&schema_dir_path, &Query::from_version(&specific_version)?)?;
             }
 
             do_init(
@@ -1465,6 +1465,7 @@ fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, DEFAULT_ESDL)?;
     fs::rename(&tmp, &default)?;
+
     if version.is_nonrecursive_access_policies_needed() {
         let futures = dir.join("futures.esdl");
         let tmp = tmp_file_path(&futures);
