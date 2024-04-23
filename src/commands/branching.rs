@@ -8,6 +8,6 @@ pub async fn main(
     cmd: &BranchingCmd,
     options: &Options,
 ) -> anyhow::Result<Option<CommandResult>> {
-    let context = branch::main::create_context().await?;
+    let context = branch::context::Context::new(options).await?;
     branch::main::run_branch_command(&cmd.into(), options, &context, Some(connection)).await
 }

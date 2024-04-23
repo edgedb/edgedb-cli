@@ -131,3 +131,38 @@ fn database_create_wipe_drop() {
         .context("select-again", "make sure that database is not there")
         .failure();
 }
+
+#[test]
+fn branch_create() {
+    let default_branch = SERVER.default_branch();
+
+    SERVER
+        .admin_cmd()
+        .arg("branch")
+        .arg("create")
+        .arg("--empty")
+        .arg("test_branch_1")
+        .assert()
+        .context("create", "create new empty branch")
+        .success();
+
+    SERVER
+        .admin_cmd()
+        .arg("branch")
+        .arg("create")
+        .arg("test_branch_2")
+        .arg(format!("--from {default_branch}"))
+        .assert()
+        .context("create", "create new empty branch")
+        .success();
+
+    // not specifying either should use the current database
+    SERVER
+        .admin_cmd()
+        .arg("branch")
+        .arg("create")
+        .arg("test_branch_3")
+        .assert()
+        .success();
+}
+

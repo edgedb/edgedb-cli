@@ -8,6 +8,7 @@ use crate::connect::Connection;
 use crate::migrations::rebase::{
     do_rebase, get_diverging_migrations, write_rebased_migration_files,
 };
+use crate::portable::config::Config;
 use crate::{migrations, print};
 use uuid::Uuid;
 
@@ -17,13 +18,10 @@ pub async fn main(
     source_connection: &mut Connection,
     cli_opts: &Options,
 ) -> anyhow::Result<()> {
-    if context.project_config.is_none() {
-        anyhow::bail!("Rebase must be used within a project");
-    }
+    let current_branch = context.get_current_branch(source_connection).await?;
+    let project_config = context.get_project_config().await?.unwrap();
 
-    let current_branch = context.branch.as_ref().unwrap();
-
-    if &options.target_branch == current_branch {
+    if options.target_branch == current_branch {
         anyhow::bail!("Cannot rebase the current branch on top of itself");
     }
 
@@ -33,10 +31,11 @@ pub async fn main(
     let mut temp_branch_connection = connector.branch(&temp_branch)?.connect().await?;
 
     match rebase(
+        &current_branch,
         &temp_branch,
         source_connection,
         &mut temp_branch_connection,
-        context,
+        &project_config,
         cli_opts,
         !options.no_apply,
     )
@@ -68,19 +67,19 @@ pub async fn main(
 }
 
 async fn rebase(
+    current_branch: &str,
     branch: &str,
     source_connection: &mut Connection,
     target_connection: &mut Connection,
-    context: &Context,
+    project_config: &Config,
     cli_opts: &Options,
     apply_migrations: bool,
 ) -> anyhow::Result<()> {
     let mut migrations = get_diverging_migrations(source_connection, target_connection).await?;
-    let current_branch = context.branch.as_ref().unwrap();
-    let project_config = context.project_config.as_ref().unwrap();
+
     migrations.print_status();
 
-    let migration_context = migrations::Context::for_project(project_config)?;
+    let migration_context = migrations::Context::for_project(&project_config)?;
     do_rebase(&mut migrations, &migration_context).await?;
 
     if apply_migrations {

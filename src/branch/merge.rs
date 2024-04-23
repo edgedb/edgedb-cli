@@ -14,14 +14,12 @@ pub async fn main(
     source_connection: &mut Connection,
     cli_opts: &Options,
 ) -> anyhow::Result<()> {
-    if context.project_config.is_none() {
-        anyhow::bail!("Merge must be used within a project");
-    }
+    let current_branch = context.get_current_branch(source_connection).await?;
+    let project_config = context
+        .get_project_config().await?
+        .ok_or_else(|| anyhow::anyhow!("Merge must be used within a project"))?;
 
-    let current_branch = context.branch.as_ref().unwrap();
-    let project_config = context.project_config.as_ref().unwrap();
-
-    if &options.target_branch == current_branch {
+    if options.target_branch == current_branch {
         anyhow::bail!("Cannot merge the current branch into its self");
     }
 
@@ -32,7 +30,7 @@ pub async fn main(
             None => anyhow::bail!("The branch '{}' doesn't exist", options.target_branch),
         };
 
-    let migration_context = migrations::Context::for_project(project_config)?;
+    let migration_context = migrations::Context::for_project(&project_config)?;
     let mut merge_migrations =
         get_merge_migrations(source_connection, &mut target_connection).await?;
 
