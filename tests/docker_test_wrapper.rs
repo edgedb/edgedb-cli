@@ -13,9 +13,11 @@ use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use test_case::test_case;
 
+#[path = "common/docker.rs"]
 mod docker;
-mod util;
 
+#[path = "common/util.rs"]
+mod util;
 use util::*;
 
 #[derive(serde::Deserialize)]
@@ -33,7 +35,7 @@ struct Target {
 static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
     let tests = std::process::Command::new("cargo")
         .arg("build")
-        .arg("--all")
+        .arg("--workspace")
         .arg("--tests")
         .arg("--features=docker_test_wrapper,portable_tests")
         .arg("--message-format=json")
@@ -42,7 +44,7 @@ static TEST_EXECUTABLES: Lazy<HashMap<String, PathBuf>> = Lazy::new(|| {
     let mut executables: HashMap<String, PathBuf> = HashMap::new();
     for line in tests.stdout.split(|&c| c == b'\n') {
         let art = match serde_json::from_slice::<Artifact>(line) {
-            Ok(art) if art.target.name.starts_with("portable") && art.target.test => art,
+            Ok(art) if art.target.test => art,
             Ok(_) | Err(_) => continue,
         };
         executables.insert(art.target.name.clone(), art.executable.into());
@@ -109,7 +111,7 @@ fn dockerfile() -> String {
 #[test_case("portable_smoke")]
 #[test_case("portable_project")]
 #[test_case("portable_project_dir")]
-#[test_case("portable_shared")]
+#[test_case("shared_client_tests")]
 fn run_test(name: &'static str) {
     let file_name = TEST_EXECUTABLES
         .get(name)

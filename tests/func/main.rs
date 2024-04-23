@@ -35,7 +35,7 @@ mod non_interactive;
 mod interactive;
 
 mod help;
-#[path = "../util.rs"]
+#[path = "../common/util.rs"]
 mod util;
 
 pub struct Config {

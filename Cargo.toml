@@ -20,7 +20,7 @@ path = "src/main.rs"
 dev_mode = []
 github_action_install = []
 github_nightly = []
-portable_tests = ["shared-client-tests/portable_tests"]
+portable_tests = []
 docker_test_wrapper = []
 
 [workspace.dependencies]
