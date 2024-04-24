@@ -10,7 +10,7 @@ fn non_interactive_link() {
         .arg("instance")
         .arg("link")
         .arg("--port")
-        .arg(SERVER.port.to_string())
+        .arg(SERVER.0.info.port.to_string())
         .arg("--non-interactive")
         .arg("--trust-tls-cert")
         .arg("--overwrite")

@@ -4,7 +4,7 @@ use std::error::Error;
 #[test]
 fn simple_query() {
     let mut cmd = SERVER.admin_interactive();
-    let main = SERVER.default_branch;
+    let main = SERVER.default_branch();
 
     cmd.exp_string(&format!("{main}>")).unwrap();
     cmd.send_line("SELECT 'abc'++'def';\n").unwrap();
@@ -17,7 +17,7 @@ fn simple_query() {
 #[test]
 fn two_queries() {
     let mut cmd = SERVER.admin_interactive();
-    let main = SERVER.default_branch;
+    let main = SERVER.default_branch();
 
     cmd.exp_string(&format!("{main}>")).unwrap();
     cmd.send_line("SELECT 'AB'++'C'; SELECT 'XY'++'Z';\n")
@@ -29,7 +29,7 @@ fn two_queries() {
 #[test]
 fn test_switch_database() {
     let mut cmd = SERVER.admin_interactive();
-    let main = SERVER.default_branch;
+    let main = SERVER.default_branch();
 
     cmd.exp_string(&format!("{main}>")).unwrap();
     cmd.send_line("create database _test_switch_asdf;").unwrap();
@@ -43,7 +43,7 @@ fn test_switch_database() {
 #[test]
 fn create_report() {
     let mut cmd = SERVER.admin_interactive();
-    let main = SERVER.default_branch;
+    let main = SERVER.default_branch();
 
     cmd.exp_string(&format!("{main}>")).unwrap();
     cmd.send_line("CREATE TYPE default::Type1;\n").unwrap();
@@ -52,7 +52,7 @@ fn create_report() {
 
 #[test]
 fn configured_limit() -> Result<(), Box<dyn Error>> {
-    let main = SERVER.default_branch;
+    let main = SERVER.default_branch();
 
     let config = Config::new(
         r###"

@@ -1,3 +1,5 @@
+use test_utils::server::ServerInstance;
+
 use crate::{ServerGuard, SERVER};
 
 #[test]
@@ -92,7 +94,7 @@ fn dump_restore_all() {
         .success();
     println!("dumped");
 
-    let new_instance = ServerGuard::start();
+    let new_instance = ServerGuard(ServerInstance::start());
     println!("new instance started");
     new_instance
         .admin_cmd()
@@ -110,5 +112,6 @@ fn dump_restore_all() {
         .assert()
         .success()
         .stdout("\"world\"\n");
+    new_instance.0.stop();
     println!("query");
 }
