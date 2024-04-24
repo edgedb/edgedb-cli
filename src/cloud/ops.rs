@@ -172,6 +172,9 @@ pub struct CloudInstanceUpgrade {
     pub force: bool,
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct CloudInstanceRestart {}
+
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OperationStatus {
@@ -358,6 +361,24 @@ pub fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
     } else {
         anyhow::bail!("Aborted.");
     }
+}
+
+#[tokio::main(flavor = "current_thread")]
+pub async fn restart_cloud_instance(
+    name: &str,
+    org: &str,
+    options: &CloudOptions,
+) -> anyhow::Result<()> {
+    let client = CloudClient::new(options)?;
+    client.ensure_authenticated()?;
+    let operation: CloudOperation = client
+        .post(
+            format!("orgs/{}/instances/{}/restart", org, name),
+            &CloudInstanceRestart {},
+        )
+        .await?;
+    wait_for_operation(operation, &client).await?;
+    Ok(())
 }
 
 #[tokio::main(flavor = "current_thread")]

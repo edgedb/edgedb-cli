@@ -38,7 +38,7 @@ use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, PackageInfo, Query};
 use crate::portable::upgrade;
 use crate::portable::ver;
-use crate::portable::ver::{Specific};
+use crate::portable::ver::Specific;
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
 
