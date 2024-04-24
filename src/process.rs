@@ -57,6 +57,7 @@ pub struct Native {
     marker: Cow<'static, str>,
     description: Cow<'static, str>,
     proxy: bool,
+    quiet: bool,
     pid_file: Option<PathBuf>,
 }
 
@@ -177,6 +178,7 @@ impl Native {
             args: vec![cmd.as_ref().as_os_str().to_os_string()],
             envs: HashMap::new(),
             proxy: clicolors_control::colors_enabled(),
+            quiet: false,
             stop_process: None,
             pid_file: None,
         };
@@ -197,6 +199,11 @@ impl Native {
     }
     pub fn no_proxy(&mut self) -> &mut Self {
         self.proxy = false;
+        self
+    }
+
+    pub fn quiet(&mut self) -> &mut Self {
+        self.quiet = true;
         self
     }
 
@@ -375,8 +382,8 @@ impl Native {
             (child_result, _, _) = async {
                 tokio::join!(
                     child.wait(),
-                    stdout_loop(mark, out, capture_out.then_some(&mut stdout)),
-                    stdout_loop(mark, err, capture_err.then_some(&mut stderr)),
+                    stdout_loop(mark, out, capture_out.then_some(&mut stdout), !self.quiet),
+                    stdout_loop(mark, err, capture_err.then_some(&mut stderr), !self.quiet),
                 )
             } => child_result,
             _ = self.signal_loop(pid, &term) => unreachable!(),
@@ -417,7 +424,7 @@ impl Native {
         let out = child.stdout.take();
         let mut res = tokio::select! {
             res = child.wait() => Err(res),
-            _ = stdout_loop(mark, out, Some(&mut stdout)) => Ok(()),
+            _ = stdout_loop(mark, out, Some(&mut stdout), !self.quiet) => Ok(()),
             _ = self.signal_loop(pid, &term) => unreachable!(),
         };
 
@@ -517,8 +524,8 @@ impl Native {
             (result, _, _) = async {
                 tokio::join!(
                     self.run_and_kill(child, f),
-                    stdout_loop(&self.marker, out, None),
-                    stdout_loop(&self.marker, err, None),
+                    stdout_loop(&self.marker, out, None, !self.quiet),
+                    stdout_loop(&self.marker, err, None, !self.quiet),
                 )
             } => result,
             _ = self.signal_loop(pid, &term) => unreachable!(),
@@ -554,8 +561,8 @@ impl Native {
             (child_result, _, _) = async {
                 tokio::join!(
                     child.wait(),
-                    stdout_loop(&self.marker, out, None),
-                    stdout_loop(&self.marker, err, None),
+                    stdout_loop(&self.marker, out, None, !self.quiet),
+                    stdout_loop(&self.marker, err, None, !self.quiet),
                 )
             } => child_result,
             _ = feed_data(inp, data) => unreachable!(),
@@ -793,6 +800,7 @@ async fn stdout_loop(
     marker: &str,
     pipe: Option<impl AsyncRead + Unpin>,
     capture_buffer: Option<&mut Vec<u8>>,
+    print: bool,
 ) {
     match (pipe, capture_buffer) {
         (Some(mut pipe), Some(buffer)) => {
@@ -807,6 +815,10 @@ async fn stdout_loop(
             let buf = BufReader::new(pipe);
             let mut lines = buf.lines();
             while let Ok(Some(line)) = lines.next_line().await {
+                if !print {
+                    continue;
+                }
+
                 if cfg!(windows) {
                     io::stderr()
                         .write_all(
