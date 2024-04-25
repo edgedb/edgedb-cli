@@ -126,6 +126,7 @@ fn spawn_and_check(info: &InstallInfo, ctx: Context, watch: bool) -> anyhow::Res
     let status_dir = tempfile::tempdir().context("tempdir failure")?;
     let mut cmd = process::Native::new("edgedb", "edgedb", server_path);
     cmd.env("NOTIFY_SOCKET", &status_dir.path().join("notify"));
+    cmd.quiet();
     cmd.arg("--temp-dir");
     cmd.arg("--auto-shutdown-after=0");
     cmd.arg("--default-auth-method=Trust");
