@@ -65,6 +65,7 @@ impl Context {
         let mut credentials = credentials::read(&path).await?;
 
         credentials.database = Some(branch.to_string());
+        credentials.branch = Some(branch.to_string());
 
         credentials::write_async(&path, &credentials).await
     }
