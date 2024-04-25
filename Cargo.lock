@@ -3618,7 +3618,7 @@ dependencies = [
 [[package]]
 name = "test-utils"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/test-utils.git#a224248c650ff435de55f91ba7b70369d88b775b"
+source = "git+https://github.com/edgedb/test-utils.git#fdb2b93975a92dd3569c9cc0c18e4b64e2a39a0f"
 dependencies = [
  "anyhow",
  "command-fds",
