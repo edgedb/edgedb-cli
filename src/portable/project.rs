@@ -38,7 +38,7 @@ use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{self, Channel, PackageInfo, Query};
 use crate::portable::upgrade;
 use crate::portable::ver;
-use crate::portable::ver::{Specific};
+use crate::portable::ver::Specific;
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
 
@@ -756,7 +756,7 @@ pub fn init_existing(
             table::settings(rows.as_slice());
 
             if !schema_files {
-                write_schema_default(&schema_dir, &Query::from_version(&specific_version)?)?;
+                write_schema_default(&schema_dir, &Query::from_version(specific_version)?)?;
             }
 
             do_init(
@@ -1081,7 +1081,7 @@ pub fn init_new(
 
             write_config(&config_path, &ver_query)?;
             if !schema_files {
-                write_schema_default(&schema_dir_path, &Query::from_version(&specific_version)?)?;
+                write_schema_default(&schema_dir_path, &Query::from_version(specific_version)?)?;
             }
 
             do_init(

@@ -44,6 +44,7 @@ There are a few categories of tests in this repo:
   - invokes the cli binary,
   - run with: `cargo test --test=func`,
   - requires `edgedb-server` binary in PATH,
+  - will use [test-utils](https://github.com/edgedb/test-utils/) to start the server,
 
 - `tests/shared-client-tests/`
   - generates tests from [shared-client-testcases](https://github.com/edgedb/shared-client-testcases/),
