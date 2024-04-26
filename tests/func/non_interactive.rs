@@ -133,9 +133,20 @@ fn database_create_wipe_drop() {
 }
 
 #[test]
-fn branch_create() {
+fn branch_commands() {
     let default_branch = SERVER.default_branch();
 
+    SERVER
+        .admin_cmd()
+        .arg("branch")
+        .arg("current")
+        .arg("--plain")
+        .assert()
+        .context("current", "should print the default branch")
+        .success()
+        .stdout(predicates::str::contains(default_branch));
+
+    // create --empty
     SERVER
         .admin_cmd()
         .arg("branch")
@@ -143,20 +154,22 @@ fn branch_create() {
         .arg("--empty")
         .arg("test_branch_1")
         .assert()
-        .context("create", "create new empty branch")
+        .context("create", "new empty branch")
         .success();
 
+    // create --from
     SERVER
         .admin_cmd()
         .arg("branch")
         .arg("create")
         .arg("test_branch_2")
-        .arg(format!("--from {default_branch}"))
+        .arg("--from")
+        .arg("test_branch_1")
         .assert()
-        .context("create", "create new empty branch")
+        .context("create", "new branch from test_branch_1")
         .success();
 
-    // not specifying either should use the current database
+    // create without --from and --empty should use the current database
     SERVER
         .admin_cmd()
         .arg("branch")
@@ -164,5 +177,65 @@ fn branch_create() {
         .arg("test_branch_3")
         .assert()
         .success();
+
+    SERVER
+        .admin_cmd()
+        .arg("--branch")
+        .arg("test_branch_1")
+        .arg("branch")
+        .arg("current")
+        .arg("--plain")
+        .assert()
+        .context("create", "check the current branch")
+        .success()
+        .stdout(predicates::str::contains("test_branch_1"));
+
+    // switch
+    SERVER
+        .admin_cmd()
+        .arg("branch")
+        .arg("switch")
+        .arg("test_branch_2")
+        .assert()
+        .context("switch", "without specifying an instance")
+        .failure()
+        .stderr(predicates::str::contains("Cannot switch branches without specifying the instance"));
+
+    // switch requires instance name, so let's link the test instance
+    let instance_name = SERVER.ensure_instance_linked();
+
+    crate::edgedb_cli_cmd()
+        .arg("--instance")
+        .arg(instance_name)
+        .arg("branch")
+        .arg("current")
+        .arg("--plain")
+        .assert()
+        .context("current", "with --instance")
+        .success()
+        .stdout(predicates::str::contains(default_branch));
+
+    crate::edgedb_cli_cmd()
+        .arg("--instance")
+        .arg(instance_name)
+        .arg("branch")
+        .arg("switch")
+        .arg("test_branch_2")
+        .assert()
+        .context("switch", "to test_branch_2 with --instance")
+        .success();
+
+    crate::edgedb_cli_cmd()
+        .arg("--instance")
+        .arg(instance_name)
+        .arg("branch")
+        .arg("current")
+        .arg("--plain")
+        .assert()
+        .context("current", "with --instance")
+        .success()
+        .stdout(predicates::str::contains("test_branch_2"));
+
+    // TODO: test how this works in projects
 }
 
