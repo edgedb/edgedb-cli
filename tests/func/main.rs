@@ -36,9 +36,7 @@ mod util;
 fn edgedb_cli_cmd() -> assert_cmd::Command {
     let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
 
-    cmd.env("CLICOLOR", "0")
-        .env("RUST_LOG", "debug")
-        .arg("--no-cli-update-check");
+    cmd.env("CLICOLOR", "0").arg("--no-cli-update-check");
     cmd
 }
 
