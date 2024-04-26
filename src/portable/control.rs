@@ -512,16 +512,17 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
     }
 }
 
-pub fn restart(options: &Restart) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => {
-            print::error("Stoppage of cloud instances is not supported yet.");
-            return Err(ExitCode::new(1))?;
+pub fn restart(cmd: &Restart, options: &crate::Options) -> anyhow::Result<()> {
+    match instance_arg(&cmd.name, &cmd.instance)? {
+        InstanceName::Local(name) => {
+            let meta = InstanceInfo::read(name)?;
+            do_restart(&meta)
         }
-    };
-    let meta = InstanceInfo::read(name)?;
-    do_restart(&meta)
+        InstanceName::Cloud {
+            org_slug,
+            name: inst_name,
+        } => crate::cloud::ops::restart_cloud_instance(inst_name, org_slug, &options.cloud_options),
+    }
 }
 
 pub fn logs(options: &Logs) -> anyhow::Result<()> {

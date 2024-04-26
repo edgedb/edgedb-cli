@@ -49,7 +49,7 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options) -> Result<(
         Start(c) => control::start(c),
         Stop(c) => control::stop(c),
         Restart(c) if cfg!(windows) => windows::restart(c),
-        Restart(c) => control::restart(c),
+        Restart(c) => control::restart(c, options),
         Logs(c) if cfg!(windows) => windows::logs(c),
         Logs(c) => control::logs(c),
         Revert(c) => revert::revert(c),
