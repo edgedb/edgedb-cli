@@ -10,13 +10,13 @@ pub async fn main(
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
-    if let Some(current_branch) = &context.branch {
-        if current_branch == &options.target_branch {
-            anyhow::bail!(
-                "Dropping the currently active branch is not supported, please switch to a \
-                different branch to drop this one with `edgedb branch switch <branch>`"
-            );
-        }
+    let current_branch = context.get_current_branch(connection).await?;
+
+    if current_branch == options.target_branch {
+        anyhow::bail!(
+            "Dropping the currently active branch is not supported, please switch to a \
+            different branch to drop this one with `edgedb branch switch <branch>`"
+        );
     }
 
     if !options.non_interactive {

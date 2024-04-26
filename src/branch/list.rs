@@ -8,6 +8,8 @@ pub async fn main(
     context: &Context,
     connection: &mut Connection,
 ) -> anyhow::Result<()> {
+    let current_branch = context.get_current_branch(connection).await?;
+
     let branches: Vec<String> = connection
         .query(
             "SELECT (SELECT sys::Database FILTER NOT .builtin).name",
@@ -16,7 +18,7 @@ pub async fn main(
         .await?;
 
     for branch in branches {
-        if context.branch.as_ref() == Some(&branch) {
+        if current_branch == branch {
             println!("{} - Current", branch.green());
         } else {
             println!("{}", branch);

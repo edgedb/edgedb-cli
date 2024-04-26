@@ -33,6 +33,13 @@ mod help;
 #[path = "../common/util.rs"]
 mod util;
 
+fn edgedb_cli_cmd() -> assert_cmd::Command {
+    let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
+
+    cmd.env("CLICOLOR", "0").arg("--no-cli-update-check");
+    cmd
+}
+
 struct ServerGuard(ServerInstance);
 
 static SERVER: Lazy<ServerGuard> = Lazy::new(start_server);
@@ -89,8 +96,7 @@ impl ServerGuard {
     }
 
     pub fn admin_cmd(&self) -> Command {
-        let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
-        cmd.arg("--no-cli-update-check");
+        let mut cmd = edgedb_cli_cmd();
         cmd.arg("--admin");
         cmd.arg("--unix-path").arg(&self.0.info.socket_dir);
         cmd.arg("--port").arg(self.0.info.port.to_string());
@@ -99,8 +105,7 @@ impl ServerGuard {
     }
 
     pub fn admin_cmd_deprecated(&self) -> Command {
-        let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
-        cmd.arg("--no-cli-update-check");
+        let mut cmd = edgedb_cli_cmd();
         cmd.arg("--admin");
         // test deprecated --host /unix/path
         cmd.arg("--host").arg(&self.0.info.socket_dir);
@@ -145,6 +150,25 @@ impl ServerGuard {
         cmd.arg("--tls-ca-file").arg(&self.0.info.tls_cert_file);
         cmd.arg("--database").arg(database_name);
         cmd
+    }
+
+    pub fn ensure_instance_linked(&self) -> &'static str {
+        const INSTANCE_NAME: &str = "_test_inst";
+
+        edgedb_cli_cmd()
+            .arg("instance")
+            .arg("link")
+            .arg("--port")
+            .arg(self.0.info.port.to_string())
+            .arg("--non-interactive")
+            .arg("--trust-tls-cert")
+            .arg("--overwrite")
+            .arg("--quiet")
+            .arg(INSTANCE_NAME)
+            .assert()
+            .success();
+
+        INSTANCE_NAME
     }
 }
 

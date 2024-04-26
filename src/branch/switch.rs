@@ -11,17 +11,18 @@ pub async fn main(
     context: &Context,
     connector: &mut Connector,
 ) -> anyhow::Result<Option<CommandResult>> {
-    if context.branch.is_none() {
-        anyhow::bail!("Cannot switch branches: No project found");
+    if !context.can_update_current_branch() {
+        eprintln!("Cannot switch branches without specifying the instance");
+        eprintln!("Either change directory to a project with a linked instance or use --instance argument.");
+        anyhow::bail!("");
     }
 
-    let current_branch = context.branch.as_ref().unwrap();
+    let current_branch = if let Some(mut connection) = connect_if_branch_exists(connector).await? {
+        let current_branch = context.get_current_branch(&mut connection).await?;
+        if current_branch == options.target_branch {
+            anyhow::bail!("Already on '{}'", options.target_branch);
+        }
 
-    if current_branch == &options.target_branch {
-        anyhow::bail!("Already on '{}'", options.target_branch);
-    }
-
-    if let Some(mut connection) = connect_if_branch_exists(connector).await? {
         verify_server_can_use_branches(&mut connection).await?;
 
         // verify the branch exists
@@ -38,7 +39,7 @@ pub async fn main(
                 create_branch(
                     &mut connection,
                     &options.target_branch,
-                    options.from.as_ref().unwrap_or(current_branch),
+                    options.from.as_ref().unwrap_or(&current_branch),
                     options.empty,
                     options.copy_data,
                 )
@@ -47,23 +48,28 @@ pub async fn main(
                 anyhow::bail!("Branch '{}' doesn't exists", options.target_branch)
             }
         }
+        current_branch
     } else {
         // try to connect to the target branch
         let target_branch_connector = connector.branch(&options.target_branch)?;
         match connect_if_branch_exists(target_branch_connector).await? {
             Some(mut connection) => {
                 verify_server_can_use_branches(&mut connection).await?;
+
+                context.get_current_branch(&mut connection).await?
             }
             None => anyhow::bail!("The target branch doesn't exist."),
-        };
-    }
+        }
+    };
 
     eprintln!(
         "Switching from '{}' to '{}'",
         current_branch, options.target_branch
     );
 
-    context.update_branch(&options.target_branch).await?;
+    context
+        .update_current_branch(&options.target_branch)
+        .await?;
 
     Ok(Some(CommandResult {
         new_branch: Some(options.target_branch.clone()),

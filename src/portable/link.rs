@@ -443,14 +443,14 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
     };
     let inst = InstanceInfo::try_read(name)?;
     if inst.is_some() {
-        return Err(anyhow::anyhow!("cannot unlink local instance {:?}.", name)).with_hint(
-            || {
+        return Err(anyhow::anyhow!("cannot unlink local instance {:?}.", name)
+            .with_hint(|| {
                 format!(
                     "use `edgedb instance destroy -I {}` to remove the instance",
                     name
                 )
-            },
-        )?;
+            })
+            .into());
     }
     with_projects(name, options.force, print_warning, || {
         fs::remove_file(credentials::path(name)?).with_context(|| format!("cannot unlink {}", name))

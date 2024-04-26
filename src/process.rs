@@ -66,7 +66,9 @@ pub fn term(pid: u32) -> anyhow::Result<()> {
     use signal_hook::consts::signal::SIGTERM;
 
     if unsafe { libc::kill(pid as i32, SIGTERM) } != 0 {
-        return Err(io::Error::last_os_error()).with_context(|| format!("cannot stop {pid}"))?;
+        return Err(
+            anyhow::Error::new(io::Error::last_os_error()).context(format!("cannot stop {pid}"))
+        );
     }
     Ok(())
 }

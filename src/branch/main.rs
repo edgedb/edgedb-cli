@@ -4,11 +4,9 @@ use crate::branch::{create, current, drop, list, merge, rebase, rename, switch, 
 use crate::commands::{CommandResult, Options};
 use crate::connect::{Connection, Connector};
 
-use edgedb_tokio::get_project_dir;
-
 #[tokio::main(flavor = "current_thread")]
 pub async fn branch_main(options: &Options, cmd: &BranchCommand) -> anyhow::Result<()> {
-    let context = create_context().await?;
+    let context = Context::new(options).await?;
 
     run_branch_command(&cmd.subcommand, options, &context, None).await?;
 
@@ -26,7 +24,6 @@ pub async fn run_branch_command(
     match &cmd {
         Command::Switch(switch) => return switch::main(switch, context, &mut connector).await,
         Command::Wipe(wipe) => wipe::main(wipe, context, &mut connector).await,
-        Command::Current(current) => current::main(current, context).await,
         command => match connection {
             Some(conn) => return run_branch_command1(command, conn, context, options).await,
             None => {
@@ -48,6 +45,7 @@ async fn run_branch_command1(
     verify_server_can_use_branches(connection).await?;
 
     match command {
+        Command::Current(current) => current::main(current, context, connection).await,
         Command::Create(create) => create::main(create, context, connection).await,
         Command::Drop(drop) => drop::main(drop, context, connection).await,
         Command::List(list) => list::main(list, context, connection).await,
@@ -58,11 +56,6 @@ async fn run_branch_command1(
     }?;
 
     Ok(None)
-}
-
-pub async fn create_context() -> anyhow::Result<Context> {
-    let project_dir = get_project_dir(None, true).await?;
-    Context::new(project_dir.as_ref()).await
 }
 
 pub async fn verify_server_can_use_branches(connection: &mut Connection) -> anyhow::Result<()> {
