@@ -16,7 +16,8 @@ pub async fn main(
 ) -> anyhow::Result<()> {
     let current_branch = context.get_current_branch(source_connection).await?;
     let project_config = context
-        .get_project_config().await?
+        .get_project_config()
+        .await?
         .ok_or_else(|| anyhow::anyhow!("Merge must be used within a project"))?;
 
     if options.target_branch == current_branch {

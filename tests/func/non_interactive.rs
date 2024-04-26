@@ -199,7 +199,9 @@ fn branch_commands() {
         .assert()
         .context("switch", "without specifying an instance")
         .failure()
-        .stderr(predicates::str::contains("Cannot switch branches without specifying the instance"));
+        .stderr(predicates::str::contains(
+            "Cannot switch branches without specifying the instance",
+        ));
 
     // switch requires instance name, so let's link the test instance
     let instance_name = SERVER.ensure_instance_linked();
@@ -238,4 +240,3 @@ fn branch_commands() {
 
     // TODO: test how this works in projects
 }
-

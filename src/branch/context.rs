@@ -46,7 +46,7 @@ impl Context {
 
         // try to read current branch from instance credentials
         let current_branch = if let Some(instance_name) = &instance_name {
-            let credentials_path = credentials::path(&instance_name)?;
+            let credentials_path = credentials::path(instance_name)?;
             let credentials = credentials::read(&credentials_path).await?;
 
             credentials.branch.or(credentials.database)
@@ -90,7 +90,7 @@ impl Context {
             return Ok(());
         };
 
-        let path = credentials::path(&instance_name)?;
+        let path = credentials::path(instance_name)?;
         let mut credentials = credentials::read(&path).await?;
         credentials.database = Some(branch.to_string());
         credentials.branch = Some(branch.to_string());
