@@ -195,8 +195,14 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
         return Ok(());
     }
 
+    let down_dir = path
+        .parent()
+        .context("download path missing directory component")?;
+    fs::create_dir_all(down_dir).with_context(|| format!("failed to create {:?}", down_dir))?;
+
     let down_path = path.with_extension("download");
     let tmp_path = tmp_file_path(&path);
+
     download(&down_path, &pkg.url, options.quiet)?;
     unpack_file(&down_path, &tmp_path, pkg.compression)?;
 
