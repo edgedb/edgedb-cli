@@ -45,10 +45,9 @@ impl Context {
 
         // read from credentials
         if project_dir.is_some()
-            && instance_name.as_ref().map_or(false, |v| match v {
-                InstanceName::Local(_) => true,
-                _ => false,
-            })
+            && instance_name
+                .as_ref()
+                .map_or(false, |v| matches!(v, InstanceName::Local(_)))
         {
             let instance_name = match instance_name.as_ref().unwrap() {
                 InstanceName::Local(instance) => instance,
@@ -61,7 +60,7 @@ impl Context {
                 ),
             };
 
-            let credentials_path = credentials::path(&instance_name)?;
+            let credentials_path = credentials::path(instance_name)?;
             if credentials_path.exists() {
                 let credentials = credentials::read(&credentials_path).await?;
                 branch = credentials.branch.or(credentials.database);
