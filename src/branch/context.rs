@@ -53,7 +53,7 @@ impl Context {
         {
             let instance_name = match instance_name.as_ref().unwrap() {
                 InstanceName::Local(instance) => instance,
-                unsupported => anyhow::bail!(format!("Cannot use instance type {}", unsupported)),
+                unsupported => anyhow::bail!(format!("cannot switch branches on Cloud instance {org}/{slug}: instance is not linked to a project", unsupported)),
             };
 
             let credentials_path = credentials::path(&instance_name)?;
