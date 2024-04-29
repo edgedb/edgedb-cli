@@ -1,5 +1,5 @@
 use edgedb_tokio::get_project_dir;
-use std::fmt::format;
+
 
 use crate::commands::Options;
 use crate::connect::Connection;
