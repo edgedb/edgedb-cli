@@ -1675,7 +1675,7 @@ pub fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
 }
 
 #[context("cannot read database name of {:?}", stash_dir)]
-fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
+pub fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
     let inst = match fs::read_to_string(stash_dir.join("database")) {
         Ok(text) => text,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {

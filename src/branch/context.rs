@@ -1,16 +1,19 @@
 use edgedb_tokio::get_project_dir;
+use std::fmt::format;
 
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::credentials;
+use crate::platform::tmp_file_name;
 use crate::portable::config::Config;
 use crate::portable::options::InstanceName;
 use crate::portable::project;
 use std::fs;
+use std::path::PathBuf;
 
 pub struct Context {
     /// Instance name provided either with --instance or inferred from the project.
-    instance_name: Option<String>,
+    instance_name: Option<InstanceName>,
 
     /// None means that the current branch is unknown because:
     /// - the instance uses the default branch (and we cannot know what
@@ -19,44 +22,55 @@ pub struct Context {
     ///   - there was neither a project or the --instance option,
     ///   - the project has no linked instance.
     current_branch: Option<String>,
+
+    /// Project dir if it was resolved by instance_name or current directory
+    project_dir: Option<PathBuf>,
 }
 
 impl Context {
     pub async fn new(options: &Options) -> anyhow::Result<Context> {
         // use instance name provided with --instance
         let instance_name = options.conn_params.get()?.instance_name();
-        let instance_name = instance_name.map(|n| n.clone().into());
-        let mut instance_name = instance_name.map(assume_local_instance).transpose()?;
+        let mut instance_name: Option<InstanceName> = instance_name.map(|n| n.clone().into());
+        let project_dir = get_project_dir(None, true).await?;
+        let mut branch: Option<String> = None;
 
-        // fallback to instance name of the associated project
         if instance_name.is_none() {
-            let project_dir = get_project_dir(None, true).await?;
-
-            let name = if let Some(project_dir) = project_dir {
+            instance_name = if let Some(project_dir) = project_dir.as_ref() {
                 let stash_dir = project::stash_path(&fs::canonicalize(project_dir)?)?;
                 project::instance_name(&stash_dir).ok()
             } else {
                 None
             };
-
-            if let Some(name) = name {
-                instance_name = Some(assume_local_instance(name)?);
-            }
         }
 
-        // try to read current branch from instance credentials
-        let current_branch = if let Some(instance_name) = &instance_name {
-            let credentials_path = credentials::path(instance_name)?;
-            let credentials = credentials::read(&credentials_path).await?;
+        // read from credentials
+        if project_dir.is_some()
+            && instance_name.as_ref().map_or(false, |v| match v {
+                InstanceName::Local(_) => true,
+                _ => false,
+            })
+        {
+            let instance_name = match instance_name.as_ref().unwrap() {
+                InstanceName::Local(instance) => instance,
+                unsupported => anyhow::bail!(format!("Cannot use instance type {}", unsupported)),
+            };
 
-            credentials.branch.or(credentials.database)
-        } else {
-            None
-        };
+            let credentials_path = credentials::path(&instance_name)?;
+            if credentials_path.exists() {
+                let credentials = credentials::read(&credentials_path).await?;
+                branch = credentials.branch.or(credentials.database);
+            }
+        } else if let Some(project_dir) = project_dir.as_ref() {
+            // try read from the database file
+            let stash_dir = project::stash_path(&fs::canonicalize(project_dir)?)?;
+            branch = project::database_name(&stash_dir)?;
+        }
 
         Ok(Context {
+            project_dir,
             instance_name,
-            current_branch,
+            current_branch: branch,
         })
     }
 
@@ -85,17 +99,39 @@ impl Context {
         self.instance_name.is_some()
     }
 
-    pub async fn update_current_branch(&self, branch: &str) -> anyhow::Result<()> {
+    pub async fn update_current_branch(&self, branch: &str) -> anyhow::Result<bool> {
         let Some(instance_name) = &self.instance_name else {
-            return Ok(());
+            return Ok(false);
         };
 
-        let path = credentials::path(instance_name)?;
-        let mut credentials = credentials::read(&path).await?;
-        credentials.database = Some(branch.to_string());
-        credentials.branch = Some(branch.to_string());
+        match instance_name {
+            InstanceName::Local(local_instance_name) => {
+                let path = credentials::path(local_instance_name)?;
+                let mut credentials = credentials::read(&path).await?;
+                credentials.database = Some(branch.to_string());
+                credentials.branch = Some(branch.to_string());
 
-        credentials::write_async(&path, &credentials).await
+                credentials::write_async(&path, &credentials).await?;
+
+                Ok(true)
+            }
+            InstanceName::Cloud {
+                org_slug: _org_slug,
+                name: _name,
+            } if self.project_dir.is_some() => {
+                // only place to store the branch is the database file in the project
+                let path =
+                    project::stash_path(&fs::canonicalize(self.project_dir.as_ref().unwrap())?)?
+                        .join("database");
+
+                let tmp = tmp_file_name(&path);
+                fs::write(&tmp, branch)?;
+                fs::rename(&tmp, &path)?;
+
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
     }
 
     pub async fn get_project_config(&self) -> anyhow::Result<Option<Config>> {
@@ -106,15 +142,5 @@ impl Context {
         Ok(Some(crate::portable::config::read(
             &path.join("edgedb.toml"),
         )?))
-    }
-}
-
-fn assume_local_instance(instance_name: InstanceName) -> anyhow::Result<String> {
-    match instance_name {
-        InstanceName::Local(local) => Ok(local),
-        InstanceName::Cloud {
-            name: _,
-            org_slug: _,
-        } => anyhow::bail!("Cannot use instance-name branching on cloud"), // yet
     }
 }

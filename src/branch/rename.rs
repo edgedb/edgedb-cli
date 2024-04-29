@@ -18,7 +18,9 @@ pub async fn main(
             get_connection_to_modify(&options.old_name, cli_opts, connection).await?;
         rename(&mut modify_connection.connection, options).await?;
         modify_connection.clean().await?;
-        context.update_current_branch(&options.new_name).await?;
+        if !context.update_current_branch(&options.new_name).await? {
+            anyhow::bail!("Failed to switch the current branch");
+        }
     } else {
         rename(connection, options).await?;
     }

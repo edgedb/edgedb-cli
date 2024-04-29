@@ -67,9 +67,12 @@ pub async fn main(
         current_branch, options.target_branch
     );
 
-    context
+    if !context
         .update_current_branch(&options.target_branch)
-        .await?;
+        .await?
+    {
+        anyhow::bail!("Failed to switch the current branch");
+    }
 
     Ok(Some(CommandResult {
         new_branch: Some(options.target_branch.clone()),
