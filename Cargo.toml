@@ -8,7 +8,7 @@ members = [
 [package]
 name = "edgedb-cli"
 license = "MIT/Apache-2.0"
-version = "5.1.0-dev"
+version = "5.2.0-dev"
 authors = ["EdgeDB Inc. <hello@edgedb.com>"]
 edition = "2018"
 
