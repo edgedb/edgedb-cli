@@ -1,6 +1,5 @@
 use edgedb_tokio::get_project_dir;
 
-
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::credentials;
@@ -53,7 +52,13 @@ impl Context {
         {
             let instance_name = match instance_name.as_ref().unwrap() {
                 InstanceName::Local(instance) => instance,
-                unsupported => anyhow::bail!(format!("cannot switch branches on Cloud instance {org}/{slug}: instance is not linked to a project", unsupported)),
+                InstanceName::Cloud { org_slug, name } => anyhow::bail!(
+                    // should never occur because of the above check
+                    format!(
+                        "cannot use Cloud instance {}/{}: instance is not linked to a project",
+                        org_slug, name
+                    )
+                ),
             };
 
             let credentials_path = credentials::path(&instance_name)?;
@@ -99,9 +104,9 @@ impl Context {
         self.instance_name.is_some()
     }
 
-    pub async fn update_current_branch(&self, branch: &str) -> anyhow::Result<bool> {
+    pub async fn update_current_branch(&self, branch: &str) -> anyhow::Result<()> {
         let Some(instance_name) = &self.instance_name else {
-            return Ok(false);
+            return Ok(());
         };
 
         match instance_name {
@@ -113,7 +118,7 @@ impl Context {
 
                 credentials::write_async(&path, &credentials).await?;
 
-                Ok(true)
+                Ok(())
             }
             InstanceName::Cloud {
                 org_slug: _org_slug,
@@ -128,9 +133,16 @@ impl Context {
                 fs::write(&tmp, branch)?;
                 fs::rename(&tmp, &path)?;
 
-                Ok(true)
+                Ok(())
             }
-            _ => Ok(false),
+            InstanceName::Cloud {
+                org_slug: org,
+                name: inst,
+            } => {
+                anyhow::bail!(
+                    format!("cannot switch branches on Cloud instance {}/{}: instance is not linked to a project", org, inst)
+                )
+            }
         }
     }
 
