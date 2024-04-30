@@ -374,7 +374,7 @@ pub enum Command {
     /// Manage branches
     Branch(BranchCommand),
 
-    HashPassword(HashPasswordCommand)
+    HashPassword(HashPasswordCommand),
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -434,7 +434,7 @@ pub struct Info {
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct HashPasswordCommand {
-    pub password: String
+    pub password: String,
 }
 
 #[derive(Debug, Clone)]
