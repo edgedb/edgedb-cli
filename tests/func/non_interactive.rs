@@ -240,3 +240,14 @@ fn branch_commands() {
 
     // TODO: test how this works in projects
 }
+
+#[test]
+fn hash_password() {
+    crate::edgedb_cli_cmd()
+        .arg("hash-password")
+        .arg("password1234")
+        .assert()
+        .context("hash-password", "basic usage")
+        .success()
+        .stdout(predicates::str::starts_with("SCRAM-SHA-256$"));
+}
