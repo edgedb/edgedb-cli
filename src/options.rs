@@ -373,6 +373,8 @@ pub enum Command {
     Watch(WatchCommand),
     /// Manage branches
     Branch(BranchCommand),
+
+    HashPassword(HashPasswordCommand),
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -428,6 +430,11 @@ pub struct Info {
     /// * `data-dir` -- Base data directory (except on Windows)
     /// * `service-dir` -- Directory where supervisor/startup files are placed
     pub get: Option<String>,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct HashPasswordCommand {
+    pub password: String,
 }
 
 #[derive(Debug, Clone)]

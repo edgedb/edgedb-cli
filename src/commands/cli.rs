@@ -74,6 +74,10 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
             let cmdopt = init_command_opts(options)?;
             branch::branch_main(&cmdopt, c)
         }
+        Command::HashPassword(cmd) => {
+            println!("{}", portable::password_hash(&cmd.password));
+            Ok(())
+        }
     }
 }
 
