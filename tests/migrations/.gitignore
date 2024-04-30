@@ -1,0 +1,15 @@
+/db1/initial/migrations/00002-*.edgeql
+/db1/initial/migrations/00003-*.edgeql
+/db1/modified1/migrations/00002-*.edgeql
+/db1/modified2/migrations/00002-*.edgeql
+/db1/modified3/migrations/00002-*.edgeql
+/db2/initial/migrations/00001-*.edgeql
+/db2/modified1/migrations/00002-*.edgeql
+/db3/migrations/00002-*.edgeql
+/db4/modified1/00001-*.edgeql
+/db4/created1/00002-*.edgeql
+/db1/project/priv/dbschema/migrations/00002-*.edgeql
+/db1/project/priv/dbschema/migrations/00003-*.edgeql
+/db1/squash
+/db4/created1/migrations/00002-*.edgeql
+/db4/modified1/migrations/00001-*.edgeql

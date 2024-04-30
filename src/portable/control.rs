@@ -85,22 +85,21 @@ pub fn get_server_cmd(
 pub fn ensure_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
     let runstate_dir = runstate_dir(name)?;
     match fs::create_dir_all(&runstate_dir) {
-        Ok(()) => {}
+        Ok(()) => Ok(runstate_dir),
         Err(e) if e.kind() == io::ErrorKind::PermissionDenied && cfg!(unix) => {
-            return Err(e)
+            Err(anyhow::Error::new(e)
                 .context(format!("failed to create runstate dir {:?}", runstate_dir))
                 .hint(
                     "This may mean that `XDG_RUNTIME_DIR` \
-                    is inherited from another user's environment. \
-                    Run `unset XDG_RUNTIME_DIR` or use a better login-as-user \
-                    tool (use `sudo` instead of `su`).",
-                )?;
+                            is inherited from another user's environment. \
+                            Run `unset XDG_RUNTIME_DIR` or use a better login-as-user \
+                            tool (use `sudo` instead of `su`).",
+                )
+                .into())
         }
-        Err(e) => {
-            return Err(e).context(format!("failed to create runstate dir {:?}", runstate_dir));
-        }
+        Err(e) => Err(anyhow::Error::new(e)
+            .context(format!("failed to create runstate dir {:?}", runstate_dir))),
     }
-    Ok(runstate_dir)
 }
 
 #[context("cannot write lock metadata at {:?}", path)]
@@ -176,7 +175,8 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
                 // So that all early errors are visible, but all later ones
                 // (i.e. a message on term) do not clobber user's terminal.
                 if unsafe { libc::dup2(log_file.as_raw_fd(), 2) } < 0 {
-                    return Err(io::Error::last_os_error()).context("cannot close stdout")?;
+                    return Err(anyhow::Error::new(io::Error::last_os_error())
+                        .context("cannot close stdout"));
                 }
                 drop(log_file);
 
@@ -186,7 +186,8 @@ fn run_server_by_cli(meta: &InstanceInfo) -> anyhow::Result<()> {
                 // descriptor creation. So we replace it with `/dev/null` (the
                 // writing end of the original pipe is closed at this point).
                 if unsafe { libc::dup2(null.as_raw_fd(), 1) } < 0 {
-                    return Err(io::Error::last_os_error()).context("cannot close stdout")?;
+                    return Err(anyhow::Error::new(io::Error::last_os_error())
+                        .context("cannot close stdout"));
                 }
                 drop(null);
 
@@ -511,16 +512,17 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
     }
 }
 
-pub fn restart(options: &Restart) -> anyhow::Result<()> {
-    let name = match instance_arg(&options.name, &options.instance)? {
-        InstanceName::Local(name) => name,
-        InstanceName::Cloud { .. } => {
-            print::error("Stoppage of cloud instances is not supported yet.");
-            return Err(ExitCode::new(1))?;
+pub fn restart(cmd: &Restart, options: &crate::Options) -> anyhow::Result<()> {
+    match instance_arg(&cmd.name, &cmd.instance)? {
+        InstanceName::Local(name) => {
+            let meta = InstanceInfo::read(name)?;
+            do_restart(&meta)
         }
-    };
-    let meta = InstanceInfo::read(name)?;
-    do_restart(&meta)
+        InstanceName::Cloud {
+            org_slug,
+            name: inst_name,
+        } => crate::cloud::ops::restart_cloud_instance(inst_name, org_slug, &options.cloud_options),
+    }
 }
 
 pub fn logs(options: &Logs) -> anyhow::Result<()> {

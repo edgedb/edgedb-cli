@@ -13,14 +13,14 @@ pub struct BranchCommand {
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
     Create(Create),
-    Drop(Drop),
-    Wipe(Wipe),
     Switch(Switch),
-    Rename(Rename),
     List(List),
+    Current(Current),
     Rebase(Rebase),
     Merge(Merge),
-    Current(Current),
+    Rename(Rename),
+    Drop(Drop),
+    Wipe(Wipe),
 }
 
 impl From<&BranchingCmd> for Command {
@@ -29,11 +29,14 @@ impl From<&BranchingCmd> for Command {
             BranchingCmd::Create(args) => Command::Create(args.clone()),
             BranchingCmd::Drop(args) => Command::Drop(args.clone()),
             BranchingCmd::Wipe(args) => Command::Wipe(args.clone()),
+            BranchingCmd::List(args) => Command::List(args.clone()),
+            BranchingCmd::Switch(args) => Command::Switch(args.clone()),
+            BranchingCmd::Rename(args) => Command::Rename(args.clone()),
         }
     }
 }
 
-/// Creates a new branch and switches to it.
+/// Creates a new branch.
 #[derive(clap::Args, Debug, Clone)]
 pub struct Create {
     /// The name of the branch to create.
@@ -56,7 +59,7 @@ pub struct Create {
 #[derive(clap::Args, Debug, Clone)]
 pub struct Drop {
     /// The branch to drop.
-    pub branch: String,
+    pub target_branch: String,
 
     /// Drop the branch without asking for confirmation.
     #[arg(long)]
@@ -71,7 +74,7 @@ pub struct Drop {
 #[derive(clap::Args, Debug, Clone)]
 pub struct Wipe {
     /// The branch to wipe.
-    pub branch: String,
+    pub target_branch: String,
 
     /// Wipe without asking for confirmation.
     #[arg(long)]
@@ -82,7 +85,7 @@ pub struct Wipe {
 #[derive(clap::Args, Debug, Clone)]
 pub struct Switch {
     /// The branch to switch to.
-    pub branch: String,
+    pub target_branch: String,
 
     /// Create the branch if it doesn't exist.
     #[arg(short = 'c', long)]
@@ -119,9 +122,8 @@ pub struct Rename {
 #[derive(clap::Args, Debug, Clone)]
 pub struct List {}
 
-/// Creates a new branch that is based on the target branch, but also
-/// contains any new migrations on the current branch.
-/// Warning: data stored in current branch will be deleted.
+/// Creates a new branch that is based on the target branch, but also contains any new migrations
+/// on the current branch. Warning: data stored in current branch will be deleted.
 #[derive(clap::Args, Debug, Clone)]
 pub struct Rebase {
     /// The branch to rebase the current branch to.

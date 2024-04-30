@@ -141,6 +141,17 @@ pub enum InstanceName {
     Cloud { org_slug: String, name: String },
 }
 
+impl From<edgedb_tokio::InstanceName> for InstanceName {
+    fn from(x: edgedb_tokio::InstanceName) -> Self {
+        match x {
+            edgedb_tokio::InstanceName::Local(s) => InstanceName::Local(s),
+            edgedb_tokio::InstanceName::Cloud { org_slug, name } => {
+                InstanceName::Cloud { org_slug, name }
+            }
+        }
+    }
+}
+
 fn billable_unit(s: &str) -> Result<String, String> {
     let (numerator, denominator) = match s.split_once('/') {
         Some(v) => v,

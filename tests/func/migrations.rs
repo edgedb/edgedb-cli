@@ -720,7 +720,7 @@ fn error() {
         .arg("empty_err")
         .assert()
         .success();
-    let err = if SERVER.version().major >= 4 {
+    let err = if SERVER.0.version_major >= 4 {
         r###"error: Unexpected keyword 'CREATE'
   ┌─ tests/migrations/db1/error/bad.esdl:3:9
   │

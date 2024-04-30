@@ -57,6 +57,7 @@ pub struct Native {
     marker: Cow<'static, str>,
     description: Cow<'static, str>,
     proxy: bool,
+    quiet: bool,
     pid_file: Option<PathBuf>,
 }
 
@@ -65,7 +66,9 @@ pub fn term(pid: u32) -> anyhow::Result<()> {
     use signal_hook::consts::signal::SIGTERM;
 
     if unsafe { libc::kill(pid as i32, SIGTERM) } != 0 {
-        return Err(io::Error::last_os_error()).with_context(|| format!("cannot stop {pid}"))?;
+        return Err(
+            anyhow::Error::new(io::Error::last_os_error()).context(format!("cannot stop {pid}"))
+        );
     }
     Ok(())
 }
@@ -177,6 +180,7 @@ impl Native {
             args: vec![cmd.as_ref().as_os_str().to_os_string()],
             envs: HashMap::new(),
             proxy: clicolors_control::colors_enabled(),
+            quiet: false,
             stop_process: None,
             pid_file: None,
         };
@@ -197,6 +201,11 @@ impl Native {
     }
     pub fn no_proxy(&mut self) -> &mut Self {
         self.proxy = false;
+        self
+    }
+
+    pub fn quiet(&mut self) -> &mut Self {
+        self.quiet = true;
         self
     }
 
@@ -375,8 +384,8 @@ impl Native {
             (child_result, _, _) = async {
                 tokio::join!(
                     child.wait(),
-                    stdout_loop(mark, out, capture_out.then_some(&mut stdout)),
-                    stdout_loop(mark, err, capture_err.then_some(&mut stderr)),
+                    stdout_loop(mark, out, capture_out.then_some(&mut stdout), self.quiet),
+                    stdout_loop(mark, err, capture_err.then_some(&mut stderr), self.quiet),
                 )
             } => child_result,
             _ = self.signal_loop(pid, &term) => unreachable!(),
@@ -417,7 +426,7 @@ impl Native {
         let out = child.stdout.take();
         let mut res = tokio::select! {
             res = child.wait() => Err(res),
-            _ = stdout_loop(mark, out, Some(&mut stdout)) => Ok(()),
+            _ = stdout_loop(mark, out, Some(&mut stdout), self.quiet) => Ok(()),
             _ = self.signal_loop(pid, &term) => unreachable!(),
         };
 
@@ -517,8 +526,8 @@ impl Native {
             (result, _, _) = async {
                 tokio::join!(
                     self.run_and_kill(child, f),
-                    stdout_loop(&self.marker, out, None),
-                    stdout_loop(&self.marker, err, None),
+                    stdout_loop(&self.marker, out, None, self.quiet),
+                    stdout_loop(&self.marker, err, None, self.quiet),
                 )
             } => result,
             _ = self.signal_loop(pid, &term) => unreachable!(),
@@ -554,8 +563,8 @@ impl Native {
             (child_result, _, _) = async {
                 tokio::join!(
                     child.wait(),
-                    stdout_loop(&self.marker, out, None),
-                    stdout_loop(&self.marker, err, None),
+                    stdout_loop(&self.marker, out, None, self.quiet),
+                    stdout_loop(&self.marker, err, None, self.quiet),
                 )
             } => child_result,
             _ = feed_data(inp, data) => unreachable!(),
@@ -793,6 +802,7 @@ async fn stdout_loop(
     marker: &str,
     pipe: Option<impl AsyncRead + Unpin>,
     capture_buffer: Option<&mut Vec<u8>>,
+    quiet: bool,
 ) {
     match (pipe, capture_buffer) {
         (Some(mut pipe), Some(buffer)) => {
@@ -807,26 +817,20 @@ async fn stdout_loop(
             let buf = BufReader::new(pipe);
             let mut lines = buf.lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                if cfg!(windows) {
-                    io::stderr()
-                        .write_all(
-                            format!("[{}] {}\r\n", marker, line)
-                                .color(Color::Grey37)
-                                .to_string()
-                                .as_bytes(),
-                        )
-                        .await
-                        .ok();
+                let message = if cfg!(windows) {
+                    format!("[{}] {}\r\n", marker, line)
+                        .color(Color::Grey37)
+                        .to_string()
                 } else {
-                    io::stderr()
-                        .write_all(
-                            format!("[{}] {}\n", marker, line)
-                                .color(Color::Grey37)
-                                .to_string()
-                                .as_bytes(),
-                        )
-                        .await
-                        .ok();
+                    format!("[{}] {}\n", marker, line)
+                        .color(Color::Grey37)
+                        .to_string()
+                };
+
+                if quiet {
+                    log::debug!("{}", message);
+                } else {
+                    io::stderr().write_all(message.as_bytes()).await.ok();
                 }
             }
         }

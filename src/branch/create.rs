@@ -10,17 +10,11 @@ pub async fn main(
 ) -> anyhow::Result<()> {
     eprintln!("Creating branch '{}'...", options.name);
 
-    let from = options.from.clone().unwrap_or(
-        async {
-            anyhow::Ok(
-                context
-                    .get_default_branch_name(connection)
-                    .await?
-                    .to_string(),
-            )
-        }
-        .await?,
-    );
+    let from = if let Some(from) = &options.from {
+        from.clone()
+    } else {
+        context.get_current_branch(connection).await?
+    };
 
     create_branch(
         connection,
@@ -40,24 +34,22 @@ pub async fn create_branch(
     empty: bool,
     copy_data: bool,
 ) -> anyhow::Result<()> {
-    let branch_name = edgeql_parser::helpers::quote_name(name);
+    let new_branch = edgeql_parser::helpers::quote_name(name);
 
     let query = if empty {
-        format!("create empty branch {}", branch_name)
-    } else {
-        let branch_type = if copy_data { "data" } else { "schema" };
+        if copy_data {
+            eprintln!("WARNING: when --empty is used, --copy-data will be ignored");
+        }
 
-        format!(
-            "create {} branch {} from {}",
-            branch_type,
-            branch_name,
-            edgeql_parser::helpers::quote_name(from)
-        )
+        format!("create empty branch {}", new_branch)
+    } else {
+        let kind = if copy_data { "data" } else { "schema" };
+
+        let from = edgeql_parser::helpers::quote_name(from);
+        format!("create {kind} branch {new_branch} from {from}")
     };
 
     let status = connection.execute(&query, &()).await?;
-
     print::completion(status);
-
     Ok(())
 }

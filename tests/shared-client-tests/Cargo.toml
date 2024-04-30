@@ -5,9 +5,6 @@ version = "0.1.0"
 authors = ["EdgeDB Inc. <hello@edgedb.com>"]
 edition = "2018"
 
-[features]
-portable_tests = []
-
 [build-dependencies]
 serde_json = "1.0"
 

@@ -1,5 +1,3 @@
-#![cfg(feature = "portable_tests")]
-
 use assert_cmd::Command;
 use edgedb_protocol::model::Duration;
 use predicates::reflection::PredicateReflection;

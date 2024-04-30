@@ -210,6 +210,9 @@ impl Connection {
     pub fn database(&self) -> &str {
         self.config.database()
     }
+    pub fn branch(&self) -> &str {
+        self.config.branch()
+    }
     pub fn set_ignore_error_state(&mut self) -> State {
         let new_state = make_ignore_error_state(self.inner.state_descriptor());
         mem::replace(&mut self.state, new_state)
