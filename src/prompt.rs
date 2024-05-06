@@ -1,41 +1,44 @@
 use std::borrow::Cow;
+use std::env;
 use std::fs;
 use std::io::{ErrorKind, Write};
-use std::env;
 use std::process::{Command, Stdio};
 use std::sync::Arc;
 
 use anyhow::{self, Context as _Context};
 use dirs::data_local_dir;
 use rustyline::completion::Completer;
-use rustyline::config::{EditMode, CompletionType, Builder as ConfigBuilder};
+use rustyline::config::{Builder as ConfigBuilder, CompletionType, EditMode};
 use rustyline::highlight::{Highlighter, PromptInfo};
 use rustyline::hint::Hinter;
 use rustyline::history::History;
-use rustyline::validate::{Validator, ValidationResult, ValidationContext};
-use rustyline::{Editor, Config, Helper, Context};
-use rustyline::{self, error::ReadlineError, KeyEvent, Modifiers, Cmd};
+use rustyline::validate::{ValidationContext, ValidationResult, Validator};
+use rustyline::{self, error::ReadlineError, Cmd, KeyEvent, Modifiers};
+use rustyline::{Config, Context, Editor, Helper};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
 
-use edgeql_parser::preparser::full_statement;
-use edgedb_protocol::value::Value;
 use crate::commands::backslash;
 use crate::completion;
-use crate::print::Highlight;
-use crate::print::style::Styler;
 use crate::highlight;
-use crate::prompt::variable::{InputFlags, VariableInput};
-use crate::repl::{TX_MARKER, FAILURE_MARKER};
 use crate::platform::editor_path;
+use crate::print::style::Styler;
+use crate::print::Highlight;
+use crate::prompt::variable::{InputFlags, VariableInput};
+use crate::repl::{FAILURE_MARKER, TX_MARKER};
+use edgedb_protocol::value::Value;
+use edgeql_parser::preparser::full_statement;
 
 use colorful::Colorful;
 
 pub mod variable;
 
-
 pub enum Control {
-    EdgeqlInput { prompt: String, initial: String, response: Sender<Input> },
+    EdgeqlInput {
+        prompt: String,
+        initial: String,
+        response: Sender<Input>,
+    },
     ParameterInput {
         name: String,
         var_type: Arc<dyn VariableInput>,
@@ -43,8 +46,13 @@ pub enum Control {
         initial: String,
         response: Sender<VarInput>,
     },
-    ShowHistory { ack: Sender<()> },
-    SpawnEditor { entry: Option<isize>, response: Sender<Input> },
+    ShowHistory {
+        ack: Sender<()>,
+    },
+    SpawnEditor {
+        entry: Option<isize>,
+        response: Sender<Input>,
+    },
     ViMode,
     EmacsMode,
     SetHistoryLimit(usize),
@@ -69,30 +77,35 @@ pub struct EdgeqlHelper {
 impl Helper for EdgeqlHelper {}
 impl Hinter for EdgeqlHelper {
     type Hint = completion::Hint;
-    fn hint(&self, line: &str, pos: usize, _ctx: &Context)
-        -> Option<Self::Hint>
-    {
+    fn hint(&self, line: &str, pos: usize, _ctx: &Context) -> Option<Self::Hint> {
         return completion::hint(line, pos);
     }
 }
 
 impl Highlighter for EdgeqlHelper {
-    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(&'s self,
-        prompt: &'p str, info: PromptInfo<'_>,)
-        -> Cow<'b, str>
-    {
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
+        &'s self,
+        prompt: &'p str,
+        info: PromptInfo<'_>,
+    ) -> Cow<'b, str> {
         if info.line_no() > 0 {
             return format!("{0:.>1$}", " ", prompt.len()).into();
         } else if prompt.ends_with("> ") {
-            let content = &prompt[..prompt.len()-2];
+            let content = &prompt[..prompt.len() - 2];
             if content.ends_with(TX_MARKER) {
-                return format!("{}{}> ",
-                    &content[..content.len()-TX_MARKER.len()],
-                    TX_MARKER.green()).into();
+                return format!(
+                    "{}{}> ",
+                    &content[..content.len() - TX_MARKER.len()],
+                    TX_MARKER.green()
+                )
+                .into();
             } else if content.ends_with(FAILURE_MARKER) {
-                return format!("{}{}> ",
-                    &content[..content.len()-FAILURE_MARKER.len()],
-                    FAILURE_MARKER.red()).into();
+                return format!(
+                    "{}{}> ",
+                    &content[..content.len() - FAILURE_MARKER.len()],
+                    FAILURE_MARKER.red()
+                )
+                .into();
             } else {
                 return prompt.into();
             }
@@ -115,13 +128,11 @@ impl Highlighter for EdgeqlHelper {
             } else {
                 match full_statement(&data.as_bytes(), None) {
                     Ok(bytes) => {
-                        highlight::edgeql(&mut buf,
-                            &data[..bytes], &self.styler);
+                        highlight::edgeql(&mut buf, &data[..bytes], &self.styler);
                         data = &data[bytes..];
                     }
                     Err(_cont) => {
-                        highlight::edgeql(&mut buf,
-                            &data, &self.styler);
+                        highlight::edgeql(&mut buf, &data, &self.styler);
                         data = &"";
                     }
                 }
@@ -133,11 +144,13 @@ impl Highlighter for EdgeqlHelper {
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        return hint.rgb(0x56, 0x56, 0x56).to_string().into()
+        return hint.rgb(0x56, 0x56, 0x56).to_string().into();
     }
-    fn highlight_candidate<'h>(&self, item: &'h str, _typ: CompletionType)
-        -> std::borrow::Cow<'h, str>
-    {
+    fn highlight_candidate<'h>(
+        &self,
+        item: &'h str,
+        _typ: CompletionType,
+    ) -> std::borrow::Cow<'h, str> {
         use std::fmt::Write;
 
         if let Some(pos) = item.find(" -- ") {
@@ -155,9 +168,7 @@ impl Highlighter for EdgeqlHelper {
     }
 }
 impl Validator for EdgeqlHelper {
-    fn validate(&self, ctx: &mut ValidationContext)
-        -> Result<ValidationResult, ReadlineError>
-    {
+    fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult, ReadlineError> {
         let input = ctx.input();
         let complete = match completion::current(input, input.len()).1 {
             completion::Current::Edgeql(_, complete) => complete,
@@ -173,9 +184,12 @@ impl Validator for EdgeqlHelper {
 }
 impl Completer for EdgeqlHelper {
     type Candidate = completion::Pair;
-    fn complete(&self, line: &str, pos: usize, _ctx: &Context)
-        -> Result<(usize, Vec<Self::Candidate>), ReadlineError>
-    {
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &Context,
+    ) -> Result<(usize, Vec<Self::Candidate>), ReadlineError> {
         let comp = completion::complete(line, pos);
         if let Some((offset, options)) = comp {
             Ok((offset, options))
@@ -185,9 +199,10 @@ impl Completer for EdgeqlHelper {
     }
 }
 
-pub fn load_history<H: rustyline::Helper>(ed: &mut Editor<H>, name: &str)
-    -> Result<(), anyhow::Error>
-{
+pub fn load_history<H: rustyline::Helper>(
+    ed: &mut Editor<H>,
+    name: &str,
+) -> Result<(), anyhow::Error> {
     let dir = data_local_dir().context("cannot find local data dir")?;
     let app_dir = dir.join("edgedb");
     match ed.load_history(&app_dir.join(format!("{}.history", name))) {
@@ -198,9 +213,7 @@ pub fn load_history<H: rustyline::Helper>(ed: &mut Editor<H>, name: &str)
     Ok(())
 }
 
-fn _save_history<H: Helper>(ed: &mut Editor<H>, name: &str)
-    -> Result<(), anyhow::Error>
-{
+fn _save_history<H: Helper>(ed: &mut Editor<H>, name: &str) -> Result<(), anyhow::Error> {
     let dir = data_local_dir().context("cannot find local data dir")?;
     let app_dir = dir.join("edgedb");
     if !app_dir.exists() {
@@ -212,46 +225,55 @@ fn _save_history<H: Helper>(ed: &mut Editor<H>, name: &str)
 }
 
 pub fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
-    _save_history(ed, name).map_err(|e| {
-        log::warn!("Cannot save history: {:#}", e);
-    }).ok();
+    _save_history(ed, name)
+        .map_err(|e| {
+            log::warn!("Cannot save history: {:#}", e);
+        })
+        .ok();
 }
 
 pub fn create_editor(config: &ConfigBuilder) -> Editor<EdgeqlHelper> {
-    let mut editor = Editor::<EdgeqlHelper>::with_config(
-        config.clone().build());
-    editor.bind_sequence(KeyEvent::new('\r', Modifiers::NONE),
-        Cmd::AcceptOrInsertLine { accept_in_the_middle: false });
+    let mut editor = Editor::<EdgeqlHelper>::with_config(config.clone().build());
+    editor.bind_sequence(
+        KeyEvent::new('\r', Modifiers::NONE),
+        Cmd::AcceptOrInsertLine {
+            accept_in_the_middle: false,
+        },
+    );
     editor.bind_sequence(KeyEvent::new('\r', Modifiers::ALT), Cmd::AcceptLine);
-    load_history(&mut editor, "edgeql").map_err(|e| {
-        log::warn!("Cannot load history: {:#}", e);
-    }).ok();
+    load_history(&mut editor, "edgeql")
+        .map_err(|e| {
+            log::warn!("Cannot load history: {:#}", e);
+        })
+        .ok();
     editor.set_helper(Some(EdgeqlHelper {
         styler: Styler::dark_256(),
     }));
     return editor;
 }
 
-pub fn var_editor(config: &ConfigBuilder, var_type: &Arc<dyn VariableInput>)
-    -> Editor<variable::VarHelper>
-{
-    let mut editor = Editor::<variable::VarHelper>::with_config(
-        config.clone().build());
+pub fn var_editor(
+    config: &ConfigBuilder,
+    var_type: &Arc<dyn VariableInput>,
+) -> Editor<variable::VarHelper> {
+    let mut editor = Editor::<variable::VarHelper>::with_config(config.clone().build());
     editor.set_helper(Some(variable::VarHelper::new(var_type.clone())));
     let history_name = format!("var_{}", var_type.type_name());
-    load_history(&mut editor, &history_name).map_err(|e| {
-        log::warn!("Cannot load history: {:#}", e);
-    }).ok();
+    load_history(&mut editor, &history_name)
+        .map_err(|e| {
+            log::warn!("Cannot load history: {:#}", e);
+        })
+        .ok();
     return editor;
 }
 
-pub fn edgeql_input(prompt: &str, editor: &mut Editor<EdgeqlHelper>,
-    response: Sender<Input>, initial: &str)
-    -> anyhow::Result<()>
-{
-    let text = match
-        editor.readline_with_initial(&prompt, (&initial, ""))
-    {
+pub fn edgeql_input(
+    prompt: &str,
+    editor: &mut Editor<EdgeqlHelper>,
+    response: Sender<Input>,
+    initial: &str,
+) -> anyhow::Result<()> {
+    let text = match editor.readline_with_initial(&prompt, (&initial, "")) {
         Ok(text) => text,
         Err(ReadlineError::Eof) => {
             response.send(Input::Eof).ok();
@@ -272,9 +294,7 @@ pub fn edgeql_input(prompt: &str, editor: &mut Editor<EdgeqlHelper>,
     Ok(())
 }
 
-pub fn main(mut control: Receiver<Control>)
-    -> Result<(), anyhow::Error>
-{
+pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
     let config = Config::builder();
     let config = config.edit_mode(EditMode::Emacs);
     let mut config = config.completion_type(CompletionType::List);
@@ -294,33 +314,44 @@ pub fn main(mut control: Receiver<Control>)
                 config = config.max_history_size(h);
                 editor = create_editor(&config);
             }
-            Some(Control::EdgeqlInput { prompt, initial, response }) => {
+            Some(Control::EdgeqlInput {
+                prompt,
+                initial,
+                response,
+            }) => {
                 edgeql_input(&prompt, &mut editor, response, &initial)?;
             }
             Some(Control::ParameterInput {
-                name, var_type, optional, initial, response,
+                name,
+                var_type,
+                optional,
+                initial,
+                response,
             }) => {
                 let mut initial = initial;
                 let prompt = format!(
                     "Parameter <{}>${}{}: ",
-                    &var_type.type_name(), &name,
+                    &var_type.type_name(),
+                    &name,
                     if optional {
                         " (Ctrl+D for empty set `{}`)".fade().to_string()
-                    } else { String::new() },
+                    } else {
+                        String::new()
+                    },
                 );
                 let mut editor = var_editor(&config, &var_type);
                 let (text, value) = loop {
-                    let text = match
-                        editor.readline_with_initial(&prompt, (&initial, ""))
-                    {
+                    let text = match editor.readline_with_initial(&prompt, (&initial, "")) {
                         Ok(text) => text,
                         Err(ReadlineError::Eof) => {
                             if optional {
                                 response.send(VarInput::Eof).ok();
                                 continue 'outer;
                             } else {
-                                println!("Optional values are not supported \
-                                    for this parameter. Use Ctrl+C to quit.");
+                                println!(
+                                    "Optional values are not supported \
+                                    for this parameter. Use Ctrl+C to quit."
+                                );
                                 continue;
                             }
                         }
@@ -334,14 +365,15 @@ pub fn main(mut control: Receiver<Control>)
                         Ok(parse_result) => {
                             if parse_result.0.len() > 0 {
                                 // remaining input
-                                println!("Bad value: remaining text '{}' is unparsed", parse_result.0);
+                                println!(
+                                    "Bad value: remaining text '{}' is unparsed",
+                                    parse_result.0
+                                );
                                 initial = text;
+                            } else {
+                                break (text.to_owned(), parse_result.1);
                             }
-                            else {
-                                break (text.to_owned(), parse_result.1)
-                            }
-
-                        },
+                        }
                         Err(e) => {
                             println!("Bad value: {}", e);
                             initial = text;
@@ -349,11 +381,10 @@ pub fn main(mut control: Receiver<Control>)
                     }
                 };
                 editor.add_history_entry(&text);
-                save_history(&mut editor,
-                    &format!("var_{}", &var_type.type_name()));
+                save_history(&mut editor, &format!("var_{}", &var_type.type_name()));
                 response.send(VarInput::Value(value)).ok();
             }
-            Some(Control::ShowHistory { ack } ) => {
+            Some(Control::ShowHistory { ack }) => {
                 match show_history(editor.history()) {
                     Ok(()) => {}
                     Err(e) => {
@@ -406,13 +437,13 @@ pub fn main(mut control: Receiver<Control>)
 fn show_history(history: &History) -> Result<(), anyhow::Error> {
     let pager = env::var("EDGEDB_PAGER")
         .or_else(|_| env::var("PAGER"))
-        .unwrap_or_else(|_| 
+        .unwrap_or_else(|_| {
             if cfg!(windows) {
                 String::from("more.com")
             } else {
                 String::from("less -R")
             }
-        );
+        });
     let mut items = pager.split_whitespace();
     let mut cmd = Command::new(items.next().unwrap());
     cmd.stdin(Stdio::piped());
@@ -440,9 +471,7 @@ fn show_history(history: &History) -> Result<(), anyhow::Error> {
 }
 
 fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
-    let mut temp_file = tempfile::Builder::new()
-        .suffix(".edgeql")
-        .tempfile()?;
+    let mut temp_file = tempfile::Builder::new().suffix(".edgeql").tempfile()?;
     temp_file.write_all(data.as_bytes())?;
     let temp_path = temp_file.into_temp_path();
     let editor = editor_path();
