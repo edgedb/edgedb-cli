@@ -11,10 +11,12 @@ use edgeql_parser::preparser::full_statement;
 #[derive(Debug)]
 pub struct EndOfFile;
 
-
-pub async fn read_statement<T: AsyncRead>(buf: &mut BytesMut, stream: &mut T)
-    -> anyhow::Result<Bytes>
-    where T: Unpin
+pub async fn read_statement<T: AsyncRead>(
+    buf: &mut BytesMut,
+    stream: &mut T,
+) -> anyhow::Result<Bytes>
+where
+    T: Unpin,
 {
     let mut continuation = None;
     let statement_len = loop {
@@ -23,7 +25,9 @@ pub async fn read_statement<T: AsyncRead>(buf: &mut BytesMut, stream: &mut T)
             Err(cont) => continuation = Some(cont),
         };
         buf.reserve(8192);
-        let bytes_read = Pin::new(&mut *stream).read_buf(buf).await
+        let bytes_read = Pin::new(&mut *stream)
+            .read_buf(buf)
+            .await
             .context("error reading query")?;
         if bytes_read == 0 {
             if buf.iter().any(|x| !x.is_ascii_whitespace()) {
@@ -33,7 +37,7 @@ pub async fn read_statement<T: AsyncRead>(buf: &mut BytesMut, stream: &mut T)
         }
     };
     let data = buf.split_to(statement_len).freeze();
-    return Ok(data);
+    Ok(data)
 }
 
 impl fmt::Display for EndOfFile {
@@ -42,5 +46,4 @@ impl fmt::Display for EndOfFile {
     }
 }
 
-impl error::Error for EndOfFile {
-}
+impl error::Error for EndOfFile {}

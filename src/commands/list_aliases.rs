@@ -1,14 +1,12 @@
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
 use edgedb_derive::Queryable;
 use is_terminal::IsTerminal;
 
-use crate::commands::Options;
 use crate::commands::filter;
-use crate::table;
+use crate::commands::Options;
 use crate::connect::Connection;
-
-
+use crate::table;
 
 #[derive(Queryable)]
 struct Alias {
@@ -17,11 +15,14 @@ struct Alias {
     klass: String,
 }
 
-pub async fn list_aliases(cli: &mut Connection, options: &Options,
-    pattern: &Option<String>, system: bool, case_sensitive: bool,
-    verbose: bool)
-    -> Result<(), anyhow::Error>
-{
+pub async fn list_aliases(
+    cli: &mut Connection,
+    options: &Options,
+    pattern: &Option<String>,
+    system: bool,
+    case_sensitive: bool,
+    verbose: bool,
+) -> Result<(), anyhow::Error> {
     let filter = match (pattern, system) {
         (None, true) => "FILTER .is_from_alias",
         (None, false) => {
@@ -29,9 +30,7 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
                 NOT re_test("^(?:std|schema|math|sys|cfg|cal|stdgraphql)::",
                     .name)"#
         }
-        (Some(_), true) => {
-            "FILTER .is_from_alias AND re_test(<str>$0, .name)"
-        }
+        (Some(_), true) => "FILTER .is_from_alias AND re_test(<str>$0, .name)",
         (Some(_), false) => {
             r#"FILTER .is_from_alias
                 AND re_test(<str>$0, .name) AND
@@ -39,7 +38,8 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
                 .name)"#
         }
     };
-    let query = &format!(r###"
+    let query = &format!(
+        r###"
         WITH MODULE schema
         SELECT Type {{
             name,
@@ -54,16 +54,20 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         }}
         {filter}
         ORDER BY .name;
-    "###, filter=filter);
-    let items = filter::query::<Alias>(cli,
-        &query, &pattern, case_sensitive).await?;
+    "###,
+        filter = filter
+    );
+    let items = filter::query::<Alias>(cli, query, pattern, case_sensitive).await?;
     if !options.command_line || std::io::stdout().is_terminal() {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
         if verbose {
             table.set_titles(Row::new(
                 ["Name", "Class", "Expression"]
-                .iter().map(|x| table::header_cell(x)).collect()));
+                    .iter()
+                    .map(|x| table::header_cell(x))
+                    .collect(),
+            ));
             for item in items {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.name),
@@ -74,7 +78,10 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         } else {
             table.set_titles(Row::new(
                 ["Name", "Class"]
-                .iter().map(|x| table::header_cell(x)).collect()));
+                    .iter()
+                    .map(|x| table::header_cell(x))
+                    .collect(),
+            ));
             for item in items {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.name),
@@ -93,15 +100,13 @@ pub async fn list_aliases(cli: &mut Connection, options: &Options,
         } else {
             table.printstd();
         }
+    } else if verbose {
+        for item in items {
+            println!("{}\t{}\t{}", item.name, item.klass, item.expr);
+        }
     } else {
-        if verbose {
-            for item in items {
-                println!("{}\t{}\t{}", item.name, item.klass, item.expr);
-            }
-        } else {
-            for item in items {
-                println!("{}\t{}", item.name, item.klass);
-            }
+        for item in items {
+            println!("{}\t{}", item.name, item.klass);
         }
     }
     Ok(())

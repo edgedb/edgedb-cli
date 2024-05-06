@@ -1,4 +1,5 @@
 use fs_err as fs;
+use std::iter::Once;
 
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
@@ -9,14 +10,12 @@ use crate::migrations::{create, migration, Context};
 use crate::portable::exit_codes;
 use crate::{print, question};
 
-struct DatabaseMigration {
-    key: MigrationKey,
-    migration: db_migration::DBMigration,
+pub struct DatabaseMigration {
+    pub key: MigrationKey,
+    pub migration: db_migration::DBMigration,
 }
 
-impl MigrationToText for DatabaseMigration {
-    type StatementsIter<'a> = std::iter::Once<&'a String>;
-
+impl<'a> MigrationToText<'a, Once<&'a String>> for DatabaseMigration {
     fn key(&self) -> &MigrationKey {
         &self.key
     }
@@ -35,7 +34,7 @@ impl MigrationToText for DatabaseMigration {
         Ok(&self.migration.name)
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&'a self) -> Once<&'a String> {
         std::iter::once(&self.migration.script)
     }
 }
@@ -63,7 +62,10 @@ pub async fn extract(
         match (disk_iter.next(), db_iter.next()) {
             (existing, Some((i, migration))) => {
                 let key = MigrationKey::Index((i + 1) as u64);
-                let dm = DatabaseMigration { key, migration: migration.1 };
+                let dm = DatabaseMigration {
+                    key,
+                    migration: migration.1,
+                };
                 if let Some((id, migration_file)) = existing {
                     if dm.id()? != id {
                         if params.non_interactive {

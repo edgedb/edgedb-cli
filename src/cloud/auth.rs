@@ -3,13 +3,15 @@ use std::io;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use tokio::time::sleep;
 use anyhow::Context;
 use fs_err as fs;
+use tokio::time::sleep;
 
-use crate::cloud::client::{cloud_config_dir, cloud_config_file, CloudClient, CloudConfig, ErrorResponse};
-use crate::cloud::secret_keys::{CreateSecretKeyInput, SecretKey};
+use crate::cloud::client::{
+    cloud_config_dir, cloud_config_file, CloudClient, CloudConfig, ErrorResponse,
+};
 use crate::cloud::options;
+use crate::cloud::secret_keys::{CreateSecretKeyInput, SecretKey};
 use crate::commands::ExitCode;
 use crate::options::CloudOptions;
 use crate::portable::exit_codes;
@@ -38,7 +40,7 @@ pub fn login(_c: &options::Login, options: &CloudOptions) -> anyhow::Result<()> 
     do_login(&mut client)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn do_login(client: &mut CloudClient) -> anyhow::Result<()> {
     _do_login(client).await
 }
@@ -49,16 +51,20 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
 
     match user_resp {
         Ok(user) => {
-            print::success(format!(
-                "Already logged in as {}.", user.name));
+            print::success(format!("Already logged in as {}.", user.name));
             return Ok(());
-        },
-        Err(ref err) if matches!(
-            err.downcast_ref::<ErrorResponse>(),
-            Some(ErrorResponse { code: reqwest::StatusCode::UNAUTHORIZED, .. })
-        ) => {
+        }
+        Err(ref err)
+            if matches!(
+                err.downcast_ref::<ErrorResponse>(),
+                Some(ErrorResponse {
+                    code: reqwest::StatusCode::UNAUTHORIZED,
+                    ..
+                })
+            ) =>
+        {
             // Fallthrough.
-        },
+        }
         Err(err) => {
             return Err(err);
         }
@@ -91,12 +97,17 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
                 // non-expiring secret key from the secretkeys/ API now.
                 client.set_secret_key(Some(&secret_key))?;
                 let hostname = gethostname::gethostname();
-                let key: SecretKey = client.post("secretkeys/", &CreateSecretKeyInput{
-                    name: Some(format!("CLI @ {hostname:#?}")),
-                    description: None,
-                    scopes: None,
-                    ttl: None,
-                }).await?;
+                let key: SecretKey = client
+                    .post(
+                        "secretkeys/",
+                        &CreateSecretKeyInput {
+                            name: Some(format!("CLI @ {hostname:#?}")),
+                            description: None,
+                            scopes: None,
+                            ttl: None,
+                        },
+                    )
+                    .await?;
 
                 write_json(
                     &cloud_config_file(&client.profile)?,
@@ -110,26 +121,22 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
                 let user: User = client.get("user").await?;
                 print::success(format!(
                     "Successfully logged in to EdgeDB Cloud as {}.",
-                    user.name));
+                    user.name
+                ));
                 return Ok(());
             }
-            Err(e) => print::warn(format!(
-                "Request failed: {:?}\nRetrying...", 
-                e
-            )),
+            Err(e) => print::warn(format!("Request failed: {:?}\nRetrying...", e)),
             _ => {}
         }
         sleep(AUTHENTICATION_POLL_INTERVAL).await;
     }
     anyhow::bail!(
         "Authentication expected to complete in {:?}.",
-         AUTHENTICATION_WAIT_TIME
+        AUTHENTICATION_WAIT_TIME
     )
 }
 
-fn find_project_dirs(
-    f: impl Fn(&str) -> bool,
-) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
+fn find_project_dirs(f: impl Fn(&str) -> bool) -> anyhow::Result<HashMap<String, Vec<PathBuf>>> {
     let projects = find_project_stash_dirs("cloud-profile", f, false)?;
     Ok(projects
         .into_iter()
@@ -176,7 +183,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             let item = item?;
             let sub_dir = item.path();
             let stem = sub_dir.file_stem().and_then(|s| s.to_str());
-            if stem.map(|n| n.starts_with(".")).unwrap_or(true) {
+            if stem.map(|n| n.starts_with('.')).unwrap_or(true) {
                 // skip hidden files, most likely .DS_Store
                 continue;
             }
@@ -256,7 +263,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             print::warn(message);
         } else {
             print::error(message);
-            return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
+            Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
         }
     }
     if !skipped {
@@ -274,8 +281,7 @@ fn make_project_warning(profile: &str, projects: Vec<PathBuf>) -> String {
         profile,
         projects
             .iter()
-            .map(|p| p.to_str())
-            .flatten()
+            .filter_map(|p| p.to_str())
             .collect::<Vec<_>>()
             .join("\n    "),
     )

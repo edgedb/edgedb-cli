@@ -1,40 +1,39 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::commands::{self, ExitCode};
 use crate::cloud;
-use crate::connect::{Connector, Connection};
+use crate::commands::{self, ExitCode};
+use crate::connect::{Connection, Connector};
 use crate::portable::control;
 use crate::portable::create;
 use crate::portable::exit_codes;
 use crate::portable::install;
-use crate::portable::local::{InstanceInfo, InstallInfo, Paths, write_json};
-use crate::portable::options::{Upgrade, instance_arg, InstanceName};
+use crate::portable::local::{write_json, InstallInfo, InstanceInfo, Paths};
+use crate::portable::options::{instance_arg, InstanceName, Upgrade};
 use crate::portable::project;
-use crate::portable::repository::{self, Query, QueryOptions, PackageInfo, Channel};
+use crate::portable::repository::{self, Channel, PackageInfo, Query, QueryOptions};
 use crate::portable::ver;
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
 use crate::question;
 
-
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct UpgradeMeta {
     pub source: ver::Build,
     pub target: ver::Build,
-    #[serde(with="humantime_serde")]
+    #[serde(with = "humantime_serde")]
     pub started: SystemTime,
     pub pid: u32,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct BackupMeta {
-    #[serde(with="humantime_serde")]
+    #[serde(with = "humantime_serde")]
     pub timestamp: SystemTime,
 }
 
@@ -53,17 +52,20 @@ pub struct UpgradeResult {
     pub available_upgrade: Option<ver::Specific>,
 }
 
-pub fn print_project_upgrade_command(version: &Query,
-    current_project: &Option<PathBuf>, project_dir: &Path)
-{
+pub fn print_project_upgrade_command(
+    version: &Query,
+    current_project: &Option<PathBuf>,
+    project_dir: &Path,
+) {
     eprintln!(
         "  edgedb project upgrade {}{}",
         match version.channel {
-            Channel::Stable => if let Some(filt) = &version.version {
-                format!("--to-version={}", filt)
-            } else {
-                "--to-latest".into()
-            },
+            Channel::Stable =>
+                if let Some(filt) = &version.version {
+                    format!("--to-version={}", filt)
+                } else {
+                    "--to-latest".into()
+                },
             Channel::Nightly => "--to-nightly".into(),
             Channel::Testing => "--to-testing".into(),
         },
@@ -75,15 +77,13 @@ pub fn print_project_upgrade_command(version: &Query,
     );
 }
 
-fn check_project(name: &str, force: bool, ver_query: &Query)
-    -> anyhow::Result<()>
-{
-    let project_dirs = project::find_project_dirs_by_instance(&name)?;
+fn check_project(name: &str, force: bool, ver_query: &Query) -> anyhow::Result<()> {
+    let project_dirs = project::find_project_dirs_by_instance(name)?;
     if project_dirs.is_empty() {
-        return Ok(())
+        return Ok(());
     }
 
-    project::print_instance_in_use_warning(&name, &project_dirs);
+    project::print_instance_in_use_warning(name, &project_dirs);
     let current_project = project::project_dir_opt(None)?;
 
     if force {
@@ -96,7 +96,7 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
     }
     for pd in project_dirs {
         let pd = project::read_project_path(&pd)?;
-        print_project_upgrade_command(&ver_query, &current_project, &pd);
+        print_project_upgrade_command(ver_query, &current_project, &pd);
     }
     if !force {
         anyhow::bail!("Upgrade aborted.");
@@ -106,10 +106,11 @@ fn check_project(name: &str, force: bool, ver_query: &Query)
 
 pub fn upgrade(cmd: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
     match instance_arg(&cmd.name, &cmd.instance)? {
-        InstanceName::Local(name)
-            => upgrade_local_cmd(cmd, name),
-        InstanceName::Cloud { org_slug: org, name }
-            => upgrade_cloud_cmd(cmd, org, name, opts),
+        InstanceName::Local(name) => upgrade_local_cmd(cmd, name),
+        InstanceName::Cloud {
+            org_slug: org,
+            name,
+        } => upgrade_cloud_cmd(cmd, org, name, opts),
     }
 }
 
@@ -137,10 +138,13 @@ fn upgrade_local_cmd(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     let pkg_ver = pkg.version.specific();
 
     if pkg_ver <= inst_ver && !cmd.force {
-        echo!("Latest version found", pkg.version.to_string() + ",",
-              "current instance version is",
-              inst.get_version()?.emphasize().to_string() + ".",
-              "Already up to date.");
+        echo!(
+            "Latest version found",
+            pkg.version.to_string() + ",",
+            "current instance version is",
+            inst.get_version()?.emphasize().to_string() + ".",
+            "Already up to date."
+        );
         return Ok(());
     }
     ver::print_version_hint(&pkg_ver, &ver_query);
@@ -150,9 +154,7 @@ fn upgrade_local_cmd(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     // we rely on presence of the version specifying options instead to
     // define how we want upgrade to be performed. This is mostly useful
     // for tests.
-    if pkg_ver.is_compatible(&inst_ver) && !(cmd.force && ver_option) &&
-        !cmd.force_dump_restore
-    {
+    if pkg_ver.is_compatible(&inst_ver) && !(cmd.force && ver_option) && !cmd.force_dump_restore {
         upgrade_compatible(inst, pkg)
     } else {
         upgrade_incompatible(inst, pkg)
@@ -182,25 +184,19 @@ fn upgrade_cloud_cmd(
     let _inst_name = format!("{}/{}", org, name);
     let inst_name = _inst_name.emphasize();
 
-    let result = upgrade_cloud(
-        org,
-        name,
-        &query,
-        &client,
-        cmd.force,
-        |target_ver| {
-            let target_ver_str = target_ver.to_string();
-            ver::print_version_hint(&target_ver, &query);
-            if !cmd.non_interactive {
-                question::Confirm::new(format!(
-                    "This will upgrade {inst_name} to version {target_ver_str}.\
+    let result = upgrade_cloud(org, name, &query, &client, cmd.force, |target_ver| {
+        let target_ver_str = target_ver.to_string();
+        ver::print_version_hint(target_ver, &query);
+        if !cmd.non_interactive {
+            question::Confirm::new(format!(
+                "This will upgrade {inst_name} to version {target_ver_str}.\
                     \nConfirm?",
-                )).ask()
-            } else {
-                Ok(true)
-            }
+            ))
+            .ask()
+        } else {
+            Ok(true)
         }
-    )?;
+    })?;
 
     let target_ver_str = result.requested_version.to_string();
 
@@ -234,8 +230,7 @@ pub fn upgrade_cloud(
     client: &cloud::client::CloudClient,
     force: bool,
     confirm: impl FnOnce(&ver::Specific) -> anyhow::Result<bool>,
-) -> anyhow::Result<UpgradeResult>
-{
+) -> anyhow::Result<UpgradeResult> {
     let inst = cloud::ops::find_cloud_instance_by_name(name, org, client)?
         .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
 
@@ -264,7 +259,7 @@ pub fn upgrade_cloud(
             force,
         };
 
-        cloud::ops::upgrade_cloud_instance(&client, &request)?;
+        cloud::ops::upgrade_cloud_instance(client, &request)?;
 
         Ok(UpgradeResult {
             action: UpgradeAction::Upgraded,
@@ -275,9 +270,7 @@ pub fn upgrade_cloud(
     }
 }
 
-pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
-    -> anyhow::Result<()>
-{
+pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::Result<()> {
     echo!("Upgrading to a minor version", pkg.version.emphasize());
     let install = install::package(&pkg).context("error installing EdgeDB")?;
     inst.installation = Some(install);
@@ -288,16 +281,19 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo)
     create::create_service(&inst)
         .map_err(|e| {
             log::warn!("Error running EdgeDB as a service: {e:#}");
-        }).ok();
+        })
+        .ok();
     control::do_restart(&inst)?;
-    echo!("Instance", inst.name.emphasize(),
-          "successfully upgraded to", pkg.version.emphasize());
+    echo!(
+        "Instance",
+        inst.name.emphasize(),
+        "successfully upgraded to",
+        pkg.version.emphasize()
+    );
     Ok(())
 }
 
-pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
-    -> anyhow::Result<()>
-{
+pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::Result<()> {
     echo!("Upgrading to a major version", pkg.version.emphasize());
     let install = install::package(&pkg).context("error installing EdgeDB")?;
 
@@ -320,10 +316,15 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo)
     create::create_service(&inst)
         .map_err(|e| {
             log::warn!("Error running EdgeDB as a service: {e:#}");
-        }).ok();
+        })
+        .ok();
     control::do_restart(&inst)?;
-    echo!("Instance", inst.name.emphasize(),
-           "successfully upgraded to", pkg.version.emphasize());
+    echo!(
+        "Instance",
+        inst.name.emphasize(),
+        "successfully upgraded to",
+        pkg.version.emphasize()
+    );
 
     Ok(())
 }
@@ -333,32 +334,30 @@ pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
     // in case not started for now
     echo!("Dumping the database...");
     log::info!("Ensuring instance is started");
-    let res = control::do_start(&inst);
+    let res = control::do_start(inst);
     if let Err(err) = res {
-        log::warn!("Error starting service: {:#}. Trying to start manually.",
-            err);
+        log::warn!(
+            "Error starting service: {:#}. Trying to start manually.",
+            err
+        );
         control::ensure_runstate_dir(&inst.name)?;
         let mut cmd = control::get_server_cmd(inst, false)?;
-        cmd.background_for(|| Ok(dump_instance(inst, &path)))?;
+        cmd.background_for(|| Ok(dump_instance(inst, path)))?;
     } else {
-        block_on_dump_instance(inst, &path)?;
+        block_on_dump_instance(inst, path)?;
         log::info!("Stopping instance before executable upgrade");
         control::do_stop(&inst.name)?;
     }
     Ok(())
 }
 
-#[tokio::main]
-async fn block_on_dump_instance(inst: &InstanceInfo, destination: &Path)
-    -> anyhow::Result<()>
-{
+#[tokio::main(flavor = "current_thread")]
+async fn block_on_dump_instance(inst: &InstanceInfo, destination: &Path) -> anyhow::Result<()> {
     dump_instance(inst, destination).await
 }
 
 #[context("error dumping instance")]
-pub async fn dump_instance(inst: &InstanceInfo, destination: &Path)
-    -> anyhow::Result<()>
-{
+pub async fn dump_instance(inst: &InstanceInfo, destination: &Path) -> anyhow::Result<()> {
     use tokio::fs;
 
     let destination = Path::new(destination);
@@ -375,26 +374,38 @@ pub async fn dump_instance(inst: &InstanceInfo, destination: &Path)
         styler: None,
         conn_params: Connector::new(Ok(config)),
     };
-    commands::dump_all(&mut cli, &options, destination.as_ref(),
-                       true /*include_secrets*/).await?;
+    commands::dump_all(
+        &mut cli,
+        &options,
+        destination,
+        true, /*include_secrets*/
+    )
+    .await?;
     Ok(())
 }
 
-fn backup(inst: &InstanceInfo, new_inst: &InstallInfo, paths: &Paths)
-    -> anyhow::Result<()>
-{
+fn backup(inst: &InstanceInfo, new_inst: &InstallInfo, paths: &Paths) -> anyhow::Result<()> {
     if paths.upgrade_marker.exists() {
         anyhow::bail!("Upgrade is already in progress");
     }
-    write_json(&paths.upgrade_marker, "upgrade marker", &UpgradeMeta {
-        source: inst.get_version()?.clone(),
-        target: new_inst.version.clone(),
-        started: SystemTime::now(),
-        pid: std::process::id(),
-    })?;
+    write_json(
+        &paths.upgrade_marker,
+        "upgrade marker",
+        &UpgradeMeta {
+            source: inst.get_version()?.clone(),
+            target: new_inst.version.clone(),
+            started: SystemTime::now(),
+            pid: std::process::id(),
+        },
+    )?;
 
-    write_json(&paths.data_dir.join("backup.json"), "backup metadata",
-        &BackupMeta { timestamp: SystemTime::now() })?;
+    write_json(
+        &paths.data_dir.join("backup.json"),
+        "backup metadata",
+        &BackupMeta {
+            timestamp: SystemTime::now(),
+        },
+    )?;
     if paths.backup_dir.exists() {
         fs_err::remove_dir_all(&paths.backup_dir)?;
     }
@@ -404,8 +415,7 @@ fn backup(inst: &InstanceInfo, new_inst: &InstallInfo, paths: &Paths)
 }
 
 #[context("cannot restore {:?}", inst.name)]
-fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()>
-{
+fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()> {
     fs::create_dir_all(&paths.data_dir)
         .with_context(|| format!("cannot create {:?}", paths.data_dir))?;
 
@@ -413,32 +423,34 @@ fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()>
     control::ensure_runstate_dir(&inst.name)?;
     let mut cmd = control::get_server_cmd(inst, false)?;
     control::self_signed_arg(&mut cmd, inst.get_version()?);
-    cmd.background_for(|| Ok(async {
-        restore_instance(inst, &paths.dump_path).await?;
-        log::info!("Restarting instance {:?} to apply \
+    cmd.background_for(|| {
+        Ok(async {
+            restore_instance(inst, &paths.dump_path).await?;
+            log::info!(
+                "Restarting instance {:?} to apply \
                    changes from `restore --all`",
-                   &inst.name);
-        Ok(())
-    }))?;
+                &inst.name
+            );
+            Ok(())
+        })
+    })?;
 
     let metapath = paths.data_dir.join("instance_info.json");
     write_json(&metapath, "new instance metadata", &inst)?;
 
     fs::copy(
         paths.backup_dir.join("edbtlscert.pem"),
-        paths.data_dir.join("edbtlscert.pem")
+        paths.data_dir.join("edbtlscert.pem"),
     )?;
     fs::copy(
         paths.backup_dir.join("edbprivkey.pem"),
-        paths.data_dir.join("edbprivkey.pem")
+        paths.data_dir.join("edbprivkey.pem"),
     )?;
 
     Ok(())
 }
 
-async fn restore_instance(inst: &InstanceInfo, path: &Path)
-    -> anyhow::Result<()>
-{
+async fn restore_instance(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
     use crate::commands::parser::Restore;
     let mut conn_params = inst.admin_conn_params()?;
     conn_params.wait_until_available(Duration::from_secs(300));
@@ -452,11 +464,16 @@ async fn restore_instance(inst: &InstanceInfo, path: &Path)
         styler: None,
         conn_params: Connector::new(Ok(cfg)),
     };
-    commands::restore_all(&mut cli, &options, &Restore {
-        path: path.into(),
-        all: true,
-        verbose: false,
-        conn: None,
-    }).await?;
+    commands::restore_all(
+        &mut cli,
+        &options,
+        &Restore {
+            path: path.into(),
+            all: true,
+            verbose: false,
+            conn: None,
+        },
+    )
+    .await?;
     Ok(())
 }

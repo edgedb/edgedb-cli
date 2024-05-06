@@ -1,28 +1,27 @@
 use std::borrow::Cow;
-use std::collections::{BTreeSet, BTreeMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 
-use clap::{self, FromArgMatches, CommandFactory};
+use clap::{CommandFactory, FromArgMatches};
 use once_cell::sync::Lazy;
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 use regex::Regex;
 
-use edgedb_errors::Error;
 use edgedb_errors::display::display_error_verbose;
+use edgedb_errors::Error;
 use edgedb_protocol::model::Duration;
 
 use crate::analyze;
-use crate::commands::Options;
 use crate::commands::execute;
 use crate::commands::parser::{Backslash, BackslashCmd, Setting, StateParam};
-use crate::print::style::Styler;
+use crate::commands::Options;
 use crate::print;
+use crate::print::style::Styler;
 use crate::prompt;
 use crate::repl;
 use crate::table;
 
-
-pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(|| CommandCache::new());
+pub static CMD_CACHE: Lazy<CommandCache> = Lazy::new(CommandCache::new);
 
 pub enum ExecuteResult {
     Skip,
@@ -41,7 +40,7 @@ Introspection
 
   \d [-v] NAME              Describe schema object
   \ds                       Describe whole schema   (alias: \describe schema)
-  \l                        List databases          (alias: \list databases)
+  \l                        List databases/branches (alias: \list branches)
   \ls [-sc]  [PATTERN]      List scalar types       (alias: \list scalars)
   \lt [-sc]  [PATTERN]      List object types       (alias: \list types)
   \lr [-c]   [PATTERN]      List roles              (alias: \list roles)
@@ -63,7 +62,7 @@ Editing
                             Defaults to vi (Notepad in Windows).
 
 Connection
-  \c, \connect [DBNAME]     Connect to database DBNAME
+  \c, \connect [DBNAME]     Connect to database/branch DBNAME
 
 Settings
   \set [OPTION [VALUE]]     Show/change settings. Type \set to list
@@ -172,49 +171,60 @@ impl<'a> Parser<'a> {
                                 return Some(Token {
                                     item: Item::Error {
                                         message: match quote {
-                                            '\'' =>
+                                            '\'' => {
                                                 "expected end of single \
-                                                quote `'` , got end of line",
-                                            '"' =>
+                                                quote `'` , got end of line"
+                                            }
+                                            '"' => {
                                                 "expected end of double \
-                                                quote `\"` , got end of line",
-                                            '`' =>
+                                                quote `\"` , got end of line"
+                                            }
+                                            '`' => {
                                                 "expected end of backtick \
-                                                quote '`' , got end of line",
+                                                quote '`' , got end of line"
+                                            }
                                             _ => unreachable!(),
                                         },
                                     },
-                                    span: (offset+idx, offset+end),
+                                    span: (offset + idx, offset + end),
                                 })
                             }
                             Some((_, _)) => {}
-                            None => return Some(Token {
-                                item: Item::Incomplete {
-                                    message: match quote {
-                                        '\'' => "incomplete 'single-quoted' \
-                                                argument",
-                                        '"' => "incomplete \"double-quoted\" \
-                                                argument",
-                                        '`' => "incomplete `backtick-quoted` \
-                                                argument",
-                                        _ => unreachable!(),
+                            None => {
+                                return Some(Token {
+                                    item: Item::Incomplete {
+                                        message: match quote {
+                                            '\'' => {
+                                                "incomplete 'single-quoted' \
+                                                argument"
+                                            }
+                                            '"' => {
+                                                "incomplete \"double-quoted\" \
+                                                argument"
+                                            }
+                                            '`' => {
+                                                "incomplete `backtick-quoted` \
+                                                argument"
+                                            }
+                                            _ => unreachable!(),
+                                        },
                                     },
-                                },
-                                span: (offset, self.data.len()),
-                            }),
+                                    span: (offset, self.data.len()),
+                                })
+                            }
                         }
                     }
                 }
                 ';' if idx == 0 => {
                     return Some(Token {
                         item: Item::Semicolon,
-                        span: (offset, offset+1),
+                        span: (offset, offset + 1),
                     });
                 }
                 '\n' if idx == 0 => {
                     return Some(Token {
                         item: Item::Newline,
-                        span: (offset, offset+1),
+                        span: (offset, offset + 1),
                     });
                 }
                 '\r' if idx == 0 => {
@@ -225,7 +235,7 @@ impl<'a> Parser<'a> {
                     };
                     return Some(Token {
                         item: Item::Newline,
-                        span: (offset, offset+ln),
+                        span: (offset, offset + ln),
                     });
                 }
                 ' ' | '\t' | '\r' | '\n' | ';' => break idx,
@@ -240,24 +250,24 @@ impl<'a> Parser<'a> {
                     item: Item::Error {
                         message: "command must start with backslash `\\`",
                     },
-                    span: (offset, offset+char_len),
-                })
+                    span: (offset, offset + char_len),
+                });
             }
             if value.starts_with("\\-") {
                 return Some(Token {
                     item: Item::Error {
                         message: "unexpected `-`, try \\help",
                     },
-                    span: (offset+1, offset+2),
-                })
+                    span: (offset + 1, offset + 2),
+                });
             }
             Item::Command(value)
         } else {
             Item::Argument(value)
         };
-        return Some(Token {
+        Some(Token {
             item,
-            span: (offset, offset+end),
+            span: (offset, offset + end),
         })
     }
 }
@@ -272,17 +282,16 @@ impl<'a> Iterator for Parser<'a> {
             }
             self.offset = tok.span.1;
         }
-        return result;
+        result
     }
 }
 
 impl CommandInfo {
     fn from(cmd: &clap::Command) -> CommandInfo {
         CommandInfo {
-            options: cmd.get_arguments()
-                .filter_map(|a| a.get_short())
-                .collect(),
-            arguments: cmd.get_arguments()
+            options: cmd.get_arguments().filter_map(|a| a.get_short()).collect(),
+            arguments: cmd
+                .get_arguments()
                 .filter(|a| a.get_short().is_none())
                 .filter(|a| a.get_long().is_none())
                 .map(|a| Argument {
@@ -290,9 +299,15 @@ impl CommandInfo {
                     name: a.get_id().to_string().to_owned(),
                 })
                 .collect(),
-            description: cmd.get_about().map(|x| format!("{}", x.ansi()).trim().to_owned()),
+            description: cmd
+                .get_about()
+                .map(|x| format!("{}", x.ansi()).trim().to_owned()),
             name_description: if let Some(desc) = cmd.get_about() {
-                format!("{} -- {}", cmd.get_name(), format!("{}", desc.ansi()).trim())
+                format!(
+                    "{} -- {}",
+                    cmd.get_name(),
+                    format!("{}", desc.ansi()).trim()
+                )
             } else {
                 cmd.get_name().to_string()
             },
@@ -306,7 +321,7 @@ impl CommandCache {
         let mut aliases = BTreeMap::new();
         aliases.insert("d", &["describe", "object"][..]);
         aliases.insert("ds", &["describe", "schema"]);
-        aliases.insert("l", &["list", "databases"]);
+        aliases.insert("l", &["list", "branches"]);
         aliases.insert("ls", &["list", "scalars"]);
         aliases.insert("lt", &["list", "types"]);
         aliases.insert("lr", &["list", "roles"]);
@@ -322,22 +337,22 @@ impl CommandCache {
         aliases.insert("quit", &["exit"]);
         aliases.insert("?", &["help"]);
         aliases.insert("h", &["help"]);
+        aliases.insert("branch", &["branching"]);
+        aliases.insert("b", &["branching"]);
         let mut setting_cmd = None;
-        let commands: BTreeMap<_,_> = clap.get_subcommands_mut()
+        let commands: BTreeMap<_, _> = clap
+            .get_subcommands_mut()
             .map(|cmd| {
                 let name = cmd.get_name().to_owned();
                 let cmd_info = if name == "set" {
                     setting_cmd = Some(&*cmd);
                     Command::Settings
                 } else if cmd.has_subcommands() {
-                    Command::Subcommands(cmd.get_subcommands()
-                        .map(|cmd| {
-                            (
-                                cmd.get_name().into(),
-                                CommandInfo::from(cmd),
-                            )
-                        })
-                        .collect())
+                    Command::Subcommands(
+                        cmd.get_subcommands()
+                            .map(|cmd| (cmd.get_name().into(), CommandInfo::from(cmd)))
+                            .collect(),
+                    )
                 } else {
                     Command::Normal(CommandInfo::from(cmd))
                 };
@@ -345,37 +360,47 @@ impl CommandCache {
             })
             .collect();
         let setting_cmd = setting_cmd.expect("set command exists");
-        let mut setting_cmd: BTreeMap<_, _> = setting_cmd.get_subcommands()
+        let mut setting_cmd: BTreeMap<_, _> = setting_cmd
+            .get_subcommands()
             .map(|cmd| (cmd.get_name(), cmd))
             .collect();
-        let settings = Setting::all_items().into_iter().map(|setting| {
-            let cmd = setting_cmd.remove(&setting.name())
-                .expect("all settings have cmd");
-            let arg = cmd.get_arguments()
-                .filter(|a| a.get_id() != "help" && a.get_id() != "version")
-                .next()
-                .expect("setting has argument");
-            let values = arg.get_value_parser().possible_values()
-                .map(|v| v.map(|x| x.get_name().to_owned()).collect());
-            let description = match cmd.get_about() {
-                Some(x) => format!("{}", x.ansi()),
-                None => String::from(""),
-            }.trim().to_owned();
-            let info = SettingInfo {
-                name: setting.name(),
-                name_description: format!("{} -- {}",
-                    setting.name(), description),
-                description,
-                setting,
-                value_name: arg.get_id().to_string().to_owned(),
-                values,
-             };
-            (info.name, info)
-        }).collect();
+        let settings = Setting::all_items()
+            .iter()
+            .map(|setting| {
+                let cmd = setting_cmd
+                    .remove(&setting.name())
+                    .expect("all settings have cmd");
+                let arg = cmd
+                    .get_arguments()
+                    .find(|a| a.get_id() != "help" && a.get_id() != "version")
+                    .expect("setting has argument");
+                let values = arg
+                    .get_value_parser()
+                    .possible_values()
+                    .map(|v| v.map(|x| x.get_name().to_owned()).collect());
+                let description = match cmd.get_about() {
+                    Some(x) => format!("{}", x.ansi()),
+                    None => String::from(""),
+                }
+                .trim()
+                .to_owned();
+                let info = SettingInfo {
+                    name: setting.name(),
+                    name_description: format!("{} -- {}", setting.name(), description),
+                    description,
+                    setting,
+                    value_name: arg.get_id().to_string().to_owned(),
+                    values,
+                };
+                (info.name, info)
+            })
+            .collect();
         CommandCache {
             settings,
-            top_commands: commands.keys().map(|x| &x[..])
-                .chain(aliases.keys().map(|x| *x))
+            top_commands: commands
+                .keys()
+                .map(|x| &x[..])
+                .chain(aliases.keys().copied())
                 .map(|n| String::from("\\") + n)
                 .collect(),
             commands,
@@ -391,13 +416,11 @@ pub fn full_statement(s: &str) -> usize {
             _ => {}
         }
     }
-    return s.len();
+    s.len()
 }
 
-pub fn backslashify_help<'x>(text: &'x str) -> Cow<'x, str> {
-    pub static USAGE: Lazy<Regex> = Lazy::new(|| {
-        Regex::new(r"(USAGE:\s*)(\w)").unwrap()
-    });
+pub fn backslashify_help(text: &str) -> Cow<'_, str> {
+    pub static USAGE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(USAGE:\s*)(\w)").unwrap());
     USAGE.replace(text, "$1\\$2")
 }
 
@@ -411,7 +434,7 @@ pub fn parse(s: &str) -> Result<Backslash, ParseError> {
                 if x == "\\?" || x == "\\h" || x == "\\help" {
                     return Ok(Backslash {
                         command: BackslashCmd::Help,
-                    })
+                    });
                 }
                 if let Some(cmd) = CMD_CACHE.aliases.get(&x[1..]) {
                     arguments.extend(cmd.iter().map(|s| s.to_string()))
@@ -454,26 +477,32 @@ fn unquote_argument(s: &str) -> String {
         match c {
             '\'' => {
                 for c in &mut iter {
-                    if c == '\'' { break; }
+                    if c == '\'' {
+                        break;
+                    }
                     buf.push(c);
                 }
             }
             '"' => {
                 for c in &mut iter {
-                    if c == '"' { break; }
+                    if c == '"' {
+                        break;
+                    }
                     buf.push(c);
                 }
             }
             '`' => {
                 for c in &mut iter {
-                    if c == '`' { break; }
+                    if c == '`' {
+                        break;
+                    }
                     buf.push(c);
                 }
             }
             _ => buf.push(c),
         }
     }
-    return buf;
+    buf
 }
 
 pub fn bool_str(val: bool) -> &'static str {
@@ -484,18 +513,12 @@ pub fn bool_str(val: bool) -> &'static str {
 }
 
 pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
-     use Setting::*;
+    use Setting::*;
 
-     match s {
-        InputMode(_) => {
-            prompt.input_mode.as_str().into()
-        }
-        ImplicitProperties(_) => {
-            bool_str(prompt.print.implicit_properties).into()
-        }
-        VerboseErrors(_) => {
-            bool_str(prompt.verbose_errors).into()
-        }
+    match s {
+        InputMode(_) => prompt.input_mode.as_str().into(),
+        ImplicitProperties(_) => bool_str(prompt.print.implicit_properties).into(),
+        VerboseErrors(_) => bool_str(prompt.verbose_errors).into(),
         Limit(_) => {
             if let Some(limit) = prompt.implicit_limit {
                 limit.to_string().into()
@@ -503,9 +526,7 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
                 "0  # no limit".into()
             }
         }
-        VectorDisplayLength(_) => {
-            prompt.print.max_vector_length.to_string().into()
-        }
+        VectorDisplayLength(_) => prompt.print.max_vector_length.to_string().into(),
         IdleTransactionTimeout(_) => {
             if prompt.idle_transaction_timeout.to_micros() > 0 {
                 prompt.idle_transaction_timeout.to_string().into()
@@ -513,22 +534,12 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
                 "0  # no timeout".into()
             }
         }
-        HistorySize(_) => {
-            prompt.history_limit.to_string().into()
-        }
-        OutputFormat(_) => {
-            prompt.output_format.as_str().into()
-        }
-        DisplayTypenames(_) => {
-            bool_str(prompt.display_typenames).into()
-        }
-        ExpandStrings(_) => {
-            bool_str(prompt.print.expand_strings).into()
-        }
-        PrintStats(_) => {
-            prompt.print_stats.as_str().into()
-        }
-     }
+        HistorySize(_) => prompt.history_limit.to_string().into(),
+        OutputFormat(_) => prompt.output_format.as_str().into(),
+        DisplayTypenames(_) => bool_str(prompt.display_typenames).into(),
+        ExpandStrings(_) => bool_str(prompt.print.expand_strings).into(),
+        PrintStats(_) => prompt.print_stats.as_str().into(),
+    }
 }
 
 fn list_settings(prompt: &mut repl::State) {
@@ -536,24 +547,28 @@ fn list_settings(prompt: &mut repl::State) {
     table.set_format(*table::FORMAT);
     table.set_titles(Row::new(
         ["Setting", "Current", "Description"]
-        .iter().map(|x| table::header_cell(x)).collect()));
+            .iter()
+            .map(|x| table::header_cell(x))
+            .collect(),
+    ));
     for setting in CMD_CACHE.settings.values() {
         table.add_row(Row::new(vec![
-            Cell::new(&setting.name),
-            Cell::new(&get_setting(&setting.setting, prompt)),
+            Cell::new(setting.name),
+            Cell::new(&get_setting(setting.setting, prompt)),
             Cell::new(&textwrap::fill(&setting.description, 40)),
         ]));
     }
     table.printstd();
 }
 
-pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
-    -> Result<ExecuteResult, anyhow::Error>
-{
+pub async fn execute(
+    cmd: &BackslashCmd,
+    prompt: &mut repl::State,
+) -> Result<ExecuteResult, anyhow::Error> {
     use crate::commands::parser::BackslashCmd::*;
     use crate::commands::parser::SetCommand;
-    use Setting::*;
     use ExecuteResult::*;
+    use Setting::*;
 
     let options = Options {
         command_line: false,
@@ -567,25 +582,35 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
         }
         Common(ref cmd) => {
             prompt.soft_reconnect().await?;
-            let cli = prompt.connection.as_mut()
-                .expect("connection established");
-            execute::common(cli, cmd, &options).await?;
+            let cli = prompt.connection.as_mut().expect("connection established");
+            let result = execute::common(cli, cmd, &options).await?;
+
+            if let Some(result) = result {
+                if let Some(branch) = result.new_branch {
+                    prompt.try_connect(&branch).await?;
+                }
+            }
+
             Ok(Skip)
         }
-        Set(SetCommand {setting: None}) => {
+        Set(SetCommand { setting: None }) => {
             list_settings(prompt);
             Ok(Skip)
         }
-        Set(SetCommand {setting: Some(ref cmd)}) if cmd.is_show() => {
-            println!("{}: {}", cmd.name(), get_setting(&cmd, prompt));
+        Set(SetCommand {
+            setting: Some(ref cmd),
+        }) if cmd.is_show() => {
+            println!("{}: {}", cmd.name(), get_setting(cmd, prompt));
             Ok(Skip)
         }
-        Set(SetCommand {setting: Some(ref cmd)}) => {
+        Set(SetCommand {
+            setting: Some(ref cmd),
+        }) => {
             match cmd {
                 InputMode(m) => {
-                    prompt.input_mode(
-                        m.value.expect("only writes here")
-                    ).await?;
+                    prompt
+                        .input_mode(m.value.expect("only writes here"))
+                        .await?;
                 }
                 ImplicitProperties(b) => {
                     prompt.print.implicit_properties = b.unwrap_value();
@@ -604,13 +629,11 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
                     }
                 }
                 VectorDisplayLength(c) => {
-                    prompt.print.max_vector_length =
-                        c.value.expect("only set here");
+                    prompt.print.max_vector_length = c.value.expect("only set here");
                 }
                 IdleTransactionTimeout(t) => {
-                    prompt.idle_transaction_timeout = Duration::from_str(
-                        t.value.as_deref().expect("only set here")
-                    )?;
+                    prompt.idle_transaction_timeout =
+                        Duration::from_str(t.value.as_deref().expect("only set here"))?;
                     prompt.set_idle_transaction_timeout().await?;
                 }
                 HistorySize(c) => {
@@ -636,7 +659,9 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             if prompt.in_transaction() {
                 print::warn("WARNING: Transaction canceled.");
             }
-            prompt.try_connect(&c.database_name).await
+            prompt
+                .try_connect(&c.database_name)
+                .await
                 .map_err(|e| {
                     print::error(format!("Cannot connect: {:#}", e));
                 })
@@ -666,15 +691,15 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             let (desc_id, value) = if *base {
                 prompt.get_state_as_value()?
             } else {
-                prompt.connection.as_ref()
+                prompt
+                    .connection
+                    .as_ref()
                     .map(|c| c.get_state_as_value())
                     .unwrap_or_else(|| prompt.get_state_as_value())?
             };
             println!("Descriptor id: {}", desc_id);
-            print::native_to_stdout(
-                tokio_stream::iter([Ok::<_, Error>(value)]),
-                &prompt.print,
-            ).await?;
+            print::native_to_stdout(tokio_stream::iter([Ok::<_, Error>(value)]), &prompt.print)
+                .await?;
             println!();
             Ok(Skip)
         }
@@ -682,7 +707,9 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             let desc = if *base {
                 prompt.edgeql_state_desc.clone()
             } else {
-                prompt.connection.as_ref()
+                prompt
+                    .connection
+                    .as_ref()
                     .map(|c| c.get_state_desc())
                     .unwrap_or(prompt.edgeql_state_desc.clone())
             };
@@ -696,34 +723,34 @@ pub async fn execute(cmd: &BackslashCmd, prompt: &mut repl::State)
             prompt.show_history().await?;
             Ok(Skip)
         }
-        Edit(c) => {
-            match prompt.spawn_editor(c.entry).await? {
-                | prompt::Input::Text(text) => Ok(Input(text)),
-                | prompt::Input::Interrupt
-                | prompt::Input::Eof => Ok(Skip),
-            }
-        }
+        Edit(c) => match prompt.spawn_editor(c.entry).await? {
+            prompt::Input::Text(text) => Ok(Input(text)),
+            prompt::Input::Interrupt | prompt::Input::Eof => Ok(Skip),
+        },
         Exit => Ok(Quit),
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::Parser;
     use super::Item::{self, *};
+    use super::Parser;
 
-    fn tok_values<'x>(s: &'x str) -> Vec<Item<'x>> {
+    fn tok_values(s: &str) -> Vec<Item<'_>> {
         Parser::new(s).map(|tok| tok.item).collect::<Vec<_>>()
     }
 
     #[test]
     fn test_parser() {
         assert_eq!(tok_values("\\x"), [Command("\\x")]);
-        assert_eq!(tok_values("\\x a b"),
-            [Command("\\x"), Argument("a"), Argument("b")]);
-        assert_eq!(tok_values("\\x 'a b'"),
-            [Command("\\x"), Argument("'a b'")]);
-        assert_eq!(tok_values("\\describe schema::`Object`"),
-            [Command("\\describe"), Argument("schema::`Object`")]);
+        assert_eq!(
+            tok_values("\\x a b"),
+            [Command("\\x"), Argument("a"), Argument("b")]
+        );
+        assert_eq!(tok_values("\\x 'a b'"), [Command("\\x"), Argument("'a b'")]);
+        assert_eq!(
+            tok_values("\\describe schema::`Object`"),
+            [Command("\\describe"), Argument("schema::`Object`")]
+        );
     }
 }

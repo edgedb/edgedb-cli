@@ -1,14 +1,13 @@
-#[cfg(all(feature="github_nightly"))]
-#[path="../docker.rs"]
+#![cfg(feature = "github_nightly")]
+
+#[path = "../common/docker.rs"]
 mod docker;
 
-#[cfg(all(feature="github_nightly"))]
-#[path="../measure.rs"]
+#[path = "../common/measure.rs"]
 mod measure;
 
-#[cfg(all(feature="github_nightly"))] mod common;
-
-#[cfg(all(feature="github_nightly"))] mod compat;
-#[cfg(all(feature="github_nightly"))] mod install;
-#[cfg(all(feature="github_nightly"))] mod upgrade;
-#[cfg(all(feature="github_nightly"))] mod project;
+mod common;
+mod compat;
+mod install;
+mod project;
+mod upgrade;

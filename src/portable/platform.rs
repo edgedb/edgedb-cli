@@ -1,24 +1,23 @@
-use std::fs;
 use std::env;
+use std::fs;
 
 use anyhow::Context;
 
-
 pub fn get_cli() -> anyhow::Result<&'static str> {
-    if cfg!(target_arch="x86_64") {
-        if cfg!(target_os="macos") {
-            return Ok("x86_64-apple-darwin");
-        } else if cfg!(target_os="linux") {
+    if cfg!(target_arch = "x86_64") {
+        if cfg!(target_os = "macos") {
+            Ok("x86_64-apple-darwin")
+        } else if cfg!(target_os = "linux") {
             return Ok("x86_64-unknown-linux-musl");
         } else if cfg!(windows) {
             return Ok("x86_64-pc-windows-msvc");
         } else {
             anyhow::bail!("unsupported OS on x86_64");
         }
-    } else if cfg!(target_arch="aarch64") {
-        if cfg!(target_os="macos") {
+    } else if cfg!(target_arch = "aarch64") {
+        if cfg!(target_os = "macos") {
             return Ok("aarch64-apple-darwin");
-        } else if cfg!(target_os="linux") {
+        } else if cfg!(target_os = "linux") {
             return Ok("aarch64-unknown-linux-musl");
         } else {
             anyhow::bail!("unsupported OS on aarch64")
@@ -29,10 +28,10 @@ pub fn get_cli() -> anyhow::Result<&'static str> {
 }
 
 pub fn get_server() -> anyhow::Result<&'static str> {
-    if cfg!(target_arch="x86_64") {
-        if cfg!(target_os="macos") {
-            return Ok("x86_64-apple-darwin");
-        } else if cfg!(target_os="linux") {
+    if cfg!(target_arch = "x86_64") {
+        if cfg!(target_os = "macos") {
+            Ok("x86_64-apple-darwin")
+        } else if cfg!(target_os = "linux") {
             return Ok("x86_64-unknown-linux-gnu");
         } else if cfg!(windows) {
             // on windows use server version from linux
@@ -41,10 +40,10 @@ pub fn get_server() -> anyhow::Result<&'static str> {
         } else {
             anyhow::bail!("unsupported OS on x86_64");
         }
-    } else if cfg!(target_arch="aarch64") {
-        if cfg!(target_os="macos") {
+    } else if cfg!(target_arch = "aarch64") {
+        if cfg!(target_os = "macos") {
             return Ok("aarch64-apple-darwin");
-        } else if cfg!(target_os="linux") {
+        } else if cfg!(target_os = "linux") {
             return Ok("aarch64-unknown-linux-gnu");
         } else {
             anyhow::bail!("unsupported OS on aarch64")
@@ -55,51 +54,67 @@ pub fn get_server() -> anyhow::Result<&'static str> {
 }
 
 fn docker_check() -> anyhow::Result<bool> {
-    let cgroups = fs::read_to_string("/proc/self/cgroup")
-        .context("cannot read /proc/self/cgroup")?;
+    let cgroups =
+        fs::read_to_string("/proc/self/cgroup").context("cannot read /proc/self/cgroup")?;
     for line in cgroups.lines() {
         let mut fields = line.split(':');
-        if fields.nth(2).map(|f| f.starts_with("/docker/")).unwrap_or(false) {
+        if fields
+            .nth(2)
+            .map(|f| f.starts_with("/docker/"))
+            .unwrap_or(false)
+        {
             return Ok(true);
         }
     }
-    return Ok(false)
+    Ok(false)
 }
 
 pub fn optional_docker_check() -> anyhow::Result<bool> {
-    if cfg!(target_os="linux") {
-       match env::var("EDGEDB_INSTALL_IN_DOCKER").as_ref().map(|x| &x[..]) {
+    if cfg!(target_os = "linux") {
+        match env::var("EDGEDB_INSTALL_IN_DOCKER")
+            .as_ref()
+            .map(|x| &x[..])
+        {
             Ok("forbid") | Ok("default") | Err(env::VarError::NotPresent) => {
                 let result = docker_check()
                     .map_err(|e| {
-                        log::warn!("Failed to check if running within \
-                                   a container: {:#}", e)
-                    }).unwrap_or(false);
+                        log::warn!(
+                            "Failed to check if running within \
+                                   a container: {:#}",
+                            e
+                        )
+                    })
+                    .unwrap_or(false);
                 return Ok(result);
             }
             Ok("allow") => return Ok(false),
             Ok(value) => {
-                anyhow::bail!("Invalid value for \
+                anyhow::bail!(
+                    "Invalid value for \
                     EDGEDB_INSTALL_IN_DOCKER: {:?}. \
-                    Options: allow, forbid, default.", value);
+                    Options: allow, forbid, default.",
+                    value
+                );
             }
             Err(env::VarError::NotUnicode(value)) => {
-                anyhow::bail!("Invalid value for \
+                anyhow::bail!(
+                    "Invalid value for \
                     EDGEDB_INSTALL_IN_DOCKER: {:?}. \
-                    Options: allow, forbid, default.", value);
+                    Options: allow, forbid, default.",
+                    value
+                );
             }
         };
     }
     Ok(false)
 }
 
-
-#[cfg(not(target_os="macos"))]
+#[cfg(not(target_os = "macos"))]
 pub fn is_arm64_hardware() -> bool {
     false
 }
 
-#[cfg(target_os="macos")]
+#[cfg(target_os = "macos")]
 pub fn is_arm64_hardware() -> bool {
     let mut utsname = libc::utsname {
         sysname: [0; 256],
@@ -131,10 +146,10 @@ pub fn is_arm64_hardware() -> bool {
 
     let mut result: libc::c_int = 0;
     let mut size: libc::size_t = std::mem::size_of_val(&result);
-    let sname = std::ffi::CString::new("sysctl.proc_translated")
-        .expect("cstring can be created");
+    let sname = std::ffi::CString::new("sysctl.proc_translated").expect("cstring can be created");
     let sysctl_result = unsafe {
-        libc::sysctlbyname(sname.as_ptr(),
+        libc::sysctlbyname(
+            sname.as_ptr(),
             &mut result as *mut libc::c_int as *mut libc::c_void,
             &mut size,
             std::ptr::null_mut(),

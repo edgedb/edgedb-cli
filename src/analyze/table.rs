@@ -1,17 +1,15 @@
-use std::fmt::{self, Write};
 use std::cmp::{max, min};
+use std::fmt::{self, Write};
 
-use unicode_width::UnicodeWidthChar;
 use terminal_size::{terminal_size, Width};
+use unicode_width::UnicodeWidthChar;
 
 use crate::print::Highlight;
-
 
 pub trait Contents {
     fn width_bounds(&self) -> (usize, usize);
     fn height(&self, width: usize) -> usize;
-    fn render(&self, width: usize, height: usize, f: &mut fmt::Formatter)
-        -> fmt::Result;
+    fn render(&self, width: usize, height: usize, f: &mut fmt::Formatter) -> fmt::Result;
 }
 
 struct BufRender<'a> {
@@ -49,9 +47,7 @@ pub trait Words {
 
 pub trait Printer {
     fn word(&mut self, word: impl fmt::Display) -> fmt::Result;
-    fn words(&mut self, iter: impl Iterator<Item=impl fmt::Display>)
-        -> fmt::Result
-    {
+    fn words(&mut self, iter: impl Iterator<Item = impl fmt::Display>) -> fmt::Result {
         for word in iter {
             self.word(word)?;
         }
@@ -77,36 +73,37 @@ struct TextPrinter<'a, 'b: 'a> {
     column: usize,
 }
 
-pub fn render(
-    title: Option<impl fmt::Display>,
-    table: &Vec<Vec<Box<dyn Contents+'_>>>
-) {
-    let width = terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(200);
+pub fn render(title: Option<impl fmt::Display>, table: &[Vec<Box<dyn Contents + '_>>]) {
+    let width = terminal_size()
+        .map(|(Width(w), _h)| w.into())
+        .unwrap_or(200);
     let cols = table.iter().map(|r| r.len()).max().unwrap_or(1);
-    let width_bounds = (0..cols).map(|c| {
-        table.iter().map(|r| {
-            r.get(c).map(|c| c.width_bounds()).unwrap_or((0, 0))
+    let width_bounds = (0..cols)
+        .map(|c| {
+            table
+                .iter()
+                .map(|r| r.get(c).map(|c| c.width_bounds()).unwrap_or((0, 0)))
+                .fold((0, 0, 0), |(fmin, fmax, sum), (cmin, cmax)| {
+                    (max(fmin, cmin), max(fmax, cmax), sum + cmax)
+                })
         })
-        .fold((0, 0, 0), |(fmin, fmax, sum), (cmin, cmax)| {
-            (max(fmin, cmin), max(fmax, cmax), sum + cmax)
-        })
-    }).collect::<Vec<(usize, usize, usize)>>();
-    let borders = cols-1;  // TODO (tailhook)
+        .collect::<Vec<(usize, usize, usize)>>();
+    let borders = cols - 1; // TODO (tailhook)
     let min_width = width_bounds.iter().map(|&(m, _, _)| m).sum::<usize>() + borders;
     let max_width = width_bounds.iter().map(|&(_, m, _)| m).sum::<usize>() + borders;
     let widths = if max_width <= width {
         width_bounds.iter().map(|(_min, max, _sum)| *max).collect()
     } else if min_width >= width {
-        let (max_i, max_col) = width_bounds.iter().map(|(m, _, _)| *m)
+        let (max_i, max_col) = width_bounds
+            .iter()
+            .map(|(m, _, _)| *m)
             .enumerate()
             .max_by_key(|(_n, v)| *v)
             .expect("at least one column must exist");
         if min_width - max_col < width {
             // The heuristic is that if the widest column's min width is too
             // big, we can just cut that one.
-            let mut widths: Vec<_> = width_bounds.iter()
-                .map(|(min, _max, _sum)| *min)
-                .collect();
+            let mut widths: Vec<_> = width_bounds.iter().map(|(min, _max, _sum)| *min).collect();
             widths[max_i] = width - (min_width - max_col);
             widths
         } else {
@@ -119,7 +116,7 @@ pub fn render(
         let mut widths = Vec::with_capacity(cols);
         let mut total_width = 0;
         for &(cmin, _, csum) in &width_bounds {
-            let cwidth = cmin + (to_divide as f64*csum as f64/sum as f64) as usize;
+            let cwidth = cmin + (to_divide as f64 * csum as f64 / sum as f64) as usize;
             widths.push(cwidth);
             total_width += cwidth;
         }
@@ -135,15 +132,22 @@ pub fn render(
         }
         widths
     };
-    let heights = table.iter().map(|row| {
-        row.iter().zip(&widths).map(|(cell, &width)| cell.height(width))
-            .max().unwrap_or(0)
-    }).collect::<Vec<_>>();
+    let heights = table
+        .iter()
+        .map(|row| {
+            row.iter()
+                .zip(&widths)
+                .map(|(cell, &width)| cell.height(width))
+                .max()
+                .unwrap_or(0)
+        })
+        .collect::<Vec<_>>();
 
     if let Some(title) = title {
         print_title(title, min(width, max_width));
     }
-    let mut buffers = widths.iter()
+    let mut buffers = widths
+        .iter()
         .map(|w| String::with_capacity(*w))
         .collect::<Vec<_>>();
     let mut line_buf = String::with_capacity(width + 1);
@@ -152,11 +156,20 @@ pub fn render(
             buf.truncate(0);
         }
         for (idx, (cell, &width)) in row.iter().zip(&widths).enumerate() {
-            write!(&mut buffers[idx], "{}",
-                   BufRender { cell: &**cell, width, height }
-            ).ok();
+            write!(
+                &mut buffers[idx],
+                "{}",
+                BufRender {
+                    cell: &**cell,
+                    width,
+                    height
+                }
+            )
+            .ok();
         }
-        let mut lines = buffers.iter().map(|text| text.lines().peekable())
+        let mut lines = buffers
+            .iter()
+            .map(|text| text.lines().peekable())
             .collect::<Vec<_>>();
         while lines.iter_mut().any(|l| l.peek().is_some()) {
             let mut next_col = 0;
@@ -169,10 +182,10 @@ pub fn render(
                     col = next_col;
                 }
                 next_col = col + width + 1;
-                iter.next().map(|line| {
+                if let Some(line) = iter.next() {
                     col += str_width(line);
                     line_buf.push_str(line);
-                });
+                }
             }
             println!("{}", line_buf);
             line_buf.truncate(0);
@@ -182,12 +195,15 @@ pub fn render(
 
 pub fn print_title(title: impl fmt::Display, width: usize) {
     let width = min(
-        terminal_size().map(|(Width(w), _h)| w.into()).unwrap_or(width),
+        terminal_size()
+            .map(|(Width(w), _h)| w.into())
+            .unwrap_or(width),
         width,
     );
     let twidth = display_width(&title) + 2;
-    let filler = max(width.saturating_sub(twidth)/2, 5);
-    println!("{} {} {}",
+    let filler = max(width.saturating_sub(twidth) / 2, 5);
+    println!(
+        "{} {} {}",
         format_args!("{0:─^filler$}", "").fade(),
         title.emphasize(),
         format_args!("{0:─^filler$}", "").fade(),
@@ -209,9 +225,7 @@ impl<T: fmt::Display> Contents for T {
     fn height(&self, _width: usize) -> usize {
         1
     }
-    fn render(&self, _width: usize, _height: usize, f: &mut fmt::Formatter)
-        -> fmt::Result
-    {
+    fn render(&self, _width: usize, _height: usize, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
     }
 }
@@ -225,9 +239,7 @@ impl<T: fmt::Display> Contents for Right<T> {
     fn height(&self, _width: usize) -> usize {
         1
     }
-    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter)
-        -> fmt::Result
-    {
+    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter) -> fmt::Result {
         let inner_width = self.width_bounds().0;
         write!(f, "{0:>1$}{2}", "", width - inner_width, self.0)
     }
@@ -242,9 +254,7 @@ impl Contents for Float {
     fn height(&self, _width: usize) -> usize {
         1
     }
-    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter)
-        -> fmt::Result
-    {
+    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{1:>0$.1}", width, self.0)
     }
 }
@@ -267,12 +277,10 @@ impl Counter {
                     self.state = Normal;
                 }
             }
-            Bracket => {
-                match c {
-                    ';' | '?' | '0'..='9' => {},
-                    _ => self.state = Normal,
-                }
-            }
+            Bracket => match c {
+                ';' | '?' | '0'..='9' => {}
+                _ => self.state = Normal,
+            },
             Normal if c == '\x1b' => {
                 self.state = Escape;
             }
@@ -314,7 +322,9 @@ impl<T: Words> Contents for WordList<T> {
             width: 0,
             first: true,
         };
-        self.0.print(&mut prn).expect("width printing always succeeds");
+        self.0
+            .print(&mut prn)
+            .expect("width printing always succeeds");
         (prn.min_width, prn.width)
     }
     fn height(&self, width: usize) -> usize {
@@ -323,12 +333,12 @@ impl<T: Words> Contents for WordList<T> {
             height: 1,
             column: 0,
         };
-        self.0.print(&mut prn).expect("height printing always succeeds");
+        self.0
+            .print(&mut prn)
+            .expect("height printing always succeeds");
         prn.height
     }
-    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter)
-        -> fmt::Result
-    {
+    fn render(&self, width: usize, _height: usize, f: &mut fmt::Formatter) -> fmt::Result {
         let mut prn = TextPrinter {
             fmt: f,
             width,
@@ -356,9 +366,7 @@ impl Printer for HeightPrinter {
     fn word(&mut self, word: impl fmt::Display) -> fmt::Result {
         let item_width = display_width(word);
         let mut space_width = if self.column == 0 { 0 } else { " ".len() };
-        if self.column > 0 &&
-            self.column + space_width + item_width > self.width
-        {
+        if self.column > 0 && self.column + space_width + item_width > self.width {
             self.height += 1;
             self.column = 0;
             space_width = 0;
@@ -377,9 +385,7 @@ impl Printer for TextPrinter<'_, '_> {
     fn word(&mut self, word: impl fmt::Display) -> fmt::Result {
         let item_width = display_width(&word);
         let mut space_width = if self.column == 0 { 0 } else { " ".len() };
-        if self.column > 0 &&
-            self.column + space_width + item_width > self.width
-        {
+        if self.column > 0 && self.column + space_width + item_width > self.width {
             self.fmt.write_char('\n')?;
             self.column = 0;
             space_width = 0;

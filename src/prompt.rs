@@ -5,7 +5,7 @@ use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
 
-use anyhow::{self, Context as _Context};
+use anyhow::Context as _Context;
 use dirs::data_local_dir;
 use rustyline::completion::Completer;
 use rustyline::config::{Builder as ConfigBuilder, CompletionType, EditMode};
@@ -78,7 +78,7 @@ impl Helper for EdgeqlHelper {}
 impl Hinter for EdgeqlHelper {
     type Hint = completion::Hint;
     fn hint(&self, line: &str, pos: usize, _ctx: &Context) -> Option<Self::Hint> {
-        return completion::hint(line, pos);
+        completion::hint(line, pos)
     }
 }
 
@@ -89,7 +89,7 @@ impl Highlighter for EdgeqlHelper {
         info: PromptInfo<'_>,
     ) -> Cow<'b, str> {
         if info.line_no() > 0 {
-            return format!("{0:.>1$}", " ", prompt.len()).into();
+            format!("{0:.>1$}", " ", prompt.len()).into()
         } else if prompt.ends_with("> ") {
             let content = &prompt[..prompt.len() - 2];
             if content.ends_with(TX_MARKER) {
@@ -126,25 +126,25 @@ impl Highlighter for EdgeqlHelper {
                 highlight::backslash(&mut buf, &data[..bytes], &self.styler);
                 data = &data[bytes..];
             } else {
-                match full_statement(&data.as_bytes(), None) {
+                match full_statement(data.as_bytes(), None) {
                     Ok(bytes) => {
                         highlight::edgeql(&mut buf, &data[..bytes], &self.styler);
                         data = &data[bytes..];
                     }
                     Err(_cont) => {
                         highlight::edgeql(&mut buf, &data, &self.styler);
-                        data = &"";
+                        data = "";
                     }
                 }
             }
         }
     }
-    fn highlight_char<'l>(&self, _line: &'l str, _pos: usize) -> bool {
+    fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
         // TODO(tailhook) optimize: only need to return true on insert
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        return hint.rgb(0x56, 0x56, 0x56).to_string().into();
+        hint.rgb(0x56, 0x56, 0x56).to_string().into()
     }
     fn highlight_candidate<'h>(
         &self,
@@ -158,9 +158,9 @@ impl Highlighter for EdgeqlHelper {
             let (value, descr) = item.split_at(pos);
             buf.push_str(value);
             write!(buf, "{}", descr.light_gray()).unwrap();
-            return buf.into();
+            buf.into()
         } else {
-            return item.into();
+            item.into()
         }
     }
     fn has_continuation_prompt(&self) -> bool {
@@ -176,9 +176,9 @@ impl Validator for EdgeqlHelper {
             completion::Current::Backslash(_) => true,
         };
         if complete {
-            return Ok(ValidationResult::Valid(None));
+            Ok(ValidationResult::Valid(None))
         } else {
-            return Ok(ValidationResult::Incomplete);
+            Ok(ValidationResult::Incomplete)
         }
     }
 }
@@ -249,7 +249,7 @@ pub fn create_editor(config: &ConfigBuilder) -> Editor<EdgeqlHelper> {
     editor.set_helper(Some(EdgeqlHelper {
         styler: Styler::dark_256(),
     }));
-    return editor;
+    editor
 }
 
 pub fn var_editor(
@@ -264,7 +264,7 @@ pub fn var_editor(
             log::warn!("Cannot load history: {:#}", e);
         })
         .ok();
-    return editor;
+    editor
 }
 
 pub fn edgeql_input(
@@ -273,7 +273,7 @@ pub fn edgeql_input(
     response: Sender<Input>,
     initial: &str,
 ) -> anyhow::Result<()> {
-    let text = match editor.readline_with_initial(&prompt, (&initial, "")) {
+    let text = match editor.readline_with_initial(prompt, (initial, "")) {
         Ok(text) => text,
         Err(ReadlineError::Eof) => {
             response.send(Input::Eof).ok();
@@ -403,7 +403,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                         .saturating_sub(1)
                         .saturating_add(e)
                 } else {
-                    e as isize
+                    e
                 };
                 if normal < 0 {
                     eprintln!("No history entry {}", e);

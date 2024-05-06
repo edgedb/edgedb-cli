@@ -1,15 +1,13 @@
-#![cfg_attr(not(feature="portable_tests"), allow(dead_code, unused_imports))]
-
+use assert_cmd::Command;
+use edgedb_protocol::model::Duration;
+use predicates::reflection::PredicateReflection;
+use predicates::Predicate;
+use serde_json::Value;
+use sha1::Digest;
 use std::fmt::{Display, Formatter};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use assert_cmd::Command;
-use edgedb_protocol::model::Duration;
-use predicates::Predicate;
-use predicates::reflection::PredicateReflection;
-use serde_json::Value;
-use sha1::Digest;
 
 struct ResultPredicate {
     result: Value,
@@ -58,7 +56,6 @@ impl Predicate<str> for ResultPredicate {
     }
 }
 
-
 impl PredicateReflection for ResultPredicate {}
 
 impl Display for ResultPredicate {
@@ -79,18 +76,21 @@ impl Drop for MockFile {
             return;
         }
         if self.is_dir {
-            fs::remove_dir(&self.path).expect(&format!("rmdir {:?}", self.path));
+            fs::remove_dir(&self.path).unwrap_or_else(|_| panic!("rmdir {:?}", self.path));
         } else {
-            fs::remove_file(&self.path).expect(&format!("rm {:?}", self.path));
+            fs::remove_file(&self.path).unwrap_or_else(|_| panic!("rm {:?}", self.path));
         }
     }
 }
 
 fn mock_file(path: &str, content: &str) -> MockFile {
     let path = PathBuf::from(path);
-    ensure_dir(&path.parent().unwrap());
-    fs::write(&path, content).expect(&format!("write {path:?}"));
-    MockFile { path, is_dir: false }
+    ensure_dir(path.parent().unwrap());
+    fs::write(&path, content).unwrap_or_else(|_| panic!("{}", "write {path:?}"));
+    MockFile {
+        path,
+        is_dir: false,
+    }
 }
 
 fn mock_project(
@@ -134,13 +134,13 @@ fn mock_project(
     }
     let mut rv = vec![
         project_path_file,
-        MockFile { path: link_file, is_dir },
+        MockFile {
+            path: link_file,
+            is_dir,
+        },
     ];
     for (fname, data) in files {
-        rv.push(mock_file(
-            project_dir.join(fname).to_str().unwrap(),
-            data,
-        ));
+        rv.push(mock_file(project_dir.join(fname).to_str().unwrap(), data));
     }
     rv.push(project_dir_mock);
     rv
@@ -148,14 +148,12 @@ fn mock_project(
 
 fn ensure_dir(path: &Path) {
     if !path.exists() {
-        fs::create_dir_all(path).expect(&format!("mkdir -p {path:?}"));
+        fs::create_dir_all(path).unwrap_or_else(|_| panic!("mkdir -p {:?}", path));
     }
 }
 
 fn expect(result: Value) -> ResultPredicate {
-    ResultPredicate {
-        result,
-    }
+    ResultPredicate { result }
 }
 
 include!(concat!(env!("OUT_DIR"), "/shared_client_testcases.rs"));

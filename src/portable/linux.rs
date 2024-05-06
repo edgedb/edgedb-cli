@@ -1,19 +1,18 @@
-use std::fs;
 use std::env;
-use std::path::{PathBuf};
+use std::fs;
+use std::path::PathBuf;
 
 use anyhow::Context;
 use fn_error_context::context;
 
 use crate::commands::ExitCode;
-use crate::platform::{home_dir, current_exe, detect_ipv6};
+use crate::platform::{current_exe, detect_ipv6, home_dir};
 use crate::portable::destroy::InstanceNotFound;
-use crate::portable::local::{InstanceInfo, runstate_dir, log_file};
-use crate::portable::options::{Logs, instance_arg, InstanceName};
+use crate::portable::local::{log_file, runstate_dir, InstanceInfo};
+use crate::portable::options::{instance_arg, InstanceName, Logs};
 use crate::portable::status::Service;
 use crate::print;
 use crate::process;
-
 
 pub fn unit_dir() -> anyhow::Result<PathBuf> {
     Ok(home_dir()?.join(".config/systemd/user"))
@@ -29,24 +28,18 @@ fn socket_name(name: &str) -> String {
 
 pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
     let dir = unit_dir()?;
-    Ok(vec![
-       dir.join(unit_name(name)),
-       dir.join(socket_name(name)),
-    ])
+    Ok(vec![dir.join(unit_name(name)), dir.join(socket_name(name))])
 }
 
-
-pub fn create_service(info: &InstanceInfo)
-    -> anyhow::Result<()>
-{
+pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
     let name = &info.name;
     let unit_dir = unit_dir()?;
     fs::create_dir_all(&unit_dir)
         .with_context(|| format!("cannot create directory {:?}", unit_dir))?;
     let unit_name = unit_name(name);
     let socket_name = socket_name(name);
-    let unit_path = unit_dir.join(&unit_name);
-    let socket_unit_path = unit_dir.join(&socket_name);
+    let unit_path = unit_dir.join(unit_name);
+    let socket_unit_path = unit_dir.join(socket_name);
     fs::write(&unit_path, systemd_unit(name, info)?)
         .with_context(|| format!("cannot write {:?}", unit_path))?;
     if info.get_version()?.specific().major >= 2 {
@@ -68,9 +61,9 @@ pub fn create_service(info: &InstanceInfo)
 }
 
 #[context("cannot compose service file")]
-pub fn systemd_unit(name: &str, _info: &InstanceInfo) -> anyhow::Result<String>
-{
-    Ok(format!(r###"
+pub fn systemd_unit(name: &str, _info: &InstanceInfo) -> anyhow::Result<String> {
+    Ok(format!(
+        r###"
 [Unit]
 Description=EdgeDB Database Service, instance {instance_name:?}
 Documentation=https://edgedb.com/
@@ -89,16 +82,15 @@ TimeoutSec=0
 [Install]
 WantedBy=default.target
     "###,
-        instance_name=name,
-        executable=current_exe()?.display(),
+        instance_name = name,
+        executable = current_exe()?.display(),
     ))
 }
 
 #[context("cannot compose service file")]
-pub fn systemd_socket(name: &str, info: &InstanceInfo)
-    -> anyhow::Result<String>
-{
-    Ok(format!(r###"
+pub fn systemd_socket(name: &str, info: &InstanceInfo) -> anyhow::Result<String> {
+    Ok(format!(
+        r###"
 [Unit]
 Description=EdgeDB Database Service socket, instance {instance_name:?}
 Documentation=https://edgedb.com/
@@ -111,10 +103,10 @@ ListenStream=127.0.0.1:{port}
 [Install]
 WantedBy=default.target
     "###,
-        instance_name=name,
-        port=info.port,
-        ipv6_listen=if detect_ipv6() {
-            format!("ListenStream=[::1]:{port}", port=info.port)
+        instance_name = name,
+        port = info.port,
+        ipv6_listen = if detect_ipv6() {
+            format!("ListenStream=[::1]:{port}", port = info.port)
         } else {
             String::new()
         },
@@ -122,11 +114,11 @@ WantedBy=default.target
 }
 
 fn systemd_is_not_found_error(e: &str) -> bool {
-    e.contains("Failed to get D-Bus connection") ||
-    e.contains("Failed to connect to bus") ||
-    e.contains("No such file or directory") ||
-    e.contains(".service not loaded") ||
-    e.contains(".service does not exist")
+    e.contains("Failed to get D-Bus connection")
+        || e.contains("Failed to connect to bus")
+        || e.contains("No such file or directory")
+        || e.contains(".service not loaded")
+        || e.contains(".service does not exist")
 }
 
 pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
@@ -135,8 +127,7 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
     let socket_name = socket_name(name);
     log::info!("Stopping service {}", svc_name);
     let mut not_found_error = None;
-    let mut cmd = process::Native::new(
-        "stop service", "systemctl", "systemctl");
+    let mut cmd = process::Native::new("stop service", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("stop");
     cmd.arg(&svc_name);
@@ -148,12 +139,14 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
         Err((s, e)) => {
             log::warn!(
                 "Error running systemctl (command-line: {:?}): {}: {}",
-                cmd.command_line(), s, e);
+                cmd.command_line(),
+                s,
+                e
+            );
         }
     }
 
-    let mut cmd = process::Native::new(
-        "stop socket", "systemctl", "systemctl");
+    let mut cmd = process::Native::new("stop socket", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("stop");
     cmd.arg(&socket_name);
@@ -162,12 +155,14 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
         Err((s, e)) => {
             log::warn!(
                 "Error running systemctl (command-line: {:?}): {}: {}",
-                cmd.command_line(), s, e);
+                cmd.command_line(),
+                s,
+                e
+            );
         }
     }
 
-    let mut cmd = process::Native::new(
-        "disable service", "systemctl", "systemctl");
+    let mut cmd = process::Native::new("disable service", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("disable");
     cmd.arg(&svc_name);
@@ -179,12 +174,14 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
         Err((s, e)) => {
             log::warn!(
                 "Error running systemctl (command-line: {:?}): {}: {}",
-                cmd.command_line(), s, e);
+                cmd.command_line(),
+                s,
+                e
+            );
         }
     }
 
-    let mut cmd = process::Native::new(
-        "disable socket", "systemctl", "systemctl");
+    let mut cmd = process::Native::new("disable socket", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("disable");
     cmd.arg(&socket_name);
@@ -193,26 +190,38 @@ pub fn stop_and_disable(name: &str) -> anyhow::Result<bool> {
         Err((s, e)) => {
             log::warn!(
                 "Error running systemctl (command-line: {:?}): {}: {}",
-                cmd.command_line(), s, e);
+                cmd.command_line(),
+                s,
+                e
+            );
         }
     }
 
     if let Some(e) = not_found_error {
         return Err(InstanceNotFound(anyhow::anyhow!(
-            "no instance {:?} found: {}", name, e.trim())).into());
+            "no instance {:?} found: {}",
+            name,
+            e.trim()
+        ))
+        .into());
     }
     Ok(found)
 }
 
-pub fn server_cmd(inst: &InstanceInfo, is_shutdown_supported: bool)
-    -> anyhow::Result<process::Native>
-{
+pub fn server_cmd(
+    inst: &InstanceInfo,
+    is_shutdown_supported: bool,
+) -> anyhow::Result<process::Native> {
     let data_dir = inst.data_dir()?;
     let server_path = inst.server_path()?;
     let mut pro = process::Native::new("edgedb", "edgedb", server_path);
     pro.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");
     pro.env_default("EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY", "optional");
     pro.env_default("EDGEDB_SERVER_INSTANCE_NAME", &inst.name);
+    pro.env_default(
+        "EDGEDB_SERVER_CONFIG_cfg::auto_rebuild_query_cache",
+        "false",
+    );
     pro.arg("--data-dir").arg(data_dir);
     pro.arg("--runstate-dir").arg(runstate_dir(&inst.name)?);
     pro.arg("--port").arg(inst.port.to_string());
@@ -231,8 +240,7 @@ pub fn detect_systemd(instance: &str) -> bool {
 }
 
 fn preliminary_detect() -> Option<PathBuf> {
-    env::var_os("XDG_RUNTIME_DIR")
-        .or_else(|| env::var_os("DBUS_SESSION_BUS_ADDRESS"))?;
+    env::var_os("XDG_RUNTIME_DIR").or_else(|| env::var_os("DBUS_SESSION_BUS_ADDRESS"))?;
     if let Ok(path) = which::which("systemctl") {
         Some(path)
     } else {
@@ -247,22 +255,27 @@ fn _detect_systemd(instance: &str) -> Option<PathBuf> {
         .arg("--user")
         .arg("is-active")
         .arg(&unit_name)
-        .get_output().ok()?;
+        .get_output()
+        .ok()?;
     if out.status.success() {
         return Some(path);
     }
     if !out.stderr.is_empty() {
-        log::info!("cannot access systemd daemon: {:?}",
-                   String::from_utf8_lossy(&out.stderr));
+        log::info!(
+            "cannot access systemd daemon: {:?}",
+            String::from_utf8_lossy(&out.stderr)
+        );
         return None;
     }
-    log::debug!("service is-enabled returned: {:?}",
-                String::from_utf8_lossy(&out.stdout));
-    return Some(path);
+    log::debug!(
+        "service is-enabled returned: {:?}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    Some(path)
 }
 
 pub fn start_service(instance: &str) -> anyhow::Result<()> {
-    let socket_name = socket_name(&instance);
+    let socket_name = socket_name(instance);
     let socket_file = unit_dir()?.join(&socket_name);
     if socket_file.exists() {
         process::Native::new("service start", "systemctl", "systemctl")
@@ -279,12 +292,12 @@ pub fn start_service(instance: &str) -> anyhow::Result<()> {
     process::Native::new("service start", "systemctl", "systemctl")
         .arg("--user")
         .arg("enable")
-        .arg(&unit_name(&instance))
+        .arg(&unit_name(instance))
         .run()?;
     process::Native::new("service start", "systemctl", "systemctl")
         .arg("--user")
         .arg("start")
-        .arg(&unit_name(&instance))
+        .arg(&unit_name(instance))
         .run()?;
     Ok(())
 }
@@ -307,12 +320,12 @@ pub fn stop_service(name: &str) -> anyhow::Result<()> {
     process::Native::new("stop service", "systemctl", "systemctl")
         .arg("--user")
         .arg("stop")
-        .arg(unit_name(&name))
+        .arg(unit_name(name))
         .run()?;
     process::Native::new("stop service", "systemctl", "systemctl")
         .arg("--user")
         .arg("disable")
-        .arg(unit_name(&name))
+        .arg(unit_name(name))
         .run()?;
     Ok(())
 }
@@ -337,8 +350,7 @@ pub fn restart_service(inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 fn is_ready(name: &str) -> bool {
-    let mut cmd = process::Native::new(
-        "service status", "systemctl", "systemctl");
+    let mut cmd = process::Native::new("service status", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("show");
     cmd.arg(socket_name(name));
@@ -351,14 +363,13 @@ fn is_ready(name: &str) -> bool {
             return state.trim() == "active";
         }
     }
-    return false;
+    false
 }
 
 pub fn service_status(name: &str) -> Service {
     use Service::*;
 
-    let mut cmd = process::Native::new(
-        "service status", "systemctl", "systemctl");
+    let mut cmd = process::Native::new("service status", "systemctl", "systemctl");
     cmd.arg("--user");
     cmd.arg("show");
     cmd.arg(unit_name(name));
@@ -394,9 +405,7 @@ pub fn service_status(name: &str) -> Service {
                 Failed { exit_code: exit }
             }
         }
-        Some(pid) => {
-            Running { pid }
-        }
+        Some(pid) => Running { pid },
     }
 }
 
@@ -416,13 +425,12 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
         InstanceName::Cloud { .. } => {
             print::error("This operation is not yet supported on cloud instances.");
             return Err(ExitCode::new(1))?;
-        },
+        }
     };
-    if detect_systemd(&name) {
-        let mut cmd = process::Native::new(
-            "logs", "journalctl", "journalctl");
-        cmd.arg("--user-unit").arg(unit_name(&name));
-        if let Some(n) = options.tail  {
+    if detect_systemd(name) {
+        let mut cmd = process::Native::new("logs", "journalctl", "journalctl");
+        cmd.arg("--user-unit").arg(unit_name(name));
+        if let Some(n) = options.tail {
             cmd.arg(format!("--lines={}", n));
         }
         if options.follow {
@@ -437,7 +445,7 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
         if options.follow {
             cmd.arg("-F");
         }
-        cmd.arg(log_file(&name)?);
+        cmd.arg(log_file(name)?);
         cmd.no_proxy().run()
     }
 }

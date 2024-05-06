@@ -14,14 +14,12 @@ use edgedb_tokio::Builder;
 
 use crate::bug;
 use crate::credentials;
-use crate::platform::{portable_dir, data_dir, config_dir, cache_dir};
+use crate::platform::{cache_dir, config_dir, data_dir, portable_dir};
 use crate::portable::repository::PackageHash;
 use crate::portable::ver;
-use crate::portable::{windows, linux, macos};
-
+use crate::portable::{linux, macos, windows};
 
 const MIN_PORT: u16 = 10700;
-
 
 #[derive(Debug)]
 pub struct Paths {
@@ -47,7 +45,7 @@ pub struct InstallInfo {
     pub version: ver::Build,
     pub package_url: url::Url,
     pub package_hash: PackageHash,
-    #[serde(with="serde_millis")]
+    #[serde(with = "serde_millis")]
     pub installed_at: SystemTime,
 }
 
@@ -69,16 +67,19 @@ pub fn open_lock(instance: &str) -> anyhow::Result<fd_lock::RwLock<fs::File>> {
         fs_err::create_dir_all(parent)?;
     }
     let lock_file = fs::OpenOptions::new()
-        .create(true).write(true).read(true)
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .read(true)
         .open(&lock_path)
         .with_context(|| format!("cannot open lock file {:?}", lock_path))?;
     Ok(fd_lock::RwLock::new(lock_file))
 }
 
 pub fn runstate_dir(instance: &str) -> anyhow::Result<PathBuf> {
-    if cfg!(target_os="linux") {
+    if cfg!(target_os = "linux") {
         if let Some(dir) = dirs::runtime_dir() {
-            return Ok(dir.join(format!("edgedb-{}", instance)))
+            return Ok(dir.join(format!("edgedb-{}", instance)));
         }
     }
     Ok(cache_dir()?.join("run").join(instance))
@@ -88,10 +89,9 @@ pub fn read_ports() -> anyhow::Result<BTreeMap<String, u16>> {
     _read_ports(&port_file()?)
 }
 
-
 #[context("failed reading port mapping {}", path.display())]
 fn _read_ports(path: &Path) -> anyhow::Result<BTreeMap<String, u16>> {
-    let data = match fs::read_to_string(&path) {
+    let data = match fs::read_to_string(path) {
         Ok(data) if data.is_empty() => {
             return Ok(BTreeMap::new());
         }
@@ -104,7 +104,7 @@ fn _read_ports(path: &Path) -> anyhow::Result<BTreeMap<String, u16>> {
     Ok(serde_json::from_str(&data)?)
 }
 
-struct NextMinPort{
+struct NextMinPort {
     reserved: Peekable<btree_set::IntoIter<u16>>,
     prev: u16,
 }
@@ -112,8 +112,12 @@ struct NextMinPort{
 impl NextMinPort {
     fn search(port_map: &BTreeMap<String, u16>) -> NextMinPort {
         NextMinPort {
-            reserved: port_map.values().cloned().collect::<BTreeSet<_>>()
-                .into_iter().peekable(),
+            reserved: port_map
+                .values()
+                .cloned()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .peekable(),
             prev: MIN_PORT - 1,
         }
     }
@@ -149,7 +153,7 @@ pub fn allocate_port(name: &str) -> anyhow::Result<u16> {
     }
     for port in NextMinPort::search(&port_map) {
         match TcpListener::bind(("127.0.0.1", port)) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
                 log::debug!("Address 127.0.0.1:{} is already in use", port);
                 continue;
@@ -176,9 +180,7 @@ pub fn allocate_port(name: &str) -> anyhow::Result<u16> {
 }
 
 #[context("cannot write {} file {}", title, path.display())]
-pub fn write_json<T: serde::Serialize>(path: &Path, title: &str, data: &T)
-    -> anyhow::Result<()>
-{
+pub fn write_json<T: serde::Serialize>(path: &Path, title: &str, data: &T) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -187,25 +189,22 @@ pub fn write_json<T: serde::Serialize>(path: &Path, title: &str, data: &T)
     Ok(())
 }
 
-fn list_installed<'x>(dir: &'x Path)
-    -> anyhow::Result<
-        impl Iterator<Item=anyhow::Result<(ver::Specific, PathBuf)>> + 'x
-    >
-{
+fn list_installed(
+    dir: &Path,
+) -> anyhow::Result<impl Iterator<Item = anyhow::Result<(ver::Specific, PathBuf)>> + '_> {
     let err_ctx = move || format!("error reading directory {:?}", dir);
-    let dir = fs::read_dir(&dir).with_context(err_ctx)?;
+    let dir = fs::read_dir(dir).with_context(err_ctx)?;
     Ok(dir.filter_map(move |result| {
         let entry = match result {
             Ok(entry) => entry,
             res => return Some(Err(res.with_context(err_ctx).unwrap_err())),
         };
-        let ver_opt = entry.file_name().to_str()
-            .and_then(|x| x.parse().ok());
+        let ver_opt = entry.file_name().to_str().and_then(|x| x.parse().ok());
         if let Some(ver) = ver_opt {
-            return Some(Ok((ver, entry.path())))
+            Some(Ok((ver, entry.path())))
         } else {
             log::info!("Skipping directory {:?}", entry.path());
-            return None
+            None
         }
     }))
 }
@@ -234,8 +233,12 @@ pub fn get_installed() -> anyhow::Result<Vec<InstallInfo>> {
         let (ver, path) = result?;
         match InstallInfo::read(&path) {
             Ok(info) if ver != info.version.specific() => {
-                log::warn!("Mismatching package version in {:?}: {} != {}",
-                           path, info.version, ver);
+                log::warn!(
+                    "Mismatching package version in {:?}: {} != {}",
+                    path,
+                    info.version,
+                    ver
+                );
                 continue;
             }
             Ok(info) => installed.push(info),
@@ -265,9 +268,9 @@ impl Paths {
             runstate_dir: runstate_dir(name)?,
             service_files: if cfg!(windows) {
                 windows::service_files(name)?
-            } else if cfg!(target_os="macos") {
+            } else if cfg!(target_os = "macos") {
                 macos::service_files(name)?
-            } else if cfg!(target_os="linux") {
+            } else if cfg!(target_os = "linux") {
                 linux::service_files(name)?
             } else {
                 Vec::new()
@@ -290,10 +293,11 @@ impl Paths {
     }
 }
 
-
 impl InstanceInfo {
     pub fn get_version(&self) -> anyhow::Result<&ver::Build> {
-        self.installation.as_ref().map(|v| &v.version)
+        self.installation
+            .as_ref()
+            .map(|v| &v.version)
             .ok_or_else(|| bug::error("no installation info at this point"))
     }
     pub fn try_read(name: &str) -> anyhow::Result<Option<InstanceInfo>> {
@@ -303,7 +307,7 @@ impl InstanceInfo {
                 Err(e) => {
                     // TODO(tailhook) better differentiate the error
                     log::info!("Reading instance info failed with {:#}", e);
-                    return Ok(None)
+                    return Ok(None);
                 }
             };
             let mut data: InstanceInfo = serde_json::from_str(&data)?;
@@ -316,7 +320,7 @@ impl InstanceInfo {
             // and crash on existence of the file.
             // But this can only be done, once we get rid of old install methods
             if !path.exists() {
-                return Ok(None)
+                return Ok(None);
             }
             Ok(Some(InstanceInfo::read_at(name, &path)?))
         }
@@ -329,15 +333,12 @@ impl InstanceInfo {
             data.name = name.into();
             Ok(data)
         } else {
-            InstanceInfo::read_at(name,
-                &instance_data_dir(name)?.join("instance_info.json"))
+            InstanceInfo::read_at(name, &instance_data_dir(name)?.join("instance_info.json"))
         }
     }
 
     #[context("error reading instance info: {:?}", path)]
-    pub fn read_at(name: &str, path: &PathBuf)
-        -> anyhow::Result<InstanceInfo>
-    {
+    pub fn read_at(name: &str, path: &PathBuf) -> anyhow::Result<InstanceInfo> {
         let f = io::BufReader::new(fs::File::open(path)?);
         let mut data: InstanceInfo = serde_json::from_reader(f)?;
         data.name = name.into();
@@ -347,7 +348,8 @@ impl InstanceInfo {
         instance_data_dir(&self.name)
     }
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
-        self.installation.as_ref()
+        self.installation
+            .as_ref()
             .ok_or_else(|| bug::error("version should be set"))?
             .server_path()
     }
@@ -368,7 +370,7 @@ fn installation_path(ver: &ver::Specific) -> anyhow::Result<PathBuf> {
 
 impl InstallInfo {
     pub fn base_path(&self) -> anyhow::Result<PathBuf> {
-        Ok(installation_path(&self.version.specific())?)
+        installation_path(&self.version.specific())
     }
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
         Ok(self.base_path()?.join("bin").join("edgedb-server"))
@@ -400,7 +402,7 @@ pub fn is_valid_local_instance_name(name: &str) -> bool {
             was_dash = false;
         }
     }
-    return !was_dash;
+    !was_dash
 }
 
 pub fn is_valid_cloud_name(name: &str) -> bool {
@@ -428,7 +430,7 @@ pub fn is_valid_cloud_name(name: &str) -> bool {
             was_dash = false;
         }
     }
-    return !was_dash;
+    !was_dash
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -439,9 +441,12 @@ pub struct NonLocalInstance;
 fn test_min_port() {
     assert_eq!(
         NextMinPort::search(
-            &vec![("a".into(), 10700), ("b".into(), 10702)].into_iter().collect()
-        ).take(3).collect::<Vec<_>>(),
+            &vec![("a".into(), 10700), ("b".into(), 10702)]
+                .into_iter()
+                .collect()
+        )
+        .take(3)
+        .collect::<Vec<_>>(),
         vec![10701, 10703, 10704],
     );
 }
-

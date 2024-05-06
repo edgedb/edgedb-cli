@@ -7,15 +7,16 @@ use crate::platform::home_dir;
 use crate::print;
 use crate::print_markdown;
 
-
 pub fn check_and_warn() {
     match _check() {
         Ok(None) => {}
         Ok(Some(dir)) => {
-            log::warn!("Edgedb CLI no longer uses '{}' to store data \
+            log::warn!(
+                "Edgedb CLI no longer uses '{}' to store data \
                 and now uses standard locations of your OS. \
                 Run `edgedb cli migrate` to update the directory layout.",
-                dir.display());
+                dir.display()
+            );
         }
         Err(e) => log::warn!("Failed directory check: {}", e),
     }
@@ -35,15 +36,17 @@ pub fn check_and_error() -> anyhow::Result<()> {
             print::error(format!(
                 "Edgedb CLI no longer uses `{dir}` to store data \
                 and now uses standard locations of your OS.",
-                dir=dir.display()
+                dir = dir.display()
             ));
-            print_markdown!("To upgrade the directory layout, run: \n\
+            print_markdown!(
+                "To upgrade the directory layout, run: \n\
                 ```\n\
                 edgedb cli migrate\n\
                 ```
-            ");
-            return Err(ExitCode::new(11).into());
+            "
+            );
+            Err(ExitCode::new(11).into())
         }
-        None => Ok(())
+        None => Ok(()),
     }
 }

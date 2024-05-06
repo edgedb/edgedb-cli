@@ -31,7 +31,7 @@ pub async fn input_variables(
                         .expect("no optional"),
                 );
             }
-            return Ok(Value::Tuple(val));
+            Ok(Value::Tuple(val))
         }
         Some(Descriptor::NamedTuple(tuple)) if desc.proto().is_at_most(0, 11) => {
             let mut fields = Vec::with_capacity(tuple.elements.len());
@@ -43,7 +43,7 @@ pub async fn input_variables(
                         .expect("no optional"),
                 );
             }
-            return Ok(Value::NamedTuple { shape, fields });
+            Ok(Value::NamedTuple { shape, fields })
         }
         Some(Descriptor::ObjectShape(obj)) if desc.proto().is_at_least(0, 12) => {
             let mut fields = Vec::with_capacity(obj.elements.len());
@@ -54,15 +54,11 @@ pub async fn input_variables(
                     input_item(&el.name, desc.get(el.type_pos)?, desc, state, optional).await?,
                 );
             }
-            return Ok(Value::Object { shape, fields });
+            Ok(Value::Object { shape, fields })
         }
-        Some(root) => {
-            return Err(anyhow::anyhow!("Unknown input type descriptor: {:?}", root));
-        }
+        Some(root) => Err(anyhow::anyhow!("Unknown input type descriptor: {:?}", root)),
         // Since protocol 0.12
-        None => {
-            return Ok(Value::Nothing);
-        }
+        None => Ok(Value::Nothing),
     }
 }
 

@@ -697,9 +697,9 @@ impl Highlighter for VarHelper {
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
-        return hint.rgb(0x56, 0x56, 0x56).to_string().into();
+        hint.rgb(0x56, 0x56, 0x56).to_string().into()
     }
-    fn highlight_char<'l>(&self, _line: &'l str, _pos: usize) -> bool {
+    fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
         // needed to highlight hint
         true
     }

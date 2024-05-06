@@ -1,15 +1,16 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::slice::Iter;
 
 use anyhow::Context as _;
 use colorful::Colorful;
 use edgedb_derive::Queryable;
-use edgedb_errors::{Error, QueryError, InvalidSyntaxError};
+use edgedb_errors::{Error, InvalidSyntaxError, QueryError};
 use edgeql_parser::expr;
 use edgeql_parser::hash::Hasher;
 use edgeql_parser::schema_file::validate;
-use edgeql_parser::tokenizer::{Tokenizer, Kind as TokenKind};
+use edgeql_parser::tokenizer::{Kind as TokenKind, Tokenizer};
 use fn_error_context::context;
 use immutable_chunkmap::set::SetM as Set;
 use once_cell::sync::OnceCell;
@@ -21,13 +22,13 @@ use tokio::task::spawn_blocking as unblock;
 
 use crate::async_try;
 use crate::bug;
-use crate::commands::{Options, ExitCode};
+use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
-use crate::migrations::edb::{execute, execute_if_connected, query_row};
 use crate::error_display::print_query_error;
 use crate::highlight;
 use crate::migrations::context::Context;
 use crate::migrations::dev_mode;
+use crate::migrations::edb::{execute, execute_if_connected, query_row};
 use crate::migrations::migration;
 use crate::migrations::options::CreateMigration;
 use crate::migrations::print_error::print_migration_error;
@@ -36,8 +37,8 @@ use crate::migrations::source_map::{Builder, SourceMap};
 use crate::migrations::squash;
 use crate::migrations::timeout;
 use crate::platform::tmp_file_name;
-use crate::print::style::Styler;
 use crate::print;
+use crate::print::style::Styler;
 use crate::question;
 
 const SAFE_CONFIDENCE: f64 = 0.99999;
@@ -69,7 +70,7 @@ pub struct RequiredUserInput {
     old_type_is_object: Option<bool>,
     new_type: Option<String>,
     new_type_is_object: Option<bool>,
-    #[serde(rename="type")]
+    #[serde(rename = "type")]
     type_name: Option<String>,
     pointer_name: Option<String>,
 }
@@ -97,6 +98,7 @@ pub struct CurrentMigration {
     pub parent: String,
     pub confirmed: Vec<String>,
     pub proposed: Option<Proposal>,
+    pub debug_diff: Option<String>,
 }
 
 #[derive(Debug)]
@@ -105,12 +107,11 @@ pub enum MigrationKey {
     Fixup { target_revision: String },
 }
 
-pub trait MigrationToText {
-    type StatementsIter<'a>: Iterator<Item = &'a String> where Self: 'a;
+pub trait MigrationToText<'a, T: Iterator<Item = &'a String> = std::iter::Once<&'a String>> {
     fn key(&self) -> &MigrationKey;
     fn parent(&self) -> anyhow::Result<&str>;
     fn id(&self) -> anyhow::Result<&str>;
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a>;
+    fn statements(&'a self) -> T;
 }
 
 #[derive(Debug)]
@@ -137,8 +138,10 @@ struct Refused;
 struct SplitMigration;
 
 #[derive(Debug, thiserror::Error)]
-#[error("EdgeDB could not resolve migration automatically. \
-         Please run `edgedb migration create` in interactive mode.")]
+#[error(
+    "EdgeDB could not resolve migration automatically. \
+         Please run `edgedb migration create` in interactive mode."
+)]
 struct CantResolve;
 
 #[derive(Debug, thiserror::Error)]
@@ -164,9 +167,7 @@ impl FutureMigration {
     }
 }
 
-impl MigrationToText for FutureMigration {
-    type StatementsIter<'a> = std::slice::Iter<'a, String>;
-
+impl<'a> MigrationToText<'a, Iter<'a, String>> for FutureMigration {
     fn key(&self) -> &MigrationKey {
         &self.key
     }
@@ -176,18 +177,25 @@ impl MigrationToText for FutureMigration {
     }
 
     fn id(&self) -> anyhow::Result<&str> {
-        let FutureMigration { ref parent, ref statements, ref id, .. } = self;
+        let FutureMigration {
+            ref parent,
+            ref statements,
+            ref id,
+            ..
+        } = self;
         id.get_or_try_init(|| {
             let mut hasher = Hasher::start_migration(parent);
             for statement in statements {
-                hasher.add_source(&statement)
+                hasher
+                    .add_source(statement)
                     .map_err(|e| migration::hashing_error(statement, e))?;
             }
             Ok(hasher.make_migration_id())
-        }).map(|s| &s[..])
+        })
+        .map(|s| &s[..])
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&'a self) -> Iter<'a, String> {
         self.statements.iter()
     }
 }
@@ -199,7 +207,7 @@ async fn read_schema_file(path: &Path) -> anyhow::Result<String> {
     Ok(data)
 }
 
-fn print_statements(statements: impl IntoIterator<Item=impl AsRef<str>>) {
+fn print_statements(statements: impl IntoIterator<Item = impl AsRef<str>>) {
     let mut buf: String = String::with_capacity(1024);
     let styler = Styler::dark_256();
     for statement in statements {
@@ -215,27 +223,42 @@ async fn choice(prompt: &str) -> anyhow::Result<Choice> {
     use Choice::*;
 
     let mut q = question::Choice::new(prompt.to_string());
-    q.option(Yes, &["y", "yes"],
-        r#"Confirm the prompt ("l" to see suggested statements)"#);
-    q.option(No, &["n", "no"],
-        "Reject the prompt; server will attempt to generate another suggestion");
-    q.option(List, &["l", "list"],
-        "List proposed DDL statements for the current prompt");
-    q.option(Confirmed, &["c", "confirmed"],
-        "List already confirmed EdgeQL statements for the current migration");
-    q.option(Back, &["b", "back"],
-        "Go back a step by reverting latest accepted statements");
-    q.option(Split, &["s", "stop"],
-        "Stop and finalize migration with only current accepted changes");
-    q.option(Quit, &["q", "quit"],
-        "Quit without saving changes");
+    q.option(
+        Yes,
+        &["y", "yes"],
+        r#"Confirm the prompt ("l" to see suggested statements)"#,
+    );
+    q.option(
+        No,
+        &["n", "no"],
+        "Reject the prompt; server will attempt to generate another suggestion",
+    );
+    q.option(
+        List,
+        &["l", "list"],
+        "List proposed DDL statements for the current prompt",
+    );
+    q.option(
+        Confirmed,
+        &["c", "confirmed"],
+        "List already confirmed EdgeQL statements for the current migration",
+    );
+    q.option(
+        Back,
+        &["b", "back"],
+        "Go back a step by reverting latest accepted statements",
+    );
+    q.option(
+        Split,
+        &["s", "stop"],
+        "Stop and finalize migration with only current accepted changes",
+    );
+    q.option(Quit, &["q", "quit"], "Quit without saving changes");
     q.async_ask().await
 }
 
 #[context("could not read schema in {}", ctx.schema_dir.display())]
-async fn gen_start_migration(ctx: &Context)
-    -> anyhow::Result<(String, SourceMap<SourceName>)>
-{
+async fn gen_start_migration(ctx: &Context) -> anyhow::Result<(String, SourceMap<SourceName>)> {
     let mut bld = Builder::new();
     bld.add_lines(SourceName::Prefix, "START MIGRATION TO {");
     let mut dir = match fs::read_dir(&ctx.schema_dir).await {
@@ -251,8 +274,12 @@ async fn gen_start_migration(ctx: &Context)
     while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
-        if !lossy_name.starts_with(".") && lossy_name.ends_with(".esdl")
-            && item.file_type().await?.is_file() { paths.push(item.path())}
+        if !lossy_name.starts_with('.')
+            && lossy_name.ends_with(".esdl")
+            && item.file_type().await?.is_file()
+        {
+            paths.push(item.path())
+        }
     }
 
     paths.sort();
@@ -267,25 +294,24 @@ async fn gen_start_migration(ctx: &Context)
     Ok(bld.done())
 }
 
-pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection)
-    -> anyhow::Result<()>
-{
-    let (text, source_map) = gen_start_migration(&ctx).await?;
+pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection) -> anyhow::Result<()> {
+    let (text, source_map) = gen_start_migration(ctx).await?;
     match execute(cli, text).await {
         Ok(_) => Ok(()),
         Err(e) if e.is::<QueryError>() => {
             print_migration_error(&e, &source_map)?;
-            return Err(EsdlError)?;
+            Err(EsdlError)?
         }
         Err(e) => Err(e)?,
     }
 }
 
-pub async fn first_migration(cli: &mut Connection, ctx: &Context,
-                         options: &CreateMigration)
-    -> anyhow::Result<FutureMigration>
-{
-    execute_start_migration(&ctx, cli).await?;
+pub async fn first_migration(
+    cli: &mut Connection,
+    ctx: &Context,
+    options: &CreateMigration,
+) -> anyhow::Result<FutureMigration> {
+    execute_start_migration(ctx, cli).await?;
     async_try! {
         async {
             execute(cli, "POPULATE MIGRATION").await?;
@@ -313,20 +339,14 @@ pub async fn first_migration(cli: &mut Connection, ctx: &Context,
     }
 }
 
-pub fn make_default_expression(input: &RequiredUserInput)
-    -> Option<String>
-{
+pub fn make_default_expression(input: &RequiredUserInput) -> Option<String> {
     let name = &input.placeholder[..];
     let kind_end = name.find("_expr").unwrap_or(name.len());
     let expr = match &name[..kind_end] {
         "fill" if input.type_name.is_some() => {
-            format!("<{}>{{}}",
-                    input.type_name.as_ref().unwrap())
+            format!("<{}>{{}}", input.type_name.as_ref().unwrap())
         }
-        "cast"
-            if input.pointer_name.is_some() &&
-               input.new_type.is_some()
-        => {
+        "cast" if input.pointer_name.is_some() && input.new_type.is_some() => {
             let pointer_name = input.pointer_name.as_deref().unwrap();
             let new_type = input.new_type.as_deref().unwrap();
             match (input.old_type_is_object, input.new_type_is_object) {
@@ -341,8 +361,7 @@ pub fn make_default_expression(input: &RequiredUserInput)
             }
         }
         "conv" if input.pointer_name.is_some() => {
-            format!("(SELECT .{} LIMIT 1)",
-                    input.pointer_name.as_ref().unwrap())
+            format!("(SELECT .{} LIMIT 1)", input.pointer_name.as_ref().unwrap())
         }
         _ => {
             return None;
@@ -351,13 +370,12 @@ pub fn make_default_expression(input: &RequiredUserInput)
     Some(expr)
 }
 
-pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
-    -> anyhow::Result<CurrentMigration>
-{
+pub async fn unsafe_populate(
+    _ctx: &Context,
+    cli: &mut Connection,
+) -> anyhow::Result<CurrentMigration> {
     loop {
-        let data = query_row::<CurrentMigration>(cli,
-            "DESCRIBE CURRENT MIGRATION AS JSON"
-        ).await?;
+        let data = query_row::<CurrentMigration>(cli, "DESCRIBE CURRENT MIGRATION AS JSON").await?;
         if data.complete {
             return Ok(data);
         }
@@ -366,17 +384,19 @@ pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
             if !proposal.required_user_input.is_empty() {
                 for input in &proposal.required_user_input {
                     let Some(expr) = make_default_expression(input) else {
-                        log::debug!("Cannot fill placeholder {} \
+                        log::debug!(
+                            "Cannot fill placeholder {} \
                                     into {:?}, input info: {:?}",
-                                    input.placeholder,
-                                    proposal.statements,
-                                    input);
+                            input.placeholder,
+                            proposal.statements,
+                            input
+                        );
                         return Err(CantResolve)?;
                     };
                     placeholders.insert(input.placeholder.clone(), expr);
                 }
             }
-            if !apply_proposal(cli, &proposal, &placeholders).await? {
+            if !apply_proposal(cli, proposal, &placeholders).await? {
                 execute(cli, "ALTER CURRENT MIGRATION REJECT PROPOSED").await?;
             }
         } else {
@@ -386,17 +406,18 @@ pub async fn unsafe_populate(_ctx: &Context, cli: &mut Connection)
     }
 }
 
-async fn apply_proposal(cli: &mut Connection, proposal: &Proposal,
-                        placeholders: &BTreeMap<String, String>)
-    -> anyhow::Result<bool>
-{
+async fn apply_proposal(
+    cli: &mut Connection,
+    proposal: &Proposal,
+    placeholders: &BTreeMap<String, String>,
+) -> anyhow::Result<bool> {
     execute(cli, "DECLARE SAVEPOINT proposal").await?;
     let mut rollback = false;
-    async_try!{
+    async_try! {
         async {
             for statement in &proposal.statements {
                 let statement = substitute_placeholders(
-                    &statement.text, &placeholders)?;
+                    &statement.text, placeholders)?;
                 if let Err(e) = execute(cli, &statement).await {
                     if e.is::<InvalidSyntaxError>() {
                         log::error!("Error executing: {}", statement);
@@ -424,13 +445,12 @@ async fn apply_proposal(cli: &mut Connection, proposal: &Proposal,
     }
 }
 
-async fn non_interactive_populate(_ctx: &Context, cli: &mut Connection)
-    -> anyhow::Result<CurrentMigration>
-{
+async fn non_interactive_populate(
+    _ctx: &Context,
+    cli: &mut Connection,
+) -> anyhow::Result<CurrentMigration> {
     loop {
-        let data = query_row::<CurrentMigration>(cli,
-            "DESCRIBE CURRENT MIGRATION AS JSON"
-        ).await?;
+        let data = query_row::<CurrentMigration>(cli, "DESCRIBE CURRENT MIGRATION AS JSON").await?;
         if data.complete {
             return Ok(data);
         }
@@ -452,25 +472,33 @@ async fn non_interactive_populate(_ctx: &Context, cli: &mut Connection)
                         eprintln!("    {}", line);
                     }
                 }
-                eprintln!("But confidence is {}, below minimum threshold of {}",
-                    proposal.confidence, SAFE_CONFIDENCE);
-                anyhow::bail!("EdgeDB is unable to make a decision. Please run in \
+                eprintln!(
+                    "But confidence is {}, below minimum threshold of {}",
+                    proposal.confidence, SAFE_CONFIDENCE
+                );
+                anyhow::bail!(
+                    "EdgeDB is unable to make a decision. Please run in \
                     interactive mode to confirm changes, \
-                    or use `--allow-unsafe`");
+                    or use `--allow-unsafe`"
+                );
             }
         } else {
-            anyhow::bail!("EdgeDB could not resolve \
+            anyhow::bail!(
+                "EdgeDB could not resolve \
                 migration automatically. Please run in \
                 interactive mode to confirm changes, \
-                or use `--allow-unsafe`");
+                or use `--allow-unsafe`"
+            );
         }
     }
 }
 
-async fn run_non_interactive(ctx: &Context, cli: &mut Connection,
-                             key: MigrationKey, options: &CreateMigration)
-    -> anyhow::Result<FutureMigration>
-{
+async fn run_non_interactive(
+    ctx: &Context,
+    cli: &mut Connection,
+    key: MigrationKey,
+    options: &CreateMigration,
+) -> anyhow::Result<FutureMigration> {
     let descr = if options.allow_unsafe {
         unsafe_populate(ctx, cli).await?
     } else {
@@ -494,21 +522,25 @@ impl InteractiveMigration<'_> {
         }
     }
     async fn save_point(&mut self) -> Result<(), Error> {
-        execute(self.cli,
-            format!("DECLARE SAVEPOINT migration_{}", self.save_point)
-        ).await
+        execute(
+            self.cli,
+            format!("DECLARE SAVEPOINT migration_{}", self.save_point),
+        )
+        .await
     }
     async fn rollback(&mut self) -> Result<(), Error> {
-        execute(self.cli, format!(
-            "ROLLBACK TO SAVEPOINT migration_{}", self.save_point)
-        ).await
+        execute(
+            self.cli,
+            format!("ROLLBACK TO SAVEPOINT migration_{}", self.save_point),
+        )
+        .await
     }
-    async fn run(mut self) -> anyhow::Result<CurrentMigration> {
+    async fn run(mut self, options: &CreateMigration) -> anyhow::Result<CurrentMigration> {
         self.save_point().await?;
         loop {
-            let descr = query_row::<CurrentMigration>(self.cli,
-                "DESCRIBE CURRENT MIGRATION AS JSON",
-            ).await?;
+            let descr =
+                query_row::<CurrentMigration>(self.cli, "DESCRIBE CURRENT MIGRATION AS JSON")
+                    .await?;
             self.confirmed = descr.confirmed.clone();
             if descr.complete {
                 return Ok(descr);
@@ -520,17 +552,22 @@ impl InteractiveMigration<'_> {
                     Ok(()) => {}
                 }
             } else {
-                self.could_not_resolve().await?;
+                self.could_not_resolve(if options.debug_print_err {
+                    descr.debug_diff
+                } else {
+                    None
+                })
+                .await?;
             }
         }
     }
-    async fn process_proposal(&mut self, proposal: &Proposal)
-        -> anyhow::Result<()>
-    {
+    async fn process_proposal(&mut self, proposal: &Proposal) -> anyhow::Result<()> {
         use Choice::*;
 
         let cur_oper = self.operations.last().unwrap();
-        let already_approved = proposal.prompt_id.as_ref()
+        let already_approved = proposal
+            .prompt_id
+            .as_ref()
             .map(|op| cur_oper.contains(op))
             .unwrap_or(false);
         let input;
@@ -543,16 +580,17 @@ impl InteractiveMigration<'_> {
                     }
                 }
                 println!("(approved as part of an earlier prompt)");
-                let input = self.cli.ping_while(
-                    get_user_input(&proposal.required_user_input)
-                ).await;
+                let input = self
+                    .cli
+                    .ping_while(get_user_input(&proposal.required_user_input))
+                    .await;
                 match input {
                     Ok(data) => break data,
                     Err(e) if e.is::<Refused>() => {
                         // TODO(tailhook) ask if we want to rollback or quit
                         continue;
                     }
-                    Err(e) => return Err(e.into()),
+                    Err(e) => return Err(e),
                 };
             };
         } else {
@@ -566,38 +604,33 @@ impl InteractiveMigration<'_> {
             loop {
                 match self.cli.ping_while(choice(prompt)).await? {
                     Yes => {
-                        let input_res = self.cli.ping_while(
-                            get_user_input(&proposal.required_user_input)
-                        ).await;
+                        let input_res = self
+                            .cli
+                            .ping_while(get_user_input(&proposal.required_user_input))
+                            .await;
                         match input_res {
                             Ok(data) => input = data,
                             Err(e) if e.is::<Refused>() => continue,
-                            Err(e) => return Err(e.into()),
+                            Err(e) => return Err(e),
                         };
                         break;
                     }
                     No => {
-                        execute(self.cli,
-                            "ALTER CURRENT MIGRATION REJECT PROPOSED"
-                        ).await?;
+                        execute(self.cli, "ALTER CURRENT MIGRATION REJECT PROPOSED").await?;
                         self.save_point += 1;
                         self.save_point().await?;
                         return Ok(());
                     }
                     List => {
                         println!("The following DDL statements will be applied:");
-                        print_statements(
-                            proposal.statements.iter().map(|s| &s.text)
-                        );
+                        print_statements(proposal.statements.iter().map(|s| &s.text));
                         continue;
                     }
                     Confirmed => {
                         if self.confirmed.is_empty() {
-                            println!(
-                                "No EdgeQL statements have been confirmed.");
+                            println!("No EdgeQL statements have been confirmed.");
                         } else {
-                            println!(
-                                "The following EdgeQL statements were confirmed:");
+                            println!("The following EdgeQL statements were confirmed:");
                             print_statements(&self.confirmed);
                         }
                         continue;
@@ -616,9 +649,7 @@ impl InteractiveMigration<'_> {
                         return Err(SplitMigration.into());
                     }
                     Quit => {
-                        print::error(
-                            "Migration aborted; no results were saved."
-                        );
+                        print::error("Migration aborted; no results were saved.");
                         return Err(ExitCode::new(0))?;
                     }
                 }
@@ -631,17 +662,14 @@ impl InteractiveMigration<'_> {
                 Err(e) => {
                     if e.is::<QueryError>() {
                         print_query_error(&e, &text, false, "<statement>")?;
+                    } else if print::use_color() {
+                        eprintln!(
+                            "{}: {:#}",
+                            "Error applying statement".bold().light_red(),
+                            e.to_string().bold().white(),
+                        );
                     } else {
-                        if print::use_color() {
-                            eprintln!(
-                                "{}: {:#}",
-                                "Error applying statement"
-                                    .bold().light_red(),
-                                e.to_string().bold().white(),
-                            );
-                        } else {
-                            eprintln!("Error applying statement: {:#}", e);
-                        }
+                        eprintln!("Error applying statement: {:#}", e);
                     }
                     if self.cli.is_consistent() {
                         eprintln!("Rolling back last operation...");
@@ -654,30 +682,42 @@ impl InteractiveMigration<'_> {
             }
         }
         if let Some(prompt_id) = &proposal.prompt_id {
-            self.operations.push(
-                self.operations.last().unwrap().insert(prompt_id.clone()).0
-            );
+            self.operations
+                .push(self.operations.last().unwrap().insert(prompt_id.clone()).0);
         } else {
-            self.operations.push(self.operations.last().unwrap().clone());
+            self.operations
+                .push(self.operations.last().unwrap().clone());
         }
         self.save_point += 1;
         self.save_point().await?;
         Ok(())
     }
-    async fn could_not_resolve(&mut self) -> anyhow::Result<()> {
+    async fn could_not_resolve(&mut self, debug_info: Option<String>) -> anyhow::Result<()> {
         // TODO(tailhook) allow rollback
-        anyhow::bail!("EdgeDB could not resolve \
-            migration with the provided answers. \
-            Please retry with different answers.");
+        let msg = match debug_info {
+            Some(e) => format!(
+                "EdgeDB could not resolve migration with the provided answers. \
+                Please retry with different answers.\n\n \
+                Debug info:\n\n {}",
+                e
+            ),
+            None => String::from(
+                "EdgeDB could not resolve migration with the \
+            provided answers. Please retry with different answers.",
+            ),
+        };
+
+        anyhow::bail!("{}", msg)
     }
 }
 
-
-async fn run_interactive(_ctx: &Context, cli: &mut Connection,
-                         key: MigrationKey, options: &CreateMigration)
-    -> anyhow::Result<FutureMigration>
-{
-    let descr = InteractiveMigration::new(cli).run().await?;
+async fn run_interactive(
+    _ctx: &Context,
+    cli: &mut Connection,
+    key: MigrationKey,
+    options: &CreateMigration,
+) -> anyhow::Result<FutureMigration> {
+    let descr = InteractiveMigration::new(cli).run(options).await?;
 
     if descr.confirmed.is_empty() && !options.allow_empty {
         print::warn("No schema changes detected.");
@@ -687,14 +727,18 @@ async fn run_interactive(_ctx: &Context, cli: &mut Connection,
     Ok(FutureMigration::new(key, descr))
 }
 
-pub async fn write_migration(ctx: &Context, descr: &impl MigrationToText,
-    verbose: bool)
-    -> anyhow::Result<()>
+pub async fn write_migration<'a, T>(
+    ctx: &Context,
+    descr: &'a impl MigrationToText<'a, T>,
+    verbose: bool,
+) -> anyhow::Result<()>
+where
+    T: Iterator<Item = &'a String>,
 {
     let filename = match &descr.key() {
         MigrationKey::Index(idx) => {
             let dir = ctx.schema_dir.join("migrations");
-            dir.join(format!("{:05}.edgeql", idx))
+            dir.join(format!("{:05}-{}.edgeql", idx, &descr.id()?[..7]))
         }
         MigrationKey::Fixup { target_revision } => {
             let dir = ctx.schema_dir.join("fixups");
@@ -705,27 +749,33 @@ pub async fn write_migration(ctx: &Context, descr: &impl MigrationToText,
 }
 
 #[context("could not write migration file {}", filepath.display())]
-async fn _write_migration(descr: &impl MigrationToText, filepath: &Path,
-    verbose: bool)
-    -> anyhow::Result<()>
+async fn _write_migration<'a, T>(
+    descr: &'a impl MigrationToText<'a, T>,
+    filepath: &Path,
+    verbose: bool,
+) -> anyhow::Result<()>
+where
+    T: Iterator<Item = &'a String>,
 {
     let id = descr.id()?;
     let dir = filepath.parent().unwrap();
-    let tmp_file = filepath.with_file_name(tmp_file_name(&filepath.as_ref()));
-    if !fs::metadata(filepath).await.is_ok() {
+    let tmp_file = filepath.with_file_name(tmp_file_name(filepath));
+    if fs::metadata(filepath).await.is_err() {
         fs::create_dir_all(&dir).await?;
     }
     fs::remove_file(&tmp_file).await.ok();
     let mut file = io::BufWriter::new(fs::File::create(&tmp_file).await?);
-    file.write(format!("CREATE MIGRATION {}\n", id).as_bytes()).await?;
-    file.write(format!("    ONTO {}\n", descr.parent()?).as_bytes()).await?;
-    file.write(b"{\n").await?;
+    file.write_all(format!("CREATE MIGRATION {}\n", id).as_bytes())
+        .await?;
+    file.write_all(format!("    ONTO {}\n", descr.parent()?).as_bytes())
+        .await?;
+    file.write_all(b"{\n").await?;
     for statement in descr.statements() {
         for line in statement.lines() {
-            file.write(&format!("  {}\n", line).as_bytes()).await?;
+            file.write_all(format!("  {}\n", line).as_bytes()).await?;
         }
     }
-    file.write(b"};\n").await?;
+    file.write_all(b"};\n").await?;
     file.flush().await?;
     drop(file);
     fs::rename(&tmp_file, &filepath).await?;
@@ -744,31 +794,37 @@ async fn _write_migration(descr: &impl MigrationToText, filepath: &Path,
     Ok(())
 }
 
-pub async fn create(cli: &mut Connection, options: &Options,
-    create: &CreateMigration)
-    -> anyhow::Result<()>
-{
+pub async fn create(
+    cli: &mut Connection,
+    options: &Options,
+    create: &CreateMigration,
+) -> anyhow::Result<()> {
     if create.squash {
         squash::main(cli, options, create).await
     } else {
         let old_state = cli.set_ignore_error_state();
         let res = _create(cli, options, create).await;
         cli.restore_state(old_state);
-        return res;
+        res
     }
 }
 
-async fn _create(cli: &mut Connection, options: &Options,
-    create: &CreateMigration)
-    -> anyhow::Result<()>
-{
+async fn _create(
+    cli: &mut Connection,
+    options: &Options,
+    create: &CreateMigration,
+) -> anyhow::Result<()> {
     let ctx = Context::from_project_or_config(&create.cfg, false).await?;
 
     if dev_mode::check_client(cli).await? {
-        let dev_num = query_row::<i64>(cli, "SELECT count((
+        let dev_num = query_row::<i64>(
+            cli,
+            "SELECT count((
             SELECT schema::Migration
             FILTER .generated_by = schema::MigrationGeneratedBy.DevMode
-        ))").await?;
+        ))",
+        )
+        .await?;
         if dev_num > 0 {
             log::info!("Detected dev-mode migrations");
             return dev_mode::create(cli, &ctx, options, create).await;
@@ -782,7 +838,7 @@ async fn _create(cli: &mut Connection, options: &Options,
             // This decision must be done early on because
             // of the bug in EdgeDB:
             //   https://github.com/edgedb/edgedb/issues/3958
-            if migrations.len() == 0 {
+            if migrations.is_empty() {
                 first_migration(cli, &ctx, create).await
             } else {
                 let key = MigrationKey::Index((migrations.len() + 1) as u64);
@@ -798,13 +854,14 @@ async fn _create(cli: &mut Connection, options: &Options,
     Ok(())
 }
 
-pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
-                              key: MigrationKey,
-                              ensure_parent: Option<&str>,
-                              create: &CreateMigration)
-    -> anyhow::Result<FutureMigration>
-{
-    execute_start_migration(&ctx, cli).await?;
+pub async fn normal_migration(
+    cli: &mut Connection,
+    ctx: &Context,
+    key: MigrationKey,
+    ensure_parent: Option<&str>,
+    create: &CreateMigration,
+) -> anyhow::Result<FutureMigration> {
+    execute_start_migration(ctx, cli).await?;
     async_try! {
         async {
             let descr = query_row::<CurrentMigration>(cli,
@@ -822,13 +879,13 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
             }
 
             if create.non_interactive {
-                run_non_interactive(&ctx, cli, key, &create).await
+                run_non_interactive(ctx, cli, key, create).await
             } else {
                 if create.allow_unsafe {
                     log::warn!("The `--allow-unsafe` flag is unused \
                                 in interactive mode");
                 }
-                run_interactive(&ctx, cli, key, &create).await
+                run_interactive(ctx, cli, key, create).await
             }
         },
         finally async {
@@ -838,14 +895,12 @@ pub async fn normal_migration(cli: &mut Connection, ctx: &Context,
 }
 
 fn add_newline_after_comment(value: &mut String) -> Result<(), anyhow::Error> {
-    let last_token = Tokenizer::new(value).last()
+    let last_token = Tokenizer::new(value)
+        .last()
         .ok_or_else(|| bug::error("input should not be empty"))?
-        .map_err(|e| bug::error(
-            format!("tokenizer failed on reparsing: {e:#}")))?;
+        .map_err(|e| bug::error(format!("tokenizer failed on reparsing: {e:#}")))?;
     let token_end = last_token.span.end as usize;
-    if token_end < value.len()
-        && !value[token_end..].trim().is_empty()
-    {
+    if token_end < value.len() && !value[token_end..].trim().is_empty() {
         // Non-empty data after last token means comment.
         // Let's add a newline after input to make sure that
         // adding data after the input is safe
@@ -856,7 +911,7 @@ fn add_newline_after_comment(value: &mut String) -> Result<(), anyhow::Error> {
 
 fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
     let prompt = format!("{}> ", req.placeholder);
-    let mut prev = make_default_expression(req).unwrap_or(String::new());
+    let mut prev = make_default_expression(req).unwrap_or_default();
     loop {
         println!("{}:", req.prompt);
         let mut value = match prompt::expression(&prompt, &req.placeholder, &prev) {
@@ -880,9 +935,9 @@ fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
     }
 }
 
-async fn get_user_input(req: &[RequiredUserInput])
-    -> Result<BTreeMap<String, String>, anyhow::Error>
-{
+async fn get_user_input(
+    req: &[RequiredUserInput],
+) -> Result<BTreeMap<String, String>, anyhow::Error> {
     let mut result = BTreeMap::new();
     for item in req {
         let copy = item.clone();
@@ -892,10 +947,10 @@ async fn get_user_input(req: &[RequiredUserInput])
     Ok(result)
 }
 
-fn substitute_placeholders<'x>(input: &'x str,
-    placeholders: &BTreeMap<String, String>)
-    -> Result<Cow<'x, str>, anyhow::Error>
-{
+fn substitute_placeholders<'x>(
+    input: &'x str,
+    placeholders: &BTreeMap<String, String>,
+) -> Result<Cow<'x, str>, anyhow::Error> {
     let mut output = String::with_capacity(input.len());
     let mut parser = Tokenizer::new(input);
     let mut start = 0;
@@ -903,16 +958,19 @@ fn substitute_placeholders<'x>(input: &'x str,
         let token = match item {
             Ok(item) => item,
             Err(e) => Err(bug::error(format!(
-                "the server sent an invalid query: {e:#}")))?,
+                "the server sent an invalid query: {e:#}"
+            )))?,
         };
         if token.kind == TokenKind::Substitution {
             output.push_str(&input[start..token.span.start as usize]);
-            let name = token.text.strip_prefix(r"\(")
-                .and_then(|item| item.strip_suffix(")"))
+            let name = token
+                .text
+                .strip_prefix(r"\(")
+                .and_then(|item| item.strip_suffix(')'))
                 .ok_or_else(|| bug::error(format!("bad substitution token")))?;
-            let expr = placeholders.get(name)
-                .ok_or_else(|| bug::error(format!(
-                    "missing input for {:?} placeholder", name)))?;
+            let expr = placeholders
+                .get(name)
+                .ok_or_else(|| bug::error(format!("missing input for {:?} placeholder", name)))?;
             output.push_str(expr);
             start = token.span.end as usize;
         }
@@ -929,11 +987,14 @@ fn placeholders() {
     let mut inputs = BTreeMap::new();
     inputs.insert("one".into(), " 1 ".into());
     inputs.insert("two".into(), "'two'".into());
-    assert_eq!(substitute_placeholders(r"SELECT \(one);", &inputs).unwrap(),
-        "SELECT  1 ;");
+    assert_eq!(
+        substitute_placeholders(r"SELECT \(one);", &inputs).unwrap(),
+        "SELECT  1 ;"
+    );
     assert_eq!(
         substitute_placeholders(r"SELECT {\(one), \(two)};", &inputs).unwrap(),
-        "SELECT { 1 , 'two'};");
+        "SELECT { 1 , 'two'};"
+    );
 }
 
 #[test]
@@ -941,33 +1002,39 @@ fn add_newline() {
     fn wrapper(s: &str) -> String {
         let mut data = s.to_string();
         add_newline_after_comment(&mut data).unwrap();
-        return data;
+        data
     }
     assert_eq!(wrapper("1+1"), "1+1");
     assert_eq!(wrapper("1    "), "1    ");
     assert_eq!(wrapper("1  #xx  "), "1  #xx  \n");
     assert_eq!(wrapper("(1 + 7) #xx"), "(1 + 7) #xx\n");
-    assert_eq!(wrapper("(1 #one\n + 3 #three\n)"), "(1 #one\n + 3 #three\n)");
+    assert_eq!(
+        wrapper("(1 #one\n + 3 #three\n)"),
+        "(1 #one\n + 3 #three\n)"
+    );
 }
 
 #[tokio::test]
- async fn start_migration() {
+async fn start_migration() {
     use std::env;
 
     let mut schema_dir = env::current_dir().unwrap();
     schema_dir.push("tests/migrations/db5");
 
-    let ctx = Context{schema_dir, edgedb_version: None, quiet: false};
+    let ctx = Context {
+        schema_dir,
+        edgedb_version: None,
+        quiet: false,
+    };
 
-    let res =  gen_start_migration(&ctx).await.unwrap();
+    let res = gen_start_migration(&ctx).await.unwrap();
 
     // Replace windows line endings \r\n with \n.
-    let  res_buf = res.0.replace("\r\n", "\n");
+    let res_buf = res.0.replace("\r\n", "\n");
 
     let expected_buf =
         "START MIGRATION TO {\ntype Type1 {\n    property field1 -> str;\n};\n;\ntype Type2 {
     property field2 -> str;\n};\n;\ntype Type3 {\n    property field3 -> str;\n};\n;\n};\n";
-
 
     assert_eq!(res_buf, expected_buf);
 }

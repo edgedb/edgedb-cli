@@ -1,17 +1,17 @@
-use std::time::{Duration, Instant};
 use std::collections::HashMap;
 use std::fmt;
+use std::time::{Duration, Instant};
 
 use anyhow::Context;
-use edgedb_tokio::Builder;
 use edgedb_tokio::credentials::Credentials;
+use edgedb_tokio::Builder;
 use indicatif::ProgressBar;
 use tokio::time::{sleep, timeout};
 
 use crate::cloud::client::{CloudClient, ErrorResponse};
 use crate::collect::Collector;
 use crate::options::CloudOptions;
-use crate::portable::status::{RemoteStatus, RemoteType, try_connect};
+use crate::portable::status::{try_connect, RemoteStatus, RemoteType};
 use crate::question;
 
 const OPERATION_WAIT_TIME: Duration = Duration::from_secs(20 * 60);
@@ -20,7 +20,7 @@ const SPINNER_TICK: Duration = Duration::from_millis(100);
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudInstance {
-    id: String,
+    pub id: String,
     name: String,
     org_slug: String,
     dsn: String,
@@ -43,13 +43,13 @@ pub struct CloudInstanceResource {
     pub display_quota: String,
 }
 
-
 impl CloudInstance {
     pub async fn as_credentials(&self, secret_key: &str) -> anyhow::Result<Credentials> {
         let config = Builder::new()
             .secret_key(secret_key)
             .instance(&format!("{}/{}", self.org_slug, self.name))?
-            .build_env().await?;
+            .build_env()
+            .await?;
         let mut creds = config.as_credentials()?;
         // TODO(tailhook) can this be emitted from as_credentials()?
         creds.tls_ca = self.tls_ca.clone();
@@ -120,15 +120,15 @@ struct PricesResponse {
     billables: Vec<Billable>,
 }
 
-
 #[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceResourceRequest {
     pub name: String,
     pub value: String,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Hash, PartialEq, Eq, Clone, Copy)]
-#[derive(clap::ValueEnum)]
+#[derive(
+    Debug, serde::Serialize, serde::Deserialize, Hash, PartialEq, Eq, Clone, Copy, clap::ValueEnum,
+)]
 pub enum CloudTier {
     Pro,
     Free,
@@ -140,7 +140,6 @@ impl fmt::Display for CloudTier {
     }
 }
 
-
 #[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceCreate {
     pub name: String,
@@ -149,6 +148,8 @@ pub struct CloudInstanceCreate {
     pub region: Option<String>,
     pub requested_resources: Option<Vec<CloudInstanceResourceRequest>>,
     pub tier: Option<CloudTier>,
+    pub source_instance_id: Option<String>,
+    pub source_backup_id: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // pub default_database: Option<String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -171,12 +172,15 @@ pub struct CloudInstanceUpgrade {
     pub force: bool,
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct CloudInstanceRestart {}
+
 #[derive(Debug, serde::Deserialize)]
-#[serde(rename_all="snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum OperationStatus {
     InProgress,
     Failed,
-    Completed
+    Completed,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -188,51 +192,34 @@ pub struct CloudOperation {
     pub subsequent_id: Option<String>,
 }
 
-#[tokio::main]
-pub async fn get_current_region(
-    client: &CloudClient,
-) -> anyhow::Result<Region> {
+#[tokio::main(flavor = "current_thread")]
+pub async fn get_current_region(client: &CloudClient) -> anyhow::Result<Region> {
     let url = "region/self";
-    client
-        .get(url)
-        .await
-        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
-            _ => Err(e),
-        })
+    client.get(url).await
 }
 
-#[tokio::main]
-pub async fn get_versions(
-    client: &CloudClient,
-) -> anyhow::Result<Vec<Version>> {
+#[tokio::main(flavor = "current_thread")]
+pub async fn get_versions(client: &CloudClient) -> anyhow::Result<Vec<Version>> {
     let url = "versions";
-    client
-        .get(url)
-        .await
-        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
-            _ => Err(e),
-        })
+    client.get(url).await
 }
 
-#[tokio::main]
-pub async fn get_prices(
-    client: &CloudClient,
-) -> anyhow::Result<Prices> {
+#[tokio::main(flavor = "current_thread")]
+pub async fn get_prices(client: &CloudClient) -> anyhow::Result<Prices> {
     let url = "pricing";
-    let mut resp: PricesResponse = client
-        .get(url)
-        .await
-        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
-            _ => Err(e),
-        })?;
+    let mut resp: PricesResponse = client.get(url).await?;
 
-    let billable_id_to_name: HashMap<String, String> = resp.billables
-        .iter().map(|billable| (billable.id.clone(), billable.name.clone())).collect();
+    let billable_id_to_name: HashMap<String, String> = resp
+        .billables
+        .iter()
+        .map(|billable| (billable.id.clone(), billable.name.clone()))
+        .collect();
 
-    for (_, tier_prices) in &mut resp.prices {
-        for (_, region_prices) in tier_prices {
+    for tier_prices in resp.prices.values_mut() {
+        for region_prices in tier_prices.values_mut() {
             for price in region_prices {
-                price.billable = billable_id_to_name.get(&price.billable)
+                price.billable = billable_id_to_name
+                    .get(&price.billable)
                     .context(format!("could not map billable {} to name", price.billable))?
                     .to_string();
             }
@@ -242,7 +229,7 @@ pub async fn get_prices(
     Ok(resp.prices)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn find_cloud_instance_by_name(
     inst: &str,
     org: &str,
@@ -253,27 +240,25 @@ pub async fn find_cloud_instance_by_name(
         .await
         .map(Some)
         .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
-            Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => Ok(None),
+            Some(ErrorResponse {
+                code: reqwest::StatusCode::NOT_FOUND,
+                ..
+            }) => Ok(None),
             _ => Err(e),
         })
 }
 
-#[tokio::main]
-pub async fn get_org(
-    org: &str,
-    client: &CloudClient,
-) -> anyhow::Result<Org> {
-    client
-        .get(format!("orgs/{}", org))
-        .await
+#[tokio::main(flavor = "current_thread")]
+pub async fn get_org(org: &str, client: &CloudClient) -> anyhow::Result<Org> {
+    client.get(format!("orgs/{}", org)).await
 }
 
 async fn wait_for_operation(
     mut operation: CloudOperation,
     client: &CloudClient,
 ) -> anyhow::Result<()> {
-    let spinner = ProgressBar::new_spinner()
-        .with_message(format!("Monitoring {}...", operation.description));
+    let spinner =
+        ProgressBar::new_spinner().with_message(format!("Monitoring {}...", operation.description));
     spinner.enable_steady_tick(SPINNER_TICK);
 
     let mut url = format!("operations/{}", operation.id);
@@ -288,10 +273,10 @@ async fn wait_for_operation(
 
                 url = format!("operations/{}", subsequent_id);
                 operation = client.get(&url).await?;
-            },
+            }
             (OperationStatus::Failed, None) => {
                 anyhow::bail!(original_error.unwrap_or(operation.message));
-            },
+            }
             (OperationStatus::InProgress, _) => {
                 sleep(POLLING_INTERVAL).await;
                 operation = client.get(&url).await?;
@@ -300,7 +285,7 @@ async fn wait_for_operation(
                 if let Some(message) = original_error {
                     anyhow::bail!(message)
                 } else {
-                    return Ok(())
+                    return Ok(());
                 }
             }
         }
@@ -309,62 +294,65 @@ async fn wait_for_operation(
     anyhow::bail!("Operation is taking too long, stopping monitor.")
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn create_cloud_instance(
     client: &CloudClient,
     request: &CloudInstanceCreate,
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances", request.org);
-    let operation: CloudOperation = client
-        .post(url, request)
-        .await
-        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
-            Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => {
-                anyhow::bail!("Organization \"{}\" does not exist.", request.org);
-            }
-            _ => Err(e),
-        })?;
+    let operation: CloudOperation = client.post(url, request).await.or_else(|e| match e
+        .downcast_ref::<ErrorResponse>(
+    ) {
+        Some(ErrorResponse {
+            code: reqwest::StatusCode::NOT_FOUND,
+            ..
+        }) => {
+            anyhow::bail!("Organization \"{}\" does not exist.", request.org);
+        }
+        _ => Err(e),
+    })?;
     wait_for_operation(operation, client).await?;
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn resize_cloud_instance(
     client: &CloudClient,
     request: &CloudInstanceResize,
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances/{}", request.org, request.name);
-    let operation: CloudOperation = client
-        .put(url, request)
-        .await
-        .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
-            Some(ErrorResponse { code: reqwest::StatusCode::NOT_FOUND, .. }) => {
-                anyhow::bail!(
-                    "Instance \"{}/{}\" does not exist.", request.org, request.name);
-            }
-            _ => Err(e),
-        })?;
+    let operation: CloudOperation = client.put(url, request).await.or_else(|e| match e
+        .downcast_ref::<ErrorResponse>()
+    {
+        Some(ErrorResponse {
+            code: reqwest::StatusCode::NOT_FOUND,
+            ..
+        }) => {
+            anyhow::bail!(
+                "Instance \"{}/{}\" does not exist.",
+                request.org,
+                request.name
+            );
+        }
+        _ => Err(e),
+    })?;
     wait_for_operation(operation, client).await?;
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn upgrade_cloud_instance(
     client: &CloudClient,
     request: &CloudInstanceUpgrade,
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances/{}", request.org, request.name);
-    let operation: CloudOperation = client
-        .put(url, request)
-        .await?;
+    let operation: CloudOperation = client.put(url, request).await?;
     wait_for_operation(operation, client).await?;
     Ok(())
 }
 
 pub fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
-    let mut q = question::Confirm::new(
-        "Not authenticated to EdgeDB Cloud yet, log in now?",
-    );
+    let mut q = question::Confirm::new("Not authenticated to EdgeDB Cloud yet, log in now?");
     if q.default(true).ask()? {
         crate::cloud::auth::do_login(client)?;
         client.reinit()?;
@@ -375,7 +363,25 @@ pub fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
+pub async fn restart_cloud_instance(
+    name: &str,
+    org: &str,
+    options: &CloudOptions,
+) -> anyhow::Result<()> {
+    let client = CloudClient::new(options)?;
+    client.ensure_authenticated()?;
+    let operation: CloudOperation = client
+        .post(
+            format!("orgs/{}/instances/{}/restart", org, name),
+            &CloudInstanceRestart {},
+        )
+        .await?;
+    wait_for_operation(operation, &client).await?;
+    Ok(())
+}
+
+#[tokio::main(flavor = "current_thread")]
 pub async fn destroy_cloud_instance(
     name: &str,
     org: &str,
@@ -383,9 +389,9 @@ pub async fn destroy_cloud_instance(
 ) -> anyhow::Result<()> {
     let client = CloudClient::new(options)?;
     client.ensure_authenticated()?;
-    let operation: CloudOperation = client.delete(
-        format!("orgs/{}/instances/{}", org, name)
-    ).await?;
+    let operation: CloudOperation = client
+        .delete(format!("orgs/{}/instances/{}", org, name))
+        .await?;
     wait_for_operation(operation, &client).await?;
     Ok(())
 }
@@ -408,19 +414,17 @@ pub async fn list(
         match RemoteStatus::from_cloud_instance(&client, &cloud_instance).await {
             Ok(status) => rv.push(status),
             Err(e) => {
-                errors.add(
-                    e.context(format!(
-                        "probing {}/{}",
-                        cloud_instance.org_slug, cloud_instance.name
-                    ))
-                );
+                errors.add(e.context(format!(
+                    "probing {}/{}",
+                    cloud_instance.org_slug, cloud_instance.name
+                )));
             }
         }
     }
     Ok(rv)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn get_status(
     client: &CloudClient,
     instance: &CloudInstance,

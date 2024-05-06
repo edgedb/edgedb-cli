@@ -1,19 +1,19 @@
 use anyhow::Context;
 use colorful::Colorful;
 
-use crate::commands::ExitCode;
-use crate::options::CloudOptions;
+use crate::cloud::client::CloudClient;
 use crate::cloud::options;
 use crate::cloud::options::SecretKeyCommand;
-use crate::cloud::client::CloudClient;
+use crate::commands::ExitCode;
+use crate::options::CloudOptions;
 
 use crate::portable::exit_codes;
 
-use crate::table::{self, Table, Row, Cell};
+use crate::table::{self, Cell, Row, Table};
 
 use crate::echo;
-use crate::question;
 use crate::print::{self, Highlight};
+use crate::question;
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct SecretKey {
@@ -22,7 +22,7 @@ pub struct SecretKey {
     pub description: Option<String>,
     pub scopes: Vec<String>,
 
-    #[serde(with="humantime_serde")]
+    #[serde(with = "humantime_serde")]
     pub created_on: std::time::SystemTime,
 
     #[serde(with = "humantime_serde")]
@@ -42,32 +42,23 @@ pub struct CreateSecretKeyInput {
 pub fn main(cmd: &SecretKeyCommand, options: &CloudOptions) -> anyhow::Result<()> {
     use crate::cloud::options::SecretKeySubCommand::*;
     match &cmd.subcommand {
-        List(c) => {
-            list(c, options)
-        }
-        Create(c) => {
-            create(c, options)
-        }
-        Revoke(c) => {
-            revoke(c, options)
-        }
+        List(c) => list(c, options),
+        Create(c) => create(c, options),
+        Revoke(c) => revoke(c, options),
     }
 }
-
 
 pub fn list(c: &options::ListSecretKeys, options: &CloudOptions) -> anyhow::Result<()> {
     do_list(c, &CloudClient::new(options)?)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn do_list(c: &options::ListSecretKeys, client: &CloudClient) -> anyhow::Result<()> {
     _do_list(c, client).await
 }
 
 pub async fn _do_list(c: &options::ListSecretKeys, client: &CloudClient) -> anyhow::Result<()> {
-    let keys: Vec<SecretKey> = client
-        .get("secretkeys/")
-        .await?;
+    let keys: Vec<SecretKey> = client.get("secretkeys/").await?;
 
     if c.json {
         println!("{}", serde_json::to_string_pretty(&keys)?);
@@ -78,25 +69,29 @@ pub async fn _do_list(c: &options::ListSecretKeys, client: &CloudClient) -> anyh
     Ok(())
 }
 
-fn print_table(items: impl Iterator<Item=SecretKey>) {
+fn print_table(items: impl Iterator<Item = SecretKey>) {
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
     table.set_titles(Row::new(
         ["ID", "Name", "Created", "Expires", "Scopes"]
-        .iter().map(|x| table::header_cell(x)).collect()));
+            .iter()
+            .map(|x| table::header_cell(x))
+            .collect(),
+    ));
     for key in items {
         table.add_row(Row::new(vec![
             Cell::new(&key.id),
             Cell::new(&key.name.unwrap_or_default()),
-            Cell::new(&humantime::format_rfc3339_seconds(
-                key.created_on).to_string()),
-            Cell::new(&key.expires_on.map_or(
-                String::from("does not expire"),
-                |t| humantime::format_rfc3339_seconds(t).to_string())),
+            Cell::new(&humantime::format_rfc3339_seconds(key.created_on).to_string()),
+            Cell::new(
+                &key.expires_on.map_or(String::from("does not expire"), |t| {
+                    humantime::format_rfc3339_seconds(t).to_string()
+                }),
+            ),
             Cell::new(&key.scopes.join(", ")),
         ]));
     }
-    if table.len() > 0 {
+    if !table.is_empty() {
         table.printstd();
     } else {
         println!("No secret keys present.")
@@ -107,13 +102,13 @@ pub fn create(c: &options::CreateSecretKey, options: &CloudOptions) -> anyhow::R
     do_create(c, &CloudClient::new(options)?)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn do_create(c: &options::CreateSecretKey, client: &CloudClient) -> anyhow::Result<()> {
     _do_create(c, client).await
 }
 
 pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> anyhow::Result<()> {
-    let mut params = CreateSecretKeyInput{
+    let mut params = CreateSecretKeyInput {
         name: c.name.clone(),
         description: c.description.clone(),
         scopes: c.scopes.clone(),
@@ -140,14 +135,16 @@ pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> a
     if c.json {
         println!("{}", serde_json::to_string_pretty(&key)?);
     } else {
-        let sk = key.secret_key.context("no valid secret key returned from server")?;
+        let sk = key
+            .secret_key
+            .context("no valid secret key returned from server")?;
         if c.non_interactive {
             print!("{}", sk);
         } else {
-            echo!(
-                "\nYour new EdgeDB.Cloud secret key is printed below. \
+            echo!("\nYour new EdgeDB.Cloud secret key is printed below. \
                  Be sure to copy and store it securely, as you will \
-                 not be able to see it again.\n".green());
+                 not be able to see it again.\n"
+                .green());
             echo!(sk.emphasize());
         }
     }
@@ -155,24 +152,28 @@ pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> a
     Ok(())
 }
 
-pub async fn create_secret_key(client: &CloudClient, params: &CreateSecretKeyInput) -> anyhow::Result<SecretKey> {
-   client.post("secretkeys/", params).await
+pub async fn create_secret_key(
+    client: &CloudClient,
+    params: &CreateSecretKeyInput,
+) -> anyhow::Result<SecretKey> {
+    client.post("secretkeys/", params).await
 }
 
 pub fn revoke(c: &options::RevokeSecretKey, options: &CloudOptions) -> anyhow::Result<()> {
     do_revoke(c, &CloudClient::new(options)?)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 pub async fn do_revoke(c: &options::RevokeSecretKey, client: &CloudClient) -> anyhow::Result<()> {
     _do_revoke(c, client).await
 }
 
 pub async fn _do_revoke(c: &options::RevokeSecretKey, client: &CloudClient) -> anyhow::Result<()> {
     if !c.non_interactive {
-        let q = question::Confirm::new_dangerous(
-            format!("Do you really want to revoke secret key {:?}?", c.secret_key_id)
-        );
+        let q = question::Confirm::new_dangerous(format!(
+            "Do you really want to revoke secret key {:?}?",
+            c.secret_key_id
+        ));
         if !q.ask()? {
             print::error("Canceled.");
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
@@ -186,20 +187,23 @@ pub async fn _do_revoke(c: &options::RevokeSecretKey, client: &CloudClient) -> a
     if c.json {
         println!("{}", serde_json::to_string_pretty(&key)?);
     } else {
-        println!("Secret key '{}' has been revoked and is no longer valid.", key.id);
+        println!(
+            "Secret key '{}' has been revoked and is no longer valid.",
+            key.id
+        );
     }
 
     Ok(())
 }
 
-fn _ask_ttl(
-) -> anyhow::Result<Option<String>> {
+fn _ask_ttl() -> anyhow::Result<Option<String>> {
     loop {
         let ttl = question::String::new(
             "\nPlease specify how long the secret key should \
             remain valid.\nUse duration units like `1h3m`, or `never` \
-            if the key should never expire."
-        ).ask()?;
+            if the key should never expire.",
+        )
+        .ask()?;
 
         let dur = match ttl.as_str() {
             "never" => Some(ttl),
@@ -216,16 +220,16 @@ fn _ask_ttl(
     }
 }
 
-fn _ask_scopes(
-) -> anyhow::Result<Option<Vec<String>>> {
+fn _ask_scopes() -> anyhow::Result<Option<Vec<String>>> {
     loop {
         let scopes = question::String::new(
             "\nPlease specify a whitespace-separated list of authorizations (scopes) \
             for the new secret key.\n\
             For example, to limit the access scope to a single database in a single instance:\n\n\
             \x20\x20instance:org/instance database:mydatabase roles.all\n\n\
-            To inherit the scope of the current secret key, type `inherit`"
-        ).ask()?;
+            To inherit the scope of the current secret key, type `inherit`",
+        )
+        .ask()?;
 
         match scopes.as_str() {
             s if s.trim().is_empty() => {
@@ -236,7 +240,7 @@ fn _ask_scopes(
             }
             _ => {
                 return Ok(Some(
-                    scopes.split_whitespace().map(|s| s.to_string()).collect()
+                    scopes.split_whitespace().map(|s| s.to_string()).collect(),
                 ));
             }
         };

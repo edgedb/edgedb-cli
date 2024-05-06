@@ -1,20 +1,19 @@
 use std::marker::PhantomData;
 
-use combine::stream::ResetStream;
-use combine::{StreamOnce, Parser, ParseResult, position, Positioned};
-use combine::{satisfy, between, many, skip_many, eof, choice, opaque};
-use combine::parser::combinator::no_partial;
 use combine::easy::{self, Errors, Info};
-use combine::error::{Tracked, StreamError};
+use combine::error::{StreamError, Tracked};
+use combine::parser::combinator::no_partial;
+use combine::stream::ResetStream;
+use combine::{between, choice, eof, many, opaque, satisfy, skip_many};
+use combine::{position, ParseResult, Parser, Positioned, StreamOnce};
+use edgeql_parser::helpers::{unquote_string, UnquoteError};
 use edgeql_parser::keywords::Keyword;
 use edgeql_parser::position::Pos;
-use edgeql_parser::tokenizer::{Tokenizer, Kind, Token, Checkpoint};
-use edgeql_parser::helpers::{unquote_string, UnquoteError};
+use edgeql_parser::tokenizer::{Checkpoint, Kind, Token, Tokenizer};
 
 use crate::migrations::migration::Migration;
 
 type Error<'a> = easy::Error<Token<'a>, Token<'a>>;
-
 
 #[derive(Debug, Clone)]
 pub struct Value<'a> {
@@ -32,23 +31,27 @@ pub struct TokenMatch<'a> {
 // TODO: remove this in favour of a chumsky parser
 pub struct TokenStream<'a>(pub Tokenizer<'a>);
 
-pub fn kw<'s>(value: &'static str)
-    -> impl Parser<TokenStream<'s>, Output=()>
-{
-    Value { kind: Kind::Keyword(Keyword(value)), value, phantom: PhantomData }
+pub fn kw<'s>(value: &'static str) -> impl Parser<TokenStream<'s>, Output = ()> {
+    Value {
+        kind: Kind::Keyword(Keyword(value)),
+        value,
+        phantom: PhantomData,
+    }
     .map(|_| ())
 }
 
-pub fn ident<'s>(value: &'static str)
-    -> impl Parser<TokenStream<'s>, Output=()>
-{
-    Value { kind: Kind::Ident, value, phantom: PhantomData }
+pub fn ident<'s>(value: &'static str) -> impl Parser<TokenStream<'s>, Output = ()> {
+    Value {
+        kind: Kind::Ident,
+        value,
+        phantom: PhantomData,
+    }
     .map(|_| ())
 }
 
 pub fn kind<'x>(kind: Kind) -> TokenMatch<'x> {
     TokenMatch {
-        kind: kind,
+        kind,
         phantom: PhantomData,
     }
 }
@@ -90,18 +93,18 @@ impl<'a> Parser<TokenStream<'a>> for Value<'a> {
     type PartialState = ();
 
     #[inline]
-    fn parse_lazy(&mut self, input: &mut TokenStream<'a>)
-        -> ParseResult<Self::Output, Errors<Token<'a>, Token<'a>, Pos>>
-    {
-        satisfy(|c: Token<'a>| {
-            c.kind == self.kind && c.text.eq_ignore_ascii_case(self.value)
-        }).parse_lazy(input)
+    fn parse_lazy(
+        &mut self,
+        input: &mut TokenStream<'a>,
+    ) -> ParseResult<Self::Output, Errors<Token<'a>, Token<'a>, Pos>> {
+        satisfy(|c: Token<'a>| c.kind == self.kind && c.text.eq_ignore_ascii_case(self.value))
+            .parse_lazy(input)
     }
 
-    fn add_error(&mut self,
-        error: &mut Tracked<<TokenStream<'a> as StreamOnce>::Error>)
-    {
-        error.error.add_error(Error::Expected(Info::Static(self.value)));
+    fn add_error(&mut self, error: &mut Tracked<<TokenStream<'a> as StreamOnce>::Error>) {
+        error
+            .error
+            .add_error(Error::Expected(Info::Static(self.value)));
     }
 }
 
@@ -110,17 +113,17 @@ impl<'a> Parser<TokenStream<'a>> for TokenMatch<'a> {
     type PartialState = ();
 
     #[inline]
-    fn parse_lazy(&mut self, input: &mut TokenStream<'a>)
-        -> ParseResult<Self::Output, Errors<Token<'a>, Token<'a>, Pos>>
-    {
+    fn parse_lazy(
+        &mut self,
+        input: &mut TokenStream<'a>,
+    ) -> ParseResult<Self::Output, Errors<Token<'a>, Token<'a>, Pos>> {
         satisfy(|c: Token<'a>| c.kind == self.kind).parse_lazy(input)
     }
 
-    fn add_error(&mut self,
-        error: &mut Tracked<Errors<Token<'a>, Token<'a>, Pos>>)
-    {
-        error.error.add_error(Error::Expected(Info::Owned(
-            format!("{:?}", self.kind))));
+    fn add_error(&mut self, error: &mut Tracked<Errors<Token<'a>, Token<'a>, Pos>>) {
+        error
+            .error
+            .add_error(Error::Expected(Info::Owned(format!("{:?}", self.kind))));
     }
 }
 
@@ -129,98 +132,97 @@ enum Statement {
     Ignored,
 }
 
-fn chosen_statements<'a>()
-    -> impl Parser<TokenStream<'a>, Output=Statement>
-{
+fn chosen_statements<'a>() -> impl Parser<TokenStream<'a>, Output = Statement> {
     use Statement::*;
-    kw("set").with(
-        choice((
-            ident("message").skip(kind(Kind::Assign))
-                .with(kind(Kind::Str))
-                .skip(kind(Kind::Semicolon))
-                .and_then(|token| -> Result<_, UnquoteError> {
-                    Ok(SetMessage(unquote_string(&token.text)?.into()))
-                }),
-            any_statement(),
-        ))
-    )
+    kw("set").with(choice((
+        ident("message")
+            .skip(kind(Kind::Assign))
+            .with(kind(Kind::Str))
+            .skip(kind(Kind::Semicolon))
+            .and_then(|token| -> Result<_, UnquoteError> {
+                Ok(SetMessage(unquote_string(&token.text)?.into()))
+            }),
+        any_statement(),
+    )))
 }
 
-fn braces<'a>() -> impl Parser<TokenStream<'a>, Output=Statement> {
+fn braces<'a>() -> impl Parser<TokenStream<'a>, Output = Statement> {
     use Statement::*;
-    opaque!(
-        no_partial(between(kind(Kind::OpenBrace), kind(Kind::CloseBrace),
+    opaque!(no_partial(
+        between(
+            kind(Kind::OpenBrace),
+            kind(Kind::CloseBrace),
             skip_many(
-                satisfy(|t: Token<'a>| {
-                    !matches!(t.kind, Kind::OpenBrace|Kind::CloseBrace)
-                })
-                .map(|_| Ignored)
-                .or(braces())))
-        .map(|_| Ignored))
-    )
+                satisfy(|t: Token<'a>| { !matches!(t.kind, Kind::OpenBrace | Kind::CloseBrace) })
+                    .map(|_| Ignored)
+                    .or(braces())
+            )
+        )
+        .map(|_| Ignored)
+    ))
 }
 
-fn any_statement<'a>()
-    -> impl Parser<TokenStream<'a>, Output=Statement>
-{
+fn any_statement<'a>() -> impl Parser<TokenStream<'a>, Output = Statement> {
     use Statement::*;
 
     skip_many(
         satisfy(|t: Token<'a>| {
-            !matches!(t.kind, Kind::Semicolon|Kind::CloseBrace|Kind::OpenBrace)
+            !matches!(t.kind, Kind::Semicolon | Kind::CloseBrace | Kind::OpenBrace)
         })
         .map(|_| Ignored)
-        .or(braces())
-    ).skip(kind(Kind::Semicolon))
+        .or(braces()),
+    )
+    .skip(kind(Kind::Semicolon))
     .map(|_| Ignored)
 }
 
-fn statement<'a>()
-    -> impl Parser<TokenStream<'a>, Output=Statement>
-{
-    chosen_statements()
-    .or(any_statement())
+fn statement<'a>() -> impl Parser<TokenStream<'a>, Output = Statement> {
+    chosen_statements().or(any_statement())
 }
 
-fn migration<'a>()
-    -> impl Parser<TokenStream<'a>, Output=Migration>
-{
+fn migration<'a>() -> impl Parser<TokenStream<'a>, Output = Migration> {
     use Statement::*;
 
-    kw("create").and(kw("migration"))
+    kw("create")
+        .and(kw("migration"))
         .with((position(), kind(Kind::Ident)))
         .skip(kw("onto"))
-        .and(kind(Kind::Ident))
-        .and(between(kind(Kind::OpenBrace), kind(Kind::CloseBrace),
-            (position(), many::<Vec<_>, _, _>(statement()), position())
+        .and((position(), kind(Kind::Ident)))
+        .and(between(
+            kind(Kind::OpenBrace),
+            kind(Kind::CloseBrace),
+            (position(), many::<Vec<_>, _, _>(statement()), position()),
         ))
         .skip(kind(Kind::Semicolon))
         .skip(eof())
-    .and_then(|((id, parent_id), brace_block)| -> Result<_, Error<'_>> {
-        let (id_start, id) = id;
-        let id_end = id_start.offset as usize + id.text.len();
-        let (start, statements, end) = brace_block;
-        let mut m = Migration {
-            message: None,
-            id: id.text.into(),
-            id_range: (id_start.offset as usize, id_end),
-            parent_id: parent_id.text.into(),
-            text_range: (start.offset as usize, end.offset as usize),
-        };
-        for item in statements {
-            match item {
-                SetMessage(text) => {
-                    if m.message.is_some() {
-                        return Err(Error::Message(
-                            "duplicate `SET message` statement".into()))?;
+        .and_then(|((id, parent_id), brace_block)| -> Result<_, Error<'_>> {
+            let (id_start, id) = id;
+            let id_end = id_start.offset as usize + id.text.len();
+            let (parent_id_start, parent_id) = parent_id;
+            let parent_id_end = parent_id_start.offset as usize + parent_id.text.len();
+            let (start, statements, end) = brace_block;
+            let mut m = Migration {
+                message: None,
+                id: id.text.into(),
+                id_range: (id_start.offset as usize, id_end),
+                parent_id: parent_id.text.into(),
+                parent_id_range: (parent_id_start.offset as usize, parent_id_end),
+                text_range: (start.offset as usize, end.offset as usize),
+            };
+
+            for item in statements {
+                match item {
+                    SetMessage(text) => {
+                        if m.message.is_some() {
+                            Err(Error::Message("duplicate `SET message` statement".into()))?;
+                        }
+                        m.message = Some(text);
                     }
-                    m.message = Some(text);
+                    Ignored => {}
                 }
-                Ignored => {}
             }
-        }
-        Ok(m)
-    })
+            Ok(m)
+        })
 }
 
 pub fn parse_migration(data: &str) -> anyhow::Result<Migration> {
@@ -239,8 +241,7 @@ mod test {
 
     #[test]
     fn empty() {
-        let m = parse_migration("CREATE MIGRATION u123 ONTO u234 {};")
-            .unwrap();
+        let m = parse_migration("CREATE MIGRATION u123 ONTO u234 {};").unwrap();
         assert_eq!(m.id, "u123");
         assert_eq!(m.parent_id, "u234");
         assert_eq!(m.message, None);
@@ -248,12 +249,14 @@ mod test {
 
     #[test]
     fn set_all() {
-        let m = parse_migration(r###"
+        let m = parse_migration(
+            r###"
             CREATE MIGRATION u234 ONTO u123 {
                     set message := $$ hello world! $$;
             };
-        "###)
-            .unwrap();
+        "###,
+        )
+        .unwrap();
         assert_eq!(m.id, "u234");
         assert_eq!(m.parent_id, "u123");
         assert_eq!(m.message, Some(" hello world! ".into()));
@@ -261,34 +264,41 @@ mod test {
 
     #[test]
     fn nested_braces() {
-        let m = parse_migration(r###"
+        let m = parse_migration(
+            r###"
             CREATE MIGRATION u234 ONTO u123 {
               {{};};
               CREATE { };
             };
-        "###)
-            .unwrap();
+        "###,
+        )
+        .unwrap();
         assert_eq!(m.id, "u234");
         assert_eq!(m.parent_id, "u123");
     }
 
     #[test]
     fn set_duplicate() {
-        let m = parse_migration(r###"
+        let m = parse_migration(
+            r###"
             CREATE MIGRATION u123 ONTO u234 {
                     set message := 'xxxx';
                     set message := 'yyy';
             };
-        "###)
-            .unwrap_err();
-        assert_eq!(m.to_string(),
+        "###,
+        )
+        .unwrap_err();
+        assert_eq!(
+            m.to_string(),
             "parse error: Parse error at 2:13\n\
-             duplicate `SET message` statement\n");
+             duplicate `SET message` statement\n"
+        );
     }
 
     #[test]
     fn mix() {
-        let m = parse_migration(r###"
+        let m = parse_migration(
+            r###"
             CREATE MIGRATION m234 ONTO m123 {
                     select 1;
                     set message := 'hello';
@@ -297,8 +307,9 @@ mod test {
                     set other_thing := 'test';
                     set thing3 := call(235);
             };
-        "###)
-            .unwrap();
+        "###,
+        )
+        .unwrap();
         assert_eq!(m.id, "m234");
         assert_eq!(m.parent_id, "m123");
         assert_eq!(m.message, Some("hello".into()));
@@ -306,13 +317,15 @@ mod test {
 
     #[test]
     fn mix_braces() {
-        let m = parse_migration(r###"
+        let m = parse_migration(
+            r###"
             CREATE MIGRATION m567 ONTO m234 {
                     SELECT Obj1 { field1 };
                     set message := 'test test';
             };
-        "###)
-            .unwrap();
+        "###,
+        )
+        .unwrap();
         assert_eq!(m.id, "m567");
         assert_eq!(m.parent_id, "m234");
         assert_eq!(m.message, Some("test test".into()));
@@ -320,30 +333,38 @@ mod test {
 
     #[test]
     fn err_set1() {
-        parse_migration(r###"
+        parse_migration(
+            r###"
             CREATE MIGRATION {
                 set message := 234;
             };
-        "###).unwrap_err();
+        "###,
+        )
+        .unwrap_err();
     }
 
     #[test]
     fn err_set2() {
-        parse_migration(r###"
+        parse_migration(
+            r###"
             CREATE MIGRATION {
                 set message := 'hello' test;
             };
-        "###).unwrap_err();
+        "###,
+        )
+        .unwrap_err();
     }
 
     #[test]
     fn err_trailing() {
-        parse_migration(r###"
+        parse_migration(
+            r###"
             CREATE MIGRATION {
                 set message := 'hello';
             };
             something
-        "###).unwrap_err();
+        "###,
+        )
+        .unwrap_err();
     }
 }
-
