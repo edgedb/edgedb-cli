@@ -66,11 +66,8 @@ fn get_descriptor_type<'a>(
     mut desc: &'a Descriptor,
     all: &'a Typedesc,
 ) -> Result<Arc<dyn VariableInput>, anyhow::Error> {
-    match desc {
-        Descriptor::Scalar(s) => {
-            desc = all.get(s.base_type_pos)?;
-        }
-        _ => {}
+    if let Descriptor::Scalar(s) = desc {
+        desc = all.get(s.base_type_pos)?;
     }
 
     match desc {
@@ -90,7 +87,7 @@ fn get_descriptor_type<'a>(
                 _ => return Err(anyhow::anyhow!("Unimplemented input type {}", *s.id)),
             };
 
-            return Ok(var_type);
+            Ok(var_type)
         }
         Descriptor::Array(arr) => {
             let element_type = get_descriptor_type(all.get(arr.type_pos)?, all)?;
@@ -103,10 +100,10 @@ fn get_descriptor_type<'a>(
                 .map(|v| get_descriptor_type(all.get(*v)?, all))
                 .collect();
 
-            return match elements {
+            match elements {
                 Ok(element_types) => Ok(Arc::new(variable::Tuple { element_types })),
                 Err(e) => Err(e),
-            };
+            }
         }
         Descriptor::NamedTuple(named_tuple) => {
             let mut elements = HashMap::new();
@@ -118,10 +115,10 @@ fn get_descriptor_type<'a>(
                 );
             }
 
-            return Ok(Arc::new(variable::NamedTuple {
+            Ok(Arc::new(variable::NamedTuple {
                 element_types: elements,
                 shape: named_tuple.elements[..].into(),
-            }));
+            }))
         }
         _ => Err(anyhow::anyhow!(
             "Unimplemented input type descriptor: {:?}",

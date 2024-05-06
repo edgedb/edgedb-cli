@@ -132,7 +132,7 @@ impl Highlighter for EdgeqlHelper {
                         data = &data[bytes..];
                     }
                     Err(_cont) => {
-                        highlight::edgeql(&mut buf, &data, &self.styler);
+                        highlight::edgeql(&mut buf, data, &self.styler);
                         data = "";
                     }
                 }
@@ -363,7 +363,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                     };
                     match var_type.parse(&text, InputFlags::NONE) {
                         Ok(parse_result) => {
-                            if parse_result.0.len() > 0 {
+                            if !parse_result.0.is_empty() {
                                 // remaining input
                                 println!(
                                     "Bad value: remaining text '{}' is unparsed",
