@@ -20,3 +20,16 @@ heck = {workspace = true}
 [lib]
 proc-macro = true
 test = false
+
+[lints.clippy]
+useless_format = 'allow'
+collapsible_if = 'allow'
+derive_partial_eq_without_eq = 'allow'
+zero_ptr = 'allow'
+manual_strip = 'allow'
+new_ret_no_self = 'allow'
+type_complexity = 'allow'
+vec_init_then_push = 'allow'
+while_let_on_iterator = 'allow'
+too_many_arguments = 'allow'
+clone_on_copy = 'allow'
