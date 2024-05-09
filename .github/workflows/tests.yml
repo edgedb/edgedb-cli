@@ -33,6 +33,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           components: "cargo,rustc,rust-std"
+          toolchain: '1.78'
           override: true
 
       - name: Install EdgeDB
@@ -66,6 +67,7 @@ jobs:
         with:
           components: "cargo,rustc,rust-std"
           targets: "x86_64-unknown-linux-musl"
+          toolchain: '1.78'
           override: true
 
       - run: |
@@ -101,6 +103,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           components: "cargo,rustc,rust-std"
+          toolchain: '1.78'
           override: true
 
       - run: |
@@ -126,6 +129,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           components: "cargo,rustc,rust-std"
+          toolchain: '1.78'
           override: true
 
       - run: |
@@ -159,6 +163,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           components: "cargo,rustc,rust-std"
+          toolchain: '1.78'
           override: true
 
       - run: |
@@ -200,6 +205,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           components: "cargo,rustc,rust-std"
+          toolchain: '1.78'
           override: true
 
       - run: |
@@ -220,6 +226,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           components: "cargo,rustc,rust-std"
+          toolchain: '1.78'
           override: true
 
       - run: |
