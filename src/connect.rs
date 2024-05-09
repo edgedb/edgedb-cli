@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::future::{pending, Future};
 use std::mem;
 use std::pin::Pin;
@@ -237,6 +238,24 @@ impl Connection {
             .context("cannot fetch database version")?;
         let build = resp.data.parse()?;
         Ok(self.server_version.insert(build))
+    }
+    pub async fn get_current_branch(&mut self) -> Result<Cow<'_, str>, Error> {
+        if self.branch() != "__default__" {
+            Ok(self.branch().into())
+        } else {
+            let state = make_ignore_error_state(self.inner.state_descriptor());
+            let resp: raw::Response<String> = self
+                .inner
+                .query_required_single(
+                    "SELECT sys::get_current_database()",
+                    &(),
+                    &state,
+                    Capabilities::empty(),
+                )
+                .await
+                .context("cannot fetch current database branch")?;
+            Ok(resp.data.into())
+        }
     }
     pub async fn query<R, A>(&mut self, query: &str, arguments: &A) -> Result<Vec<R>, Error>
     where

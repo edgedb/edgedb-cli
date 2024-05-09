@@ -18,7 +18,6 @@ use crate::portable::options::{instance_arg, InstanceName, Upgrade};
 use crate::portable::project;
 use crate::portable::repository::{self, Channel, PackageInfo, Query, QueryOptions};
 use crate::portable::ver;
-use crate::portable::ver::Specific;
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
 use crate::question;
