@@ -33,7 +33,7 @@ jobs:
         uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
           components: "cargo,rustc,rust-std"
-          toolchain: "stable"
+          override: true
 
       - name: Install EdgeDB
         uses: edgedb/setup-edgedb@v1
@@ -65,8 +65,8 @@ jobs:
         uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
           components: "cargo,rustc,rust-std"
-          toolchain: "stable"
           targets: "x86_64-unknown-linux-musl"
+          override: true
 
       - run: |
           cargo build --target=x86_64-unknown-linux-musl
@@ -101,7 +101,7 @@ jobs:
         uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
           components: "cargo,rustc,rust-std"
-          toolchain: "stable"
+          override: true
 
       - run: |
           cargo build --tests --features docker_test_wrapper,portable_tests
@@ -126,7 +126,7 @@ jobs:
         uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
           components: "cargo,rustc,rust-std"
-          toolchain: "stable"
+          override: true
 
       - run: |
           cargo build --workspace --test=${{ matrix.test }} --bin edgedb --features portable_tests
@@ -159,7 +159,7 @@ jobs:
         uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
           components: "cargo,rustc,rust-std"
-          toolchain: "stable"
+          override: true
 
       - run: |
           cargo build --workspace --test=${{ matrix.test }} --features portable_tests
@@ -200,7 +200,7 @@ jobs:
         uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
           components: "cargo,rustc,rust-std"
-          toolchain: "stable"
+          override: true
 
       - run: |
           cargo install --locked --path=. --root=$TMPDIR
@@ -220,7 +220,7 @@ jobs:
         uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
         with:
           components: "cargo,rustc,rust-std"
-          toolchain: "stable"
+          override: true
 
       - run: |
           cargo clippy --all-features --workspace --all-targets
