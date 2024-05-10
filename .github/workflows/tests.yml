@@ -71,7 +71,7 @@ jobs:
           override: true
 
       - run: |
-          cargo build --target=x86_64-unknown-linux-musl
+          cargo build --bins --target=x86_64-unknown-linux-musl
 
       - uses: actions/upload-artifact@v2
         with:
@@ -85,7 +85,7 @@ jobs:
           server-version: ${{ matrix.edgedb-version }}
 
       - run: |
-          cargo test --target=x86_64-unknown-linux-musl
+          cargo test --bins --target=x86_64-unknown-linux-musl
 
   portable-install-tests:
     runs-on: ${{ matrix.os }}
