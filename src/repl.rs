@@ -179,9 +179,7 @@ impl State {
         }
         self.conn_params = params;
         self.branch = branch.into();
-        self.current_branch = conn
-            .query_required_single("select sys::get_current_database()", &())
-            .await?;
+        self.current_branch = Some(conn.get_current_branch().await?.to_string());
         self.connection = Some(conn);
         self.read_state();
         self.set_idle_transaction_timeout().await?;
