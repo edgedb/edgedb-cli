@@ -52,6 +52,8 @@ jobs:
       max-parallel: 4
       matrix:
         os: [ubuntu-latest]
+        # migrations tests work only on nightly
+        edgedb-version: ["nightly"]
     steps:
       - uses: actions/checkout@v4
         with:
