@@ -1,4 +1,4 @@
-use crate::{Config, SERVER};
+use crate::{util::OutputExt, Config, SERVER};
 use std::error::Error;
 
 #[test]
@@ -82,4 +82,27 @@ limit = 3
     cmd.exp_string("fgh").unwrap();
 
     Ok(())
+}
+
+#[test]
+fn force_database_error() {
+    SERVER
+        .admin_cmd()
+        .arg("query")
+        .arg(
+            r#"configure current database
+                set force_database_error := 
+                  '{"type": "QueryError", "message": "ongoing maintenance"}';
+            "#,
+        )
+        .assert()
+        .context("set force_database_error", "should succeed")
+        .success();
+
+    let mut cmd = SERVER.admin_interactive();
+    let main = SERVER.default_branch();
+    cmd.exp_string(&format!("{main}>")).unwrap();
+    cmd.send_line("configure current database reset force_database_error;")
+        .unwrap();
+    cmd.exp_string(&format!("{main}>")).unwrap();
 }
