@@ -38,7 +38,7 @@ pub enum ConnectionError {
         "Permission error. This is usually caused by a firewall. Try disabling \
         your OS's firewall or any other firewalls you have installed"
     )]
-    PermissionError(Error)
+    PermissionError(Error),
 }
 
 #[derive(Debug, Clone)]
@@ -214,7 +214,9 @@ impl Connector {
 impl Connection {
     pub async fn connect(cfg: &Config) -> Result<Connection, ConnectionError> {
         Ok(Connection {
-            inner: raw::Connection::connect(cfg).await.map_err(Self::map_connection_err)?,
+            inner: raw::Connection::connect(cfg)
+                .await
+                .map_err(Self::map_connection_err)?,
             state: State::empty(),
             server_version: None,
             config: cfg.clone(),
@@ -222,10 +224,11 @@ impl Connection {
     }
 
     fn map_connection_err(err: Error) -> ConnectionError {
-
-        if let Some(io_error) = err.source()
+        if let Some(io_error) = err
+            .source()
             .and_then(|v| v.downcast_ref::<std::io::Error>())
-            .and_then(|v| v.raw_os_error()) {
+            .and_then(|v| v.raw_os_error())
+        {
             // permission error
             if io_error == 1 {
                 return ConnectionError::PermissionError(err);
