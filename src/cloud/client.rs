@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fmt::Formatter;
 use std::fs;
 use std::io;
@@ -27,8 +28,16 @@ pub struct ErrorResponse {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("HTTP error: {0}")]
-pub struct HttpError(reqwest::Error);
+pub enum HttpError {
+    #[error("HTTP error: {0}")]
+    ReqwestError(reqwest::Error),
+
+    #[error(
+        "HTTP permission error: {0}. This is usually caused by a firewall. Try disabling \
+        your OS's firewall or any other firewalls you have installed"
+    )]
+    PermissionError(reqwest::Error),
+}
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudConfig {
@@ -278,7 +287,7 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
         &self,
         req: reqwest::RequestBuilder,
     ) -> anyhow::Result<T> {
-        let resp = req.send().await.map_err(HttpError)?;
+        let resp = req.send().await.map_err(Self::create_error)?;
         if resp.status().is_success() {
             let full = resp.text().await?;
             serde_json::from_str(&full).with_context(|| {
@@ -302,6 +311,23 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
                     }
                 })))
         }
+    }
+
+    fn create_error(err: reqwest::Error) -> HttpError {
+        if let Some(io_error) = err
+            .source()
+            .and_then(|v| v.source())
+            .and_then(|v| v.source())
+            .and_then(|v| v.downcast_ref::<io::Error>())
+            .and_then(|v| v.raw_os_error())
+        {
+            // invalid permissions
+            if io_error == 1 {
+                return HttpError::PermissionError(err);
+            }
+        }
+
+        HttpError::ReqwestError(err)
     }
 
     pub async fn get<T: serde::de::DeserializeOwned>(

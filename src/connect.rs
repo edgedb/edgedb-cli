@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::error::Error as StdError;
 use std::future::{pending, Future};
 use std::mem;
 use std::pin::Pin;
@@ -28,6 +29,17 @@ use edgedb_tokio::Config;
 
 use crate::hint::ArcError;
 use crate::portable::ver;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConnectionError {
+    #[error("Connection error: {0}")]
+    Error(Error),
+    #[error(
+        "Permission error. This is usually caused by a firewall. Try disabling \
+        your OS's firewall or any other firewalls you have installed"
+    )]
+    PermissionError(Error),
+}
 
 #[derive(Debug, Clone)]
 pub struct Connector {
@@ -200,14 +212,32 @@ impl Connector {
 }
 
 impl Connection {
-    pub async fn connect(cfg: &Config) -> Result<Connection, Error> {
+    pub async fn connect(cfg: &Config) -> Result<Connection, ConnectionError> {
         Ok(Connection {
-            inner: raw::Connection::connect(cfg).await?,
+            inner: raw::Connection::connect(cfg)
+                .await
+                .map_err(Self::map_connection_err)?,
             state: State::empty(),
             server_version: None,
             config: cfg.clone(),
         })
     }
+
+    fn map_connection_err(err: Error) -> ConnectionError {
+        if let Some(io_error) = err
+            .source()
+            .and_then(|v| v.downcast_ref::<std::io::Error>())
+            .and_then(|v| v.raw_os_error())
+        {
+            // permission error
+            if io_error == 1 {
+                return ConnectionError::PermissionError(err);
+            }
+        }
+
+        ConnectionError::Error(err)
+    }
+
     pub fn database(&self) -> &str {
         self.config.database()
     }
