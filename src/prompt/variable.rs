@@ -579,6 +579,20 @@ impl VariableInput for NamedTuple {
                             });
                         }
 
+                        for (i, (name, _)) in result.iter().enumerate() {
+                            for (name2, _) in &result[..i] {
+                                if name == name2 {
+                                    return Err(ParsingError::Mistake {
+                                        kind: None,
+                                        description: format!(
+                                            "Duplicate named tuple element: {}",
+                                            name
+                                        )
+                                    });
+                                }
+                            }
+                        }
+
                         // sort the values by the order in the shape
                         result.sort_by(|a, b| -> Ordering {
                             let apos = self
@@ -1296,6 +1310,22 @@ mod tests {
             "(aaa := 123, abc := 456)",
         );
 
+        assert_named_tuple_err(
+            vec![
+                ("abc", Arc::new(Int32) as Arc<dyn VariableInput>),
+                ("def", Arc::new(Int32) as Arc<dyn VariableInput>),
+            ],
+            "(abc := 123, abc := 456)",
+        );
+
+        assert_named_tuple_err(
+            vec![
+                ("abc", Arc::new(Int32) as Arc<dyn VariableInput>),
+                ("def", Arc::new(Int32) as Arc<dyn VariableInput>),
+            ],
+            "(abc := 123, abc := 456, def := 789)",
+        );
+
         assert_named_tuple_excess(
             vec![
                 ("abc", Arc::new(Str) as Arc<dyn VariableInput>),
@@ -1303,6 +1333,6 @@ mod tests {
             ],
             vec![Value::Str("123".to_string()), Value::Str("456".to_string())],
             "(abc := '123', def := '456')abc",
-        )
+        );
     }
 }
