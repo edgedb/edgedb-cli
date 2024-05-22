@@ -18,7 +18,7 @@ use edgedb_protocol::model;
 use edgedb_protocol::value::Value;
 use edgeql_parser::helpers::unquote_string;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case, take_while, take_while_m_n};
+use nom::bytes::complete::{tag, tag_no_case, take_while_m_n};
 use nom::character::complete::{alphanumeric1, char, digit1, i16, i32, i64, multispace0};
 use nom::combinator::{cond, cut, flat_map, map, map_res, opt, recognize, success, value};
 use nom::error::{context, ContextError, ErrorKind, FromExternalError, ParseError};
@@ -170,11 +170,6 @@ fn white_space<'a, O, E: ParseError<&'a str>, F: Parser<&'a str, O, E>>(
     f: F,
 ) -> impl Parser<&'a str, O, E> {
     delimited(multispace0, f, multispace0)
-}
-
-fn space(i: &str) -> IResult<&str, &str, ParsingError> {
-    let chars = " \t\r\n";
-    take_while(move |c| chars.contains(c))(i)
 }
 
 fn quoted_str(input: &str) -> IResult<&str, String, ParsingError> {
@@ -461,7 +456,7 @@ impl VariableInput for Array {
                         trailing_separated_list0(white_space(char(',')), |s| {
                             self.element_type.parse(s, InputFlags::FORCE_QUOTED_STRINGS)
                         }),
-                        preceded(space, char(']')),
+                        preceded(multispace0, char(']')),
                     ),
                 ),
                 Value::Array,
@@ -498,7 +493,7 @@ impl VariableInput for Tuple {
                 body,
                 tuple((
                     cond(!self.element_types.is_empty(), opt(white_space(char(',')))),
-                    space,
+                    multispace0,
                     char(')'),
                 )),
             )
@@ -566,7 +561,7 @@ impl VariableInput for NamedTuple {
                                 },
                             ),
                         ),
-                        preceded(space, char(')')),
+                        preceded(multispace0, char(')')),
                     ),
                     |mut result: Vec<(&str, Value)>| {
                         if result.len() < self.shape.elements.len() {
