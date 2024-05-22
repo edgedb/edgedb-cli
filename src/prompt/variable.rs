@@ -1022,6 +1022,18 @@ mod tests {
             Array {
                 element_type: Arc::new(Str),
             }
+            .parse("[ '', 'ABC', 'a\"b\\\'c']", InputFlags::NONE),
+            Value::Array(vec![
+                Value::Str("".to_string()),
+                Value::Str("ABC".to_string()),
+                Value::Str("a\"b\'c".to_string()),
+            ]),
+        );
+
+        assert_value(
+            Array {
+                element_type: Arc::new(Str),
+            }
             .parse("[]", InputFlags::NONE),
             Value::Array(vec![]),
         );
@@ -1091,7 +1103,18 @@ mod tests {
             Tuple {
                 element_types: vec![Arc::new(Int64), Arc::new(Str), Arc::new(Float32)],
             }
-            .parse("(12345, \"ABC123\", 12.34,)", InputFlags::NONE),
+            .parse("(12345, \"ABC123\", 12.34 , )", InputFlags::NONE),
+            Value::Tuple(vec![
+                Value::Int64(12345),
+                Value::Str("ABC123".to_string()),
+                Value::Float32(12.34f32),
+            ]),
+        );
+        assert_value(
+            Tuple {
+                element_types: vec![Arc::new(Int64), Arc::new(Str), Arc::new(Float32)],
+            }
+            .parse("( 12345 , \"ABC123\",12.34,)", InputFlags::NONE),
             Value::Tuple(vec![
                 Value::Int64(12345),
                 Value::Str("ABC123".to_string()),
@@ -1112,7 +1135,7 @@ mod tests {
                 ],
             }
             .parse(
-                "([1,5,7], ['ABC', 'de\\\'f\"g', '\\x23ABC'], \"ABC123\")",
+                "([1,5,7], ['ABC', 'de\\\'f\"g', '\\x23ABC'], \"ABC123\" )",
                 InputFlags::NONE,
             ),
             Value::Tuple(vec![
@@ -1218,7 +1241,7 @@ mod tests {
                 ("def", Arc::new(Str) as Arc<dyn VariableInput>),
             ],
             vec![Value::Str("123".to_string()), Value::Str("456".to_string())],
-            "(abc := '123', def:='456')",
+            "( abc := '123', def:='456')",
         );
 
         assert_named_tuple_value(
@@ -1236,7 +1259,7 @@ mod tests {
                 ("def", Arc::new(Str) as Arc<dyn VariableInput>),
             ],
             vec![Value::Str("123".to_string()), Value::Str("456".to_string())],
-            "(def := '456', abc := '123')",
+            "(def := '456', abc := '123' )",
         );
 
         assert_named_tuple_value(
