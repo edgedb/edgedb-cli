@@ -45,7 +45,7 @@ pub async fn main(
                 )
                 .await?;
             } else {
-                anyhow::bail!("Branch '{}' doesn't exists", options.target_branch)
+                anyhow::bail!("Branch '{}' doesn't exist", options.target_branch)
             }
         }
         current_branch
