@@ -251,3 +251,31 @@ fn hash_password() {
         .success()
         .stdout(predicates::str::starts_with("SCRAM-SHA-256$"));
 }
+
+#[test]
+fn force_database_error() {
+    SERVER
+        .admin_cmd()
+        .arg("query")
+        .arg(
+            r#"configure current database
+                set force_database_error := 
+                  '{"type": "QueryError", "message": "ongoing maintenance"}';
+            "#,
+        )
+        .assert()
+        .context("set force_database_error", "should succeed")
+        .success();
+
+    SERVER
+        .admin_cmd()
+        .arg("query")
+        .arg(
+            r#"configure current database
+                reset force_database_error;
+            "#,
+        )
+        .assert()
+        .context("reset force_database_error", "should succeed")
+        .success();
+}

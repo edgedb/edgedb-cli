@@ -157,7 +157,7 @@ fn upgrade_local_cmd(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     if pkg_ver.is_compatible(&inst_ver) && !(cmd.force && ver_option) && !cmd.force_dump_restore {
         upgrade_compatible(inst, pkg)
     } else {
-        upgrade_incompatible(inst, pkg)
+        upgrade_incompatible(inst, pkg, cmd.non_interactive)
     }
 }
 
@@ -293,8 +293,15 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::R
     Ok(())
 }
 
-pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::Result<()> {
+pub fn upgrade_incompatible(
+    mut inst: InstanceInfo,
+    pkg: PackageInfo,
+    non_interactive: bool,
+) -> anyhow::Result<()> {
     echo!("Upgrading to a major version", pkg.version.emphasize());
+
+    let old_version = inst.get_version()?.clone();
+
     let install = install::package(&pkg).context("error installing EdgeDB")?;
 
     let paths = Paths::get(&inst.name)?;
@@ -303,6 +310,41 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow:
     backup(&inst, &install, &paths)?;
 
     inst.installation = Some(install);
+
+    if old_version.specific().major <= 4 && pkg.version.specific().major >= 5 {
+        let dump_files = fs::read_dir(&paths.dump_path)?;
+
+        let mut has_edgedb_dump = false;
+        let mut has_main_dump = false;
+
+        for file in dump_files {
+            if let Ok(file) = file {
+                has_edgedb_dump |= file.file_name() == "edgedb.dump";
+                has_main_dump |= file.file_name() == "main.dump";
+            }
+        }
+
+        if has_main_dump {
+            print::warn("The database 'main' will now become the default database");
+        } else if has_edgedb_dump
+            && (non_interactive
+                || question::Confirm::new(
+                    "Would you like to rename the database 'edgedb' to 'main'?",
+                )
+                .default(true)
+                .ask()?)
+        {
+            // print info about the rename for non-prompt
+            if non_interactive {
+                eprintln!("Renaming 'edgedb' to 'main'");
+            }
+
+            fs::rename(
+                &paths.dump_path.join("edgedb.dump"),
+                &paths.dump_path.join("main.dump"),
+            )?;
+        }
+    }
 
     reinit_and_restore(&inst, &paths).map_err(|e| {
         print::error(format!("{:#}", e));
@@ -319,6 +361,7 @@ pub fn upgrade_incompatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow:
         })
         .ok();
     control::do_restart(&inst)?;
+
     echo!(
         "Instance",
         inst.name.emphasize(),

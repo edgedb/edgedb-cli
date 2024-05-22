@@ -2137,7 +2137,7 @@ fn upgrade_local(
                 upgrade::upgrade_compatible(inst, pkg)?;
             } else {
                 migrations::upgrade_check::to_version(&pkg, config)?;
-                upgrade::upgrade_incompatible(inst, pkg)?;
+                upgrade::upgrade_incompatible(inst, pkg, cmd.non_interactive)?;
             }
         }
         Ok(upgrade::UpgradeResult {

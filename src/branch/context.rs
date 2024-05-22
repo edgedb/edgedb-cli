@@ -92,10 +92,7 @@ impl Context {
 
         // if the connection branch is the default branch, query the database to see
         // what that default is
-        let branch: String = connection
-            .query_required_single("select sys::get_current_database()", &())
-            .await?;
-        Ok(branch)
+        Ok(connection.get_current_branch().await?.to_string())
     }
 
     pub fn can_update_current_branch(&self) -> bool {

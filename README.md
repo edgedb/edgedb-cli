@@ -67,6 +67,19 @@ There are a few categories of tests in this repo:
 - Github Actions & Nightly tests
 
 
+Code Quality Assurance
+======================
+
+This project uses rustfmt and clippy to provide a unified code style.
+When opening pull requests, it is advised to run the following commands
+before doing so:
+
+```bash
+$ cargo clippy --all-features --workspace --all-targets
+$ cargo fmt
+```
+
+
 License
 =======
 

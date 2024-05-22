@@ -6,7 +6,6 @@ use crate::analyze::model::{ChildName, Cost, DebugNode, Shape};
 use crate::analyze::table;
 use crate::print::Highlight;
 
-struct Opt<'a, T>(&'a Option<T>);
 struct Border;
 
 #[derive(Debug, Clone)]
@@ -215,15 +214,6 @@ fn visit_debug_tree<'x>(
 
     for (child, ch) in marker.children(&node.plans) {
         visit_debug_tree(result, explain, child, ch);
-    }
-}
-
-impl<'a, T: fmt::Display> fmt::Display for Opt<'a, T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.0 {
-            None => write!(f, "∅"),
-            Some(v) => v.fmt(f),
-        }
     }
 }
 
