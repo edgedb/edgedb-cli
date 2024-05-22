@@ -444,10 +444,7 @@ pub struct Array {
 
 impl VariableInput for Array {
     fn type_name(&self) -> String {
-        format!(
-            "array<{}>",
-            self.element_type.type_name()
-        )
+        format!("array<{}>", self.element_type.type_name())
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
@@ -522,13 +519,10 @@ impl VariableInput for NamedTuple {
     fn type_name(&self) -> String {
         format!(
             "tuple<{}>",
-            self.shape.elements
+            self.shape
+                .elements
                 .iter()
-                .map(|e| format!(
-                    "{}: {}",
-                    e.name,
-                    self.element_types[&e.name].type_name(),
-                ))
+                .map(|e| format!("{}: {}", e.name, self.element_types[&e.name].type_name(),))
                 .collect::<Vec<String>>()
                 .join(", ")
         )
@@ -608,7 +602,7 @@ impl VariableInput for NamedTuple {
                                         description: format!(
                                             "Duplicate named tuple element: {}",
                                             name
-                                        )
+                                        ),
                                     });
                                 }
                             }
@@ -1359,23 +1353,24 @@ mod tests {
 
     #[test]
     fn test_type_name() {
-        let (_, parser) = create_named_tuple_parser(
-            vec![
-                ("abc", Arc::new(Str)),
-                (
-                    "def",
-                    Arc::new(Array {
-                        element_type: Arc::new(Int64),
-                    }),
-                ),
-                ("ghi", Arc::new(
-                    Tuple {
-                        element_types: vec![Arc::new(Int64), Arc::new(Str), Arc::new(Float32)],
-                    }
-                )),
-            ],
+        let (_, parser) = create_named_tuple_parser(vec![
+            ("abc", Arc::new(Str)),
+            (
+                "def",
+                Arc::new(Array {
+                    element_type: Arc::new(Int64),
+                }),
+            ),
+            (
+                "ghi",
+                Arc::new(Tuple {
+                    element_types: vec![Arc::new(Int64), Arc::new(Str), Arc::new(Float32)],
+                }),
+            ),
+        ]);
+        assert_eq!(
+            parser.type_name(),
+            "tuple<abc: str, def: array<int64>, ghi: tuple<int64, str, float32>>"
         );
-        assert_eq!(parser.type_name(), "tuple<abc: str, def: array<int64>, ghi: tuple<int64, str, float32>>");
     }
-
 }
