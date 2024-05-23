@@ -124,6 +124,7 @@ impl Context {
                 let stash_path =
                     project::stash_path(&fs::canonicalize(self.project_dir.as_ref().unwrap())?)?;
 
+                // ensure that the temp file is created in the same directory as the 'database' file
                 let tmp = tmp_file_name(&stash_path);
                 fs::write(&tmp, branch)?;
                 fs::rename(&tmp, &stash_path.join("database"))?;
