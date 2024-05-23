@@ -19,34 +19,29 @@
   };
 
   outputs = inputs@{ flake-parts, fenix, edgedb, ... }:
-    flake-parts.lib.mkFlake {inherit inputs;} {
-      systems = ["x86_64-linux" "x86_64-darwin" "aarch64-darwin"];
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       perSystem = { config, system, pkgs, ... }:
         let
           fenix_pkgs = fenix.packages.${system};
 
-          rustToolchain = (fenix_pkgs.complete.withComponents [
-            "cargo"
-            "clippy"
-            "rust-src"
-            "rustc"
-            "rustfmt"
-            "rust-analyzer"
-          ]);
+          common = [
+            # needed for running tests
+            # edgedb.packages.${system}.edgedb-server
+            edgedb.packages.${system}.edgedb-server-5_0_beta
+          ] ++ pkgs.lib.optional pkgs.stdenv.isDarwin [
+            pkgs.libiconv
+            pkgs.darwin.apple_sdk.frameworks.CoreServices
+            pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+          ];
 
-        in {            
+        in {
           devShells.default = pkgs.mkShell {
-            buildInputs = [
-              rustToolchain
-
-              # needed for running tests
-              # edgedb.packages.${system}.edgedb-server
-              edgedb.packages.${system}.edgedb-server-5_0_beta
-            ]
-            ++ pkgs.lib.optional pkgs.stdenv.isDarwin [
-              pkgs.libiconv
-              pkgs.darwin.apple_sdk.frameworks.CoreServices
-              pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+            buildInputs = common ++ [
+              (fenix_pkgs.fromToolchainFile {
+                file = ./rust-toolchain.toml;
+                sha256 = "sha256-opUgs6ckUQCyDxcB9Wy51pqhd0MPGHUVbwRKKPGiwZU=";
+              })
             ];
           };
         };

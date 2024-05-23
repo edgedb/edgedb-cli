@@ -1106,7 +1106,6 @@ dependencies = [
  "serde_str",
  "sha1",
  "sha2",
- "shared-client-tests",
  "shell-escape",
  "shutdown_hooks",
  "signal-hook",
