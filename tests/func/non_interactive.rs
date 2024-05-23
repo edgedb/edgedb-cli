@@ -256,10 +256,20 @@ fn hash_password() {
 fn force_database_error() {
     SERVER
         .admin_cmd()
+        .arg("database")
+        .arg("create")
+        .arg("error_test2")
+        .assert()
+        .context("create", "create new database")
+        .success();
+
+    SERVER
+        .admin_cmd()
         .arg("query")
+        .arg("--database=error_test2")
         .arg(
             r#"configure current database
-                set force_database_error := 
+                set force_database_error :=
                   '{"type": "QueryError", "message": "ongoing maintenance"}';
             "#,
         )
@@ -270,6 +280,7 @@ fn force_database_error() {
     SERVER
         .admin_cmd()
         .arg("query")
+        .arg("--database=error_test2")
         .arg(
             r#"configure current database
                 reset force_database_error;
