@@ -121,13 +121,12 @@ impl Context {
                 name: _name,
             } if self.project_dir.is_some() => {
                 // only place to store the branch is the database file in the project
-                let path =
-                    project::stash_path(&fs::canonicalize(self.project_dir.as_ref().unwrap())?)?
-                        .join("database");
+                let stash_path =
+                    project::stash_path(&fs::canonicalize(self.project_dir.as_ref().unwrap())?)?;
 
-                let tmp = tmp_file_name(&path);
+                let tmp = tmp_file_name(&stash_path);
                 fs::write(&tmp, branch)?;
-                fs::rename(&tmp, &path)?;
+                fs::rename(&tmp, &stash_path.join("database"))?;
 
                 Ok(())
             }
