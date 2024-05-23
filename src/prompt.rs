@@ -13,7 +13,7 @@ use rustyline::highlight::{Highlighter, PromptInfo};
 use rustyline::hint::Hinter;
 use rustyline::history::History;
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
-use rustyline::{error::ReadlineError, Cmd, KeyEvent, Modifiers};
+use rustyline::{self, error::ReadlineError, Cmd, KeyEvent, Modifiers};
 use rustyline::{Config, Context, Editor, Helper};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
@@ -24,7 +24,7 @@ use crate::highlight;
 use crate::platform::editor_path;
 use crate::print::style::Styler;
 use crate::print::Highlight;
-use crate::prompt::variable::VariableInput;
+use crate::prompt::variable::{InputFlags, VariableInput};
 use crate::repl::{FAILURE_MARKER, TX_MARKER};
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser::full_statement;
@@ -361,8 +361,19 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                         }
                         Err(e) => Err(e)?,
                     };
-                    match var_type.parse(&text) {
-                        Ok(value) => break (text, value),
+                    match var_type.parse(&text, InputFlags::NONE) {
+                        Ok(parse_result) => {
+                            if !parse_result.0.is_empty() {
+                                // remaining input
+                                println!(
+                                    "Bad value: remaining text '{}' is unparsed",
+                                    parse_result.0
+                                );
+                                initial = text;
+                            } else {
+                                break (text.to_owned(), parse_result.1);
+                            }
+                        }
                         Err(e) => {
                             println!("Bad value: {}", e);
                             initial = text;

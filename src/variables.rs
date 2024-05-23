@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
@@ -61,17 +62,15 @@ pub async fn input_variables(
     }
 }
 
-async fn input_item(
-    name: &str,
-    mut item: &Descriptor,
-    all: &Typedesc,
-    state: &mut repl::PromptRpc,
-    optional: bool,
-) -> Result<Option<Value>, anyhow::Error> {
-    if let Descriptor::Scalar(s) = item {
-        item = all.get(s.base_type_pos)?;
+fn get_descriptor_type<'a>(
+    mut desc: &'a Descriptor,
+    all: &'a Typedesc,
+) -> Result<Arc<dyn VariableInput>, anyhow::Error> {
+    if let Descriptor::Scalar(s) = desc {
+        desc = all.get(s.base_type_pos)?;
     }
-    match item {
+
+    match desc {
         Descriptor::BaseScalar(s) => {
             let var_type: Arc<dyn VariableInput> = match *s.id {
                 codec::STD_STR => Arc::new(variable::Str),
@@ -88,18 +87,62 @@ async fn input_item(
                 _ => return Err(anyhow::anyhow!("Unimplemented input type {}", *s.id)),
             };
 
-            let val = match state.variable_input(name, var_type, optional, "").await? {
-                prompt::VarInput::Value(val) => Some(val),
-                prompt::VarInput::Interrupt => Err(Canceled)?,
-                prompt::VarInput::Eof => None,
-            };
-            Ok(val)
+            Ok(var_type)
+        }
+        Descriptor::Array(arr) => {
+            let element_type = get_descriptor_type(all.get(arr.type_pos)?, all)?;
+            Ok(Arc::new(variable::Array { element_type }))
+        }
+        Descriptor::Tuple(tuple) => {
+            let elements: Result<Vec<Arc<dyn VariableInput>>, _> = tuple
+                .element_types
+                .iter()
+                .map(|v| get_descriptor_type(all.get(*v)?, all))
+                .collect();
+
+            match elements {
+                Ok(element_types) => Ok(Arc::new(variable::Tuple { element_types })),
+                Err(e) => Err(e),
+            }
+        }
+        Descriptor::NamedTuple(named_tuple) => {
+            let mut elements = HashMap::new();
+
+            for element in &named_tuple.elements {
+                elements.insert(
+                    element.name.clone(),
+                    get_descriptor_type(all.get(element.type_pos)?, all)?,
+                );
+            }
+
+            Ok(Arc::new(variable::NamedTuple {
+                element_types: elements,
+                shape: named_tuple.elements[..].into(),
+            }))
         }
         _ => Err(anyhow::anyhow!(
             "Unimplemented input type descriptor: {:?}",
-            item
+            desc
         )),
     }
+}
+
+async fn input_item(
+    name: &str,
+    item: &Descriptor,
+    all: &Typedesc,
+    state: &mut repl::PromptRpc,
+    optional: bool,
+) -> Result<Option<Value>, anyhow::Error> {
+    let var_type = get_descriptor_type(item, all)?;
+
+    let val = match state.variable_input(name, var_type, optional, "").await? {
+        prompt::VarInput::Value(val) => Some(val),
+        prompt::VarInput::Interrupt => Err(Canceled)?,
+        prompt::VarInput::Eof => None,
+    };
+
+    Ok(val)
 }
 
 impl Error for Canceled {}
