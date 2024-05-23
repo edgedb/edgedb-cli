@@ -174,6 +174,7 @@ async fn open_url(url: &str) -> Result<reqwest::Response, reqwest::Error> {
     reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .danger_accept_invalid_hostnames(true)
+        .no_proxy()
         .build()?
         .get(url)
         .header(reqwest::header::USER_AGENT, USER_AGENT)
