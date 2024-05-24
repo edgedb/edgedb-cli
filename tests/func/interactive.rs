@@ -88,10 +88,20 @@ limit = 3
 fn force_database_error() {
     SERVER
         .admin_cmd()
+        .arg("database")
+        .arg("create")
+        .arg("error_test")
+        .assert()
+        .context("create", "create new database")
+        .success();
+
+    SERVER
+        .admin_cmd()
         .arg("query")
+        .arg("--database=error_test")
         .arg(
             r#"configure current database
-                set force_database_error := 
+                set force_database_error :=
                   '{"type": "QueryError", "message": "ongoing maintenance"}';
             "#,
         )
@@ -99,10 +109,11 @@ fn force_database_error() {
         .context("set force_database_error", "should succeed")
         .success();
 
-    let mut cmd = SERVER.admin_interactive();
-    let main = SERVER.default_branch();
-    cmd.exp_string(&format!("{main}>")).unwrap();
+    let mut cmd = SERVER.custom_interactive(|cmd| {
+        cmd.arg("--database=error_test");
+    });
+    cmd.exp_string(&format!("error_test>")).unwrap();
     cmd.send_line("configure current database reset force_database_error;")
         .unwrap();
-    cmd.exp_string(&format!("{main}>")).unwrap();
+    cmd.exp_string(&format!("error_test>")).unwrap();
 }
