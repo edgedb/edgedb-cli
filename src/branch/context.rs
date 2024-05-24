@@ -3,7 +3,7 @@ use edgedb_tokio::get_project_dir;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::credentials;
-use crate::platform::{tmp_file_path};
+use crate::platform::tmp_file_path;
 use crate::portable::config::Config;
 use crate::portable::options::InstanceName;
 use crate::portable::project;
