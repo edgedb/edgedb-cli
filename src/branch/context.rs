@@ -3,7 +3,7 @@ use edgedb_tokio::get_project_dir;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::credentials;
-use crate::platform::tmp_file_name;
+use crate::platform::{tmp_file_name, tmp_file_path};
 use crate::portable::config::Config;
 use crate::portable::options::InstanceName;
 use crate::portable::project;
@@ -122,12 +122,13 @@ impl Context {
             } if self.project_dir.is_some() => {
                 // only place to store the branch is the database file in the project
                 let stash_path =
-                    project::stash_path(&fs::canonicalize(self.project_dir.as_ref().unwrap())?)?;
+                    project::stash_path(&fs::canonicalize(self.project_dir.as_ref().unwrap())?)?
+                        .join("database");
 
                 // ensure that the temp file is created in the same directory as the 'database' file
-                let tmp = tmp_file_name(&stash_path);
+                let tmp = tmp_file_path(&stash_path);
                 fs::write(&tmp, branch)?;
-                fs::rename(&tmp, &stash_path.join("database"))?;
+                fs::rename(&tmp, &stash_path)?;
 
                 Ok(())
             }
