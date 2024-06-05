@@ -55,14 +55,14 @@ fn write_cache(dir: &Path, data: &Cache) -> anyhow::Result<()> {
 
 fn newer_warning(ver: &ver::Semver) {
     if cli::upgrade::can_upgrade() {
-        log::warn!(
+        eprintln!(
             "Newer version of edgedb tool exists {} (current {}). \
                 To upgrade run `edgedb cli upgrade`",
             ver,
             env!("CARGO_PKG_VERSION")
         );
     } else {
-        log::warn!(
+        eprintln!(
             "Newer version of edgedb tool exists {} (current {})",
             ver,
             env!("CARGO_PKG_VERSION")
