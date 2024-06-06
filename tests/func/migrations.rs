@@ -1,4 +1,4 @@
-use crate::SERVER;
+use crate::{rm_migration_files, SERVER};
 use predicates::boolean::PredicateBooleanExt;
 use predicates::str::{contains, ends_with};
 use std::fs;
@@ -717,6 +717,77 @@ fn modified1() {
             "\
             m1fw3q62du3fmdbeuikq3tc4fsfhs3phafnjhoh3jzedk3sfgx3lha\n\
         ",
+        );
+}
+
+#[test]
+fn extract01() {
+    SERVER
+        .admin_cmd()
+        .arg("branch")
+        .arg("create")
+        .arg("extract01")
+        .arg("--empty")
+        .assert()
+        .success();
+    SERVER
+        .admin_cmd()
+        .arg("--branch=extract01")
+        .arg("query")
+        .arg(
+            r#"
+            start migration to { module default { type X; } };
+            populate migration;
+            commit migration;
+            "#,
+        )
+        .assert()
+        .success();
+
+    // no migrations dir, needs to create
+    fs::remove_dir_all("tests/migrations/db1/extract01/migrations").ok();
+    SERVER
+        .admin_cmd()
+        .arg("--branch=extract01")
+        .arg("migration")
+        .arg("extract")
+        .arg("--schema-dir=tests/migrations/db1/extract01")
+        .assert()
+        .success()
+        .stderr(contains("Creating directory").and(contains("Writing")));
+
+    // base case
+    rm_migration_files("tests/migrations/db1/extract01", &[1]);
+    SERVER
+        .admin_cmd()
+        .arg("--branch=extract01")
+        .arg("migration")
+        .arg("extract")
+        .arg("--schema-dir=tests/migrations/db1/extract01")
+        .assert()
+        .success()
+        .stderr(contains("Writing"));
+
+    // test error printing
+    rm_migration_files("tests/migrations/db1/extract01", &[1]);
+    let mut perm = fs::metadata("tests/migrations/db1/extract01/migrations")
+        .unwrap()
+        .permissions();
+    perm.set_readonly(true);
+    fs::set_permissions("tests/migrations/db1/extract01/migrations", perm).unwrap();
+    SERVER
+        .admin_cmd()
+        .arg("--branch=extract01")
+        .arg("migration")
+        .arg("extract")
+        .arg("--schema-dir=tests/migrations/db1/extract01")
+        .assert()
+        .failure()
+        .stderr(
+            contains("Writing")
+                .and(contains("edgedb error: Cannot write"))
+                .and(contains("\n  Caused by: failed to copy file from"))
+                .and(contains("\n  Caused by: Permission denied")),
         );
 }
 
