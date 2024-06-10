@@ -317,11 +317,9 @@ pub fn upgrade_incompatible(
         let mut has_edgedb_dump = false;
         let mut has_main_dump = false;
 
-        for file in dump_files {
-            if let Ok(file) = file {
-                has_edgedb_dump |= file.file_name() == "edgedb.dump";
-                has_main_dump |= file.file_name() == "main.dump";
-            }
+        for file in dump_files.flatten() {
+            has_edgedb_dump |= file.file_name() == "edgedb.dump";
+            has_main_dump |= file.file_name() == "main.dump";
         }
 
         if has_main_dump {
@@ -340,8 +338,8 @@ pub fn upgrade_incompatible(
             }
 
             fs::rename(
-                &paths.dump_path.join("edgedb.dump"),
-                &paths.dump_path.join("main.dump"),
+                paths.dump_path.join("edgedb.dump"),
+                paths.dump_path.join("main.dump"),
             )?;
         }
     }

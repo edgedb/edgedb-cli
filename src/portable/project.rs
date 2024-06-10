@@ -469,7 +469,7 @@ fn link(
             inst.database = Some(ask_database(project_dir, options)?);
         }
     } else {
-        inst.database = options.database.clone();
+        inst.database.clone_from(&options.database);
     }
     inst.check_version(&ver_query);
     do_link(&inst, options, &stash_dir)
@@ -652,7 +652,7 @@ pub fn init_existing(
                 )?);
             }
         } else {
-            inst.database = options.database.clone();
+            inst.database.clone_from(&options.database);
         }
         return do_link(&inst, options, &stash_dir);
     }
@@ -983,7 +983,7 @@ pub fn init_new(
                 )?);
             }
         } else {
-            inst.database = options.database.clone();
+            inst.database.clone_from(&options.database);
         }
         return do_link(&inst, options, &stash_dir);
     };

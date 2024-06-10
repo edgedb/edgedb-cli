@@ -11,12 +11,9 @@ use edgeql_parser::preparser::full_statement;
 #[derive(Debug)]
 pub struct EndOfFile;
 
-pub async fn read_statement<T: AsyncRead>(
-    buf: &mut BytesMut,
-    stream: &mut T,
-) -> anyhow::Result<Bytes>
+pub async fn read_statement<T>(buf: &mut BytesMut, stream: &mut T) -> anyhow::Result<Bytes>
 where
-    T: Unpin,
+    T: Unpin + AsyncRead,
 {
     let mut continuation = None;
     let statement_len = loop {

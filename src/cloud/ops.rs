@@ -52,7 +52,7 @@ impl CloudInstance {
             .await?;
         let mut creds = config.as_credentials()?;
         // TODO(tailhook) can this be emitted from as_credentials()?
-        creds.tls_ca = self.tls_ca.clone();
+        creds.tls_ca.clone_from(&self.tls_ca);
         Ok(creds)
     }
 }
