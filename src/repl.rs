@@ -135,6 +135,7 @@ impl State {
         if let Some(conn) = &mut self.connection {
             if cur_state_desc == self.edgeql_state_desc {
                 conn.set_state(cur_state);
+                self.read_state();
             } else {
                 eprintln!("Discarding session configuration because server configuration layout has changed.");
             }
