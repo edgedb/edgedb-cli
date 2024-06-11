@@ -541,7 +541,7 @@ impl InteractiveMigration<'_> {
             let descr =
                 query_row::<CurrentMigration>(self.cli, "DESCRIBE CURRENT MIGRATION AS JSON")
                     .await?;
-            self.confirmed = descr.confirmed.clone();
+            self.confirmed.clone_from(&descr.confirmed);
             if descr.complete {
                 return Ok(descr);
             }

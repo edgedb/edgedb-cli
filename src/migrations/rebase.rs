@@ -231,7 +231,7 @@ where
             migration_text = migration_file
                 .data
                 .replace_parent_id(&migration_text, new_parent_id);
-            migration_file.data.parent_id = new_parent_id.clone(); // change for hash computation below
+            migration_file.data.parent_id.clone_from(new_parent_id); // change for hash computation below
         }
 
         let expected_id = migration_file.data.expected_id(&migration_text)?;
@@ -240,7 +240,7 @@ where
             migration_text = migration_file
                 .data
                 .replace_id(&migration_text, &expected_id);
-            migration_file.data.id = expected_id.clone();
+            migration_file.data.id.clone_from(&expected_id);
             changed_ids.insert(id, expected_id);
         }
 

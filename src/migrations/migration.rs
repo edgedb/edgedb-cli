@@ -206,7 +206,7 @@ fn sort_revisions(
                 );
             }
             counter += 1;
-            parent_id = item.data.id.clone();
+            parent_id.clone_from(&item.data.id);
             res.insert(item.data.id.clone(), item);
         } else {
             let next = all
