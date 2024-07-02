@@ -3,6 +3,7 @@ use std::path::Path;
 
 use anyhow::Context as _;
 use colorful::Colorful;
+use edgedb_protocol::common::{Capabilities, Cardinality, CompilationOptions, IoFormat};
 use indexmap::IndexMap;
 use indicatif::ProgressBar;
 use tokio::fs;
@@ -11,7 +12,7 @@ use crate::async_try;
 use crate::bug;
 use crate::commands::ExitCode;
 use crate::commands::Options;
-use crate::connect::Connection;
+use crate::connect::{Connection, ResponseStream};
 use crate::error_display::print_query_error;
 use crate::hint::HintExt;
 use crate::migrations::context::Context;
@@ -472,7 +473,7 @@ pub async fn apply_migrations(
                 execute(cli, "START TRANSACTION").await?;
                 async_try! {
                     async {
-                        apply_migrations_inner(cli, migrations, ctx.quiet).await
+                        apply_migrations_inner(cli, migrations, !ctx.quiet).await
                     },
                     except async {
                         execute_if_connected(cli, "ROLLBACK").await
@@ -482,7 +483,7 @@ pub async fn apply_migrations(
                     }
                 }
             } else {
-                apply_migrations_inner(cli, migrations, ctx.quiet).await
+                apply_migrations_inner(cli, migrations, !ctx.quiet).await
             }
         },
         finally async {
@@ -494,53 +495,92 @@ pub async fn apply_migrations(
 pub async fn apply_migration(
     cli: &mut Connection,
     migration: &MigrationFile,
+    verbose: bool,
 ) -> anyhow::Result<()> {
+    if verbose {
+        let file_name = migration.path.file_name().unwrap();
+        if print::use_color() {
+            eprintln!(
+                "Applying {} ({})",
+                migration.data.id[..].bold().white(),
+                Path::new(file_name).display(),
+            );
+        } else {
+            eprintln!(
+                "Applying {} ({})",
+                migration.data.id,
+                Path::new(file_name).display(),
+            );
+        }
+    }
+
     let data = fs::read_to_string(&migration.path)
         .await
         .context("error re-reading migration file")?;
-    cli.execute(&data, &()).await.map_err(|err| {
+
+    let res = execute_with_parse_callback(cli, &data, || {
+        if verbose {
+            eprintln!("... parsed");
+        }
+    })
+    .await;
+
+    res.map_err(|err| {
         let fname = migration.path.display().to_string();
         match print_query_error(&err, &data, false, &fname) {
             Ok(()) => ApplyMigrationError.into(),
             Err(err) => err,
         }
     })?;
+
+    if verbose {
+        if print::use_color() {
+            eprintln!("... {}", "applied".bold().green());
+        } else {
+            eprintln!("... applied");
+        }
+    }
+    Ok(())
+}
+
+async fn execute_with_parse_callback(
+    cli: &mut Connection,
+    query: &str,
+    after_parse: impl FnOnce() -> (),
+) -> Result<(), edgedb_errors::Error> {
+    let opts = CompilationOptions {
+        implicit_limit: None,
+        implicit_typenames: false,
+        implicit_typeids: false,
+        explicit_objectids: true,
+        allow_capabilities: Capabilities::ALL,
+        io_format: IoFormat::Binary,
+        expected_cardinality: Cardinality::Many,
+    };
+
+    let command = cli.parse(&opts, query).await?;
+    after_parse();
+    let stream: ResponseStream<bool> = cli.execute_stream(&opts, query, &command, &()).await?;
+    stream.complete().await?;
     Ok(())
 }
 
 pub async fn apply_migrations_inner(
     cli: &mut Connection,
     migrations: &(impl AsOperations + ?Sized),
-    quiet: bool,
+    verbose: bool,
 ) -> anyhow::Result<()> {
     for operation in migrations.as_operations() {
         match operation {
             Operation::Apply(migration) => {
-                apply_migration(cli, migration).await?;
-                if !quiet {
-                    let file_name = migration.path.file_name().unwrap();
-                    if print::use_color() {
-                        eprintln!(
-                            "{} {} ({})",
-                            "Applied".bold().light_green(),
-                            migration.data.id[..].bold().white(),
-                            Path::new(file_name).display(),
-                        );
-                    } else {
-                        eprintln!(
-                            "Applied {} ({})",
-                            migration.data.id,
-                            Path::new(file_name).display(),
-                        );
-                    }
-                }
+                apply_migration(cli, migration, verbose).await?;
             }
             Operation::Rewrite(migrations) => {
                 execute(cli, "START MIGRATION REWRITE").await?;
                 async_try! {
                     async {
                         for migration in migrations.values() {
-                            apply_migration(cli, migration).await?;
+                            apply_migration(cli, migration, false).await?;
                         }
                         anyhow::Ok(())
                     },
