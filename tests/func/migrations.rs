@@ -1,4 +1,5 @@
 use crate::SERVER;
+use predicates::boolean::PredicateBooleanExt;
 use predicates::str::{contains, ends_with};
 use std::fs;
 use std::path::Path;
@@ -78,7 +79,7 @@ fn initial() {
         .assert()
         .success()
         .stderr(contains(
-            "Applied \
+            "Applying \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
             (00001-m12bulr.edgeql)\n",
         ));
@@ -155,8 +156,8 @@ fn initial() {
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert()
         .success()
-        .stderr(ends_with(
-            "Applied \
+        .stderr(contains(
+            "Applying \
             m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
             (00002-m1e5vq3.edgeql)\n",
         ));
@@ -178,8 +179,8 @@ fn initial() {
         .arg("--schema-dir=tests/migrations/db1/initial")
         .assert()
         .success()
-        .stderr(ends_with(
-            "Applied \
+        .stderr(contains(
+            "Applying \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
             (00003-m1wrvvw.edgeql)\n",
         ));
@@ -200,14 +201,18 @@ fn initial() {
         .arg("--to-revision=m1e5vq3h4oizlsp4a3zge5bqh")
         .assert()
         .success()
-        .stderr(contains(
-            "Applied \
+        .stderr(
+            contains(
+                "Applying \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001-m12bulr.edgeql)\n\
-            Applied \
+            (00001-m12bulr.edgeql)\n",
+            )
+            .and(contains(
+                "Applying \
             m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
             (00002-m1e5vq3.edgeql)\n",
-        ));
+            )),
+        );
 
     SERVER
         .admin_cmd()
@@ -245,8 +250,8 @@ fn initial() {
         .arg("--to-revision=m1wrvvw3lycy")
         .assert()
         .success()
-        .stderr(ends_with(
-            "Applied \
+        .stderr(contains(
+            "Applying \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
             (00003-m1wrvvw.edgeql)\n",
         ));
@@ -306,7 +311,7 @@ fn project() {
         .assert()
         .success()
         .stderr(contains(
-            "Applied \
+            "Applying \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
             (00001-m12bulr.edgeql)\n",
         ));
@@ -372,8 +377,8 @@ fn project() {
         .current_dir("tests/migrations/db1/project")
         .assert()
         .success()
-        .stderr(ends_with(
-            "Applied \
+        .stderr(contains(
+            "Applying \
             m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
             (00002-m1e5vq3.edgeql)\n",
         ));
@@ -395,8 +400,8 @@ fn project() {
         .current_dir("tests/migrations/db1/project")
         .assert()
         .success()
-        .stderr(ends_with(
-            "Applied \
+        .stderr(contains(
+            "Applying \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
             (00003-m1wrvvw.edgeql)\n",
         ));
@@ -417,14 +422,18 @@ fn project() {
         .arg("--to-revision=m1e5vq3h4oizlsp4a3zge5bqh")
         .assert()
         .success()
-        .stderr(contains(
-            "Applied \
+        .stderr(
+            contains(
+                "Applying \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
-            (00001-m12bulr.edgeql)\n\
-            Applied \
+            (00001-m12bulr.edgeql)\n",
+            )
+            .and(contains(
+                "Applying \
             m1e5vq3h4oizlsp4a3zge5bqhu7yeoorc27k3yo2aaenfqgfars6uq \
             (00002-m1e5vq3.edgeql)\n",
-        ));
+            )),
+        );
 
     SERVER
         .admin_cmd()
@@ -462,8 +471,8 @@ fn project() {
         .arg("--to-revision=m1wrvvw3lycy")
         .assert()
         .success()
-        .stderr(ends_with(
-            "Applied \
+        .stderr(contains(
+            "Applying \
             m1wrvvw3lycyovtlx4szqm75554g75h5nnbjq3a5qsdncn3oef6nia \
             (00003-m1wrvvw.edgeql)\n",
         ));
@@ -515,7 +524,7 @@ fn modified1() {
         .assert()
         .success()
         .stderr(contains(
-            "Applied \
+            "Applying \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
             (00001-m12bulr.edgeql)\n",
         ));
@@ -572,8 +581,8 @@ fn modified1() {
         .arg("--schema-dir=tests/migrations/db1/modified1")
         .assert()
         .success()
-        .stderr(ends_with(
-            "Applied \
+        .stderr(contains(
+            "Applying \
             m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a \
             (00002-m13wjyi.edgeql)\n",
         ));
@@ -678,7 +687,7 @@ fn modified1() {
         .arg("--schema-dir=tests/migrations/db1/squash")
         .assert()
         .success()
-        .stderr(ends_with(
+        .stderr(contains(
             "m1fw3q62du3fmdbeuikq3tc4fsfhs3phafnjhoh3jzedk3sfgx3lha\
             .edgeql)\n",
         ));
@@ -771,7 +780,7 @@ fn modified2_interactive() {
         .assert()
         .success()
         .stderr(contains(
-            "Applied \
+            "Applying \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
             (00001-m12bulr.edgeql)\n",
         ));
@@ -797,8 +806,8 @@ fn modified2_interactive() {
         .arg("--schema-dir=tests/migrations/db1/modified2")
         .assert()
         .success()
-        .stderr(ends_with(
-            "Applied \
+        .stderr(contains(
+            "Applying \
             m13wjyiog2dbum2ou32yp77eysbewews7vlv6rqqfswpyi2yd4s55a \
             (00002-m13wjyi.edgeql)\n",
         ));
@@ -844,7 +853,7 @@ fn modified3_interactive() {
         .assert()
         .success()
         .stderr(contains(
-            "Applied \
+            "Applying \
             m12bulrbounwj3oj5xsspa7gj676azrog6ndi45iyuwrwzvawkxraa \
             (00001-m12bulr.edgeql)\n",
         ));
@@ -921,7 +930,7 @@ fn prompt_id() {
         .assert()
         .success()
         .stderr(contains(
-            "Applied \
+            "Applying \
             m1fvz72asuad3xkor4unxshp524wp6stgdnbd34vxvjfjkrzemonkq \
             (00001-m1fvz72.edgeql)\n",
         ));
@@ -959,7 +968,7 @@ fn input_required() {
         .assert()
         .success()
         .stderr(contains(
-            "Applied \
+            "Applying \
             m1d6kfhjnqmrw4lleqvx6fibf5hpmndpw2tn2f6o4wm6fjyf55dhcq \
             (00001-m1d6kfh.edgeql)\n",
         ));

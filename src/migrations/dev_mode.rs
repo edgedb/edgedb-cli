@@ -220,7 +220,7 @@ pub async fn rebase_to_schema(
     execute(cli, "START MIGRATION REWRITE").await?;
 
     let res = async {
-        apply_migrations_inner(cli, migrations, true).await?;
+        apply_migrations_inner(cli, migrations, false).await?;
         migrate_to_schema(cli, ctx).await?;
         Ok(())
     }
@@ -251,7 +251,7 @@ async fn create_in_rewrite(
     migrations: &IndexMap<String, MigrationFile>,
     create: &CreateMigration,
 ) -> anyhow::Result<FutureMigration> {
-    apply_migrations_inner(cli, migrations, true).await?;
+    apply_migrations_inner(cli, migrations, false).await?;
     if migrations.is_empty() {
         first_migration(cli, ctx, create).await
     } else {
