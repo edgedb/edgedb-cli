@@ -145,7 +145,7 @@ bitflags::bitflags! {
 }
 
 pub trait VariableInput: fmt::Debug + Send + Sync + 'static {
-    fn type_name(&self) -> String;
+    fn type_name(&self) -> Cow<'_, str>;
     fn parse<'a>(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a>;
 }
 
@@ -233,8 +233,8 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
 pub struct Str;
 
 impl VariableInput for Str {
-    fn type_name(&self) -> String {
-        "str".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "str".into()
     }
     fn parse<'a>(&self, input: &'a str, flags: InputFlags) -> ParseResult<'a> {
         if flags.contains(InputFlags::FORCE_QUOTED_STRINGS) {
@@ -249,8 +249,8 @@ impl VariableInput for Str {
 pub struct Uuid;
 
 impl VariableInput for Uuid {
-    fn type_name(&self) -> String {
-        "uuid".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "uuid".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
@@ -270,8 +270,8 @@ impl VariableInput for Uuid {
 pub struct Int16;
 
 impl VariableInput for Int16 {
-    fn type_name(&self) -> String {
-        "int16".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "int16".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context("int16", map(i16, Value::Int16))(input)
@@ -282,8 +282,8 @@ impl VariableInput for Int16 {
 pub struct Int32;
 
 impl VariableInput for Int32 {
-    fn type_name(&self) -> String {
-        "int32".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "int32".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context("int32", map(i32, Value::Int32))(input)
@@ -294,8 +294,8 @@ impl VariableInput for Int32 {
 pub struct Int64;
 
 impl VariableInput for Int64 {
-    fn type_name(&self) -> String {
-        "int64".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "int64".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context("int64", map(i64, Value::Int64))(input)
@@ -306,8 +306,8 @@ impl VariableInput for Int64 {
 pub struct Float32;
 
 impl VariableInput for Float32 {
-    fn type_name(&self) -> String {
-        "float32".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "float32".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context("float32", map(float, Value::Float32))(input)
@@ -318,8 +318,8 @@ impl VariableInput for Float32 {
 pub struct Float64;
 
 impl VariableInput for Float64 {
-    fn type_name(&self) -> String {
-        "float64".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "float64".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context("float64", map(double, Value::Float64))(input)
@@ -330,8 +330,8 @@ impl VariableInput for Float64 {
 pub struct Bool;
 
 impl VariableInput for Bool {
-    fn type_name(&self) -> String {
-        "bool".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "bool".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
@@ -348,8 +348,8 @@ impl VariableInput for Bool {
 pub struct BigInt;
 
 impl VariableInput for BigInt {
-    fn type_name(&self) -> String {
-        "bigint".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "bigint".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
@@ -379,8 +379,8 @@ impl VariableInput for BigInt {
 pub struct Decimal;
 
 impl VariableInput for Decimal {
-    fn type_name(&self) -> String {
-        "decimal".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "decimal".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
@@ -402,8 +402,8 @@ impl VariableInput for Decimal {
 pub struct Json;
 
 impl VariableInput for Json {
-    fn type_name(&self) -> String {
-        "json".to_string()
+    fn type_name(&self) -> Cow<'_, str> {
+        "json".into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context("json", |s: &'a str| {
@@ -443,8 +443,8 @@ pub struct Array {
 }
 
 impl VariableInput for Array {
-    fn type_name(&self) -> String {
-        format!("array<{}>", self.element_type.type_name())
+    fn type_name(&self) -> Cow<'_, str> {
+        format!("array<{}>", self.element_type.type_name()).into()
     }
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
         context(
@@ -471,15 +471,16 @@ pub struct Tuple {
 }
 
 impl VariableInput for Tuple {
-    fn type_name(&self) -> String {
+    fn type_name(&self) -> Cow<'_, str> {
         format!(
             "tuple<{}>",
             self.element_types
                 .iter()
                 .map(|v| v.type_name())
-                .collect::<Vec<String>>()
+                .collect::<Vec<Cow<'_, str>>>()
                 .join(", ")
         )
+        .into()
     }
 
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
@@ -516,7 +517,7 @@ pub struct NamedTuple {
 }
 
 impl VariableInput for NamedTuple {
-    fn type_name(&self) -> String {
+    fn type_name(&self) -> Cow<'_, str> {
         format!(
             "tuple<{}>",
             self.shape
@@ -526,6 +527,7 @@ impl VariableInput for NamedTuple {
                 .collect::<Vec<String>>()
                 .join(", ")
         )
+        .into()
     }
 
     fn parse<'a>(&self, input: &'a str, _flags: InputFlags) -> ParseResult<'a> {
