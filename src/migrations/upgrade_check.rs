@@ -251,7 +251,7 @@ async fn single_check(ctx: &Context, cli: &mut Connection) -> anyhow::Result<Che
             async_try! {
                 async {
                     for migration in migrations.values() {
-                        match apply_migration(cli, migration).await {
+                        match apply_migration(cli, migration, false).await {
                             Ok(()) => {},
                             Err(e) if e.is::<ApplyMigrationError>() => {
                                 bar.finish_and_clear();
