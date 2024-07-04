@@ -68,7 +68,15 @@ fn main() {
             if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
                 print::edgedb_error(e, false);
             } else {
-                print::error(err);
+                let mut error_chain = err.chain();
+                if let Some(first) = error_chain.next() {
+                    print::error(first);
+                } else {
+                    print::error(" <empty error message>");
+                }
+                for e in error_chain {
+                    eprintln!("  Caused by: {e}");
+                }
             }
             for item in err.chain() {
                 if let Some(e) = item.downcast_ref::<hint::HintedError>() {
