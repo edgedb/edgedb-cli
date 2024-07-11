@@ -67,6 +67,17 @@ targets:
           family: debian
           arch: aarch64
           runs_on: [self-hosted, linux, arm64]
+        - name: ubuntu-noble-x86_64
+          platform: ubuntu
+          platform_version: noble
+          family: debian
+          arch: x86_64
+        - name: ubuntu-noble-aarch64
+          platform: ubuntu
+          platform_version: noble
+          family: debian
+          arch: aarch64
+          runs_on: [self-hosted, linux, arm64]
         - name: centos-7-x86_64
           platform: centos
           platform_version: 7
