@@ -571,6 +571,9 @@ pub enum ValueParameter {
 
     /// Recompile all cached queries on DDL if enabled.
     AutoRebuildQueryCache(ConfigStr),
+
+    /// Timeout to recompile the cached queries on DDL.
+    AutoRebuildQueryCacheTimeout(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -611,6 +614,8 @@ pub enum ConfigParameter {
     CorsAllowOrigins,
     /// Reset auto_rebuild_query_cache to `true`
     AutoRebuildQueryCache,
+    /// Reset auto_rebuild_query_cache_timeout
+    AutoRebuildQueryCacheTimeout,
 }
 
 #[derive(clap::Args, Clone, Debug)]

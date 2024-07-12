@@ -179,6 +179,17 @@ pub async fn configure(
         C::Set(Set {
             parameter: S::AutoRebuildQueryCache(ConfigStr { value }),
         }) => set(cli, "auto_rebuild_query_cache", None, value).await,
+        C::Set(Set {
+            parameter: S::AutoRebuildQueryCacheTimeout(ConfigStr { value }),
+        }) => {
+            set(
+                cli,
+                "auto_rebuild_query_cache_timeout",
+                Some("<duration>"),
+                format!("'{value}'"),
+            )
+            .await
+        }
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
             let name = match parameter {
@@ -199,6 +210,7 @@ pub async fn configure(
                 C::AllowUserSpecifiedId => "allow_user_specified_id",
                 C::CorsAllowOrigins => "cors_allow_origins",
                 C::AutoRebuildQueryCache => "auto_rebuild_query_cache",
+                C::AutoRebuildQueryCacheTimeout => "auto_rebuild_query_cache_timeout",
             };
             print::completion(
                 &cli.execute(&format!("CONFIGURE INSTANCE RESET {name}"), &())
