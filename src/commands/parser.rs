@@ -413,7 +413,7 @@ pub struct Dump {
     /// Used to automatically overwrite existing files of the same name. Defaults
     /// to `true` when `--all` is used, otherwise `false`.
     #[arg(long)]
-    pub overwrite_existing: bool
+    pub overwrite_existing: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]

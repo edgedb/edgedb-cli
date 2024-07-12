@@ -5,6 +5,7 @@ use indicatif::{HumanBytes, ProgressBar};
 use sha1::Digest;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{self, AsyncWrite, AsyncWriteExt};
+use tokio::task;
 
 use tokio_stream::StreamExt;
 
@@ -12,60 +13,68 @@ use edgedb_errors::UnknownDatabaseError;
 
 use crate::commands::list_databases::get_databases;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
-use crate::commands::{Options, options};
+use crate::commands::Options;
 use crate::connect::Connection;
+use crate::hint::HintExt;
 use crate::platform::tmp_file_name;
 
 type Output = Box<dyn AsyncWrite + Unpin + Send>;
 
 pub struct Guard {
-    filenames: Option<(PathBuf, PathBuf)>,
+    filenames: Option<(PathBuf, PathBuf, bool)>,
 }
 
 impl Guard {
     async fn open(filename: &Path, overwrite_existing: bool) -> anyhow::Result<(Output, Guard)> {
-
         if filename.to_str() == Some("-") {
-            return Ok((Box::new(io::stdout()), Guard { filenames: None }));
-        }
-
-        let mut options = OpenOptions::new();
-        let options = match overwrite_existing {
-            true => options.write(true).create(true).truncate(true),
-            false => options.write(true).create_new(true)
-        };
-
-        if cfg!(windows) || filename.starts_with("/dev/") || filename.file_name().is_none() {
-            let file = options
+            Ok((Box::new(io::stdout()), Guard { filenames: None }))
+        } else if cfg!(windows) || filename.starts_with("/dev/") || filename.file_name().is_none() {
+            let file = OpenOptions::new()
+                .write(true)
+                .create(overwrite_existing)
+                .create_new(!overwrite_existing)
+                .truncate(overwrite_existing)
                 .open(&filename)
                 .await
                 .context(filename.display().to_string())?;
             Ok((Box::new(file), Guard { filenames: None }))
         } else {
             if !overwrite_existing && fs::metadata(&filename).await.is_ok() {
-                anyhow::bail!("failed: target file already exists. Specify --overwrite-existing to replace.")
+                anyhow::bail!(
+                    "failed: target file already exists. Specify --overwrite-existing to replace."
+                )
             }
             // Create .~.tmp file path, first remove if already existing
             let tmp_path = filename.with_file_name(tmp_file_name(filename));
             if fs::metadata(&tmp_path).await.is_ok() {
                 fs::remove_file(&tmp_path).await.ok();
             }
-            let tmp_file = options
-                .open(&tmp_path)
+            let tmp_file = fs::File::create(&tmp_path)
                 .await
                 .context(tmp_path.display().to_string())?;
             Ok((
                 Box::new(tmp_file),
                 Guard {
-                    filenames: Some((tmp_path, filename.to_owned())),
+                    filenames: Some((tmp_path, filename.to_owned(), overwrite_existing)),
                 },
             ))
         }
     }
 
     async fn commit(self) -> anyhow::Result<()> {
-        if let Some((tmp_filename, filename)) = self.filenames {
-            fs::rename(tmp_filename, filename).await?;
+        if let Some((tmp_filename, filename, overwrite_existing)) = self.filenames {
+            if overwrite_existing {
+                fs::rename(tmp_filename, filename).await?;
+            } else {
+                task::spawn_blocking(move || {
+                    // favor compatibility over atomicity
+                    renamore::rename_exclusive_fallback(tmp_filename, filename)
+                })
+                .await
+                // tokio::fs::asyncify() is private; do the same thing here
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "background task failed"))?
+                .map_err(|e| anyhow::anyhow!(e).hint("specify --overwrite-existing to replace."))?;
+            }
         }
         Ok(())
     }
@@ -89,7 +98,14 @@ pub async fn dump(
         if options.format.is_some() {
             anyhow::bail!("`--format` is reserved for dump using `--all`");
         }
-        dump_db(cli, general, options.path.as_ref(), options.include_secrets, options.overwrite_existing).await
+        dump_db(
+            cli,
+            general,
+            options.path.as_ref(),
+            options.include_secrets,
+            options.overwrite_existing,
+        )
+        .await
     }
 }
 

@@ -1091,6 +1091,7 @@ dependencies = [
  "prettytable-rs",
  "rand",
  "regex",
+ "renamore",
  "reqwest",
  "rexpect",
  "ring",
@@ -2895,6 +2896,16 @@ name = "regex-syntax"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
+
+[[package]]
+name = "renamore"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f5bced8a18df26d088a61a8f314d853ad18705b0aee59b43ccc088ca4bc3670"
+dependencies = [
+ "cc",
+ "tempfile",
+]
 
 [[package]]
 name = "reqwest"
