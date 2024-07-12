@@ -6,7 +6,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 use anyhow::Context;
 use fn_error_context::context;
@@ -21,12 +21,12 @@ use crate::collect::Collector;
 use crate::commands::ExitCode;
 use crate::credentials;
 use crate::hint::HintExt;
-use crate::platform::{cache_dir, wsl_dir, config_dir, tmp_file_path};
+use crate::platform::{cache_dir, config_dir, tmp_file_path, wsl_dir};
 use crate::portable::control;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
-use crate::portable::local::{InstanceInfo, Paths, write_json, NonLocalInstance};
-use crate::portable::options::{self, Logs, StartConf, instance_arg, InstanceName};
+use crate::portable::local::{write_json, InstanceInfo, NonLocalInstance, Paths};
+use crate::portable::options::{self, instance_arg, InstanceName, Logs, StartConf};
 use crate::portable::project;
 use crate::portable::repository::{self, download, PackageHash, PackageInfo};
 use crate::portable::status::{self, Service};
@@ -35,12 +35,14 @@ use crate::print::{self, echo, Highlight};
 use crate::process;
 
 const CURRENT_DISTRO: &str = "EdgeDB.WSL.1";
-const DISTRO_URL: Lazy<Url> = Lazy::new(|| {
-    "https://aka.ms/wsl-debian-gnulinux".parse().expect("wsl url parsed")
+static DISTRO_URL: Lazy<Url> = Lazy::new(|| {
+    "https://aka.ms/wsl-debian-gnulinux"
+        .parse()
+        .expect("wsl url parsed")
 });
-const CERT_UPDATE_INTERVAL: Duration = Duration::from_secs(30*86400);
-const IS_IN_WSL: Lazy<bool> = Lazy::new(|| {
-    if cfg!(target_os="linux") {
+const CERT_UPDATE_INTERVAL: Duration = Duration::from_secs(30 * 86400);
+static IS_IN_WSL: Lazy<bool> = Lazy::new(|| {
+    if cfg!(target_os = "linux") {
         fs::read_to_string("/proc/version")
             .map(|s| s.contains("Microsoft"))
             .unwrap_or(false)
@@ -66,7 +68,7 @@ pub struct Wsl {
 struct WslInfo {
     distribution: String,
     last_checked_version: Option<ver::Semver>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     cli_timestamp: Option<SystemTime>,
     cli_version: ver::Semver,
     certs_timestamp: SystemTime,
@@ -79,24 +81,23 @@ impl Wsl {
         pro.arg("--distribution").arg(&self.distribution);
         pro.arg("_EDGEDB_FROM_WINDOWS=1");
         if let Some(log_env) = env::var_os("RUST_LOG") {
-            let mut pair =
-                OsString::with_capacity("RUST_LOG=".len() + log_env.len());
+            let mut pair = OsString::with_capacity("RUST_LOG=".len() + log_env.len());
             pair.push("RUST_LOG=");
             pair.push(log_env);
             pro.arg(pair);
         }
         pro.arg("/usr/bin/edgedb");
         pro.no_proxy();
-        return pro
+        pro
     }
     #[cfg(windows)]
-    fn copy_out(&self, src: impl AsRef<str>, destination: impl AsRef<Path>)
-        -> anyhow::Result<()>
-    {
+    fn copy_out(&self, src: impl AsRef<str>, destination: impl AsRef<Path>) -> anyhow::Result<()> {
         let dest = path_to_linux(destination.as_ref())?;
-        let cmd = format!("cp {} {}",
-                            shell_escape::unix::escape(src.as_ref().into()),
-                            shell_escape::unix::escape(dest.into()));
+        let cmd = format!(
+            "cp {} {}",
+            shell_escape::unix::escape(src.as_ref().into()),
+            shell_escape::unix::escape(dest.into())
+        );
 
         let code = self.lib.launch_interactive(
             &self.distribution,
@@ -104,28 +105,28 @@ impl Wsl {
             /* current_working_dir */ false,
         )?;
         if code != 0 {
-            anyhow::bail!("WSL command {:?} exited with exit code: {}",
-                          cmd, code);
+            anyhow::bail!("WSL command {:?} exited with exit code: {}", cmd, code);
         }
         Ok(())
     }
 
-    fn read_text_file(&self, linux_path: impl AsRef<str>)
-        -> anyhow::Result<String>
-    {
+    fn read_text_file(&self, linux_path: impl AsRef<str>) -> anyhow::Result<String> {
         process::Native::new("read file", "wsl", "wsl")
-            .arg("--user").arg("edgedb")
-            .arg("--distribution").arg(&self.distribution)
+            .arg("--user")
+            .arg("edgedb")
+            .arg("--distribution")
+            .arg(&self.distribution)
             .arg("cat")
             .arg(linux_path.as_ref())
             .get_stdout_text()
     }
 
-    fn check_path_exist(&self, linux_path: impl AsRef<str>) -> bool
-    {
+    fn check_path_exist(&self, linux_path: impl AsRef<str>) -> bool {
         process::Native::new("ls file", "wsl", "wsl")
-            .arg("--user").arg("edgedb")
-            .arg("--distribution").arg(&self.distribution)
+            .arg("--user")
+            .arg("edgedb")
+            .arg("--distribution")
+            .arg(&self.distribution)
             .arg("ls")
             .arg(linux_path.as_ref())
             .run()
@@ -133,12 +134,13 @@ impl Wsl {
     }
 
     #[cfg(not(windows))]
-    fn copy_out(&self, _src: impl AsRef<str>, _destination: impl AsRef<Path>)
-        -> anyhow::Result<()>
-    {
+    fn copy_out(
+        &self,
+        _src: impl AsRef<str>,
+        _destination: impl AsRef<Path>,
+    ) -> anyhow::Result<()> {
         unreachable!();
     }
-
 }
 
 fn credentials_linux(instance: &str) -> String {
@@ -150,11 +152,10 @@ pub fn path_to_linux(path: &Path) -> anyhow::Result<String> {
     use std::path::Component::*;
     use std::path::Prefix::*;
     if !path.is_absolute() {
-        return Err(bug::error("path must be absolute"))?;
+        return Err(bug::error("path must be absolute"));
     }
 
-    let mut result = String::with_capacity(
-        path.to_str().map(|m| m.len()).unwrap_or(32) + 32);
+    let mut result = String::with_capacity(path.to_str().map(|m| m.len()).unwrap_or(32) + 32);
     result.push_str("/mnt");
     for component in path.components() {
         match component {
@@ -170,9 +171,7 @@ pub fn path_to_linux(path: &Path) -> anyhow::Result<String> {
             ParentDir => return Err(bug::error("parent dir in canonical path")),
             Normal(s) => {
                 result.push('/');
-                result.push_str(
-                    s.to_str().context("invalid characters in path")?,
-                );
+                result.push_str(s.to_str().context("invalid characters in path")?);
             }
         }
     }
@@ -184,8 +183,7 @@ pub fn path_to_windows(path: &Path) -> anyhow::Result<PathBuf> {
     use std::path::Component::*;
     use std::path::Prefix::*;
 
-    let mut result = PathBuf::with_capacity(
-        path.to_str().map(|m| m.len()).unwrap_or(32) + 32);
+    let mut result = PathBuf::with_capacity(path.to_str().map(|m| m.len()).unwrap_or(32) + 32);
     result.push(r"\\WSL$\");
     result.push(CURRENT_DISTRO);
     for component in path.components() {
@@ -200,10 +198,12 @@ pub fn path_to_windows(path: &Path) -> anyhow::Result<PathBuf> {
     Ok(result)
 }
 
-pub fn create_instance(options: &options::Create, name: &str,
-                       port: u16, paths: &Paths)
-    -> anyhow::Result<()>
-{
+pub fn create_instance(
+    options: &options::Create,
+    name: &str,
+    port: u16,
+    paths: &Paths,
+) -> anyhow::Result<()> {
     let wsl = ensure_wsl()?;
 
     let inner_options = options::Create {
@@ -212,13 +212,15 @@ pub fn create_instance(options: &options::Create, name: &str,
         ..options.clone()
     };
     wsl.edgedb()
-        .arg("instance").arg("create").args(&inner_options)
+        .arg("instance")
+        .arg("create")
+        .args(&inner_options)
         .run()?;
 
     if let Some(dir) = paths.credentials.parent() {
-        fs_err::create_dir_all(&dir)?;
+        fs_err::create_dir_all(dir)?;
     }
-    wsl.copy_out(credentials_linux(&name), &paths.credentials)?;
+    wsl.copy_out(credentials_linux(name), &paths.credentials)?;
 
     Ok(())
 }
@@ -229,10 +231,13 @@ pub fn destroy(options: &options::Destroy, name: &str) -> anyhow::Result<()> {
         let options = options::Destroy {
             non_interactive: true,
             quiet: true,
-            .. options.clone()
+            ..options.clone()
         };
-        let status = wsl.edgedb()
-            .arg("instance").arg("destroy").args(&options)
+        let status = wsl
+            .edgedb()
+            .arg("instance")
+            .arg("destroy")
+            .args(&options)
             .status()?;
         match status.code() {
             Some(exit_codes::INSTANCE_NOT_FOUND) => {}
@@ -266,22 +271,20 @@ pub fn destroy(options: &options::Destroy, name: &str) -> anyhow::Result<()> {
 
 #[context("cannot read {:?}", path)]
 fn read_wsl(path: &Path) -> anyhow::Result<WslInfo> {
-    let file = io::BufReader::new(fs::File::open(path)?);
-    Ok(serde_json::from_reader(file)?)
+    let reader = io::BufReader::new(fs::File::open(path)?);
+    Ok(serde_json::from_reader(reader)?)
 }
 
 #[context("cannot unpack debian distro from {:?}", zip_path)]
 fn unpack_appx(zip_path: &Path, dest: &Path) -> anyhow::Result<()> {
-    let mut zip = zip::ZipArchive::new(
-        io::BufReader::new(fs::File::open(&zip_path)?))?;
-    let name = zip.file_names()
+    let mut zip = zip::ZipArchive::new(io::BufReader::new(fs::File::open(zip_path)?))?;
+    let name = zip
+        .file_names()
         .find(|name| {
             let lower = name.to_lowercase();
-            lower.starts_with("distrolauncher-") &&
-            lower.ends_with("_x64.appx")
+            lower.starts_with("distrolauncher-") && lower.ends_with("_x64.appx")
         })
-        .ok_or_else(||anyhow::anyhow!(
-            "file `DistroLauncher-*_x64.appx` is not found in archive"))?
+        .ok_or_else(|| anyhow::anyhow!("file `DistroLauncher-*_x64.appx` is not found in archive"))?
         .to_string();
     let mut inp = zip.by_name(&name)?;
     let mut out = fs::File::create(dest)?;
@@ -291,44 +294,44 @@ fn unpack_appx(zip_path: &Path, dest: &Path) -> anyhow::Result<()> {
 
 #[context("cannot unpack root filesystem from {:?}", zip_path)]
 fn unpack_root(zip_path: &Path, dest: &Path) -> anyhow::Result<()> {
-    let mut zip = zip::ZipArchive::new(
-        io::BufReader::new(fs::File::open(&zip_path)?))?;
-    let name = zip.file_names()
+    let mut zip = zip::ZipArchive::new(io::BufReader::new(fs::File::open(zip_path)?))?;
+    let name = zip
+        .file_names()
         .find(|name| name.eq_ignore_ascii_case("install.tar.gz"))
-        .ok_or_else(|| anyhow::anyhow!(
-            "file `install.tar.gz` is not found in archive"))?
+        .ok_or_else(|| anyhow::anyhow!("file `install.tar.gz` is not found in archive"))?
         .to_string();
-    let mut inp = gzip::Decoder::new(
-        io::BufReader::new(zip.by_name(&name)?))?;
+    let mut inp = gzip::Decoder::new(io::BufReader::new(zip.by_name(&name)?))?;
     let mut out = fs::File::create(dest)?;
     io::copy(&mut inp, &mut out)?;
     Ok(())
 }
 
 #[cfg(windows)]
-fn wsl_check_cli(_wsl: &wslapi::Library, wsl_info: &WslInfo)
-    -> anyhow::Result<bool>
-{
+fn wsl_check_cli(_wsl: &wslapi::Library, wsl_info: &WslInfo) -> anyhow::Result<bool> {
     let self_ver = self_version()?;
-    Ok(wsl_info.last_checked_version.as_ref()
-       .map(|v| v != &self_ver).unwrap_or(true))
+    Ok(wsl_info
+        .last_checked_version
+        .as_ref()
+        .map(|v| v != &self_ver)
+        .unwrap_or(true))
 }
 
 #[cfg(windows)]
 #[context("cannot check linux CLI version")]
-fn wsl_cli_version(distro: &str)
-    -> anyhow::Result<ver::Semver>
-{
+fn wsl_cli_version(distro: &str) -> anyhow::Result<ver::Semver> {
     // Note: cannot capture output using wsl.launch
     let data = process::Native::new("check version", "edgedb", "wsl")
-        .arg("--user").arg("edgedb")
-        .arg("--distribution").arg(distro)
+        .arg("--user")
+        .arg("edgedb")
+        .arg("--distribution")
+        .arg(distro)
         .arg("/usr/bin/edgedb")
         .arg("--version")
         .get_stdout_text()?;
-    let version = data.trim().strip_prefix("EdgeDB CLI ")
-        .with_context(|| format!(
-                "bad version info returned by linux CLI: {:?}", data))?
+    let version = data
+        .trim()
+        .strip_prefix("EdgeDB CLI ")
+        .with_context(|| format!("bad version info returned by linux CLI: {:?}", data))?
         .parse()?;
     Ok(version)
 }
@@ -346,21 +349,26 @@ fn download_binary(dest: &Path) -> anyhow::Result<()> {
         pkg.clone()
     } else {
         let pkg = repository::get_platform_cli_packages(
-                upgrade::channel(),
-                "x86_64-unknown-linux-musl",
-                repository::DEFAULT_TIMEOUT,
-            )?.into_iter().max_by(|a, b| a.version.cmp(&b.version))
-            .context("cannot find new version")?;
+            upgrade::channel(),
+            "x86_64-unknown-linux-musl",
+            repository::DEFAULT_TIMEOUT,
+        )?
+        .into_iter()
+        .max_by(|a, b| a.version.cmp(&b.version))
+        .context("cannot find new version")?;
         if pkg.version < my_ver {
             return Err(bug::error(format!(
                 "latest version of linux CLI {} \
                  is older that current windows CLI {}",
-                 pkg.version,
-                 my_ver)));
+                pkg.version, my_ver
+            )));
         }
-        log::warn!("No package matching version {} found. \
+        log::warn!(
+            "No package matching version {} found. \
                     Using latest version {}.",
-                    my_ver, pkg.version);
+            my_ver,
+            pkg.version
+        );
         pkg
     };
 
@@ -374,28 +382,24 @@ fn download_binary(dest: &Path) -> anyhow::Result<()> {
 }
 
 #[cfg(windows)]
-fn wsl_simple_cmd(wsl: &wslapi::Library, distro: &str, cmd: &str)
-    -> anyhow::Result<()>
-{
-    let code = wsl.launch_interactive(
-        distro,
-        cmd,
-        /* current_working_dir */ false,
-    )?;
+fn wsl_simple_cmd(wsl: &wslapi::Library, distro: &str, cmd: &str) -> anyhow::Result<()> {
+    let code = wsl.launch_interactive(distro, cmd, /* current_working_dir */ false)?;
     if code != 0 {
-        anyhow::bail!("WSL command {:?} exited with exit code: {}",
-                      cmd, code);
+        anyhow::bail!("WSL command {:?} exited with exit code: {}", cmd, code);
     }
     Ok(())
 }
 
 fn utf16_contains(bytes: &[u8], needle: &str) -> bool {
     use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
-    decode_utf16(bytes.chunks_exact(2)
-                 .map(|a| u16::from_le_bytes([a[0], a[1]])))
-       .map(|r| r.unwrap_or(REPLACEMENT_CHARACTER))
-       .collect::<String>()
-       .contains(needle)
+    decode_utf16(
+        bytes
+            .chunks_exact(2)
+            .map(|a| u16::from_le_bytes([a[0], a[1]])),
+    )
+    .map(|r| r.unwrap_or(REPLACEMENT_CHARACTER))
+    .collect::<String>()
+    .contains(needle)
 }
 
 #[cfg(windows)]
@@ -408,12 +412,10 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
     let mut certs_timestamp = None;
     if meta_path.exists() {
         match read_wsl(&meta_path) {
-            Ok(wsl_info)
-            if wsl.is_distribution_registered(&wsl_info.distribution)
-            => {
+            Ok(wsl_info) if wsl.is_distribution_registered(&wsl_info.distribution) => {
                 update_cli = wsl_check_cli(&wsl, &wsl_info)?;
-                let update_certs = wsl_info.certs_timestamp + CERT_UPDATE_INTERVAL
-                    < SystemTime::now();
+                let update_certs =
+                    wsl_info.certs_timestamp + CERT_UPDATE_INTERVAL < SystemTime::now();
                 if !update_cli && !update_certs {
                     return Ok(Wsl {
                         lib: wsl,
@@ -468,17 +470,20 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             match result {
                 Ok(out) if !utf16_contains(&out.stdout, "--import") => {
                     return Err(anyhow::anyhow!(
-                        "Current installed WSL version is outdated."))
-                        .hint("Please run `wsl --install` under \
-                               administrator privileges to upgrade.")?;
+                        "Current installed WSL version is outdated."
+                    ))
+                    .hint(
+                        "Please run `wsl --install` under \
+                               administrator privileges to upgrade.",
+                    )?;
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    return Err(anyhow::anyhow!(
-                        "Error running `wsl` tool: {:#}", e))
-                        .hint("Requires Windows 10 version 2004 or higher \
+                    return Err(anyhow::anyhow!("Error running `wsl` tool: {:#}", e)).hint(
+                        "Requires Windows 10 version 2004 or higher \
                                (Build 19041 and above) or \
-                               Windows 11.")?;
+                               Windows 11.",
+                    )?;
                 }
             }
 
@@ -497,25 +502,32 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             distro = CURRENT_DISTRO.into();
         };
 
-        wsl_simple_cmd(&wsl, &distro,
-                       "useradd edgedb --uid 1000 --create-home")?;
+        wsl_simple_cmd(&wsl, &distro, "useradd edgedb --uid 1000 --create-home")?;
     }
 
     if update_cli {
         echo!("Updating container CLI version...");
         if let Some(bin_path) = env::var_os("_EDGEDB_WSL_LINUX_BINARY") {
             let bin_path = fs::canonicalize(bin_path)?;
-            wsl_simple_cmd(&wsl, &distro, &format!(
-                "cp {} /usr/bin/edgedb && chmod 755 /usr/bin/edgedb",
-                shell_escape::unix::escape(path_to_linux(&bin_path)?.into()),
-            ))?;
+            wsl_simple_cmd(
+                &wsl,
+                &distro,
+                &format!(
+                    "cp {} /usr/bin/edgedb && chmod 755 /usr/bin/edgedb",
+                    shell_escape::unix::escape(path_to_linux(&bin_path)?.into()),
+                ),
+            )?;
         } else {
             let cache_path = download_dir.join("edgedb");
             download_binary(&cache_path)?;
-            wsl_simple_cmd(&wsl, &distro, &format!(
-                "mv {} /usr/bin/edgedb && chmod 755 /usr/bin/edgedb",
-                shell_escape::unix::escape(path_to_linux(&cache_path)?.into()),
-            ))?;
+            wsl_simple_cmd(
+                &wsl,
+                &distro,
+                &format!(
+                    "mv {} /usr/bin/edgedb && chmod 755 /usr/bin/edgedb",
+                    shell_escape::unix::escape(path_to_linux(&cache_path)?.into()),
+                ),
+            )?;
         };
     }
 
@@ -524,13 +536,17 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
     } else {
         echo!("Checking certificate updates...");
         process::Native::new("update certificates", "apt", "wsl")
-            .arg("--distribution").arg(&distro)
-            .arg("bash").arg("-c")
-            .arg("export DEBIAN_FRONTEND=noninteractive; \
+            .arg("--distribution")
+            .arg(&distro)
+            .arg("bash")
+            .arg("-c")
+            .arg(
+                "export DEBIAN_FRONTEND=noninteractive; \
                   apt-get update -qq && \
                   apt-get install -y ca-certificates -qq -o=Dpkg::Use-Pty=0 && \
                   apt-get clean -qq && \
-                  rm -rf /var/lib/apt/lists/*")
+                  rm -rf /var/lib/apt/lists/*",
+            )
             .run()?;
         SystemTime::now()
     };
@@ -540,7 +556,9 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
     if cli_version < my_ver {
         return Err(bug::error(format!(
             "could not download correct version of CLI tools; \
-            downloaded {}, expected {}", cli_version, my_ver)));
+            downloaded {}, expected {}",
+            cli_version, my_ver
+        )));
     }
     let info = WslInfo {
         distribution: distro.into(),
@@ -576,16 +594,17 @@ fn get_wsl() -> anyhow::Result<Option<&'static Wsl>> {
 fn try_get_wsl() -> anyhow::Result<&'static Wsl> {
     match WSL.get_or_try_init(|| get_wsl_distro(false)) {
         Ok(v) => Ok(v),
-        Err(e) if e.is::<NoDistribution>() => {
-            return Err(e).hint("WSL is initialized automatically on \
-              `edgedb project init` or `edgedb instance create`")?;
-        }
+        Err(e) if e.is::<NoDistribution>() => Err(e).hint(
+            "WSL is initialized automatically on \
+              `edgedb project init` or `edgedb instance create`",
+        )?,
         Err(e) => Err(e),
     }
 }
 
 pub fn startup_dir() -> anyhow::Result<PathBuf> {
-    Ok(dirs::data_dir().context("cannot determine data directory")?
+    Ok(dirs::data_dir()
+        .context("cannot determine data directory")?
         .join("Microsoft")
         .join("Windows")
         .join("Start Menu")
@@ -598,7 +617,7 @@ fn service_file(instance: &str) -> anyhow::Result<PathBuf> {
 }
 
 pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
-    Ok(vec![ service_file(name)? ])
+    Ok(vec![service_file(name)?])
 }
 
 pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
@@ -607,11 +626,21 @@ pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 fn create_and_start(wsl: &Wsl, name: &str) -> anyhow::Result<()> {
-    wsl.edgedb().arg("instance").arg("start").arg("-I").arg(&name).run()?;
-    fs_err::write(service_file(&name)?, format!("wsl \
+    wsl.edgedb()
+        .arg("instance")
+        .arg("start")
+        .arg("-I")
+        .arg(name)
+        .run()?;
+    fs_err::write(
+        service_file(name)?,
+        format!(
+            "wsl \
         --distribution {} --user edgedb \
         /usr/bin/edgedb instance start -I {}",
-        &wsl.distribution, &name))?;
+            &wsl.distribution, &name
+        ),
+    )?;
     Ok(())
 }
 
@@ -619,13 +648,14 @@ pub fn stop_and_disable(_name: &str) -> anyhow::Result<bool> {
     anyhow::bail!("running as a service is not yet supported on Windows");
 }
 
-pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
-    -> anyhow::Result<process::Native>
-{
+pub fn server_cmd(instance: &str, _is_shutdown_supported: bool) -> anyhow::Result<process::Native> {
     let wsl = try_get_wsl()?;
     let mut pro = wsl.edgedb();
-    pro.arg("instance").arg("start").arg("--foreground")
-        .arg("-I").arg(instance);
+    pro.arg("instance")
+        .arg("start")
+        .arg("--foreground")
+        .arg("-I")
+        .arg(instance);
     let instance = String::from(instance);
     pro.stop_process(move || {
         let mut cmd = tokio::process::Command::new("wsl");
@@ -642,8 +672,12 @@ pub fn server_cmd(instance: &str, _is_shutdown_supported: bool)
 pub fn daemon_start(instance: &str) -> anyhow::Result<()> {
     let wsl = try_get_wsl()?;
     wsl.edgedb()
-        .arg("instance").arg("start").arg("-I").arg(&instance)
-        .no_proxy().run()?;
+        .arg("instance")
+        .arg("start")
+        .arg("-I")
+        .arg(instance)
+        .no_proxy()
+        .run()?;
     Ok(())
 }
 
@@ -670,13 +704,17 @@ pub fn external_status(_inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn is_wrapped() -> bool {
-    env::var_os("_EDGEDB_FROM_WINDOWS").map(|x| !x.is_empty()).unwrap_or(false)
+    env::var_os("_EDGEDB_FROM_WINDOWS")
+        .map(|x| !x.is_empty())
+        .unwrap_or(false)
 }
 
 pub fn install(options: &options::Install) -> anyhow::Result<()> {
     ensure_wsl()?
         .edgedb()
-        .arg("server").arg("install").args(options)
+        .arg("server")
+        .arg("install")
+        .args(options)
         .run()?;
     Ok(())
 }
@@ -684,11 +722,15 @@ pub fn install(options: &options::Install) -> anyhow::Result<()> {
 pub fn uninstall(options: &options::Uninstall) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
-            .arg("server").arg("uninstall").args(options)
+            .arg("server")
+            .arg("uninstall")
+            .args(options)
             .run()?;
     } else {
-        log::warn!("WSL distribution is not installed, \
-                   so no EdgeDB server versions are present.");
+        log::warn!(
+            "WSL distribution is not installed, \
+                   so no EdgeDB server versions are present."
+        );
     }
     Ok(())
 }
@@ -696,41 +738,46 @@ pub fn uninstall(options: &options::Uninstall) -> anyhow::Result<()> {
 pub fn list_versions(options: &options::ListVersions) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
-            .arg("server").arg("list-versions").args(options)
+            .arg("server")
+            .arg("list-versions")
+            .args(options)
             .run()?;
     } else if options.json {
         println!("[]");
     } else {
-        log::warn!("WSL distribution is not installed, \
-                   so no EdgeDB server versions are present.");
+        log::warn!(
+            "WSL distribution is not installed, \
+                   so no EdgeDB server versions are present."
+        );
     }
     Ok(())
 }
 
 pub fn info(options: &options::Info) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
-        wsl.edgedb()
-            .arg("server").arg("info").args(options)
-            .run()?;
+        wsl.edgedb().arg("server").arg("info").args(options).run()?;
     } else {
-        anyhow::bail!("WSL distribution is not installed, \
-                       so no EdgeDB server versions are present.");
+        anyhow::bail!(
+            "WSL distribution is not installed, \
+                       so no EdgeDB server versions are present."
+        );
     }
     Ok(())
 }
 
-pub fn reset_password(
-    options: &options::ResetPassword, name: &str
-) -> anyhow::Result<()> {
+pub fn reset_password(options: &options::ResetPassword, name: &str) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
-            .arg("instance").arg("reset-password").args(options)
+            .arg("instance")
+            .arg("reset-password")
+            .args(options)
             .run()?;
-        wsl.copy_out(credentials_linux(name),
-                     credentials::path(name)?)?;
+        wsl.copy_out(credentials_linux(name), credentials::path(name)?)?;
     } else {
-        anyhow::bail!("WSL distribution is not installed, \
-                       so no EdgeDB instances are present.");
+        anyhow::bail!(
+            "WSL distribution is not installed, \
+                       so no EdgeDB instances are present."
+        );
     }
     Ok(())
 }
@@ -738,13 +785,19 @@ pub fn reset_password(
 pub fn start(options: &options::Start, name: &str) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         if options.foreground {
-            wsl.edgedb().arg("instance").arg("start").args(options).run()?;
+            wsl.edgedb()
+                .arg("instance")
+                .arg("start")
+                .args(options)
+                .run()?;
         } else {
             create_and_start(wsl, name)?;
         }
     } else {
-        anyhow::bail!("WSL distribution is not installed, \
-                       so no EdgeDB instances are present.");
+        anyhow::bail!(
+            "WSL distribution is not installed, \
+                       so no EdgeDB instances are present."
+        );
     }
     Ok(())
 }
@@ -756,11 +809,15 @@ pub fn stop(options: &options::Stop, name: &str) -> anyhow::Result<()> {
             .map_err(|e| log::warn!("error removing {service_file:?}: {e:#}"))
             .ok();
         wsl.edgedb()
-            .arg("instance").arg("stop").args(options)
+            .arg("instance")
+            .arg("stop")
+            .args(options)
             .run()?;
     } else {
-        anyhow::bail!("WSL distribution is not installed, \
-                       so no EdgeDB instances are present.");
+        anyhow::bail!(
+            "WSL distribution is not installed, \
+                       so no EdgeDB instances are present."
+        );
     }
     Ok(())
 }
@@ -768,11 +825,15 @@ pub fn stop(options: &options::Stop, name: &str) -> anyhow::Result<()> {
 pub fn restart(options: &options::Restart) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
-            .arg("instance").arg("restart").args(options)
+            .arg("instance")
+            .arg("restart")
+            .args(options)
             .run()?;
     } else {
-        anyhow::bail!("WSL distribution is not installed, \
-                       so no EdgeDB instances are present.");
+        anyhow::bail!(
+            "WSL distribution is not installed, \
+                       so no EdgeDB instances are present."
+        );
     }
     Ok(())
 }
@@ -780,11 +841,15 @@ pub fn restart(options: &options::Restart) -> anyhow::Result<()> {
 pub fn logs(options: &options::Logs) -> anyhow::Result<()> {
     if let Some(wsl) = get_wsl()? {
         wsl.edgedb()
-            .arg("instance").arg("logs").args(options)
+            .arg("instance")
+            .arg("logs")
+            .args(options)
             .run()?;
     } else {
-        anyhow::bail!("WSL distribution is not installed, \
-                       so no EdgeDB instances are present.");
+        anyhow::bail!(
+            "WSL distribution is not installed, \
+                       so no EdgeDB instances are present."
+        );
     }
     Ok(())
 }
@@ -793,21 +858,28 @@ pub fn status(options: &options::Status) -> anyhow::Result<()> {
     if options.service {
         if let Some(wsl) = get_wsl()? {
             wsl.edgedb()
-                .arg("instance").arg("status").args(options)
+                .arg("instance")
+                .arg("status")
+                .args(options)
                 .run()?;
         } else {
-            echo!("WSL distribution is not installed, \
-                   so no EdgeDB instances are present.");
+            echo!(
+                "WSL distribution is not installed, \
+                   so no EdgeDB instances are present."
+            );
             return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
         }
     } else {
         let inner_opts = options::Status {
             quiet: true,
-            .. options.clone()
+            ..options.clone()
         };
         if let Some(wsl) = get_wsl()? {
-            let status = wsl.edgedb()
-                .arg("instance").arg("status").args(&inner_opts)
+            let status = wsl
+                .edgedb()
+                .arg("instance")
+                .arg("status")
+                .args(&inner_opts)
                 .status()?;
             match status.code() {
                 Some(exit_codes::INSTANCE_NOT_FOUND) => {}
@@ -826,11 +898,13 @@ fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>
         let inner_opts = options::List {
             quiet: true,
             no_remote: true,
-            .. options.clone()
+            ..options.clone()
         };
         if let Some(wsl) = get_wsl()? {
             wsl.edgedb()
-                .arg("instance").arg("list").args(&inner_opts)
+                .arg("instance")
+                .arg("list")
+                .args(&inner_opts)
                 .run()?;
         }
     }
@@ -839,24 +913,24 @@ fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>
         extended: false,
         debug: false,
         json: true,
-        .. options.clone()
+        ..options.clone()
     };
     let local: Vec<status::JsonStatus> = if let Some(wsl) = get_wsl()? {
-        let text = wsl.edgedb()
-            .arg("instance").arg("list").args(&inner_opts)
+        let text = wsl
+            .edgedb()
+            .arg("instance")
+            .arg("list")
+            .args(&inner_opts)
             .get_stdout_text()?;
         log::info!("WSL list returned {:?}", text);
-        serde_json::from_str(&text)
-            .context("cannot decode json from edgedb CLI in WSL")?
+        serde_json::from_str(&text).context("cannot decode json from edgedb CLI in WSL")?
     } else {
         Vec::new()
     };
     Ok(local)
 }
 
-pub fn list(options: &options::List, opts: &crate::Options)
-    -> anyhow::Result<()>
-{
+pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()> {
     let errors = Collector::new();
     let local = match list_local(options) {
         Ok(local) => local,
@@ -865,7 +939,8 @@ pub fn list(options: &options::List, opts: &crate::Options)
             Vec::new()
         }
     };
-    let visited = local.iter()
+    let visited = local
+        .iter()
         .map(|v| v.name.clone())
         .collect::<BTreeSet<_>>();
 
@@ -902,11 +977,15 @@ pub fn list(options: &options::List, opts: &crate::Options)
             status.print_extended();
         }
     } else if options.json {
-        println!("{}", serde_json::to_string_pretty(
-            &local.into_iter()
-            .chain(remote.iter().map(|status| status.json()))
-            .collect::<Vec<_>>()
-        )?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(
+                &local
+                    .into_iter()
+                    .chain(remote.iter().map(|status| status.json()))
+                    .collect::<Vec<_>>()
+            )?
+        );
     } else {
         status::print_table(&local, &remote);
     }
@@ -945,11 +1024,13 @@ pub fn revert(options: &options::Revert, name: &str) -> anyhow::Result<()> {
 fn get_instance_data_dir(name: &str, wsl: &Wsl) -> anyhow::Result<String> {
     let data_dir = if name == "_localdev" {
         match env::var("EDGEDB_SERVER_DEV_DIR") {
-            Ok(path) => if path.ends_with("/") {
-                path
-            } else {
-                path + "/"
-            },
+            Ok(path) => {
+                if path.ends_with('/') {
+                    path
+                } else {
+                    path + "/"
+                }
+            }
             Err(_) => "/home/edgedb/.local/share/edgedb/_localdev/".into(),
         }
     } else {
@@ -974,8 +1055,10 @@ pub fn read_jose_keys_legacy(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
     let wsl = try_get_wsl()?;
     let data_dir = get_instance_data_dir(name, wsl)?;
     Ok((
-        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?.into_bytes(),
-        wsl.read_text_file(data_dir + "edbjwekeys.pem")?.into_bytes(),
+        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?
+            .into_bytes(),
+        wsl.read_text_file(data_dir + "edbjwekeys.pem")?
+            .into_bytes(),
     ))
 }
 
@@ -983,7 +1066,8 @@ pub fn get_instance_info(name: &str) -> anyhow::Result<String> {
     let wsl = try_get_wsl()?;
     wsl.read_text_file(format!(
         "/home/edgedb/.local/share/edgedb/data/{}/instance_info.json",
-        name))
+        name
+    ))
 }
 
 pub fn is_in_wsl() -> bool {

@@ -1,17 +1,16 @@
-use std::collections::BTreeMap;
 use fs_err as fs;
+use std::collections::BTreeMap;
 
 use crate::commands::ExitCode;
-use crate::platform::{tmp_file_path, data_dir, portable_dir};
+use crate::platform::{data_dir, portable_dir, tmp_file_path};
 use crate::portable::exit_codes;
-use crate::portable::local::{InstanceInfo};
 use crate::portable::local;
+use crate::portable::local::InstanceInfo;
 use crate::portable::options::Uninstall;
 use crate::portable::repository::Query;
 use crate::portable::status;
 use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
-
 
 pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
     let mut candidates = local::get_installed()?;
@@ -47,13 +46,12 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
     candidates.retain(|cand| {
         if let Some(inst_name) = used_versions.get(&cand.version.specific()) {
             if !options.unused {
-                log::warn!("Version {} is used by {:?}",
-                           cand.version, inst_name);
+                log::warn!("Version {} is used by {:?}", cand.version, inst_name);
             }
             all = false;
-            return false;
+            false
         } else {
-            return true;
+            true
         }
     });
     let mut uninstalled = 0;
@@ -72,10 +70,13 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
     if !all && !options.unused {
         echo!("Uninstalled", uninstalled.emphasize(), "versions.");
         print::error("some instances are in use. See messages above.");
-        return Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS))?;
+        Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS))?;
     } else if uninstalled > 0 {
-        echo!("Successfully uninstalled",
-               uninstalled.emphasize(), "versions.");
+        echo!(
+            "Successfully uninstalled",
+            uninstalled.emphasize(),
+            "versions."
+        );
     } else {
         print::success("Nothing to uninstall.")
     }

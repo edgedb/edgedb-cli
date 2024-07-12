@@ -67,6 +67,17 @@ targets:
           family: debian
           arch: aarch64
           runs_on: [self-hosted, linux, arm64]
+        - name: ubuntu-noble-x86_64
+          platform: ubuntu
+          platform_version: noble
+          family: debian
+          arch: x86_64
+        - name: ubuntu-noble-aarch64
+          platform: ubuntu
+          platform_version: noble
+          family: debian
+          arch: aarch64
+          runs_on: [self-hosted, linux, arm64]
         - name: centos-7-x86_64
           platform: centos
           platform_version: 7
@@ -117,12 +128,13 @@ targets:
           platform_version: x86_64
           family: generic
           arch: x86_64
+          runs_on: [macos-14]
         - name: macos-aarch64
           platform: macos
           platform_version: aarch64
           family: generic
           arch: aarch64
-          runs_on: [self-hosted, macOS, ARM64]
+          runs_on: [macos-14]
 
     win:
        - name: win-x86_64

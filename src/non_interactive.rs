@@ -1,16 +1,16 @@
-use std::str;
 use std::io::{stdout, Write};
+use std::str;
 
-use anyhow::{self, Context};
-use bytes::{BytesMut};
+use anyhow::Context;
+use bytes::BytesMut;
 use is_terminal::IsTerminal;
-use terminal_size::{Width, terminal_size};
-use tokio::fs::{File as AsyncFile};
-use tokio::io::{AsyncRead, stdin};
+use terminal_size::{terminal_size, Width};
+use tokio::fs::File as AsyncFile;
+use tokio::io::{stdin, AsyncRead};
 
-use edgedb_protocol::client_message::{CompilationOptions};
-use edgedb_protocol::client_message::{IoFormat, Cardinality};
-use edgedb_protocol::common::{Capabilities};
+use edgedb_protocol::client_message::CompilationOptions;
+use edgedb_protocol::client_message::{Cardinality, IoFormat};
+use edgedb_protocol::common::Capabilities;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
 use tokio_stream::StreamExt;
@@ -26,11 +26,8 @@ use crate::print::{self, PrintError};
 use crate::repl::OutputFormat;
 use crate::statement::{read_statement, EndOfFile};
 
-
-#[tokio::main]
-pub async fn noninteractive_main(q: &Query, options: &Options)
-    -> Result<(), anyhow::Error>
-{
+#[tokio::main(flavor = "current_thread")]
+pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), anyhow::Error> {
     // There's some extra complexity here due to the fact that we
     // have to support now deprecated top-level `--json` and
     // `--tab-separated` flags.
@@ -60,29 +57,35 @@ pub async fn noninteractive_main(q: &Query, options: &Options)
         let mut conn = options.create_connector().await?.connect().await?;
         for query in queries {
             if classify::is_analyze(query) {
-                anyhow::bail!("Analyze queries are not allowed. \
-                               Use the dedicated `edgedb analyze` command.");
+                anyhow::bail!(
+                    "Analyze queries are not allowed. \
+                               Use the dedicated `edgedb analyze` command."
+                );
             }
-            run_query(&mut conn, query, &options, fmt).await?;
+            run_query(&mut conn, query, options, fmt).await?;
         }
     } else {
-        print::error("either a --file option or \
-                     a <queries> positional argument is required.");
+        print::error(
+            "either a --file option or \
+                     a <queries> positional argument is required.",
+        );
     }
 
     Ok(())
 }
 
-#[tokio::main]
-pub async fn interpret_stdin(options: &Options, fmt: OutputFormat)
-    -> Result<(), anyhow::Error>
-{
+#[tokio::main(flavor = "current_thread")]
+pub async fn interpret_stdin(options: &Options, fmt: OutputFormat) -> Result<(), anyhow::Error> {
     return interpret_file(&mut stdin(), options, fmt).await;
 }
 
-async fn interpret_file<T>(file: &mut T, options: &Options, fmt: OutputFormat)
-    -> Result<(), anyhow::Error>
-    where T: AsyncRead + Unpin
+async fn interpret_file<T>(
+    file: &mut T,
+    options: &Options,
+    fmt: OutputFormat,
+) -> Result<(), anyhow::Error>
+where
+    T: AsyncRead + Unpin,
 {
     let mut conn = options.create_connector().await?.connect().await?;
     let mut inbuf = BytesMut::with_capacity(8192);
@@ -92,27 +95,30 @@ async fn interpret_file<T>(file: &mut T, options: &Options, fmt: OutputFormat)
             Err(e) if e.is::<EndOfFile>() => break,
             Err(e) => return Err(e),
         };
-        let stmt = str::from_utf8(&stmt[..])
-            .context("can't decode statement")?;
+        let stmt = str::from_utf8(&stmt[..]).context("can't decode statement")?;
         if preparser::is_empty(stmt) {
             continue;
         }
         if classify::is_analyze(stmt) {
-            anyhow::bail!("Analyze queries are not allowed. \
-                           Use the dedicated `edgedb analyze` command.");
+            anyhow::bail!(
+                "Analyze queries are not allowed. \
+                           Use the dedicated `edgedb analyze` command."
+            );
         }
-        run_query(&mut conn, &stmt, &options, fmt).await?;
+        run_query(&mut conn, stmt, options, fmt).await?;
     }
     Ok(())
 }
 
-async fn run_query(conn: &mut Connection, stmt: &str, options: &Options,
-    fmt: OutputFormat)
-    -> Result<(), anyhow::Error>
-{
+async fn run_query(
+    conn: &mut Connection,
+    stmt: &str,
+    options: &Options,
+    fmt: OutputFormat,
+) -> Result<(), anyhow::Error> {
     _run_query(conn, stmt, options, fmt).await.map_err(|err| {
         if let Some(err) = err.downcast_ref::<edgedb_errors::Error>() {
-            match print_query_error(&err, stmt, false, "<query>") {
+            match print_query_error(err, stmt, false, "<query>") {
                 Ok(()) => ExitCode::new(1).into(),
                 Err(e) => e,
             }
@@ -122,16 +128,17 @@ async fn run_query(conn: &mut Connection, stmt: &str, options: &Options,
     })
 }
 
-async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
-    fmt: OutputFormat)
-    -> Result<(), anyhow::Error>
-{
+async fn _run_query(
+    conn: &mut Connection,
+    stmt: &str,
+    _options: &Options,
+    fmt: OutputFormat,
+) -> Result<(), anyhow::Error> {
     use crate::repl::OutputFormat::*;
 
     let flags = CompilationOptions {
         implicit_limit: None,
-        implicit_typenames: fmt == Default &&
-            conn.protocol().supports_inline_typenames(),
+        implicit_typenames: fmt == Default && conn.protocol().supports_inline_typenames(),
         implicit_typeids: false,
         explicit_objectids: true,
         allow_capabilities: Capabilities::ALL,
@@ -150,9 +157,9 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
     }
     cfg.colors(stdout().is_terminal());
 
-    let mut items = conn.execute_stream(
-        &flags, stmt, &data_description, &(),
-    ).await?;
+    let mut items = conn
+        .execute_stream(&flags, stmt, &data_description, &())
+        .await?;
 
     if !items.can_contain_data() {
         let res = items.complete().await?;
@@ -169,32 +176,35 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
                 stdout().lock().write_all(text.as_bytes())?;
             }
         }
-        OutputFormat::Default => {
-            match print::native_to_stdout(items, &cfg).await {
-                Ok(()) => {}
-                Err(e) => {
-                    match e {
-                        PrintError::StreamErr { source: ref error, ..  } => {
-                            print::error(error);
-                        }
-                        _ => {
-                            print::error(e);
-                        },
+        OutputFormat::Default => match print::native_to_stdout(items, &cfg).await {
+            Ok(()) => {}
+            Err(e) => {
+                match e {
+                    PrintError::StreamErr {
+                        source: ref error, ..
+                    } => {
+                        print::error(error);
                     }
-                    return Ok(());
+                    _ => {
+                        print::error(e);
+                    }
                 }
+                return Ok(());
             }
-        }
+        },
         OutputFormat::JsonPretty => {
             while let Some(row) = items.next().await.transpose()? {
                 let text = match row {
                     Value::Str(s) => s,
-                    _ => return Err(anyhow::anyhow!(
-                        "the server returned \
-                         a non-string value in JSON mode")),
+                    _ => {
+                        return Err(anyhow::anyhow!(
+                            "the server returned \
+                         a non-string value in JSON mode"
+                        ))
+                    }
                 };
-                let value: serde_json::Value = serde_json::from_str(&text)
-                    .context("cannot decode json result")?;
+                let value: serde_json::Value =
+                    serde_json::from_str(&text).context("cannot decode json result")?;
                 // trying to make writes atomic if possible
                 let mut data = print::json_item_to_string(&value, &cfg)?;
                 data += "\n";
@@ -205,9 +215,12 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
             while let Some(row) = items.next().await.transpose()? {
                 let mut text = match row {
                     Value::Str(s) => s,
-                    _ => return Err(anyhow::anyhow!(
-                        "the server returned \
-                         a non-string value in JSON mode")),
+                    _ => {
+                        return Err(anyhow::anyhow!(
+                            "the server returned \
+                         a non-string value in JSON mode"
+                        ))
+                    }
                 };
                 // trying to make writes atomic if possible
                 text += "\n";
@@ -218,15 +231,18 @@ async fn _run_query(conn: &mut Connection, stmt: &str, _options: &Options,
             while let Some(row) = items.next().await.transpose()? {
                 let text = match row {
                     Value::Str(s) => s,
-                    _ => return Err(anyhow::anyhow!(
-                        "the server returned \
-                         a non-string value in JSON mode")),
+                    _ => {
+                        return Err(anyhow::anyhow!(
+                            "the server returned \
+                         a non-string value in JSON mode"
+                        ))
+                    }
                 };
-                let items: serde_json::Value = serde_json::from_str(&text)
-                    .context("cannot decode json result")?;
-                let items = items.as_array()
-                    .ok_or_else(|| anyhow::anyhow!(
-                        "the server returned a non-array value in JSON mode"))?;
+                let items: serde_json::Value =
+                    serde_json::from_str(&text).context("cannot decode json result")?;
+                let items = items.as_array().ok_or_else(|| {
+                    anyhow::anyhow!("the server returned a non-array value in JSON mode")
+                })?;
                 // trying to make writes atomic if possible
                 let mut data = print::json_to_string(items, &cfg)?;
                 data += "\n";

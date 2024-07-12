@@ -1,10 +1,9 @@
-#[cfg(all(feature="github_action_install"))]
-#[path="../docker.rs"]
+#![cfg(feature = "github_action_install")]
+
+#[path = "../common/docker.rs"]
 mod docker;
 
-#[cfg(all(feature="github_action_install"))]
-#[path="../certs.rs"]
+#[path = "../common/certs.rs"]
 mod certs;
 
-#[cfg(all(feature="github_action_install"))]
 mod install;

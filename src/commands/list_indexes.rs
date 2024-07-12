@@ -1,14 +1,12 @@
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
 use edgedb_derive::Queryable;
 use is_terminal::IsTerminal;
 
-use crate::commands::Options;
 use crate::commands::filter;
+use crate::commands::Options;
 use crate::connect::Connection;
 use crate::table;
-
-
 
 #[derive(Queryable)]
 struct Index {
@@ -17,16 +15,20 @@ struct Index {
     subject_name: String,
 }
 
-pub async fn list_indexes(cli: &mut Connection, options: &Options,
-    pattern: &Option<String>, system: bool, case_sensitive: bool,
-    verbose: bool)
-    -> Result<(), anyhow::Error>
-{
+pub async fn list_indexes(
+    cli: &mut Connection,
+    options: &Options,
+    pattern: &Option<String>,
+    system: bool,
+    case_sensitive: bool,
+    verbose: bool,
+) -> Result<(), anyhow::Error> {
     let mut filters = Vec::with_capacity(3);
     if !system {
         filters.push(
             r#"NOT re_test("^(?:std|schema|math|sys|cfg|cal|stdgraphql)::",
-               .subject_name)"#);
+               .subject_name)"#,
+        );
     }
     if !verbose {
         filters.push("NOT .is_implicit");
@@ -39,7 +41,8 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
     } else {
         format!("FILTER {}", filters.join(" AND "))
     };
-    let query = &format!(r###"
+    let query = &format!(
+        r###"
         WITH
             MODULE schema,
             I := {{
@@ -67,16 +70,20 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         }}
         {filter}
         ORDER BY .subject_name;
-    "###, filter=filter);
-    let items = filter::query::<Index>(cli,
-        &query, &pattern, case_sensitive).await?;
+    "###,
+        filter = filter
+    );
+    let items = filter::query::<Index>(cli, query, pattern, case_sensitive).await?;
     if !options.command_line || std::io::stdout().is_terminal() {
         let mut table = Table::new();
         table.set_format(*table::FORMAT);
         if verbose {
             table.set_titles(Row::new(
                 ["Index On", "Implicit", "Subject"]
-                .iter().map(|x| table::header_cell(x)).collect()));
+                    .iter()
+                    .map(|x| table::header_cell(x))
+                    .collect(),
+            ));
             for item in items {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.expr),
@@ -87,7 +94,10 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         } else {
             table.set_titles(Row::new(
                 ["Index On", "Subject"]
-                .iter().map(|x| table::header_cell(x)).collect()));
+                    .iter()
+                    .map(|x| table::header_cell(x))
+                    .collect(),
+            ));
             for item in items {
                 table.add_row(Row::new(vec![
                     Cell::new(&item.expr),
@@ -110,16 +120,13 @@ pub async fn list_indexes(cli: &mut Connection, options: &Options,
         } else {
             table.printstd();
         }
+    } else if verbose {
+        for item in items {
+            println!("{}\t{}\t{}", item.expr, item.is_implicit, item.subject_name);
+        }
     } else {
-        if verbose {
-            for item in items {
-                println!("{}\t{}\t{}",
-                    item.expr, item.is_implicit, item.subject_name);
-            }
-        } else {
-            for item in items {
-                println!("{}\t{}", item.expr, item.subject_name);
-            }
+        for item in items {
+            println!("{}\t{}", item.expr, item.subject_name);
         }
     }
     Ok(())

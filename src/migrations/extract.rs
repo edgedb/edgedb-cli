@@ -1,4 +1,7 @@
+use anyhow::Context as _;
 use fs_err as fs;
+use std::iter::Once;
+use std::path::Path;
 
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
@@ -9,14 +12,12 @@ use crate::migrations::{create, migration, Context};
 use crate::portable::exit_codes;
 use crate::{print, question};
 
-struct DatabaseMigration {
-    key: MigrationKey,
-    migration: db_migration::DBMigration,
+pub struct DatabaseMigration {
+    pub key: MigrationKey,
+    pub migration: db_migration::DBMigration,
 }
 
-impl MigrationToText for DatabaseMigration {
-    type StatementsIter<'a> = std::iter::Once<&'a String>;
-
+impl<'a> MigrationToText<'a, Once<&'a String>> for DatabaseMigration {
     fn key(&self) -> &MigrationKey {
         &self.key
     }
@@ -35,7 +36,7 @@ impl MigrationToText for DatabaseMigration {
         Ok(&self.migration.name)
     }
 
-    fn statements<'a>(&'a self) -> Self::StatementsIter<'a> {
+    fn statements(&'a self) -> Once<&'a String> {
         std::iter::once(&self.migration.script)
     }
 }
@@ -63,7 +64,10 @@ pub async fn extract(
         match (disk_iter.next(), db_iter.next()) {
             (existing, Some((i, migration))) => {
                 let key = MigrationKey::Index((i + 1) as u64);
-                let dm = DatabaseMigration { key, migration: migration.1 };
+                let dm = DatabaseMigration {
+                    key,
+                    migration: migration.1,
+                };
                 if let Some((id, migration_file)) = existing {
                     if dm.id()? != id {
                         if params.non_interactive {
@@ -124,6 +128,24 @@ pub async fn extract(
         }
     }
 
+    // make sure that migrations dir exists
+    let to_migrations_dir = src_ctx.schema_dir.join("migrations");
+    if !to_migrations_dir.is_dir() {
+        if src_ctx.schema_dir.is_dir() {
+            print::warn(format!(
+                "Creating directory {}",
+                to_migrations_dir.display()
+            ));
+            fs::create_dir(to_migrations_dir)?;
+        } else {
+            anyhow::bail!(
+                "Cannot write migrations because path {} is not a directory",
+                src_ctx.schema_dir.display()
+            );
+        }
+    }
+
+    // copy migration files
     let mut updated = false;
     for from in migration::read_names(&temp_ctx).await? {
         let to = src_ctx
@@ -131,7 +153,8 @@ pub async fn extract(
             .join("migrations")
             .join(from.file_name().expect(""));
         print::success_msg("Writing", to.display());
-        fs::copy(from, to)?;
+        fs::copy(from, &to)
+            .with_context(|| format!("Cannot write {}", relative_to_current_dir(&to).display()))?;
         updated = true;
     }
     for path in to_delete {
@@ -146,4 +169,14 @@ pub async fn extract(
         ));
     }
     Ok(())
+}
+
+fn relative_to_current_dir(path: &Path) -> &Path {
+    let curr_dir = std::env::current_dir().ok();
+
+    if let Some(stripped) = curr_dir.and_then(|wd| path.strip_prefix(&wd).ok()) {
+        stripped
+    } else {
+        path
+    }
 }

@@ -6,7 +6,6 @@ use crate::portable::repository::Query;
 
 use edgedb_tokio::get_project_dir;
 
-
 pub struct Context {
     pub schema_dir: PathBuf,
 
@@ -20,9 +19,10 @@ pub struct Context {
 }
 
 impl Context {
-    pub async fn from_project_or_config(cfg: &MigrationConfig, quiet: bool)
-        -> anyhow::Result<Context>
-    {
+    pub async fn from_project_or_config(
+        cfg: &MigrationConfig,
+        quiet: bool,
+    ) -> anyhow::Result<Context> {
         let mut edgedb_version = None;
         let schema_dir = if let Some(schema_dir) = &cfg.schema_dir {
             schema_dir.clone()
@@ -32,7 +32,11 @@ impl Context {
             edgedb_version = Some(config.edgedb.server_version);
             config.project.schema_dir
         } else {
-            "./dbschema".into()
+            let default_dir: PathBuf = "./dbschema".into();
+            if !default_dir.exists() {
+                anyhow::bail!("`dbschema` directory doesn't exist. Either create one or provide path via --schema-dir.");
+            }
+            default_dir
         };
 
         Ok(Context {
@@ -44,7 +48,7 @@ impl Context {
     pub fn for_watch(project_dir: &Path) -> anyhow::Result<Context> {
         let config_path = project_dir.join("edgedb.toml");
         let config = config::read(&config_path)?;
-        return Context::for_project(&config);
+        Context::for_project(&config)
     }
     pub fn for_project(config: &config::Config) -> anyhow::Result<Context> {
         Ok(Context {

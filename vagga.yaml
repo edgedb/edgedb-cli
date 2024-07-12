@@ -73,7 +73,7 @@ commands:
     - cargo
     - test
     - --features=docker_test_wrapper,portable_tests
-    - --test=docker_portable_wrapper
+    - --test=docker_test_wrapper
     environ:
       DOCKER_HOST: unix:///var/docker.sock
     volumes:
@@ -105,8 +105,7 @@ commands:
     run:
     - cargo
     - test
-    - --test=portable_shared
-    - --features=portable_tests
+    - --test=shared_client_tests
     environ:
       RUST_TEST_THREADS: 1
     volumes:

@@ -6,16 +6,30 @@ authors = ["EdgeDB Inc. <hello@edgedb.com>"]
 edition = "2018"
 
 [dependencies]
-clap = "4.4.6"
-clap_generate = "3.0.3"
-termimad = "0.20.1"
 syn = {version="1.0.72", features=["extra-traits"]}
 quote = "1.0.9"
-proc-macro2 = "1.0.36"
+proc-macro2 = "1.0.78"
 proc-macro-error = "1.0.4"
-trybuild = "1.0.19"
-indexmap = "1.9.3"
-heck = "0.4.0"
+clap = {workspace = true}
+clap_generate = {workspace = true}
+termimad = {workspace = true}
+trybuild = {workspace = true}
+indexmap = {workspace = true}
+heck = {workspace = true}
 
 [lib]
 proc-macro = true
+test = false
+
+[lints.clippy]
+useless_format = 'allow'
+collapsible_if = 'allow'
+derive_partial_eq_without_eq = 'allow'
+zero_ptr = 'allow'
+manual_strip = 'allow'
+new_ret_no_self = 'allow'
+type_complexity = 'allow'
+vec_init_then_push = 'allow'
+while_let_on_iterator = 'allow'
+too_many_arguments = 'allow'
+clone_on_copy = 'allow'

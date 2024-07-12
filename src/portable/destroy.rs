@@ -1,4 +1,4 @@
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
 use fs_err as fs;
 
@@ -7,17 +7,15 @@ use crate::options::Options;
 use crate::portable::control;
 use crate::portable::exit_codes;
 use crate::portable::local;
-use crate::portable::options::{Destroy, instance_arg, InstanceName};
+use crate::portable::options::{instance_arg, Destroy, InstanceName};
 use crate::portable::project;
 use crate::portable::windows;
 use crate::print::{self, echo, Highlight};
 use crate::question;
 
-
 #[derive(Debug, thiserror::Error)]
 #[error("instance not found")]
 pub struct InstanceNotFound(#[source] pub anyhow::Error);
-
 
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     project::print_instance_in_use_warning(name, project_dirs);
@@ -25,15 +23,16 @@ pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     eprintln!("  edgedb instance destroy -I {:?} --force", name);
 }
 
-pub fn with_projects(name: &str, force: bool,
-                     warn: impl FnOnce(&str, &[PathBuf]),
-                     f: impl FnOnce() -> anyhow::Result<()>)
-    -> anyhow::Result<()>
-{
-    let project_dirs = project::find_project_dirs_by_instance(&name)?;
+pub fn with_projects(
+    name: &str,
+    force: bool,
+    warn: impl FnOnce(&str, &[PathBuf]),
+    f: impl FnOnce() -> anyhow::Result<()>,
+) -> anyhow::Result<()> {
+    let project_dirs = project::find_project_dirs_by_instance(name)?;
     if !force && !project_dirs.is_empty() {
-        warn(&name, &project_dirs);
-        return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
+        warn(name, &project_dirs);
+        Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
     }
     f()?;
     for dir in project_dirs {
@@ -51,9 +50,10 @@ pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
     let name_str = name.to_string();
     with_projects(&name_str, options.force, print_warning, || {
         if !options.force && !options.non_interactive {
-            let q = question::Confirm::new_dangerous(
-                format!("Do you really want to delete instance {:?}?", name_str)
-            );
+            let q = question::Confirm::new_dangerous(format!(
+                "Do you really want to delete instance {:?}?",
+                name_str
+            ));
             if !q.ask()? {
                 print::error("Canceled.");
                 return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
@@ -98,7 +98,7 @@ fn destroy_local(name: &str) -> anyhow::Result<()> {
         log::info!("Removing data directory {:?}", paths.data_dir);
         fs::remove_dir_all(&paths.data_dir)?;
     }
-    if paths.credentials.exists(){
+    if paths.credentials.exists() {
         found = true;
         log::info!("Removing credentials file {:?}", &paths.credentials);
         fs::remove_file(&paths.credentials)?;
@@ -134,9 +134,7 @@ fn destroy_local(name: &str) -> anyhow::Result<()> {
     }
 }
 
-fn do_destroy(
-    options: &Destroy, opts: &Options, name: &InstanceName
-) -> anyhow::Result<()> {
+fn do_destroy(options: &Destroy, opts: &Options, name: &InstanceName) -> anyhow::Result<()> {
     match name {
         InstanceName::Local(name) => {
             if cfg!(windows) {
@@ -144,12 +142,15 @@ fn do_destroy(
             } else {
                 destroy_local(name)
             }
-        },
-        InstanceName::Cloud { org_slug, name: inst_name } => {
+        }
+        InstanceName::Cloud {
+            org_slug,
+            name: inst_name,
+        } => {
             log::info!("Removing cloud instance {}", name);
-            if let Err(e) = crate::cloud::ops::destroy_cloud_instance(
-                &inst_name, &org_slug, &opts.cloud_options
-            ) {
+            if let Err(e) =
+                crate::cloud::ops::destroy_cloud_instance(inst_name, org_slug, &opts.cloud_options)
+            {
                 let msg = format!("Could not destroy EdgeDB Cloud instance: {:#}", e);
                 if options.force {
                     print::warn(msg);
@@ -163,13 +164,17 @@ fn do_destroy(
 }
 
 pub fn force_by_name(name: &InstanceName, options: &Options) -> anyhow::Result<()> {
-    do_destroy(&Destroy {
-        name: None,
-        instance: Some(name.clone()),
-        verbose: false,
-        force: true,
-        quiet: false,
-        non_interactive: true,
-        cloud_opts: options.cloud_options.clone(),
-    }, options, name)
+    do_destroy(
+        &Destroy {
+            name: None,
+            instance: Some(name.clone()),
+            verbose: false,
+            force: true,
+            quiet: false,
+            non_interactive: true,
+            cloud_opts: options.cloud_options.clone(),
+        },
+        options,
+        name,
+    )
 }

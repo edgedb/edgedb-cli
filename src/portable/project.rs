@@ -1,13 +1,13 @@
+use std::collections::HashMap;
 use std::env;
-use std::io;
 use std::ffi::OsString;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
 use std::str::FromStr;
 
 use anyhow::Context;
-use clap::{ValueHint};
+use clap::ValueHint;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use sha1::Digest;
@@ -16,34 +16,34 @@ use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgedb_tokio::Builder;
 use edgeql_parser::helpers::quote_name;
 
-use crate::connect::Connection;
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
+use crate::connect::Connection;
 use crate::connect::Connector;
 use crate::credentials;
 use crate::migrations;
-use crate::platform::{path_bytes, bytes_to_path};
-use crate::platform::{tmp_file_path, symlink_dir, config_dir};
+use crate::options::CloudOptions;
+use crate::platform::{bytes_to_path, path_bytes};
+use crate::platform::{config_dir, symlink_dir, tmp_file_path};
 use crate::portable::config;
 use crate::portable::control;
 use crate::portable::create;
 use crate::portable::destroy;
 use crate::portable::exit_codes;
 use crate::portable::install;
-use crate::portable::local::{InstanceInfo, Paths, allocate_port};
-use crate::portable::options::{self, StartConf, Start, InstanceName};
-use crate::portable::platform::{optional_docker_check};
-use crate::portable::repository::{self, Channel, Query, PackageInfo};
+use crate::portable::local::{allocate_port, InstanceInfo, Paths};
+use crate::portable::options::{self, InstanceName, Start, StartConf};
+use crate::portable::platform::optional_docker_check;
+use crate::portable::repository::{self, Channel, PackageInfo, Query};
 use crate::portable::upgrade;
 use crate::portable::ver;
+use crate::portable::ver::Specific;
 use crate::portable::windows;
-use crate::options::CloudOptions;
 use crate::print::{self, echo, Highlight};
+
 use crate::question;
 use crate::table;
-
-
 
 const DEFAULT_ESDL: &str = "\
     module default {\n\
@@ -66,7 +66,7 @@ pub struct ProjectInfo {
 
 #[derive(clap::Args, Debug, Clone)]
 #[command(version = "help_expand")]
-#[command(disable_version_flag=true)]
+#[command(disable_version_flag = true)]
 pub struct ProjectCommand {
     #[command(subcommand)]
     pub subcommand: Command,
@@ -82,21 +82,11 @@ pub enum Command {
     Info(Info),
     /// Upgrade EdgeDB instance used for current project
     ///
-    /// This command has two modes of operation.
+    /// Data is preserved using a dump/restore mechanism.
     ///
-    /// Upgrade instance to version specified in `edgedb.toml`:
+    /// Upgrades to version specified in `edgedb.toml` unless other options specified.
     ///
-    ///     project upgrade
-    ///
-    /// Update `edgedb.toml` to new version and upgrade the instance:
-    ///
-    ///     project upgrade --to-latest
-    ///     project upgrade --to-version=1-beta2
-    ///     project upgrade --to-nightly
-    ///
-    /// In all cases your data is preserved and converted using dump/restore
-    /// mechanism. May fail if lower version is specified (e.g. if upgrading
-    /// from nightly to stable).
+    /// Note: May fail if lower version is specified (e.g. moving from nightly to stable).
     Upgrade(Upgrade),
 }
 
@@ -123,11 +113,11 @@ pub struct Init {
     pub server_instance: Option<InstanceName>,
 
     /// Specify the default database for the project to use on that instance
-    #[arg(long, short='d')]
+    #[arg(long, short = 'd')]
     pub database: Option<String>,
 
     /// Deprecated parameter, does nothing.
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub server_start_conf: Option<StartConf>,
 
     /// Skip running migrations
@@ -154,7 +144,7 @@ pub struct Unlink {
 
     /// If specified, the associated EdgeDB instance is destroyed
     /// using `edgedb instance destroy`.
-    #[arg(long, short='D')]
+    #[arg(long, short = 'D')]
     pub destroy_server_instance: bool,
 
     /// Unlink in in non-interactive mode (accepting all defaults)
@@ -199,7 +189,9 @@ pub struct Upgrade {
     ])]
     pub to_latest: bool,
 
-    /// Upgrade specified instance to a specified version
+    /// Upgrade specified instance to a specified version.
+    ///
+    /// e.g. --to-version 4.0-beta.1
     #[arg(long)]
     #[arg(conflicts_with_all=&[
         "to_testing", "to_latest", "to_nightly", "to_channel",
@@ -228,7 +220,7 @@ pub struct Upgrade {
     pub to_channel: Option<Channel>,
 
     /// Verbose output
-    #[arg(short='v', long)]
+    #[arg(short = 'v', long)]
     pub verbose: bool,
 
     /// Force upgrade process even if there is no new version
@@ -255,8 +247,7 @@ pub struct StashDir<'a> {
     cloud_profile: Option<&'a str>,
 }
 
-pub struct WslInfo {
-}
+pub struct WslInfo {}
 
 pub enum InstanceKind<'a> {
     Remote,
@@ -270,7 +261,7 @@ pub enum InstanceKind<'a> {
 }
 
 #[derive(serde::Serialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 struct JsonInfo<'a> {
     instance_name: &'a str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -280,21 +271,21 @@ struct JsonInfo<'a> {
 
 pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
-        print::error(
-            "`edgedb project init` is not supported in Docker containers.",
-        );
-        return Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
+        print::error("`edgedb project init` is not supported in Docker containers.");
+        Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
 
     if options.server_start_conf.is_some() {
-        print::warn("The option `--server-start-conf` is deprecated. \
+        print::warn(
+            "The option `--server-start-conf` is deprecated. \
                      Use `edgedb instance start/stop` to control \
-                     the instance.");
+                     the instance.",
+        );
     }
 
     match &options.project_dir {
         Some(dir) => {
-            let dir = fs::canonicalize(&dir)?;
+            let dir = fs::canonicalize(dir)?;
             if dir.join("edgedb.toml").exists() {
                 if options.link {
                     link(options, &dir, &opts.cloud_options)?
@@ -306,17 +297,17 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
                     anyhow::bail!(
                         "`edgedb.toml` not found, unable to link an EdgeDB \
                         instance without initialized project. To initialize \
-                        a project, run command without `--link` flag")
+                        a project, run command without `--link` flag"
+                    )
                 }
 
                 init_new(options, &dir, opts)?
             }
         }
         None => {
-            let base_dir = env::current_dir()
-                .context("failed to get current directory")?;
+            let base_dir = env::current_dir().context("failed to get current directory")?;
             if let Some(dir) = search_dir(&base_dir) {
-                let dir = fs::canonicalize(&dir)?;
+                let dir = fs::canonicalize(dir)?;
                 if options.link {
                     link(options, &dir, &opts.cloud_options)?
                 } else {
@@ -327,7 +318,8 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
                     anyhow::bail!(
                         "`edgedb.toml` not found, unable to link an EdgeDB \
                         instance without an initialized project. To initialize \
-                        a project, run command without `--link` flag")
+                        a project, run command without `--link` flag"
+                    )
                 }
 
                 let dir = fs::canonicalize(&base_dir)?;
@@ -338,15 +330,14 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     Ok(())
 }
 
-fn ask_existing_instance_name(
-    cloud_client: &mut CloudClient
-) -> anyhow::Result<InstanceName> {
+fn ask_existing_instance_name(cloud_client: &mut CloudClient) -> anyhow::Result<InstanceName> {
     let instances = credentials::all_instance_names()?;
 
     loop {
-        let mut q =
-            question::String::new("Specify the name of EdgeDB instance \
-                                   to link with this project");
+        let mut q = question::String::new(
+            "Specify the name of EdgeDB instance \
+                                   to link with this project",
+        );
         let target_name = q.ask()?;
 
         let inst_name = match InstanceName::from_str(&target_name) {
@@ -360,16 +351,13 @@ fn ask_existing_instance_name(
             InstanceName::Local(name) => instances.contains(name),
             InstanceName::Cloud { org_slug, name } => {
                 if !cloud_client.is_logged_in {
-                    if let Err(e) = crate::cloud::ops::prompt_cloud_login(
-                        cloud_client
-                    ) {
+                    if let Err(e) = crate::cloud::ops::prompt_cloud_login(cloud_client) {
                         print::error(e);
                         continue;
                     }
                 }
-                crate::cloud::ops::find_cloud_instance_by_name(
-                    name, org_slug, cloud_client
-                )?.is_some()
+                crate::cloud::ops::find_cloud_instance_by_name(name, org_slug, cloud_client)?
+                    .is_some()
             }
         };
         if exists {
@@ -397,8 +385,51 @@ fn ask_database(project_dir: &Path, options: &Init) -> anyhow::Result<String> {
     }
 }
 
+fn ask_branch() -> anyhow::Result<String> {
+    let mut q = question::String::new("Specify branch name:");
+    q.default("main");
+    loop {
+        let name = q.ask()?;
+        if name.trim().is_empty() {
+            print::error(format!("Non-empty name is required"));
+        } else {
+            return Ok(name.trim().into());
+        }
+    }
+}
+
+fn ask_database_or_branch(
+    version: &Specific,
+    project_dir: &Path,
+    options: &Init,
+) -> anyhow::Result<String> {
+    if version.major >= 5 {
+        return ask_branch();
+    }
+
+    ask_database(project_dir, options)
+}
+
+pub fn get_default_branch_name(version: &Specific) -> String {
+    if version.major >= 5 {
+        return String::from("main");
+    }
+
+    String::from("edgedb")
+}
+
+pub fn get_default_branch_or_database(version: &Specific, project_dir: &Path) -> String {
+    if version.major >= 5 {
+        return String::from("main");
+    }
+
+    directory_to_name(project_dir, "edgedb")
+}
+
 fn link(
-    options: &Init, project_dir: &Path, cloud_options: &crate::options::CloudOptions
+    options: &Init,
+    project_dir: &Path,
+    cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
     echo!("Found `edgedb.toml` in", project_dir.display());
     echo!("Linking project...");
@@ -416,33 +447,42 @@ fn link(
     let name = if let Some(name) = &options.server_instance {
         name.clone()
     } else if options.non_interactive {
-        anyhow::bail!("Existing instance name should be specified \
+        anyhow::bail!(
+            "Existing instance name should be specified \
                        with `--server-instance` when linking project \
-                       in non-interactive mode")
+                       in non-interactive mode"
+        )
     } else {
         ask_existing_instance_name(&mut client)?
     };
     let schema_dir = &config.project.schema_dir;
     let mut inst = Handle::probe(&name, project_dir, schema_dir, &client)?;
-    if matches!(name, InstanceName::Cloud {..}) {
-        inst.database = Some(ask_database(project_dir, options)?);
+    if matches!(name, InstanceName::Cloud { .. }) {
+        if options.non_interactive {
+            inst.database = Some(
+                options
+                    .database
+                    .clone()
+                    .unwrap_or(directory_to_name(project_dir, "edgedb").to_owned()),
+            )
+        } else {
+            inst.database = Some(ask_database(project_dir, options)?);
+        }
     } else {
-        inst.database = options.database.clone();
+        inst.database.clone_from(&options.database);
     }
     inst.check_version(&ver_query);
     do_link(&inst, options, &stash_dir)
 }
 
-fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
-    -> anyhow::Result<ProjectInfo>
-{
+fn do_link(inst: &Handle, options: &Init, stash_dir: &Path) -> anyhow::Result<ProjectInfo> {
     let mut stash = StashDir::new(&inst.project_dir, &inst.name);
     if let InstanceKind::Cloud { cloud_client, .. } = inst.instance {
         let profile = cloud_client.profile.as_deref().unwrap_or("default");
         stash.cloud_profile = Some(profile);
     };
     stash.database = inst.database.as_deref();
-    stash.write(&stash_dir)?;
+    stash.write(stash_dir)?;
 
     if !options.no_migrations {
         migrate(inst, !options.non_interactive)?;
@@ -468,21 +508,20 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path)
 }
 
 fn directory_to_name(path: &Path, default: &str) -> String {
-    let path_stem = path.file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or(default);
-    let stem = path_stem
-        .replace(|c: char| !c.is_ascii_alphanumeric(), "_");
+    let path_stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or(default);
+    let stem = path_stem.replace(|c: char| !c.is_ascii_alphanumeric(), "_");
     let stem = stem.trim_matches('_');
     if stem.is_empty() {
-        return default.into();
+        default.into()
     } else {
-        return stem.into();
+        stem.into()
     }
 }
 
 fn ask_name(
-    dir: &Path, options: &Init, cloud_client: &mut CloudClient
+    dir: &Path,
+    options: &Init,
+    cloud_client: &mut CloudClient,
 ) -> anyhow::Result<(InstanceName, bool)> {
     let instances = credentials::all_instance_names()?;
     let default_name = if let Some(name) = &options.server_instance {
@@ -492,8 +531,7 @@ fn ask_name(
         let mut name = base_name.clone();
 
         while instances.contains(&name) {
-            name = format!("{}_{:04}",
-                base_name, thread_rng().gen_range(0..10000));
+            name = format!("{}_{:04}", base_name, thread_rng().gen_range(0..10000));
         }
         InstanceName::Local(name)
     };
@@ -502,31 +540,29 @@ fn ask_name(
             InstanceName::Local(name) => instances.contains(name),
             InstanceName::Cloud { org_slug, name } => {
                 cloud_client.ensure_authenticated()?;
-                let inst = crate::cloud::ops::find_cloud_instance_by_name(
-                    name,
-                    org_slug,
-                    cloud_client,
-                )?;
+                let inst =
+                    crate::cloud::ops::find_cloud_instance_by_name(name, org_slug, cloud_client)?;
                 inst.is_some()
             }
         };
         if exists {
-            anyhow::bail!(format!("Instance {:?} already exists, \
+            anyhow::bail!(format!(
+                "Instance {:?} already exists, \
                                to link project with it pass `--link` \
-                               flag explicitly", default_name.to_string()))
+                               flag explicitly",
+                default_name.to_string()
+            ))
         }
         return Ok((default_name, false));
     }
-    let mut q = question::String::new(
-        "Specify the name of EdgeDB instance to use with this project"
-    );
+    let mut q =
+        question::String::new("Specify the name of EdgeDB instance to use with this project");
     let default_name_str = default_name.to_string();
     q.default(&default_name_str);
     loop {
         let default_name_clone = default_name.clone();
-        let mut q = question::String::new(
-            "Specify the name of EdgeDB instance to use with this project"
-        );
+        let mut q =
+            question::String::new("Specify the name of EdgeDB instance to use with this project");
         let default_name_str = default_name_clone.to_string();
         let target_name = q.default(&default_name_str).ask()?;
         let inst_name = match InstanceName::from_str(&target_name) {
@@ -540,36 +576,35 @@ fn ask_name(
             InstanceName::Local(name) => instances.contains(name),
             InstanceName::Cloud { org_slug, name } => {
                 if !cloud_client.is_logged_in {
-                    if let Err(e) = crate::cloud::ops::prompt_cloud_login(
-                        cloud_client
-                    ) {
+                    if let Err(e) = crate::cloud::ops::prompt_cloud_login(cloud_client) {
                         print::error(e);
                         continue;
                     }
                 }
-                crate::cloud::ops::find_cloud_instance_by_name(
-                    name, org_slug, cloud_client
-                )?.is_some()
+                crate::cloud::ops::find_cloud_instance_by_name(name, org_slug, cloud_client)?
+                    .is_some()
             }
         };
         if exists {
-            let confirm = question::Confirm::new(
-                format!("Do you want to use existing instance {:?} \
+            let confirm = question::Confirm::new(format!(
+                "Do you want to use existing instance {:?} \
                          for the project?",
-                         target_name)
-            );
+                target_name
+            ));
             if confirm.ask()? {
                 return Ok((inst_name, true));
             }
         } else {
-            return Ok((inst_name, false))
+            return Ok((inst_name, false));
         }
     }
 }
 
-pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::options::CloudOptions)
-    -> anyhow::Result<ProjectInfo>
-{
+pub fn init_existing(
+    options: &Init,
+    project_dir: &Path,
+    cloud_options: &crate::options::CloudOptions,
+) -> anyhow::Result<ProjectInfo> {
     echo!("Found `edgedb.toml` in", project_dir.display());
     echo!("Initializing project...");
 
@@ -583,15 +618,12 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
     let config = config::read(&config_path)?;
     let schema_dir = config.project.schema_dir;
     let schema_dir_path = project_dir.join(&schema_dir);
-    let schema_dir_path =
-        if schema_dir_path.exists() {
-            fs::canonicalize(&schema_dir_path)
-                .with_context(|| {
-                    format!("failed to canonicalize dir {:?}", schema_dir_path)
-                })?
-        } else {
-            schema_dir_path
-        };
+    let schema_dir_path = if schema_dir_path.exists() {
+        fs::canonicalize(&schema_dir_path)
+            .with_context(|| format!("failed to canonicalize dir {:?}", schema_dir_path))?
+    } else {
+        schema_dir_path
+    };
     let schema_files = find_schema_files(&schema_dir_path)?;
 
     let ver_query = if let Some(sver) = &options.server_version {
@@ -604,11 +636,23 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
 
     if exists {
         let mut inst = Handle::probe(&name, project_dir, &schema_dir, &client)?;
+        let specific_version: &Specific = &inst.get_version()?.specific();
         inst.check_version(&ver_query);
+
         if matches!(name, InstanceName::Cloud { .. }) {
-            inst.database = Some(ask_database(project_dir, options)?);
+            if options.non_interactive {
+                inst.database = Some(options.database.clone().unwrap_or(
+                    get_default_branch_or_database(specific_version, project_dir),
+                ));
+            } else {
+                inst.database = Some(ask_database_or_branch(
+                    specific_version,
+                    project_dir,
+                    options,
+                )?);
+            }
         } else {
-            inst.database = options.database.clone();
+            inst.database.clone_from(&options.database);
         }
         return do_link(&inst, options, &stash_dir);
     }
@@ -623,87 +667,155 @@ pub fn init_existing(options: &Init, project_dir: &Path, cloud_options: &crate::
             let database = ask_database(project_dir, options)?;
 
             table::settings(&[
-                ("Project directory", &project_dir.display().to_string()),
-                ("Project config", &config_path.display().to_string()),
-                (&format!("Schema dir {}",
-                          if schema_files { "(non-empty)" } else { "(empty)" }),
-                 &schema_dir_path.display().to_string()),
-                ("Database name", &database.to_string()),
-                ("Version", &ver.to_string()),
-                ("Instance name", &name.to_string()),
+                ("Project directory", project_dir.display().to_string()),
+                ("Project config", config_path.display().to_string()),
+                (
+                    &format!(
+                        "Schema dir {}",
+                        if schema_files {
+                            "(non-empty)"
+                        } else {
+                            "(empty)"
+                        }
+                    ),
+                    schema_dir_path.display().to_string(),
+                ),
+                (
+                    if ver.major >= 5 {
+                        "Branch name"
+                    } else {
+                        "Database name"
+                    },
+                    database.to_string(),
+                ),
+                ("Version", ver.to_string()),
+                ("Instance name", name.to_string()),
             ]);
 
             if !schema_files {
-                write_schema_default(&schema_dir, &ver_query)?;
+                write_schema_default(&schema_dir, &Query::from_version(&ver)?)?;
             }
             do_cloud_init(
                 name.to_owned(),
                 org_slug.to_owned(),
                 &stash_dir,
-                &project_dir,
+                project_dir,
                 &schema_dir,
                 &ver,
                 &database,
                 options,
-                &client)
+                &client,
+            )
         }
         InstanceName::Local(name) => {
             echo!("Checking EdgeDB versions...");
 
-            let pkg = repository::get_server_package(&ver_query)?
-                .with_context(||
-                    format!("cannot find package matching {}. \
-                    (Use `edgedb server list-versions` to see all available)", ver_query.display()))?;
-            ver::print_version_hint(&pkg.version.specific(), &ver_query);
+            let pkg = repository::get_server_package(&ver_query)?.with_context(|| {
+                format!(
+                    "cannot find package matching {}. \
+                    (Use `edgedb server list-versions` to see all available)",
+                    ver_query.display()
+                )
+            })?;
+            let specific_version = &pkg.version.specific();
+            ver::print_version_hint(specific_version, &ver_query);
 
-            let meth = if cfg!(windows) {
-                "WSL"
-            } else {
-                "portable package"
-            };
-            table::settings(&[
-                ("Project directory", &project_dir.display().to_string()),
-                ("Project config", &config_path.display().to_string()),
-                (&format!("Schema dir {}",
-                          if schema_files { "(non-empty)" } else { "(empty)" }),
-                 &schema_dir_path.display().to_string()),
-                ("Installation method", meth),
-                ("Version", &pkg.version.to_string()),
-                ("Instance name", name),
-            ]);
-
-            if !schema_files {
-                write_schema_default(&schema_dir, &ver_query)?;
+            let mut branch: Option<String> = None;
+            if !options.non_interactive && specific_version.major >= 5 {
+                branch = Some(ask_branch()?);
             }
 
-            do_init(name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
+            let meth = if cfg!(windows) {
+                "WSL".to_string()
+            } else {
+                "portable package".to_string()
+            };
+
+            let schema_dir_key = &format!(
+                "Schema dir {}",
+                if schema_files {
+                    "(non-empty)"
+                } else {
+                    "(empty)"
+                }
+            );
+
+            let mut rows: Vec<(&str, String)> = vec![
+                ("Project directory", project_dir.display().to_string()),
+                ("Project config", config_path.display().to_string()),
+                (schema_dir_key, schema_dir_path.display().to_string()),
+                ("Installation method", meth),
+                ("Version", pkg.version.to_string()),
+                ("Instance name", name.clone()),
+            ];
+
+            if let Some(branch) = branch.clone() {
+                rows.push(("Branch", branch))
+            }
+
+            table::settings(rows.as_slice());
+
+            if !schema_files {
+                write_schema_default(&schema_dir, &Query::from_version(specific_version)?)?;
+            }
+
+            do_init(
+                name,
+                &pkg,
+                &stash_dir,
+                project_dir,
+                &schema_dir,
+                &branch.unwrap_or(get_default_branch_name(specific_version)),
+                options,
+            )
         }
     }
 }
 
-fn do_init(name: &str, pkg: &PackageInfo,
-           stash_dir: &Path, project_dir: &Path, schema_dir: &Path, options: &Init)
-    -> anyhow::Result<ProjectInfo>
-{
+fn do_init(
+    name: &str,
+    pkg: &PackageInfo,
+    stash_dir: &Path,
+    project_dir: &Path,
+    schema_dir: &Path,
+    database: &str,
+    options: &Init,
+) -> anyhow::Result<ProjectInfo> {
     let port = allocate_port(name)?;
-    let paths = Paths::get(&name)?;
+    let paths = Paths::get(name)?;
     let inst_name = InstanceName::Local(name.to_owned());
 
     let instance = if cfg!(windows) {
         let q = repository::Query::from_version(&pkg.version.specific())?;
-        windows::create_instance(&options::Create {
-            name: Some(inst_name.clone()),
-            nightly: false,
-            channel: q.cli_channel(),
-            version: q.version,
-            cloud_params: None,
-            port: Some(port),
-            start_conf: None,
-            default_database: "edgedb".into(),
-            default_user: "edgedb".into(),
-            non_interactive: true,
-            cloud_opts: options.cloud_opts.clone(),
-        }, name, port, &paths)?;
+        windows::create_instance(
+            &options::Create {
+                name: Some(inst_name.clone()),
+                nightly: false,
+                channel: q.cli_channel(),
+                version: q.version,
+                cloud_params: options::CloudInstanceParams {
+                    region: None,
+                    billables: options::CloudInstanceBillables {
+                        tier: None,
+                        compute_size: None,
+                        storage_size: None,
+                    },
+                },
+                cloud_backup_source: options::CloudBackupSourceParams {
+                    from_backup_id: None,
+                    from_instance: None,
+                },
+                port: Some(port),
+                start_conf: None,
+                default_user: "edgedb".into(),
+                non_interactive: true,
+                cloud_opts: options.cloud_opts.clone(),
+                default_branch: Some(database.to_string()),
+            },
+            name,
+            port,
+            &paths,
+        )?;
         create::create_service(&InstanceInfo {
             name: name.into(),
             installation: None,
@@ -711,19 +823,21 @@ fn do_init(name: &str, pkg: &PackageInfo,
         })?;
         InstanceKind::Wsl(WslInfo {})
     } else {
-        let inst = install::package(&pkg).context("error installing EdgeDB")?;
+        let inst = install::package(pkg).context("error installing EdgeDB")?;
         let info = InstanceInfo {
             name: name.into(),
             installation: Some(inst),
             port,
         };
-        create::bootstrap(&paths, &info, "edgedb", "edgedb")?;
+        create::bootstrap(&paths, &info, "edgedb", database)?;
         match create::create_service(&info) {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(e) => {
                 log::warn!("Error running EdgeDB as a service: {e:#}");
-                print::warn("EdgeDB will not start on next login. \
-                             Trying to start database in the background...");
+                print::warn(
+                    "EdgeDB will not start on next login. \
+                             Trying to start database in the background...",
+                );
                 control::start(&Start {
                     name: None,
                     instance: Some(inst_name.clone()),
@@ -736,7 +850,6 @@ fn do_init(name: &str, pkg: &PackageInfo,
         InstanceKind::Portable(info)
     };
 
-
     let handle = Handle {
         name: name.into(),
         project_dir: project_dir.into(),
@@ -745,16 +858,16 @@ fn do_init(name: &str, pkg: &PackageInfo,
         database: options.database.clone(),
     };
 
-    let mut stash = StashDir::new(project_dir, &name);
+    let mut stash = StashDir::new(project_dir, name);
     stash.database = handle.database.as_deref();
-    stash.write(&stash_dir)?;
+    stash.write(stash_dir)?;
 
     if !options.no_migrations {
         migrate(&handle, false)?;
     } else {
         create_database(&handle)?;
     }
-    print_initialized(&name, &options.project_dir);
+    print_initialized(name, &options.project_dir);
     Ok(ProjectInfo {
         instance_name: name.into(),
         stash_dir: stash_dir.into(),
@@ -779,6 +892,8 @@ fn do_cloud_init(
         region: None,
         tier: None,
         requested_resources: None,
+        source_instance_id: None,
+        source_backup_id: None,
     };
     crate::cloud::ops::create_cloud_instance(client, &request)?;
     let full_name = format!("{}/{}", org, name);
@@ -792,7 +907,7 @@ fn do_cloud_init(
     };
 
     let mut stash = StashDir::new(project_dir, &full_name);
-    stash.cloud_profile = client.profile.as_deref().or_else(|| Some("default"));
+    stash.cloud_profile = client.profile.as_deref().or(Some("default"));
     stash.database = handle.database.as_deref();
     stash.write(stash_dir)?;
 
@@ -808,26 +923,30 @@ fn do_cloud_init(
     })
 }
 
-pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Options)
-    -> anyhow::Result<ProjectInfo>
-{
-    eprintln!("No `edgedb.toml` found in `{}` or above",
-              project_dir.display());
+pub fn init_new(
+    options: &Init,
+    project_dir: &Path,
+    opts: &crate::options::Options,
+) -> anyhow::Result<ProjectInfo> {
+    eprintln!(
+        "No `edgedb.toml` found in `{}` or above",
+        project_dir.display()
+    );
 
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
-        anyhow::bail!("`edgedb.toml` deleted after \
+        anyhow::bail!(
+            "`edgedb.toml` deleted after \
                        project initialization. \
                        Please run `edgedb project unlink -D` to \
-                       clean up old database instance.");
+                       clean up old database instance."
+        );
     }
 
     if options.non_interactive {
         eprintln!("Initializing new project...");
     } else {
-        let mut q = question::Confirm::new(
-            "Do you want to initialize a new project?"
-        );
+        let mut q = question::Confirm::new("Do you want to initialize a new project?");
         q.default(true);
         if !q.ask()? {
             return Err(ExitCode::new(0).into());
@@ -837,25 +956,36 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
     let config_path = project_dir.join("edgedb.toml");
     let schema_dir = Path::new("dbschema");
     let schema_dir_path = project_dir.join(schema_dir);
-    let schema_files = find_schema_files(&schema_dir)?;
+    let schema_files = find_schema_files(schema_dir)?;
 
     let mut client = CloudClient::new(&opts.cloud_options)?;
     let (inst_name, exists) = ask_name(project_dir, options, &mut client)?;
 
     if exists {
         let mut inst;
-        inst = Handle::probe(&inst_name, project_dir, &schema_dir, &client)?;
-        let ver = Query::from_version(&inst.get_version()?.specific())?;
-        write_config(&config_path, &ver)?;
+        inst = Handle::probe(&inst_name, project_dir, schema_dir, &client)?;
+        let specific_version: &Specific = &inst.get_version()?.specific();
+        let version_query = Query::from_version(specific_version)?;
+        write_config(&config_path, &version_query)?;
         if !schema_files {
-            write_schema_default(&schema_dir_path, &ver)?;
+            write_schema_default(&schema_dir_path, &version_query)?;
         }
         if matches!(inst_name, InstanceName::Cloud { .. }) {
-            inst.database = Some(ask_database(project_dir, options)?);
+            if options.non_interactive {
+                inst.database = Some(options.database.clone().unwrap_or(
+                    get_default_branch_or_database(specific_version, project_dir),
+                ));
+            } else {
+                inst.database = Some(ask_database_or_branch(
+                    specific_version,
+                    project_dir,
+                    options,
+                )?);
+            }
         } else {
-            inst.database = options.database.clone();
+            inst.database.clone_from(&options.database);
         }
-        return do_link(&mut inst, options, &stash_dir);
+        return do_link(&inst, options, &stash_dir);
     };
 
     match &inst_name {
@@ -865,28 +995,43 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
 
             let (ver_query, version) = ask_cloud_version(options, &client)?;
             ver::print_version_hint(&version, &ver_query);
-            let database = ask_database(project_dir, options)?;
+            let database = ask_database_or_branch(&version, project_dir, options)?;
             table::settings(&[
-                ("Project directory", &project_dir.display().to_string()),
-                ("Project config", &config_path.display().to_string()),
-                (&format!("Schema dir {}",
-                          if schema_files { "(non-empty)" } else { "(empty)" }),
-                 &schema_dir_path.display().to_string()),
-                ("Database", &database.to_string()),
-                ("Version", &version.to_string()),
-                ("Instance name", &name),
+                ("Project directory", project_dir.display().to_string()),
+                ("Project config", config_path.display().to_string()),
+                (
+                    &format!(
+                        "Schema dir {}",
+                        if schema_files {
+                            "(non-empty)"
+                        } else {
+                            "(empty)"
+                        }
+                    ),
+                    schema_dir_path.display().to_string(),
+                ),
+                (
+                    if version.major >= 5 {
+                        "Branch"
+                    } else {
+                        "Database"
+                    },
+                    database.to_string(),
+                ),
+                ("Version", version.to_string()),
+                ("Instance name", name.clone()),
             ]);
             write_config(&config_path, &ver_query)?;
             if !schema_files {
-                write_schema_default(&schema_dir_path, &ver_query)?;
+                write_schema_default(&schema_dir_path, &Query::from_version(&version)?)?;
             }
 
             do_cloud_init(
                 name.to_owned(),
                 org_slug.to_owned(),
                 &stash_dir,
-                &project_dir,
-                &schema_dir,
+                project_dir,
+                schema_dir,
                 &version,
                 &database,
                 options,
@@ -896,30 +1041,58 @@ pub fn init_new(options: &Init, project_dir: &Path, opts: &crate::options::Optio
         InstanceName::Local(name) => {
             echo!("Checking EdgeDB versions...");
             let (ver_query, pkg) = ask_local_version(options)?;
-            ver::print_version_hint(&pkg.version.specific(), &ver_query);
+            let specific_version = &pkg.version.specific();
+            ver::print_version_hint(specific_version, &ver_query);
+
+            let mut branch: Option<String> = None;
+            if !options.non_interactive && specific_version.major >= 5 {
+                branch = Some(ask_branch()?);
+            }
 
             let meth = if cfg!(windows) {
-                "WSL"
+                "WSL".to_string()
             } else {
-                "portable package"
+                "portable package".to_string()
             };
-            table::settings(&[
-                ("Project directory", &project_dir.display().to_string()),
-                ("Project config", &config_path.display().to_string()),
-                (&format!("Schema dir {}",
-                          if schema_files { "(non-empty)" } else { "(empty)" }),
-                 &schema_dir_path.display().to_string()),
+
+            let schema_dir_key = &format!(
+                "Schema dir {}",
+                if schema_files {
+                    "(non-empty)"
+                } else {
+                    "(empty)"
+                }
+            );
+
+            let mut rows: Vec<(&str, String)> = vec![
+                ("Project directory", project_dir.display().to_string()),
+                ("Project config", config_path.display().to_string()),
+                (schema_dir_key, schema_dir_path.display().to_string()),
                 ("Installation method", meth),
-                ("Version", &pkg.version.to_string()),
-                ("Instance name", &name),
-            ]);
+                ("Version", pkg.version.to_string()),
+                ("Instance name", name.clone()),
+            ];
+
+            if let Some(branch) = branch.clone() {
+                rows.push(("Branch", branch))
+            }
+
+            table::settings(rows.as_slice());
 
             write_config(&config_path, &ver_query)?;
             if !schema_files {
-                write_schema_default(&schema_dir_path, &ver_query)?;
+                write_schema_default(&schema_dir_path, &Query::from_version(specific_version)?)?;
             }
 
-            do_init(&name, &pkg, &stash_dir, &project_dir, &schema_dir, options)
+            do_init(
+                name,
+                &pkg,
+                &stash_dir,
+                project_dir,
+                schema_dir,
+                &branch.unwrap_or(get_default_branch_name(specific_version)),
+                options,
+            )
         }
     }
 }
@@ -939,16 +1112,20 @@ pub fn search_dir(base: &Path) -> Option<PathBuf> {
 }
 
 fn hash(path: &Path) -> anyhow::Result<String> {
-    Ok(hex::encode(sha1::Sha1::new_with_prefix(path_bytes(path)?).finalize()))
+    Ok(hex::encode(
+        sha1::Sha1::new_with_prefix(path_bytes(path)?).finalize(),
+    ))
 }
 
 fn stash_name(path: &Path) -> anyhow::Result<OsString> {
     let hash = hash(path)?;
-    let base = path.file_name().ok_or_else(|| anyhow::anyhow!("bad path"))?;
+    let base = path
+        .file_name()
+        .ok_or_else(|| anyhow::anyhow!("bad path"))?;
     let mut base = base.to_os_string();
     base.push("-");
     base.push(&hash);
-    return Ok(base);
+    Ok(base)
 }
 
 pub fn stash_base() -> anyhow::Result<PathBuf> {
@@ -974,8 +1151,10 @@ fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
             Ok(())
         }
         InstanceKind::Remote => {
-            anyhow::bail!("remote instance not running, \
-                          cannot run migrations");
+            anyhow::bail!(
+                "remote instance not running, \
+                          cannot run migrations"
+            );
         }
         InstanceKind::Cloud { .. } => todo!(),
     }
@@ -984,7 +1163,7 @@ fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
 fn start(handle: &Handle) -> anyhow::Result<()> {
     match &handle.instance {
         InstanceKind::Portable(inst) => {
-            control::do_start(&inst)?;
+            control::do_start(inst)?;
             Ok(())
         }
         InstanceKind::Wsl(_) => {
@@ -992,21 +1171,21 @@ fn start(handle: &Handle) -> anyhow::Result<()> {
             Ok(())
         }
         InstanceKind::Remote => {
-            anyhow::bail!("remote instance not running, \
-                          cannot run migrations");
+            anyhow::bail!(
+                "remote instance not running, \
+                          cannot run migrations"
+            );
         }
         InstanceKind::Cloud { .. } => todo!(),
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn create_database(inst: &Handle<'_>) -> anyhow::Result<()> {
     create_database_async(inst).await
 }
 
-async fn ensure_database(cli: &mut Connection, name: &str)
-    -> anyhow::Result<()>
-{
+async fn ensure_database(cli: &mut Connection, name: &str) -> anyhow::Result<()> {
     let name = quote_name(name);
     match cli.execute(&format!("CREATE DATABASE {name}"), &()).await {
         Ok(_) => Ok(()),
@@ -1016,7 +1195,9 @@ async fn ensure_database(cli: &mut Connection, name: &str)
 }
 
 async fn create_database_async(inst: &Handle<'_>) -> anyhow::Result<()> {
-    let Some(name) = &inst.database else { return Ok(()) };
+    let Some(name) = &inst.database else {
+        return Ok(());
+    };
     let config = inst.get_default_builder()?.build_env().await?;
     if name == config.database() {
         return Ok(());
@@ -1026,16 +1207,12 @@ async fn create_database_async(inst: &Handle<'_>) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::main]
-async fn migrate(inst: &Handle<'_>, ask_for_running: bool)
-    -> anyhow::Result<()>
-{
+#[tokio::main(flavor = "current_thread")]
+async fn migrate(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Result<()> {
     migrate_async(inst, ask_for_running).await
 }
 
-async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
-    -> anyhow::Result<()>
-{
+async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Result<()> {
     use crate::commands::Options;
     use crate::migrations::options::{Migrate, MigrationConfig};
     use Action::*;
@@ -1055,21 +1232,18 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
             Ok(conn) => break conn,
             Err(e) if ask_for_running && inst.instance.is_local() => {
                 print::error(e);
-                let mut q = question::Numeric::new(
-                    format!(
-                        "Cannot connect to instance {:?}. Options:",
-                        inst.name,
-                    )
-                );
-                q.option("Start the service (if possible).",
-                    Service);
-                q.option("Start in the foreground, \
+                let mut q = question::Numeric::new(format!(
+                    "Cannot connect to instance {:?}. Options:",
+                    inst.name,
+                ));
+                q.option("Start the service (if possible).", Service);
+                q.option(
+                    "Start in the foreground, \
                           apply migrations and shut down.",
-                    Run);
-                q.option("Instance has been started manually, retry connect",
-                    Retry);
-                q.option("Skip migrations.",
-                    Skip);
+                    Run,
+                );
+                q.option("Instance has been started manually, retry connect", Retry);
+                q.option("Skip migrations.", Skip);
                 match q.async_ask().await? {
                     Service => match start(inst) {
                         Ok(()) => continue,
@@ -1077,7 +1251,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
                             print::error(e);
                             continue;
                         }
-                    }
+                    },
                     Run => {
                         run_and_migrate(inst)?;
                         return Ok(());
@@ -1085,8 +1259,10 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
                     Retry => continue,
                     Skip => {
                         print::warn("Skipping migrations.");
-                        echo!("You can use `edgedb migrate` to apply migrations \
-                               once the service is up and running.");
+                        echo!(
+                            "You can use `edgedb migrate` to apply migrations \
+                               once the service is up and running."
+                        );
                         return Ok(());
                     }
                 }
@@ -1104,10 +1280,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
         &Options {
             command_line: true,
             styler: None,
-            conn_params: Connector::new(
-                inst.get_builder()?.build_env().await
-                .map_err(Into::into)
-            ),
+            conn_params: Connector::new(inst.get_builder()?.build_env().await.map_err(Into::into)),
         },
         &Migrate {
             cfg: MigrationConfig {
@@ -1116,8 +1289,11 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool)
             quiet: false,
             to_revision: None,
             dev_mode: false,
+            single_transaction: false,
             conn: None,
-        }).await?;
+        },
+    )
+    .await?;
     Ok(())
 }
 
@@ -1132,22 +1308,23 @@ impl<'a> StashDir<'a> {
     }
     #[context("error writing project dir {:?}", dir)]
     fn write(&self, dir: &Path) -> anyhow::Result<()> {
-        let tmp = tmp_file_path(&dir);
+        let tmp = tmp_file_path(dir);
         fs::create_dir_all(&tmp)?;
-        fs::write(&tmp.join("project-path"), path_bytes(self.project_dir)?)?;
-        fs::write(&tmp.join("instance-name"), self.instance_name.as_bytes())?;
+        fs::write(tmp.join("project-path"), path_bytes(self.project_dir)?)?;
+        fs::write(tmp.join("instance-name"), self.instance_name.as_bytes())?;
         if let Some(profile) = self.cloud_profile {
-            fs::write(&tmp.join("cloud-profile"), profile.as_bytes())?;
+            fs::write(tmp.join("cloud-profile"), profile.as_bytes())?;
         }
         if let Some(database) = &self.database {
-            fs::write(&tmp.join("database"), database.as_bytes())?;
+            fs::write(tmp.join("database"), database.as_bytes())?;
         }
 
         let lnk = tmp.join("project-link");
         symlink_dir(self.project_dir, &lnk)
             .map_err(|e| {
                 log::info!("Error symlinking project at {:?}: {}", lnk, e);
-            }).ok();
+            })
+            .ok();
         fs::rename(&tmp, dir)?;
         Ok(())
     }
@@ -1186,9 +1363,12 @@ impl Handle<'_> {
                     project_dir: project_dir.into(),
                     schema_dir: schema_dir.into(),
                     database: None,
-                })
-            }
-            InstanceName::Cloud { org_slug, name: inst_name } => Ok(Handle {
+                }),
+            },
+            InstanceName::Cloud {
+                org_slug,
+                name: inst_name,
+            } => Ok(Handle {
                 name: name.to_string(),
                 instance: InstanceKind::Cloud {
                     org_slug: org_slug.to_owned(),
@@ -1198,7 +1378,7 @@ impl Handle<'_> {
                 database: None,
                 project_dir: project_dir.into(),
                 schema_dir: schema_dir.into(),
-            })
+            }),
         }
     }
     pub fn get_builder(&self) -> anyhow::Result<Builder> {
@@ -1215,14 +1395,12 @@ impl Handle<'_> {
         Ok(builder)
     }
     pub async fn get_default_connection(&self) -> anyhow::Result<Connection> {
-        Ok(Connection::connect(
-            &self.get_default_builder()?.build_env().await?
-        ).await?)
+        Ok(Connection::connect(&self.get_default_builder()?.build_env().await?).await?)
     }
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {
         Ok(Connection::connect(&self.get_builder()?.build_env().await?).await?)
     }
-    #[tokio::main(flavor="current_thread")]
+    #[tokio::main(flavor = "current_thread")]
     pub async fn get_version(&self) -> anyhow::Result<ver::Build> {
         let mut conn = self.get_default_connection().await?;
         anyhow::Ok(conn.get_version().await?.clone())
@@ -1234,7 +1412,8 @@ impl Handle<'_> {
                 print::warn(format!(
                     "WARNING: existing instance has version {}, \
                     but {} is required by `edgedb.toml`",
-                    inst_ver, ver_query.display(),
+                    inst_ver,
+                    ver_query.display(),
                 ));
             }
             Err(e) => {
@@ -1246,7 +1425,7 @@ impl Handle<'_> {
 
 #[context("cannot read schema directory `{}`", path.display())]
 fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
-    let dir = match fs::read_dir(&path) {
+    let dir = match fs::read_dir(path) {
         Ok(dir) => dir,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return Ok(false);
@@ -1255,7 +1434,9 @@ fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
     };
     for item in dir {
         let entry = item?;
-        let is_esdl = entry.file_name().to_str()
+        let is_esdl = entry
+            .file_name()
+            .to_str()
             .map(|x| x.ends_with(".esdl"))
             .unwrap_or(false);
         if is_esdl {
@@ -1265,8 +1446,7 @@ fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
     return Ok(false);
 }
 
-fn print_initialized(name: &str, dir_option: &Option<PathBuf>)
-{
+fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
     print::success("Project initialized.");
     if let Some(dir) = dir_option {
         echo!("To connect to", name.emphasize();
@@ -1278,13 +1458,14 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>)
 
 #[context("cannot create default schema in `{}`", dir.display())]
 fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
-    fs::create_dir_all(&dir)?;
-    fs::create_dir_all(&dir.join("migrations"))?;
+    fs::create_dir_all(dir)?;
+    fs::create_dir_all(dir.join("migrations"))?;
     let default = dir.join("default.esdl");
     let tmp = tmp_file_path(&default);
     fs::remove_file(&tmp).ok();
     fs::write(&tmp, DEFAULT_ESDL)?;
     fs::rename(&tmp, &default)?;
+
     if version.is_nonrecursive_access_policies_needed() {
         let futures = dir.join("futures.esdl");
         let tmp = tmp_file_path(&futures);
@@ -1305,9 +1486,7 @@ fn write_config(path: &Path, version: &Query) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn parse_ver_and_find(value: &str)
-    -> anyhow::Result<Option<(Query, PackageInfo)>>
-{
+fn parse_ver_and_find(value: &str) -> anyhow::Result<Option<(Query, PackageInfo)>> {
     let filter = value.parse()?;
     let query = Query::from_filter(&filter)?;
     if let Some(pkg) = repository::get_server_package(&query)? {
@@ -1321,8 +1500,7 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
     let ver_query = options.server_version.clone().unwrap_or(Query::stable());
     if options.non_interactive || options.server_version.is_some() {
         let pkg = repository::get_server_package(&ver_query)?
-            .with_context(|| format!("no package matching {} found",
-                                     ver_query.display()))?;
+            .with_context(|| format!("no package matching {} found", ver_query.display()))?;
         if options.server_version.is_some() {
             return Ok((ver_query, pkg));
         } else {
@@ -1335,9 +1513,7 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
     } else {
         String::new()
     };
-    let mut q = question::String::new(
-        "Specify the version of EdgeDB to use with this project"
-    );
+    let mut q = question::String::new("Specify the version of EdgeDB to use with this project");
     q.default(&default_ver);
     loop {
         let value = q.ask()?;
@@ -1350,9 +1526,7 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
                     continue;
                 }
                 Err(e) => {
-                    print::error(format!(
-                        "Cannot find nightly version: {}", e
-                    ));
+                    print::error(format!("Cannot find nightly version: {}", e));
                     continue;
                 }
             }
@@ -1364,14 +1538,12 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
                     continue;
                 }
                 Err(e) => {
-                    print::error(format!(
-                        "Cannot find testing version: {}", e
-                    ));
+                    print::error(format!("Cannot find testing version: {}", e));
                     continue;
                 }
             }
         } else {
-            match parse_ver_and_find(&value) {
+            match parse_ver_and_find(value) {
                 Ok(Some(pair)) => return Ok(pair),
                 Ok(None) => {
                     print::error("No matching packages found");
@@ -1391,9 +1563,11 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
 fn print_versions(title: &str) -> anyhow::Result<()> {
     let mut avail = repository::get_server_packages(Channel::Stable)?;
     avail.sort_by(|a, b| b.version.cmp(&a.version));
-    println!("{}: {}{}",
+    println!(
+        "{}: {}{}",
         title,
-        avail.iter()
+        avail
+            .iter()
             .filter_map(|p| Query::from_version(&p.version.specific()).ok())
             .take(5)
             .map(|v| v.as_config_value())
@@ -1404,16 +1578,20 @@ fn print_versions(title: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn parse_ver_and_find_cloud(value: &str, client: &CloudClient)
-    -> anyhow::Result<(Query, ver::Specific)>
-{
+fn parse_ver_and_find_cloud(
+    value: &str,
+    client: &CloudClient,
+) -> anyhow::Result<(Query, ver::Specific)> {
     let filter = value.parse()?;
     let query = Query::from_filter(&filter)?;
     let version = cloud::versions::get_version(&query, client)?;
     Ok((query, version))
 }
 
-fn ask_cloud_version(options: &Init, client: &CloudClient) -> anyhow::Result<(Query, ver::Specific)> {
+fn ask_cloud_version(
+    options: &Init,
+    client: &CloudClient,
+) -> anyhow::Result<(Query, ver::Specific)> {
     let ver_query = options.server_version.clone().unwrap_or(Query::stable());
     if options.non_interactive || options.server_version.is_some() {
         let version = cloud::versions::get_version(&ver_query, client)?;
@@ -1421,9 +1599,7 @@ fn ask_cloud_version(options: &Init, client: &CloudClient) -> anyhow::Result<(Qu
     }
     let default = cloud::versions::get_version(&Query::stable(), client)?;
     let default_ver = Query::from_version(&default)?.as_config_value();
-    let mut q = question::String::new(
-        "Specify the version of EdgeDB to use with this project"
-    );
+    let mut q = question::String::new("Specify the version of EdgeDB to use with this project");
     q.default(&default_ver);
     loop {
         let value = q.ask()?;
@@ -1445,7 +1621,7 @@ fn ask_cloud_version(options: &Init, client: &CloudClient) -> anyhow::Result<(Qu
                 }
             }
         } else {
-            match parse_ver_and_find_cloud(&value, client) {
+            match parse_ver_and_find_cloud(value, client) {
                 Ok(pair) => return Ok(pair),
                 Err(e) => {
                     print::error(e);
@@ -1458,13 +1634,17 @@ fn ask_cloud_version(options: &Init, client: &CloudClient) -> anyhow::Result<(Qu
 }
 
 fn print_cloud_versions(title: &str, client: &CloudClient) -> anyhow::Result<()> {
-    let mut avail: Vec<ver::Specific> = cloud::ops::get_versions(client)?.into_iter()
-        .map(|v| v.version.parse::<ver::Specific>().unwrap()).collect();
+    let mut avail: Vec<ver::Specific> = cloud::ops::get_versions(client)?
+        .into_iter()
+        .map(|v| v.version.parse::<ver::Specific>().unwrap())
+        .collect();
     avail.sort();
-    println!("{}: {}{}",
+    println!(
+        "{}: {}{}",
         title,
-        avail.iter()
-            .filter_map(|p| Query::from_version(&p).ok())
+        avail
+            .iter()
+            .filter_map(|p| Query::from_version(p).ok())
             .take(5)
             .map(|v| v.as_config_value())
             .collect::<Vec<_>>()
@@ -1477,13 +1657,11 @@ fn print_cloud_versions(title: &str, client: &CloudClient) -> anyhow::Result<()>
 fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
     let mut path = base;
     while let Some(parent) = path.parent() {
-        let canon = fs::canonicalize(&path)
-            .with_context(|| {
-                format!("failed to canonicalize dir {:?}", parent)
-            })?;
+        let canon = fs::canonicalize(path)
+            .with_context(|| format!("failed to canonicalize dir {:?}", parent))?;
         let stash_dir = stash_path(&canon)?;
         if stash_dir.exists() || path.join("edgedb.toml").exists() {
-            return Ok(stash_dir)
+            return Ok(stash_dir);
         }
         path = parent;
     }
@@ -1491,14 +1669,14 @@ fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
 }
 
 #[context("cannot read instance name of {:?}", stash_dir)]
-fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
-    let inst = fs::read_to_string(&stash_dir.join("instance-name"))?;
-    Ok(InstanceName::from_str(inst.trim())?)
+pub fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
+    let inst = fs::read_to_string(stash_dir.join("instance-name"))?;
+    InstanceName::from_str(inst.trim())
 }
 
 #[context("cannot read database name of {:?}", stash_dir)]
-fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
-    let inst = match fs::read_to_string(&stash_dir.join("database")) {
+pub fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
+    let inst = match fs::read_to_string(stash_dir.join("database")) {
         Ok(text) => text,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             return Ok(None);
@@ -1510,12 +1688,11 @@ fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
 
 pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Result<()> {
     let stash_path = if let Some(dir) = &options.project_dir {
-        let canon = fs::canonicalize(&dir)
+        let canon = fs::canonicalize(dir)
             .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
         stash_path(&canon)?
     } else {
-        let base = env::current_dir()
-            .context("failed to get current directory")?;
+        let base = env::current_dir().context("failed to get current directory")?;
         search_for_unlink(&base)?
     };
 
@@ -1523,28 +1700,31 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
         if options.destroy_server_instance {
             let inst = instance_name(&stash_path)?;
             if !options.non_interactive {
-                let q = question::Confirm::new_dangerous(
-                    format!("Do you really want to unlink \
-                             and delete instance {}?", inst)
-                );
+                let q = question::Confirm::new_dangerous(format!(
+                    "Do you really want to unlink \
+                             and delete instance {}?",
+                    inst
+                ));
                 if !q.ask()? {
                     print::error("Canceled.");
-                    return Ok(())
+                    return Ok(());
                 }
             }
             let inst_name = inst.to_string();
             let mut project_dirs = find_project_dirs_by_instance(&inst_name)?;
             if project_dirs.len() > 1 {
-                project_dirs.iter().position(|d| d == &stash_path)
+                project_dirs
+                    .iter()
+                    .position(|d| d == &stash_path)
                     .map(|pos| project_dirs.remove(pos));
                 destroy::print_warning(&inst_name, &project_dirs);
-                return Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
+                Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
             }
             if options.destroy_server_instance {
                 destroy::force_by_name(&inst, opts)?;
             }
         } else {
-            match fs::read_to_string(&stash_path.join("instance-name")) {
+            match fs::read_to_string(stash_path.join("instance-name")) {
                 Ok(name) => {
                     echo!("Unlinking instance", name.emphasize());
                 }
@@ -1561,37 +1741,26 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
     Ok(())
 }
 
-
 pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<PathBuf> {
-    project_dir_opt(cli_option)?
-    .ok_or_else(|| {
-        anyhow::anyhow!("no `edgedb.toml` found")
-    })
+    project_dir_opt(cli_option)?.ok_or_else(|| anyhow::anyhow!("no `edgedb.toml` found"))
 }
 
-pub fn project_dir_opt(cli_options: Option<&Path>)
-    -> anyhow::Result<Option<PathBuf>>
-{
+pub fn project_dir_opt(cli_options: Option<&Path>) -> anyhow::Result<Option<PathBuf>> {
     match cli_options {
         Some(dir) => {
             if dir.join("edgedb.toml").exists() {
-                let canon = fs::canonicalize(&dir)
-                    .with_context(|| {
-                        format!("failed to canonicalize dir {:?}", dir)
-                    })?;
+                let canon = fs::canonicalize(dir)
+                    .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
                 Ok(Some(canon))
             } else {
                 anyhow::bail!("no `edgedb.toml` found in {:?}", dir);
             }
         }
         None => {
-            let dir = env::current_dir()
-                .context("failed to get current directory")?;
+            let dir = env::current_dir().context("failed to get current directory")?;
             if let Some(ancestor) = search_dir(&dir) {
                 let canon = fs::canonicalize(&ancestor)
-                    .with_context(|| {
-                        format!("failed to canonicalize dir {:?}", ancestor)
-                    })?;
+                    .with_context(|| format!("failed to canonicalize dir {:?}", ancestor))?;
                 Ok(Some(canon))
             } else {
                 Ok(None)
@@ -1601,12 +1770,14 @@ pub fn project_dir_opt(cli_options: Option<&Path>)
 }
 
 pub fn info(options: &Info) -> anyhow::Result<()> {
-    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let root = project_dir(options.project_dir.as_deref())?;
     let stash_dir = stash_path(&root)?;
     if !stash_dir.exists() {
-        echo!(print::err_marker(),
+        echo!(
+            print::err_marker(),
             "Project is not initialized.".emphasize(),
-            "Run `edgedb project init`.");
+            "Run `edgedb project init`."
+        );
         return Err(ExitCode::new(1).into());
     }
     let instance_name = fs::read_to_string(stash_dir.join("instance-name"))?;
@@ -1616,8 +1787,10 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         .then(|| fs::read_to_string(cloud_profile_file))
         .transpose()?;
 
-    let item = options.get.as_deref()
-        .or(options.instance_name.then(|| "instance-name"));
+    let item = options
+        .get
+        .as_deref()
+        .or(options.instance_name.then_some("instance-name"));
     if let Some(item) = item {
         match item {
             "instance-name" => {
@@ -1637,19 +1810,20 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
             _ => unreachable!(),
         }
     } else if options.json {
-        println!("{}", serde_json::to_string_pretty(&JsonInfo {
-            instance_name: &instance_name,
-            cloud_profile: cloud_profile.as_deref(),
-            root: &root,
-        })?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&JsonInfo {
+                instance_name: &instance_name,
+                cloud_profile: cloud_profile.as_deref(),
+                root: &root,
+            })?
+        );
     } else {
         let root = root.display().to_string();
-        let mut rows = vec![
-            ("Instance name", instance_name.as_str()),
-            ("Project root", root.as_str()),
-        ];
+        let mut rows: Vec<(&str, String)> =
+            vec![("Instance name", instance_name), ("Project root", root)];
         if let Some(profile) = cloud_profile.as_deref() {
-            rows.push(("Cloud profile", profile));
+            rows.push(("Cloud profile", profile.to_string()));
         }
         table::settings(rows.as_slice());
     }
@@ -1678,9 +1852,10 @@ pub fn find_project_stash_dirs(
     for item in dir {
         let entry = item?;
         let sub_dir = entry.path();
-        if sub_dir.file_name()
+        if sub_dir
+            .file_name()
             .and_then(|f| f.to_str())
-            .map(|n| n.starts_with("."))
+            .map(|n| n.starts_with('.'))
             .unwrap_or(true)
         {
             // skip hidden files, most likely .DS_Store (see #689)
@@ -1723,13 +1898,11 @@ pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
 
 #[context("cannot read {:?}", project_dir)]
 pub fn read_project_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
-    let bytes = fs::read(&project_dir.join("project-path"))?;
+    let bytes = fs::read(project_dir.join("project-path"))?;
     Ok(bytes_to_path(&bytes)?.to_path_buf())
 }
 
-pub fn upgrade(options: &Upgrade, opts: &crate::options::Options)
-    -> anyhow::Result<()>
-{
+pub fn upgrade(options: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
     let (query, version_set) = Query::from_options(
         repository::QueryOptions {
             nightly: options.to_nightly,
@@ -1738,7 +1911,8 @@ pub fn upgrade(options: &Upgrade, opts: &crate::options::Options)
             version: options.to_version.as_ref(),
             channel: options.to_channel,
         },
-        || Ok(Query::stable()))?;
+        || Ok(Query::stable()),
+    )?;
     if version_set {
         update_toml(options, opts, query)
     } else {
@@ -1747,44 +1921,52 @@ pub fn upgrade(options: &Upgrade, opts: &crate::options::Options)
 }
 
 pub fn update_toml(
-    options: &Upgrade, opts: &crate::options::Options, query: Query,
+    options: &Upgrade,
+    opts: &crate::options::Options,
+    query: Query,
 ) -> anyhow::Result<()> {
-    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+    let root = project_dir(options.project_dir.as_deref())?;
     let config_path = root.join("edgedb.toml");
     let config = config::read(&config_path)?;
     let schema_dir = &config.project.schema_dir;
 
-    let pkg = repository::get_server_package(&query)?.with_context(||
-        format!("cannot find package matching {} \
-        (Use `edgedb server list-versions` to see all available)", query.display()))?;
+    let pkg = repository::get_server_package(&query)?.with_context(|| {
+        format!(
+            "cannot find package matching {} \
+        (Use `edgedb server list-versions` to see all available)",
+            query.display()
+        )
+    })?;
     let pkg_ver = pkg.version.specific();
 
     let stash_dir = stash_path(&root)?;
     if !stash_dir.exists() {
         log::warn!("No associated instance found.");
 
-        if config::modify(&config_path, &query)? {
+        if config::modify_server_ver(&config_path, &query)? {
             print::success("Config updated successfully.");
         } else {
             print::success("Config is up to date.");
         }
-        echo!("Run", "edgedb project init".command_hint(),
-              "to initialize an instance.");
+        echo!(
+            "Run",
+            "edgedb project init".command_hint(),
+            "to initialize an instance."
+        );
     } else {
         let name = instance_name(&stash_dir)?;
         let database = database_name(&stash_dir)?;
         let client = CloudClient::new(&opts.cloud_options)?;
-        let mut inst = Handle::probe(&name, &root, &schema_dir, &client)?;
+        let mut inst = Handle::probe(&name, &root, schema_dir, &client)?;
         inst.database = database;
 
         let result = match inst.instance {
-            InstanceKind::Remote
-                => anyhow::bail!("remote instances cannot be upgraded"),
-            InstanceKind::Portable(inst)
-                => upgrade_local(options, &config, inst, &query, opts),
+            InstanceKind::Remote => anyhow::bail!("remote instances cannot be upgraded"),
+            InstanceKind::Portable(inst) => upgrade_local(options, &config, inst, &query, opts),
             InstanceKind::Wsl(_) => todo!(),
-            InstanceKind::Cloud { org_slug, name, .. }
-                => upgrade_cloud(options, &org_slug, &name, &query, opts),
+            InstanceKind::Cloud { org_slug, name, .. } => {
+                upgrade_cloud(options, &org_slug, &name, &query, opts)
+            }
         }?;
 
         match result.action {
@@ -1797,15 +1979,15 @@ pub fn update_toml(
                     Query::from_version(&pkg_ver)?
                 };
 
-                if config::modify(&config_path, &config_version)? {
+                if config::modify_server_ver(&config_path, &config_version)? {
                     echo!("Remember to commit it to version control.");
                 }
                 let name_str = name.to_string();
                 print_other_project_warning(&name_str, &root, &query)?;
-            },
+            }
             upgrade::UpgradeAction::Cancelled => {
                 echo!("Canceled.");
-            },
+            }
             upgrade::UpgradeAction::None => {
                 echo!(
                     "Already up to date.\nRequested upgrade version is",
@@ -1813,17 +1995,18 @@ pub fn update_toml(
                     "current instance version is",
                     result.prior_version.emphasize().to_string() + ".",
                 );
-            },
+            }
         }
     };
 
     Ok(())
 }
 
-fn print_other_project_warning(name: &str, project_path: &Path,
-                               to_version: &Query)
-    -> anyhow::Result<()>
-{
+fn print_other_project_warning(
+    name: &str,
+    project_path: &Path,
+    to_version: &Query,
+) -> anyhow::Result<()> {
     let mut project_dirs = Vec::new();
     for pd in find_project_dirs_by_instance(name)? {
         let real_pd = match read_project_path(&pd) {
@@ -1840,23 +2023,22 @@ fn print_other_project_warning(name: &str, project_path: &Path,
     if !project_dirs.is_empty() {
         print::warn(format!(
             "Warning: the instance {} is still used by the following \
-            projects:", name
+            projects:",
+            name
         ));
         for pd in &project_dirs {
             eprintln!("  {}", pd.display());
         }
         eprintln!("Run the following commands to update them:");
         for pd in &project_dirs {
-            upgrade::print_project_upgrade_command(&to_version, &None, pd);
+            upgrade::print_project_upgrade_command(to_version, &None, pd);
         }
     }
     Ok(())
 }
 
-pub fn upgrade_instance(
-    options: &Upgrade, opts: &crate::options::Options
-) -> anyhow::Result<()> {
-    let root = project_dir(options.project_dir.as_ref().map(|x| x.as_path()))?;
+pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
+    let root = project_dir(options.project_dir.as_deref())?;
     let config_path = root.join("edgedb.toml");
     let config = config::read(&config_path)?;
     let cfg_ver = &config.edgedb.server_version;
@@ -1870,35 +2052,38 @@ pub fn upgrade_instance(
     let instance_name = instance_name(&stash_dir)?;
     let database = database_name(&stash_dir)?;
     let client = CloudClient::new(&opts.cloud_options)?;
-    let mut inst = Handle::probe(&instance_name, &root, &schema_dir, &client)?;
+    let mut inst = Handle::probe(&instance_name, &root, schema_dir, &client)?;
     inst.database = database;
     let result = match inst.instance {
-        InstanceKind::Remote
-            => anyhow::bail!("remote instances cannot be upgraded"),
-        InstanceKind::Portable(inst)
-            => upgrade_local(options, &config, inst, cfg_ver, opts),
+        InstanceKind::Remote => anyhow::bail!("remote instances cannot be upgraded"),
+        InstanceKind::Portable(inst) => upgrade_local(options, &config, inst, cfg_ver, opts),
         InstanceKind::Wsl(_) => todo!(),
-        InstanceKind::Cloud { org_slug, name, .. }
-            => upgrade_cloud(options, &org_slug, &name, cfg_ver, opts),
+        InstanceKind::Cloud { org_slug, name, .. } => {
+            upgrade_cloud(options, &org_slug, &name, cfg_ver, opts)
+        }
     }?;
 
     match result.action {
         upgrade::UpgradeAction::Upgraded => {
             // When upgrade attempt was made, implementations
             // would have already printed a message.
-        },
+        }
         upgrade::UpgradeAction::Cancelled => {
             echo!("Canceled.");
-        },
+        }
         upgrade::UpgradeAction::None => {
-            echo!("EdgeDB instance is up to date with \
-                the specification in `edgedb.toml`.");
+            echo!(
+                "EdgeDB instance is up to date with \
+                the specification in `edgedb.toml`."
+            );
             if let Some(available) = result.available_upgrade {
                 echo!("New major version is available:", available.emphasize());
-                echo!("To update `edgedb.toml` and upgrade to this version, \
-                        run:\n    edgedb project upgrade --to-latest");
+                echo!(
+                    "To update `edgedb.toml` and upgrade to this version, \
+                        run:\n    edgedb project upgrade --to-latest"
+                );
             }
-        },
+        }
     }
 
     Ok(())
@@ -1914,29 +2099,36 @@ fn upgrade_local(
     let inst_ver = inst.get_version()?.specific();
 
     let instance_name = InstanceName::from_str(&inst.name)?;
-    let pkg = repository::get_server_package(to_version)?.with_context(||
-        format!("cannot find package matching {} \
-        (Use `edgedb server list-versions` to see all available)", to_version.display()))?;
+    let pkg = repository::get_server_package(to_version)?.with_context(|| {
+        format!(
+            "cannot find package matching {} \
+        (Use `edgedb server list-versions` to see all available)",
+            to_version.display()
+        )
+    })?;
     let pkg_ver = pkg.version.specific();
 
     if pkg_ver > inst_ver || cmd.force {
         if cfg!(windows) {
-            windows::upgrade(&options::Upgrade {
-                to_latest: false,
-                to_version: to_version.version.clone(),
-                to_channel: None,
-                to_nightly: false,
-                to_testing: false,
-                name: None,
-                instance: Some(instance_name.into()),
-                verbose: false,
-                force: cmd.force,
-                force_dump_restore: cmd.force,
-                non_interactive: true,
-                cloud_opts: opts.cloud_options.clone(),
-            }, &inst.name)?;
+            windows::upgrade(
+                &options::Upgrade {
+                    to_latest: false,
+                    to_version: to_version.version.clone(),
+                    to_channel: None,
+                    to_nightly: false,
+                    to_testing: false,
+                    name: None,
+                    instance: Some(instance_name),
+                    verbose: false,
+                    force: cmd.force,
+                    force_dump_restore: cmd.force,
+                    non_interactive: true,
+                    cloud_opts: opts.cloud_options.clone(),
+                },
+                &inst.name,
+            )?;
         } else {
-            ver::print_version_hint(&pkg_ver, &to_version);
+            ver::print_version_hint(&pkg_ver, to_version);
             // When force is used we might upgrade to the same version, but
             // since some selector like `--to-latest` was specified we assume
             // user want to treat this upgrade as incompatible and do the
@@ -1944,8 +2136,8 @@ fn upgrade_local(
             if pkg_ver.is_compatible(&inst_ver) && !cmd.force {
                 upgrade::upgrade_compatible(inst, pkg)?;
             } else {
-                migrations::upgrade_check::to_version(&pkg, &config)?;
-                upgrade::upgrade_incompatible(inst, pkg)?;
+                migrations::upgrade_check::to_version(&pkg, config)?;
+                upgrade::upgrade_incompatible(inst, pkg, cmd.non_interactive)?;
             }
         }
         Ok(upgrade::UpgradeResult {
@@ -1984,33 +2176,29 @@ fn upgrade_cloud(
     let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
     client.ensure_authenticated()?;
 
-    let result = upgrade::upgrade_cloud(
-        org,
-        name,
-        to_version,
-        &client,
-        cmd.force,
-        |target_ver| {
-            let target_ver_str = target_ver.to_string();
-            let _inst_name = format!("{}/{}", org, name);
-            let inst_name = _inst_name.emphasize();
-            if !cmd.non_interactive {
-                question::Confirm::new(format!(
-                    "This will upgrade {inst_name} to version {target_ver_str}.\
+    let result = upgrade::upgrade_cloud(org, name, to_version, &client, cmd.force, |target_ver| {
+        let target_ver_str = target_ver.to_string();
+        let _inst_name = format!("{}/{}", org, name);
+        let inst_name = _inst_name.emphasize();
+        if !cmd.non_interactive {
+            question::Confirm::new(format!(
+                "This will upgrade {inst_name} to version {target_ver_str}.\
                     \nConfirm upgrade?",
-                )).ask()
-            } else {
-                Ok(true)
-            }
-        },
-    )?;
+            ))
+            .ask()
+        } else {
+            Ok(true)
+        }
+    })?;
 
     if let upgrade::UpgradeAction::Upgraded = result.action {
         let inst_name = format!("{}/{}", org, name);
         echo!(
-            "Instance", inst_name.emphasize(),
+            "Instance",
+            inst_name.emphasize(),
             "has been successfully upgraded to",
-            result.requested_version.emphasize().to_string() + ".");
+            result.requested_version.emphasize().to_string() + "."
+        );
     }
 
     Ok(result)

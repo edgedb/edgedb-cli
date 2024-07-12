@@ -1,12 +1,10 @@
-use std::env;
 use std::path::{PathBuf, MAIN_SEPARATOR};
 
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
-use crate::options::{Options, Info};
+use crate::options::{Info, Options};
 use crate::platform;
 use crate::table;
-
 
 fn dir_to_str(path: PathBuf) -> String {
     let mut rv = path.display().to_string();
@@ -16,6 +14,11 @@ fn dir_to_str(path: PathBuf) -> String {
 
 pub fn specific_info(item: &str) -> Result<(), anyhow::Error> {
     match item {
+        "install-dir" => {
+            if let Some(path) = platform::binary_path()?.parent() {
+                println!("{}", dir_to_str(path.to_path_buf()));
+            }
+        }
         "config-dir" => {
             println!("{}", dir_to_str(platform::config_dir()?));
         }
@@ -24,17 +27,19 @@ pub fn specific_info(item: &str) -> Result<(), anyhow::Error> {
         }
         "data-dir" => {
             if cfg!(windows) {
-                anyhow::bail!("Windows instances are created via WSL
-                               and do not have a data dir");
+                anyhow::bail!(
+                    "Windows instances are created via WSL
+                               and do not have a data dir"
+                );
             } else {
                 println!("{}", dir_to_str(platform::data_dir()?));
             }
         }
         "service-dir" => {
-            if cfg!(target_os="linux") {
+            if cfg!(target_os = "linux") {
                 use crate::portable::linux::unit_dir;
                 println!("{}", &dir_to_str(unit_dir()?));
-            } else if cfg!(target_os="macos") {
+            } else if cfg!(target_os = "macos") {
                 use crate::portable::macos::plist_dir;
                 println!("{}", &dir_to_str(plist_dir()?));
             } else if cfg!(windows) {
@@ -47,9 +52,9 @@ pub fn specific_info(item: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn info(_options: &Options, info: &Info)-> Result<(), anyhow::Error> {
+pub fn info(_options: &Options, info: &Info) -> Result<(), anyhow::Error> {
     if let Some(ref item) = info.get {
-        return specific_info(&item);
+        return specific_info(item);
     }
     let mut table = Table::new();
 
@@ -61,14 +66,10 @@ pub fn info(_options: &Options, info: &Info)-> Result<(), anyhow::Error> {
         Cell::new("Config"),
         Cell::new(&dir_to_str(platform::config_dir()?)),
     ]));
-    if let Ok(current_exe) = env::current_exe() {
+    if let Some(dir) = platform::binary_path()?.parent() {
         table.add_row(Row::new(vec![
-            if current_exe == platform::binary_path()? {
-                Cell::new("CLI Binary")
-            } else {
-                Cell::new("Custom Binary")
-            },
-            Cell::new(&current_exe.display().to_string()),
+            Cell::new("Install"),
+            Cell::new(&dir_to_str(dir.to_path_buf())),
         ]));
     }
     let data_dir = platform::data_dir()?;
@@ -78,14 +79,14 @@ pub fn info(_options: &Options, info: &Info)-> Result<(), anyhow::Error> {
             Cell::new(&dir_to_str(data_dir)),
         ]));
     }
-    if cfg!(target_os="linux") {
+    if cfg!(target_os = "linux") {
         use crate::portable::linux::unit_dir;
 
         table.add_row(Row::new(vec![
             Cell::new("Service"),
             Cell::new(&dir_to_str(unit_dir()?)),
         ]));
-    } else if cfg!(target_os="macos") {
+    } else if cfg!(target_os = "macos") {
         use crate::portable::macos::plist_dir;
 
         table.add_row(Row::new(vec![

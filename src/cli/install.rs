@@ -3,44 +3,43 @@
 
 use std::env;
 use std::fs;
-use std::io::{Write, stdout, BufWriter};
-use std::path::{PathBuf, Path};
-use std::process::{exit};
+use std::io::{stdout, BufWriter, Write};
+use std::path::{Path, PathBuf};
+use std::process::exit;
 use std::str::FromStr;
 
 use anyhow::Context;
 use clap_complete::{generate, shells};
 use fn_error_context::context;
-use prettytable::{Table, Row, Cell};
+use prettytable::{Cell, Row, Table};
 
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
 use crate::options::Options;
-use crate::platform::{current_exe};
-use crate::platform::{home_dir, config_dir, binary_path};
-use crate::portable::project::{self, Init};
+use crate::platform::current_exe;
+use crate::platform::{binary_path, config_dir, home_dir};
 use crate::portable::platform;
+use crate::portable::project::{self, Init};
 use crate::print::{self, echo};
 use crate::print_markdown;
 use crate::process;
 use crate::question::{self, read_choice};
 use crate::table;
 
-
 #[derive(clap::Parser, Clone, Debug)]
 pub struct CliInstall {
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub nightly: bool,
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub testing: bool,
     /// Enable verbose output
-    #[arg(short='v', long)]
+    #[arg(short = 'v', long)]
     pub verbose: bool,
     /// Skip printing messages and confirmation prompts
-    #[arg(short='q', long)]
+    #[arg(short = 'q', long)]
     pub quiet: bool,
     /// Disable confirmation prompt, also disables running `project init`
-    #[arg(short='y')]
+    #[arg(short = 'y')]
     pub no_confirm: bool,
     /// Do not configure PATH environment variable
     #[arg(long)]
@@ -54,13 +53,13 @@ pub struct CliInstall {
     pub no_wait_for_exit_prompt: bool,
 
     /// Installation is run from `self upgrade` command
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub upgrade: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
-#[derive(clap::ValueEnum)]
-#[value(rename_all="kebab-case")]
+#[derive(Debug, Clone, Copy, clap::ValueEnum)]
+#[value(rename_all = "kebab-case")]
+#[allow(clippy::enum_variant_names)]
 pub enum Shell {
     Bash,
     Elvish,
@@ -76,11 +75,11 @@ pub struct GenCompletions {
     pub shell: Option<Shell>,
 
     /// Install all completions into the prefix
-    #[arg(long, conflicts_with="shell")]
+    #[arg(long, conflicts_with = "shell")]
     pub prefix: Option<PathBuf>,
 
     /// Install all completions into the prefix
-    #[arg(long, conflicts_with="shell", conflicts_with="prefix")]
+    #[arg(long, conflicts_with = "shell", conflicts_with = "prefix")]
     pub home: bool,
 }
 
@@ -157,14 +156,14 @@ pub fn no_dir_in_path(dir: &Path) -> bool {
             }
         }
     }
-    return true;
+    true
 }
 
 fn is_zsh() -> bool {
     if let Ok(shell) = env::var("SHELL") {
         return shell.contains("zsh");
     }
-    return false;
+    false
 }
 
 pub fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
@@ -175,8 +174,7 @@ pub fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
 
     if is_zsh() {
         let var = env::var_os("ZDOTDIR");
-        let zdotdir = var.as_deref()
-            .map_or_else(|| home_dir.as_path(), Path::new);
+        let zdotdir = var.as_deref().map_or_else(|| home_dir.as_path(), Path::new);
         let zprofile = zdotdir.join(".zprofile");
         rc_files.push(zprofile);
     }
@@ -193,34 +191,36 @@ pub fn get_rc_files() -> anyhow::Result<Vec<PathBuf>> {
 
 fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
     if path.exists() {
-        let text = fs::read_to_string(path)
-            .context("cannot read file")?;
+        let text = fs::read_to_string(path).context("cannot read file")?;
         if text.contains(line) {
-            return Ok(())
+            return Ok(());
         }
     }
-    let mut file = fs::OpenOptions::new().create(true).append(true).open(path)
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
         .context("cannot open file for appending (writing)")?;
-    file.write(format!("{}\n", line).as_bytes(),)
+    file.write(format!("{}\n", line).as_bytes())
         .context("cannot append to file")?;
     Ok(())
 }
 
-fn print_post_install_message(settings: &Settings,
-    init_result: anyhow::Result<InitResult>)
-{
+fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<InitResult>) {
     if cfg!(windows) && settings.modify_path {
-        print_markdown!("\
+        print_markdown!(
+            "\
             # The EdgeDB command-line tool is now installed!\n\
             \n\
             The `${dir}` directory has been added to your `PATH`. You may\n\
             need to reopen the terminal for this change to take effect\n\
             and for the `edgedb` command to become available.\
             ",
-            dir=settings.installation_path.display(),
+            dir = settings.installation_path.display(),
         );
     } else if settings.modify_path {
-        print_markdown!("\
+        print_markdown!(
+            "\
             # The EdgeDB command-line tool is now installed!\n\
             \n\
             Your shell profile has been updated with ${dir} in your `PATH`.\n\
@@ -231,75 +231,93 @@ fn print_post_install_message(settings: &Settings,
                 source \"${env_path}\"\n\
             ```\
             ",
-            dir=settings.installation_path.display(),
-            env_path=settings.env_file.display(),
+            dir = settings.installation_path.display(),
+            env_path = settings.env_file.display(),
         );
     } else {
-        print_markdown!("\
+        print_markdown!(
+            "\
             # The EdgeDB command-line tool is now installed!\
-        ");
+        "
+        );
     }
     if is_zsh() {
-        let fpath = process::Native::new("zsh", "zsh",
-            env::var("SHELL").unwrap_or_else(|_| "zsh".into()))
-            .arg("-ic")
-            .arg("echo $fpath")
-            .get_stdout_text()
-            .ok();
+        let fpath = process::Native::new(
+            "zsh",
+            "zsh",
+            env::var("SHELL").unwrap_or_else(|_| "zsh".into()),
+        )
+        .arg("-ic")
+        .arg("echo $fpath")
+        .get_stdout_text()
+        .ok();
         let func_dir = home_dir().ok().map(|p| p.join(".zfunc"));
         let func_dir = func_dir.as_ref().and_then(|p| p.to_str());
         if let Some((fpath, func_dir)) = fpath.zip(func_dir) {
-            if !fpath.split(" ").any(|s| s == func_dir) {
-                print_markdown!("\n\
+            if !fpath.split(' ').any(|s| s == func_dir) {
+                print_markdown!(
+                    "\n\
                     To enable zsh completion, add:\n\
                     ```\n\
                         fpath+=~/.zfunc\n\
                     ```\n\
                     to your `~/.zshrc` before the `compinit` command.\
-                ");
+                "
+                );
             }
         }
     }
     match init_result {
         Ok(InitResult::Initialized) => {
-            print_markdown!("\n\
+            print_markdown!(
+                "\n\
                 `edgedb` without parameters will automatically\n\
                 connect to the initialized project.\n\
-            ");
+            "
+            );
         }
         Ok(InitResult::Refused | InitResult::NonInteractive) => {
-            print_markdown!("\n\
+            print_markdown!(
+                "\n\
                 To initialize a new project, run:\n\
                 ```\n\
                     edgedb project init\n\
                 ```\
-            ");
+            "
+            );
         }
         Ok(InitResult::NotAProject) => {
-            print_markdown!("\n\
+            print_markdown!(
+                "\n\
                 To initialize a new project, run:\n\
                 ```\n\
                     edgedb project init\n\
                 ```\
-            ");
+            "
+            );
         }
         Ok(InitResult::Already) => {
-            print_markdown!("\n\
+            print_markdown!(
+                "\n\
                 `edgedb` without parameters will automatically\n\
                 connect to the current project.\n\
-            ");
+            "
+            );
         }
         Ok(InitResult::OldLayout) => {
-            print_markdown!("\n\
+            print_markdown!(
+                "\n\
                 To initialize a project run:\n\
                 ```\n\
                     edgedb cli migrate\n\
                     edgedb project init\n\
                 ```\
-            ");
+            "
+            );
         }
         Err(e) => {
-            print_markdown!("
+            print_markdown!(
+                "
                 **There was an error while initializing the project: ${err}**\n\
                 \n\
                 To restart project initialization, run:\n\
@@ -307,7 +325,7 @@ fn print_post_install_message(settings: &Settings,
                     edgedb project init\n\
                 ```\
                 ",
-                err=format!("{:#}", e),
+                err = format!("{:#}", e),
             );
         }
     }
@@ -317,9 +335,9 @@ pub fn main(options: &CliInstall) -> anyhow::Result<()> {
     match _main(options) {
         Ok(()) => {
             if cfg!(windows)
-               && !options.upgrade
-               && !options.no_confirm
-               && !options.no_wait_for_exit_prompt
+                && !options.upgrade
+                && !options.no_confirm
+                && !options.no_wait_for_exit_prompt
             {
                 // This is needed so user can read the message if console
                 // was open just for this process
@@ -330,9 +348,9 @@ pub fn main(options: &CliInstall) -> anyhow::Result<()> {
         }
         Err(e) => {
             if cfg!(windows)
-               && !options.upgrade
-               && !options.no_confirm
-               && !options.no_wait_for_exit_prompt
+                && !options.upgrade
+                && !options.no_confirm
+                && !options.no_wait_for_exit_prompt
             {
                 // This is needed so user can read the message if console
                 // was open just for this process
@@ -368,23 +386,23 @@ pub enum InitResult {
 fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
     use InitResult::*;
 
-    let base_dir = env::current_dir()
-        .context("failed to get current directory")?;
+    let base_dir = env::current_dir().context("failed to get current directory")?;
     if base_dir.parent().is_none() {
         // can't initialize project in root dir
         return Ok(NotAProject);
     }
 
-    let base_dir = env::current_dir()
-        .context("failed to get current directory")?;
+    let base_dir = env::current_dir().context("failed to get current directory")?;
     if let Some(dir) = project::search_dir(&base_dir) {
         if project::stash_path(&base_dir)?.exists() {
             log::info!("Project already initialized. Skipping...");
             return Ok(Already);
         }
         if !new_layout {
-            log::warn!("Directory layout not upgraded; \
-            project will not be initialized.");
+            log::warn!(
+                "Directory layout not upgraded; \
+            project will not be initialized."
+            );
             return Ok(OldLayout);
         }
         println!("Command-line tools are installed successfully.");
@@ -423,31 +441,31 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
     }
 }
 
-
 fn _main(options: &CliInstall) -> anyhow::Result<()> {
     #[cfg(unix)]
     if !options.no_confirm {
-
         match home_dir_from_passwd().zip(env::var_os("HOME")) {
             Some((passwd, env)) if passwd != env => {
-                echo!("$HOME differs from euid-obtained home directory: \
-                       you may be using sudo");
+                echo!(
+                    "$HOME differs from euid-obtained home directory: \
+                       you may be using sudo"
+                );
                 echo!("$HOME directory:", Path::new(&env).display());
                 echo!("euid-obtained home directory:", passwd.display());
-                echo!("if this is what you want, \
-                       restart the installation with `-y'");
+                echo!(
+                    "if this is what you want, \
+                       restart the installation with `-y'"
+                );
                 return Err(ExitCode::new(1).into());
             }
             _ => {}
         }
     }
-    let installation_path = binary_path()?
-        .parent().unwrap().to_owned();
+    let installation_path = binary_path()?.parent().unwrap().to_owned();
     let mut settings = Settings {
         rc_files: get_rc_files()?,
         system: false,
-        modify_path: !options.no_modify_path &&
-                     no_dir_in_path(&installation_path),
+        modify_path: !options.no_modify_path && no_dir_in_path(&installation_path),
         installation_path,
         env_file: config_dir()?.join("env"),
     };
@@ -474,9 +492,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         }
     }
 
-    if cfg!(all(target_os="macos", target_arch="x86_64")) &&
-        platform::is_arm64_hardware()
-    {
+    if cfg!(all(target_os = "macos", target_arch = "x86_64")) && platform::is_arm64_hardware() {
         echo!("EdgeDB now supports native M1 build. Downloading binary...");
         return upgrade::upgrade_to_arm64();
     }
@@ -489,62 +505,68 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     };
     let exe_path = current_exe()?;
     fs::create_dir_all(&settings.installation_path)
-        .with_context(|| format!("failed to create {:?}",
-                                 settings.installation_path))?;
+        .with_context(|| format!("failed to create {:?}", settings.installation_path))?;
     if exe_path.parent() == path.parent() {
-        fs::rename(&exe_path, &path)
-            .with_context(|| format!("failed to rename {:?}", exe_path))?;
+        fs::rename(&exe_path, &path).with_context(|| format!("failed to rename {:?}", exe_path))?;
     } else {
         fs::remove_file(&tmp_path).ok();
         fs::copy(&exe_path, &tmp_path)
             .with_context(|| format!("failed to write {:?}", tmp_path))?;
-        fs::rename(&tmp_path, &path)
-            .with_context(|| format!("failed to rename {:?}", tmp_path))?;
+        fs::rename(&tmp_path, &path).with_context(|| format!("failed to rename {:?}", tmp_path))?;
     }
     write_completions_home()?;
 
     if settings.modify_path {
-        #[cfg(windows)] {
+        #[cfg(windows)]
+        {
             use std::env::join_paths;
 
             windows_augment_path(|orig_path| {
                 if orig_path.iter().any(|p| p == &settings.installation_path) {
                     return None;
                 }
-                Some(join_paths(
-                    vec![&settings.installation_path].into_iter()
-                    .chain(orig_path.iter())
-                ).expect("paths can be joined"))
+                Some(
+                    join_paths(
+                        vec![&settings.installation_path]
+                            .into_iter()
+                            .chain(orig_path.iter()),
+                    )
+                    .expect("paths can be joined"),
+                )
             })?;
         }
         if cfg!(unix) {
-            let line = format!("\nexport PATH=\"{}:$PATH\"",
-                               settings.installation_path.display());
+            let line = format!(
+                "\nexport PATH=\"{}:$PATH\"",
+                settings.installation_path.display()
+            );
             for path in &settings.rc_files {
-                ensure_line(&path, &line)
-                    .with_context(|| format!(
-                        "failed to update profile file {:?}", path))?;
+                ensure_line(path, &line)
+                    .with_context(|| format!("failed to update profile file {:?}", path))?;
             }
             if let Some(dir) = settings.env_file.parent() {
-                fs::create_dir_all(&dir)
-                    .with_context(|| format!("failed to create {:?}", dir))?;
+                fs::create_dir_all(dir).with_context(|| format!("failed to create {:?}", dir))?;
             }
-            fs::write(&settings.env_file, &(line + "\n"))
-                .with_context(|| format!("failed to write env file {:?}",
-                                         settings.env_file))?;
+            fs::write(&settings.env_file, line + "\n")
+                .with_context(|| format!("failed to write env file {:?}", settings.env_file))?;
         }
     }
 
     let base = home_dir()?.join(".edgedb");
     let new_layout = if base.exists() {
-        eprintln!("\
+        eprintln!(
+            "\
             Edgedb CLI no longer uses '{}' to store data \
                 and now uses standard locations of your OS. \
-        ", base.display());
-        let q = question::Confirm::new(format!("\
+        ",
+            base.display()
+        );
+        let q = question::Confirm::new(format!(
+            "\
             Do you want to run `edgedb cli migrate` now to update \
             the directory layout?\
-        "));
+        "
+        ));
         if q.ask()? {
             migrate::migrate(&base, false)?;
             true
@@ -593,9 +615,7 @@ pub fn string_from_winreg_value(val: &winreg::RegValue) -> Option<String> {
             })
         }
         _ => None,
-
     }
-
 }
 
 #[cfg(windows)]
@@ -638,11 +658,11 @@ pub fn string_to_winreg_bytes(s: &str) -> Vec<u8> {
 }
 
 #[cfg(windows)]
-pub fn windows_augment_path<F: FnOnce(&[PathBuf]) -> Option<std::ffi::OsString>>(f: F)
-    -> anyhow::Result<()>
-{
-    use std::ptr;
+pub fn windows_augment_path<F: FnOnce(&[PathBuf]) -> Option<std::ffi::OsString>>(
+    f: F,
+) -> anyhow::Result<()> {
     use std::env::{join_paths, split_paths};
+    use std::ptr;
     use winapi::shared::minwindef::*;
     use winapi::um::winuser::SendMessageTimeoutA;
     use winapi::um::winuser::{HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE};
@@ -660,8 +680,9 @@ pub fn windows_augment_path<F: FnOnce(&[PathBuf]) -> Option<std::ffi::OsString>>
         None => return Ok(()),
     };
 
-    let new_path = new_path.to_str()
-            .ok_or_else(|| anyhow::anyhow!("failed to convert PATH to utf-8"))?;
+    let new_path = new_path
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("failed to convert PATH to utf-8"))?;
 
     let root = RegKey::predef(HKEY_CURRENT_USER);
     let environment = root
@@ -696,9 +717,9 @@ pub fn windows_augment_path<F: FnOnce(&[PathBuf]) -> Option<std::ffi::OsString>>
 #[context("writing completion file {:?}", path)]
 fn write_completion(path: &Path, shell: Shell) -> anyhow::Result<()> {
     if let Some(dir) = path.parent() {
-        fs::create_dir_all(&dir)?;
+        fs::create_dir_all(dir)?;
     }
-    shell.generate(&mut BufWriter::new(fs::File::create(&path)?));
+    shell.generate(&mut BufWriter::new(fs::File::create(path)?));
     Ok(())
 }
 
@@ -706,13 +727,13 @@ pub fn write_completions_home() -> anyhow::Result<()> {
     let home = home_dir()?;
     write_completion(
         &home.join(".local/share/bash-completion/completions/edgedb"),
-        Shell::Bash)?;
+        Shell::Bash,
+    )?;
     write_completion(
         &home.join(".config/fish/completions/edgedb.fish"),
-        Shell::Fish)?;
-    write_completion(
-        &home.join(".zfunc/_edgedb"),
-        Shell::Zsh)?;
+        Shell::Fish,
+    )?;
+    write_completion(&home.join(".zfunc/_edgedb"), Shell::Zsh)?;
     Ok(())
 }
 
@@ -722,13 +743,13 @@ pub fn gen_completions(options: &GenCompletions) -> anyhow::Result<()> {
     } else if let Some(prefix) = &options.prefix {
         write_completion(
             &prefix.join("share/bash-completion/completions/edgedb"),
-            Shell::Bash)?;
+            Shell::Bash,
+        )?;
         write_completion(
             &prefix.join("share/fish/completions/edgedb.fish"),
-            Shell::Fish)?;
-        write_completion(
-            &prefix.join("share/zsh/site-functions/_edgedb"),
-            Shell::Zsh)?;
+            Shell::Fish,
+        )?;
+        write_completion(&prefix.join("share/zsh/site-functions/_edgedb"), Shell::Zsh)?;
     } else if options.home {
         write_completions_home()?;
     } else {
@@ -751,10 +772,14 @@ impl Settings {
         if self.modify_path && !self.rc_files.is_empty() {
             table.add_row(Row::new(vec![
                 Cell::new("Profile Files"),
-                Cell::new(&self.rc_files.iter()
-                    .map(|p| p.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join("\n")),
+                Cell::new(
+                    &self
+                        .rc_files
+                        .iter()
+                        .map(|p| p.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                ),
             ]));
         }
         table.set_format(*table::FORMAT);

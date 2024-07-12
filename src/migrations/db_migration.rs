@@ -1,5 +1,5 @@
-use std::collections::{BTreeSet, BTreeMap};
 use indexmap::IndexMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::connect::Connection;
 
@@ -11,10 +11,12 @@ pub(crate) enum MigrationGeneratedBy {
 }
 
 pub(crate) trait SortableMigration {
-    type ParentsIter<'a>: Iterator<Item = &'a String> where Self: 'a;
+    type ParentsIter<'a>: Iterator<Item = &'a String>
+    where
+        Self: 'a;
     fn name(&self) -> &str;
     fn is_root(&self) -> bool;
-    fn iter_parents<'a>(&'a self) -> Self::ParentsIter<'a>;
+    fn iter_parents(&self) -> Self::ParentsIter<'_>;
 }
 
 // Database migration record
@@ -37,27 +39,30 @@ impl SortableMigration for DBMigration {
         self.parent_names.is_empty()
     }
 
-    fn iter_parents<'a>(&'a self) -> Self::ParentsIter<'a> {
+    fn iter_parents(&self) -> Self::ParentsIter<'_> {
         self.parent_names.iter()
     }
 }
 
-pub(crate) fn linearize_db_migrations<M>(
-    migrations: Vec<M>,
-) -> IndexMap<String, M> where M: SortableMigration + Clone {
+pub(crate) fn linearize_db_migrations<M>(migrations: Vec<M>) -> IndexMap<String, M>
+where
+    M: SortableMigration + Clone,
+{
     let mut by_parent = BTreeMap::new();
     for item in &migrations {
         for parent in item.iter_parents() {
-            by_parent.entry(parent.clone())
+            by_parent
+                .entry(parent.clone())
                 .or_insert_with(Vec::new)
                 .push(item.clone());
         }
     }
     let mut output = IndexMap::new();
     let mut visited = BTreeSet::new();
-    let mut queue = migrations.iter()
+    let mut queue = migrations
+        .iter()
         .filter(|item| item.is_root())
-        .map(|item| item.clone())
+        .cloned()
         .collect::<Vec<_>>();
     while let Some(item) = queue.pop() {
         output.insert(item.name().to_owned(), item.clone());
@@ -70,7 +75,7 @@ pub(crate) fn linearize_db_migrations<M>(
             }
         }
     }
-    return output
+    output
 }
 
 pub(crate) async fn read_all(
@@ -78,12 +83,10 @@ pub(crate) async fn read_all(
     fetch_script: bool,
     include_dev_mode: bool,
 ) -> anyhow::Result<IndexMap<String, DBMigration>> {
-    let has_generated_by = cli
-        .get_version().await?.specific() >= "3.0-alpha.1".parse().unwrap();
+    let has_generated_by = cli.get_version().await?.specific() >= "3.0-alpha.1".parse().unwrap();
 
     let migrations = if has_generated_by {
-        cli
-        .query::<DBMigration, _>(
+        cli.query::<DBMigration, _>(
             r###"
             SELECT schema::Migration {
                 name,
@@ -96,14 +99,14 @@ pub(crate) async fn read_all(
                 OR .generated_by ?!= schema::MigrationGeneratedBy.DevMode
             "###,
             &(fetch_script, include_dev_mode),
-        ).await?
+        )
+        .await?
     } else {
         // The use of schema::Cardinality below is intentional,
         // as we wouldn't have the correct enum in old servers,
         // but derive doesn't care about actual enum members in
         // the schema, just the fact that it is an enum.
-        cli
-        .query::<DBMigration, _>(
+        cli.query::<DBMigration, _>(
             r###"
             SELECT schema::Migration {
                 name,
@@ -113,7 +116,8 @@ pub(crate) async fn read_all(
             }
             "###,
             &(fetch_script,),
-        ).await?
+        )
+        .await?
     };
 
     Ok(linearize_db_migrations(migrations))
@@ -122,14 +126,11 @@ pub(crate) async fn read_all(
 pub(crate) async fn find_by_prefix(
     cli: &mut Connection,
     prefix: &str,
-) -> Result<Option<DBMigration>, anyhow::Error>
-{
-    let has_generated_by = cli
-        .get_version().await?.specific() >= "3.0-alpha.1".parse().unwrap();
+) -> Result<Option<DBMigration>, anyhow::Error> {
+    let has_generated_by = cli.get_version().await?.specific() >= "3.0-alpha.1".parse().unwrap();
 
     let mut all_similar = if has_generated_by {
-        cli
-        .query::<DBMigration, _>(
+        cli.query::<DBMigration, _>(
             r###"
             SELECT schema::Migration {
                 name,
@@ -140,10 +141,10 @@ pub(crate) async fn find_by_prefix(
             FILTER .name LIKE <str>$0
             "###,
             &(format!("{}%", prefix),),
-        ).await?
+        )
+        .await?
     } else {
-        cli
-        .query::<DBMigration, _>(
+        cli.query::<DBMigration, _>(
             r###"
             SELECT schema::Migration {
                 name,
@@ -154,7 +155,8 @@ pub(crate) async fn find_by_prefix(
             FILTER .name LIKE <str>$0
             "###,
             &(format!("{}%", prefix),),
-        ).await?
+        )
+        .await?
     };
     if all_similar.is_empty() {
         return Ok(None);
@@ -162,5 +164,5 @@ pub(crate) async fn find_by_prefix(
     if all_similar.len() > 1 {
         anyhow::bail!("more than one migration matches prefix {:?}", prefix);
     }
-    return Ok(all_similar.pop())
+    Ok(all_similar.pop())
 }

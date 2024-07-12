@@ -4,24 +4,24 @@ use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fs;
-use std::future::{Future, pending};
+use std::future::{pending, Future};
 use std::path::{Path, PathBuf};
-use std::process::{exit, Output, ExitStatus, Stdio};
+use std::process::{exit, ExitStatus, Output, Stdio};
 
 use anyhow::Context;
-use colorful::{Colorful, Color};
+use colorful::{Color, Colorful};
 use once_cell::sync::Lazy;
-use tokio::io::{self, AsyncRead, BufReader, AsyncReadExt, AsyncBufReadExt};
-use tokio::io::{AsyncWriteExt};
-use tokio::process::{Command};
+use tokio::io::AsyncWriteExt;
+use tokio::io::{self, AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader};
+use tokio::process::Command;
 
 use crate::interrupt;
 use crate::platform::tmp_file_path;
 
 #[cfg(unix)]
 static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
-    use std::ptr::null_mut;
     use std::ffi::CString;
+    use std::ptr::null_mut;
 
     let utf8_term = ["LANG", "LC_ALL", "LC_MESSAGES"].iter().any(|n| {
         env::var(n)
@@ -31,23 +31,21 @@ static HAS_UTF8_LOCALE: Lazy<bool> = Lazy::new(|| {
     if utf8_term {
         unsafe {
             let c_utf8 = CString::new("C.UTF-8").unwrap();
-            let loc = libc::newlocale(libc::LC_ALL,
-                                      c_utf8.as_ptr(), null_mut());
-            if loc != null_mut() {
+            let loc = libc::newlocale(libc::LC_ALL, c_utf8.as_ptr(), null_mut());
+            if !loc.is_null() {
                 libc::freelocale(loc);
                 log::debug!("UTF-8 locale is enabled");
-                return true;
+                true
             } else {
                 log::debug!("Cannot load C.UTF-8");
-                return false;
+                false
             }
         }
     } else {
         log::debug!("UTF-8 not enabled (non-utf-8 locale)");
-        return false;
+        false
     }
 });
-
 
 pub struct Native {
     command: Command,
@@ -59,30 +57,30 @@ pub struct Native {
     marker: Cow<'static, str>,
     description: Cow<'static, str>,
     proxy: bool,
+    quiet: bool,
     pid_file: Option<PathBuf>,
 }
 
 #[cfg(unix)]
-pub fn term(pid: u32) -> anyhow::Result<()>{
-    use signal_hook::consts::signal::{SIGTERM};
+pub fn term(pid: u32) -> anyhow::Result<()> {
+    use signal_hook::consts::signal::SIGTERM;
 
     if unsafe { libc::kill(pid as i32, SIGTERM) } != 0 {
-        return Err(io::Error::last_os_error())
-            .with_context(|| format!("cannot stop {pid}"))?;
+        return Err(
+            anyhow::Error::new(io::Error::last_os_error()).context(format!("cannot stop {pid}"))
+        );
     }
     Ok(())
 }
 
 #[cfg(windows)]
-pub fn term(pid: u32) -> anyhow::Result<()>{
+pub fn term(pid: u32) -> anyhow::Result<()> {
     use std::ptr::null_mut;
+    use winapi::um::handleapi::CloseHandle;
     use winapi::um::processthreadsapi::{OpenProcess, TerminateProcess};
     use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_TERMINATE};
-    use winapi::um::handleapi::CloseHandle;
 
-    let handle = unsafe {
-        OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, pid)
-    };
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, pid) };
     if handle == null_mut() {
         // MSDN doesn't describe what is proper error here :(
         anyhow::bail!("process could not be found or cannot be stopped");
@@ -100,9 +98,9 @@ pub fn exists(pid: u32) -> bool {
 #[cfg(windows)]
 pub fn exists(pid: u32) -> bool {
     use std::ptr::null_mut;
-    use winapi::um::processthreadsapi::{OpenProcess};
-    use winapi::um::winnt::{PROCESS_QUERY_INFORMATION};
     use winapi::um::handleapi::CloseHandle;
+    use winapi::um::processthreadsapi::OpenProcess;
+    use winapi::um::winnt::PROCESS_QUERY_INFORMATION;
 
     let handle = unsafe { OpenProcess(PROCESS_QUERY_INFORMATION, 0, pid) };
     if handle == null_mut() {
@@ -151,7 +149,7 @@ pub trait IntoArgs {
     fn add_args(self, process: &mut Native);
 }
 
-impl<I: IntoArg, T: IntoIterator<Item=I>> IntoArgs for T {
+impl<I: IntoArg, T: IntoIterator<Item = I>> IntoArgs for T {
     fn add_args(self, process: &mut Native) {
         for item in self.into_iter() {
             item.add_arg(process);
@@ -159,20 +157,21 @@ impl<I: IntoArg, T: IntoIterator<Item=I>> IntoArgs for T {
     }
 }
 
-fn block_on<T>(f: impl Future<Output=anyhow::Result<T>>) -> anyhow::Result<T> {
+fn block_on<T>(f: impl Future<Output = anyhow::Result<T>>) -> anyhow::Result<T> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .thread_name("process-run")
         .enable_all()
-        .build().context("can make tokio runtime")?;
+        .build()
+        .context("can make tokio runtime")?;
     runtime.block_on(f)
 }
 
 impl Native {
-    pub fn new(description: impl Into<Cow<'static, str>>,
+    pub fn new(
+        description: impl Into<Cow<'static, str>>,
         marker: impl Into<Cow<'static, str>>,
-        cmd: impl AsRef<Path>)
-        -> Native
-    {
+        cmd: impl AsRef<Path>,
+    ) -> Native {
         let mut me = Native {
             description: description.into(),
             marker: marker.into(),
@@ -181,10 +180,12 @@ impl Native {
             args: vec![cmd.as_ref().as_os_str().to_os_string()],
             envs: HashMap::new(),
             proxy: clicolors_control::colors_enabled(),
+            quiet: false,
             stop_process: None,
             pid_file: None,
         };
-        #[cfg(unix)] {
+        #[cfg(unix)]
+        {
             if *HAS_UTF8_LOCALE {
                 me.env("LANG", "C.UTF-8");
                 me.env("LC_ALL", "C.UTF-8");
@@ -193,13 +194,18 @@ impl Native {
                 me.env("LC_ALL", "C");
             }
         }
-        if cfg!(target_os="macos") {
+        if cfg!(target_os = "macos") {
             me.env("LC_CTYPE", "UTF-8");
         }
-        return me;
+        me
     }
     pub fn no_proxy(&mut self) -> &mut Self {
         self.proxy = false;
+        self
+    }
+
+    pub fn quiet(&mut self) -> &mut Self {
+        self.quiet = true;
         self
     }
 
@@ -209,16 +215,17 @@ impl Native {
     }
 
     #[cfg_attr(windows, allow(dead_code))]
-    pub fn log_file(&mut self, path: &Path) -> anyhow::Result<&mut Self>
-    {
+    pub fn log_file(&mut self, path: &Path) -> anyhow::Result<&mut Self> {
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(&dir)?;
+            fs::create_dir_all(dir)?;
         }
         let file = fs::OpenOptions::new()
-            .write(true).append(true).create(true)
-            .open(&path)
+            .append(true)
+            .create(true)
+            .open(path)
             .with_context(|| format!("cannot open log file {:?}", path))?;
-        self.command.stdout(file.try_clone().context("cannot clone file")?);
+        self.command
+            .stdout(file.try_clone().context("cannot clone file")?);
         self.command.stderr(file);
         self.proxy = false;
         Ok(self)
@@ -235,9 +242,7 @@ impl Native {
         self
     }
 
-    pub fn env(&mut self, key: impl AsRef<OsStr>, val: impl AsRef<OsStr>)
-        -> &mut Self
-    {
+    pub fn env(&mut self, key: impl AsRef<OsStr>, val: impl AsRef<OsStr>) -> &mut Self {
         self.envs.insert(
             key.as_ref().to_os_string(),
             Some(val.as_ref().to_os_string()),
@@ -245,11 +250,11 @@ impl Native {
         self.command.env(key, val);
         self
     }
-    pub fn env_default(&mut self,
+    pub fn env_default(
+        &mut self,
         name: impl AsRef<OsStr> + Into<OsString>,
-        default: impl Into<OsString>)
-        -> &mut Self
-    {
+        default: impl Into<OsString>,
+    ) -> &mut Self {
         if env::var_os(name.as_ref()).is_none() {
             self.env(name.into(), default.into());
         } // otherwise it's normally propagated
@@ -265,8 +270,12 @@ impl Native {
         if output.status.success() {
             Ok(())
         } else {
-            anyhow::bail!("{} failed: {} (command-line: {:?})",
-                          self.description, output.status, self.command);
+            anyhow::bail!(
+                "{} failed: {} (command-line: {:?})",
+                self.description,
+                output.status,
+                self.command
+            );
         }
     }
     pub fn run_and_exit(&mut self) -> anyhow::Result<()> {
@@ -274,36 +283,45 @@ impl Native {
         if let Some(code) = output.status.code() {
             exit(code);
         } else {
-            anyhow::bail!("process {} (command-line: {:?}) failed: {}",
-                self.description, self.command, output.status)
+            anyhow::bail!(
+                "process {} (command-line: {:?}) failed: {}",
+                self.description,
+                self.command,
+                output.status
+            )
         }
     }
-    pub fn run_or_stderr(&mut self)
-        -> anyhow::Result<Result<(), (ExitStatus, String)>>
-    {
+    pub fn run_or_stderr(&mut self) -> anyhow::Result<Result<(), (ExitStatus, String)>> {
         let output = block_on(self._run(false, true))?;
         if output.status.success() {
             Ok(Ok(()))
         } else {
-            let data = String::from_utf8(output.stderr)
-            .with_context(|| format!(
-                "cannot decode error output of {} (command-line: {:?})",
-                self.description, self.command,
-            ))?;
+            let data = String::from_utf8(output.stderr).with_context(|| {
+                format!(
+                    "cannot decode error output of {} (command-line: {:?})",
+                    self.description, self.command,
+                )
+            })?;
             Ok(Err((output.status, data)))
         }
     }
     pub fn get_stdout_text(&mut self) -> anyhow::Result<String> {
         let output = block_on(self._run(true, false))?;
         if output.status.success() {
-            let text = String::from_utf8(output.stdout)
-                .with_context(|| format!(
+            let text = String::from_utf8(output.stdout).with_context(|| {
+                format!(
                     "{} produced invalid utf-8 (command-line: {:?})",
-                    self.description, self.command))?;
+                    self.description, self.command
+                )
+            })?;
             Ok(text)
         } else {
-            anyhow::bail!("{} failed: {} (command-line: {:?})",
-                          self.description, output.status, self.command);
+            anyhow::bail!(
+                "{} failed: {} (command-line: {:?})",
+                self.description,
+                output.status,
+                self.command
+            );
         }
     }
     pub fn get_output(&mut self) -> anyhow::Result<Output> {
@@ -318,11 +336,12 @@ impl Native {
     }
 
     #[allow(dead_code)]
-    pub fn background_for<T, F>(&mut self,
-        f: impl FnOnce() -> anyhow::Result<F>)
-        -> anyhow::Result<T>
-        where F: Future<Output=anyhow::Result<T>>,
-
+    pub fn background_for<T, F>(
+        &mut self,
+        f: impl FnOnce() -> anyhow::Result<F>,
+    ) -> anyhow::Result<T>
+    where
+        F: Future<Output = anyhow::Result<T>>,
     {
         block_on(self._background(f))
     }
@@ -338,9 +357,7 @@ impl Native {
         block_on(self._run(false, false)).map(|out| out.status)
     }
 
-    async fn _run(&mut self, capture_out: bool, capture_err: bool)
-        -> anyhow::Result<Output>
-    {
+    async fn _run(&mut self, capture_out: bool, capture_err: bool) -> anyhow::Result<Output> {
         let term = interrupt::Interrupt::term();
         let mut stdout = Vec::new();
         let mut stderr = Vec::new();
@@ -351,10 +368,12 @@ impl Native {
         if capture_err || self.proxy {
             self.command.stderr(Stdio::piped());
         }
-        let mut child = self.command.spawn()
-            .with_context(|| format!(
+        let mut child = self.command.spawn().with_context(|| {
+            format!(
                 "{} failed to start (command-line: {:?})",
-                self.description, self.command))?;
+                self.description, self.command
+            )
+        })?;
         let pid = child.id().expect("process was not awaited");
         write_pid_file(&self.pid_file, pid);
 
@@ -365,8 +384,8 @@ impl Native {
             (child_result, _, _) = async {
                 tokio::join!(
                     child.wait(),
-                    stdout_loop(mark, out, capture_out.then(|| &mut stdout)),
-                    stdout_loop(mark, err, capture_err.then(|| &mut stderr)),
+                    stdout_loop(mark, out, capture_out.then_some(&mut stdout), self.quiet),
+                    stdout_loop(mark, err, capture_err.then_some(&mut stderr), self.quiet),
                 )
             } => child_result,
             _ = self.signal_loop(pid, &term) => unreachable!(),
@@ -375,11 +394,18 @@ impl Native {
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
 
-        let status = child_result.with_context(|| format!(
+        let status = child_result.with_context(|| {
+            format!(
                 "failed to get status of {} (command-line: {:?})",
-                self.description, self.command))?;
+                self.description, self.command
+            )
+        })?;
         log::debug!("Result of {}: {}", self.description, status);
-        Ok(Output { status, stdout, stderr })
+        Ok(Output {
+            status,
+            stdout,
+            stderr,
+        })
     }
 
     async fn _daemonize(&mut self) -> anyhow::Result<Vec<u8>> {
@@ -387,10 +413,12 @@ impl Native {
         let mut stdout = Vec::new();
         log::info!("Daemonizing {}: {:?}", self.description, self.command);
         self.command.stdout(Stdio::piped());
-        let mut child = self.command.spawn()
-            .with_context(|| format!(
+        let mut child = self.command.spawn().with_context(|| {
+            format!(
                 "{} failed to start (command-line: {:?})",
-                self.description, self.command))?;
+                self.description, self.command
+            )
+        })?;
         let pid = child.id().expect("process was not awaited");
         write_pid_file(&self.pid_file, pid);
 
@@ -398,7 +426,7 @@ impl Native {
         let out = child.stdout.take();
         let mut res = tokio::select! {
             res = child.wait() => Err(res),
-            _ = stdout_loop(mark, out, Some(&mut stdout)) => Ok(()),
+            _ = stdout_loop(mark, out, Some(&mut stdout), self.quiet) => Ok(()),
             _ = self.signal_loop(pid, &term) => unreachable!(),
         };
 
@@ -417,14 +445,23 @@ impl Native {
         res.map_err(|res| match res {
             Ok(status) => anyhow::anyhow!(
                 "failed to run {} (command-line: {:?}): {}",
-                self.description, self.command, status),
+                self.description,
+                self.command,
+                status
+            ),
             Err(e) => anyhow::anyhow!(
                 "failed to run {} (command-line: {:?}): {}",
-                self.description, self.command, e),
+                self.description,
+                self.command,
+                e
+            ),
         })?;
 
-        log::debug!("Process {} daemonized with output: {:?}",
-                    self.description, stdout);
+        log::debug!(
+            "Process {} daemonized with output: {:?}",
+            self.description,
+            stdout
+        );
         Ok(stdout)
     }
 
@@ -433,10 +470,12 @@ impl Native {
         log::info!("Running {}: {:?}", self.description, self.command);
         self.command.stdout(Stdio::null());
         self.command.stderr(Stdio::null());
-        let mut child = self.command.spawn()
-            .with_context(|| format!(
+        let mut child = self.command.spawn().with_context(|| {
+            format!(
                 "{} failed to start (command-line: {:?})",
-                self.description, self.command))?;
+                self.description, self.command
+            )
+        })?;
         let pid = child.id().expect("process was not awaited");
         write_pid_file(&self.pid_file, pid);
 
@@ -448,17 +487,22 @@ impl Native {
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
 
-        let status = child_result.with_context(|| format!(
+        let status = child_result.with_context(|| {
+            format!(
                 "failed to get status of {} (command-line: {:?})",
-                self.description, self.command))?;
+                self.description, self.command
+            )
+        })?;
         log::debug!("Result of {}: {}", self.description, status);
         Ok(status)
     }
 
-    async fn _background<T, F>(&mut self,
-        f: impl FnOnce() -> anyhow::Result<F>)
-        -> anyhow::Result<T>
-        where F: Future<Output=anyhow::Result<T>>,
+    async fn _background<T, F>(
+        &mut self,
+        f: impl FnOnce() -> anyhow::Result<F>,
+    ) -> anyhow::Result<T>
+    where
+        F: Future<Output = anyhow::Result<T>>,
     {
         let f = f()?;
         let term = interrupt::Interrupt::term();
@@ -467,10 +511,12 @@ impl Native {
             self.command.stdout(Stdio::piped());
             self.command.stderr(Stdio::piped());
         }
-        let mut child = self.command.spawn()
-            .with_context(|| format!(
+        let mut child = self.command.spawn().with_context(|| {
+            format!(
                 "{} failed to start (command-line: {:?})",
-                self.description, self.command))?;
+                self.description, self.command
+            )
+        })?;
         let out = child.stdout.take();
         let err = child.stderr.take();
         let pid = child.id().expect("process was not awaited");
@@ -480,8 +526,8 @@ impl Native {
             (result, _, _) = async {
                 tokio::join!(
                     self.run_and_kill(child, f),
-                    stdout_loop(&self.marker, out, None),
-                    stdout_loop(&self.marker, err, None),
+                    stdout_loop(&self.marker, out, None, self.quiet),
+                    stdout_loop(&self.marker, err, None, self.quiet),
                 )
             } => result,
             _ = self.signal_loop(pid, &term) => unreachable!(),
@@ -490,7 +536,7 @@ impl Native {
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
 
-        return result;
+        result
     }
 
     async fn _feed(&mut self, data: &[u8]) -> anyhow::Result<()> {
@@ -501,10 +547,12 @@ impl Native {
             self.command.stdout(Stdio::piped());
             self.command.stderr(Stdio::piped());
         }
-        let mut child = self.command.spawn()
-            .with_context(|| format!(
+        let mut child = self.command.spawn().with_context(|| {
+            format!(
                 "{} failed to start (command-line: {:?})",
-                self.description, self.command))?;
+                self.description, self.command
+            )
+        })?;
         let pid = child.id().expect("process was not awaited");
         write_pid_file(&self.pid_file, pid);
 
@@ -515,8 +563,8 @@ impl Native {
             (child_result, _, _) = async {
                 tokio::join!(
                     child.wait(),
-                    stdout_loop(&self.marker, out, None),
-                    stdout_loop(&self.marker, err, None),
+                    stdout_loop(&self.marker, out, None, self.quiet),
+                    stdout_loop(&self.marker, err, None, self.quiet),
                 )
             } => child_result,
             _ = feed_data(inp, data) => unreachable!(),
@@ -526,59 +574,75 @@ impl Native {
         remove_pid_file(&self.pid_file);
         term.err_if_occurred()?;
 
-        let status = child_result.with_context(|| format!(
+        let status = child_result.with_context(|| {
+            format!(
                 "failed to get status of {} (command-line: {:?})",
-                self.description, self.command))?;
+                self.description, self.command
+            )
+        })?;
         log::debug!("Result of {}: {}", self.description, status);
         if status.success() {
             Ok(())
         } else {
-            anyhow::bail!("{} failed: {} (command-line: {:?})",
-                          self.description, status, self.command);
+            anyhow::bail!(
+                "{} failed: {} (command-line: {:?})",
+                self.description,
+                status,
+                self.command
+            );
         }
     }
 
     #[cfg(windows)]
-    async fn signal_loop<Never>(&self, _: u32, _: &interrupt::Interrupt)
-        -> Never
-    {
+    async fn signal_loop<Never>(&self, _: u32, _: &interrupt::Interrupt) -> Never {
         // on windows Ctrl+C signals are propagated automatically and no other
         // signals are supported, so there is nothing to do here
         wait_forever().await
     }
 
     #[cfg(unix)]
-    async fn signal_loop<Never>(&self, pid: u32, intr: &interrupt::Interrupt)
-        -> Never
-    {
-        use tokio::time::timeout;
-        use signal_hook::consts::signal::{SIGTERM, SIGKILL};
+    async fn signal_loop<Never>(&self, pid: u32, intr: &interrupt::Interrupt) -> Never {
+        use signal_hook::consts::signal::{SIGKILL, SIGTERM};
         use std::time::Duration;
+        use tokio::time::timeout;
 
         let sig = intr.wait().await;
         match sig {
             interrupt::Signal::Interrupt => {
-                log::warn!("Received interrupt. Waiting for \
-                    the {} process to exit.", self.description);
+                log::warn!(
+                    "Received interrupt. Waiting for \
+                    the {} process to exit.",
+                    self.description
+                );
             }
             interrupt::Signal::Hup => {
-                log::warn!("Received HUP signal. Waiting for \
-                    the {} process to exit.", self.description);
+                log::warn!(
+                    "Received HUP signal. Waiting for \
+                    the {} process to exit.",
+                    self.description
+                );
             }
             interrupt::Signal::Term => {
-                log::warn!("Received TERM signal. Propagating to {}...",
-                    self.description);
+                log::warn!(
+                    "Received TERM signal. Propagating to {}...",
+                    self.description
+                );
                 if self.try_stop_process().await.is_err() {
                     if unsafe { libc::kill(pid as i32, SIGTERM) } != 0 {
-                        log::debug!("Error stopping {}: {}",
-                            self.description, io::Error::last_os_error());
+                        log::debug!(
+                            "Error stopping {}: {}",
+                            self.description,
+                            io::Error::last_os_error()
+                        );
                     }
                 }
             }
         };
         timeout(Duration::from_secs(10), pending::<()>()).await.ok();
-        log::warn!("Process {} did not stop within 10 seconds, forcing...",
-            self.description);
+        log::warn!(
+            "Process {} did not stop within 10 seconds, forcing...",
+            self.description
+        );
         if self.try_stop_process().await.is_err() {
             unsafe { libc::kill(pid as i32, SIGKILL) };
         }
@@ -592,8 +656,12 @@ impl Native {
             match stop_cmd.status().await {
                 Ok(s) if s.success() => Ok(()),
                 Ok(s) => {
-                    log::debug!("Error signalling to {}: {:?}: {}",
-                        self.description, stop_cmd, s);
+                    log::debug!(
+                        "Error signalling to {}: {:?}: {}",
+                        self.description,
+                        stop_cmd,
+                        s
+                    );
                     // This probably means "container is already stopped" so
                     // we don't want to kill original docker process. That
                     // maybe doing `--rm` cleanup at the moment
@@ -609,63 +677,71 @@ impl Native {
         }
     }
 
-    async fn run_and_kill<T>(&self, mut child: tokio::process::Child,
-        f: impl Future<Output=anyhow::Result<T>>)
-        -> anyhow::Result<T>
-    {
+    async fn run_and_kill<T>(
+        &self,
+        mut child: tokio::process::Child,
+        f: impl Future<Output = anyhow::Result<T>>,
+    ) -> anyhow::Result<T> {
         let result = tokio::select! {
             res = child.wait() => Err(res),
             res = f => Ok(res),
         };
         match result {
-            Err(process_result) => {
-                process_result
-                .with_context(|| format!(
-                    "failed to wait for {} (command-line: {:?})",
-                    self.description, self.command))
+            Err(process_result) => process_result
+                .with_context(|| {
+                    format!(
+                        "failed to wait for {} (command-line: {:?})",
+                        self.description, self.command
+                    )
+                })
                 .and_then(|status| {
-                    log::debug!("Result of {} (background): {}",
-                        self.description, status);
+                    log::debug!("Result of {} (background): {}", self.description, status);
                     anyhow::bail!(
                         "{} exited prematurely: {} (command-line: {:?})",
-                        self.description, status, self.command);
-                })
-            }
+                        self.description,
+                        status,
+                        self.command
+                    );
+                }),
             Ok(result) => {
                 log::debug!("Stopping {}", self.description);
                 if self.try_stop_process().await.is_ok() {
-                    let status = child.wait().await.with_context(|| format!(
-                        "failed to get status of {} (command-line: {:?})",
-                        self.description, self.command))?;
-                    log::debug!("Result of {} (background): {}",
-                        self.description, status);
+                    let status = child.wait().await.with_context(|| {
+                        format!(
+                            "failed to get status of {} (command-line: {:?})",
+                            self.description, self.command
+                        )
+                    })?;
+                    log::debug!("Result of {} (background): {}", self.description, status);
                 } else {
                     if cfg!(windows) {
                         if let Err(e) = child.kill().await {
-                            log::error!("Error stopping {}: {}",
-                                self.description, e);
+                            log::error!("Error stopping {}: {}", self.description, e);
                         }
-                        let status = child.wait().await
-                            .with_context(|| format!(
-                            "failed to get status of {} (command-line: {:?})",
-                            self.description, self.command))?;
-                        log::debug!("Result of {} (background): {}",
-                            self.description, status);
+                        let status = child.wait().await.with_context(|| {
+                            format!(
+                                "failed to get status of {} (command-line: {:?})",
+                                self.description, self.command
+                            )
+                        })?;
+                        log::debug!("Result of {} (background): {}", self.description, status);
                     }
-                    #[cfg(unix)] {
+                    #[cfg(unix)]
+                    {
                         let pid = child.id().expect("process was not awaited");
                         let res = tokio::select! {
                             res = child.wait() => res,
                             _ = kill_child(pid, &self.description)
                                 => unreachable!(),
                         };
-                        let status = res
-                            .with_context(|| format!(
+                        let status = res.with_context(|| {
+                            format!(
                                 "failed to get status of {} \
                                 (command-line: {:?})",
-                                self.description, self.command))?;
-                        log::debug!("Result of {} (background): {}",
-                            self.description, status);
+                                self.description, self.command
+                            )
+                        })?;
+                        log::debug!("Result of {} (background): {}", self.description, status);
                     }
                     #[cfg(not(any(windows, unix)))]
                     compile_error!("unknown platform");
@@ -675,29 +751,26 @@ impl Native {
         }
     }
     pub fn stop_process<F>(&mut self, f: F) -> &mut Self
-        where F: Fn() -> Command + 'static
+    where
+        F: Fn() -> Command + 'static,
     {
         self.stop_process = Some(Box::new(f));
         self
     }
     /// Replace current process with this one instead off spawning
     #[cfg(unix)]
-    pub fn exec_replacing_self(&self)
-        -> anyhow::Result<std::convert::Infallible>
-    {
+    pub fn exec_replacing_self(&self) -> anyhow::Result<std::convert::Infallible> {
         use nix::unistd::execve;
         use std::ffi::CString;
         use std::os::unix::ffi::OsStrExt;
         log::debug!("Replacing CLI with {:?}", self.command);
 
-        fn env_pair(key: &OsStr, val: &OsStr)
-            -> anyhow::Result<CString>
-        {
+        fn env_pair(key: &OsStr, val: &OsStr) -> anyhow::Result<CString> {
             let mut cstr = Vec::with_capacity(key.len() + val.len() + 2);
             cstr.extend(key.as_bytes());
             cstr.push(b'=');
             cstr.extend(val.as_bytes());
-            return Ok(CString::new(cstr)?);
+            Ok(CString::new(cstr)?)
         }
 
         let mut env = Vec::new();
@@ -714,7 +787,9 @@ impl Native {
 
         execve(
             &CString::new(self.program.as_bytes())?,
-            &self.args.iter()
+            &self
+                .args
+                .iter()
                 .map(|arg| CString::new(arg.as_bytes()))
                 .collect::<Result<Vec<_>, _>>()?,
             &env,
@@ -723,32 +798,39 @@ impl Native {
     }
 }
 
-
-async fn stdout_loop(marker: &str, pipe: Option<impl AsyncRead+Unpin>,
-    capture_buffer: Option<&mut Vec<u8>>)
-{
+async fn stdout_loop(
+    marker: &str,
+    pipe: Option<impl AsyncRead + Unpin>,
+    capture_buffer: Option<&mut Vec<u8>>,
+    quiet: bool,
+) {
     match (pipe, capture_buffer) {
         (Some(mut pipe), Some(buffer)) => {
-            pipe.read_to_end(buffer).await.map_err(|e| {
-                log::info!("Cannot read command output: {e}");
-            }).ok();
+            pipe.read_to_end(buffer)
+                .await
+                .map_err(|e| {
+                    log::info!("Cannot read command output: {e}");
+                })
+                .ok();
         }
         (Some(pipe), None) => {
             let buf = BufReader::new(pipe);
             let mut lines = buf.lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                if cfg!(windows) {
-                    io::stderr().write_all(
-                        format!("[{}] {}\r\n", marker, line)
+                let message = if cfg!(windows) {
+                    format!("[{}] {}\r\n", marker, line)
                         .color(Color::Grey37)
-                        .to_string().as_bytes()
-                    ).await.ok();
+                        .to_string()
                 } else {
-                    io::stderr().write_all(
-                        format!("[{}] {}\n", marker, line)
+                    format!("[{}] {}\n", marker, line)
                         .color(Color::Grey37)
-                        .to_string().as_bytes()
-                    ).await.ok();
+                        .to_string()
+                };
+
+                if quiet {
+                    log::debug!("{}", message);
+                } else {
+                    io::stderr().write_all(message.as_bytes()).await.ok();
                 }
             }
         }
@@ -759,28 +841,34 @@ async fn stdout_loop(marker: &str, pipe: Option<impl AsyncRead+Unpin>,
 
 #[cfg(unix)]
 async fn kill_child<Never>(pid: u32, description: &str) -> Never {
-    use signal_hook::consts::signal::{SIGTERM, SIGKILL};
-    use tokio::time::timeout;
+    use signal_hook::consts::signal::{SIGKILL, SIGTERM};
     use std::time::Duration;
+    use tokio::time::timeout;
 
     log::debug!("Stopping {}", description);
     if unsafe { libc::kill(pid as i32, SIGTERM) } != 0 {
-        log::error!("Error stopping {}: {}", description,
-            io::Error::last_os_error());
+        log::error!(
+            "Error stopping {}: {}",
+            description,
+            io::Error::last_os_error()
+        );
     }
     timeout(Duration::from_secs(10), pending::<()>()).await.ok();
-    log::warn!("Process {} is taking too long to complete. Forcing...",
-        description);
+    log::warn!(
+        "Process {} is taking too long to complete. Forcing...",
+        description
+    );
     if unsafe { libc::kill(pid as i32, SIGKILL) } != 0 {
-        log::debug!("Error stopping {}: {}", description,
-            io::Error::last_os_error());
+        log::debug!(
+            "Error stopping {}: {}",
+            description,
+            io::Error::last_os_error()
+        );
     }
     wait_forever().await
 }
 
-async fn feed_data<Never>(mut inp: impl io::AsyncWrite + Unpin, data: &[u8])
-    -> Never
-{
+async fn feed_data<Never>(mut inp: impl io::AsyncWrite + Unpin, data: &[u8]) -> Never {
     // Don't care if input is not written,
     // rely on command status
     inp.write_all(data).await.ok();
@@ -796,22 +884,26 @@ async fn wait_forever() -> ! {
 fn write_pid_file(path: &Option<PathBuf>, pid: u32) {
     log::debug!("Writing pid file {:?} (pid: {})", path, pid);
     if let Some(path) = path {
-        _write_pid_file(path, pid).map_err(|e| {
-            log::error!("Cannot write pid file {:?}: {:#}", path, e);
-        }).ok();
+        _write_pid_file(path, pid)
+            .map_err(|e| {
+                log::error!("Cannot write pid file {:?}: {:#}", path, e);
+            })
+            .ok();
     }
 }
 
 fn remove_pid_file(path: &Option<PathBuf>) {
     if let Some(path) = path {
-        fs::remove_file(&path).map_err(|e| {
-            log::error!("Cannot remove pid file {:?}: {:#}", path, e);
-        }).ok();
+        fs::remove_file(path)
+            .map_err(|e| {
+                log::error!("Cannot remove pid file {:?}: {:#}", path, e);
+            })
+            .ok();
     }
 }
 
 fn _write_pid_file(path: &Path, pid: u32) -> anyhow::Result<()> {
-    let tmp_path = tmp_file_path(&path);
+    let tmp_path = tmp_file_path(path);
     fs::remove_file(&tmp_path).ok();
     fs::write(&tmp_path, pid.to_string().as_bytes())?;
     fs::rename(&tmp_path, path)?;

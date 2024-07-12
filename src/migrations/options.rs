@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{ValueHint};
+use clap::ValueHint;
 
 use crate::options::ConnectionOptions;
 use crate::portable::repository::Channel;
@@ -8,10 +8,9 @@ use crate::portable::ver;
 
 use edgedb_cli_derive::IntoArgs;
 
-
 #[derive(clap::Args, Clone, Debug)]
 #[command(version = "help_expand")]
-#[command(disable_version_flag=true)]
+#[command(disable_version_flag = true)]
 pub struct Migration {
     #[command(flatten)]
     pub conn: ConnectionOptions,
@@ -22,22 +21,22 @@ pub struct Migration {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum MigrationCmd {
-    /// Apply migration from latest migration script
-    Apply(Migrate),
-    /// Create migration script inside /migrations
+    /// Apply migration from latest migration script.
+    Apply(Box<Migrate>),
+    /// Create migration script inside /migrations.
     Create(CreateMigration),
-    /// Show current migration status
+    /// Show current migration status.
     Status(ShowStatus),
-    /// Show all migration versions
+    /// Show all migration versions.
     Log(MigrationLog),
-    /// Edit migration file
+    /// Edit migration file.
     ///
     /// Invokes $EDITOR on the last migration file, and then fixes
     /// migration id after editor exits. Defaults to vi (Notepad
     /// in Windows). Usually should be used for migrations that have
     /// not been applied yet.
     Edit(MigrationEdit),
-    /// Check if current schema is compatible with new EdgeDB version
+    /// Check if current schema is compatible with new EdgeDB version.
     UpgradeCheck(UpgradeCheck),
     /// Extract migration history from the database and write it to
     /// <schema-dir>/migrations. Useful when a direct DDL command has
@@ -45,6 +44,8 @@ pub enum MigrationCmd {
     /// comply because the database migration history is ahead of the
     /// migration history inside <schema-dir>/migrations.
     Extract(ExtractMigrations),
+    /// Upgrades the format of migration files.
+    UpgradeFormat(MigrationUpgradeFormat),
 }
 
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
@@ -75,12 +76,15 @@ pub struct CreateMigration {
     #[arg(long)]
     pub allow_unsafe: bool,
     /// Create a new migration even if there are no changes (use this for
-    /// data-only migrations)
+    /// data-only migrations).
     #[arg(long)]
     pub allow_empty: bool,
-    /// Print queries executed
-    #[arg(long, hide=true)]
+    /// Print queries executed.
+    #[arg(long, hide = true)]
     pub debug_print_queries: bool,
+    /// Show error details.
+    #[arg(long, hide = true)]
+    pub debug_print_err: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -102,16 +106,16 @@ pub struct Migrate {
     /// If this revision is applied, the command is a no-op. The command
     /// ensures that the revision is present, but additional applied revisions
     /// are not considered an error.
-    #[arg(long, conflicts_with="dev_mode")]
+    #[arg(long, conflicts_with = "dev_mode")]
     pub to_revision: Option<String>,
 
     /// Dev mode is used to temporarily apply schema on top of those found in
     /// the migration history. Usually used for testing purposes, as well as
     /// `edgedb watch` which creates a dev mode migration script each time
     /// a file is saved by a user.
-    /// 
+    ///
     /// Current dev mode migrations can be seen with the following query:
-    /// 
+    ///
     /// `select schema::Migration {*} filter .generated_by = schema::MigrationGeneratedBy.DevMode;`
     ///
     /// `edgedb migration create` followed by `edgedb migrate --dev-mode` will
@@ -119,6 +123,10 @@ pub struct Migrate {
     /// a regular `.edgeql` file, after which the above query will return nothing.
     #[arg(long)]
     pub dev_mode: bool,
+
+    /// Runs the migration(s) in a single transaction.
+    #[arg(long = "single-transaction")]
+    pub single_transaction: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -126,7 +134,7 @@ pub struct ShowStatus {
     #[command(flatten)]
     pub cfg: MigrationConfig,
 
-    /// Do not print any messages, only indicate success by exit status
+    /// Do not print any messages, only indicate success by exit status.
     #[arg(long)]
     pub quiet: bool,
 }
@@ -136,22 +144,22 @@ pub struct MigrationLog {
     #[command(flatten)]
     pub cfg: MigrationConfig,
 
-    /// Print revisions from the filesystem
-    /// (database connection not required)
+    /// Print revisions from the filesystem.
+    /// (Database connection not required.)
     #[arg(long)]
     pub from_fs: bool,
 
-    /// Print revisions from the database
-    /// (no filesystem schema is required)
+    /// Print revisions from the database.
+    /// (No filesystem schema is required.)
     #[arg(long)]
     pub from_db: bool,
 
     /// Sort migrations starting from newer to older, instead
-    /// of the default older to newer
+    /// of the default older to newer.
     #[arg(long)]
     pub newest_first: bool,
 
-    /// Show maximum N revisions (default: no limit)
+    /// Show maximum N revisions (default: no limit).
     #[arg(long)]
     pub limit: Option<usize>,
 }
@@ -161,10 +169,10 @@ pub struct MigrationEdit {
     #[command(flatten)]
     pub cfg: MigrationConfig,
 
-    /// Do not check migration using the database connection
+    /// Do not check migration using the database connection.
     #[arg(long)]
     pub no_check: bool,
-    /// Fix migration id non-interactively, and do not run editor
+    /// Fix migration id non-interactively, and do not run editor.
     #[arg(long)]
     pub non_interactive: bool,
 }
@@ -174,39 +182,39 @@ pub struct UpgradeCheck {
     #[command(flatten)]
     pub cfg: MigrationConfig,
 
-    /// Check upgrade to a specified version
+    /// Check upgrade to a specified version.
     #[arg(long)]
     #[arg(conflicts_with_all=&[
         "to_testing", "to_nightly", "to_channel",
     ])]
     pub to_version: Option<ver::Filter>,
 
-    /// Check upgrade to latest nightly version
+    /// Check upgrade to latest nightly version.
     #[arg(long)]
     #[arg(conflicts_with_all=&[
         "to_version", "to_testing", "to_channel",
     ])]
     pub to_nightly: bool,
 
-    /// Check upgrade to latest testing version
+    /// Check upgrade to latest testing version.
     #[arg(long)]
     #[arg(conflicts_with_all=&[
         "to_version", "to_nightly", "to_channel",
     ])]
     pub to_testing: bool,
 
-    /// Check upgrade to latest version in the channel
+    /// Check upgrade to latest version in the channel.
     #[arg(long, value_enum)]
     #[arg(conflicts_with_all=&[
         "to_version", "to_nightly", "to_testing",
     ])]
     pub to_channel: Option<Channel>,
 
-    /// Monitor schema changes and check again on change
+    /// Monitor schema changes and check again on change.
     #[arg(long)]
     pub watch: bool,
 
-    #[arg(hide=true)]
+    #[arg(hide = true)]
     pub run_server_with_status: Option<PathBuf>,
 }
 
@@ -214,10 +222,16 @@ pub struct UpgradeCheck {
 pub struct ExtractMigrations {
     #[command(flatten)]
     pub cfg: MigrationConfig,
-    /// Don't ask questions, only add missing files, abort if mismatching
+    /// Don't ask questions, only add missing files, abort if mismatching.
     #[arg(long)]
     pub non_interactive: bool,
-    /// Force overwrite existing migration files
+    /// Force overwrite existing migration files.
     #[arg(long)]
     pub force: bool,
+}
+
+#[derive(clap::Args, IntoArgs, Clone, Debug)]
+pub struct MigrationUpgradeFormat {
+    #[command(flatten)]
+    pub cfg: MigrationConfig,
 }

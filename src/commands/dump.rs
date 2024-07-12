@@ -1,33 +1,32 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
-use indicatif::{ProgressBar, HumanBytes};
+use indicatif::{HumanBytes, ProgressBar};
+use sha1::Digest;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{self, AsyncWrite, AsyncWriteExt};
-use sha1::Digest;
 
 use tokio_stream::StreamExt;
 
-use crate::commands::Options;
+use edgedb_errors::UnknownDatabaseError;
+
 use crate::commands::list_databases::get_databases;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
+use crate::commands::{Options, options};
 use crate::connect::Connection;
 use crate::platform::tmp_file_name;
 
-
 type Output = Box<dyn AsyncWrite + Unpin + Send>;
-
 
 pub struct Guard {
     filenames: Option<(PathBuf, PathBuf)>,
 }
 
-
 impl Guard {
     async fn open(filename: &Path, overwrite_existing: bool) -> anyhow::Result<(Output, Guard)> {
 
         if filename.to_str() == Some("-") {
-            return Ok((Box::new(io::stdout()), Guard { filenames: None }))
+            return Ok((Box::new(io::stdout()), Guard { filenames: None }));
         }
 
         let mut options = OpenOptions::new();
@@ -36,10 +35,10 @@ impl Guard {
             false => options.write(true).create_new(true)
         };
 
-        if cfg!(windows) || filename.starts_with("/dev/") || filename.file_name().is_none()
-        {
+        if cfg!(windows) || filename.starts_with("/dev/") || filename.file_name().is_none() {
             let file = options
-                .open(&filename).await
+                .open(&filename)
+                .await
                 .context(filename.display().to_string())?;
             Ok((Box::new(file), Guard { filenames: None }))
         } else {
@@ -47,17 +46,20 @@ impl Guard {
                 anyhow::bail!("failed: target file already exists. Specify --overwrite-existing to replace.")
             }
             // Create .~.tmp file path, first remove if already existing
-            let tmp_path = filename.with_file_name(
-                tmp_file_name(filename.as_ref()));
+            let tmp_path = filename.with_file_name(tmp_file_name(filename));
             if fs::metadata(&tmp_path).await.is_ok() {
                 fs::remove_file(&tmp_path).await.ok();
             }
             let tmp_file = options
-                .open(&tmp_path).await
+                .open(&tmp_path)
+                .await
                 .context(tmp_path.display().to_string())?;
-            Ok((Box::new(tmp_file), Guard {
-                filenames: Some((tmp_path, filename.to_owned())),
-            }))
+            Ok((
+                Box::new(tmp_file),
+                Guard {
+                    filenames: Some((tmp_path, filename.to_owned())),
+                },
+            ))
         }
     }
 
@@ -69,11 +71,11 @@ impl Guard {
     }
 }
 
-
-pub async fn dump(cli: &mut Connection, general: &Options,
-    options: &DumpOptions)
-    -> Result<(), anyhow::Error>
-{
+pub async fn dump(
+    cli: &mut Connection,
+    general: &Options,
+    options: &DumpOptions,
+) -> Result<(), anyhow::Error> {
     if options.all {
         if let Some(dformat) = options.format {
             if dformat != DumpFormat::Dir {
@@ -91,10 +93,13 @@ pub async fn dump(cli: &mut Connection, general: &Options,
     }
 }
 
-async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path,
-                 mut include_secrets: bool, overwrite_existing: bool)
-    -> Result<(), anyhow::Error>
-{
+async fn dump_db(
+    cli: &mut Connection,
+    _options: &Options,
+    filename: &Path,
+    mut include_secrets: bool,
+    overwrite_existing: bool,
+) -> Result<(), anyhow::Error> {
     if cli.get_version().await?.specific() < "4.0-alpha.2".parse().unwrap() {
         include_secrets = false;
     }
@@ -103,10 +108,12 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path,
     eprintln!("Starting dump for database `{dbname}`...");
 
     let (mut output, guard) = Guard::open(filename, overwrite_existing).await?;
-    output.write_all(
-        b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00\
-          \x00\x00\x00\x00\x00\x00\x00\x01"
-        ).await?;
+    output
+        .write_all(
+            b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00\
+          \x00\x00\x00\x00\x00\x00\x00\x01",
+        )
+        .await?;
 
     let (header, mut blocks) = cli.dump(include_secrets).await?;
 
@@ -128,7 +135,10 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path,
         let packet_length = packet.data.len();
         bar.tick();
         processed += packet_length;
-        bar.set_message(format!("Database `{dbname}` dump: {} processed.", HumanBytes(processed as u64)));
+        bar.set_message(format!(
+            "Database `{dbname}` dump: {} processed.",
+            HumanBytes(processed as u64)
+        ));
         bar.message();
 
         // this is ensured because length in the protocol is u32 too
@@ -142,16 +152,23 @@ async fn dump_db(cli: &mut Connection, _options: &Options, filename: &Path,
         output.write_all(&packet.data).await?;
     }
     guard.commit().await?;
-    bar.abandon_with_message(format!("Finished dump for `{dbname}`. Total size: {}", HumanBytes(processed as u64)));
+    bar.abandon_with_message(format!(
+        "Finished dump for `{dbname}`. Total size: {}",
+        HumanBytes(processed as u64)
+    ));
     Ok(())
 }
 
-pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path,
-                      include_secrets: bool)
-    -> Result<(), anyhow::Error>
-{
+pub async fn dump_all(
+    cli: &mut Connection,
+    options: &Options,
+    dir: &Path,
+    include_secrets: bool,
+) -> Result<(), anyhow::Error> {
     let databases = get_databases(cli).await?;
-    let config: String = cli.query_required_single("DESCRIBE SYSTEM CONFIG", &()).await?;
+    let config: String = cli
+        .query_required_single("DESCRIBE SYSTEM CONFIG", &())
+        .await?;
     let roles: String = cli.query_required_single("DESCRIBE ROLES", &()).await?;
 
     fs::create_dir_all(dir).await?;
@@ -171,11 +188,21 @@ pub async fn dump_all(cli: &mut Connection, options: &Options, dir: &Path,
 
     let mut conn_params = options.conn_params.clone();
     for database in &databases {
-        let mut db_conn = conn_params
-            .database(database)?
-            .connect().await?;
-        let filename = dir.join(&(urlencoding::encode(database) + ".dump")[..]);
-        dump_db(&mut db_conn, options, &filename, include_secrets, true).await?;
+        match conn_params.branch(database)?.connect().await {
+            Ok(mut db_conn) => {
+                let filename = dir.join(&(urlencoding::encode(database) + ".dump")[..]);
+                dump_db(&mut db_conn, options, &filename, include_secrets, true).await?;
+            }
+            Err(err) => {
+                if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
+                    if e.is::<UnknownDatabaseError>() {
+                        eprintln!("Database {database} no longer exists, skipping...");
+                        continue;
+                    }
+                }
+                return Err(err);
+            }
+        }
     }
 
     Ok(())

@@ -10,7 +10,7 @@
 <% endfor %>
 <% endif %>
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -33,25 +33,29 @@
 <% if tgt.family == "debian" %>
         idx_file=<< tgt.platform_version >>.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing << tgt.name >>'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing << tgt.name >>'
+            val=false
+          fi
         fi
 <% elif tgt.family == "redhat" %>
         idx_file=el<< tgt.platform_version >>.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing << tgt.name >>'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing << tgt.name >>'
+            val=false
+          fi
         fi
 <% elif tgt.family == "generic" %>
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-unknown-linux-<< "{}".format(tgt.platform_libc) if tgt.platform_libc else "gnu" >>.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.name >>'
           val=false
@@ -62,13 +66,13 @@
 <% for tgt in targets.macos + targets.win %>
         val=true
 <% if tgt.platform == "macos" %>
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
           val=false
         fi
 <% elif tgt.platform == "win" %>
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/<< tgt.platform_version >>-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "<< tgt.arch >>" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing << tgt.platform >>-<< tgt.platform_version >>'
           val=false
@@ -88,7 +92,7 @@
 <% endif %>
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -117,7 +121,7 @@
         PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
 <% endif %>
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>/
@@ -132,17 +136,30 @@
 <% endif %>
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
       with:
-        toolchain: stable
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "<< tgt.arch >>-apple-darwin"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      with:
+        python-version: "3.x"
+
+    - name: Install dependencies
+      if: << 'false' if tgt.runs_on and 'self-hosted' in tgt.runs_on else 'true' >>
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -165,7 +182,7 @@
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>/
@@ -180,7 +197,7 @@
 <% endif %>
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -232,7 +249,7 @@
         password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
         folder: "artifacts/<< plat_id >>/"
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
@@ -244,7 +261,7 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>/
@@ -274,7 +291,7 @@
     runs-on: << tgt.runs_on if tgt.runs_on else "ubuntu-latest" >>
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>/
@@ -309,12 +326,12 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -344,12 +361,12 @@
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-<< tgt.name >>
         path: artifacts/<< plat_id >>
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master

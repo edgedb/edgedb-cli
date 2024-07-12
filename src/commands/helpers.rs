@@ -2,8 +2,7 @@ use std::borrow::Cow;
 
 pub use edgeql_parser::helpers::quote_name;
 
-
-pub fn quote_namespaced<'x>(name: &'x str) -> Cow<'x, str> {
+pub fn quote_namespaced(name: &str) -> Cow<'_, str> {
     if name.contains("::") {
         let mut buf = String::with_capacity(name.len());
         let mut iter = name.split("::");
@@ -12,7 +11,7 @@ pub fn quote_namespaced<'x>(name: &'x str) -> Cow<'x, str> {
             buf.push_str("::");
             buf.push_str(&quote_name(chunk));
         }
-        return buf.into();
+        buf.into()
     } else {
         return quote_name(name);
     }

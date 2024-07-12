@@ -41,6 +41,10 @@ jobs:
 
       if_ubuntu_jammy_aarch64: ${{ steps.scm.outputs.if_ubuntu_jammy_aarch64 }}
 
+      if_ubuntu_noble_x86_64: ${{ steps.scm.outputs.if_ubuntu_noble_x86_64 }}
+
+      if_ubuntu_noble_aarch64: ${{ steps.scm.outputs.if_ubuntu_noble_aarch64 }}
+
       if_centos_7_x86_64: ${{ steps.scm.outputs.if_centos_7_x86_64 }}
 
       if_centos_8_x86_64: ${{ steps.scm.outputs.if_centos_8_x86_64 }}
@@ -63,7 +67,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -86,12 +90,14 @@ jobs:
 
         idx_file=buster.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-buster-x86_64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing debian-buster-x86_64'
+            val=false
+          fi
         fi
 
         echo if_debian_buster_x86_64="$val" >> $GITHUB_OUTPUT
@@ -100,12 +106,14 @@ jobs:
 
         idx_file=buster.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-buster-aarch64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing debian-buster-aarch64'
+            val=false
+          fi
         fi
 
         echo if_debian_buster_aarch64="$val" >> $GITHUB_OUTPUT
@@ -114,12 +122,14 @@ jobs:
 
         idx_file=bullseye.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-bullseye-x86_64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing debian-bullseye-x86_64'
+            val=false
+          fi
         fi
 
         echo if_debian_bullseye_x86_64="$val" >> $GITHUB_OUTPUT
@@ -128,12 +138,14 @@ jobs:
 
         idx_file=bullseye.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-bullseye-aarch64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing debian-bullseye-aarch64'
+            val=false
+          fi
         fi
 
         echo if_debian_bullseye_aarch64="$val" >> $GITHUB_OUTPUT
@@ -142,12 +154,14 @@ jobs:
 
         idx_file=bookworm.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-bookworm-x86_64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing debian-bookworm-x86_64'
+            val=false
+          fi
         fi
 
         echo if_debian_bookworm_x86_64="$val" >> $GITHUB_OUTPUT
@@ -156,12 +170,14 @@ jobs:
 
         idx_file=bookworm.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing debian-bookworm-aarch64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing debian-bookworm-aarch64'
+            val=false
+          fi
         fi
 
         echo if_debian_bookworm_aarch64="$val" >> $GITHUB_OUTPUT
@@ -170,12 +186,14 @@ jobs:
 
         idx_file=bionic.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing ubuntu-bionic-x86_64'
+            val=false
+          fi
         fi
 
         echo if_ubuntu_bionic_x86_64="$val" >> $GITHUB_OUTPUT
@@ -184,12 +202,14 @@ jobs:
 
         idx_file=bionic.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing ubuntu-bionic-aarch64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing ubuntu-bionic-aarch64'
+            val=false
+          fi
         fi
 
         echo if_ubuntu_bionic_aarch64="$val" >> $GITHUB_OUTPUT
@@ -198,12 +218,14 @@ jobs:
 
         idx_file=focal.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing ubuntu-focal-x86_64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing ubuntu-focal-x86_64'
+            val=false
+          fi
         fi
 
         echo if_ubuntu_focal_x86_64="$val" >> $GITHUB_OUTPUT
@@ -212,12 +234,14 @@ jobs:
 
         idx_file=focal.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing ubuntu-focal-aarch64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing ubuntu-focal-aarch64'
+            val=false
+          fi
         fi
 
         echo if_ubuntu_focal_aarch64="$val" >> $GITHUB_OUTPUT
@@ -226,12 +250,14 @@ jobs:
 
         idx_file=jammy.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing ubuntu-jammy-x86_64'
+            val=false
+          fi
         fi
 
         echo if_ubuntu_jammy_x86_64="$val" >> $GITHUB_OUTPUT
@@ -240,26 +266,62 @@ jobs:
 
         idx_file=jammy.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/apt/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then 
-          echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing ubuntu-jammy-aarch64'
+            val=false
+          fi
         fi
 
         echo if_ubuntu_jammy_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
+        idx_file=noble.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+        fi
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing ubuntu-noble-x86_64'
+            val=false
+          fi
+        fi
+
+        echo if_ubuntu_noble_x86_64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
+        idx_file=noble.nightly.json
+        if [ ! -e "/tmp/$idx_file" ]; then
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/apt/.jsonindexes/$idx_file || true
+        fi
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing ubuntu-noble-aarch64'
+            val=false
+          fi
+        fi
+
+        echo if_ubuntu_noble_aarch64="$val" >> $GITHUB_OUTPUT
+
+        val=true
+
         idx_file=el7.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing centos-7-x86_64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing centos-7-x86_64'
+            val=false
+          fi
         fi
 
         echo if_centos_7_x86_64="$val" >> $GITHUB_OUTPUT
@@ -268,12 +330,14 @@ jobs:
 
         idx_file=el8.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing centos-8-x86_64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing centos-8-x86_64'
+            val=false
+          fi
         fi
 
         echo if_centos_8_x86_64="$val" >> $GITHUB_OUTPUT
@@ -282,12 +346,14 @@ jobs:
 
         idx_file=el8.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing centos-8-aarch64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing centos-8-aarch64'
+            val=false
+          fi
         fi
 
         echo if_centos_8_aarch64="$val" >> $GITHUB_OUTPUT
@@ -296,12 +362,14 @@ jobs:
 
         idx_file=el9.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing rockylinux-9-x86_64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing rockylinux-9-x86_64'
+            val=false
+          fi
         fi
 
         echo if_rockylinux_9_x86_64="$val" >> $GITHUB_OUTPUT
@@ -310,19 +378,21 @@ jobs:
 
         idx_file=el9.nightly.json
         if [ ! -e "/tmp/$idx_file" ]; then
-          curl -s https://packages.edgedb.com/rpm/.jsonindexes/$idx_file > /tmp/$idx_file
+          curl --fail -s -o /tmp/$idx_file https://packages.edgedb.com/rpm/.jsonindexes/$idx_file || true
         fi
-        out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
-        if [ -n "$out" ]; then
-          echo 'Skip rebuilding existing rockylinux-9-aarch64'
-          val=false
+        if [ -e "/tmp/$idx_file" ]; then
+          out=$(cat /tmp/$idx_file | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+          if [ -n "$out" ]; then
+            echo 'Skip rebuilding existing rockylinux-9-aarch64'
+            val=false
+          fi
         fi
 
         echo if_rockylinux_9_aarch64="$val" >> $GITHUB_OUTPUT
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing linux-x86_64'
           val=false
@@ -332,7 +402,7 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-unknown-linux-musl.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing linux-aarch64'
           val=false
@@ -343,7 +413,7 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing macos-x86_64'
           val=false
@@ -353,7 +423,7 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/aarch64-apple-darwin.nightly.json | jq -r --arg REV "$rev" --arg ARCH "aarch64" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing macos-aarch64'
           val=false
@@ -363,7 +433,7 @@ jobs:
 
         val=true
 
-        out=$(curl -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter")
+        out=$(curl --fail -s https://packages.edgedb.com/archive/.jsonindexes/x86_64-pc-windows-msvc.nightly.json | jq -r --arg REV "$rev" --arg ARCH "x86_64" "$jq_filter" || true)
         if [ -n "$out" ]; then
           echo 'Skip rebuilding existing win-x86_64'
           val=false
@@ -383,7 +453,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -403,7 +473,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster/
@@ -417,7 +487,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -437,7 +507,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster/
@@ -451,7 +521,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -471,7 +541,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye/
@@ -485,7 +555,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -505,7 +575,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye/
@@ -519,7 +589,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -539,7 +609,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm/
@@ -553,7 +623,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -573,7 +643,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm/
@@ -587,7 +657,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -607,7 +677,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic/
@@ -621,7 +691,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -641,7 +711,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic/
@@ -655,7 +725,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -675,7 +745,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal/
@@ -689,7 +759,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -709,7 +779,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal/
@@ -723,7 +793,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -743,7 +813,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy/
@@ -757,7 +827,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -777,10 +847,78 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy/
+
+
+  build-ubuntu-noble-x86_64:
+    runs-on: ubuntu-latest
+    needs: prep
+
+    if: needs.prep.outputs.if_ubuntu_noble_x86_64 == 'true'
+
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_PLATFORM_ARCH: "x86_64"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-ubuntu-noble-x86_64
+        path: artifacts/ubuntu-noble/
+
+
+  build-ubuntu-noble-aarch64:
+    runs-on: ['self-hosted', 'linux', 'arm64']
+    needs: prep
+
+    if: needs.prep.outputs.if_ubuntu_noble_aarch64 == 'true'
+
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: edgedb/edgedb-pkg
+        ref: master
+        path: edgedb-pkg
+
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/ubuntu-noble@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_PLATFORM_ARCH: "aarch64"
+        PACKAGE: edgedbpkg.edgedbcli:EdgeDBCLI
+        EXTRA_OPTIMIZATIONS: "true"
+
+
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: builds-ubuntu-noble-aarch64
+        path: artifacts/ubuntu-noble/
 
 
   build-centos-7-x86_64:
@@ -791,7 +929,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -811,7 +949,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7/
@@ -825,7 +963,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -845,7 +983,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8/
@@ -859,7 +997,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -879,7 +1017,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8/
@@ -893,7 +1031,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -913,7 +1051,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9/
@@ -927,7 +1065,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -947,7 +1085,7 @@ jobs:
 
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9/
@@ -961,7 +1099,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -985,7 +1123,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linuxmusl-x86_64/
@@ -999,7 +1137,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -1023,7 +1161,7 @@ jobs:
         PKG_PLATFORM_LIBC: "musl"
 
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linuxmusl-aarch64/
@@ -1031,24 +1169,37 @@ jobs:
 
 
   build-macos-x86_64:
-    runs-on: macos-latest
+    runs-on: ['macos-14']
     needs: prep
 
     if: needs.prep.outputs.if_macos_x86_64 == 'true'
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
       if: true
       with:
-        toolchain: stable
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "x86_64-apple-darwin"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      if: true
+      with:
+        python-version: "3.x"
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -1066,31 +1217,44 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64/
 
 
   build-macos-aarch64:
-    runs-on: ['self-hosted', 'macOS', 'ARM64']
+    runs-on: ['macos-14']
     needs: prep
 
     if: needs.prep.outputs.if_macos_aarch64 == 'true'
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
         path: edgedb-pkg
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@55c7845fad90d0ae8b2e83715cb900e5e861e8cb
-      if: false
+      uses: dtolnay/rust-toolchain@be73d7920c329f220ce78e0234b8f96b7ae60248
+      if: true
       with:
-        toolchain: stable
+        components: "cargo,rustc,rust-std"
+        toolchain: "stable"
+        targets: "aarch64-apple-darwin"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      if: true
+      with:
+        python-version: "3.x"
+
+    - name: Install dependencies
+      if: true
+      run: |
+        env HOMEBREW_NO_AUTO_UPDATE=1 brew install libmagic
 
     - name: Build
       env:
@@ -1108,7 +1272,7 @@ jobs:
       run: |
         edgedb-pkg/integration/macos/build.sh
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64/
@@ -1123,7 +1287,7 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -1168,7 +1332,7 @@ jobs:
         password: "${{ secrets.WIN_CODE_SIGNING_CERT_PASSWORD }}"
         folder: "artifacts/win-x86_64/"
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: builds-win-x86_64
         path: artifacts/win-x86_64
@@ -1180,7 +1344,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster/
@@ -1206,7 +1370,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-x86_64
         path: artifacts/debian-buster/
@@ -1238,7 +1402,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster/
@@ -1264,7 +1428,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-buster-aarch64
         path: artifacts/debian-buster/
@@ -1296,7 +1460,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye/
@@ -1322,7 +1486,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-x86_64
         path: artifacts/debian-bullseye/
@@ -1354,7 +1518,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye/
@@ -1380,7 +1544,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bullseye-aarch64
         path: artifacts/debian-bullseye/
@@ -1412,7 +1576,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm/
@@ -1438,7 +1602,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-x86_64
         path: artifacts/debian-bookworm/
@@ -1470,7 +1634,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm/
@@ -1496,7 +1660,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-debian-bookworm-aarch64
         path: artifacts/debian-bookworm/
@@ -1528,7 +1692,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic/
@@ -1554,7 +1718,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-x86_64
         path: artifacts/ubuntu-bionic/
@@ -1586,7 +1750,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic/
@@ -1612,7 +1776,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-bionic-aarch64
         path: artifacts/ubuntu-bionic/
@@ -1644,7 +1808,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal/
@@ -1670,7 +1834,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-x86_64
         path: artifacts/ubuntu-focal/
@@ -1702,7 +1866,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal/
@@ -1728,7 +1892,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-focal-aarch64
         path: artifacts/ubuntu-focal/
@@ -1760,7 +1924,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy/
@@ -1786,7 +1950,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-x86_64
         path: artifacts/ubuntu-jammy/
@@ -1818,7 +1982,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy/
@@ -1844,7 +2008,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-ubuntu-jammy-aarch64
         path: artifacts/ubuntu-jammy/
@@ -1871,12 +2035,128 @@ jobs:
       install-ref: "${{ steps.describe.outputs.install-ref }}"
 
 
+  publish-ubuntu-noble-x86_64:
+    needs: [build-ubuntu-noble-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-x86_64
+        path: artifacts/ubuntu-noble/
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-noble
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+
+  check-published-ubuntu-noble-x86_64:
+    needs: [publish-ubuntu-noble-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-x86_64
+        path: artifacts/ubuntu-noble/
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-noble
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version: "${{ steps.describe.outputs.version }}"
+      version-core: "${{ steps.describe.outputs.version-core }}"
+      install-ref: "${{ steps.describe.outputs.install-ref }}"
+
+
+  publish-ubuntu-noble-aarch64:
+    needs: [build-ubuntu-noble-aarch64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-aarch64
+        path: artifacts/ubuntu-noble/
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-noble
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+
+  check-published-ubuntu-noble-aarch64:
+    needs: [publish-ubuntu-noble-aarch64]
+    runs-on: ['self-hosted', 'linux', 'arm64']
+
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: builds-ubuntu-noble-aarch64
+        path: artifacts/ubuntu-noble/
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: ubuntu-noble
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/ubuntu-noble@master
+      env:
+        PKG_NAME: "${{ steps.describe.outputs.name }}"
+        PKG_SUBDIST: "nightly"
+        PKG_PLATFORM: "ubuntu"
+        PKG_PLATFORM_VERSION: "noble"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    outputs:
+      version: "${{ steps.describe.outputs.version }}"
+      version-core: "${{ steps.describe.outputs.version-core }}"
+      install-ref: "${{ steps.describe.outputs.install-ref }}"
+
+
   publish-centos-7-x86_64:
     needs: [build-centos-7-x86_64]
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7/
@@ -1902,7 +2182,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-7-x86_64
         path: artifacts/centos-7/
@@ -1934,7 +2214,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8/
@@ -1960,7 +2240,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-x86_64
         path: artifacts/centos-8/
@@ -1992,7 +2272,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8/
@@ -2018,7 +2298,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-centos-8-aarch64
         path: artifacts/centos-8/
@@ -2050,7 +2330,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9/
@@ -2076,7 +2356,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'x64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-x86_64
         path: artifacts/rockylinux-9/
@@ -2108,7 +2388,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9/
@@ -2134,7 +2414,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-rockylinux-9-aarch64
         path: artifacts/rockylinux-9/
@@ -2166,7 +2446,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linuxmusl-x86_64/
@@ -2194,7 +2474,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-x86_64
         path: artifacts/linuxmusl-x86_64/
@@ -2226,7 +2506,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linuxmusl-aarch64/
@@ -2254,7 +2534,7 @@ jobs:
     runs-on: ['self-hosted', 'linux', 'arm64']
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-linux-aarch64
         path: artifacts/linuxmusl-aarch64/
@@ -2287,12 +2567,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-x86_64
         path: artifacts/macos-x86_64
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -2319,12 +2599,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-macos-aarch64
         path: artifacts/macos-aarch64
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master
@@ -2352,12 +2632,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: builds-win-x86_64
         path: artifacts/win-x86_64
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         repository: edgedb/edgedb-pkg
         ref: master

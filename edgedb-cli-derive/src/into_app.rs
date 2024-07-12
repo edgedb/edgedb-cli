@@ -3,8 +3,8 @@ use quote::quote;
 
 use crate::types;
 
-pub (crate) fn mk_setting_impl(e: &types::Enum) -> TokenStream {
-    let ref ident = e.ident;
+pub(crate) fn mk_setting_impl(e: &types::Enum) -> TokenStream {
+    let ident = &e.ident;
     let (impl_gen, ty_gen, where_cl) = e.generics.split_for_impl();
     let to_string = e.subcommands.iter().map(|sub| {
         let variant = &sub.ident;

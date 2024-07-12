@@ -2,15 +2,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use fn_error_context::context;
 use edgedb_protocol::model::Duration;
+use fn_error_context::context;
 
 use crate::platform::config_dir;
 use crate::repl;
 
-
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub struct Config {
     #[serde(skip, default)]
     pub file_name: Option<PathBuf>,
@@ -18,7 +17,7 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-#[serde(rename_all="kebab-case")]
+#[serde(rename_all = "kebab-case")]
 pub struct ShellConfig {
     #[serde(default)]
     pub expand_strings: Option<bool>,
@@ -26,17 +25,17 @@ pub struct ShellConfig {
     pub history_size: Option<usize>,
     #[serde(default)]
     pub implicit_properties: Option<bool>,
-    #[serde(with="serde_str::opt", default)]
+    #[serde(with = "serde_str::opt", default)]
     pub input_mode: Option<repl::InputMode>,
     #[serde(default)]
     pub limit: Option<usize>,
     #[serde(default, deserialize_with = "parse_idle_tx_timeout")]
     pub idle_transaction_timeout: Option<Duration>,
-    #[serde(with="serde_str::opt", default)]
+    #[serde(with = "serde_str::opt", default)]
     pub output_format: Option<repl::OutputFormat>,
     #[serde(default)]
     pub display_typenames: Option<bool>,
-    #[serde(with="serde_str::opt", default)]
+    #[serde(with = "serde_str::opt", default)]
     pub print_stats: Option<repl::PrintStats>,
     #[serde(default)]
     pub verbose_errors: Option<bool>,
@@ -60,14 +59,12 @@ fn read_config(path: impl AsRef<Path>) -> anyhow::Result<Config> {
     Ok(val)
 }
 
-fn parse_idle_tx_timeout<'de, D>(deserializer: D)
-    -> Result<Option<Duration>, D::Error>
+fn parse_idle_tx_timeout<'de, D>(deserializer: D) -> Result<Option<Duration>, D::Error>
 where
-    D: serde::Deserializer<'de>
+    D: serde::Deserializer<'de>,
 {
     let s: &str = serde::Deserialize::deserialize(deserializer)?;
-    let rv = Duration::from_str(s)
-        .map_err(serde::de::Error::custom)?;
+    let rv = Duration::from_str(s).map_err(serde::de::Error::custom)?;
 
     // Postgres limits idle_in_transaction_session_timeout to non-negative i32.
     if rv.to_micros() < 0 {

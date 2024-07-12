@@ -31,6 +31,54 @@ cargo run -- --admin -d tutorial
 cargo test
 ```
 
+Tests
+=====
+
+There are a few categories of tests in this repo:
+
+- unit tests within `src/`
+  - run with: `cargo test --bins`,
+  - no additional requirements,
+
+- `tests/func/`
+  - invokes the cli binary,
+  - run with: `cargo test --test=func`,
+  - requires `edgedb-server` binary in PATH,
+  - will use [test-utils](https://github.com/edgedb/test-utils/) to start the server,
+
+- `tests/shared-client-tests/`
+  - generates tests from [shared-client-testcases](https://github.com/edgedb/shared-client-testcases/),
+  - invokes the cli binary,
+  - run with: `cargo test --package=shared-client-tests`,
+  - will write into `/home/edgedb`,
+
+- `tests/portable_*.rs/`
+  - tests installation of the portable EdgeDB server,
+  - will download large packages,
+  - run with: `cargo test --features=portable_tests --test=portable_X`,
+  - assumes you don't have any portables installed before running it,
+
+- `tests/docker_test_wrapper.rs`
+  - runs other tests in a docker container,
+  - run with: `cargo test --features=docker_test_wrapper --test=docker_test_wrapper`,
+  - requires Docker,
+  - requires that binaries compiled on host machine are runnable in "ubuntu:mantic",
+
+- Github Actions & Nightly tests
+
+
+Code Quality Assurance
+======================
+
+This project uses rustfmt and clippy to provide a unified code style.
+When opening pull requests, it is advised to run the following commands
+before doing so:
+
+```bash
+$ cargo clippy --all-features --workspace --all-targets
+$ cargo fmt
+```
+
 
 License
 =======

@@ -1,9 +1,13 @@
-use std::{env, fmt};
+use std::error::Error;
 use std::fmt::Formatter;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
+use std::{env, fmt};
+
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
 
 use anyhow::Context;
 use reqwest::{header, StatusCode};
@@ -24,8 +28,16 @@ pub struct ErrorResponse {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("HTTP error: {0}")]
-pub struct HttpError(reqwest::Error);
+pub enum HttpError {
+    #[error("HTTP error: {0}")]
+    ReqwestError(reqwest::Error),
+
+    #[error(
+        "HTTP permission error: {0}. This is usually caused by a firewall. Try disabling \
+        your OS's firewall or any other firewalls you have installed"
+    )]
+    PermissionError(reqwest::Error),
+}
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CloudConfig {
@@ -92,15 +104,16 @@ impl CloudClient {
         let dns_zone;
         if let Some(secret_key) = secret_key.clone() {
             let claims_b64 = secret_key
-                .splitn(3, ".")
-                .skip(1)
-                .next()
+                .split('.')
+                .nth(1)
                 .context("malformed secret key: invalid JWT format")?;
-            let claims = base64::decode_config(claims_b64, base64::URL_SAFE_NO_PAD)
+            let claims = URL_SAFE_NO_PAD
+                .decode(claims_b64)
                 .context("malformed secret key: invalid base64 data")?;
             let claims: Claims = serde_json::from_slice(&claims)
                 .context("malformed secret key: invalid JSON data")?;
-            dns_zone = claims.issuer
+            dns_zone = claims
+                .issuer
                 .context("malformed secret key: missing `iss` claim")?;
 
             let mut headers = header::HeaderMap::new();
@@ -118,20 +131,17 @@ impl CloudClient {
                     attempt.error("too many redirects")
                 } else {
                     match attempt.url().host_str() {
-                        Some(host) if host.ends_with(&dns_zone2) =>
-                            attempt.follow(),
+                        Some(host) if host.ends_with(&dns_zone2) => attempt.follow(),
                         // prevent redirects outside of the
                         // token issuer zone
                         Some(_) => attempt.stop(),
                         // relative redirect
-                        None => attempt.follow()
+                        None => attempt.follow(),
                     }
                 }
             });
 
-            builder = builder
-                .default_headers(headers)
-                .redirect(redirect_policy);
+            builder = builder.default_headers(headers).redirect(redirect_policy);
 
             is_logged_in = true;
         } else {
@@ -188,7 +198,7 @@ fxlB7VBBjX9v5oUep0o/j68R/iDlCOM4VVfRa8gX6T2FU7fNdatvGro7uQzIvWof
 gN9WUwCbEMBy/YhBSrXycKA8crgGg3x1mIsopn88JKwmMBa68oS7EHM9w7C4y71M
 7DiA+/9Qdp9RBWJpTS9i/mDnJg1xvo8Xz49mrrgfmcAXTCJqXi24NatI3Oc=
 -----END CERTIFICATE-----"
-                        .as_bytes(),
+                            .as_bytes(),
                     )
                     .unwrap(),
                 )
@@ -209,7 +219,7 @@ KoZIzj0EAwMDaAAwZQIwRcp4ZKBsq9XkUuN8wfX+GEbY1N5nmCRc8e80kUkuAefo
 uc2j3cICeXo1cOybQ1iWAjEA3Ooawl8eQyR4wrjCofUE8h44p0j7Yl/kBlJZT8+9
 vbtH7QiVzeKCOTQPINyRql6P
 -----END CERTIFICATE-----"
-                        .as_bytes(),
+                            .as_bytes(),
                     )
                     .unwrap(),
                 )
@@ -217,10 +227,9 @@ vbtH7QiVzeKCOTQPINyRql6P
             // Local nebula development root cert found in
             // nebula/infra/terraform/local/ca/root.certificate.pem
             log::trace!("trusting local development nebula root certificates");
-            builder = builder
-                .add_root_certificate(
-                    reqwest::Certificate::from_pem(
-                        "-----BEGIN CERTIFICATE-----
+            builder = builder.add_root_certificate(
+                reqwest::Certificate::from_pem(
+                    "-----BEGIN CERTIFICATE-----
 MIICBjCCAaugAwIBAgIUGLnu92rPr79+DsDQBtolXEZENwMwCgYIKoZIzj0EAwIw
 UDELMAkGA1UEBhMCVVMxGjAYBgNVBAoMEUVkZ2VEQiAoaW50ZXJuYWwpMSUwIwYD
 VQQDDBxOZWJ1bGEgSW5mcmEgUm9vdCBDQSAobG9jYWwpMB4XDTIzMDExNDIzMDkw
@@ -234,9 +243,9 @@ AgEGMAoGCCqGSM49BAMCA0kAMEYCIQDedUpRy5YtQAHROrh/ZsWPlvek3vguuRrE
 y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
 -----END CERTIFICATE-----"
                         .as_bytes(),
-                    )
-                    .unwrap(),
                 )
+                .unwrap(),
+            )
         }
         Ok(Self {
             client: builder.build()?,
@@ -247,11 +256,8 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
             options_api_endpoint: options_api_endpoint.clone(),
             secret_key,
             profile,
-            is_default_partition: (
-                api_endpoint
-                == reqwest::Url::parse(
-                    &format!("https://api.g.{EDGEDB_CLOUD_DEFAULT_DNS_ZONE}"))?
-            )
+            is_default_partition: (api_endpoint
+                == reqwest::Url::parse(&format!("https://api.g.{EDGEDB_CLOUD_DEFAULT_DNS_ZONE}"))?),
         })
     }
 
@@ -281,7 +287,7 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
         &self,
         req: reqwest::RequestBuilder,
     ) -> anyhow::Result<T> {
-        let resp = req.send().await.map_err(HttpError)?;
+        let resp = req.send().await.map_err(Self::create_error)?;
         if resp.status().is_success() {
             let full = resp.text().await?;
             serde_json::from_str(&full).with_context(|| {
@@ -307,6 +313,23 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
         }
     }
 
+    fn create_error(err: reqwest::Error) -> HttpError {
+        if let Some(io_error) = err
+            .source()
+            .and_then(|v| v.source())
+            .and_then(|v| v.source())
+            .and_then(|v| v.downcast_ref::<io::Error>())
+            .and_then(|v| v.raw_os_error())
+        {
+            // invalid permissions
+            if io_error == 1 {
+                return HttpError::PermissionError(err);
+            }
+        }
+
+        HttpError::ReqwestError(err)
+    }
+
     pub async fn get<T: serde::de::DeserializeOwned>(
         &self,
         uri: impl AsRef<str>,
@@ -316,9 +339,9 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
     }
 
     pub async fn post<T, J>(&self, uri: impl AsRef<str>, body: &J) -> anyhow::Result<T>
-        where
-            T: serde::de::DeserializeOwned,
-            J: serde::Serialize + ?Sized,
+    where
+        T: serde::de::DeserializeOwned,
+        J: serde::Serialize + ?Sized,
     {
         self.request(
             self.client
@@ -329,9 +352,9 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
     }
 
     pub async fn put<T, J>(&self, uri: impl AsRef<str>, body: &J) -> anyhow::Result<T>
-        where
-            T: serde::de::DeserializeOwned,
-            J: serde::Serialize + ?Sized,
+    where
+        T: serde::de::DeserializeOwned,
+        J: serde::Serialize + ?Sized,
     {
         self.request(
             self.client

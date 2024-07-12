@@ -25,25 +25,27 @@ fn main() {
         ("host", "--host"),
         ("port", "--port"),
         ("database", "--database"),
+        ("branch", "--branch"),
         ("user", "--user"),
         ("tlsSecurity", "--tls-security"),
         ("tlsCA", "--tls-ca-file"),
         ("tlsCAFile", "--tls-ca-file"),
+        ("tlsServerName", "--tls-server-name"),
         ("waitUntilAvailable", "--wait-until-available"),
         ("secretKey", "--secret-key"),
     ]);
     let error_mapping = HashMap::from([
-        ("invalid_dsn", "invalid DSN"),
+        ("invalid_dsn", "(invalid DSN|Invalid DSN)"),
         ("env_not_found", "is not set"),
         (
             "invalid_tls_security",
             "((EDGEDB_CLIENT_TLS_SECURITY|tls_security).*(don't comply|Invalid value)|\
-            Unsupported TLS security)"
+            Unsupported TLS security)",
         ),
         (
             "file_not_found",
             "(No such file or directory)|(cannot find the path)|\
-            (a value is required for)"
+            (a value is required for)",
         ),
         ("invalid_host", "invalid host"),
         (
@@ -59,7 +61,7 @@ fn main() {
         ("invalid_database", "invalid database"),
         (
             "invalid_credentials_file",
-            "(cannot read credentials file)|(a value is required for)"
+            "(cannot read credentials file)|(a value is required for)",
         ),
         (
             "no_options_or_toml",
@@ -69,11 +71,19 @@ fn main() {
             "multiple_compound_opts",
             "(cannot be used with)|(provided more than once)|(cannot be used multiple times)",
         ),
-        ("multiple_compound_env",
+        (
+            "multiple_compound_env",
             "multiple compound env vars found|\
-             [A-Z]+\\s*conflicts\\s*with\\s*[A-Z]+"),
-        ("exclusive_options", "(provided more than once)|(cannot be used multiple times)"),
-        ("credentials_file_not_found", "credentials file.*No such file"),
+             [A-Z]+\\s*conflicts\\s*with\\s*[A-Z]+",
+        ),
+        (
+            "exclusive_options",
+            "(provided more than once)|(cannot be used multiple times)|(are mutually exclusive)",
+        ),
+        (
+            "credentials_file_not_found",
+            "credentials file.*No such file",
+        ),
         ("project_not_initialised", "project is not initialized"),
         ("secret_key_not_found", "try `edgedb cloud login`"),
         ("invalid_secret_key", "Illegal JWT token"),
@@ -85,9 +95,7 @@ fn main() {
     let mut output = BufWriter::new(out_file);
 
     let root = env::var_os("CARGO_MANIFEST_DIR").unwrap();
-    let testcases = Path::new(&root)
-        .join("tests")
-        .join("shared-client-testcases");
+    let testcases = Path::new(&root).join("..").join("shared-client-testcases");
 
     let connection_testcases = testcases.join("connection_testcases.json");
     println!(
@@ -98,11 +106,14 @@ fn main() {
         .expect("Shared test git submodule is missing: ensure git checkout includes submodules with --recurse-submodules");
     let connection_testcases: Value = serde_json::from_str(&connection_testcases).unwrap();
     let empty_map = Map::new();
-    write!(output, "
+    write!(
+        output,
+        "
 use std::sync::Mutex;
 
 static MUTEX: Mutex<()> = Mutex::new(());
-");
+"
+    );
 
     'testcase: for (i, case) in connection_testcases.as_array().unwrap().iter().enumerate() {
         let mut testcase = Vec::new();
@@ -118,7 +129,7 @@ static MUTEX: Mutex<()> = Mutex::new(());
         let fs = case
             .get("fs")
             .and_then(|v| v.as_object())
-            .unwrap_or_else(|| &empty_map);
+            .unwrap_or(&empty_map);
         let platform = match case.get("platform").and_then(|p| p.as_str()) {
             Some("macos") => {
                 write!(testcase, "#[cfg(target_os=\"macos\")]");
@@ -139,7 +150,6 @@ static MUTEX: Mutex<()> = Mutex::new(());
         write!(
             testcase,
             r#"
-#[cfg(feature="portable_tests")]
 #[test]
 "#
         );
@@ -149,18 +159,17 @@ static MUTEX: Mutex<()> = Mutex::new(());
             if let Some(dsn) = opts.get("dsn") {
                 if let Some(dsn) = dsn.as_str() {
                     // servo/rust-url#424
-                    if dsn.contains("%25eth0") {
-                        should_panic = true;
-                    } else if dsn.starts_with("edgedbadmin://") {
-                        should_panic = true;
-                    } else if dsn.contains("host=/") {
+                    if dsn.contains("%25eth0")
+                        || dsn.starts_with("edgedbadmin://")
+                        || dsn.contains("host=/")
+                    {
                         should_panic = true;
                     }
                 }
             }
             if let Some(host) = opts.get("host") {
                 if let Some(host) = host.as_str() {
-                    if host.starts_with("/") {
+                    if host.starts_with('/') {
                         should_panic = true;
                     }
                 }
@@ -305,14 +314,20 @@ fn connection_{i}() {{
                     );
                 } else if let Some(d) = value.as_object() {
                     let mut d = d.clone();
-                    let mut project_path =
-                        d.remove("project-path").unwrap().as_str().unwrap().to_string();
+                    let mut project_path = d
+                        .remove("project-path")
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .to_string();
                     if matches!(platform, Some(Platform::Windows)) {
                         project_path = project_path.replace("Users\\edgedb", "Users\\runneradmin");
                     }
-                    let values = d.iter().map(|(k, v)| {
-                        format!("{k:?} => {:?}", v.as_str().unwrap())
-                    }).collect::<Vec<_>>().join(",\n        ");
+                    let values = d
+                        .iter()
+                        .map(|(k, v)| format!("{k:?} => {:?}", v.as_str().unwrap()))
+                        .collect::<Vec<_>>()
+                        .join(",\n        ");
                     write!(
                         testcase,
                         r#"
@@ -351,7 +366,12 @@ fn connection_{i}() {{
                 .get("type")
                 .unwrap()
                 .as_str()
-                .map(|e| error_mapping.get(e).map(|e| e.to_string()).unwrap_or(e.to_string()))
+                .map(|e| {
+                    error_mapping
+                        .get(e)
+                        .map(|e| e.to_string())
+                        .unwrap_or(e.to_string())
+                })
                 .unwrap();
             write!(
                 testcase,

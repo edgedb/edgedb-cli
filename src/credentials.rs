@@ -1,18 +1,17 @@
+use std::collections::BTreeSet;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::collections::BTreeSet;
 
 use anyhow::Context;
 use fn_error_context::context;
 use fs_err as fs;
 
-use edgedb_tokio::Config;
 use edgedb_tokio::credentials::Credentials;
+use edgedb_tokio::Config;
 
 use crate::platform::{config_dir, tmp_file_name};
-use crate::question;
 use crate::portable::local::is_valid_local_instance_name;
-
+use crate::question;
 
 pub fn base_dir() -> anyhow::Result<PathBuf> {
     Ok(config_dir()?.join("credentials"))
@@ -43,11 +42,15 @@ pub fn all_instance_names() -> anyhow::Result<BTreeSet<String>> {
     Ok(result)
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 #[context("cannot write credentials file {}", path.display())]
-pub async fn write(path: &Path, credentials: &Credentials)
-    -> anyhow::Result<()>
-{
+pub async fn write(path: &Path, credentials: &Credentials) -> anyhow::Result<()> {
+    write_async(path, credentials).await?;
+    Ok(())
+}
+
+#[context("cannot write credentials file {}", path.display())]
+pub async fn write_async(path: &Path, credentials: &Credentials) -> anyhow::Result<()> {
     use tokio::fs;
 
     fs::create_dir_all(path.parent().unwrap()).await?;
@@ -57,17 +60,25 @@ pub async fn write(path: &Path, credentials: &Credentials)
     Ok(())
 }
 
-pub fn maybe_update_credentials_file(
-    config: &Config, ask: bool
-) -> anyhow::Result<()> {
+pub async fn read(path: &Path) -> anyhow::Result<Credentials> {
+    use tokio::fs;
+
+    let text = fs::read_to_string(path).await?;
+    Ok(serde_json::from_str(&text)?)
+}
+
+pub fn maybe_update_credentials_file(config: &Config, ask: bool) -> anyhow::Result<()> {
     if config.is_creds_file_outdated() {
         if let Some(instance_name) = config.local_instance_name() {
             let creds_path = path(instance_name)?;
-            if !ask || question::Confirm::new(format!(
-                "The format of the instance credential file at {} is outdated, \
+            if !ask
+                || question::Confirm::new(format!(
+                    "The format of the instance credential file at {} is outdated, \
              update now?",
-                creds_path.display(),
-            )).ask()? {
+                    creds_path.display(),
+                ))
+                .ask()?
+            {
                 write(&creds_path, &config.as_credentials()?)?;
             }
         }

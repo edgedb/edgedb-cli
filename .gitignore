@@ -2,3 +2,9 @@
 /.vagga
 /target
 .vscode
+.idea
+
+# Nix
+result
+.direnv
+.envrc

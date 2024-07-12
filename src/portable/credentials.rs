@@ -38,16 +38,28 @@ pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Resul
         Some(url.to_string())
     } else {
         crate::table::settings(&[
-            ("Host", creds.host.as_deref().unwrap_or("localhost")),
-            ("Port", creds.port.to_string().as_str()),
-            ("User", creds.user.as_str()),
-            ("Password", creds.password.map(|_| "<hidden>").unwrap_or("<none>")),
-            ("Database", creds.database.as_deref().unwrap_or("<default>")),
-            ("TLS Security", format!("{:?}", creds.tls_security).as_str()),
+            ("Host", creds.host.unwrap_or("localhost".to_string())),
+            ("Port", creds.port.to_string()),
+            ("User", creds.user),
+            (
+                "Password",
+                creds
+                    .password
+                    .map(|_| "<hidden>".to_string())
+                    .unwrap_or("<none>".to_string()),
+            ),
+            (
+                "Database",
+                creds.database.unwrap_or("<default>".to_string()),
+            ),
+            ("TLS Security", format!("{:?}", creds.tls_security)),
         ]);
         None
     } {
-        stdout().lock().write_all((result + "\n").as_bytes()).expect("stdout write succeeds");
+        stdout()
+            .lock()
+            .write_all((result + "\n").as_bytes())
+            .expect("stdout write succeeds");
     }
     Ok(())
 }
