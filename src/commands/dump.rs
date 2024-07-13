@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use indicatif::{HumanBytes, ProgressBar};
 use sha1::Digest;
-use tokio::fs;
+use tokio::fs::{self, OpenOptions};
 use tokio::io::{self, AsyncWrite, AsyncWriteExt};
+use tokio::task;
 
 use tokio_stream::StreamExt;
 
@@ -14,24 +15,36 @@ use crate::commands::list_databases::get_databases;
 use crate::commands::parser::{Dump as DumpOptions, DumpFormat};
 use crate::commands::Options;
 use crate::connect::Connection;
+use crate::hint::HintExt;
 use crate::platform::tmp_file_name;
 
 type Output = Box<dyn AsyncWrite + Unpin + Send>;
 
 pub struct Guard {
-    filenames: Option<(PathBuf, PathBuf)>,
+    filenames: Option<(PathBuf, PathBuf, bool)>,
 }
 
 impl Guard {
-    async fn open(filename: &Path) -> anyhow::Result<(Output, Guard)> {
+    async fn open(filename: &Path, overwrite_existing: bool) -> anyhow::Result<(Output, Guard)> {
         if filename.to_str() == Some("-") {
             Ok((Box::new(io::stdout()), Guard { filenames: None }))
         } else if cfg!(windows) || filename.starts_with("/dev/") || filename.file_name().is_none() {
-            let file = fs::File::create(&filename)
+            let file = OpenOptions::new()
+                .write(true)
+                .create(overwrite_existing)
+                .create_new(!overwrite_existing)
+                .truncate(overwrite_existing)
+                .open(&filename)
                 .await
                 .context(filename.display().to_string())?;
             Ok((Box::new(file), Guard { filenames: None }))
         } else {
+            if !overwrite_existing && fs::metadata(&filename).await.is_ok() {
+                anyhow::bail!(
+                    "failed: target file already exists. Specify --overwrite-existing to replace."
+                )
+            }
+            // Create .~.tmp file path, first remove if already existing
             let tmp_path = filename.with_file_name(tmp_file_name(filename));
             if fs::metadata(&tmp_path).await.is_ok() {
                 fs::remove_file(&tmp_path).await.ok();
@@ -42,14 +55,26 @@ impl Guard {
             Ok((
                 Box::new(tmp_file),
                 Guard {
-                    filenames: Some((tmp_path, filename.to_owned())),
+                    filenames: Some((tmp_path, filename.to_owned(), overwrite_existing)),
                 },
             ))
         }
     }
+
     async fn commit(self) -> anyhow::Result<()> {
-        if let Some((tmp_filename, filename)) = self.filenames {
-            fs::rename(tmp_filename, filename).await?;
+        if let Some((tmp_filename, filename, overwrite_existing)) = self.filenames {
+            if overwrite_existing {
+                fs::rename(tmp_filename, filename).await?;
+            } else {
+                task::spawn_blocking(move || {
+                    // favor compatibility over atomicity
+                    renamore::rename_exclusive_fallback(tmp_filename, filename)
+                })
+                .await
+                // tokio::fs::asyncify() is private; do the same thing here
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "background task failed"))?
+                .map_err(|e| anyhow::anyhow!(e).hint("specify --overwrite-existing to replace."))?;
+            }
         }
         Ok(())
     }
@@ -73,7 +98,14 @@ pub async fn dump(
         if options.format.is_some() {
             anyhow::bail!("`--format` is reserved for dump using `--all`");
         }
-        dump_db(cli, general, options.path.as_ref(), options.include_secrets).await
+        dump_db(
+            cli,
+            general,
+            options.path.as_ref(),
+            options.include_secrets,
+            options.overwrite_existing,
+        )
+        .await
     }
 }
 
@@ -82,15 +114,16 @@ async fn dump_db(
     _options: &Options,
     filename: &Path,
     mut include_secrets: bool,
+    overwrite_existing: bool,
 ) -> Result<(), anyhow::Error> {
     if cli.get_version().await?.specific() < "4.0-alpha.2".parse().unwrap() {
         include_secrets = false;
     }
 
     let dbname = cli.database().to_string();
-    eprintln!("Starting dump for {dbname}...");
+    eprintln!("Starting dump for database `{dbname}`...");
 
-    let (mut output, guard) = Guard::open(filename).await?;
+    let (mut output, guard) = Guard::open(filename, overwrite_existing).await?;
     output
         .write_all(
             b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00\
@@ -119,7 +152,7 @@ async fn dump_db(
         bar.tick();
         processed += packet_length;
         bar.set_message(format!(
-            "Database {dbname} dump: {} processed.",
+            "Database `{dbname}` dump: {} processed.",
             HumanBytes(processed as u64)
         ));
         bar.message();
@@ -136,7 +169,7 @@ async fn dump_db(
     }
     guard.commit().await?;
     bar.abandon_with_message(format!(
-        "Finished dump for {dbname}. Total size: {}",
+        "Finished dump for `{dbname}`. Total size: {}",
         HumanBytes(processed as u64)
     ));
     Ok(())
@@ -156,7 +189,7 @@ pub async fn dump_all(
 
     fs::create_dir_all(dir).await?;
 
-    let (mut init, guard) = Guard::open(&dir.join("init.edgeql")).await?;
+    let (mut init, guard) = Guard::open(&dir.join("init.edgeql"), true).await?;
     if !config.trim().is_empty() {
         init.write_all(b"# DESCRIBE SYSTEM CONFIG\n").await?;
         init.write_all(config.as_bytes()).await?;
@@ -174,7 +207,7 @@ pub async fn dump_all(
         match conn_params.branch(database)?.connect().await {
             Ok(mut db_conn) => {
                 let filename = dir.join(&(urlencoding::encode(database) + ".dump")[..]);
-                dump_db(&mut db_conn, options, &filename, include_secrets).await?;
+                dump_db(&mut db_conn, options, &filename, include_secrets, true).await?;
             }
             Err(err) => {
                 if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
