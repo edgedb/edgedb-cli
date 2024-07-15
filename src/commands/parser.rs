@@ -411,8 +411,8 @@ pub struct Dump {
     pub format: Option<DumpFormat>,
 
     /// Used to automatically overwrite existing files of the same name. Defaults
-    /// to `true` when `--all` is used, otherwise `false`.
-    #[arg(long)]
+    /// to `true`.
+    #[arg(long, default_value = "true")]
     pub overwrite_existing: bool,
 }
 
