@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::ValueHint;
+use clap::{ArgAction, ValueHint};
 
 use crate::migrations::options::{Migrate, Migration};
 use crate::options::ConnectionOptions;
@@ -411,9 +411,9 @@ pub struct Dump {
     pub format: Option<DumpFormat>,
 
     /// Used to automatically overwrite existing files of the same name. Defaults
-    /// to `true`.
-    #[arg(long, default_value = "true")]
-    pub overwrite_existing: bool,
+    /// to `true` for now but will default to `false` in the next release.
+    #[arg(long, default_missing_value = "true", num_args = 0..=1, action = ArgAction::Set)]
+    pub overwrite_existing: Option<bool>,
 }
 
 #[derive(clap::Args, Clone, Debug)]

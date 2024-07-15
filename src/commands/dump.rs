@@ -25,39 +25,60 @@ pub struct Guard {
 }
 
 impl Guard {
-    async fn open(filename: &Path, overwrite_existing: bool) -> anyhow::Result<(Output, Guard)> {
+    async fn open(
+        filename: &Path,
+        overwrite_existing: Option<bool>,
+    ) -> anyhow::Result<(Output, Guard)> {
         if filename.to_str() == Some("-") {
             Ok((Box::new(io::stdout()), Guard { filenames: None }))
-        } else if cfg!(windows) || filename.starts_with("/dev/") || filename.file_name().is_none() {
-            let file = OpenOptions::new()
-                .write(true)
-                .create(overwrite_existing)
-                .create_new(!overwrite_existing)
-                .truncate(overwrite_existing)
-                .open(&filename)
+        } else if filename.starts_with("/dev/") {
+            let file = fs::File::create(&filename)
                 .await
                 .context(filename.display().to_string())?;
             Ok((Box::new(file), Guard { filenames: None }))
         } else {
-            if !overwrite_existing && fs::metadata(&filename).await.is_ok() {
-                anyhow::bail!(
-                    "failed: target file already exists. Specify --overwrite-existing to replace."
-                )
+            let overwrite_existing = overwrite_existing.unwrap_or_else(|| {
+                log::warn!(
+                    "In the next EdgeDB CLI release, the dump behavior will \
+                    change to not overwrite the target file by default. For \
+                    compatibility, please specify --overwrite-existing to \
+                    preserve the current behavior, or --overwrite-existing=false \
+                    to adopt the new behavior."
+                );
+                true
+            });
+            if cfg!(windows) || filename.file_name().is_none() {
+                let file = OpenOptions::new()
+                    .write(true)
+                    .create(overwrite_existing)
+                    .create_new(!overwrite_existing)
+                    .truncate(overwrite_existing)
+                    .open(&filename)
+                    .await
+                    .context(filename.display().to_string())?;
+                Ok((Box::new(file), Guard { filenames: None }))
+            } else {
+                if !overwrite_existing && fs::metadata(&filename).await.is_ok() {
+                    anyhow::bail!(
+                        "failed: target file already exists. \
+                        Specify --overwrite-existing to replace."
+                    )
+                }
+                // Create .~.tmp file path, first remove if already existing
+                let tmp_path = filename.with_file_name(tmp_file_name(filename));
+                if fs::metadata(&tmp_path).await.is_ok() {
+                    fs::remove_file(&tmp_path).await.ok();
+                }
+                let tmp_file = fs::File::create(&tmp_path)
+                    .await
+                    .context(tmp_path.display().to_string())?;
+                Ok((
+                    Box::new(tmp_file),
+                    Guard {
+                        filenames: Some((tmp_path, filename.to_owned(), overwrite_existing)),
+                    },
+                ))
             }
-            // Create .~.tmp file path, first remove if already existing
-            let tmp_path = filename.with_file_name(tmp_file_name(filename));
-            if fs::metadata(&tmp_path).await.is_ok() {
-                fs::remove_file(&tmp_path).await.ok();
-            }
-            let tmp_file = fs::File::create(&tmp_path)
-                .await
-                .context(tmp_path.display().to_string())?;
-            Ok((
-                Box::new(tmp_file),
-                Guard {
-                    filenames: Some((tmp_path, filename.to_owned(), overwrite_existing)),
-                },
-            ))
         }
     }
 
@@ -114,7 +135,7 @@ async fn dump_db(
     _options: &Options,
     filename: &Path,
     mut include_secrets: bool,
-    overwrite_existing: bool,
+    overwrite_existing: Option<bool>,
 ) -> Result<(), anyhow::Error> {
     if cli.get_version().await?.specific() < "4.0-alpha.2".parse().unwrap() {
         include_secrets = false;
@@ -189,7 +210,7 @@ pub async fn dump_all(
 
     fs::create_dir_all(dir).await?;
 
-    let (mut init, guard) = Guard::open(&dir.join("init.edgeql"), true).await?;
+    let (mut init, guard) = Guard::open(&dir.join("init.edgeql"), Some(true)).await?;
     if !config.trim().is_empty() {
         init.write_all(b"# DESCRIBE SYSTEM CONFIG\n").await?;
         init.write_all(config.as_bytes()).await?;
@@ -207,7 +228,14 @@ pub async fn dump_all(
         match conn_params.branch(database)?.connect().await {
             Ok(mut db_conn) => {
                 let filename = dir.join(&(urlencoding::encode(database) + ".dump")[..]);
-                dump_db(&mut db_conn, options, &filename, include_secrets, true).await?;
+                dump_db(
+                    &mut db_conn,
+                    options,
+                    &filename,
+                    include_secrets,
+                    Some(true),
+                )
+                .await?;
             }
             Err(err) => {
                 if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
