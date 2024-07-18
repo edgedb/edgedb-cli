@@ -18,6 +18,9 @@ use crate::platform::config_dir;
 const EDGEDB_CLOUD_DEFAULT_DNS_ZONE: &str = "aws.edgedb.cloud";
 const EDGEDB_CLOUD_API_VERSION: &str = "v1/";
 const EDGEDB_CLOUD_API_TIMEOUT: u64 = 10;
+const REQUEST_RETRIES_COUNT: u32 = 10;
+const REQUEST_RETRIES_MIN_INTERVAL: Duration = Duration::from_secs(1);
+const REQUEST_RETRIES_MAX_INTERVAL: Duration = Duration::from_secs(30);
 
 #[derive(Debug, serde::Deserialize, thiserror::Error)]
 pub struct ErrorResponse {
@@ -30,13 +33,13 @@ pub struct ErrorResponse {
 #[derive(Debug, thiserror::Error)]
 pub enum HttpError {
     #[error("HTTP error: {0}")]
-    ReqwestError(reqwest::Error),
+    ReqwestError(reqwest_middleware::Error),
 
     #[error(
         "HTTP permission error: {0}. This is usually caused by a firewall. Try disabling \
         your OS's firewall or any other firewalls you have installed"
     )]
-    PermissionError(reqwest::Error),
+    PermissionError(reqwest_middleware::Error),
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -51,7 +54,7 @@ struct Claims {
 }
 
 pub struct CloudClient {
-    client: reqwest::Client,
+    client: reqwest_middleware::ClientWithMiddleware,
     pub is_logged_in: bool,
     pub api_endpoint: reqwest::Url,
     options_secret_key: Option<String>,
@@ -247,8 +250,21 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
                 .unwrap(),
             )
         }
+
+        let retry_policy = reqwest_retry::policies::ExponentialBackoff::builder()
+            .retry_bounds(REQUEST_RETRIES_MIN_INTERVAL, REQUEST_RETRIES_MAX_INTERVAL)
+            .build_with_max_retries(REQUEST_RETRIES_COUNT);
+
+        let retry_middleware =
+            reqwest_retry::RetryTransientMiddleware::new_with_policy(retry_policy)
+                .with_retry_log_level(tracing::Level::DEBUG);
+
+        let client = reqwest_middleware::ClientBuilder::new(builder.build()?)
+            .with(retry_middleware)
+            .build();
+
         Ok(Self {
-            client: builder.build()?,
+            client,
             is_logged_in,
             api_endpoint: api_endpoint.join(EDGEDB_CLOUD_API_VERSION)?,
             options_secret_key: options_secret_key.clone(),
@@ -285,7 +301,7 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
 
     pub async fn request<T: serde::de::DeserializeOwned>(
         &self,
-        req: reqwest::RequestBuilder,
+        req: reqwest_middleware::RequestBuilder,
     ) -> anyhow::Result<T> {
         let resp = req.send().await.map_err(Self::create_error)?;
         if resp.status().is_success() {
@@ -313,21 +329,27 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
         }
     }
 
-    fn create_error(err: reqwest::Error) -> HttpError {
-        if let Some(io_error) = err
-            .source()
-            .and_then(|v| v.source())
-            .and_then(|v| v.source())
-            .and_then(|v| v.downcast_ref::<io::Error>())
-            .and_then(|v| v.raw_os_error())
-        {
-            // invalid permissions
-            if io_error == 1 {
-                return HttpError::PermissionError(err);
+    fn create_error(err: reqwest_middleware::Error) -> HttpError {
+        match err {
+            reqwest_middleware::Error::Middleware(_) => HttpError::ReqwestError(err),
+
+            reqwest_middleware::Error::Reqwest(ref reqwest_err) => {
+                if let Some(io_error) = reqwest_err
+                    .source()
+                    .and_then(|v| v.source())
+                    .and_then(|v| v.source())
+                    .and_then(|v| v.downcast_ref::<io::Error>())
+                    .and_then(|v| v.raw_os_error())
+                {
+                    // invalid permissions
+                    if io_error == 1 {
+                        return HttpError::PermissionError(err);
+                    }
+                }
+
+                HttpError::ReqwestError(err)
             }
         }
-
-        HttpError::ReqwestError(err)
     }
 
     pub async fn get<T: serde::de::DeserializeOwned>(
