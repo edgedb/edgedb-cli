@@ -264,7 +264,7 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
             .build();
 
         Ok(Self {
-            client: client,
+            client,
             is_logged_in,
             api_endpoint: api_endpoint.join(EDGEDB_CLOUD_API_VERSION)?,
             options_secret_key: options_secret_key.clone(),
