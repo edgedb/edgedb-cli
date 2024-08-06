@@ -64,7 +64,6 @@ impl RemoteStatus {
     ) -> anyhow::Result<Self> {
         let secret_key = cloud_client.secret_key.clone().unwrap();
         let credentials = cloud_instance.as_credentials(&secret_key).await?;
-        let (_, connection) = try_connect(&credentials).await;
         Ok(Self {
             name: format!("{}/{}", cloud_instance.org_slug, cloud_instance.name),
             type_: RemoteType::Cloud {
@@ -72,7 +71,7 @@ impl RemoteStatus {
             },
             credentials,
             version: Some(cloud_instance.version.clone()),
-            connection: Some(connection),
+            connection: None,
             instance_status: Some(cloud_instance.status.clone()),
             location: format!("\u{2601}\u{FE0F} {}", cloud_instance.region),
         })
