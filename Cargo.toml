@@ -86,7 +86,7 @@ reqwest = {version="0.12.5", features=["json", "native-tls"]}
 reqwest-middleware = {version = "0.3.0", features=["json"]}
 reqwest-retry = "0.6.0"
 tracing = "0.1.26"
-native-tls = {version="0.2.4"}
+native-tls = {version="0.2.12"}
 thiserror = "1.0.16"
 which = {version="4", default-features=false}
 indexmap = {workspace=true}
