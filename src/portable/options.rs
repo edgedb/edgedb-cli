@@ -745,7 +745,7 @@ impl FromStr for InstanceName {
             if !is_valid_cloud_name(org_slug) {
                 anyhow::bail!(
                     "org name \"{}\" must be a valid identifier, \
-                     regex: ^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$",
+                     regex: ^-?[a-zA-Z0-9_]+(-[a-zA-Z0-9]+)*$",
                     org_slug,
                 );
             }
