@@ -202,7 +202,15 @@ fn connection_{i}() {{
         let mut buf = Vec::new();
         if let Some(opts) = opts {
             for (key, value) in opts {
-                let arg = if let Some(arg) = opt_key_mapping.get(key.as_str()) {
+                let arg = if key == "instance" {
+                    let argv = value.as_str().unwrap();
+                    write!(
+                        buf,
+                        r#"
+        .arg("--instance={argv}")"#,
+                    );
+                    continue;
+                } else if let Some(arg) = opt_key_mapping.get(key.as_str()) {
                     arg
                 } else if key == "serverSettings" {
                     continue 'testcase;
