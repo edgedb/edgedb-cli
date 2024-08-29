@@ -25,7 +25,6 @@ docker_test_wrapper = []
 
 [workspace.dependencies]
 clap = "4.4.6"
-clap_generate = "3.0.3"
 termimad = "0.30.0"
 trybuild = "1.0.19"
 indexmap = {version = "2.4", features=["serde"]}
@@ -76,7 +75,7 @@ termcolor = "1.1.0"
 async-listen = "0.2.0"
 sha1 = "0.10.1"
 hex = {version="0.4.3", features=["serde"]}
-textwrap = {version="0.16.0", features=["terminal_size"]}
+textwrap = "0.16.0"
 log = "0.4.8"
 env_logger = "0.11.0"
 os-release = "0.1.0"
