@@ -85,12 +85,11 @@ struct SubcommandAttrList(pub Punctuated<SubcommandAttr, syn::Token![,]>);
 
 fn try_set<T, I>(dest: &mut T, value: I)
 where
-    T: TryFrom<I>,
-    <T as TryFrom<I>>::Error: Into<proc_macro_error::Diagnostic>,
+    T: TryFrom<I, Error = syn::Error>,
 {
     T::try_from(value)
         .map(|val| *dest = val)
-        .map_err(|e| emit_error!(e.into()))
+        .map_err(|e| emit_error!(syn_error_to_proc_macro_diagnostic_to_error(e)))
         .ok();
 }
 
@@ -246,12 +245,12 @@ impl ContainerAttrs {
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer)
-                && (attr.path.is_ident("command") || attr.path.is_ident("arg"))
+                && (attr.path().is_ident("command") || attr.path().is_ident("arg"))
             {
                 let chunk: ContainerAttrList = match attr.parse_args() {
                     Ok(attr) => attr,
                     Err(e) => {
-                        emit_error!(e);
+                        emit_error!(syn_error_to_proc_macro_diagnostic_to_error(e));
                         continue;
                     }
                 };
@@ -290,12 +289,12 @@ impl FieldAttrs {
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer)
-                && (attr.path.is_ident("command") || attr.path.is_ident("arg"))
+                && (attr.path().is_ident("command") || attr.path().is_ident("arg"))
             {
                 let chunk: FieldAttrList = match attr.parse_args() {
                     Ok(attr) => attr,
                     Err(e) => {
-                        emit_error!(e);
+                        emit_error!(syn_error_to_proc_macro_diagnostic_to_error(e));
                         continue;
                     }
                 };
@@ -359,12 +358,12 @@ impl SubcommandAttrs {
         };
         for attr in attrs {
             if matches!(attr.style, syn::AttrStyle::Outer)
-                && (attr.path.is_ident("arg") || attr.path.is_ident("command"))
+                && (attr.path().is_ident("arg") || attr.path().is_ident("command"))
             {
                 let chunk: SubcommandAttrList = match attr.parse_args() {
                     Ok(attr) => attr,
                     Err(e) => {
-                        emit_error!(e);
+                        emit_error!(syn_error_to_proc_macro_diagnostic_to_error(e));
                         continue;
                     }
                 };
@@ -455,4 +454,67 @@ impl Parse for ParserKind {
             Err(lookahead.error())
         }
     }
+}
+
+/// Converts syn::Error to proc_macro_error::Diagnostic.
+///
+/// This function is provided by proc_macro_error via From train, but only syn 1, but not syn 2.
+/// When proc_macro_error is provides it for syn 2, this function can be removed.
+fn syn_error_to_proc_macro_diagnostic_to_error(err: syn::Error) -> proc_macro_error::Diagnostic {
+    use proc_macro2::{Delimiter, TokenTree};
+    use proc_macro_error::{Diagnostic, DiagnosticExt, Level, SpanRange};
+
+    fn gut_error(ts: &mut impl Iterator<Item = TokenTree>) -> Option<(SpanRange, String)> {
+        let first = match ts.next() {
+            // compile_error
+            None => return None,
+            Some(tt) => tt.span(),
+        };
+        ts.next().unwrap(); // !
+
+        let lit = match ts.next().unwrap() {
+            TokenTree::Group(group) => {
+                // Currently `syn` builds `compile_error!` invocations
+                // exclusively in `ident{"..."}` (braced) form which is not
+                // followed by `;` (semicolon).
+                //
+                // But if it changes to `ident("...");` (parenthesized)
+                // or `ident["..."];` (bracketed) form,
+                // we will need to skip the `;` as well.
+                // Highly unlikely, but better safe than sorry.
+
+                if group.delimiter() == Delimiter::Parenthesis
+                    || group.delimiter() == Delimiter::Bracket
+                {
+                    ts.next().unwrap(); // ;
+                }
+
+                match group.stream().into_iter().next().unwrap() {
+                    TokenTree::Literal(lit) => lit,
+                    _ => unreachable!(),
+                }
+            }
+            _ => unreachable!(),
+        };
+
+        let last = lit.span();
+        let mut msg = lit.to_string();
+
+        // "abc" => abc
+        msg.pop();
+        msg.remove(0);
+
+        Some((SpanRange { first, last }, msg))
+    }
+
+    let mut ts = err.to_compile_error().into_iter();
+
+    let (span_range, msg) = gut_error(&mut ts).unwrap();
+    let mut res = Diagnostic::spanned_range(span_range, Level::Error, msg);
+
+    while let Some((span_range, msg)) = gut_error(&mut ts) {
+        res = res.span_range_error(span_range, msg);
+    }
+
+    res
 }
