@@ -202,8 +202,9 @@ async fn rebase_migration_ids(
     rebase_migrations: &mut RebaseMigrations,
 ) -> anyhow::Result<()> {
     fn update_id(old: &str, new: &str, col: &mut IndexMap<String, DBMigration>) {
-        if let Some(value) = col.remove(old) {
-            col.insert(new.to_string(), value);
+        if let Some((old_index, _, value)) = col.shift_remove_full(old) {
+            let (new_index, _) = col.insert_full(new.to_string(), value);
+            col.move_index(new_index, old_index);
         }
     }
 
