@@ -5,8 +5,9 @@ use colorful::Colorful;
 use edgeql_parser::expr;
 use rustyline::completion::Completer;
 use rustyline::config::EditMode;
-use rustyline::highlight::{Highlighter, PromptInfo};
+use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
+use rustyline::history::FileHistory;
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
 use rustyline::{error::ReadlineError, Cmd, KeyEvent, Modifiers};
 use rustyline::{Config, Editor, Helper};
@@ -26,28 +27,21 @@ impl Highlighter for ExpressionHelper {
     fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
         &'s self,
         prompt: &'p str,
-        info: PromptInfo<'_>,
+        _default: bool,
     ) -> Cow<'b, str> {
-        if info.line_no() > 0 {
-            format!("{0:.>1$}", " ", prompt.len()).into()
-        } else {
-            prompt.into()
-        }
+        prompt.into()
     }
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
         let mut buf = String::with_capacity(line.len() + 8);
         highlight::edgeql(&mut buf, line, &self.styler);
         buf.into()
     }
-    fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
+    fn highlight_char(&self, _line: &str, _pos: usize, _forced: bool) -> bool {
         // TODO(tailhook) optimize: only need to return true on insert
         true
     }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
         hint.light_gray().to_string().into()
-    }
-    fn has_continuation_prompt(&self) -> bool {
-        true
     }
 }
 
@@ -75,7 +69,7 @@ pub fn expression(
     let history_name = format!("migr_{}", &history_name);
     let config = Config::builder();
     let config = config.edit_mode(EditMode::Emacs);
-    let mut editor = Editor::<ExpressionHelper>::with_config(config.clone().build());
+    let mut editor = Editor::<ExpressionHelper, FileHistory>::with_config(config.clone().build())?;
     editor.bind_sequence(
         KeyEvent::new('\r', Modifiers::NONE),
         Cmd::AcceptOrInsertLine {
@@ -94,7 +88,7 @@ pub fn expression(
     let text = editor
         .readline_with_initial(prompt, (default, ""))
         .context("readline error")?;
-    editor.add_history_entry(&text);
+    editor.add_history_entry(&text)?;
     save_history(&mut editor, &history_name);
     Ok(text)
 }
