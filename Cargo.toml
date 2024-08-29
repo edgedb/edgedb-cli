@@ -106,7 +106,7 @@ indicatif = "0.17.0"
 url = { version = "2.1.1", features=["serde"] }
 immutable-chunkmap = "2.0.5"
 regex = "1.4.5"
-toml = "0.5.8"
+toml = "0.8.19"
 termimad = {workspace=true}
 minimad = "0.13.1"
 edgedb-cli-derive = { path="edgedb-cli-derive" }
