@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use crate::cloud::ops::CloudTier;
 use crate::commands::ExitCode;
 use crate::options::{CloudOptions, ConnectionOptions};
-use crate::portable::local::{is_valid_cloud_name, is_valid_local_instance_name};
+use crate::portable::local::{
+    is_valid_cloud_instance_name, is_valid_cloud_org_name, is_valid_local_instance_name,
+};
 use crate::portable::repository::Channel;
 use crate::portable::ver;
 use crate::print::{echo, err_marker, warn};
@@ -735,17 +737,17 @@ impl FromStr for InstanceName {
     type Err = anyhow::Error;
     fn from_str(name: &str) -> anyhow::Result<InstanceName> {
         if let Some((org_slug, instance_name)) = name.split_once('/') {
-            if !is_valid_cloud_name(instance_name) {
+            if !is_valid_cloud_instance_name(instance_name) {
                 anyhow::bail!(
                     "instance name \"{}\" must be a valid identifier, \
                      regex: ^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$",
                     instance_name,
                 );
             }
-            if !is_valid_cloud_name(org_slug) {
+            if !is_valid_cloud_org_name(org_slug) {
                 anyhow::bail!(
                     "org name \"{}\" must be a valid identifier, \
-                     regex: ^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$",
+                     regex: ^-?[a-zA-Z0-9_]+(-[a-zA-Z0-9]+)*$",
                     org_slug,
                 );
             }

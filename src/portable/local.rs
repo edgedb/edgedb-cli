@@ -405,8 +405,8 @@ pub fn is_valid_local_instance_name(name: &str) -> bool {
     !was_dash
 }
 
-pub fn is_valid_cloud_name(name: &str) -> bool {
-    // For cloud instance name parts (organization slugs and instance names):
+pub fn is_valid_cloud_instance_name(name: &str) -> bool {
+    // For cloud instance name part:
     //  1. Allow only letters, numbers and single dashes
     //  2. Must not start or end with a dash
     // regex: ^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$
@@ -425,6 +425,34 @@ pub fn is_valid_cloud_name(name: &str) -> bool {
             }
         } else {
             if !c.is_ascii_alphanumeric() {
+                return false;
+            }
+            was_dash = false;
+        }
+    }
+    !was_dash
+}
+
+pub fn is_valid_cloud_org_name(name: &str) -> bool {
+    // For cloud organization slug part:
+    //  1. Allow only letters, numbers, underscores and single dashes
+    //  2. Must not end with a dash
+    // regex: ^-?[a-zA-Z0-9_]+(-[a-zA-Z0-9]+)*$
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphanumeric() || c == '-' || c == '_' => {}
+        _ => return false,
+    }
+    let mut was_dash = false;
+    for c in chars {
+        if c == '-' {
+            if was_dash {
+                return false;
+            } else {
+                was_dash = true;
+            }
+        } else {
+            if !(c.is_ascii_alphanumeric() || c == '_') {
                 return false;
             }
             was_dash = false;
