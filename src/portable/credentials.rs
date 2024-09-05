@@ -37,23 +37,30 @@ pub fn show_credentials(options: &Options, c: &ShowCredentials) -> anyhow::Resul
         }
         Some(url.to_string())
     } else {
-        crate::table::settings(&[
+        let mut settings = vec![
             ("Host", creds.host.unwrap_or("localhost".to_string())),
             ("Port", creds.port.to_string()),
-            ("User", creds.user),
+            ("User", creds.user.clone()),
             (
                 "Password",
                 creds
                     .password
+                    .as_ref()
                     .map(|_| "<hidden>".to_string())
                     .unwrap_or("<none>".to_string()),
             ),
             (
                 "Database",
-                creds.database.unwrap_or("<default>".to_string()),
+                creds.database.clone().unwrap_or("<default>".to_string()),
             ),
             ("TLS Security", format!("{:?}", creds.tls_security)),
-        ]);
+        ];
+
+        if let Some(server_name) = creds.tls_server_name {
+            settings.push(("TLS Server Name", server_name.clone()));
+        }
+
+        crate::table::settings(&settings);
         None
     } {
         stdout()
