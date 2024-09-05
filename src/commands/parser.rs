@@ -574,6 +574,13 @@ pub enum ValueParameter {
 
     /// Timeout to recompile the cached queries on DDL.
     AutoRebuildQueryCacheTimeout(ConfigStr),
+
+    /// When to store resulting SDL of a Migration. This may be slow.
+    ///
+    /// May be set to:
+    /// * `AlwaysStore`
+    /// * `NeverStore`
+    StoreMigrationSdl(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -616,6 +623,8 @@ pub enum ConfigParameter {
     AutoRebuildQueryCache,
     /// Reset auto_rebuild_query_cache_timeout
     AutoRebuildQueryCacheTimeout,
+    /// When to store resulting SDL of a Migration
+    StoreMigrationSdl,
 }
 
 #[derive(clap::Args, Clone, Debug)]

@@ -190,6 +190,9 @@ pub async fn configure(
             )
             .await
         }
+        C::Set(Set {
+            parameter: S::StoreMigrationSdl(ConfigStr { value }),
+        }) => set(cli, "store_migration_sdl", None, format!("'{value}'")).await,
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
             let name = match parameter {
@@ -211,6 +214,7 @@ pub async fn configure(
                 C::CorsAllowOrigins => "cors_allow_origins",
                 C::AutoRebuildQueryCache => "auto_rebuild_query_cache",
                 C::AutoRebuildQueryCacheTimeout => "auto_rebuild_query_cache_timeout",
+                C::StoreMigrationSdl => "store_migration_sdl",
             };
             print::completion(
                 &cli.execute(&format!("CONFIGURE INSTANCE RESET {name}"), &())
