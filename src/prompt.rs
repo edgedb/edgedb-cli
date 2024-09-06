@@ -9,9 +9,9 @@ use anyhow::Context as _Context;
 use dirs::data_local_dir;
 use rustyline::completion::Completer;
 use rustyline::config::{Builder as ConfigBuilder, CompletionType, EditMode};
-use rustyline::highlight::{Highlighter, PromptInfo};
+use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
-use rustyline::history::History;
+use rustyline::history::{FileHistory, History};
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
 use rustyline::{self, error::ReadlineError, Cmd, KeyEvent, Modifiers};
 use rustyline::{Config, Context, Editor, Helper};
@@ -86,11 +86,9 @@ impl Highlighter for EdgeqlHelper {
     fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
         &'s self,
         prompt: &'p str,
-        info: PromptInfo<'_>,
+        _default: bool,
     ) -> Cow<'b, str> {
-        if info.line_no() > 0 {
-            format!("{0:.>1$}", " ", prompt.len()).into()
-        } else if prompt.ends_with("> ") {
+        if prompt.ends_with("> ") {
             let content = &prompt[..prompt.len() - 2];
             if content.ends_with(TX_MARKER) {
                 return format!(
@@ -139,7 +137,7 @@ impl Highlighter for EdgeqlHelper {
             }
         }
     }
-    fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
+    fn highlight_char(&self, _line: &str, _pos: usize, _forced: bool) -> bool {
         // TODO(tailhook) optimize: only need to return true on insert
         true
     }
@@ -163,10 +161,8 @@ impl Highlighter for EdgeqlHelper {
             item.into()
         }
     }
-    fn has_continuation_prompt(&self) -> bool {
-        true
-    }
 }
+
 impl Validator for EdgeqlHelper {
     fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult, ReadlineError> {
         let input = ctx.input();
@@ -199,8 +195,8 @@ impl Completer for EdgeqlHelper {
     }
 }
 
-pub fn load_history<H: rustyline::Helper>(
-    ed: &mut Editor<H>,
+pub fn load_history<H: rustyline::Helper, I: History>(
+    ed: &mut Editor<H, I>,
     name: &str,
 ) -> Result<(), anyhow::Error> {
     let dir = data_local_dir().context("cannot find local data dir")?;
@@ -213,7 +209,10 @@ pub fn load_history<H: rustyline::Helper>(
     Ok(())
 }
 
-fn _save_history<H: Helper>(ed: &mut Editor<H>, name: &str) -> Result<(), anyhow::Error> {
+fn _save_history<H: Helper, I: History>(
+    ed: &mut Editor<H, I>,
+    name: &str,
+) -> Result<(), anyhow::Error> {
     let dir = data_local_dir().context("cannot find local data dir")?;
     let app_dir = dir.join("edgedb");
     if !app_dir.exists() {
@@ -224,7 +223,7 @@ fn _save_history<H: Helper>(ed: &mut Editor<H>, name: &str) -> Result<(), anyhow
     Ok(())
 }
 
-pub fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
+pub fn save_history<H: Helper, I: History>(ed: &mut Editor<H, I>, name: &str) {
     _save_history(ed, name)
         .map_err(|e| {
             log::warn!("Cannot save history: {:#}", e);
@@ -232,8 +231,8 @@ pub fn save_history<H: Helper>(ed: &mut Editor<H>, name: &str) {
         .ok();
 }
 
-pub fn create_editor(config: &ConfigBuilder) -> Editor<EdgeqlHelper> {
-    let mut editor = Editor::<EdgeqlHelper>::with_config(config.clone().build());
+pub fn create_editor(config: &ConfigBuilder) -> anyhow::Result<Editor<EdgeqlHelper, FileHistory>> {
+    let mut editor = Editor::<EdgeqlHelper, FileHistory>::with_config(config.clone().build())?;
     editor.bind_sequence(
         KeyEvent::new('\r', Modifiers::NONE),
         Cmd::AcceptOrInsertLine {
@@ -249,14 +248,15 @@ pub fn create_editor(config: &ConfigBuilder) -> Editor<EdgeqlHelper> {
     editor.set_helper(Some(EdgeqlHelper {
         styler: Styler::dark_256(),
     }));
-    editor
+    Ok(editor)
 }
 
 pub fn var_editor(
     config: &ConfigBuilder,
     var_type: &Arc<dyn VariableInput>,
-) -> Editor<variable::VarHelper> {
-    let mut editor = Editor::<variable::VarHelper>::with_config(config.clone().build());
+) -> anyhow::Result<Editor<variable::VarHelper, FileHistory>> {
+    let mut editor =
+        Editor::<variable::VarHelper, FileHistory>::with_config(config.clone().build())?;
     editor.set_helper(Some(variable::VarHelper::new(var_type.clone())));
     let history_name = format!("var_{}", var_type.type_name());
     load_history(&mut editor, &history_name)
@@ -264,12 +264,12 @@ pub fn var_editor(
             log::warn!("Cannot load history: {:#}", e);
         })
         .ok();
-    editor
+    Ok(editor)
 }
 
 pub fn edgeql_input(
     prompt: &str,
-    editor: &mut Editor<EdgeqlHelper>,
+    editor: &mut Editor<EdgeqlHelper, FileHistory>,
     response: Sender<Input>,
     initial: &str,
 ) -> anyhow::Result<()> {
@@ -288,7 +288,7 @@ pub fn edgeql_input(
             return Ok(());
         }
     };
-    editor.add_history_entry(&text);
+    editor.add_history_entry(&text)?;
     response.send(Input::Text(text)).ok();
     save_history(editor, "edgeql");
     Ok(())
@@ -298,21 +298,21 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
     let config = Config::builder();
     let config = config.edit_mode(EditMode::Emacs);
     let mut config = config.completion_type(CompletionType::List);
-    let mut editor = create_editor(&config);
+    let mut editor = create_editor(&config)?;
     'outer: loop {
         match control.blocking_recv() {
             None => break 'outer,
             Some(Control::ViMode) => {
                 config = config.edit_mode(EditMode::Vi);
-                editor = create_editor(&config);
+                editor = create_editor(&config)?;
             }
             Some(Control::EmacsMode) => {
                 config = config.edit_mode(EditMode::Emacs);
-                editor = create_editor(&config);
+                editor = create_editor(&config)?;
             }
             Some(Control::SetHistoryLimit(h)) => {
-                config = config.max_history_size(h);
-                editor = create_editor(&config);
+                config = config.max_history_size(h)?;
+                editor = create_editor(&config)?;
             }
             Some(Control::EdgeqlInput {
                 prompt,
@@ -339,7 +339,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                         String::new()
                     },
                 );
-                let mut editor = var_editor(&config, &var_type);
+                let mut editor = var_editor(&config, &var_type)?;
                 let (text, value) = loop {
                     let text = match editor.readline_with_initial(&prompt, (&initial, "")) {
                         Ok(text) => text,
@@ -380,7 +380,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                         }
                     }
                 };
-                editor.add_history_entry(&text);
+                editor.add_history_entry(&text)?;
                 save_history(&mut editor, &format!("var_{}", &var_type.type_name()));
                 response.send(VarInput::Value(value)).ok();
             }
@@ -410,14 +410,17 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                     response.send(Input::Interrupt).ok();
                     continue;
                 }
-                let value = if let Some(value) = h.get(normal as usize) {
+                let value = if let Ok(Some(value)) = h.get(
+                    normal as usize,
+                    rustyline::history::SearchDirection::Forward,
+                ) {
                     value
                 } else {
                     eprintln!("No history entry {}", e);
                     response.send(Input::Interrupt).ok();
                     continue;
                 };
-                let mut text = match spawn_editor(value) {
+                let mut text = match spawn_editor(&value.entry) {
                     Ok(text) => text,
                     Err(e) => {
                         eprintln!("Error editing history entry: {}", e);
@@ -434,7 +437,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn show_history(history: &History) -> Result<(), anyhow::Error> {
+fn show_history(history: &dyn History) -> Result<(), anyhow::Error> {
     let pager = env::var("EDGEDB_PAGER")
         .or_else(|_| env::var("PAGER"))
         .unwrap_or_else(|_| {
@@ -451,9 +454,9 @@ fn show_history(history: &History) -> Result<(), anyhow::Error> {
     let mut child = cmd.spawn()?;
     let mut childin = child.stdin.take().expect("stdin is piped");
     for index in (0..history.len()).rev() {
-        if let Some(s) = history.get(index) {
+        if let Ok(Some(s)) = history.get(index, rustyline::history::SearchDirection::Forward) {
             let prefix = format!("[-{}] ", history.len() - index);
-            let mut lines = s.lines();
+            let mut lines = s.entry.lines();
             if let Some(first) = lines.next() {
                 writeln!(childin, "{}{}", prefix, first)?;
             }

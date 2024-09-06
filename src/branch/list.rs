@@ -1,7 +1,7 @@
 use crate::branch::context::Context;
 use crate::branch::option::List;
 use crate::connect::Connection;
-use crossterm::style::Stylize;
+use termimad::crossterm::style::Stylize;
 
 pub async fn main(
     _options: &List,

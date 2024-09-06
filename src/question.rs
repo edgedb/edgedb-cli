@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::io::{stdin, BufRead};
 
 use anyhow::Context;
-use rustyline::{Config, Editor};
+use rustyline::{Config, DefaultEditor};
 use tokio::task::spawn_blocking;
 
 use crate::print;
@@ -60,7 +60,7 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
         self
     }
     pub fn ask(&self) -> anyhow::Result<T> {
-        let mut editor = Editor::<()>::with_config(Config::builder().build());
+        let mut editor = DefaultEditor::with_config(Config::builder().build())?;
         loop {
             print::prompt(&self.question);
             for (idx, (title, _)) in self.options.iter().enumerate() {
@@ -110,7 +110,7 @@ impl<'a> String<'a> {
         } else {
             print::prompt(format!("{} [default: {}]: ", self.question, self.default));
         }
-        let mut editor = Editor::<()>::with_config(Config::builder().build());
+        let mut editor = DefaultEditor::with_config(Config::builder().build())?;
         let initial = self
             .initial
             .as_ref()
@@ -153,7 +153,7 @@ impl<'a> Confirm<'a> {
         self
     }
     pub fn ask(&self) -> anyhow::Result<bool> {
-        let mut editor = Editor::<()>::with_config(Config::builder().build());
+        let mut editor = DefaultEditor::with_config(Config::builder().build())?;
         if self.is_dangerous {
             print::prompt(format!("{} (type `Yes`)", self.question));
         } else {
@@ -227,7 +227,7 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
         self
     }
     pub fn ask(&self) -> anyhow::Result<T> {
-        let mut editor = Editor::<()>::with_config(Config::builder().build());
+        let mut editor = DefaultEditor::with_config(Config::builder().build())?;
         let options = self
             .choices
             .iter()

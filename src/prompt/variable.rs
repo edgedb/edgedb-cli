@@ -723,13 +723,10 @@ impl Highlighter for VarHelper {
             Err(_) => line.light_red().to_string().into(),
         }
     }
-    fn has_continuation_prompt(&self) -> bool {
-        true
-    }
     fn highlight_hint<'h>(&self, hint: &'h str) -> std::borrow::Cow<'h, str> {
         hint.rgb(0x56, 0x56, 0x56).to_string().into()
     }
-    fn highlight_char(&self, _line: &str, _pos: usize) -> bool {
+    fn highlight_char(&self, _line: &str, _pos: usize, _forced: bool) -> bool {
         // needed to highlight hint
         true
     }

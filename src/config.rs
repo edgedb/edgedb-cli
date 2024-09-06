@@ -53,8 +53,8 @@ pub fn get_config() -> anyhow::Result<Config> {
 #[context("reading file {:?}", path.as_ref())]
 fn read_config(path: impl AsRef<Path>) -> anyhow::Result<Config> {
     let text = fs::read_to_string(&path)?;
-    let mut toml = toml::de::Deserializer::new(&text);
-    let mut val: Config = serde_path_to_error::deserialize(&mut toml)?;
+    let toml = toml::de::Deserializer::new(&text);
+    let mut val: Config = serde_path_to_error::deserialize(toml)?;
     val.file_name = Some(path.as_ref().to_path_buf());
     Ok(val)
 }

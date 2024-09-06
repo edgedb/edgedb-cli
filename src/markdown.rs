@@ -28,7 +28,7 @@ fn prepare_markdown(text: &str) -> String {
 }
 
 static MADSKIN: Lazy<termimad::MadSkin> = Lazy::new(|| {
-    use crossterm::style::{Attribute, Color};
+    use termimad::crossterm::style::{Attribute, Color};
 
     if !print::use_color() {
         return termimad::MadSkin::no_style();
@@ -46,7 +46,7 @@ static MADSKIN: Lazy<termimad::MadSkin> = Lazy::new(|| {
 });
 
 fn parse_markdown(text: &str) -> minimad::Text {
-    use minimad::CompositeStyle::*;
+    use minimad::CompositeStyle::{self, *};
     use minimad::Line::*;
     use minimad::{Composite, Text};
 
@@ -84,7 +84,7 @@ fn parse_markdown(text: &str) -> minimad::Text {
                 | (
                     Paragraph,
                     Some(&mut Normal(Composite {
-                        style: ListItem,
+                        style: CompositeStyle::ListItem(_),
                         ref mut compounds,
                     })),
                 )
