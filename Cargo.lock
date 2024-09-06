@@ -261,7 +261,7 @@ dependencies = [
  "futures-lite 2.3.0",
  "parking",
  "polling 3.7.3",
- "rustix 0.38.35",
+ "rustix 0.38.36",
  "slab",
  "tracing",
  "windows-sys 0.59.0",
@@ -608,9 +608,9 @@ dependencies = [
 
 [[package]]
 name = "clap_complete"
-version = "4.5.25"
+version = "4.5.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18d7f143a7e709cbe6c34853dcd3bb1370c7e1bb4d9e7310ca8cb40b490ae035"
+checksum = "205d5ef6d485fa47606b98b0ddc4ead26eb850aaa86abfb562a94fb3280ecba0"
 dependencies = [
  "clap",
 ]
@@ -787,9 +787,9 @@ dependencies = [
 
 [[package]]
 name = "cpufeatures"
-version = "0.2.13"
+version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51e852e6dc9a5bed1fae92dd2375037bf2b768725bf3be87811edee3249d09ad"
+checksum = "608697df725056feaccfa42cffdaeeec3fccc4ffc38358ecd19b243e716a78e0"
 dependencies = [
  "libc",
 ]
@@ -916,7 +916,7 @@ dependencies = [
  "crossterm_winapi",
  "mio 1.0.2",
  "parking_lot 0.12.3",
- "rustix 0.38.35",
+ "rustix 0.38.36",
  "signal-hook",
  "signal-hook-mio",
  "winapi",
@@ -1218,7 +1218,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.5.2"
-source = "git+https://github.com/edgedb/edgedb-rust/#9025de8e629584d91aa91135ab7d81712aa66534"
+source = "git+https://github.com/edgedb/edgedb-rust/#42c94da5b286d40195a02be55dda679d12115d47"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1229,7 +1229,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.4.2"
-source = "git+https://github.com/edgedb/edgedb-rust/#9025de8e629584d91aa91135ab7d81712aa66534"
+source = "git+https://github.com/edgedb/edgedb-rust/#42c94da5b286d40195a02be55dda679d12115d47"
 dependencies = [
  "bytes",
 ]
@@ -1237,7 +1237,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.6.1"
-source = "git+https://github.com/edgedb/edgedb-rust/#9025de8e629584d91aa91135ab7d81712aa66534"
+source = "git+https://github.com/edgedb/edgedb-rust/#42c94da5b286d40195a02be55dda679d12115d47"
 dependencies = [
  "bigdecimal",
  "bitflags 2.6.0",
@@ -1253,7 +1253,7 @@ dependencies = [
 [[package]]
 name = "edgedb-tokio"
 version = "0.5.1"
-source = "git+https://github.com/edgedb/edgedb-rust/#9025de8e629584d91aa91135ab7d81712aa66534"
+source = "git+https://github.com/edgedb/edgedb-rust/#42c94da5b286d40195a02be55dda679d12115d47"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1290,7 +1290,7 @@ dependencies = [
 [[package]]
 name = "edgeql-parser"
 version = "0.1.0"
-source = "git+https://github.com/edgedb/edgedb#9def2e608ef1f5ad2c3874d2b468cdf5f93adaa6"
+source = "git+https://github.com/edgedb/edgedb#9f0195ea2d1b568abf6e56e462734614e1c17419"
 dependencies = [
  "append-only-vec",
  "base32",
@@ -1434,7 +1434,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e5768da2206272c81ef0b5e951a41862938a6070da63bcea197899942d3b947"
 dependencies = [
  "cfg-if",
- "rustix 0.38.35",
+ "rustix 0.38.36",
  "windows-sys 0.52.0",
 ]
 
@@ -1673,7 +1673,7 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc3655aa6818d65bc620d6911f05aa7b6aeb596291e1e9f79e52df85583d1e30"
 dependencies = [
- "rustix 0.38.35",
+ "rustix 0.38.36",
  "windows-targets 0.52.6",
 ]
 
@@ -2877,7 +2877,7 @@ dependencies = [
  "concurrent-queue",
  "hermit-abi 0.4.0",
  "pin-project-lite",
- "rustix 0.38.35",
+ "rustix 0.38.36",
  "tracing",
  "windows-sys 0.59.0",
 ]
@@ -3281,9 +3281,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.35"
+version = "0.38.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a85d50532239da68e9addb745ba38ff4612a242c1c7ceea689c4bc7c2f43c36f"
+checksum = "3f55e80d50763938498dd5ebb18647174e0c76dc38c5505294bb224624f30f36"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
@@ -3818,7 +3818,7 @@ dependencies = [
  "cfg-if",
  "fastrand 2.1.1",
  "once_cell",
- "rustix 0.38.35",
+ "rustix 0.38.36",
  "windows-sys 0.59.0",
 ]
 
@@ -3874,7 +3874,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21bebf2b7c9e0a515f6e0f8c51dc0f8e4696391e6f1ff30379559f8365fb0df7"
 dependencies = [
- "rustix 0.38.35",
+ "rustix 0.38.36",
  "windows-sys 0.48.0",
 ]
 
@@ -4591,7 +4591,7 @@ checksum = "b4ee928febd44d98f2f459a4a79bd4d928591333a494a10a868418ac1b39cf1f"
 dependencies = [
  "either",
  "home",
- "rustix 0.38.35",
+ "rustix 0.38.36",
  "winsafe",
 ]
 
@@ -4868,7 +4868,7 @@ checksum = "8da84f1a25939b27f6820d92aed108f83ff920fdf11a7b19366c27c4cda81d4f"
 dependencies = [
  "libc",
  "linux-raw-sys 0.4.14",
- "rustix 0.38.35",
+ "rustix 0.38.36",
 ]
 
 [[package]]
