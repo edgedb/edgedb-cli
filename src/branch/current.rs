@@ -1,4 +1,4 @@
-use crossterm::style::Stylize;
+use termimad::crossterm::style::Stylize;
 
 use crate::branch::context::Context;
 use crate::branch::option::Current;

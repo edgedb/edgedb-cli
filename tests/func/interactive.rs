@@ -34,7 +34,8 @@ fn test_switch_database() {
     cmd.exp_string(&format!("{main}>")).unwrap();
     cmd.send_line("create database _test_switch_asdf;").unwrap();
     cmd.send_line("\\c _test_switch_asdf").unwrap();
-    cmd.exp_string("_test_switch_asdf>").unwrap();
+    cmd.exp_string("_test_switch_asdf").unwrap();
+    cmd.exp_string(">").unwrap();
     cmd.send_line(&format!("\\c {main}")).unwrap();
     cmd.exp_string(&format!("{main}>")).unwrap();
     cmd.send_line("drop branch _test_switch_asdf;").unwrap();

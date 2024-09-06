@@ -655,10 +655,9 @@ fn term_width() -> usize {
     // calculate the acceptable term width ourselves and use
     // that to configure clap and to render subcommands help.
 
-    cmp::max(
-        cmp::min(textwrap::termwidth(), MAX_TERM_WIDTH),
-        MIN_TERM_WIDTH,
-    )
+    let width = terminal_size::terminal_size().map_or(80, |(terminal_size::Width(w), _)| w.into());
+
+    cmp::max(cmp::min(width, MAX_TERM_WIDTH), MIN_TERM_WIDTH)
 }
 
 impl Options {

@@ -74,8 +74,8 @@ pub fn format_config(version: &Query) -> String {
 #[context("error reading project config `{}`", path.display())]
 pub fn read(path: &Path) -> anyhow::Result<Config> {
     let text = fs::read_to_string(path)?;
-    let mut toml = toml::de::Deserializer::new(&text);
-    let val: SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
+    let toml = toml::de::Deserializer::new(&text);
+    let val: SrcConfig = serde_path_to_error::deserialize(toml)?;
     warn_extra(&val.extra, "");
     warn_extra(&val.edgedb.extra, "edgedb.");
 
@@ -126,9 +126,9 @@ where
         write!(
             &mut out,
             "{}{:?}{}",
-            &input[..selected.start()],
+            &input[..selected.span().start],
             to_str(value),
-            &input[selected.end()..]
+            &input[selected.span().end..]
         )
         .unwrap();
 
@@ -153,8 +153,8 @@ where
     ToStr: FnOnce(&Val) -> String,
 {
     let input = fs::read_to_string(path)?;
-    let mut deserializer = toml::de::Deserializer::new(&input);
-    let parsed: Cfg = serde_path_to_error::deserialize(&mut deserializer)?;
+    let deserializer = toml::de::Deserializer::new(&input);
+    let parsed: Cfg = serde_path_to_error::deserialize(deserializer)?;
 
     if let Some(new_contents) = modify_config(&parsed, &input, selector, field_name, value, to_str)?
     {
@@ -276,8 +276,8 @@ mod test {
     ";
 
     fn set_toml_version(data: &str, version: &super::Query) -> anyhow::Result<Option<String>> {
-        let mut toml = toml::de::Deserializer::new(data);
-        let parsed: super::SrcConfig = serde_path_to_error::deserialize(&mut toml)?;
+        let toml = toml::de::Deserializer::new(data);
+        let parsed: super::SrcConfig = serde_path_to_error::deserialize(toml)?;
 
         super::modify_config(
             &parsed,
