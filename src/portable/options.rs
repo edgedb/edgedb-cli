@@ -226,12 +226,11 @@ pub struct Create {
     #[arg(value_hint=ValueHint::Other)]
     pub name: Option<InstanceName>,
 
-    /// Create instance under latest nightly version.
+    /// Create instance using the latest nightly version.
     #[arg(long, conflicts_with_all=&["channel", "version"])]
     pub nightly: bool,
-    /// Create instance under latest nightly version.
-    #[arg(long, conflicts_with_all=&["nightly", "channel"])]
     /// Create instance with specified version.
+    #[arg(long, conflicts_with_all=&["nightly", "channel"])]
     pub version: Option<ver::Filter>,
     /// Indicate channel (stable, testing, or nightly) for instance to create.
     #[arg(long, conflicts_with_all=&["nightly", "version"])]
