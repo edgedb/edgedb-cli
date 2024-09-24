@@ -507,6 +507,12 @@ impl Query {
                 channel: Channel::Stable,
                 version: Some(ver.clone()),
             }),
+            Some(FilterMinor::Dev(_)) => {
+                Ok(Query {
+                    channel: Channel::Nightly,
+                    version: Some(ver.clone()),
+                })
+            }
             Some(FilterMinor::Alpha(_)) | Some(FilterMinor::Beta(_)) | Some(FilterMinor::Rc(_))
                 if ver.major == 1 || ver.major == 2 =>
             {
@@ -741,6 +747,7 @@ impl Channel {
                 Ok(Channel::Stable)
             }
             Some(Alpha(_) | Beta(_) | Rc(_)) => Ok(Channel::Testing),
+            Some(Dev(_)) => Ok(Channel::Nightly),
         }
     }
     pub fn as_str(&self) -> &str {
@@ -764,6 +771,7 @@ impl fmt::Display for QueryDisplay<'_> {
                 match ver.minor {
                     None => "0".fmt(f),
                     Some(Minor(m)) => m.fmt(f),
+                    Some(Dev(v)) => write!(f, "0-dev.{}", v),
                     Some(Alpha(v)) => write!(f, "0-alpha.{}", v),
                     Some(Beta(v)) => write!(f, "0-beta.{}", v),
                     Some(Rc(v)) => write!(f, "0-rc.{}", v),
