@@ -581,6 +581,11 @@ pub enum ValueParameter {
     /// * `AlwaysStore`
     /// * `NeverStore`
     StoreMigrationSdl(ConfigStr),
+
+    /// The maximum number of concurrent HTTP connections.
+    ///
+    /// HTTP connections for the `std::net::http` module.
+    NetHttpMaxConnection(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -625,6 +630,8 @@ pub enum ConfigParameter {
     AutoRebuildQueryCacheTimeout,
     /// When to store resulting SDL of a Migration
     StoreMigrationSdl,
+    /// The maximum number of concurrent HTTP connections.
+    NetHttpMaxConnection,
 }
 
 #[derive(clap::Args, Clone, Debug)]
