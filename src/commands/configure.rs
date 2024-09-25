@@ -194,7 +194,7 @@ pub async fn configure(
             parameter: S::StoreMigrationSdl(ConfigStr { value }),
         }) => set(cli, "store_migration_sdl", None, format!("'{value}'")).await,
         C::Set(Set {
-            parameter: S::NetHttpMaxConnection(ConfigStr { value }),
+            parameter: S::NetHttpMaxConnections(ConfigStr { value }),
         }) => set(cli, "net_http_max_connections", None, value).await,
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
@@ -218,7 +218,7 @@ pub async fn configure(
                 C::AutoRebuildQueryCache => "auto_rebuild_query_cache",
                 C::AutoRebuildQueryCacheTimeout => "auto_rebuild_query_cache_timeout",
                 C::StoreMigrationSdl => "store_migration_sdl",
-                C::NetHttpMaxConnection => "net_http_max_connections",
+                C::NetHttpMaxConnections => "net_http_max_connections",
             };
             print::completion(
                 &cli.execute(&format!("CONFIGURE INSTANCE RESET {name}"), &())

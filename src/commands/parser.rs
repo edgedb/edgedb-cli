@@ -585,7 +585,7 @@ pub enum ValueParameter {
     /// The maximum number of concurrent HTTP connections.
     ///
     /// HTTP connections for the `std::net::http` module.
-    NetHttpMaxConnection(ConfigStr),
+    NetHttpMaxConnections(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -631,7 +631,7 @@ pub enum ConfigParameter {
     /// When to store resulting SDL of a Migration
     StoreMigrationSdl,
     /// The maximum number of concurrent HTTP connections.
-    NetHttpMaxConnection,
+    NetHttpMaxConnections,
 }
 
 #[derive(clap::Args, Clone, Debug)]
