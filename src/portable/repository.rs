@@ -507,12 +507,10 @@ impl Query {
                 channel: Channel::Stable,
                 version: Some(ver.clone()),
             }),
-            Some(FilterMinor::Dev(_)) => {
-                Ok(Query {
-                    channel: Channel::Nightly,
-                    version: Some(ver.clone()),
-                })
-            }
+            Some(FilterMinor::Dev(_)) => Ok(Query {
+                channel: Channel::Nightly,
+                version: Some(ver.clone()),
+            }),
             Some(FilterMinor::Alpha(_)) | Some(FilterMinor::Beta(_)) | Some(FilterMinor::Rc(_))
                 if ver.major == 1 || ver.major == 2 =>
             {
