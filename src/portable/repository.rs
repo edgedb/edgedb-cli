@@ -609,10 +609,10 @@ impl Query {
         }
     }
     pub fn as_config_value(&self) -> String {
-        if self.channel == Channel::Nightly {
-            "nightly".into()
-        } else if let Some(ver) = &self.version {
+        if let Some(ver) = &self.version {
             ver.to_string()
+        } else if self.channel == Channel::Nightly {
+            "nightly".into()
         } else {
             "*".into()
         }
