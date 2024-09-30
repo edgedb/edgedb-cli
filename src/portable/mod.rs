@@ -22,6 +22,7 @@ mod list_versions;
 pub mod project;
 mod reset_password;
 mod resize;
+mod backup;
 mod revert;
 pub mod status;
 mod uninstall;

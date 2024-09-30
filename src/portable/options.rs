@@ -57,6 +57,10 @@ pub enum InstanceCommand {
     Logs(Logs),
     /// Resize a Cloud instance.
     Resize(Resize),
+    /// Restore a Cloud instance from a backup.
+    Restore(Restore),
+    /// Restore a Cloud instance from a backup.
+    ListBackups(ListBackups),
     /// Upgrade installations and instances.
     Upgrade(Upgrade),
     /// Revert a major instance upgrade.
@@ -513,6 +517,55 @@ pub struct Resize {
 
     #[command(flatten)]
     pub billables: CloudInstanceBillables,
+
+    /// Do not ask questions.
+    #[arg(long)]
+    pub non_interactive: bool,
+}
+
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ListBackups {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Instance to resize.
+    #[arg(short = 'I', long, required = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub instance: InstanceName,
+
+    /// Output in JSON format.
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(clap::Args, IntoArgs, Clone, Debug)]
+#[group(id = "backupspec", required = true)]
+pub struct BackupSpec {
+    #[arg(long)]
+    pub backup_id: Option<String>,
+
+    #[arg(long)]
+    pub latest: bool,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Restore {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Instance to resize.
+    #[arg(short = 'I', long, required = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub instance: InstanceName,
+
+    #[command(flatten)]
+    pub backup_spec: BackupSpec,
+
+    /// Name of source instance to restore the backup from.
+    #[arg(long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub source_instance: Option<InstanceName>,
 
     /// Do not ask questions.
     #[arg(long)]
