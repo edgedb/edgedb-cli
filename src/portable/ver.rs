@@ -42,6 +42,7 @@ pub struct Filter {
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum FilterMinor {
+    Dev(u32),
     Alpha(u32),
     Beta(u32),
     Rc(u32),
@@ -62,7 +63,7 @@ static FILTER: Lazy<Regex> = Lazy::new(|| {
         ^(?P<marker>=)?
         (?P<major>\d+)
         (?:
-             \.0-(?P<dev>alpha|beta|rc)\.(?P<dev_num>\d+) |
+             \.0-(?P<dev>dev|alpha|beta|rc)\.(?P<dev_num>\d+) |
              \.(?P<minor>\d+)
         )?$
     "#,
@@ -135,6 +136,7 @@ impl FromStr for Filter {
         let major = m.name("major").unwrap().as_str().parse()?;
         let g3 = m.name("dev_num").map(|m| m.as_str().parse()).transpose()?;
         let minor = match m.name("dev").map(|m| m.as_str()) {
+            Some("dev") => g3.map(FilterMinor::Dev),
             Some("alpha") => g3.map(FilterMinor::Alpha),
             Some("beta") => g3.map(FilterMinor::Beta),
             Some("rc") => g3.map(FilterMinor::Rc),
@@ -177,6 +179,7 @@ impl fmt::Display for Filter {
         }
         match self.minor {
             None => write!(f, "{}", self.major),
+            Some(Dev(v)) => write!(f, "{}.0-dev.{}", self.major, v),
             Some(Alpha(v)) => write!(f, "{}.0-alpha.{}", self.major, v),
             Some(Beta(v)) => write!(f, "{}.0-beta.{}", self.major, v),
             Some(Rc(v)) => write!(f, "{}.0-rc.{}", self.major, v),
@@ -237,8 +240,7 @@ impl Filter {
             return false;
         }
         match (spec.minor, self.minor.unwrap_or(Q::Minor(0))) {
-            // dev releases can't be matched
-            (M::Dev(_), _) => false,
+            (M::Dev(v), Q::Dev(q)) => v == q,
             (M::Minor(v), Q::Minor(q)) => v == q,
             (M::Alpha(v), Q::Alpha(q)) => v == q,
             (M::Beta(v), Q::Beta(q)) => v == q,
@@ -258,12 +260,11 @@ impl Filter {
                 return false;
             }
             match (spec.minor, self.minor.unwrap_or(Q::Minor(0))) {
-                // dev releases can't be matched
-                (M::Dev(_), _) => false,
                 // minor releases are upgradeable
                 (M::Minor(v), Q::Minor(q)) => v >= q,
                 // Special-case before 1.0, to treat all prereleases as major
                 (M::Minor(_), _) if spec.major == 1 => false,
+                (M::Dev(v), Q::Dev(q)) => v == q,
                 (M::Alpha(v), Q::Alpha(q)) if spec.major == 1 => v == q,
                 (M::Beta(v), Q::Beta(q)) if spec.major == 1 => v == q,
                 (M::Rc(v), Q::Rc(q)) if spec.major == 1 => v == q,

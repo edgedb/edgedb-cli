@@ -274,6 +274,9 @@ mod test {
         edgedb = {server-version = \"nightly\"}\n\
         project = {schema-dir = \"custom-dir\"}\n\
     ";
+    const TOMLI_DEV: &str = "\
+        edgedb = {server-version = \"6.0-dev.8321\"}\n\
+    ";
 
     fn set_toml_version(data: &str, version: &super::Query) -> anyhow::Result<Option<String>> {
         let toml = toml::de::Deserializer::new(data);
@@ -320,6 +323,9 @@ mod test {
     #[test_case(TOMLI_BETA2, "nightly" => Some(TOMLI_NIGHTLY.into()))]
     #[test_case(TOMLI_BETA2_CUSTOM_SCHEMA_DIR, "nightly"=> Some(TOMLI_NIGHTLY_CUSTOM_SCHEMA_DIR.into()))]
     #[test_case(TOMLI_NIGHTLY, "nightly" => None)]
+    #[test_case(TOMLI_BETA1, "6.0-dev.8321" => Some(TOMLI_DEV.into()))]
+    #[test_case(TOMLI_DEV, "1.0-beta.1" => Some(TOMLI_BETA1.into()))]
+    #[test_case(TOMLI_DEV, "nightly" => Some(TOMLI_NIGHTLY.into()))]
     fn modify(src: &str, ver: &str) -> Option<String> {
         set_toml_version(src, &ver.parse().unwrap()).unwrap()
     }
