@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod backups;
 pub mod client;
 pub mod main;
 pub mod ops;

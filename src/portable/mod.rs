@@ -11,6 +11,7 @@ pub mod linux;
 pub mod macos;
 pub mod windows;
 
+mod backup;
 mod control;
 mod create;
 mod credentials;

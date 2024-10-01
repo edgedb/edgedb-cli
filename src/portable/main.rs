@@ -2,6 +2,7 @@ use crate::options::Options;
 use crate::portable::options::{ServerCommand, ServerInstanceCommand};
 use crate::portable::project::ProjectCommand;
 
+use crate::portable::backup;
 use crate::portable::control;
 use crate::portable::create;
 use crate::portable::credentials;
@@ -45,6 +46,8 @@ pub fn instance_main(cmd: &ServerInstanceCommand, options: &Options) -> Result<(
         List(c) if cfg!(windows) => windows::list(c, options),
         List(c) => status::list(c, options),
         Resize(c) => resize::resize(c, options),
+        Restore(c) => backup::restore(c, options),
+        ListBackups(c) => backup::list(c, options),
         Upgrade(c) => upgrade::upgrade(c, options),
         Start(c) => control::start(c),
         Stop(c) => control::stop(c),

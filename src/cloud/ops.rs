@@ -252,7 +252,7 @@ pub async fn get_org(org: &str, client: &CloudClient) -> anyhow::Result<Org> {
     client.get(format!("orgs/{}", org)).await
 }
 
-async fn wait_for_operation(
+pub(crate) async fn wait_for_operation(
     mut operation: CloudOperation,
     client: &CloudClient,
 ) -> anyhow::Result<()> {
