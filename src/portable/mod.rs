@@ -11,6 +11,7 @@ pub mod linux;
 pub mod macos;
 pub mod windows;
 
+mod backup;
 mod control;
 mod create;
 mod credentials;
@@ -22,7 +23,6 @@ mod list_versions;
 pub mod project;
 mod reset_password;
 mod resize;
-mod backup;
 mod revert;
 pub mod status;
 mod uninstall;

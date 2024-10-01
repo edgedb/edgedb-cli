@@ -2,6 +2,7 @@ use crate::options::Options;
 use crate::portable::options::{ServerCommand, ServerInstanceCommand};
 use crate::portable::project::ProjectCommand;
 
+use crate::portable::backup;
 use crate::portable::control;
 use crate::portable::create;
 use crate::portable::credentials;
@@ -13,7 +14,6 @@ use crate::portable::list_versions;
 use crate::portable::project;
 use crate::portable::reset_password;
 use crate::portable::resize;
-use crate::portable::backup;
 use crate::portable::revert;
 use crate::portable::status;
 use crate::portable::uninstall;

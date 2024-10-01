@@ -32,7 +32,6 @@ fn list_cloud_backups_cmd(
     Ok(())
 }
 
-
 pub fn restore(cmd: &Restore, opts: &crate::options::Options) -> anyhow::Result<()> {
     match &cmd.instance {
         InstanceName::Local(_) => Err(opts.error(
@@ -67,10 +66,7 @@ fn restore_cloud_cmd(
             clap::error::ErrorKind::InvalidValue,
             cformat!("--source-instance can only be a Cloud instance"),
         ))?,
-        Some(InstanceName::Cloud {
-            org_slug,
-            name,
-        }) => {
+        Some(InstanceName::Cloud { org_slug, name }) => {
             let inst = cloud::ops::find_cloud_instance_by_name(name, org_slug, &client)?
                 .ok_or_else(|| anyhow::anyhow!("instance not found"))?;
             Some(inst)

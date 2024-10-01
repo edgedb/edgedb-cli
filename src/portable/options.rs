@@ -523,7 +523,6 @@ pub struct Resize {
     pub non_interactive: bool,
 }
 
-
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
 pub struct ListBackups {
     #[command(flatten)]

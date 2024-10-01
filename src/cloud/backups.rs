@@ -1,7 +1,7 @@
 use crate::table::{self, Cell, Row, Table};
 
-use crate::cloud::ops::{wait_for_operation, CloudOperation};
 use crate::cloud::client::{CloudClient, ErrorResponse};
+use crate::cloud::ops::{wait_for_operation, CloudOperation};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct Backup {
@@ -31,15 +31,13 @@ pub async fn restore_cloud_instance(
 ) -> anyhow::Result<()> {
     let url = format!("orgs/{}/instances/{}/restore", request.org, request.name);
     let operation: CloudOperation = client.post(url, request).await.or_else(|e| match e
-        .downcast_ref::<ErrorResponse>()
-    {
+        .downcast_ref::<ErrorResponse>(
+    ) {
         Some(ErrorResponse {
             code: reqwest::StatusCode::NOT_FOUND,
             ..
         }) => {
-            anyhow::bail!(
-                "specified instance or backup could not be found",
-            );
+            anyhow::bail!("specified instance or backup could not be found",);
         }
         _ => Err(e),
     })?;
