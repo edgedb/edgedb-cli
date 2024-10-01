@@ -12,7 +12,6 @@ pub struct Backup {
 
     pub status: String,
     pub r#type: String,
-    pub edgedb_version: String,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -95,7 +94,7 @@ fn print_table(items: impl Iterator<Item = Backup>) {
     let mut table = Table::new();
     table.set_format(*table::FORMAT);
     table.set_titles(Row::new(
-        ["ID", "Created", "Type", "Status", "Server Version"]
+        ["ID", "Created", "Type", "Status"]
             .iter()
             .map(|x| table::header_cell(x))
             .collect(),
@@ -106,7 +105,6 @@ fn print_table(items: impl Iterator<Item = Backup>) {
             Cell::new(&humantime::format_rfc3339_seconds(key.created_on).to_string()),
             Cell::new(&key.r#type),
             Cell::new(&key.status),
-            Cell::new(&key.edgedb_version),
         ]));
     }
     if !table.is_empty() {
