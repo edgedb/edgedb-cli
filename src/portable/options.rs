@@ -529,7 +529,7 @@ pub struct ListBackups {
     #[command(flatten)]
     pub cloud_opts: CloudOptions,
 
-    /// Instance to resize.
+    /// Instance to list backups for.
     #[arg(short = 'I', long, required = true)]
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: InstanceName,
@@ -554,7 +554,7 @@ pub struct Restore {
     #[command(flatten)]
     pub cloud_opts: CloudOptions,
 
-    /// Instance to resize.
+    /// Instance to restore.
     #[arg(short = 'I', long, required = true)]
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: InstanceName,
