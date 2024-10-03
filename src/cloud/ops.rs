@@ -79,6 +79,7 @@ impl RemoteStatus {
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct Org {
     pub id: String,
     pub name: String,
@@ -86,6 +87,7 @@ pub struct Org {
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct Region {
     pub name: String,
     pub platform: String,
@@ -98,6 +100,7 @@ pub struct Version {
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
 pub struct Price {
     pub billable: String,
     pub unit_price_cents: String,

@@ -66,6 +66,7 @@ pub struct PromptRpc {
 }
 
 pub struct LastAnalyze {
+    #[allow(dead_code)]
     pub query: String,
     pub output: analyze::Analysis,
 }

@@ -100,6 +100,7 @@ pub struct PackageInfo {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CliPackageInfo {
     pub version: ver::Semver,
     pub url: Url,

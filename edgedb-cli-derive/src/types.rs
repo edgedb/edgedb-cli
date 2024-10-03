@@ -2,6 +2,7 @@ use syn::spanned::Spanned;
 
 use crate::attrib;
 
+#[allow(dead_code)]
 pub struct Struct {
     pub attrs: attrib::ContainerAttrs,
     pub vis: syn::Visibility,
@@ -10,6 +11,7 @@ pub struct Struct {
     pub fields: Vec<Field>,
 }
 
+#[allow(dead_code)]
 pub struct Enum {
     pub attrs: attrib::ContainerAttrs,
     pub vis: syn::Visibility,
@@ -18,6 +20,7 @@ pub struct Enum {
     pub subcommands: Vec<Subcommand>,
 }
 
+#[allow(dead_code)]
 pub struct Field {
     pub span: proc_macro2::Span,
     pub attrs: attrib::FieldAttrs,
@@ -29,6 +32,7 @@ pub struct Field {
     pub ty: syn::Type,
 }
 
+#[allow(dead_code)]
 pub struct Subcommand {
     pub attrs: attrib::SubcommandAttrs,
     pub ident: syn::Ident,

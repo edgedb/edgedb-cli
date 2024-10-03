@@ -77,6 +77,7 @@ Help
 #[derive(Debug)]
 pub struct ParseError {
     pub help: bool,
+    #[allow(dead_code)]
     pub span: Option<(usize, usize)>,
     pub message: String,
 }
@@ -105,7 +106,6 @@ pub struct Parser<'a> {
 
 #[derive(Debug)]
 pub struct Argument {
-    pub required: bool,
     pub name: String,
 }
 
@@ -295,7 +295,6 @@ impl CommandInfo {
                 .filter(|a| a.get_short().is_none())
                 .filter(|a| a.get_long().is_none())
                 .map(|a| Argument {
-                    required: false,
                     name: a.get_id().to_string().to_owned(),
                 })
                 .collect(),

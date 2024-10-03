@@ -262,7 +262,6 @@ pub async fn do_rebase(
     let temp_dir = tempfile::tempdir()?;
     let temp_ctx = Context {
         schema_dir: temp_dir.path().to_path_buf(),
-        edgedb_version: None,
         quiet: false,
     };
 

@@ -76,7 +76,6 @@ mod test {
 
         let ctx = Context {
             schema_dir,
-            edgedb_version: None,
             quiet: false,
         };
 
