@@ -1,5 +1,5 @@
 use crate::connect::Connection;
-use edgedb_tokio::server_params::PostgresAddress;
+use edgedb_tokio::server_params::{PostgresAddress, PostgresDsn};
 
 use crate::analyze;
 use crate::commands::parser::{Common, DatabaseCmd, DescribeCmd, ListCmd};
@@ -67,10 +67,17 @@ pub async fn common(
         }
         Pgaddr => match cli.get_server_param::<PostgresAddress>() {
             Some(addr) => {
+                // < 6.x
                 println!("{}", serde_json::to_string_pretty(addr)?);
             }
             None => {
-                print::error("pgaddr requires EdgeDB to run in DEV mode");
+                // >= 6.x
+                match cli.get_server_param::<PostgresDsn>() {
+                    Some(addr) => {
+                        println!("{}", addr.0);
+                    }
+                    None => print::error("pgaddr requires EdgeDB to run in DEV mode"),
+                }
             }
         },
         Psql => {
