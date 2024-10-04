@@ -439,7 +439,6 @@ pub struct HashPasswordCommand {
 
 #[derive(Debug, Clone)]
 pub struct Options {
-    pub app: clap::Command,
     pub conn_options: ConnectionOptions,
     pub cloud_options: CloudOptions,
     pub subcommand: Option<Command>,
@@ -776,7 +775,6 @@ impl Options {
         }
 
         Ok(Options {
-            app,
             conn_options: args.conn,
             cloud_options: args.cloud,
             interactive,

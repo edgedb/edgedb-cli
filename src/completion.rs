@@ -8,10 +8,17 @@ use edgeql_parser::preparser;
 
 use crate::commands::backslash;
 
+/// Information about the current statement in the prompt.
 #[derive(Debug)]
 pub enum Current<'a> {
-    Edgeql(&'a str, bool),
-    Backslash(&'a str),
+    #[allow(dead_code)]
+    EdgeQL {
+        text: &'a str,
+        complete: bool,
+    },
+    Backslash {
+        text: &'a str,
+    },
     Empty,
 }
 
@@ -68,19 +75,38 @@ pub fn current(data: &str, pos: usize) -> (usize, Current<'_>) {
         if data[offset..].trim_start().starts_with('\\') {
             let bytes = backslash::full_statement(&data[offset..]);
             if offset + bytes > pos || bytes == data.len() {
-                return (offset, Current::Backslash(&data[offset..][..bytes]));
+                return (
+                    offset,
+                    Current::Backslash {
+                        text: &data[offset..][..bytes],
+                    },
+                );
             }
             offset += bytes;
         } else {
             match preparser::full_statement(data[offset..].as_bytes(), None) {
                 Ok(bytes) => {
                     if offset + bytes > pos {
-                        return (offset, Current::Edgeql(&data[offset..][..bytes], true));
+                        let text = &data[offset..][..bytes];
+                        return (
+                            offset,
+                            Current::EdgeQL {
+                                text,
+                                complete: true,
+                            },
+                        );
                     }
                     offset += bytes;
                 }
                 Err(_) => {
-                    return (offset, Current::Edgeql(&data[offset..], false));
+                    let text = &data[offset..];
+                    return (
+                        offset,
+                        Current::EdgeQL {
+                            text,
+                            complete: false,
+                        },
+                    );
                 }
             }
         }
@@ -141,8 +167,8 @@ fn complete_setting_value(input: &str, val: &SettingValue) -> Vec<Pair> {
 pub fn complete(input: &str, cursor: usize) -> Option<(usize, Vec<Pair>)> {
     match current(input, cursor) {
         (_, Current::Empty) => None,
-        (_, Current::Edgeql(..)) => None,
-        (off, Current::Backslash(cmd)) => {
+        (_, Current::EdgeQL { .. }) => None,
+        (off, Current::Backslash { text: cmd }) => {
             use backslash::Item::*;
             use BackslashFsm as Fsm;
 
@@ -436,8 +462,8 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<Hint> {
 pub fn hint(input: &str, pos: usize) -> Option<Hint> {
     match current(input, pos) {
         (_, Current::Empty) => None,
-        (_, Current::Edgeql(..)) => None,
-        (off, Current::Backslash(cmd)) => {
+        (_, Current::EdgeQL { .. }) => None,
+        (off, Current::Backslash { text: cmd }) => {
             use backslash::Item::*;
             use BackslashFsm as Fsm;
 

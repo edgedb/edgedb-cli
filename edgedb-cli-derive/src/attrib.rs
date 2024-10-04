@@ -25,6 +25,7 @@ pub enum ContainerAttr {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum SubcommandAttr {
     Name(syn::LitStr),
     Default(syn::Ident),
@@ -58,6 +59,7 @@ pub enum ParserKind {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CliParse {
     pub kind: ParserKind,
     pub parser: Option<syn::Expr>,

@@ -167,9 +167,9 @@ impl Validator for EdgeqlHelper {
     fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult, ReadlineError> {
         let input = ctx.input();
         let complete = match completion::current(input, input.len()).1 {
-            completion::Current::Edgeql(_, complete) => complete,
+            completion::Current::EdgeQL { complete, .. } => complete,
             completion::Current::Empty => true,
-            completion::Current::Backslash(_) => true,
+            completion::Current::Backslash { .. } => true,
         };
         if complete {
             Ok(ValidationResult::Valid(None))

@@ -1023,7 +1023,6 @@ async fn start_migration() {
 
     let ctx = Context {
         schema_dir,
-        edgedb_version: None,
         quiet: false,
     };
 

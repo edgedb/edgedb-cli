@@ -36,6 +36,7 @@ pub struct SrcProject {
     #[serde(default)]
     pub schema_dir: Option<String>,
     #[serde(flatten)]
+    #[allow(dead_code)]
     pub extra: BTreeMap<String, toml::Value>,
 }
 
