@@ -30,10 +30,7 @@ impl Context {
             default_dir
         };
 
-        Ok(Context {
-            schema_dir,
-            quiet,
-        })
+        Ok(Context { schema_dir, quiet })
     }
     pub fn for_watch(project_dir: &Path) -> anyhow::Result<Context> {
         let config_path = project_dir.join("edgedb.toml");
