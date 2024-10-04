@@ -13,7 +13,7 @@ use tokio_stream::Stream;
 use edgedb_errors::{ClientError, NoDataError, ProtocolEncodingError};
 use edgedb_errors::{Error, ErrorKind, ResultExt};
 use edgedb_protocol::client_message::{CompilationOptions, State};
-use edgedb_protocol::common::Capabilities;
+use edgedb_protocol::common::{Capabilities, Cardinality, IoFormat};
 use edgedb_protocol::descriptors::{RawTypedesc, Typedesc};
 use edgedb_protocol::features::ProtocolVersion;
 use edgedb_protocol::model::Uuid;
@@ -256,17 +256,20 @@ impl Connection {
             return Ok(self.server_version.as_ref().unwrap());
         }
         let state = make_ignore_error_state(self.inner.state_descriptor());
-        let resp: raw::Response<String> = self
+        let resp: String = self
             .inner
-            .query_required_single(
+            .query(
                 "SELECT sys::get_version_as_str()",
                 &(),
                 &state,
                 Capabilities::empty(),
+                IoFormat::Binary,
+                Cardinality::AtMostOne,
             )
             .await
+            .map(|x| x.data.into_iter().next().unwrap_or_default())
             .context("cannot fetch database version")?;
-        let build = resp.data.parse()?;
+        let build = resp.parse()?;
         Ok(self.server_version.insert(build))
     }
     pub async fn get_current_branch(&mut self) -> Result<Cow<'_, str>, Error> {
@@ -274,17 +277,20 @@ impl Connection {
             Ok(self.branch().into())
         } else {
             let state = make_ignore_error_state(self.inner.state_descriptor());
-            let resp: raw::Response<String> = self
+            let resp: raw::Response<Vec<String>> = self
                 .inner
-                .query_required_single(
+                .query(
                     "SELECT sys::get_current_database()",
                     &(),
                     &state,
                     Capabilities::empty(),
+                    IoFormat::Binary,
+                    Cardinality::AtMostOne,
                 )
                 .await
                 .context("cannot fetch current database branch")?;
-            Ok(resp.data.into())
+            let branch = resp.data.into_iter().next().unwrap_or_default();
+            Ok(branch.into())
         }
     }
     pub async fn query<R, A>(&mut self, query: &str, arguments: &A) -> Result<Vec<R>, Error>
@@ -294,7 +300,14 @@ impl Connection {
     {
         let resp = self
             .inner
-            .query(query, arguments, &self.state, Capabilities::ALL)
+            .query(
+                query,
+                arguments,
+                &self.state,
+                Capabilities::ALL,
+                IoFormat::Binary,
+                Cardinality::Many,
+            )
             .await?;
         update_state(&mut self.state, &resp)?;
         Ok(resp.data)
@@ -310,10 +323,17 @@ impl Connection {
     {
         let resp = self
             .inner
-            .query_single(query, arguments, &self.state, Capabilities::ALL)
+            .query(
+                query,
+                arguments,
+                &self.state,
+                Capabilities::ALL,
+                IoFormat::Binary,
+                Cardinality::AtMostOne,
+            )
             .await?;
         update_state(&mut self.state, &resp)?;
-        Ok(resp.data)
+        Ok(resp.data.into_iter().next())
     }
     pub async fn query_required_single<R, A>(
         &mut self,
