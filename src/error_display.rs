@@ -3,6 +3,9 @@ use std::str;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::emit;
+use colorful::core::color_string::CString;
+use colorful::Colorful;
+use edgedb_protocol::annotations::Warning;
 use termcolor::{ColorChoice, StandardStream};
 
 use edgedb_errors::{Error, InternalServerError};
@@ -63,4 +66,48 @@ pub fn print_query_error(
         }
     }
     Ok(())
+}
+
+pub fn print_query_warnings(warnings: &[Warning], source: &str) -> Result<(), anyhow::Error> {
+    for w in warnings {
+        print_query_warning(w, source)?;
+    }
+    Ok(())
+}
+
+fn print_query_warning(warning: &Warning, source: &str) -> Result<(), anyhow::Error> {
+    let Some((start, end)) = warning.start.zip(warning.end) else {
+        print_query_warning_plain(warning);
+        return Ok(());
+    };
+    let filename = warning.filename.as_ref().map_or("<query>", |f| f.as_str());
+    let files = SimpleFile::new(filename, source);
+    let diag = Diagnostic::warning()
+        .with_message(&warning.r#type)
+        .with_labels(vec![Label {
+            file_id: (),
+            style: LabelStyle::Primary,
+            range: (start as usize)..(end as usize),
+            message: warning.message.clone(),
+        }]);
+
+    emit(
+        &mut StandardStream::stderr(ColorChoice::Auto),
+        &Default::default(),
+        &files,
+        &diag,
+    )?;
+
+    Ok(())
+}
+
+fn print_query_warning_plain(warning: &Warning) {
+    let marker = "edgedb warning:";
+    let marker = if print::use_color() {
+        marker.bold().yellow()
+    } else {
+        CString::new(marker)
+    };
+
+    print::echo!(marker, warning);
 }
