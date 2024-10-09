@@ -59,4 +59,6 @@ pub fn init(builder: &mut env_logger::Builder, opt: &Options) {
         },
         _ => {}
     }
+    // we have custom logging infrastructure for edgedb warnings
+    builder.filter_module("edgedb_tokio::warning", log::LevelFilter::Error);
 }

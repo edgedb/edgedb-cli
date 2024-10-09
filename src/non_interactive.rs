@@ -161,6 +161,8 @@ async fn _run_query(
         .execute_stream(&flags, stmt, &data_description, &())
         .await?;
 
+    print::warnings(items.warnings(), stmt)?;
+
     if !items.can_contain_data() {
         let res = items.complete().await?;
         print::completion(&res.status_data);
@@ -176,7 +178,7 @@ async fn _run_query(
                 stdout().lock().write_all(text.as_bytes())?;
             }
         }
-        OutputFormat::Default => match print::native_to_stdout(items, &cfg).await {
+        OutputFormat::Default => match print::native_to_stdout(&mut items, &cfg).await {
             Ok(()) => {}
             Err(e) => {
                 match e {
@@ -250,5 +252,6 @@ async fn _run_query(
             }
         }
     }
+    items.complete().await?;
     Ok(())
 }

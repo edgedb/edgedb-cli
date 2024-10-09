@@ -341,9 +341,13 @@ async fn execute_query(
         }
     };
 
+    print::warnings(items.warnings(), statement)?;
+
     if !items.can_contain_data() {
         match items.complete().await {
-            Ok(res) => print::completion(&res.status_data),
+            Ok(res) => {
+                print::completion(&res.status_data)
+            }
             Err(e) if e.is::<StateMismatchError>() => {
                 return Err(RetryStateError)?;
             }
@@ -400,7 +404,7 @@ async fn execute_query(
             }
         }
         Default => {
-            match print::native_to_stdout(items, &cfg).await {
+            match print::native_to_stdout(&mut items, &cfg).await {
                 Ok(()) => {}
                 Err(e) => {
                     match e {
@@ -503,6 +507,9 @@ async fn execute_query(
             }
         }
     }
+
+    let _ = items.complete().await?;
+
     if state.print_stats != Off {
         eprintln!(
             "{}",
