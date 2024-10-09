@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use predicates::boolean::PredicateBooleanExt;
 
 use crate::util::OutputExt;
 use crate::SERVER;
@@ -288,5 +289,25 @@ fn force_database_error() {
         )
         .assert()
         .context("reset force_database_error", "should succeed")
+        .success();
+}
+
+#[test]
+fn warnings() {
+    SERVER
+        .admin_cmd()
+        .arg("query")
+        .arg("select std::_warn_on_call();")
+        .assert()
+        .stdout(
+            predicates::str::contains(r#"warning: QueryError"#)
+                .and(predicates::str::contains(
+                    "1 │ select std::_warn_on_call();",
+                ))
+                .and(predicates::str::contains(
+                    "  │        ^^^^^^^^^^^^^^^^^^^^ Test warning please ignore",
+                )),
+        )
+        .context("warnings", "print warning from _warn_on_call")
         .success();
 }

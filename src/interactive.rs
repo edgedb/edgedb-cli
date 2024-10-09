@@ -341,10 +341,11 @@ async fn execute_query(
         }
     };
 
+    print::warnings(items.warnings(), statement)?;
+
     if !items.can_contain_data() {
         match items.complete().await {
             Ok(res) => {
-                print::warnings(&res.warnings, statement)?;
                 print::completion(&res.status_data)
             }
             Err(e) if e.is::<StateMismatchError>() => {
@@ -507,8 +508,7 @@ async fn execute_query(
         }
     }
 
-    let res = items.complete().await?;
-    print::warnings(&res.warnings, statement)?;
+    let _ = items.complete().await?;
 
     if state.print_stats != Off {
         eprintln!(
