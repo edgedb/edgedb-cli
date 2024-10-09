@@ -7,6 +7,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use bytes::Bytes;
+use edgedb_protocol::annotations::Warning;
 use tokio::time::sleep;
 use tokio_stream::Stream;
 
@@ -94,6 +95,9 @@ where
         } else {
             None
         }
+    }
+    pub fn warnings(&self) -> &[Warning] {
+        self.inner.warnings()
     }
 }
 

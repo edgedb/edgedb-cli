@@ -118,3 +118,17 @@ fn force_database_error() {
         .unwrap();
     cmd.exp_string(&format!("error_test>")).unwrap();
 }
+
+#[test]
+fn warnings() {
+    let mut cmd = SERVER.admin_interactive();
+    let main = SERVER.default_branch();
+
+    cmd.exp_string(&format!("{main}>")).unwrap();
+    cmd.send_line("select std::_warn_on_call();\n").unwrap();
+    cmd.exp_string("warning: QueryError").unwrap();
+    cmd.exp_string("1 │ select std::_warn_on_call();").unwrap();
+    cmd.exp_string("  │        ^^^^^^^^^^^^^^^^^^^^ Test warning please ignore").unwrap();
+    cmd.exp_string("0").unwrap();
+}
+
