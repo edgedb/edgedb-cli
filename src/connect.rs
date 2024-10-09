@@ -92,13 +92,7 @@ where
         if let Some(el) = self.next_element().await {
             Some(Ok(el))
         } else {
-            match self.inner.process_complete().await {
-                Ok(resp) => match update_state(self.state, &resp) {
-                    Ok(()) => None,
-                    Err(e) => Some(Err(e)),
-                },
-                Err(e) => Some(Err(e)),
-            }
+            None
         }
     }
 }

@@ -400,7 +400,7 @@ async fn execute_query(
             }
         }
         Default => {
-            match print::native_to_stdout(items, &cfg).await {
+            match print::native_to_stdout(&mut items, &cfg).await {
                 Ok(()) => {}
                 Err(e) => {
                     match e {
@@ -503,6 +503,7 @@ async fn execute_query(
             }
         }
     }
+    items.complete().await?;
     if state.print_stats != Off {
         eprintln!(
             "{}",
