@@ -1110,8 +1110,8 @@ dependencies = [
  "downcast-rs",
  "edgedb-cli-derive",
  "edgedb-derive",
- "edgedb-errors 0.4.2",
- "edgedb-protocol 0.6.1",
+ "edgedb-errors",
+ "edgedb-protocol",
  "edgedb-tokio",
  "edgeql-parser",
  "env_logger",
@@ -1218,6 +1218,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.5.2"
+source = "git+https://github.com/edgedb/edgedb-rust/#a12e2aed9fe1aa267a3aa19fc3439de607eb19fb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1228,14 +1229,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.4.2"
-dependencies = [
- "bytes",
-]
-
-[[package]]
-name = "edgedb-errors"
-version = "0.4.2"
-source = "git+https://github.com/edgedb/edgedb-rust/#a63984d6b81c5b2a4a0ac58a4f341b990fb62f2c"
+source = "git+https://github.com/edgedb/edgedb-rust/#a12e2aed9fe1aa267a3aa19fc3439de607eb19fb"
 dependencies = [
  "bytes",
 ]
@@ -1243,12 +1237,13 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.6.1"
+source = "git+https://github.com/edgedb/edgedb-rust/#a12e2aed9fe1aa267a3aa19fc3439de607eb19fb"
 dependencies = [
  "bigdecimal",
  "bitflags 2.6.0",
  "bytes",
  "chrono",
- "edgedb-errors 0.4.2",
+ "edgedb-errors",
  "num-bigint",
  "num-traits",
  "serde",
@@ -1258,24 +1253,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "edgedb-protocol"
-version = "0.6.1"
-source = "git+https://github.com/edgedb/edgedb-rust/#a63984d6b81c5b2a4a0ac58a4f341b990fb62f2c"
-dependencies = [
- "bigdecimal",
- "bitflags 2.6.0",
- "bytes",
- "chrono",
- "edgedb-errors 0.4.2 (git+https://github.com/edgedb/edgedb-rust/)",
- "num-bigint",
- "num-traits",
- "snafu",
- "uuid",
-]
-
-[[package]]
 name = "edgedb-tokio"
 version = "0.5.1"
+source = "git+https://github.com/edgedb/edgedb-rust/#a12e2aed9fe1aa267a3aa19fc3439de607eb19fb"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -1286,8 +1266,8 @@ dependencies = [
  "crc16",
  "dirs",
  "edgedb-derive",
- "edgedb-errors 0.4.2",
- "edgedb-protocol 0.6.1",
+ "edgedb-errors",
+ "edgedb-protocol",
  "log",
  "once_cell",
  "rand",
@@ -3607,7 +3587,7 @@ name = "shared-client-tests"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
- "edgedb-protocol 0.6.1 (git+https://github.com/edgedb/edgedb-rust/)",
+ "edgedb-protocol",
  "hex",
  "indexmap",
  "predicates",
