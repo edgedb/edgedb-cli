@@ -16,12 +16,39 @@ pub struct Backup {
 }
 
 #[derive(Debug, serde::Serialize)]
+pub struct CloudInstanceBackup {
+    pub name: String,
+    pub org: String,
+}
+
+#[derive(Debug, serde::Serialize)]
 pub struct CloudInstanceRestore {
     pub name: String,
     pub org: String,
     pub backup_id: Option<String>,
     pub latest: bool,
     pub source_instance_id: Option<String>,
+}
+
+#[tokio::main(flavor = "current_thread")]
+pub async fn backup_cloud_instance(
+    client: &CloudClient,
+    request: &CloudInstanceBackup,
+) -> anyhow::Result<()> {
+    let url = format!("orgs/{}/instances/{}/backups", request.org, request.name);
+    let operation: CloudOperation = client.post(url, request).await.or_else(|e| match e
+        .downcast_ref::<ErrorResponse>(
+    ) {
+        Some(ErrorResponse {
+            code: reqwest::StatusCode::NOT_FOUND,
+            ..
+        }) => {
+            anyhow::bail!("specified instance could not be found",);
+        }
+        _ => Err(e),
+    })?;
+    wait_for_operation(operation, client).await?;
+    Ok(())
 }
 
 #[tokio::main(flavor = "current_thread")]
