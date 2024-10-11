@@ -68,19 +68,31 @@ pub fn print_query_error(
     Ok(())
 }
 
-pub fn print_query_warnings(warnings: &[Warning], source: &str) -> Result<(), anyhow::Error> {
+pub fn print_query_warnings(
+    warnings: &[Warning],
+    source: &str,
+) -> Result<(), anyhow::Error> {
     for w in warnings {
-        print_query_warning(w, source)?;
+        print_query_warning(w, source, None)?;
     }
     Ok(())
 }
 
-fn print_query_warning(warning: &Warning, source: &str) -> Result<(), anyhow::Error> {
+pub fn print_query_warning(
+    warning: &Warning,
+    source: &str,
+    source_file: Option<&str>,
+) -> Result<(), anyhow::Error> {
     let Some((start, end)) = warning.start.zip(warning.end) else {
         print_query_warning_plain(warning);
         return Ok(());
     };
-    let filename = warning.filename.as_ref().map_or("<query>", |f| f.as_str());
+    let filename = warning
+        .filename
+        .as_ref()
+        .map(|f| f.as_str())
+        .or(source_file)
+        .unwrap_or("<query>");
     let files = SimpleFile::new(filename, source);
     let diag = Diagnostic::warning()
         .with_message(&warning.r#type)

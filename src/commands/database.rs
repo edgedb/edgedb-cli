@@ -17,7 +17,7 @@ pub async fn create(
         eprintln!("'edgedb database create' is deprecated in EdgeDB 5+. Please use 'edgedb branch create'");
     }
 
-    let status = cli
+    let (status, _warnings) = cli
         .execute(
             &format!("CREATE DATABASE {}", quote_name(&options.database_name)),
             &(),
@@ -48,7 +48,7 @@ pub async fn drop(
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
         }
     }
-    let status = cli
+    let (status, _warnings) = cli
         .execute(
             &format!("DROP DATABASE {}", quote_name(&options.database_name)),
             &(),
@@ -87,7 +87,7 @@ pub async fn wipe(
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
         }
     }
-    let status = cli.execute("RESET SCHEMA TO initial", &()).await?;
+    let (status, _warnings) = cli.execute("RESET SCHEMA TO initial", &()).await?;
     print::completion(&status);
     Ok(())
 }

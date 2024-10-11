@@ -72,7 +72,7 @@ pub async fn migrations_applied(
     ctx: &Context,
     migrations: &IndexMap<String, MigrationFile>,
 ) -> Result<Option<String>, anyhow::Error> {
-    let db_migration: Option<String> = cli
+    let (db_migration, _): (Option<String>, _) = cli
         .query_single(
             r###"
             WITH Last := (SELECT schema::Migration

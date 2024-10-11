@@ -38,7 +38,7 @@ pub async fn main(
 }
 
 async fn rename(connection: &mut Connection, options: &Rename) -> anyhow::Result<()> {
-    let status = connection
+    let (status, _warnings) = connection
         .execute(
             &format!(
                 "alter branch {0}{2} rename to {1}",

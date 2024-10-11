@@ -470,7 +470,7 @@ pub async fn apply_migrations(
     async_try! {
         async {
             if single_transaction {
-                execute(cli, "START TRANSACTION").await?;
+                execute(cli, "START TRANSACTION", None).await?;
                 async_try! {
                     async {
                         apply_migrations_inner(cli, migrations, !ctx.quiet).await
@@ -479,7 +479,7 @@ pub async fn apply_migrations(
                         execute_if_connected(cli, "ROLLBACK").await
                     },
                     else async {
-                        execute(cli, "COMMIT").await
+                        execute(cli, "COMMIT", None).await
                     }
                 }
             } else {
@@ -576,7 +576,7 @@ pub async fn apply_migrations_inner(
                 apply_migration(cli, migration, verbose).await?;
             }
             Operation::Rewrite(migrations) => {
-                execute(cli, "START MIGRATION REWRITE").await?;
+                execute(cli, "START MIGRATION REWRITE", None).await?;
                 async_try! {
                     async {
                         for migration in migrations.values() {
@@ -589,7 +589,7 @@ pub async fn apply_migrations_inner(
                             .await
                     },
                     else async {
-                        execute(cli, "COMMIT MIGRATION REWRITE").await
+                        execute(cli, "COMMIT MIGRATION REWRITE", None).await
                             .context("commit migration rewrite")
                     }
                 }?;

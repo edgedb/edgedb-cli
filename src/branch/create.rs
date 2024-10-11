@@ -49,7 +49,7 @@ pub async fn create_branch(
         format!("create {kind} branch {new_branch} from {from}")
     };
 
-    let status = connection.execute(&query, &()).await?;
+    let (status, _warnings) = connection.execute(&query, &()).await?;
     print::completion(status);
     Ok(())
 }

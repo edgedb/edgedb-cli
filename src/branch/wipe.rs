@@ -31,7 +31,7 @@ pub async fn main(
         }
     }
 
-    let status = connection.execute("RESET SCHEMA TO initial", &()).await?;
+    let (status, _warnings) = connection.execute("RESET SCHEMA TO initial", &()).await?;
 
     print::completion(status);
 

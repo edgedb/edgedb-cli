@@ -314,7 +314,7 @@ impl Connection {
         &mut self,
         query: &str,
         arguments: &A,
-    ) -> Result<Option<R>, Error>
+    ) -> Result<(Option<R>, Vec<Warning>), Error>
     where
         A: QueryArgs,
         R: QueryResult,
@@ -331,7 +331,8 @@ impl Connection {
             )
             .await?;
         update_state(&mut self.state, &resp)?;
-        Ok(resp.data.into_iter().next())
+        let data = resp.data.into_iter().next();
+        Ok((data, resp.warnings))
     }
     pub async fn query_required_single<R, A>(
         &mut self,
@@ -342,10 +343,14 @@ impl Connection {
         A: QueryArgs,
         R: QueryResult,
     {
-        let res = self.query_single(query, arguments).await?;
+        let (res, _) = self.query_single(query, arguments).await?;
         res.ok_or_else(|| NoDataError::with_message("query row returned zero results"))
     }
-    pub async fn execute<A>(&mut self, query: &str, arguments: &A) -> Result<Bytes, Error>
+    pub async fn execute<A>(
+        &mut self,
+        query: &str,
+        arguments: &A,
+    ) -> Result<(Bytes, Vec<Warning>), Error>
     where
         A: QueryArgs,
     {
@@ -354,7 +359,7 @@ impl Connection {
             .execute(query, arguments, &self.state, Capabilities::ALL)
             .await?;
         update_state(&mut self.state, &resp)?;
-        Ok(resp.status_data)
+        Ok((resp.status_data, resp.warnings))
     }
     pub async fn execute_stream<R, A>(
         &mut self,

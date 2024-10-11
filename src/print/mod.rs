@@ -26,6 +26,7 @@ pub mod style;
 mod tests;
 
 pub use crate::error_display::print_query_warnings as warnings;
+pub use crate::error_display::print_query_warning as warning;
 
 use buffer::{Delim, Exception, UnwrapExc, WrapErr};
 pub use color::Highlight;
