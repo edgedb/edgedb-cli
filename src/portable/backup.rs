@@ -1,7 +1,7 @@
 use color_print::cformat;
 
 use crate::cloud;
-use crate::portable::options::{InstanceName, ListBackups, Restore, Backup};
+use crate::portable::options::{Backup, InstanceName, ListBackups, Restore};
 use crate::print::echo;
 use crate::question;
 
