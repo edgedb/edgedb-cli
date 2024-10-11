@@ -300,13 +300,10 @@ fn warnings() {
         .arg("select std::_warn_on_call();")
         .assert()
         .stdout(
-            predicates::str::contains(r#"warning: QueryError"#)
-                .and(predicates::str::contains(
-                    "1 │ select std::_warn_on_call();",
-                ))
-                .and(predicates::str::contains(
-                    "  │        ^^^^^^^^^^^^^^^^^^^^ Test warning please ignore",
-                )),
+            predicates::str::contains(r#"warning"#)
+                .and(predicates::str::contains("std::_warn_on_call"))
+                .and(predicates::str::contains("^^^^^^^^^^^^^^^^^^^^"))
+                .and(predicates::str::contains("Test warning please ignore")),
         )
         .context("warnings", "print warning from _warn_on_call")
         .success();

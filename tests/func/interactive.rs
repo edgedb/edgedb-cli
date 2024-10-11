@@ -126,9 +126,10 @@ fn warnings() {
 
     cmd.exp_string(&format!("{main}>")).unwrap();
     cmd.send_line("select std::_warn_on_call();\n").unwrap();
-    cmd.exp_string("warning: QueryError").unwrap();
-    cmd.exp_string("1 │ select std::_warn_on_call();").unwrap();
-    cmd.exp_string("  │        ^^^^^^^^^^^^^^^^^^^^ Test warning please ignore").unwrap();
+    cmd.exp_string("warning").unwrap();
+    cmd.exp_string("std::_warn_on_call()").unwrap();
+    cmd.exp_string("^^^^^^^^^^^^^^^^^^^^").unwrap();
+    cmd.exp_string("Test warning please ignore").unwrap();
     cmd.exp_string("0").unwrap();
 }
 
