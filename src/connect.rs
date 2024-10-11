@@ -90,11 +90,7 @@ where
         Ok(resp)
     }
     async fn next(&mut self) -> Option<Result<T, Error>> {
-        if let Some(el) = self.next_element().await {
-            Some(Ok(el))
-        } else {
-            None
-        }
+        self.next_element().await.map(Ok)
     }
     pub fn warnings(&self) -> &[Warning] {
         self.inner.warnings()

@@ -24,11 +24,11 @@ fn end_of_last_token(data: &str) -> Option<u64> {
     Some(off)
 }
 
-fn get_span_info<'x>(
+fn get_span_info(
     start: usize,
     end: usize,
-    source_map: &'x SourceMap<SourceName>,
-) -> Option<(&'x Path, String, usize, usize, bool)> {
+    source_map: &'_ SourceMap<SourceName>,
+) -> Option<(&'_ Path, String, usize, usize, bool)> {
     let (src, offset) = source_map.translate_range(start, end).ok()?;
     let res = match src {
         SourceName::File(path) => {
@@ -100,14 +100,14 @@ pub fn print_warnings(
     warnings: Vec<Warning>,
     source_map: Option<&SourceMap<SourceName>>,
 ) -> Result<(), Error> {
-    Ok(for mut w in warnings {
+    for mut w in warnings {
         let info = source_map
             .zip(Option::zip(w.start, w.end))
-            .and_then(|(m, (s, e))| get_span_info(s as usize, e as usize, m));
+            .and_then(|(m, (s, e))| get_span_info(s, e, m));
 
         if let Some((path, source, start, end, _is_eof)) = info {
-            w.start = Some(start as i64);
-            w.end = Some(end as i64);
+            w.start = Some(start);
+            w.end = Some(end);
 
             print::warning(&w, &source, path.to_str())?;
         } else {
@@ -117,5 +117,6 @@ pub fn print_warnings(
             w.end = None;
             print::warning(&w, "", None)?;
         }
-    })
+    }
+    Ok(())
 }

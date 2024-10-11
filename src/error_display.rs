@@ -68,10 +68,7 @@ pub fn print_query_error(
     Ok(())
 }
 
-pub fn print_query_warnings(
-    warnings: &[Warning],
-    source: &str,
-) -> Result<(), anyhow::Error> {
+pub fn print_query_warnings(warnings: &[Warning], source: &str) -> Result<(), anyhow::Error> {
     for w in warnings {
         print_query_warning(w, source, None)?;
     }
@@ -89,8 +86,7 @@ pub fn print_query_warning(
     };
     let filename = warning
         .filename
-        .as_ref()
-        .map(|f| f.as_str())
+        .as_deref()
         .or(source_file)
         .unwrap_or("<query>");
     let files = SimpleFile::new(filename, source);
@@ -99,7 +95,7 @@ pub fn print_query_warning(
         .with_labels(vec![Label {
             file_id: (),
             style: LabelStyle::Primary,
-            range: (start as usize)..(end as usize),
+            range: start..end,
             message: warning.message.clone(),
         }]);
 

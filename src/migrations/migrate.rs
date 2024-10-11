@@ -546,7 +546,7 @@ pub async fn apply_migration(
 async fn execute_with_parse_callback(
     cli: &mut Connection,
     query: &str,
-    after_parse: impl FnOnce() -> (),
+    after_parse: impl FnOnce(),
 ) -> Result<(), edgedb_errors::Error> {
     let opts = CompilationOptions {
         implicit_limit: None,
