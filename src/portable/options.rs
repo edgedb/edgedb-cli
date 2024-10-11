@@ -57,6 +57,8 @@ pub enum InstanceCommand {
     Logs(Logs),
     /// Resize a Cloud instance.
     Resize(Resize),
+    /// Create a Cloud instance backup.
+    Backup(Backup),
     /// Restore a Cloud instance from a backup.
     Restore(Restore),
     /// Restore a Cloud instance from a backup.
@@ -535,6 +537,21 @@ pub struct ListBackups {
     /// Output in JSON format.
     #[arg(long)]
     pub json: bool,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct Backup {
+    #[command(flatten)]
+    pub cloud_opts: CloudOptions,
+
+    /// Instance to restore.
+    #[arg(short = 'I', long, required = true)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub instance: InstanceName,
+
+    /// Do not ask questions.
+    #[arg(long)]
+    pub non_interactive: bool,
 }
 
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
