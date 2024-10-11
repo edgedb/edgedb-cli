@@ -525,7 +525,7 @@ impl InteractiveMigration<'_> {
         execute(
             self.cli,
             format!("DECLARE SAVEPOINT migration_{}", self.save_point),
-            None
+            None,
         )
         .await
     }
@@ -533,7 +533,7 @@ impl InteractiveMigration<'_> {
         execute(
             self.cli,
             format!("ROLLBACK TO SAVEPOINT migration_{}", self.save_point),
-            None
+            None,
         )
         .await
     }

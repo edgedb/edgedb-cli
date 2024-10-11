@@ -345,9 +345,7 @@ async fn execute_query(
 
     if !items.can_contain_data() {
         match items.complete().await {
-            Ok(res) => {
-                print::completion(&res.status_data)
-            }
+            Ok(res) => print::completion(&res.status_data),
             Err(e) if e.is::<StateMismatchError>() => {
                 return Err(RetryStateError)?;
             }

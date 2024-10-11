@@ -42,7 +42,7 @@ mod ddl {
             }}",
                 items.join("\n")
             ),
-            None
+            None,
         )
         .await?;
         for ddl_statement in items {

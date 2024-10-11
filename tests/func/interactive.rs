@@ -132,4 +132,3 @@ fn warnings() {
     cmd.exp_string("Test warning please ignore").unwrap();
     cmd.exp_string("0").unwrap();
 }
-
