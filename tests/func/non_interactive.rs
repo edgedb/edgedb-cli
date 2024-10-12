@@ -1,4 +1,6 @@
+use assert_cmd::assert::IntoOutputPredicate;
 use assert_cmd::Command;
+use predicates::boolean::PredicateBooleanExt;
 
 use crate::util::OutputExt;
 use crate::SERVER;
@@ -289,4 +291,51 @@ fn force_database_error() {
         .assert()
         .context("reset force_database_error", "should succeed")
         .success();
+}
+
+#[test]
+fn warnings() {
+    SERVER
+        .admin_cmd()
+        .arg("query")
+        .arg("select std::_warn_on_call();")
+        .assert()
+        .stderr(
+            predicates::str::contains(r#"warning"#)
+                .and(predicates::str::contains("std::_warn_on_call"))
+                .and(predicates::str::contains("^^^^^^^^^^^^^^^^^^^^"))
+                .and(predicates::str::contains("Test warning please ignore"))
+                .into_output(),
+        )
+        .context("warnings", "print warning from _warn_on_call")
+        .success();
+
+    crate::rm_migration_files("tests/migrations/db2", &[1]);
+    SERVER
+        .admin_cmd()
+        .arg("branch")
+        .arg("create")
+        .arg("--empty")
+        .arg("test_warnings")
+        .assert()
+        .success();
+
+    // test that warning is printed during "migration create"
+    SERVER
+        .admin_cmd()
+        .arg("--branch=test_warnings")
+        .arg("migration")
+        .arg("create")
+        .arg("--schema-dir=tests/migrations/db6")
+        .assert()
+        .success()
+        .stderr(
+            predicates::str::contains(r#"warning"#)
+                // assert correct path and position, regardless of other files in the schema (d.esdl)
+                .and(predicates::str::contains("db6/default.esdl:3:23"))
+                .and(predicates::str::contains("std::_warn_on_call"))
+                .and(predicates::str::contains("^^^^^^^^^^^^^^^^^^^^"))
+                .and(predicates::str::contains("Test warning please ignore")),
+        )
+        .context("warnings", "print warnings from migrations");
 }

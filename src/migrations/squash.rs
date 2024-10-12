@@ -104,7 +104,7 @@ async fn create_revision(
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     async_try! {
         async {
-            execute(cli, "START MIGRATION REWRITE").await?;
+            execute(cli, "START MIGRATION REWRITE", None).await?;
             async_try! {
                 async {
                     first_migration(cli, ctx, create).await

@@ -1218,7 +1218,7 @@ dependencies = [
 [[package]]
 name = "edgedb-derive"
 version = "0.5.2"
-source = "git+https://github.com/edgedb/edgedb-rust/#a63984d6b81c5b2a4a0ac58a4f341b990fb62f2c"
+source = "git+https://github.com/edgedb/edgedb-rust/#a12e2aed9fe1aa267a3aa19fc3439de607eb19fb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1229,7 +1229,7 @@ dependencies = [
 [[package]]
 name = "edgedb-errors"
 version = "0.4.2"
-source = "git+https://github.com/edgedb/edgedb-rust/#a63984d6b81c5b2a4a0ac58a4f341b990fb62f2c"
+source = "git+https://github.com/edgedb/edgedb-rust/#a12e2aed9fe1aa267a3aa19fc3439de607eb19fb"
 dependencies = [
  "bytes",
 ]
@@ -1237,7 +1237,7 @@ dependencies = [
 [[package]]
 name = "edgedb-protocol"
 version = "0.6.1"
-source = "git+https://github.com/edgedb/edgedb-rust/#a63984d6b81c5b2a4a0ac58a4f341b990fb62f2c"
+source = "git+https://github.com/edgedb/edgedb-rust/#a12e2aed9fe1aa267a3aa19fc3439de607eb19fb"
 dependencies = [
  "bigdecimal",
  "bitflags 2.6.0",
@@ -1246,6 +1246,8 @@ dependencies = [
  "edgedb-errors",
  "num-bigint",
  "num-traits",
+ "serde",
+ "serde_json",
  "snafu",
  "uuid",
 ]
@@ -1253,7 +1255,7 @@ dependencies = [
 [[package]]
 name = "edgedb-tokio"
 version = "0.5.1"
-source = "git+https://github.com/edgedb/edgedb-rust/#a63984d6b81c5b2a4a0ac58a4f341b990fb62f2c"
+source = "git+https://github.com/edgedb/edgedb-rust/#a12e2aed9fe1aa267a3aa19fc3439de607eb19fb"
 dependencies = [
  "anyhow",
  "arc-swap",

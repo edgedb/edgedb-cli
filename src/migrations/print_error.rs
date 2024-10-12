@@ -5,6 +5,7 @@ use std::str;
 use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle};
 use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::emit;
+use edgedb_protocol::annotations::Warning;
 use termcolor::{ColorChoice, StandardStream};
 
 use edgedb_errors::{Error, InternalServerError};
@@ -23,17 +24,16 @@ fn end_of_last_token(data: &str) -> Option<u64> {
     Some(off)
 }
 
-fn get_error_info<'x>(
-    err: &Error,
-    source_map: &'x SourceMap<SourceName>,
-) -> Option<(&'x Path, String, usize, usize, bool)> {
-    let pstart = err.position_start()?;
-    let pend = err.position_end()?;
-    let (src, offset) = source_map.translate_range(pstart, pend).ok()?;
+fn get_span_info(
+    start: usize,
+    end: usize,
+    source_map: &'_ SourceMap<SourceName>,
+) -> Option<(&'_ Path, String, usize, usize, bool)> {
+    let (src, offset) = source_map.translate_range(start, end).ok()?;
     let res = match src {
         SourceName::File(path) => {
             let data = fs::read_to_string(path).ok()?;
-            (path.as_ref(), data, pstart - offset, pend - offset, false)
+            (path.as_ref(), data, start - offset, end - offset, false)
         }
         SourceName::Semicolon(path) => {
             let data = fs::read_to_string(path).ok()?;
@@ -49,7 +49,9 @@ pub fn print_migration_error(
     err: &Error,
     source_map: &SourceMap<SourceName>,
 ) -> Result<(), anyhow::Error> {
-    let (file_name, data, pstart, pend, eof) = match get_error_info(err, source_map) {
+    let info = Option::zip(err.position_start(), err.position_end())
+        .and_then(|(s, e)| get_span_info(s, e, source_map));
+    let (file_name, data, pstart, pend, eof) = match info {
         Some(pair) => pair,
         None => {
             print::edgedb_error(err, false);
@@ -89,6 +91,31 @@ pub fn print_migration_error(
             for line in traceback.lines() {
                 eprintln!("      {}", line);
             }
+        }
+    }
+    Ok(())
+}
+
+pub fn print_warnings(
+    warnings: Vec<Warning>,
+    source_map: Option<&SourceMap<SourceName>>,
+) -> Result<(), Error> {
+    for mut w in warnings {
+        let info = source_map
+            .zip(Option::zip(w.start, w.end))
+            .and_then(|(m, (s, e))| get_span_info(s, e, m));
+
+        if let Some((path, source, start, end, _is_eof)) = info {
+            w.start = Some(start);
+            w.end = Some(end);
+
+            print::warning(&w, &source, path.to_str())?;
+        } else {
+            // we don't know which file this warning originated from
+            // print a "plain" warning (single line)
+            w.start = None;
+            w.end = None;
+            print::warning(&w, "", None)?;
         }
     }
     Ok(())
