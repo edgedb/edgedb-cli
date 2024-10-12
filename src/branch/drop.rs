@@ -39,7 +39,7 @@ pub async fn main(
         statement = format!("{} force", &statement);
     }
 
-    let status = connection.execute(&statement, &()).await?;
+    let (status, _warnings) = connection.execute(&statement, &()).await?;
 
     print::completion(status);
 

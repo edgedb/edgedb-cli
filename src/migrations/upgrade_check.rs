@@ -230,7 +230,7 @@ async fn single_check(ctx: &Context, cli: &mut Connection) -> anyhow::Result<Che
     bar.set_message("checking schema");
     match execute_start_migration(ctx, cli).await {
         Ok(()) => {
-            execute(cli, "ABORT MIGRATION").await?;
+            execute(cli, "ABORT MIGRATION", None).await?;
         }
         Err(e) if e.is::<EsdlError>() => {
             warn(
@@ -247,7 +247,7 @@ async fn single_check(ctx: &Context, cli: &mut Connection) -> anyhow::Result<Che
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     async_try! {
         async {
-            execute(cli, "START MIGRATION REWRITE").await?;
+            execute(cli, "START MIGRATION REWRITE", None).await?;
             async_try! {
                 async {
                     for migration in migrations.values() {

@@ -47,7 +47,7 @@ pub async fn main(
             eprintln!("Cleaning up cloned branch...");
             let mut rename_connection =
                 get_connection_to_modify(&temp_branch, cli_opts, source_connection).await?;
-            let result = rename_connection
+            let (status, _warnings) = rename_connection
                 .connection
                 .execute(
                     &format!(
@@ -58,7 +58,7 @@ pub async fn main(
                 )
                 .await?;
 
-            print::completion(result);
+            print::completion(status);
 
             rename_connection.clean().await
         }
@@ -88,7 +88,7 @@ async fn rebase(
 
     // drop source branch
     eprintln!("\nReplacing '{}' with rebased version...", current_branch);
-    let status = target_connection
+    let (status, _warnings) = target_connection
         .execute(
             &format!(
                 "drop branch {} force",
@@ -112,7 +112,7 @@ async fn rename_temp_to_source(
 ) -> anyhow::Result<()> {
     let mut rename_connection = get_connection_to_modify(temp_branch, options, connection).await?;
 
-    let status = rename_connection
+    let (status, _warnings) = rename_connection
         .connection
         .execute(
             &format!(
@@ -136,7 +136,7 @@ async fn clone_target_branch(branch: &str, connection: &mut Connection) -> anyho
 
     let temp_branch_name = Uuid::new_v4().to_string();
 
-    let status = connection
+    let (status, _warnings) = connection
         .execute(
             &format!(
                 "create data branch {} from {}",

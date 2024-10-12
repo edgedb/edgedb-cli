@@ -42,6 +42,7 @@ mod ddl {
             }}",
                 items.join("\n")
             ),
+            None,
         )
         .await?;
         for ddl_statement in items {
@@ -131,7 +132,7 @@ async fn select_mode(
 }
 
 async fn get_db_migration(cli: &mut Connection) -> anyhow::Result<Option<String>> {
-    let res = cli
+    let (res, _) = cli
         .query_single(
             r###"
             WITH Last := (SELECT schema::Migration
@@ -149,7 +150,7 @@ async fn migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Resul
 
     let transaction = matches!(cli.transaction_state(), NotInTransaction);
     if transaction {
-        execute(cli, "START TRANSACTION").await?;
+        execute(cli, "START TRANSACTION", None).await?;
     }
     async_try! {
         async {
@@ -165,11 +166,11 @@ async fn migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Resul
 }
 
 async fn _migrate_to_schema(cli: &mut Connection, ctx: &Context) -> anyhow::Result<()> {
-    execute(cli, "DECLARE SAVEPOINT migrate_to_schema").await?;
+    execute(cli, "DECLARE SAVEPOINT migrate_to_schema", None).await?;
     let descr = async_try! {
         async {
             execute_start_migration(ctx, cli).await?;
-            if let Err(e) = execute(cli, "POPULATE MIGRATION").await {
+            if let Err(e) = execute(cli, "POPULATE MIGRATION", None).await {
                 if e.is::<QueryError>() {
                     return Ok(None)
                 } else {
@@ -217,7 +218,7 @@ pub async fn rebase_to_schema(
     ctx: &Context,
     migrations: &IndexMap<String, MigrationFile>,
 ) -> anyhow::Result<()> {
-    execute(cli, "START MIGRATION REWRITE").await?;
+    execute(cli, "START MIGRATION REWRITE", None).await?;
 
     let res = async {
         apply_migrations_inner(cli, migrations, false).await?;
@@ -228,7 +229,7 @@ pub async fn rebase_to_schema(
 
     match res {
         Ok(()) => {
-            execute(cli, "COMMIT MIGRATION REWRITE")
+            execute(cli, "COMMIT MIGRATION REWRITE", None)
                 .await
                 .context("commit migration rewrite")?;
             Ok(())
@@ -272,7 +273,7 @@ pub async fn create(
     let old_timeout = timeout::inhibit_for_transaction(cli).await?;
     let migration = async_try! {
         async {
-            execute(cli, "START MIGRATION REWRITE").await?;
+            execute(cli, "START MIGRATION REWRITE", None).await?;
             async_try! {
                 async {
                     create_in_rewrite(ctx, cli, &migrations, create).await

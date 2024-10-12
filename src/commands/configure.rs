@@ -14,7 +14,8 @@ async fn set(
 ) -> Result<(), anyhow::Error> {
     let cast = cast.unwrap_or_default();
     let query = format!("CONFIGURE INSTANCE SET {name} := {cast}{value}");
-    print::completion(&cli.execute(&query, &()).await?);
+    let (status, _warnings) = cli.execute(&query, &()).await?;
+    print::completion(&status);
     Ok(())
 }
 
@@ -54,8 +55,8 @@ pub async fn configure(
             if let Some(ref comment_text) = comment {
                 props.push(format!("comment := {}", quote_string(comment_text)))
             }
-            print::completion(
-                &cli.execute(
+            let (status, _warnings) = cli
+                .execute(
                     &format!(
                         r###"
                 CONFIGURE INSTANCE INSERT Auth {{
@@ -66,8 +67,8 @@ pub async fn configure(
                     ),
                     &(),
                 )
-                .await?,
-            );
+                .await?;
+            print::completion(&status);
             Ok(())
         }
         C::Set(Set {
@@ -78,25 +79,25 @@ pub async fn configure(
                 .map(|x| quote_string(x))
                 .collect::<Vec<_>>()
                 .join(", ");
-            print::completion(
-                &cli.execute(
+            let (status, _warnings) = cli
+                .execute(
                     &format!("CONFIGURE INSTANCE SET listen_addresses := {{{addresses}}}"),
                     &(),
                 )
-                .await?,
-            );
+                .await?;
+            print::completion(&status);
             Ok(())
         }
         C::Set(Set {
             parameter: S::ListenPort(param),
         }) => {
-            print::completion(
-                &cli.execute(
+            let (status, _warnings) = cli
+                .execute(
                     &format!("CONFIGURE INSTANCE SET listen_port := {}", param.port),
                     &(),
                 )
-                .await?,
-            );
+                .await?;
+            print::completion(&status);
             Ok(())
         }
         C::Set(Set {
@@ -167,13 +168,13 @@ pub async fn configure(
                 .map(|x| quote_string(x))
                 .collect::<Vec<_>>()
                 .join(", ");
-            print::completion(
-                &cli.execute(
+            let (status, _warnings) = cli
+                .execute(
                     &format!("CONFIGURE INSTANCE SET cors_allow_origins := {{{values}}}"),
                     &(),
                 )
-                .await?,
-            );
+                .await?;
+            print::completion(&status);
             Ok(())
         }
         C::Set(Set {
@@ -220,10 +221,10 @@ pub async fn configure(
                 C::StoreMigrationSdl => "store_migration_sdl",
                 C::NetHttpMaxConnections => "net_http_max_connections",
             };
-            print::completion(
-                &cli.execute(&format!("CONFIGURE INSTANCE RESET {name}"), &())
-                    .await?,
-            );
+            let (status, _warnings) = cli
+                .execute(&format!("CONFIGURE INSTANCE RESET {name}"), &())
+                .await?;
+            print::completion(&status);
             Ok(())
         }
     }

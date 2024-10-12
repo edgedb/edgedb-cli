@@ -22,12 +22,11 @@ impl BranchConnection<'_> {
             )
             .await?;
 
-            print::completion(
-                branch
-                    .connection
-                    .execute(&format!("drop branch {} force", self.branch_name), &())
-                    .await?,
-            );
+            let (status, _warnings) = branch
+                .connection
+                .execute(&format!("drop branch {} force", self.branch_name), &())
+                .await?;
+            print::completion(status);
 
             // should never happen, but just to make sure
             if branch.is_temp {

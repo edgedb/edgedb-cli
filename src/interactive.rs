@@ -341,6 +341,8 @@ async fn execute_query(
         }
     };
 
+    print::warnings(items.warnings(), statement)?;
+
     if !items.can_contain_data() {
         match items.complete().await {
             Ok(res) => print::completion(&res.status_data),
@@ -503,7 +505,9 @@ async fn execute_query(
             }
         }
     }
-    items.complete().await?;
+
+    let _ = items.complete().await?;
+
     if state.print_stats != Off {
         eprintln!(
             "{}",

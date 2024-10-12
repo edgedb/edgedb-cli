@@ -13,3 +13,4 @@
 /db1/squash
 /db4/created1/migrations/00002-*.edgeql
 /db4/modified1/migrations/00001-*.edgeql
+/db6/migrations/00001-*.edgeql

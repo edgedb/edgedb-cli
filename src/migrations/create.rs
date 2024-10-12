@@ -296,7 +296,7 @@ async fn gen_start_migration(ctx: &Context) -> anyhow::Result<(String, SourceMap
 
 pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection) -> anyhow::Result<()> {
     let (text, source_map) = gen_start_migration(ctx).await?;
-    match execute(cli, text).await {
+    match execute(cli, text, Some(&source_map)).await {
         Ok(_) => Ok(()),
         Err(e) if e.is::<QueryError>() => {
             print_migration_error(&e, &source_map)?;
@@ -314,7 +314,7 @@ pub async fn first_migration(
     execute_start_migration(ctx, cli).await?;
     async_try! {
         async {
-            execute(cli, "POPULATE MIGRATION").await?;
+            execute(cli, "POPULATE MIGRATION", None).await?;
             let descr = query_row::<CurrentMigration>(cli,
                 "DESCRIBE CURRENT MIGRATION AS JSON"
             ).await?;
@@ -397,7 +397,7 @@ pub async fn unsafe_populate(
                 }
             }
             if !apply_proposal(cli, proposal, &placeholders).await? {
-                execute(cli, "ALTER CURRENT MIGRATION REJECT PROPOSED").await?;
+                execute(cli, "ALTER CURRENT MIGRATION REJECT PROPOSED", None).await?;
             }
         } else {
             log::debug!("No proposal generated");
@@ -411,14 +411,14 @@ async fn apply_proposal(
     proposal: &Proposal,
     placeholders: &BTreeMap<String, String>,
 ) -> anyhow::Result<bool> {
-    execute(cli, "DECLARE SAVEPOINT proposal").await?;
+    execute(cli, "DECLARE SAVEPOINT proposal", None).await?;
     let mut rollback = false;
     async_try! {
         async {
             for statement in &proposal.statements {
                 let statement = substitute_placeholders(
                     &statement.text, placeholders)?;
-                if let Err(e) = execute(cli, &statement).await {
+                if let Err(e) = execute(cli, &statement, None).await {
                     if e.is::<InvalidSyntaxError>() {
                         log::error!("Error executing: {}", statement);
                         return Err(e)?;
@@ -463,7 +463,7 @@ async fn non_interactive_populate(
                     anyhow::bail!("Cannot apply migration without user input");
                 }
                 for statement in proposal.statements {
-                    execute(cli, &statement.text).await?;
+                    execute(cli, &statement.text, None).await?;
                 }
             } else {
                 eprintln!("EdgeDB intended to apply the following migration:");
@@ -525,6 +525,7 @@ impl InteractiveMigration<'_> {
         execute(
             self.cli,
             format!("DECLARE SAVEPOINT migration_{}", self.save_point),
+            None,
         )
         .await
     }
@@ -532,6 +533,7 @@ impl InteractiveMigration<'_> {
         execute(
             self.cli,
             format!("ROLLBACK TO SAVEPOINT migration_{}", self.save_point),
+            None,
         )
         .await
     }
@@ -616,7 +618,7 @@ impl InteractiveMigration<'_> {
                         break;
                     }
                     No => {
-                        execute(self.cli, "ALTER CURRENT MIGRATION REJECT PROPOSED").await?;
+                        execute(self.cli, "ALTER CURRENT MIGRATION REJECT PROPOSED", None).await?;
                         self.save_point += 1;
                         self.save_point().await?;
                         return Ok(());
@@ -657,7 +659,7 @@ impl InteractiveMigration<'_> {
         }
         for statement in &proposal.statements {
             let text = substitute_placeholders(&statement.text, &input)?;
-            match execute(self.cli, &text).await {
+            match execute(self.cli, &text, None).await {
                 Ok(()) => {}
                 Err(e) => {
                     if e.is::<QueryError>() {

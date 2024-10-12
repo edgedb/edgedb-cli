@@ -161,6 +161,8 @@ async fn _run_query(
         .execute_stream(&flags, stmt, &data_description, &())
         .await?;
 
+    print::warnings(items.warnings(), stmt)?;
+
     if !items.can_contain_data() {
         let res = items.complete().await?;
         print::completion(&res.status_data);
@@ -250,6 +252,6 @@ async fn _run_query(
             }
         }
     }
-    let _ = items.complete().await?;
+    items.complete().await?;
     Ok(())
 }
