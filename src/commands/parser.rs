@@ -586,6 +586,12 @@ pub enum ValueParameter {
     ///
     /// HTTP connections for the `std::net::http` module.
     NetHttpMaxConnections(ConfigStr),
+
+    /// Whether to use the new simple scoping behavior (disable path factoring).
+    SimpleScoping(ConfigStr),
+
+    /// Whether to warn when depending on old scoping behavior.
+    WarnOldScoping(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -632,6 +638,10 @@ pub enum ConfigParameter {
     StoreMigrationSdl,
     /// The maximum number of concurrent HTTP connections.
     NetHttpMaxConnections,
+    /// Whether to use the new simple scoping behavior.
+    SimpleScoping,
+    /// Whether to warn when depending on old scoping behavior.
+    WarnOldScoping,
 }
 
 #[derive(clap::Args, Clone, Debug)]
