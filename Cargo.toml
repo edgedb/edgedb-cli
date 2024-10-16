@@ -162,6 +162,10 @@ wslapi = "0.1.3"
 [target.'cfg(unix)'.dev-dependencies]
 rexpect = {git="https://github.com/tailhook/rexpect", branch="default_terminal_size"}
 
+# Ensure that openssl-sys is vendored on musl
+[target.'cfg(target_env="musl")'.dependencies]
+openssl-sys = {version="0.9.104", features=["vendored"]}
+
 [profile.dev]
 opt-level = 2 # 1 -- needed so windows don't get stack overflow, 2 - for GHA
 
