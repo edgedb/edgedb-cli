@@ -79,11 +79,10 @@ textwrap = "0.16.0"
 log = "0.4.8"
 env_logger = "0.11.0"
 os-release = "0.1.0"
-reqwest = {version="0.12.5", features=["json", "native-tls"]}
+reqwest = {version="0.12.8", default-features=false, features=["json", "rustls-tls-native-roots", "http2", "charset", "gzip", "brotli", "deflate"]}
 reqwest-middleware = {version = "0.3.0", features=["json"]}
 reqwest-retry = "0.6.0"
 tracing = "0.1.26"
-native-tls = {version="0.2.4"}
 thiserror = "1.0.16"
 which = {version="6", default-features=false}
 indexmap = {workspace=true}
@@ -162,9 +161,6 @@ wslapi = "0.1.3"
 
 [target.'cfg(unix)'.dev-dependencies]
 rexpect = {git="https://github.com/tailhook/rexpect", branch="default_terminal_size"}
-
-[target.'cfg(target_env="musl")'.dependencies]
-native-tls = {version="0.2.4", features=["vendored"]}
 
 [profile.dev]
 opt-level = 2 # 1 -- needed so windows don't get stack overflow, 2 - for GHA
