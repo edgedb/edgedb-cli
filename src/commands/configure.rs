@@ -197,6 +197,12 @@ pub async fn configure(
         C::Set(Set {
             parameter: S::NetHttpMaxConnections(ConfigStr { value }),
         }) => set(cli, "net_http_max_connections", None, value).await,
+        C::Set(Set {
+            parameter: S::SimpleScoping(ConfigStr { value }),
+        }) => set(cli, "simple_scoping", None, value).await,
+        C::Set(Set {
+            parameter: S::WarnOldScoping(ConfigStr { value }),
+        }) => set(cli, "warn_old_scoping", None, value).await,
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
             let name = match parameter {
@@ -220,6 +226,8 @@ pub async fn configure(
                 C::AutoRebuildQueryCacheTimeout => "auto_rebuild_query_cache_timeout",
                 C::StoreMigrationSdl => "store_migration_sdl",
                 C::NetHttpMaxConnections => "net_http_max_connections",
+                C::SimpleScoping => "simple_scoping",
+                C::WarnOldScoping => "warn_old_scoping",
             };
             let (status, _warnings) = cli
                 .execute(&format!("CONFIGURE INSTANCE RESET {name}"), &())
