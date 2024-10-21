@@ -618,7 +618,7 @@ dependencies = [
  "anstyle",
  "clap_lex",
  "strsim",
- "terminal_size 0.4.0",
+ "terminal_size",
 ]
 
 [[package]]
@@ -1190,7 +1190,7 @@ dependencies = [
  "term 1.0.0",
  "termcolor",
  "termimad",
- "terminal_size 0.3.0",
+ "terminal_size",
  "test-case",
  "test-utils",
  "textwrap",
@@ -3820,16 +3820,6 @@ dependencies = [
  "serde",
  "thiserror",
  "unicode-width",
-]
-
-[[package]]
-name = "terminal_size"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21bebf2b7c9e0a515f6e0f8c51dc0f8e4696391e6f1ff30379559f8365fb0df7"
-dependencies = [
- "rustix",
- "windows-sys 0.48.0",
 ]
 
 [[package]]
