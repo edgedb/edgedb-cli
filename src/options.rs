@@ -355,6 +355,8 @@ pub enum Command {
     Instance(portable::options::ServerInstanceCommand),
     /// Manage local EdgeDB installations
     Server(portable::options::ServerCommand),
+    /// Manage local extensions
+    Extension(portable::options::ServerInstanceExtensionCommand),
     /// Generate shell completions
     #[command(name = "_gen_completions")]
     #[command(hide = true)]

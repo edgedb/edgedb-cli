@@ -51,6 +51,10 @@ pub fn main(options: &Options) -> Result<(), anyhow::Error> {
             directory_check::check_and_error()?;
             portable::server_main(cmd)
         }
+        Command::Extension(c) => {
+            directory_check::check_and_error()?;
+            portable::extension_main(c, options)
+        }
         Command::Instance(cmd) => {
             directory_check::check_and_error()?;
             portable::instance_main(cmd, options)

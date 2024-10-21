@@ -73,6 +73,56 @@ pub enum InstanceCommand {
     Credentials(ShowCredentials),
 }
 
+#[derive(clap::Args, Debug, Clone)]
+#[command(version = "help_expand")]
+#[command(disable_version_flag = true)]
+pub struct ServerInstanceExtensionCommand {
+    #[command(subcommand)]
+    pub subcommand: InstanceExtensionCommand,
+}
+
+#[derive(clap::Subcommand, Clone, Debug)]
+pub enum InstanceExtensionCommand {
+    #[command(hide=true)]
+    List(ExtensionList),
+    ListAvailable(ExtensionListExtensions),
+    Install(ExtensionInstall),
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionList {
+    /// Specify local instance name.
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub instance: Option<InstanceName>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionListExtensions {
+    /// Specify local instance name.
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub instance: Option<InstanceName>,
+    #[arg(long, hide=true)]
+    pub channel: Option<Channel>,
+    #[arg(long, hide=true)]
+    pub slot: Option<String>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionInstall {
+    /// Specify local instance name.
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub instance: Option<InstanceName>,
+    #[arg(short = 'E', long)]
+    pub extension: String,
+    #[arg(long, hide=true)]
+    pub channel: Option<Channel>,
+    #[arg(long, hide=true)]
+    pub slot: Option<String>,
+}
+
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
     /// Show locally installed EdgeDB versions.

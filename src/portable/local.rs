@@ -47,6 +47,8 @@ pub struct InstallInfo {
     pub package_hash: PackageHash,
     #[serde(with = "serde_millis")]
     pub installed_at: SystemTime,
+    #[serde(default)]
+    pub slot: String,
 }
 
 fn port_file() -> anyhow::Result<PathBuf> {
@@ -347,12 +349,28 @@ impl InstanceInfo {
     pub fn data_dir(&self) -> anyhow::Result<PathBuf> {
         instance_data_dir(&self.name)
     }
+
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
         self.installation
             .as_ref()
-            .ok_or_else(|| bug::error("version should be set"))?
+            .ok_or_else(|| bug::error("installation should be set"))?
             .server_path()
     }
+
+    pub fn base_path(&self) -> anyhow::Result<PathBuf> {
+        self.installation
+            .as_ref()
+            .ok_or_else(|| bug::error("installation should be set"))?
+            .base_path()
+    }
+
+    pub fn extension_path(&self) -> anyhow::Result<PathBuf> {
+        self.installation
+            .as_ref()
+            .ok_or_else(|| bug::error("installation should be set"))?
+            .extension_path()
+    }
+
     pub fn admin_conn_params(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::new();
         builder.port(self.port)?;
@@ -372,8 +390,18 @@ impl InstallInfo {
     pub fn base_path(&self) -> anyhow::Result<PathBuf> {
         installation_path(&self.version.specific())
     }
+
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
         Ok(self.base_path()?.join("bin").join("edgedb-server"))
+    }
+
+    pub fn extension_path(&self) -> anyhow::Result<PathBuf> {
+        let path = self.base_path()?.join("share").join("data").join("extensions");
+        if !path.exists() {
+            Err(bug::error("no extension directory available for this server"))
+        } else {
+            Ok(path)
+        }
     }
 }
 

@@ -209,6 +209,7 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
         package_url: pkg_info.url.clone(),
         package_hash: pkg_info.hash.clone(),
         installed_at: SystemTime::now(),
+        slot: pkg_info.slot.clone(),
     };
     write_json(&tmp_target.join("install_info.json"), "metadata", &info)?;
     fs::rename(&tmp_target, &target_dir)

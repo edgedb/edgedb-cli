@@ -50,7 +50,7 @@ pub enum FilterMinor {
 }
 
 static BUILD: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^\d+\.\d+(?:-(?:alpha|beta|rc|dev)\.\d+)?\+(?:[a-f0-9]{7}|local)$"#).unwrap()
+    Regex::new(r#"^\d+\.\d+(?:\.\d+)?(?:-(?:alpha|beta|rc|dev)\.\d+)?\+(?:[a-f0-9]{7}|local)$"#).unwrap()
 });
 
 static SPECIFIC: Lazy<Regex> = Lazy::new(|| {
@@ -211,6 +211,16 @@ impl Specific {
 
     pub fn is_stable(&self) -> bool {
         matches!(self.minor, MinorVersion::Minor(_))
+    }
+
+    pub fn slot(&self) -> String {
+        match self.minor {
+            MinorVersion::Minor(_) => self.major.to_string(),
+            MinorVersion::Dev(v) => format!("{}-dev{}", self.major, v),
+            MinorVersion::Alpha(v) => format!("{}-alpha{}", self.major, v),
+            MinorVersion::Beta(v) => format!("{}-beta{}", self.major, v),
+            MinorVersion::Rc(v) => format!("{}-rc{}", self.major, v),
+        }
     }
 }
 
