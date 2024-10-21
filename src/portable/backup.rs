@@ -144,7 +144,7 @@ fn restore_cloud_cmd(
     echo!(
         "EdgeDB Cloud instance",
         inst_name,
-        "has been restored successfuly."
+        "has been restored successfully."
     );
     echo!("To connect to the instance run:");
     echo!("  edgedb -I", inst_name);
