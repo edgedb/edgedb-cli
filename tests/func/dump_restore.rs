@@ -115,3 +115,57 @@ fn dump_restore_all() {
     new_instance.0.stop();
     println!("query");
 }
+
+#[!cfg(target_os = "windows")]
+#[test]
+fn dump_restore_dev() {
+    println!("before");
+    SERVER
+        .admin_cmd()
+        .arg("database")
+        .arg("create")
+        .arg("dump_03")
+        .assert()
+        .success();
+    println!("dbcreated");
+    SERVER
+        .database_cmd("dump_03")
+        .arg("query")
+        .arg("CREATE TYPE Hello { CREATE REQUIRED PROPERTY name -> str; }")
+        .arg("INSERT Hello { name := 'world' }")
+        .assert()
+        .success();
+    println!("Created");
+    let dumped_data = SERVER
+        .admin_cmd()
+        .arg("dump")
+        .arg("/dev/stdout")
+        .assert()
+        .success()
+        .get_output();
+    println!("dumped");
+    SERVER
+        .admin_cmd()
+        .arg("database")
+        .arg("create")
+        .arg("restore_03")
+        .assert()
+        .success();
+    println!("created2");
+    SERVER
+        .database_cmd("restore_03")
+        .arg("restore")
+        .arg("/dev/stdin")
+        .write_stdin(&dumped_data.stdout)
+        .assert()
+        .success();
+    println!("restored");
+    SERVER
+        .database_cmd("restore_03")
+        .arg("query")
+        .arg("SELECT Hello.name")
+        .assert()
+        .success()
+        .stdout("\"world\"\n");
+    println!("query");
+}
