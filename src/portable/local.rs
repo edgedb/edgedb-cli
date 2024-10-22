@@ -14,6 +14,7 @@ use edgedb_tokio::Builder;
 
 use crate::bug;
 use crate::credentials;
+use crate::hint::HintExt;
 use crate::platform::{cache_dir, config_dir, data_dir, portable_dir};
 use crate::portable::repository::PackageHash;
 use crate::portable::ver;
@@ -47,6 +48,8 @@ pub struct InstallInfo {
     pub package_hash: PackageHash,
     #[serde(with = "serde_millis")]
     pub installed_at: SystemTime,
+    #[serde(default)]
+    pub slot: String,
 }
 
 fn port_file() -> anyhow::Result<PathBuf> {
@@ -295,11 +298,9 @@ impl Paths {
 
 impl InstanceInfo {
     pub fn get_version(&self) -> anyhow::Result<&ver::Build> {
-        self.installation
-            .as_ref()
-            .map(|v| &v.version)
-            .ok_or_else(|| bug::error("no installation info at this point"))
+        Ok(&self.get_installation()?.version)
     }
+
     pub fn try_read(name: &str) -> anyhow::Result<Option<InstanceInfo>> {
         if cfg!(windows) {
             let data = match windows::get_instance_info(name) {
@@ -344,15 +345,35 @@ impl InstanceInfo {
         data.name = name.into();
         Ok(data)
     }
+
     pub fn data_dir(&self) -> anyhow::Result<PathBuf> {
         instance_data_dir(&self.name)
     }
-    pub fn server_path(&self) -> anyhow::Result<PathBuf> {
+
+    fn get_installation(&self) -> anyhow::Result<&InstallInfo> {
         self.installation
             .as_ref()
-            .ok_or_else(|| bug::error("version should be set"))?
-            .server_path()
+            .ok_or_else(|| bug::error("installation should be set"))
     }
+
+    pub fn server_path(&self) -> anyhow::Result<PathBuf> {
+        self.get_installation()?.server_path()
+    }
+
+    #[allow(unused)]
+    pub fn base_path(&self) -> anyhow::Result<PathBuf> {
+        self.get_installation()?.base_path()
+    }
+
+    #[allow(unused)]
+    pub fn extension_path(&self) -> anyhow::Result<PathBuf> {
+        self.get_installation()?.extension_path()
+    }
+
+    pub fn extension_loader_path(&self) -> anyhow::Result<PathBuf> {
+        self.get_installation()?.extension_loader_path()
+    }
+
     pub fn admin_conn_params(&self) -> anyhow::Result<Builder> {
         let mut builder = Builder::new();
         builder.port(self.port)?;
@@ -372,8 +393,43 @@ impl InstallInfo {
     pub fn base_path(&self) -> anyhow::Result<PathBuf> {
         installation_path(&self.version.specific())
     }
+
     pub fn server_path(&self) -> anyhow::Result<PathBuf> {
         Ok(self.base_path()?.join("bin").join("edgedb-server"))
+    }
+
+    pub fn extension_path(&self) -> anyhow::Result<PathBuf> {
+        let path = self
+            .base_path()?
+            .join("share")
+            .join("data")
+            .join("extensions");
+        if !path.exists() {
+            Err(
+                bug::error("no extension directory available for this server")
+                    .with_hint(|| {
+                        format!("Extension installation requires EdgeDB server version 6 or later")
+                    })
+                    .into(),
+            )
+        } else {
+            Ok(path)
+        }
+    }
+
+    pub fn extension_loader_path(&self) -> anyhow::Result<PathBuf> {
+        let path = self.base_path()?.join("bin").join("edgedb-load-ext");
+        if path.exists() {
+            Ok(path)
+        } else {
+            Err(
+                anyhow::anyhow!("edgedb-load-ext not found in the installation")
+                    .with_hint(|| {
+                        format!("Extension installation requires EdgeDB server version 6 or later")
+                    })
+                    .into(),
+            )
+        }
     }
 }
 

@@ -73,6 +73,80 @@ pub enum InstanceCommand {
     Credentials(ShowCredentials),
 }
 
+#[derive(clap::Args, Debug, Clone)]
+#[command(version = "help_expand")]
+#[command(disable_version_flag = true)]
+pub struct ServerInstanceExtensionCommand {
+    #[command(subcommand)]
+    pub subcommand: InstanceExtensionCommand,
+}
+
+#[derive(clap::Subcommand, Clone, Debug)]
+pub enum InstanceExtensionCommand {
+    /// List installed extensions for a local instance.
+    #[command(hide = true)]
+    List(ExtensionList),
+    /// List available extensions for a local instance.
+    ListAvailable(ExtensionListExtensions),
+    /// Install an extension for a local instance.
+    Install(ExtensionInstall),
+    /// Uninstall an extension from a local instance.
+    #[command(hide = true)]
+    Uninstall(ExtensionUninstall),
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionList {
+    /// Specify local instance name.
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub instance: Option<InstanceName>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionListExtensions {
+    /// Specify local instance name.
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub instance: Option<InstanceName>,
+    /// Specify the channel override (stable, testing, or nightly)
+    #[arg(long, hide = true)]
+    pub channel: Option<Channel>,
+    /// Specify the slot override (for development use)
+    #[arg(long, hide = true)]
+    pub slot: Option<String>,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionInstall {
+    /// Specify local instance name.
+    #[arg(short = 'I', long)]
+    #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
+    pub instance: Option<InstanceName>,
+    /// Name of the extension to install
+    #[arg(short = 'E', long)]
+    pub extension: String,
+    /// Specify the channel override (stable, testing, or nightly)
+    #[arg(long, hide = true)]
+    pub channel: Option<Channel>,
+    /// Specify the slot override (for development use)
+    #[arg(long, hide = true)]
+    pub slot: Option<String>,
+    /// Reinstall the extension if it's already installed
+    #[arg(long, hide = true)]
+    pub reinstall: bool,
+}
+/// Represents the options for uninstalling an extension from a local EdgeDB instance.
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionUninstall {
+    /// Specify local instance name.
+    #[arg(short = 'I', long)]
+    pub instance: Option<InstanceName>,
+    /// The name of the extension to uninstall.
+    #[arg(short = 'E', long)]
+    pub extension: String,
+}
+
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
     /// Show locally installed EdgeDB versions.

@@ -111,7 +111,7 @@ fn write_lock_info(
     use std::io::Write;
 
     lock.set_len(0)?;
-    lock.write_all(marker.as_ref().map(|x| &x[..]).unwrap_or("user").as_bytes())?;
+    lock.write_all(marker.as_deref().unwrap_or("user").as_bytes())?;
     Ok(())
 }
 

@@ -45,7 +45,7 @@ fn check_metadata(dir: &Path, pkg_info: &PackageInfo) -> anyhow::Result<InstallI
 }
 
 #[context("failed to download {}", pkg_info)]
-fn download_package(pkg_info: &PackageInfo) -> anyhow::Result<PathBuf> {
+pub fn download_package(pkg_info: &PackageInfo) -> anyhow::Result<PathBuf> {
     let cache_dir = platform::cache_dir()?;
     let download_dir = cache_dir.join("downloads");
     fs::create_dir_all(&download_dir)?;
@@ -209,6 +209,7 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
         package_url: pkg_info.url.clone(),
         package_hash: pkg_info.hash.clone(),
         installed_at: SystemTime::now(),
+        slot: pkg_info.slot.clone(),
     };
     write_json(&tmp_target.join("install_info.json"), "metadata", &info)?;
     fs::rename(&tmp_target, &target_dir)

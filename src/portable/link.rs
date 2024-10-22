@@ -453,7 +453,9 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
             .into());
     }
     with_projects(name, options.force, print_warning, || {
-        fs::remove_file(credentials::path(name)?).with_context(|| format!("cannot unlink {}", name))
+        let path = credentials::path(name)?;
+        fs::remove_file(&path)
+            .with_context(|| format!("Credentials for {name} missing from {path:?}"))
     })?;
     Ok(())
 }

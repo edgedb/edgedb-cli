@@ -16,6 +16,7 @@ mod control;
 mod create;
 mod credentials;
 mod destroy;
+mod extension;
 mod info;
 pub mod install;
 mod link;
@@ -28,5 +29,6 @@ pub mod status;
 mod uninstall;
 mod upgrade;
 
+pub use extension::extension_main;
 pub use main::{instance_main, project_main, server_main};
 pub use reset_password::password_hash;
