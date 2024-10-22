@@ -304,7 +304,7 @@ fn _filter_cli_package(pkg_root: &Url, pkg: &PackageData) -> Option<CliPackageIn
         .installrefs
         .iter()
         .find(|r| {
-            r.encoding.as_ref().map(|x| &x[..]) == Some("zstd")
+            r.encoding.as_deref() == Some("zstd")
                 && r.verification
                     .blake2b
                     .as_ref()
@@ -313,7 +313,7 @@ fn _filter_cli_package(pkg_root: &Url, pkg: &PackageData) -> Option<CliPackageIn
         })
         .or_else(|| {
             pkg.installrefs.iter().find(|r| {
-                r.encoding.as_ref().map(|x| &x[..]) == Some("identity")
+                r.encoding.as_deref() == Some("identity")
                     && r.verification
                         .blake2b
                         .as_ref()

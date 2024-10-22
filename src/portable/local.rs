@@ -14,6 +14,7 @@ use edgedb_tokio::Builder;
 
 use crate::bug;
 use crate::credentials;
+use crate::hint::HintExt;
 use crate::platform::{cache_dir, config_dir, data_dir, portable_dir};
 use crate::portable::repository::PackageHash;
 use crate::portable::ver;
@@ -404,9 +405,13 @@ impl InstallInfo {
             .join("data")
             .join("extensions");
         if !path.exists() {
-            Err(bug::error(
-                "no extension directory available for this server",
-            ))
+            Err(
+                bug::error("no extension directory available for this server")
+                    .with_hint(|| {
+                        format!("Extension installation requires EdgeDB server version 6 or later")
+                    })
+                    .into(),
+            )
         } else {
             Ok(path)
         }
@@ -417,9 +422,13 @@ impl InstallInfo {
         if path.exists() {
             Ok(path)
         } else {
-            Err(anyhow::anyhow!(
-                "edgedb-load-ext not found in the installation"
-            ))
+            Err(
+                anyhow::anyhow!("edgedb-load-ext not found in the installation")
+                    .with_hint(|| {
+                        format!("Extension installation requires EdgeDB server version 6 or later")
+                    })
+                    .into(),
+            )
         }
     }
 }
