@@ -83,10 +83,12 @@ pub struct ServerInstanceExtensionCommand {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum InstanceExtensionCommand {
-    #[command(hide=true)]
+    #[command(hide = true)]
     List(ExtensionList),
     ListAvailable(ExtensionListExtensions),
     Install(ExtensionInstall),
+    #[command(hide = true)]
+    Uninstall(ExtensionUninstall),
 }
 
 #[derive(clap::Args, IntoArgs, Debug, Clone)]
@@ -103,9 +105,9 @@ pub struct ExtensionListExtensions {
     #[arg(short = 'I', long)]
     #[arg(value_hint=ValueHint::Other)] // TODO complete instance name
     pub instance: Option<InstanceName>,
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub channel: Option<Channel>,
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub slot: Option<String>,
 }
 
@@ -117,10 +119,21 @@ pub struct ExtensionInstall {
     pub instance: Option<InstanceName>,
     #[arg(short = 'E', long)]
     pub extension: String,
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub channel: Option<Channel>,
-    #[arg(long, hide=true)]
+    #[arg(long, hide = true)]
     pub slot: Option<String>,
+    #[arg(long, hide = true)]
+    pub reinstall: bool,
+}
+
+#[derive(clap::Args, IntoArgs, Debug, Clone)]
+pub struct ExtensionUninstall {
+    /// Specify local instance name.
+    #[arg(short = 'I', long)]
+    pub instance: Option<InstanceName>,
+    #[arg(short = 'E', long)]
+    pub extension: String,
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]

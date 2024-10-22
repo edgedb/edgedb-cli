@@ -45,7 +45,7 @@ fn check_metadata(dir: &Path, pkg_info: &PackageInfo) -> anyhow::Result<InstallI
 }
 
 #[context("failed to download {}", pkg_info)]
-fn download_package(pkg_info: &PackageInfo) -> anyhow::Result<PathBuf> {
+pub fn download_package(pkg_info: &PackageInfo) -> anyhow::Result<PathBuf> {
     let cache_dir = platform::cache_dir()?;
     let download_dir = cache_dir.join("downloads");
     fs::create_dir_all(&download_dir)?;

@@ -219,7 +219,11 @@ where
     }
 }
 
-fn filter_package(pkg_root: &Url, pkg: &PackageData, expected_package_type: PackageType) -> Option<PackageInfo> {
+fn filter_package(
+    pkg_root: &Url,
+    pkg: &PackageData,
+    expected_package_type: PackageType,
+) -> Option<PackageInfo> {
     let result = _filter_package(pkg_root, pkg, expected_package_type);
     if result.is_none() {
         log::info!("Skipping package {:?}", pkg);
@@ -227,18 +231,31 @@ fn filter_package(pkg_root: &Url, pkg: &PackageData, expected_package_type: Pack
     result
 }
 
-fn _filter_package(pkg_root: &Url, pkg: &PackageData, expected_package_type: PackageType) -> Option<PackageInfo> {
+fn _filter_package(
+    pkg_root: &Url,
+    pkg: &PackageData,
+    expected_package_type: PackageType,
+) -> Option<PackageInfo> {
     let iref = pkg.installrefs.iter().find(|r| {
         let matches_type = match expected_package_type {
-            PackageType::TarZst => r.kind == "application/x-tar" && r.encoding.as_deref() == Some("zstd"),
-            PackageType::Zip => r.kind == "application/zip" && r.encoding.as_deref() == Some("identity"),
+            PackageType::TarZst => {
+                r.kind == "application/x-tar" && r.encoding.as_deref() == Some("zstd")
+            }
+            PackageType::Zip => {
+                r.kind == "application/zip" && r.encoding.as_deref() == Some("identity")
+            }
         };
         if !matches_type {
-            log::trace!("Package type mismatch: expected {:?}, got kind '{}' and encoding '{:?}'", 
-                        expected_package_type, r.kind, r.encoding);
+            log::trace!(
+                "Package type mismatch: expected {:?}, got kind '{}' and encoding '{:?}'",
+                expected_package_type,
+                r.kind,
+                r.encoding
+            );
             return false;
         }
-        let valid_verification = r.verification
+        let valid_verification = r
+            .verification
             .blake2b
             .as_ref()
             .map(valid_hash)
@@ -392,7 +409,10 @@ pub fn get_platform_extension_packages(
     let packages = data
         .packages
         .iter()
-        .filter(|pkg| pkg.tags.contains_key("extension") && pkg.tags.get("server_slot").map(|s| s.as_str()) == Some(slot))
+        .filter(|pkg| {
+            pkg.tags.contains_key("extension")
+                && pkg.tags.get("server_slot").map(|s| s.as_str()) == Some(slot)
+        })
         .filter_map(|p| filter_package(pkg_root, p, PackageType::Zip))
         .collect();
     Ok(packages)

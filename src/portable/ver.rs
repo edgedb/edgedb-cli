@@ -50,7 +50,8 @@ pub enum FilterMinor {
 }
 
 static BUILD: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r#"^\d+\.\d+(?:\.\d+)?(?:-(?:alpha|beta|rc|dev)\.\d+)?\+(?:[a-f0-9]{7}|local)$"#).unwrap()
+    Regex::new(r#"^\d+\.\d+(?:\.\d+)?(?:-(?:alpha|beta|rc|dev)\.\d+)?\+(?:[a-f0-9]{7}|local)$"#)
+        .unwrap()
 });
 
 static SPECIFIC: Lazy<Regex> = Lazy::new(|| {
