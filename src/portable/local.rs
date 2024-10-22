@@ -359,10 +359,12 @@ impl InstanceInfo {
         self.get_installation()?.server_path()
     }
 
+    #[allow(unused)]
     pub fn base_path(&self) -> anyhow::Result<PathBuf> {
         self.get_installation()?.base_path()
     }
 
+    #[allow(unused)]
     pub fn extension_path(&self) -> anyhow::Result<PathBuf> {
         self.get_installation()?.extension_path()
     }

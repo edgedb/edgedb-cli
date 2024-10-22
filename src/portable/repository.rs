@@ -7,7 +7,6 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Context;
-use edgedb_cli_derive::IntoArgs;
 use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
 use is_terminal::IsTerminal;
@@ -22,7 +21,6 @@ use crate::portable::platform;
 use crate::portable::ver;
 use crate::portable::windows;
 use crate::process::IntoArg;
-use crate::process::IntoArgs;
 
 pub const USER_AGENT: &str = "edgedb";
 pub const DEFAULT_TIMEOUT: Duration = Duration::new(60, 0);
