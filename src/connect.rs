@@ -15,7 +15,7 @@ use edgedb_errors::{ClientError, NoDataError, ProtocolEncodingError};
 use edgedb_errors::{Error, ErrorKind, ResultExt};
 use edgedb_protocol::client_message::{CompilationOptions, State};
 use edgedb_protocol::common::{Capabilities, Cardinality, IoFormat};
-use edgedb_protocol::descriptors::{RawTypedesc, Typedesc};
+use edgedb_protocol::descriptors_v1::{RawTypedesc, Typedesc};
 use edgedb_protocol::features::ProtocolVersion;
 use edgedb_protocol::model::Uuid;
 use edgedb_protocol::query_arg::QueryArgs;

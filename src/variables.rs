@@ -7,7 +7,7 @@ use crate::prompt;
 use crate::prompt::variable::{self, VariableInput};
 use crate::repl;
 use edgedb_protocol::codec;
-use edgedb_protocol::descriptors::{Descriptor, Typedesc};
+use edgedb_protocol::descriptors_v1::{Descriptor, Typedesc};
 use edgedb_protocol::value::Value;
 
 #[derive(Debug)]
