@@ -27,6 +27,11 @@
           fenix_pkgs = fenix.packages.${system};
 
           common = [
+            # for .github Makefile
+            pkgs.python312Packages.python 
+            pkgs.python312Packages.jinja2
+            pkgs.python312Packages.pyyaml
+
             # needed for running tests
             edgedb.packages.${system}.edgedb-server-nightly
           ] ++ pkgs.lib.optional pkgs.stdenv.isDarwin [
