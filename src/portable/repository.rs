@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::collections::HashMap;
 use std::env;
 use std::fmt;
 use std::future;
@@ -19,6 +20,7 @@ use crate::async_util::timeout;
 use crate::portable::platform;
 use crate::portable::ver;
 use crate::portable::windows;
+use crate::process::IntoArg;
 
 pub const USER_AGENT: &str = "edgedb";
 pub const DEFAULT_TIMEOUT: Duration = Duration::new(60, 0);
@@ -38,6 +40,7 @@ pub enum Channel {
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum PackageType {
     TarZst,
+    Zip,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -82,6 +85,9 @@ pub struct PackageData {
     pub basename: String,
     pub version: String,
     pub installrefs: Vec<InstallRef>,
+    pub slot: String,
+    #[serde(default)]
+    pub tags: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -92,11 +98,14 @@ pub struct Verification {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct PackageInfo {
+    pub name: String,
     pub version: ver::Build,
     pub url: Url,
     pub size: u64,
     pub hash: PackageHash,
     pub kind: PackageType,
+    pub slot: String,
+    pub tags: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +128,7 @@ impl PackageType {
     fn as_ext(&self) -> &str {
         match self {
             PackageType::TarZst => ".tar.zst",
+            PackageType::Zip => ".zip",
         }
     }
 }
@@ -207,30 +217,77 @@ where
     }
 }
 
-fn filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
-    let result = _filter_package(pkg_root, pkg);
+fn filter_package(
+    pkg_root: &Url,
+    pkg: &PackageData,
+    expected_package_type: PackageType,
+) -> Option<PackageInfo> {
+    let result = _filter_package(pkg_root, pkg, expected_package_type);
     if result.is_none() {
         log::info!("Skipping package {:?}", pkg);
     }
     result
 }
 
-fn _filter_package(pkg_root: &Url, pkg: &PackageData) -> Option<PackageInfo> {
+fn _filter_package(
+    pkg_root: &Url,
+    pkg: &PackageData,
+    expected_package_type: PackageType,
+) -> Option<PackageInfo> {
     let iref = pkg.installrefs.iter().find(|r| {
-        r.kind == "application/x-tar"
-            && r.encoding.as_ref().map(|x| &x[..]) == Some("zstd")
-            && r.verification
-                .blake2b
-                .as_ref()
-                .map(valid_hash)
-                .unwrap_or(false)
+        let matches_type = match expected_package_type {
+            PackageType::TarZst => {
+                r.kind == "application/x-tar" && r.encoding.as_deref() == Some("zstd")
+            }
+            PackageType::Zip => {
+                r.kind == "application/zip" && r.encoding.as_deref() == Some("identity")
+            }
+        };
+        if !matches_type {
+            log::trace!(
+                "Package type mismatch: expected {:?}, got kind '{}' and encoding '{:?}'",
+                expected_package_type,
+                r.kind,
+                r.encoding
+            );
+            return false;
+        }
+        let valid_verification = r
+            .verification
+            .blake2b
+            .as_ref()
+            .map(valid_hash)
+            .unwrap_or(false);
+        if !valid_verification {
+            log::trace!("Invalid or missing blake2b hash for package");
+            return false;
+        }
+        true
     })?;
+    let version = match pkg.version.parse() {
+        Ok(v) => v,
+        Err(e) => {
+            log::trace!("Failed to parse package version: {}", e);
+            return None;
+        }
+    };
+    let url = match pkg_root.join(&iref.path) {
+        Ok(u) => u,
+        Err(e) => {
+            log::trace!("Failed to join package URL: {}", e);
+            return None;
+        }
+    };
+    let hash = PackageHash::Blake2b(iref.verification.blake2b.as_ref()?[..].into());
     Some(PackageInfo {
-        version: pkg.version.parse().ok()?,
-        url: pkg_root.join(&iref.path).ok()?,
-        hash: PackageHash::Blake2b(iref.verification.blake2b.as_ref()?[..].into()),
-        kind: PackageType::TarZst,
+        name: pkg.basename.clone(),
+        version,
+        url,
+        hash,
+        kind: expected_package_type,
         size: iref.verification.size,
+        slot: pkg.slot.clone(),
+        tags: pkg.tags.clone(),
     })
 }
 
@@ -247,7 +304,7 @@ fn _filter_cli_package(pkg_root: &Url, pkg: &PackageData) -> Option<CliPackageIn
         .installrefs
         .iter()
         .find(|r| {
-            r.encoding.as_ref().map(|x| &x[..]) == Some("zstd")
+            r.encoding.as_deref() == Some("zstd")
                 && r.verification
                     .blake2b
                     .as_ref()
@@ -256,7 +313,7 @@ fn _filter_cli_package(pkg_root: &Url, pkg: &PackageData) -> Option<CliPackageIn
         })
         .or_else(|| {
             pkg.installrefs.iter().find(|r| {
-                r.encoding.as_ref().map(|x| &x[..]) == Some("identity")
+                r.encoding.as_deref() == Some("identity")
                     && r.verification
                         .blake2b
                         .as_ref()
@@ -264,7 +321,7 @@ fn _filter_cli_package(pkg_root: &Url, pkg: &PackageData) -> Option<CliPackageIn
                         .unwrap_or(false)
             })
         })?;
-    let cmpr = if iref.encoding.as_ref().map(|x| &x[..]) == Some("zstd") {
+    let cmpr = if iref.encoding.as_deref() == Some("zstd") {
         Some(Compression::Zstd)
     } else {
         None
@@ -330,7 +387,31 @@ fn get_platform_server_packages(
         .packages
         .iter()
         .filter(|pkg| pkg.basename == "edgedb-server")
-        .filter_map(|p| filter_package(pkg_root, p))
+        .filter_map(|p| filter_package(pkg_root, p, PackageType::TarZst))
+        .collect();
+    Ok(packages)
+}
+
+pub fn get_platform_extension_packages(
+    channel: Channel,
+    slot: &str,
+    platform: &str,
+) -> anyhow::Result<Vec<PackageInfo>> {
+    let pkg_root = pkg_root()?;
+
+    let data: RepositoryData = match get_json(&json_url(platform, channel)?, DEFAULT_TIMEOUT) {
+        Ok(data) => data,
+        Err(e) if e.is::<NotFound>() => RepositoryData { packages: vec![] },
+        Err(e) => return Err(e),
+    };
+    let packages = data
+        .packages
+        .iter()
+        .filter(|pkg| {
+            pkg.tags.contains_key("extension")
+                && pkg.tags.get("server_slot").map(|s| s.as_str()) == Some(slot)
+        })
+        .filter_map(|p| filter_package(pkg_root, p, PackageType::Zip))
         .collect();
     Ok(packages)
 }
@@ -423,7 +504,7 @@ pub async fn download(
 
 impl fmt::Display for PackageInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "edgdb-server@{}", self.version)
+        write!(f, "{}@{}", self.name, self.version)
     }
 }
 
@@ -755,6 +836,12 @@ impl Channel {
             Channel::Stable => "stable",
             Channel::Testing => "testing",
         }
+    }
+}
+
+impl IntoArg for &Channel {
+    fn add_arg(self, process: &mut crate::process::Native) {
+        process.arg(self.as_str());
     }
 }
 
