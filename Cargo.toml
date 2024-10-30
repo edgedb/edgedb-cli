@@ -167,7 +167,7 @@ rexpect = {git="https://github.com/tailhook/rexpect", branch="default_terminal_s
 openssl-sys = {version="0.9.104", features=["vendored"]}
 
 [profile.dev]
-opt-level = 2 # 1 -- needed so windows don't get stack overflow, 2 - for GHA
+opt-level = 0
 
 [profile.release]
 debug = true
