@@ -13,7 +13,7 @@ use edgedb_errors::{ParameterTypeMismatchError, StateMismatchError};
 use edgedb_protocol::client_message::Cardinality;
 use edgedb_protocol::client_message::CompilationOptions;
 use edgedb_protocol::common::RawTypedesc;
-use edgedb_protocol::common::{Capabilities, IoFormat, State};
+use edgedb_protocol::common::{Capabilities, State};
 use edgedb_protocol::descriptors::Typedesc;
 use edgedb_protocol::model::Duration;
 use edgedb_protocol::value::Value;
@@ -122,6 +122,10 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         last_analyze: None,
         implicit_limit,
         idle_transaction_timeout: idle_tx_timeout,
+        input_language: options
+            .input_language
+            .or(cfg.shell.input_language)
+            .unwrap_or(repl::InputLanguage::EdgeQL),
         output_format: options
             .output_format
             .or(cfg.shell.output_format)
@@ -276,11 +280,8 @@ async fn execute_query(
         implicit_typeids: false,
         explicit_objectids: true,
         allow_capabilities: Capabilities::ALL,
-        io_format: match state.output_format {
-            Default | TabSeparated => IoFormat::Binary,
-            JsonLines | JsonPretty => IoFormat::JsonElements,
-            Json => IoFormat::Json,
-        },
+        input_language: state.input_language.into(),
+        io_format: state.output_format.into(),
         expected_cardinality: Cardinality::Many,
     };
 
@@ -310,7 +311,11 @@ async fn execute_query(
 
             let input_start = Instant::now();
             let input = match cli
-                .ping_while(input_variables(&indesc, &mut state.prompt))
+                .ping_while(input_variables(
+                    &indesc,
+                    &mut state.prompt,
+                    state.input_language,
+                ))
                 .await
             {
                 Ok(input) => input,

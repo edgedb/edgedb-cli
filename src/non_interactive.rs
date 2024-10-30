@@ -8,8 +8,8 @@ use terminal_size::{terminal_size, Width};
 use tokio::fs::File as AsyncFile;
 use tokio::io::{stdin, AsyncRead};
 
+use edgedb_protocol::client_message::Cardinality;
 use edgedb_protocol::client_message::CompilationOptions;
-use edgedb_protocol::client_message::{Cardinality, IoFormat};
 use edgedb_protocol::common::Capabilities;
 use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
@@ -23,7 +23,7 @@ use crate::options::Options;
 use crate::options::Query;
 use crate::outputs::tab_separated;
 use crate::print::{self, PrintError};
-use crate::repl::OutputFormat;
+use crate::repl;
 use crate::statement::{read_statement, EndOfFile};
 
 #[tokio::main(flavor = "current_thread")]
@@ -42,16 +42,22 @@ pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), any
         } else {
             // Means "native" serialization; for `edgedb query`
             // the default is `json-pretty`.
-            OutputFormat::JsonPretty
+            repl::OutputFormat::JsonPretty
         }
+    };
+
+    let lang = if let Some(l) = q.input_language {
+        l
+    } else {
+        repl::InputLanguage::EdgeQL
     };
 
     if let Some(filename) = &q.file {
         if filename == "-" {
-            interpret_file(&mut stdin(), options, fmt).await?;
+            interpret_file(&mut stdin(), options, fmt, lang).await?;
         } else {
             let mut file = AsyncFile::open(filename).await?;
-            interpret_file(&mut file, options, fmt).await?;
+            interpret_file(&mut file, options, fmt, lang).await?;
         }
     } else if let Some(queries) = &q.queries {
         let mut conn = options.create_connector().await?.connect().await?;
@@ -62,7 +68,7 @@ pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), any
                                Use the dedicated `edgedb analyze` command."
                 );
             }
-            run_query(&mut conn, query, options, fmt).await?;
+            run_query(&mut conn, query, options, fmt, lang).await?;
         }
     } else {
         print::error!(
@@ -75,14 +81,19 @@ pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), any
 }
 
 #[tokio::main(flavor = "current_thread")]
-pub async fn interpret_stdin(options: &Options, fmt: OutputFormat) -> Result<(), anyhow::Error> {
-    return interpret_file(&mut stdin(), options, fmt).await;
+pub async fn interpret_stdin(
+    options: &Options,
+    fmt: repl::OutputFormat,
+    lang: repl::InputLanguage,
+) -> Result<(), anyhow::Error> {
+    return interpret_file(&mut stdin(), options, fmt, lang).await;
 }
 
 async fn interpret_file<T>(
     file: &mut T,
     options: &Options,
-    fmt: OutputFormat,
+    fmt: repl::OutputFormat,
+    lang: repl::InputLanguage,
 ) -> Result<(), anyhow::Error>
 where
     T: AsyncRead + Unpin,
@@ -105,7 +116,7 @@ where
                            Use the dedicated `edgedb analyze` command."
             );
         }
-        run_query(&mut conn, stmt, options, fmt).await?;
+        run_query(&mut conn, stmt, options, fmt, lang).await?;
     }
     Ok(())
 }
@@ -114,25 +125,29 @@ async fn run_query(
     conn: &mut Connection,
     stmt: &str,
     options: &Options,
-    fmt: OutputFormat,
+    fmt: repl::OutputFormat,
+    lang: repl::InputLanguage,
 ) -> Result<(), anyhow::Error> {
-    _run_query(conn, stmt, options, fmt).await.map_err(|err| {
-        if let Some(err) = err.downcast_ref::<edgedb_errors::Error>() {
-            match print_query_error(err, stmt, false, "<query>") {
-                Ok(()) => ExitCode::new(1).into(),
-                Err(e) => e,
+    _run_query(conn, stmt, options, fmt, lang)
+        .await
+        .map_err(|err| {
+            if let Some(err) = err.downcast_ref::<edgedb_errors::Error>() {
+                match print_query_error(err, stmt, false, "<query>") {
+                    Ok(()) => ExitCode::new(1).into(),
+                    Err(e) => e,
+                }
+            } else {
+                err
             }
-        } else {
-            err
-        }
-    })
+        })
 }
 
 async fn _run_query(
     conn: &mut Connection,
     stmt: &str,
     _options: &Options,
-    fmt: OutputFormat,
+    fmt: repl::OutputFormat,
+    lang: repl::InputLanguage,
 ) -> Result<(), anyhow::Error> {
     use crate::repl::OutputFormat::*;
 
@@ -142,11 +157,8 @@ async fn _run_query(
         implicit_typeids: false,
         explicit_objectids: true,
         allow_capabilities: Capabilities::ALL,
-        io_format: match fmt {
-            Default | TabSeparated => IoFormat::Binary,
-            JsonLines | JsonPretty => IoFormat::JsonElements,
-            Json => IoFormat::Json,
-        },
+        input_language: lang.into(),
+        io_format: fmt.into(),
         expected_cardinality: Cardinality::Many,
     };
     let data_description = conn.parse(&flags, stmt).await?;
@@ -170,7 +182,7 @@ async fn _run_query(
     }
 
     match fmt {
-        OutputFormat::TabSeparated => {
+        repl::OutputFormat::TabSeparated => {
             while let Some(row) = items.next().await.transpose()? {
                 let mut text = tab_separated::format_row(&row)?;
                 // trying to make writes atomic if possible
@@ -178,7 +190,7 @@ async fn _run_query(
                 stdout().lock().write_all(text.as_bytes())?;
             }
         }
-        OutputFormat::Default => match print::native_to_stdout(&mut items, &cfg).await {
+        repl::OutputFormat::Default => match print::native_to_stdout(&mut items, &cfg).await {
             Ok(()) => {}
             Err(e) => {
                 match e {
@@ -194,7 +206,7 @@ async fn _run_query(
                 return Ok(());
             }
         },
-        OutputFormat::JsonPretty => {
+        repl::OutputFormat::JsonPretty => {
             while let Some(row) = items.next().await.transpose()? {
                 let text = match row {
                     Value::Str(s) => s,
@@ -213,7 +225,7 @@ async fn _run_query(
                 stdout().lock().write_all(data.as_bytes())?;
             }
         }
-        OutputFormat::JsonLines => {
+        repl::OutputFormat::JsonLines => {
             while let Some(row) = items.next().await.transpose()? {
                 let mut text = match row {
                     Value::Str(s) => s,
@@ -229,7 +241,7 @@ async fn _run_query(
                 stdout().lock().write_all(text.as_bytes())?;
             }
         }
-        OutputFormat::Json => {
+        repl::OutputFormat::Json => {
             while let Some(row) = items.next().await.transpose()? {
                 let text = match row {
                     Value::Str(s) => s,
