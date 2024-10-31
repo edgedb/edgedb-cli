@@ -563,6 +563,12 @@ pub enum ValueParameter {
     /// allowing any queries to be executed.
     ApplyAccessPolicies(ConfigStr),
 
+    /// Apply access policies in SQL queries.
+    ///
+    /// User-specified access policies are not applied when set to `false`,
+    /// allowing any queries to be executed.
+    ApplyAccessPoliciesSQL(ConfigStr),
+
     /// Allow setting user-specified object identifiers.
     AllowUserSpecifiedId(ConfigStr),
 
@@ -626,6 +632,8 @@ pub enum ConfigParameter {
     AllowBareDdl,
     /// Reset apply_access_policies parameter to `true`
     ApplyAccessPolicies,
+    /// Reset apply_access_policies_sql parameter to `false`
+    ApplyAccessPoliciesSQL,
     /// Reset allow_user_specified_id parameter to `false`
     AllowUserSpecifiedId,
     /// Reset cors_allow_origins to an empty set
