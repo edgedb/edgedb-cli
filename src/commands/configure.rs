@@ -195,8 +195,8 @@ pub async fn configure(
             parameter: S::StoreMigrationSdl(ConfigStr { value }),
         }) => set(cli, "store_migration_sdl", None, format!("'{value}'")).await,
         C::Set(Set {
-            parameter: S::NetHttpMaxConnections(ConfigStr { value }),
-        }) => set(cli, "net_http_max_connections", None, value).await,
+            parameter: S::HttpMaxConnections(ConfigStr { value }),
+        }) => set(cli, "http_max_connections", None, value).await,
         C::Set(Set {
             parameter: S::SimpleScoping(ConfigStr { value }),
         }) => set(cli, "simple_scoping", None, value).await,
@@ -225,7 +225,7 @@ pub async fn configure(
                 C::AutoRebuildQueryCache => "auto_rebuild_query_cache",
                 C::AutoRebuildQueryCacheTimeout => "auto_rebuild_query_cache_timeout",
                 C::StoreMigrationSdl => "store_migration_sdl",
-                C::NetHttpMaxConnections => "net_http_max_connections",
+                C::HttpMaxConnections => "http_max_connections",
                 C::SimpleScoping => "simple_scoping",
                 C::WarnOldScoping => "warn_old_scoping",
             };
