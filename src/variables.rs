@@ -63,14 +63,12 @@ pub async fn input_variables(
 }
 
 fn get_descriptor_type<'a>(
-    mut desc: &'a Descriptor,
+    desc: &'a Descriptor,
     all: &'a Typedesc,
 ) -> Result<Arc<dyn VariableInput>, anyhow::Error> {
-    if let Descriptor::Scalar(s) = desc {
-        desc = all.get(s.base_type_pos)?;
-    }
+    let base = desc.normalize_to_base(&all.as_query_arg_context())?;
 
-    match desc {
+    match base {
         Descriptor::BaseScalar(s) => {
             let var_type: Arc<dyn VariableInput> = match *s.id {
                 codec::STD_STR => Arc::new(variable::Str),

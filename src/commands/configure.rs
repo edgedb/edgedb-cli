@@ -158,6 +158,9 @@ pub async fn configure(
             parameter: S::ApplyAccessPolicies(ConfigStr { value }),
         }) => set(cli, "apply_access_policies", None, value).await,
         C::Set(Set {
+            parameter: S::ApplyAccessPoliciesSQL(ConfigStr { value }),
+        }) => set(cli, "apply_access_policies_sql", None, value).await,
+        C::Set(Set {
             parameter: S::AllowUserSpecifiedId(ConfigStr { value }),
         }) => set(cli, "allow_user_specified_id", None, value).await,
         C::Set(Set {
@@ -195,8 +198,8 @@ pub async fn configure(
             parameter: S::StoreMigrationSdl(ConfigStr { value }),
         }) => set(cli, "store_migration_sdl", None, format!("'{value}'")).await,
         C::Set(Set {
-            parameter: S::NetHttpMaxConnections(ConfigStr { value }),
-        }) => set(cli, "net_http_max_connections", None, value).await,
+            parameter: S::HttpMaxConnections(ConfigStr { value }),
+        }) => set(cli, "http_max_connections", None, value).await,
         C::Set(Set {
             parameter: S::SimpleScoping(ConfigStr { value }),
         }) => set(cli, "simple_scoping", None, value).await,
@@ -220,12 +223,13 @@ pub async fn configure(
                 C::QueryExecutionTimeout => "query_execution_timeout",
                 C::AllowBareDdl => "allow_bare_ddl",
                 C::ApplyAccessPolicies => "apply_access_policies",
+                C::ApplyAccessPoliciesSQL => "apply_access_policies_sql",
                 C::AllowUserSpecifiedId => "allow_user_specified_id",
                 C::CorsAllowOrigins => "cors_allow_origins",
                 C::AutoRebuildQueryCache => "auto_rebuild_query_cache",
                 C::AutoRebuildQueryCacheTimeout => "auto_rebuild_query_cache_timeout",
                 C::StoreMigrationSdl => "store_migration_sdl",
-                C::NetHttpMaxConnections => "net_http_max_connections",
+                C::HttpMaxConnections => "http_max_connections",
                 C::SimpleScoping => "simple_scoping",
                 C::WarnOldScoping => "warn_old_scoping",
             };

@@ -10,10 +10,10 @@ use tokio::sync::mpsc::channel;
 use tokio_stream::StreamExt;
 
 use edgedb_errors::{ParameterTypeMismatchError, StateMismatchError};
+use edgedb_protocol::client_message::Cardinality;
 use edgedb_protocol::client_message::CompilationOptions;
-use edgedb_protocol::client_message::{Cardinality, IoFormat};
 use edgedb_protocol::common::RawTypedesc;
-use edgedb_protocol::common::{Capabilities, State};
+use edgedb_protocol::common::{Capabilities, IoFormat, State};
 use edgedb_protocol::descriptors::Typedesc;
 use edgedb_protocol::model::Duration;
 use edgedb_protocol::value::Value;
