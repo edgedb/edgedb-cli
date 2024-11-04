@@ -149,13 +149,13 @@ pub struct ExtensionUninstall {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
-    /// Show locally installed EdgeDB versions.
+    /// Show locally installed server versions.
     Info(Info),
-    /// Install an EdgeDB version locally.
+    /// Install a server version locally.
     Install(Install),
-    /// Uninstall an EdgeDB version locally.
+    /// Uninstall a server version locally.
     Uninstall(Uninstall),
-    /// List available and installed versions of EdgeDB.
+    /// List available and installed versions of the server.
     ListVersions(ListVersions),
 }
 

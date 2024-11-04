@@ -13,6 +13,7 @@ use clap_complete::{generate, shells};
 use fn_error_context::context;
 use prettytable::{Cell, Row, Table};
 
+use crate::branding::BRANDING;
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
 use crate::options::Options;
@@ -409,7 +410,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
         println!("Command-line tools are installed successfully.");
         println!();
         let q = question::Confirm::new(format!(
-            "Do you want to initialize an EdgeDB server instance for the project \
+            "Do you want to initialize a new {BRANDING} server instance for the project \
              defined in `{}`?",
             config_path.display(),
         ));
