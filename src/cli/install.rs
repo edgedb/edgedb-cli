@@ -10,6 +10,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use clap_complete::{generate, shells};
+use edgedb_tokio::get_stash_path;
 use fn_error_context::context;
 use prettytable::{Cell, Row, Table};
 
@@ -396,7 +397,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
 
     let base_dir = env::current_dir().context("failed to get current directory")?;
     if let Some((project_dir, config_path)) = project_dir(Some(&base_dir))? {
-        if project::stash_path(&project_dir)?.exists() {
+        if get_stash_path(&project_dir)?.exists() {
             log::info!("Project already initialized. Skipping...");
             return Ok(Already);
         }

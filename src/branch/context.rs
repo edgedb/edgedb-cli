@@ -1,4 +1,4 @@
-use edgedb_tokio::get_project_path;
+use edgedb_tokio::{get_project_path, get_stash_path};
 
 use crate::commands::Options;
 use crate::connect::Connection;
@@ -37,7 +37,7 @@ impl Context {
 
         if instance_name.is_none() {
             instance_name = if let Some(project_dir) = project_dir.as_ref() {
-                let stash_dir = project::stash_path(&fs::canonicalize(project_dir)?)?;
+                let stash_dir = get_stash_path(project_dir)?;
                 project::instance_name(&stash_dir).ok()
             } else {
                 None
@@ -68,7 +68,7 @@ impl Context {
             }
         } else if let Some(project_dir) = project_dir.as_ref() {
             // try read from the database file
-            let stash_dir = project::stash_path(&fs::canonicalize(project_dir)?)?;
+            let stash_dir = get_stash_path(&fs::canonicalize(project_dir)?)?;
             branch = project::database_name(&stash_dir)?;
         }
 
@@ -123,8 +123,7 @@ impl Context {
             } if self.project_dir.is_some() => {
                 // only place to store the branch is the database file in the project
                 let stash_path =
-                    project::stash_path(&fs::canonicalize(self.project_dir.as_ref().unwrap())?)?
-                        .join("database");
+                    get_stash_path(self.project_dir.as_ref().unwrap())?.join("database");
 
                 // ensure that the temp file is created in the same directory as the 'database' file
                 let tmp = tmp_file_path(&stash_path);

@@ -9,6 +9,7 @@ use std::str::FromStr;
 use anyhow::Context;
 use clap::ValueHint;
 use edgedb_tokio::get_project_path;
+use edgedb_tokio::get_stash_path;
 use edgedb_tokio::PROJECT_FILES;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
@@ -423,7 +424,7 @@ fn link(
     );
     echo!("Linking project...");
 
-    let stash_dir = stash_path(project_dir)?;
+    let stash_dir = get_stash_path(project_dir)?;
     if stash_dir.exists() {
         anyhow::bail!("Project is already linked");
     }
@@ -604,7 +605,7 @@ pub fn init_existing(
     );
     echo!("Initializing project...");
 
-    let stash_dir = stash_path(project_dir)?;
+    let stash_dir = get_stash_path(project_dir)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
         anyhow::bail!("Project is already initialized.");
@@ -929,7 +930,7 @@ pub fn init_new(
         project_dir.display()
     );
 
-    let stash_dir = stash_path(project_dir)?;
+    let stash_dir = get_stash_path(project_dir)?;
     if stash_dir.exists() {
         anyhow::bail!(
             "{CONFIG_FILE_DISPLAY_NAME} deleted after \
@@ -1092,30 +1093,8 @@ pub fn init_new(
     }
 }
 
-fn hash(path: &Path) -> anyhow::Result<String> {
-    Ok(hex::encode(
-        sha1::Sha1::new_with_prefix(path_bytes(path)?).finalize(),
-    ))
-}
-
-fn stash_name(path: &Path) -> anyhow::Result<OsString> {
-    let hash = hash(path)?;
-    let base = path
-        .file_name()
-        .ok_or_else(|| anyhow::anyhow!("bad path"))?;
-    let mut base = base.to_os_string();
-    base.push("-");
-    base.push(&hash);
-    Ok(base)
-}
-
 pub fn stash_base() -> anyhow::Result<PathBuf> {
     Ok(config_dir()?.join("projects"))
-}
-
-pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
-    let hname = stash_name(project_dir)?;
-    Ok(stash_base()?.join(hname))
 }
 
 fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
@@ -1659,7 +1638,7 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
     };
     let canon = fs::canonicalize(&project_dir)
         .with_context(|| format!("failed to canonicalize dir {:?}", project_dir))?;
-    let stash_path = stash_path(&canon)?;
+    let stash_path = get_stash_path(&canon)?;
 
     if stash_path.exists() {
         if options.destroy_server_instance {
@@ -1725,7 +1704,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
     let Some((root, _)) = project_dir(options.project_dir.as_deref())? else {
         anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to get project info.");
     };
-    let stash_dir = stash_path(&root)?;
+    let stash_dir = get_stash_path(&root)?;
     if !stash_dir.exists() {
         echo!(
             print::err_marker(),
@@ -1894,7 +1873,7 @@ pub fn update_toml(
     })?;
     let pkg_ver = pkg.version.specific();
 
-    let stash_dir = stash_path(&root)?;
+    let stash_dir = get_stash_path(&root)?;
     if !stash_dir.exists() {
         log::warn!("No associated instance found.");
 
@@ -2000,7 +1979,7 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
     let cfg_ver = &config.edgedb.server_version;
     let schema_dir = &config.project.schema_dir;
 
-    let stash_dir = stash_path(&root)?;
+    let stash_dir = get_stash_path(&root)?;
     if !stash_dir.exists() {
         anyhow::bail!("No instance initialized.");
     }
