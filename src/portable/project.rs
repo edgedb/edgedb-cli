@@ -1718,7 +1718,7 @@ pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<Option<(PathBuf,
     })
     .join()
     .unwrap()?;
-    Ok(res.map(|res| (res.clone(), res.parent().unwrap().to_owned())))
+    Ok(res.map(|res| (res.parent().unwrap().to_owned(), res)))
 }
 
 pub fn info(options: &Info) -> anyhow::Result<()> {
