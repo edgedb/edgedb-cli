@@ -832,7 +832,7 @@ impl Options {
                 Ok(Connector::new(Ok(cfg)))
             }
             Err(e) => {
-                let (_, cfg, _) = builder.build_no_fail().await;
+                let (_, cfg, errors) = builder.build_no_fail().await;
                 // ask password anyways, so input that fed as a password
                 // never goes to anywhere else
                 with_password(&self.conn_options, cfg).await?;
@@ -840,9 +840,10 @@ impl Options {
                 if e.is::<ClientNoCredentialsError>() {
                     let project_dir = get_project_path(None, true).await?;
                     let message = if project_dir.is_some() {
-                        "project is not initialized and no connection options \
-                            are specified"
-                            .to_owned()
+                        format!(
+                            "project is not initialized and no connection options \
+                            are specified: {errors:?}"
+                        )
                     } else {
                         format!(
                             "no {CONFIG_FILE_DISPLAY_NAME} found and no connection options \
