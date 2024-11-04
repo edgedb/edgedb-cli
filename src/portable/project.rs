@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::env;
-use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -13,7 +12,6 @@ use edgedb_tokio::get_stash_path;
 use edgedb_tokio::PROJECT_FILES;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
-use sha1::Digest;
 
 use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgedb_tokio::Builder;
