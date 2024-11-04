@@ -435,9 +435,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             server_start_conf: None,
             cloud_opts: options.clone(),
         };
-        let dir = fs::canonicalize(&project_dir)
-            .with_context(|| format!("failed to canonicalize dir {:?}", project_dir))?;
-        project::init_existing(&init, &dir, config_path, &options)?;
+        project::init_existing(&init, &project_dir, config_path, &options)?;
         Ok(Initialized)
     } else {
         Ok(NotAProject)

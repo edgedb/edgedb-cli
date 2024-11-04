@@ -68,7 +68,7 @@ impl Context {
             }
         } else if let Some(project_dir) = project_dir.as_ref() {
             // try read from the database file
-            let stash_dir = get_stash_path(&fs::canonicalize(project_dir)?)?;
+            let stash_dir = get_stash_path(project_dir)?;
             branch = project::database_name(&stash_dir)?;
         }
 
