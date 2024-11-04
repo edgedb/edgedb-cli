@@ -148,7 +148,7 @@ fn mock_project(
 
 fn ensure_dir(path: &Path) {
     if !path.exists() {
-        fs::create_dir_all(path).unwrap_or_else(|_| panic!("mkdir -p {:?}", path));
+        fs::create_dir_all(path).unwrap_or_else(|err| panic!("mkdir -p {:?}: {:?}", path, err));
     }
 }
 

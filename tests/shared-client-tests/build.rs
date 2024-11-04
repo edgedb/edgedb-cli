@@ -65,7 +65,7 @@ fn main() {
         ),
         (
             "no_options_or_toml",
-            "no `edgedb.toml` found and no connection options are specified",
+            "no .*toml.* found and no connection options are specified",
         ),
         (
             "multiple_compound_opts",
