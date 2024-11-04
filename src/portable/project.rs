@@ -17,7 +17,7 @@ use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgedb_tokio::Builder;
 use edgeql_parser::helpers::quote_name;
 
-use crate::branding::{CONFIG_FILE_DISPLAY_NAME, BRANDING_CLI, BRANDING};
+use crate::branding::{BRANDING, BRANDING_CLI, CONFIG_FILE_DISPLAY_NAME};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -293,7 +293,10 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
                 a project, run `{BRANDING_CLI}` command without `--link` flag"
             )
         }
-        let dir = options.project_dir.clone().unwrap_or_else(|| env::current_dir().unwrap());
+        let dir = options
+            .project_dir
+            .clone()
+            .unwrap_or_else(|| env::current_dir().unwrap());
         let config_path = dir.join(PROJECT_FILES[0]);
         init_new(options, &dir, config_path, opts)?;
         return Ok(());
@@ -409,7 +412,14 @@ fn link(
     config_path: PathBuf,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
-    echo!("Found `{}` in", config_path.file_name().unwrap_or_default().to_string_lossy(), project_dir.display());
+    echo!(
+        "Found `{}` in",
+        config_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy(),
+        project_dir.display()
+    );
     echo!("Linking project...");
 
     let stash_dir = stash_path(project_dir)?;
@@ -583,7 +593,14 @@ pub fn init_existing(
     config_path: PathBuf,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
-    echo!("Found `{}` in", config_path.file_name().unwrap_or_default().to_string_lossy(), project_dir.display());
+    echo!(
+        "Found `{}` in",
+        config_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy(),
+        project_dir.display()
+    );
     echo!("Initializing project...");
 
     let stash_dir = stash_path(project_dir)?;
@@ -1690,9 +1707,11 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
 
 pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<Option<(PathBuf, PathBuf)>> {
     // Create a temporary runtime. Not efficient, but only called at CLI startup.
-    tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap().block_on(async {
-        project_dir(cli_option)
-    })
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async { project_dir(cli_option) })
 }
 
 pub fn info(options: &Info) -> anyhow::Result<()> {
@@ -2005,14 +2024,20 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
             echo!(
                 "EdgeDB instance is up to date with \
                 the specification in `{}`.",
-                config_path.file_name().unwrap_or_default().to_string_lossy()
+                config_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
             );
             if let Some(available) = result.available_upgrade {
                 echo!("New major version is available:", available.emphasize());
                 echo!(
                     "To update `{}` and upgrade to this version, \
                         run:\n    edgedb project upgrade --to-latest",
-                        config_path.file_name().unwrap_or_default().to_string_lossy()
+                    config_path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
                 );
             }
         }

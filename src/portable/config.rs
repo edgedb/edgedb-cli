@@ -137,7 +137,10 @@ where
         return Ok(Some(out));
     }
 
-    print::error(format!("Invalid {CONFIG_FILE_DISPLAY_NAME}: missing {}", field_name));
+    print::error(format!(
+        "Invalid {CONFIG_FILE_DISPLAY_NAME}: missing {}",
+        field_name
+    ));
     Err(ExitCode::new(exit_codes::INVALID_CONFIG).into())
 }
 
@@ -176,7 +179,8 @@ pub fn modify_server_ver(config: &Path, ver: &Query) -> anyhow::Result<bool> {
     echo!(
         "Setting `server-version = ",
         format_args!("{:?}", ver.as_config_value()).emphasize(),
-        "` in `{}`", config.file_name().unwrap_or_default().to_string_lossy()
+        "` in `{}`",
+        config.file_name().unwrap_or_default().to_string_lossy()
     );
     read_modify_write(
         config,

@@ -70,10 +70,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
         .ok();
         tx.send(()).unwrap();
     })?;
-    watch.watch(
-        &project_path,
-        RecursiveMode::NonRecursive,
-    )?;
+    watch.watch(&project_path, RecursiveMode::NonRecursive)?;
     watch.watch(&ctx.migration.schema_dir, RecursiveMode::Recursive)?;
 
     runtime.block_on(ctx.do_update())?;

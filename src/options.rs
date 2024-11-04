@@ -16,8 +16,8 @@ use edgedb_cli_derive::IntoArgs;
 use crate::cli;
 use crate::cli::options::CliCommand;
 
-use crate::branding::CONFIG_FILE_DISPLAY_NAME;
 use crate::branch::option::BranchCommand;
+use crate::branding::CONFIG_FILE_DISPLAY_NAME;
 use crate::cloud::options::CloudCommand;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
@@ -841,10 +841,13 @@ impl Options {
                     let project_dir = get_project_path(None, true).await?;
                     let message = if project_dir.is_some() {
                         "project is not initialized and no connection options \
-                            are specified".to_owned()
+                            are specified"
+                            .to_owned()
                     } else {
-                        format!("no {CONFIG_FILE_DISPLAY_NAME} found and no connection options \
-                            are specified")
+                        format!(
+                            "no {CONFIG_FILE_DISPLAY_NAME} found and no connection options \
+                            are specified"
+                        )
                     };
                     Ok(Connector::new(
                         Err(anyhow::anyhow!(message))
