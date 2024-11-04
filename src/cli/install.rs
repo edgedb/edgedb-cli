@@ -19,6 +19,7 @@ use crate::options::Options;
 use crate::platform::current_exe;
 use crate::platform::{binary_path, config_dir, home_dir};
 use crate::portable::platform;
+use crate::portable::project::project_dir;
 use crate::portable::project::{self, Init};
 use crate::print::{self, echo};
 use crate::print_markdown;
@@ -393,8 +394,8 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
     }
 
     let base_dir = env::current_dir().context("failed to get current directory")?;
-    if let Some(dir) = project::search_dir(&base_dir) {
-        if project::stash_path(&base_dir)?.exists() {
+    if let Some((project_dir, config_path)) = project_dir(Some(&base_dir))? {
+        if project::stash_path(&project_dir)?.exists() {
             log::info!("Project already initialized. Skipping...");
             return Ok(Already);
         }
@@ -410,7 +411,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
         let q = question::Confirm::new(format!(
             "Do you want to initialize an EdgeDB server instance for the project \
              defined in `{}`?",
-            dir.join("edgedb.toml").display(),
+            config_path.display(),
         ));
         if !q.ask()? {
             return Ok(Refused);
@@ -432,9 +433,9 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             server_start_conf: None,
             cloud_opts: options.clone(),
         };
-        let dir = fs::canonicalize(&dir)
-            .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
-        project::init_existing(&init, &dir, &options)?;
+        let dir = fs::canonicalize(&project_dir)
+            .with_context(|| format!("failed to canonicalize dir {:?}", project_dir))?;
+        project::init_existing(&init, &dir, config_path, &options)?;
         Ok(Initialized)
     } else {
         Ok(NotAProject)

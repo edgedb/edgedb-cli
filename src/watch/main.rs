@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use edgedb_tokio::{get_project_dir, Error};
+use edgedb_tokio::{get_project_path, Error};
 use edgeql_parser::helpers::quote_string;
 use indicatif::ProgressBar;
 use notify::{RecursiveMode, Watcher};
@@ -48,7 +48,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
         .thread_name("watch")
         .enable_all()
         .build()?;
-    let project_dir = match runtime.block_on(get_project_dir(None, true))? {
+    let project_path = match runtime.block_on(get_project_path(None, true))? {
         Some(proj) => proj,
         None => anyhow::bail!(
             "The `edgedb watch` command currently only \
@@ -57,9 +57,10 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
     };
     let mut ctx = WatchContext {
         connector: options.block_on_create_connector()?,
-        migration: migrations::Context::for_watch(&project_dir)?,
+        migration: migrations::Context::for_watch(&project_path)?,
         last_error: false,
     };
+    let project_dir = project_path.parent().unwrap();
     log::info!("Initialized in project dir {:?}", project_dir);
     let (tx, rx) = watch::channel(());
     let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
@@ -70,7 +71,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
         tx.send(()).unwrap();
     })?;
     watch.watch(
-        &project_dir.join("edgedb.toml"),
+        &project_path,
         RecursiveMode::NonRecursive,
     )?;
     watch.watch(&ctx.migration.schema_dir, RecursiveMode::Recursive)?;

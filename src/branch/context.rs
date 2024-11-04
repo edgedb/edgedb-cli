@@ -1,4 +1,4 @@
-use edgedb_tokio::get_project_dir;
+use edgedb_tokio::get_project_path;
 
 use crate::commands::Options;
 use crate::connect::Connection;
@@ -31,7 +31,8 @@ impl Context {
         // use instance name provided with --instance
         let instance_name = options.conn_params.get()?.instance_name();
         let mut instance_name: Option<InstanceName> = instance_name.map(|n| n.clone().into());
-        let project_dir = get_project_dir(None, true).await?;
+        let project_file = get_project_path(None, true).await?;
+        let project_dir = project_file.as_ref().map(|p| p.parent().unwrap());
         let mut branch: Option<String> = None;
 
         if instance_name.is_none() {
@@ -72,7 +73,7 @@ impl Context {
         }
 
         Ok(Context {
-            project_dir,
+            project_dir: project_dir.map(|p| p.to_owned()),
             instance_name,
             current_branch: branch,
         })
@@ -144,12 +145,12 @@ impl Context {
     }
 
     pub async fn get_project_config(&self) -> anyhow::Result<Option<Config>> {
-        let project_dir = get_project_dir(None, true).await?;
+        let project_dir = get_project_path(None, true).await?;
         let Some(path) = &project_dir else {
             return Ok(None);
         };
         Ok(Some(crate::portable::config::read(
-            &path.join("edgedb.toml"),
+            &path,
         )?))
     }
 }

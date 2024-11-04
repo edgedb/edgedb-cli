@@ -84,7 +84,6 @@ fn check_project(name: &str, force: bool, ver_query: &Query) -> anyhow::Result<(
     }
 
     project::print_instance_in_use_warning(name, &project_dirs);
-    let current_project = project::project_dir_opt(None)?;
 
     if force {
         eprintln!(
@@ -96,7 +95,7 @@ fn check_project(name: &str, force: bool, ver_query: &Query) -> anyhow::Result<(
     }
     for pd in project_dirs {
         let pd = project::read_project_path(&pd)?;
-        print_project_upgrade_command(ver_query, &current_project, &pd);
+        print_project_upgrade_command(ver_query, &None, &pd);
     }
     if !force {
         anyhow::bail!("Upgrade aborted.");

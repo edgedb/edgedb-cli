@@ -52,7 +52,7 @@ pub enum MigrationCmd {
 pub struct MigrationConfig {
     /// Project schema directory.  The default is `dbschema/`,
     /// which can be changed by setting `project.schema-dir`
-    /// in `edgedb.toml`.
+    /// in `{gel,edgedb}.toml`.
     #[arg(long, value_hint=ValueHint::DirPath)]
     pub schema_dir: Option<PathBuf>,
 }

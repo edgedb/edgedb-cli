@@ -7,7 +7,7 @@ use colorful::Colorful;
 use edgedb_errors::{ClientNoCredentialsError, ResultExt};
 use edgedb_protocol::model;
 use edgedb_tokio::credentials::TlsSecurity;
-use edgedb_tokio::{get_project_dir, Builder, Config};
+use edgedb_tokio::{get_project_path, Builder, Config};
 use is_terminal::IsTerminal;
 use tokio::task::spawn_blocking as unblock;
 
@@ -16,6 +16,7 @@ use edgedb_cli_derive::IntoArgs;
 use crate::cli;
 use crate::cli::options::CliCommand;
 
+use crate::branding::CONFIG_FILE_DISPLAY_NAME;
 use crate::branch::option::BranchCommand;
 use crate::cloud::options::CloudCommand;
 use crate::commands::parser::Common;
@@ -837,13 +838,13 @@ impl Options {
                 with_password(&self.conn_options, cfg).await?;
 
                 if e.is::<ClientNoCredentialsError>() {
-                    let project_dir = get_project_dir(None, true).await?;
+                    let project_dir = get_project_path(None, true).await?;
                     let message = if project_dir.is_some() {
                         "project is not initialized and no connection options \
-                            are specified"
+                            are specified".to_owned()
                     } else {
-                        "no `edgedb.toml` found and no connection options \
-                            are specified"
+                        format!("no {CONFIG_FILE_DISPLAY_NAME} found and no connection options \
+                            are specified")
                     };
                     Ok(Connector::new(
                         Err(anyhow::anyhow!(message))

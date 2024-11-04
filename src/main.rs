@@ -13,6 +13,7 @@ use crate::options::{Options, UsageError};
 mod analyze;
 mod async_util;
 mod branch;
+mod branding;
 mod bug;
 mod classify;
 mod cli;

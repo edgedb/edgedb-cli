@@ -8,6 +8,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use clap::ValueHint;
+use edgedb_tokio::PROJECT_FILES;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use sha1::Digest;
@@ -16,6 +17,7 @@ use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgedb_tokio::Builder;
 use edgeql_parser::helpers::quote_name;
 
+use crate::branding::{CONFIG_FILE_DISPLAY_NAME, BRANDING_CLI, BRANDING};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -84,7 +86,7 @@ pub enum Command {
     ///
     /// Data is preserved using a dump/restore mechanism.
     ///
-    /// Upgrades to version specified in `edgedb.toml` unless other options specified.
+    /// Upgrades to version specified in `{gel,edgedb}.toml` unless other options specified.
     ///
     /// Note: May fail if lower version is specified (e.g. moving from nightly to stable).
     Upgrade(Upgrade),
@@ -283,50 +285,25 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
         );
     }
 
-    match &options.project_dir {
-        Some(dir) => {
-            let dir = fs::canonicalize(dir)?;
-            if dir.join("edgedb.toml").exists() {
-                if options.link {
-                    link(options, &dir, &opts.cloud_options)?
-                } else {
-                    init_existing(options, &dir, &opts.cloud_options)?
-                }
-            } else {
-                if options.link {
-                    anyhow::bail!(
-                        "`edgedb.toml` not found, unable to link an EdgeDB \
-                        instance without initialized project. To initialize \
-                        a project, run command without `--link` flag"
-                    )
-                }
-
-                init_new(options, &dir, opts)?
-            }
+    let Some((project_dir, config_path)) = project_dir(options.project_dir.as_deref())? else {
+        if options.link {
+            anyhow::bail!(
+                "{CONFIG_FILE_DISPLAY_NAME} not found, unable to link an {BRANDING} \
+                instance without an initialized project. To initialize \
+                a project, run `{BRANDING_CLI}` command without `--link` flag"
+            )
         }
-        None => {
-            let base_dir = env::current_dir().context("failed to get current directory")?;
-            if let Some(dir) = search_dir(&base_dir) {
-                let dir = fs::canonicalize(dir)?;
-                if options.link {
-                    link(options, &dir, &opts.cloud_options)?
-                } else {
-                    init_existing(options, &dir, &opts.cloud_options)?
-                }
-            } else {
-                if options.link {
-                    anyhow::bail!(
-                        "`edgedb.toml` not found, unable to link an EdgeDB \
-                        instance without an initialized project. To initialize \
-                        a project, run command without `--link` flag"
-                    )
-                }
-
-                let dir = fs::canonicalize(&base_dir)?;
-                init_new(options, &dir, opts)?
-            }
-        }
+        let dir = options.project_dir.clone().unwrap_or_else(|| env::current_dir().unwrap());
+        let config_path = dir.join(PROJECT_FILES[0]);
+        init_new(options, &dir, config_path, opts)?;
+        return Ok(());
     };
+
+    if options.link {
+        link(options, &project_dir, config_path, &opts.cloud_options)?;
+    } else {
+        init_existing(options, &project_dir, config_path, &opts.cloud_options)?;
+    }
     Ok(())
 }
 
@@ -429,9 +406,10 @@ pub fn get_default_branch_or_database(version: &Specific, project_dir: &Path) ->
 fn link(
     options: &Init,
     project_dir: &Path,
+    config_path: PathBuf,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
-    echo!("Found `edgedb.toml` in", project_dir.display());
+    echo!("Found `{}` in", config_path.file_name().unwrap_or_default().to_string_lossy(), project_dir.display());
     echo!("Linking project...");
 
     let stash_dir = stash_path(project_dir)?;
@@ -439,7 +417,6 @@ fn link(
         anyhow::bail!("Project is already linked");
     }
 
-    let config_path = project_dir.join("edgedb.toml");
     let config = config::read(&config_path)?;
     let ver_query = config.edgedb.server_version;
 
@@ -603,9 +580,10 @@ fn ask_name(
 pub fn init_existing(
     options: &Init,
     project_dir: &Path,
+    config_path: PathBuf,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
-    echo!("Found `edgedb.toml` in", project_dir.display());
+    echo!("Found `{}` in", config_path.file_name().unwrap_or_default().to_string_lossy(), project_dir.display());
     echo!("Initializing project...");
 
     let stash_dir = stash_path(project_dir)?;
@@ -614,7 +592,6 @@ pub fn init_existing(
         anyhow::bail!("Project is already initialized.");
     }
 
-    let config_path = project_dir.join("edgedb.toml");
     let config = config::read(&config_path)?;
     let schema_dir = config.project.schema_dir;
     let schema_dir_path = project_dir.join(&schema_dir);
@@ -926,17 +903,18 @@ fn do_cloud_init(
 pub fn init_new(
     options: &Init,
     project_dir: &Path,
+    config_path: PathBuf,
     opts: &crate::options::Options,
 ) -> anyhow::Result<ProjectInfo> {
     eprintln!(
-        "No `edgedb.toml` found in `{}` or above",
+        "No {CONFIG_FILE_DISPLAY_NAME} found in `{}` or above",
         project_dir.display()
     );
 
     let stash_dir = stash_path(project_dir)?;
     if stash_dir.exists() {
         anyhow::bail!(
-            "`edgedb.toml` deleted after \
+            "{CONFIG_FILE_DISPLAY_NAME} deleted after \
                        project initialization. \
                        Please run `edgedb project unlink -D` to \
                        clean up old database instance."
@@ -953,7 +931,6 @@ pub fn init_new(
         }
     }
 
-    let config_path = project_dir.join("edgedb.toml");
     let schema_dir = Path::new("dbschema");
     let schema_dir_path = project_dir.join(schema_dir);
     let schema_files = find_schema_files(schema_dir)?;
@@ -1095,20 +1072,6 @@ pub fn init_new(
             )
         }
     }
-}
-
-pub fn search_dir(base: &Path) -> Option<PathBuf> {
-    let mut path = base;
-    if path.join("edgedb.toml").exists() {
-        return Some(path.into());
-    }
-    while let Some(parent) = path.parent() {
-        if parent.join("edgedb.toml").exists() {
-            return Some(parent.into());
-        }
-        path = parent;
-    }
-    None
 }
 
 fn hash(path: &Path) -> anyhow::Result<String> {
@@ -1411,7 +1374,7 @@ impl Handle<'_> {
             Ok(inst_ver) => {
                 print::warn(format!(
                     "WARNING: existing instance has version {}, \
-                    but {} is required by `edgedb.toml`",
+                    but {} is required by {CONFIG_FILE_DISPLAY_NAME}",
                     inst_ver,
                     ver_query.display(),
                 ));
@@ -1654,20 +1617,6 @@ fn print_cloud_versions(title: &str, client: &CloudClient) -> anyhow::Result<()>
     Ok(())
 }
 
-fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
-    let mut path = base;
-    while let Some(parent) = path.parent() {
-        let canon = fs::canonicalize(path)
-            .with_context(|| format!("failed to canonicalize dir {:?}", parent))?;
-        let stash_dir = stash_path(&canon)?;
-        if stash_dir.exists() || path.join("edgedb.toml").exists() {
-            return Ok(stash_dir);
-        }
-        path = parent;
-    }
-    anyhow::bail!("no project directory found");
-}
-
 #[context("cannot read instance name of {:?}", stash_dir)]
 pub fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
     let inst = fs::read_to_string(stash_dir.join("instance-name"))?;
@@ -1687,14 +1636,12 @@ pub fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
 }
 
 pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let stash_path = if let Some(dir) = &options.project_dir {
-        let canon = fs::canonicalize(dir)
-            .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
-        stash_path(&canon)?
-    } else {
-        let base = env::current_dir().context("failed to get current directory")?;
-        search_for_unlink(&base)?
+    let Some((project_dir, _)) = project_dir(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to unlink instance.");
     };
+    let canon = fs::canonicalize(&project_dir)
+        .with_context(|| format!("failed to canonicalize dir {:?}", project_dir))?;
+    let stash_path = stash_path(&canon)?;
 
     if stash_path.exists() {
         if options.destroy_server_instance {
@@ -1741,36 +1688,17 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
     Ok(())
 }
 
-pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<PathBuf> {
-    project_dir_opt(cli_option)?.ok_or_else(|| anyhow::anyhow!("no `edgedb.toml` found"))
-}
-
-pub fn project_dir_opt(cli_options: Option<&Path>) -> anyhow::Result<Option<PathBuf>> {
-    match cli_options {
-        Some(dir) => {
-            if dir.join("edgedb.toml").exists() {
-                let canon = fs::canonicalize(dir)
-                    .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
-                Ok(Some(canon))
-            } else {
-                anyhow::bail!("no `edgedb.toml` found in {:?}", dir);
-            }
-        }
-        None => {
-            let dir = env::current_dir().context("failed to get current directory")?;
-            if let Some(ancestor) = search_dir(&dir) {
-                let canon = fs::canonicalize(&ancestor)
-                    .with_context(|| format!("failed to canonicalize dir {:?}", ancestor))?;
-                Ok(Some(canon))
-            } else {
-                Ok(None)
-            }
-        }
-    }
+pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<Option<(PathBuf, PathBuf)>> {
+    // Create a temporary runtime. Not efficient, but only called at CLI startup.
+    tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap().block_on(async {
+        project_dir(cli_option)
+    })
 }
 
 pub fn info(options: &Info) -> anyhow::Result<()> {
-    let root = project_dir(options.project_dir.as_deref())?;
+    let Some((root, _)) = project_dir(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to get project info.");
+    };
     let stash_dir = stash_path(&root)?;
     if !stash_dir.exists() {
         echo!(
@@ -1925,8 +1853,9 @@ pub fn update_toml(
     opts: &crate::options::Options,
     query: Query,
 ) -> anyhow::Result<()> {
-    let root = project_dir(options.project_dir.as_deref())?;
-    let config_path = root.join("edgedb.toml");
+    let Some((root, config_path)) = project_dir(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to upgrade {BRANDING} instance without an initialized project.");
+    };
     let config = config::read(&config_path)?;
     let schema_dir = &config.project.schema_dir;
 
@@ -2038,8 +1967,9 @@ fn print_other_project_warning(
 }
 
 pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let root = project_dir(options.project_dir.as_deref())?;
-    let config_path = root.join("edgedb.toml");
+    let Some((root, config_path)) = project_dir(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to upgrade {BRANDING} instance without an initialized project.");
+    };
     let config = config::read(&config_path)?;
     let cfg_ver = &config.edgedb.server_version;
     let schema_dir = &config.project.schema_dir;
@@ -2074,13 +2004,15 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
         upgrade::UpgradeAction::None => {
             echo!(
                 "EdgeDB instance is up to date with \
-                the specification in `edgedb.toml`."
+                the specification in `{}`.",
+                config_path.file_name().unwrap_or_default().to_string_lossy()
             );
             if let Some(available) = result.available_upgrade {
                 echo!("New major version is available:", available.emphasize());
                 echo!(
-                    "To update `edgedb.toml` and upgrade to this version, \
-                        run:\n    edgedb project upgrade --to-latest"
+                    "To update `{}` and upgrade to this version, \
+                        run:\n    edgedb project upgrade --to-latest",
+                        config_path.file_name().unwrap_or_default().to_string_lossy()
                 );
             }
         }

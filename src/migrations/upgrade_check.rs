@@ -190,7 +190,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
             .ok();
             tx.send(()).unwrap();
         })?;
-        // TODO(tailhook) do we have to monitor `edgedb.toml` for the schema
+        // TODO(tailhook) do we have to monitor `{gel,edgedb}.toml` for the schema
         // dir change
         watch.watch(&ctx.schema_dir, RecursiveMode::Recursive)?;
 
