@@ -8,6 +8,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use clap::ValueHint;
+use edgedb_tokio::get_project_path;
 use edgedb_tokio::PROJECT_FILES;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
@@ -1707,11 +1708,17 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
 
 pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<Option<(PathBuf, PathBuf)>> {
     // Create a temporary runtime. Not efficient, but only called at CLI startup.
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async { project_dir(cli_option) })
+    let cli_option = cli_option.map(|p| p.to_owned());
+    let res = std::thread::spawn(move || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(get_project_path(cli_option.as_deref(), true))
+    })
+    .join()
+    .unwrap()?;
+    Ok(res.map(|res| (res.clone(), res.parent().unwrap().to_owned())))
 }
 
 pub fn info(options: &Info) -> anyhow::Result<()> {
