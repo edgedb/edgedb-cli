@@ -48,7 +48,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             data_meta: Ok(d),
         } => (b, d),
     };
-    echo!("{BRANDING} version:", old_inst.get_version()?);
+    echo!(BRANDING, " version: ", old_inst.get_version()?);
     echo!(
         "Backup timestamp:",
         humantime::format_rfc3339(backup_info.timestamp),
@@ -105,7 +105,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     fs::rename(&paths.backup_dir, &paths.data_dir)?;
 
     let inst = old_inst;
-    echo!("Starting {BRANDING}", inst.get_version()?, "...");
+    echo!("Starting ", BRANDING, " ", inst.get_version()?, "...");
 
     create::create_service(&inst)
         .map_err(|e| {

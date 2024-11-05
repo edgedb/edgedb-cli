@@ -2,9 +2,12 @@ use std::path::PathBuf;
 
 use clap::ValueHint;
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::migrations::options::{Migrate, Migration};
 use crate::options::ConnectionOptions;
 use crate::repl::{self, VectorLimit};
+
+use const_format::concatcp;
 
 use edgedb_cli_derive::EdbSettings;
 
@@ -417,11 +420,11 @@ pub struct Dump {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(override_usage(
-    "edgedb restore [OPTIONS] <path>\n    \
-     Pre 5.0: edgedb restore -d <database-name> <path>\n    \
-     >=5.0:   edgedb restore -b <branch-name> <path>"
-))]
+#[command(override_usage(concatcp!(
+    BRANDING_CLI_CMD, " restore [OPTIONS] <path>\n    \
+     Pre 5.0: ", BRANDING_CLI_CMD, " restore -d <database-name> <path>\n    \
+     >=5.0:   ", BRANDING_CLI_CMD, " restore -b <branch-name> <path>"
+)))]
 pub struct Restore {
     #[command(flatten)]
     pub conn: Option<ConnectionOptions>,

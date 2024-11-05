@@ -6,6 +6,7 @@ use anyhow::Context;
 use fn_error_context::context;
 use fs_err as fs;
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::cli::install::{get_rc_files, no_dir_in_path};
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -340,7 +341,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     if !dry_run && dir_is_non_empty(base)? {
         eprintln!(
             "\
-            Directory {:?} is no longer used by EdgeDB tools and must be \
+            Directory {:?} is no longer used by {BRANDING} tools and must be \
             removed to finish migration, but some files or directories \
             remain after all known files have moved. \
             The files may have been left by a third party tool. \
@@ -358,9 +359,10 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
                 Once all files are backed up, run one of:\n\
                 ```\n\
                 rm -rf ~/.edgedb\n\
-                edgedb cli migrate\n\
+                ${cmd} cli migrate\n\
                 ```\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD
             );
             return Err(ExitCode::new(2).into());
         }

@@ -14,7 +14,7 @@ use edgedb_tokio::get_stash_path;
 use fn_error_context::context;
 use prettytable::{Cell, Row, Table};
 
-use crate::branding::BRANDING;
+use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLI_CMD};
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
 use crate::options::Options;
@@ -284,9 +284,10 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
                 "\n\
                 To initialize a new project, run:\n\
                 ```\n\
-                    edgedb project init\n\
+                    ${cmd} project init\n\
                 ```\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD
             );
         }
         Ok(InitResult::NotAProject) => {
@@ -294,17 +295,19 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
                 "\n\
                 To initialize a new project, run:\n\
                 ```\n\
-                    edgedb project init\n\
+                    ${cmd} project init\n\
                 ```\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD,
             );
         }
         Ok(InitResult::Already) => {
             print_markdown!(
                 "\n\
-                `edgedb` without parameters will automatically\n\
+                `${cmd}` without parameters will automatically\n\
                 connect to the current project.\n\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD,
             );
         }
         Ok(InitResult::OldLayout) => {
@@ -312,10 +315,11 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
                 "\n\
                 To initialize a project run:\n\
                 ```\n\
-                    edgedb cli migrate\n\
-                    edgedb project init\n\
+                    ${cmd} cli migrate\n\
+                    ${cmd} project init\n\
                 ```\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD,
             );
         }
         Err(e) => {
@@ -325,9 +329,10 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
                 \n\
                 To restart project initialization, run:\n\
                 ```\n\
-                    edgedb project init\n\
+                    ${cmd} project init\n\
                 ```\
                 ",
+                cmd = BRANDING_CLI_CMD,
                 err = format!("{:#}", e),
             );
         }
@@ -557,7 +562,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     let new_layout = if base.exists() {
         eprintln!(
             "\
-            Edgedb CLI no longer uses '{}' to store data \
+                {BRANDING_CLI} no longer uses '{}' to store data \
                 and now uses standard locations of your OS. \
         ",
             base.display()

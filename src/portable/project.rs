@@ -319,10 +319,12 @@ fn ask_existing_instance_name(cloud_client: &mut CloudClient) -> anyhow::Result<
     let instances = credentials::all_instance_names()?;
 
     loop {
-        let mut q = question::String::new(
-            "Specify the name of {BRANDING} instance \
-                                   to link with this project",
-        );
+        let mut q = question::String::new(concatcp!(
+            "Specify the name of the ",
+            BRANDING,
+            " instance \
+                                   to link with this project"
+        ));
         let target_name = q.ask()?;
 
         let inst_name = match InstanceName::from_str(&target_name) {
@@ -547,15 +549,20 @@ fn ask_name(
         }
         return Ok((default_name, false));
     }
-    let mut q =
-        question::String::new("Specify the name of {BRANDING} instance to use with this project");
+    let mut q = question::String::new(concatcp!(
+        "Specify the name of the ",
+        BRANDING,
+        " instance to use with this project"
+    ));
     let default_name_str = default_name.to_string();
     q.default(&default_name_str);
     loop {
         let default_name_clone = default_name.clone();
-        let mut q = question::String::new(
-            "Specify the name of {BRANDING} instance to use with this project",
-        );
+        let mut q = question::String::new(concatcp!(
+            "Specify the name of the ",
+            BRANDING,
+            " instance to use with this project"
+        ));
         let default_name_str = default_name_clone.to_string();
         let target_name = q.default(&default_name_str).ask()?;
         let inst_name = match InstanceName::from_str(&target_name) {
@@ -1479,7 +1486,11 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
     } else {
         String::new()
     };
-    let mut q = question::String::new("Specify the version of {BRANDING} to use with this project");
+    let mut q = question::String::new(concatcp!(
+        "Specify the version of the ",
+        BRANDING,
+        " instance to use with this project"
+    ));
     q.default(&default_ver);
     loop {
         let value = q.ask()?;
@@ -1565,7 +1576,11 @@ fn ask_cloud_version(
     }
     let default = cloud::versions::get_version(&Query::stable(), client)?;
     let default_ver = Query::from_version(&default)?.as_config_value();
-    let mut q = question::String::new("Specify the version of {BRANDING} to use with this project");
+    let mut q = question::String::new(concatcp!(
+        "Specify the version of the ",
+        BRANDING,
+        " instance to use with this project"
+    ));
     q.default(&default_ver);
     loop {
         let value = q.ask()?;
@@ -2026,7 +2041,9 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
                 echo!("New major version is available:", available.emphasize());
                 echo!(
                     "To update `{}` and upgrade to this version, \
-                        run:\n    edgedb project upgrade --to-latest",
+                        run:\n    ",
+                    BRANDING_CLI_CMD,
+                    " project upgrade --to-latest",
                     config_path
                         .file_name()
                         .unwrap_or_default()
