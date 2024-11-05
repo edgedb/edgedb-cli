@@ -1,5 +1,6 @@
 use edgeql_parser::helpers::quote_name;
 
+use crate::branding::BRANDING;
 use crate::commands::parser::{CreateDatabase, DropDatabase, WipeDatabase};
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
@@ -14,7 +15,7 @@ pub async fn create(
     _: &Options,
 ) -> Result<(), anyhow::Error> {
     if cli.get_version().await?.specific().major >= 5 {
-        eprintln!("'edgedb database create' is deprecated in EdgeDB 5+. Please use 'edgedb branch create'");
+        eprintln!("'edgedb database create' is deprecated in {BRANDING} 5+. Please use 'edgedb branch create'");
     }
 
     let (status, _warnings) = cli
@@ -34,7 +35,7 @@ pub async fn drop(
 ) -> Result<(), anyhow::Error> {
     if cli.get_version().await?.specific().major >= 5 {
         eprintln!(
-            "'edgedb database drop' is deprecated in EdgeDB 5+. Please use 'edgedb branch drop'"
+            "'edgedb database drop' is deprecated in {BRANDING} 5+. Please use 'edgedb branch drop'"
         );
     }
 
@@ -65,14 +66,14 @@ pub async fn wipe(
 ) -> Result<(), anyhow::Error> {
     if cli.get_version().await?.specific().major >= 5 {
         eprintln!(
-            "'edgedb database wipe' is deprecated in EdgeDB 5+. Please use 'edgedb branch wipe'"
+            "'edgedb database wipe' is deprecated in {BRANDING} 5+. Please use 'edgedb branch wipe'"
         );
     }
 
     if cli.get_version().await?.specific() < "3.0-alpha.2".parse().unwrap() {
         return Err(anyhow::anyhow!(
             "The `database wipe` command is only \
-                            supported in EdgeDB >= 3.0"
+                            supported in {BRANDING} >= 3.0"
         ))
         .hint("Use `edgedb database drop`, `edgedb database create`")?;
     }

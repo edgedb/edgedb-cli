@@ -12,6 +12,7 @@ use fn_error_context::context;
 
 use edgedb_tokio::Builder;
 
+use crate::branding::BRANDING;
 use crate::bug;
 use crate::credentials;
 use crate::hint::HintExt;
@@ -408,7 +409,9 @@ impl InstallInfo {
             Err(
                 bug::error("no extension directory available for this server")
                     .with_hint(|| {
-                        format!("Extension installation requires EdgeDB server version 6 or later")
+                        format!(
+                            "Extension installation requires {BRANDING} server version 6 or later"
+                        )
                     })
                     .into(),
             )
@@ -425,7 +428,9 @@ impl InstallInfo {
             Err(
                 anyhow::anyhow!("edgedb-load-ext not found in the installation")
                     .with_hint(|| {
-                        format!("Extension installation requires EdgeDB server version 6 or later")
+                        format!(
+                            "Extension installation requires {BRANDING} server version 6 or later"
+                        )
                     })
                     .into(),
             )

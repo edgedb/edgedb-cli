@@ -2,10 +2,12 @@ use std::fs;
 use std::str::FromStr;
 
 use anyhow::Context;
+use const_format::concatcp;
 use fn_error_context::context;
 
 use color_print::cformat;
 
+use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLOUD};
 use crate::cloud;
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -66,7 +68,11 @@ fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<Ins
 
 pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
-        print::error("`edgedb instance create` is not supported in Docker containers.");
+        print::error(concatcp!(
+            "`",
+            BRANDING_CLI,
+            " instance create` is not supported in Docker containers."
+        ));
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     if cmd.start_conf.is_some() {
@@ -132,7 +138,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         .with_context(|| format!("instance {:?} detected", name))
         .with_hint(|| {
             format!(
-                "Use `edgedb instance destroy -I {}` \
+                "Use `{BRANDING_CLI} instance destroy -I {}` \
                               to remove rest of unused instance",
                 name
             )
@@ -158,7 +164,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
             },
             || anyhow::Ok(Query::stable()),
         )?;
-        let inst = install::version(&query).context("error installing EdgeDB")?;
+        let inst = install::version(&query).context(concatcp!("error installing ", BRANDING))?;
         let specific_version = &inst.version.specific();
         let info = InstanceInfo {
             name: name.clone(),
@@ -184,9 +190,9 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     match create_service(&info) {
         Ok(()) => {}
         Err(e) => {
-            log::warn!("Error running EdgeDB as a service: {e:#}");
+            log::warn!("Error running {BRANDING} as a service: {e:#}");
             print::warn(
-                "EdgeDB will not start on next login. \
+                "{BRANDING} will not start on next login. \
                          Trying to start database in the background...",
             );
             control::start(&Start {
@@ -201,7 +207,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
 
     echo!("Instance", name.emphasize(), "is up and running.");
     echo!("To connect to the instance run:");
-    echo!("  edgedb -I", name);
+    echo!("  ", BRANDING_CLI, " -I", name);
     Ok(())
 }
 
@@ -338,7 +344,7 @@ fn create_cloud(
 
     if !cmd.non_interactive
         && !question::Confirm::new(format!(
-            "This will create a new EdgeDB cloud instance with the following parameters:\
+            "This will create a new {BRANDING} cloud instance with the following parameters:\
         \n\
         \nTier: {tier:?}\
         \nRegion: {region}\
@@ -387,9 +393,9 @@ fn create_cloud(
         source_backup_id: cmd.cloud_backup_source.from_backup_id.clone(),
     };
     cloud::ops::create_cloud_instance(client, &request)?;
-    echo!("EdgeDB Cloud instance", inst_name, "is up and running.");
+    echo!(BRANDING_CLOUD, " instance", inst_name, "is up and running.");
     echo!("To connect to the instance run:");
-    echo!("  edgedb -I", inst_name);
+    echo!("  ", BRANDING_CLI, " -I", inst_name);
     Ok(())
 }
 
@@ -425,7 +431,7 @@ fn bootstrap_script(user: &str, password: &str) -> String {
     output
 }
 
-#[context("cannot bootstrap EdgeDB instance")]
+#[context("cannot bootstrap {BRANDING} instance")]
 pub fn bootstrap(
     paths: &Paths,
     info: &InstanceInfo,
@@ -443,7 +449,7 @@ pub fn bootstrap(
     let password = generate_password();
     let script = bootstrap_script(user, &password);
 
-    echo!("Initializing EdgeDB instance...");
+    echo!("Initializing ", BRANDING, " instance...");
     let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
     cmd.arg("--bootstrap-only");
     cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");

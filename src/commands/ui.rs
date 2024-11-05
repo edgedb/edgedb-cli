@@ -37,7 +37,7 @@ pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
             Err(e) => {
                 print::error(format!("Cannot launch browser: {:#}", e));
                 print::prompt(
-                    "Please paste the URL below into your browser to launch the EdgeDB UI:",
+                    "Please paste the URL below into your browser to launch the {BRANDING} UI:",
                 );
                 println!("{}", url);
                 Err(ExitCode::new(1).into())
@@ -111,9 +111,9 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
             match open_url(&url).map(|r| r.status()) {
                 Ok(reqwest::StatusCode::OK) => {}
                 Ok(reqwest::StatusCode::NOT_FOUND) => {
-                    print::error("Web UI not served correctly by specified EdgeDB server.");
+                    print::error("Web UI not served correctly by specified {BRANDING} server.");
                     print::echo!(
-                        "  If you have EdgeDB 2.0 and above, try running the \
+                        "  If you have {BRANDING} 2.0 and above, try running the \
                         server with `--admin-ui=enabled`."
                     );
                     return Err(ExitCode::new(2).into());
@@ -121,7 +121,7 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                 Ok(status) => {
                     log::info!("GET {} returned status code {}", url, status);
                     print::error(
-                        "Web UI not served correctly by specified EdgeDB server. \
+                        "Web UI not served correctly by specified {BRANDING} server. \
                         Try `edgedb instance logs -I <instance_name>` to see details.",
                     );
                     return Err(ExitCode::new(3).into());

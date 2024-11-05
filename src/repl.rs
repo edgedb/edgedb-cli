@@ -18,6 +18,7 @@ use edgedb_protocol::value::Value;
 
 use crate::analyze;
 use crate::async_util::timeout;
+use crate::branding::BRANDING;
 use crate::connect::Connection;
 use crate::connect::Connector;
 use crate::echo;
@@ -164,7 +165,7 @@ impl State {
     }
     fn print_banner(&self, version: &ver::Build) -> anyhow::Result<()> {
         echo!(
-            format!("{}\rEdgeDB", ansi_escapes::EraseLine).light_gray(),
+            format!("{}\r{BRANDING}", ansi_escapes::EraseLine).light_gray(),
             version.to_string().light_gray(),
             format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade(),
         );

@@ -9,6 +9,7 @@ use tokio::fs;
 use tokio::sync::watch;
 
 use crate::async_try;
+use crate::branding::BRANDING_CLI;
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::migrations::context::Context;
@@ -81,7 +82,7 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck) -> anyhow::Resu
 
     let pkg = repository::get_server_package(&version)?
         .with_context(|| format!("no package matching {} found", version.display()))?;
-    let info = install::package(&pkg).context("error installing EdgeDB")?;
+    let info = install::package(&pkg).context("error installing {BRANDING}")?;
 
     // This is run from windows to do the upgrade check
     if let Some(status_path) = &options.run_server_with_status {
@@ -113,7 +114,7 @@ pub fn to_version(_: &PackageInfo, _: &Config) -> anyhow::Result<()> {
 
 #[cfg(unix)]
 pub fn to_version(pkg: &PackageInfo, config: &Config) -> anyhow::Result<()> {
-    let info = install::package(pkg).context("error installing EdgeDB")?;
+    let info = install::package(pkg).context("error installing {BRANDING}")?;
     let ctx = Context::for_project(config)?;
     spawn_and_check(&info, ctx, false)
 }
@@ -206,7 +207,11 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
             Okay => {}
             SchemaIssue => {
                 echo!("For faster feedback loop use:");
-                echo!("    edgedb migration upgrade-check --watch".command_hint());
+                echo!(
+                    "    ",
+                    BRANDING_CLI,
+                    " migration upgrade-check --watch".command_hint()
+                );
                 return Err(ExitCode::new(3))?;
             }
             MigrationsIssue => {
@@ -282,7 +287,11 @@ fn print_apply_migration_error() {
          but some of the migrations are outdated.",
     );
     echo!("Please squash all migrations to fix the issue:");
-    echo!("    edgedb migration create --squash".command_hint());
+    echo!(
+        "    ",
+        BRANDING_CLI,
+        " migration create --squash".command_hint()
+    );
 }
 
 pub async fn watch_loop(

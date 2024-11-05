@@ -6,6 +6,7 @@ use anyhow::Context as _;
 use tokio::fs;
 
 use crate::async_try;
+use crate::branding::BRANDING_CLI;
 use crate::bug;
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
@@ -135,7 +136,9 @@ async fn confirm_squashing(db_rev: &str) -> anyhow::Result<()> {
                 Hint: To see the current revision for a specific instance, run:"
     );
     echo!(
-        "       edgedb -I <name> migration log --from-db --newest-first --limit 1".command_hint()
+        "       ",
+        BRANDING_CLI,
+        " -I <name> migration log --from-db --newest-first --limit 1".command_hint()
     );
     echo!(
         "  3. Merge version control branches that contain schema changes \
@@ -175,7 +178,7 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
         echo!("    git add dbschema".command_hint());
         echo!("");
         echo!("The normal migration process will update your migration history:");
-        echo!("    edgedb migrate".command_hint());
+        echo!("    ", BRANDING_CLI, " migrate".command_hint());
     } else {
         echo!("Squash is complete.");
         echo!("");
@@ -186,8 +189,8 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
         echo!("    git add dbschema".command_hint());
         echo!("");
         echo!("You can now wipe your instances and apply the new schema:");
-        echo!("    edgedb database wipe".command_hint());
-        echo!("    edgedb migrate".command_hint());
+        echo!("    ", BRANDING_CLI, " database wipe".command_hint());
+        echo!("    ", BRANDING_CLI, " migrate".command_hint());
     }
     Ok(())
 }

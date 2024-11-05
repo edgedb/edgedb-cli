@@ -1,5 +1,6 @@
 use color_print::cformat;
 
+use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLOUD};
 use crate::cloud;
 use crate::portable::options::{Backup, InstanceName, ListBackups, Restore};
 use crate::print::echo;
@@ -9,7 +10,7 @@ pub fn list(cmd: &ListBackups, opts: &crate::options::Options) -> anyhow::Result
     match &cmd.instance {
         InstanceName::Local(_) => Err(opts.error(
             clap::error::ErrorKind::InvalidValue,
-            cformat!("list-backups can only operate on Cloud instances."),
+            cformat!("list-backups can only operate on {BRANDING_CLOUD} instances."),
         ))?,
         InstanceName::Cloud {
             org_slug: org,
@@ -36,7 +37,7 @@ pub fn backup(cmd: &Backup, opts: &crate::options::Options) -> anyhow::Result<()
     match &cmd.instance {
         InstanceName::Local(_) => Err(opts.error(
             clap::error::ErrorKind::InvalidValue,
-            cformat!("Only Cloud instances can be backed up using this command."),
+            cformat!("Only {BRANDING_CLOUD} instances can be backed up using this command."),
         ))?,
         InstanceName::Cloud {
             org_slug: org,
@@ -60,7 +61,7 @@ fn backup_cloud_cmd(
     };
 
     let prompt = format!(
-        "Will create a backup for the \"{inst_name}\" Cloud instance:\
+        "Will create a backup for the \"{inst_name}\" {BRANDING_CLOUD} instance:\
         \n\nContinue?",
     );
 
@@ -75,7 +76,9 @@ fn backup_cloud_cmd(
     cloud::backups::backup_cloud_instance(&client, &request)?;
 
     echo!(
-        "Successfully created a backup for EdgeDB Cloud instance",
+        "Successfully created a backup for ",
+        BRANDING_CLOUD,
+        " instance",
         inst_name,
     );
     Ok(())
@@ -85,7 +88,7 @@ pub fn restore(cmd: &Restore, opts: &crate::options::Options) -> anyhow::Result<
     match &cmd.instance {
         InstanceName::Local(_) => Err(opts.error(
             clap::error::ErrorKind::InvalidValue,
-            cformat!("Only Cloud instances can be restored."),
+            cformat!("Only {BRANDING_CLOUD} instances can be restored."),
         ))?,
         InstanceName::Cloud {
             org_slug: org,
@@ -113,7 +116,7 @@ fn restore_cloud_cmd(
     let source_inst = match &cmd.source_instance {
         Some(InstanceName::Local(_)) => Err(opts.error(
             clap::error::ErrorKind::InvalidValue,
-            cformat!("--source-instance can only be a Cloud instance"),
+            cformat!("--source-instance can only be a {BRANDING_CLOUD} instance"),
         ))?,
         Some(InstanceName::Cloud { org_slug, name }) => {
             let inst = cloud::ops::find_cloud_instance_by_name(name, org_slug, &client)?
@@ -124,7 +127,7 @@ fn restore_cloud_cmd(
     };
 
     let prompt = format!(
-        "Will restore the \"{inst_name}\" Cloud instance from the specified backup:\
+        "Will restore the \"{inst_name}\" {BRANDING_CLOUD} instance from the specified backup:\
         \n\nContinue?",
     );
 
@@ -142,11 +145,12 @@ fn restore_cloud_cmd(
     cloud::backups::restore_cloud_instance(&client, &request)?;
 
     echo!(
-        "EdgeDB Cloud instance",
+        BRANDING_CLOUD,
+        " instance",
         inst_name,
         "has been restored successfully."
     );
     echo!("To connect to the instance run:");
-    echo!("  edgedb -I", inst_name);
+    echo!("  ", BRANDING_CLI, " -I", inst_name);
     Ok(())
 }

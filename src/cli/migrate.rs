@@ -6,6 +6,7 @@ use anyhow::Context;
 use fn_error_context::context;
 use fs_err as fs;
 
+use crate::branding::BRANDING_CLI;
 use crate::cli::install::{get_rc_files, no_dir_in_path};
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -210,7 +211,7 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
             )
         })?;
         if modified && no_dir_in_path(&new_bin_dir) {
-            print::success("The `edgedb` executable has moved!");
+            print::success("The `{BRANDING_CLI}` executable has moved!");
             print_markdown!(
                 "\
                 \n\

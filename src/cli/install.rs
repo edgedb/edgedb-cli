@@ -494,7 +494,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     }
 
     if cfg!(all(target_os = "macos", target_arch = "x86_64")) && platform::is_arm64_hardware() {
-        echo!("EdgeDB now supports native M1 build. Downloading binary...");
+        echo!("{BRANDING} now supports native M1 build. Downloading binary...");
         return upgrade::upgrade_to_arm64();
     }
 

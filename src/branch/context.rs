@@ -1,5 +1,6 @@
 use edgedb_tokio::{get_project_path, get_stash_path};
 
+use crate::branding::{BRANDING, BRANDING_CLOUD};
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::credentials;
@@ -55,7 +56,7 @@ impl Context {
                 InstanceName::Cloud { org_slug, name } => anyhow::bail!(
                     // should never occur because of the above check
                     format!(
-                        "cannot use Cloud instance {}/{}: instance is not linked to a project",
+                        "cannot use {BRANDING_CLOUD} instance {}/{}: instance is not linked to a project",
                         org_slug, name
                     )
                 ),
@@ -137,7 +138,7 @@ impl Context {
                 name: inst,
             } => {
                 anyhow::bail!(
-                    format!("cannot switch branches on Cloud instance {}/{}: instance is not linked to a project", org, inst)
+                    format!("cannot switch branches on {BRANDING_CLOUD} instance {}/{}: instance is not linked to a project", org, inst)
                 )
             }
         }

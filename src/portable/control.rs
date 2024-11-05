@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
+use crate::branding::BRANDING;
 use crate::bug;
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -376,7 +377,7 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
         if supervisor && is_run_by_supervisor(lock) {
             supervisor_stop(name)
         } else if let Some(pid) = read_pid(name)? {
-            log::info!("Stopping EdgeDB with pid {}", pid);
+            log::info!("Stopping {BRANDING} with pid {}", pid);
             process::term(pid)?;
             // wait for unlock
             let _ = open_lock(name)?
@@ -392,7 +393,7 @@ pub fn do_stop(name: &str) -> anyhow::Result<()> {
             supervisor_stop(name)
         } else {
             if let Some(pid) = read_pid(name)? {
-                log::info!("Stopping EdgeDB with pid {}", pid);
+                log::info!("Stopping {BRANDING} with pid {}", pid);
                 process::term(pid)?;
                 // wait for unlock
                 let _ = open_lock(name)?.read()?;
@@ -441,7 +442,7 @@ pub fn stop_and_disable(instance: &str) -> anyhow::Result<bool> {
             // properly running
             if !supervisor || !is_run_by_supervisor(lock) {
                 if let Some(pid) = read_pid(instance)? {
-                    log::info!("Stopping EdgeDB with pid {}", pid);
+                    log::info!("Stopping {BRANDING} with pid {}", pid);
                     process::term(pid)?;
                     // wait for unlock
                     let _ = open_lock(instance)?.read()?;
@@ -478,7 +479,7 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
             supervisor_restart(inst)
         } else {
             if let Some(pid) = read_pid(&inst.name)? {
-                log::info!("Stopping EdgeDB with pid {}", pid);
+                log::info!("Stopping {BRANDING} with pid {}", pid);
                 process::term(pid)?;
                 // wait for unlock
                 let _ = open_lock(&inst.name)?.read()?;
@@ -497,7 +498,7 @@ pub fn do_restart(inst: &InstanceInfo) -> anyhow::Result<()> {
             supervisor_restart(inst)
         } else {
             if let Some(pid) = read_pid(&inst.name)? {
-                log::info!("Stopping EdgeDB with pid {}", pid);
+                log::info!("Stopping {BRANDING} with pid {}", pid);
                 process::term(pid)?;
                 // wait for unlock
                 let _ = lock.read()?;

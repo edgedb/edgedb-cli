@@ -18,6 +18,7 @@ use tokio::time::sleep;
 use crate::connect::Connection;
 use edgedb_tokio::{credentials::Credentials, Builder};
 
+use crate::branding::{BRANDING_CLI, BRANDING_CLOUD};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::collect::Collector;
@@ -845,7 +846,7 @@ impl RemoteStatus {
     pub fn print_extended(&self) {
         println!("{}:", self.name);
         let is_cloud = if let RemoteType::Cloud { instance_id } = &self.type_ {
-            println!("  Cloud Instance ID: {}", instance_id);
+            println!("  {BRANDING_CLOUD} Instance ID: {}", instance_id);
             true
         } else {
             false

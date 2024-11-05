@@ -2,6 +2,7 @@ use color_print::cformat;
 
 use anyhow::Context;
 
+use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLOUD};
 use crate::cloud;
 use crate::portable::options::{InstanceName, Resize};
 use crate::print::echo;
@@ -11,7 +12,7 @@ pub fn resize(cmd: &Resize, opts: &crate::options::Options) -> anyhow::Result<()
     match &cmd.instance {
         InstanceName::Local(_) => Err(opts.error(
             clap::error::ErrorKind::InvalidValue,
-            cformat!("Only Cloud instances can be resized."),
+            cformat!("Only {BRANDING_CLOUD} instances can be resized."),
         ))?,
         InstanceName::Cloud {
             org_slug: org,
@@ -159,7 +160,7 @@ fn resize_cloud_cmd(
     }
 
     let prompt = format!(
-        "Will resize the \"{inst_name}\" Cloud instance as follows:\
+        "Will resize the \"{inst_name}\" {BRANDING_CLOUD} instance as follows:\
         \n\
         {resources_display}\
         \n\nContinue?",
@@ -179,11 +180,12 @@ fn resize_cloud_cmd(
         cloud::ops::resize_cloud_instance(&client, &request)?;
     }
     echo!(
-        "EdgeDB Cloud instance",
+        BRANDING_CLOUD,
+        " instance",
         inst_name,
         "has been resized successfuly."
     );
     echo!("To connect to the instance run:");
-    echo!("  edgedb -I", inst_name);
+    echo!("  ", BRANDING_CLI, " -I", inst_name);
     Ok(())
 }

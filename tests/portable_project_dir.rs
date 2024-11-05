@@ -15,7 +15,7 @@ fn project_link_and_init_from_non_project_dir() {
         .context("version", "command-line version option")
         .success()
         .stdout(predicates::str::contains(concat!(
-            "EdgeDB CLI ",
+            "{BRANDING} CLI ",
             env!("CARGO_PKG_VERSION")
         )));
 

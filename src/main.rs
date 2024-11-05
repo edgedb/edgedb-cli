@@ -8,6 +8,7 @@ use std::env;
 use std::path::Path;
 use std::process::exit;
 
+use crate::branding::BRANDING;
 use crate::options::{Options, UsageError};
 
 mod analyze;
@@ -87,7 +88,7 @@ fn main() {
                     );
                 } else if item.is::<bug::Bug>() {
                     eprintln!(
-                        "  Hint: This is most likely a bug in EdgeDB \
+                        "  Hint: This is most likely a bug in {BRANDING} \
                         or command-line tools. Please consider opening an \
                         issue at \
                         https://github.com/edgedb/edgedb-cli/issues/new\

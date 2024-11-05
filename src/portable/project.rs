@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use clap::ValueHint;
+use const_format::concatcp;
 use edgedb_tokio::get_project_path;
 use edgedb_tokio::get_stash_path;
 use edgedb_tokio::PROJECT_FILES;
@@ -273,7 +274,11 @@ struct JsonInfo<'a> {
 
 pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
-        print::error("`edgedb project init` is not supported in Docker containers.");
+        print::error(concatcp!(
+            "`",
+            BRANDING_CLI,
+            " project init` is not supported in Docker containers."
+        ));
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
 
@@ -315,7 +320,7 @@ fn ask_existing_instance_name(cloud_client: &mut CloudClient) -> anyhow::Result<
 
     loop {
         let mut q = question::String::new(
-            "Specify the name of EdgeDB instance \
+            "Specify the name of {BRANDING} instance \
                                    to link with this project",
         );
         let target_name = q.ask()?;
@@ -480,12 +485,12 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path) -> anyhow::Result<Pr
     print::success("Project linked");
     if let Some(dir) = &options.project_dir {
         eprintln!(
-            "To connect to {}, navigate to {} and run `edgedb`",
+            "To connect to {}, navigate to {} and run `{BRANDING_CLI}`",
             inst.name,
             dir.display()
         );
     } else {
-        eprintln!("To connect to {}, run `edgedb`", inst.name);
+        eprintln!("To connect to {}, run `{BRANDING_CLI}`", inst.name);
     }
 
     Ok(ProjectInfo {
@@ -543,13 +548,14 @@ fn ask_name(
         return Ok((default_name, false));
     }
     let mut q =
-        question::String::new("Specify the name of EdgeDB instance to use with this project");
+        question::String::new("Specify the name of {BRANDING} instance to use with this project");
     let default_name_str = default_name.to_string();
     q.default(&default_name_str);
     loop {
         let default_name_clone = default_name.clone();
-        let mut q =
-            question::String::new("Specify the name of EdgeDB instance to use with this project");
+        let mut q = question::String::new(
+            "Specify the name of {BRANDING} instance to use with this project",
+        );
         let default_name_str = default_name_clone.to_string();
         let target_name = q.default(&default_name_str).ask()?;
         let inst_name = match InstanceName::from_str(&target_name) {
@@ -653,7 +659,7 @@ pub fn init_existing(
 
     match &name {
         InstanceName::Cloud { org_slug, name } => {
-            echo!("Checking EdgeDB cloud versions...");
+            echo!("Checking {BRANDING} cloud versions...");
 
             let ver = cloud::versions::get_version(&ver_query, &client)
                 .with_context(|| "could not initialize project")?;
@@ -702,7 +708,7 @@ pub fn init_existing(
             )
         }
         InstanceName::Local(name) => {
-            echo!("Checking EdgeDB versions...");
+            echo!("Checking {BRANDING} versions...");
 
             let pkg = repository::get_server_package(&ver_query)?.with_context(|| {
                 format!(
@@ -817,7 +823,7 @@ fn do_init(
         })?;
         InstanceKind::Wsl(WslInfo {})
     } else {
-        let inst = install::package(pkg).context("error installing EdgeDB")?;
+        let inst = install::package(pkg).context("error installing {BRANDING}")?;
         let info = InstanceInfo {
             name: name.into(),
             installation: Some(inst),
@@ -827,9 +833,9 @@ fn do_init(
         match create::create_service(&info) {
             Ok(()) => {}
             Err(e) => {
-                log::warn!("Error running EdgeDB as a service: {e:#}");
+                log::warn!("Error running {BRANDING} as a service: {e:#}");
                 print::warn(
-                    "EdgeDB will not start on next login. \
+                    "{BRANDING} will not start on next login. \
                              Trying to start database in the background...",
                 );
                 control::start(&Start {
@@ -984,7 +990,7 @@ pub fn init_new(
 
     match &inst_name {
         InstanceName::Cloud { org_slug, name } => {
-            echo!("Checking EdgeDB cloud versions...");
+            echo!("Checking {BRANDING} cloud versions...");
             client.ensure_authenticated()?;
 
             let (ver_query, version) = ask_cloud_version(options, &client)?;
@@ -1033,7 +1039,7 @@ pub fn init_new(
             )
         }
         InstanceName::Local(name) => {
-            echo!("Checking EdgeDB versions...");
+            echo!("Checking {BRANDING} versions...");
             let (ver_query, pkg) = ask_local_version(options)?;
             let specific_version = &pkg.version.specific();
             ver::print_version_hint(specific_version, &ver_query);
@@ -1218,7 +1224,9 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Resu
                     Skip => {
                         print::warn("Skipping migrations.");
                         echo!(
-                            "You can use `edgedb migrate` to apply migrations \
+                            "You can use `",
+                            BRANDING_CLI,
+                            " migrate` to apply migrations \
                                once the service is up and running."
                         );
                         return Ok(());
@@ -1408,9 +1416,9 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
     print::success("Project initialized.");
     if let Some(dir) = dir_option {
         echo!("To connect to", name.emphasize();
-              ", navigate to", dir.display(), "and run `edgedb`");
+              ", navigate to", dir.display(), "and run `", BRANDING_CLI, "`");
     } else {
-        echo!("To connect to", name.emphasize(); ", run `edgedb`");
+        echo!("To connect to", name.emphasize(); ", run `", BRANDING_CLI, "`");
     }
 }
 
@@ -1471,7 +1479,7 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
     } else {
         String::new()
     };
-    let mut q = question::String::new("Specify the version of EdgeDB to use with this project");
+    let mut q = question::String::new("Specify the version of {BRANDING} to use with this project");
     q.default(&default_ver);
     loop {
         let value = q.ask()?;
@@ -1557,7 +1565,7 @@ fn ask_cloud_version(
     }
     let default = cloud::versions::get_version(&Query::stable(), client)?;
     let default_ver = Query::from_version(&default)?.as_config_value();
-    let mut q = question::String::new("Specify the version of EdgeDB to use with this project");
+    let mut q = question::String::new("Specify the version of {BRANDING} to use with this project");
     q.default(&default_ver);
     loop {
         let value = q.ask()?;
@@ -1882,7 +1890,8 @@ pub fn update_toml(
         }
         echo!(
             "Run",
-            "edgedb project init".command_hint(),
+            BRANDING_CLI,
+            " project init".command_hint(),
             "to initialize an instance."
         );
     } else {
@@ -2006,7 +2015,7 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
         }
         upgrade::UpgradeAction::None => {
             echo!(
-                "EdgeDB instance is up to date with \
+                "{BRANDING} instance is up to date with \
                 the specification in `{}`.",
                 config_path
                     .file_name()

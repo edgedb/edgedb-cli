@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use colorful::Colorful;
+use const_format::concatcp;
 use edgedb_errors::{ClientNoCredentialsError, ResultExt};
 use edgedb_protocol::model;
 use edgedb_tokio::credentials::TlsSecurity;
@@ -18,6 +19,7 @@ use crate::cli::options::CliCommand;
 
 use crate::branch::option::BranchCommand;
 use crate::branding::CONFIG_FILE_DISPLAY_NAME;
+use crate::branding::{BRANDING, BRANDING_CLI};
 use crate::cloud::options::CloudCommand;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
@@ -36,11 +38,19 @@ use crate::watch::options::WatchCommand;
 const MAX_TERM_WIDTH: usize = 100;
 const MIN_TERM_WIDTH: usize = 50;
 
-const CONN_OPTIONS_GROUP: &str = "Connection Options (edgedb --help-connect to see full list)";
+const CONN_OPTIONS_GROUP: &str = concatcp!(
+    " Connection Options (",
+    BRANDING_CLI,
+    " --help-connect to see full list)"
+);
 const CLOUD_OPTIONS_GROUP: &str = "Cloud Connection Options";
-const CONNECTION_ARG_HINT: &str = "\
-    Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
-    to specify connection parameters. See `--help` for details";
+const CONNECTION_ARG_HINT: &str = concatcp!(
+    "\
+    Run `",
+    BRANDING_CLI,
+    " project init` or use any of `-H`, `-P`, `-I` arguments \
+    to specify connection parameters. See `--help` for details"
+);
 
 #[derive(clap::Args, Clone, Debug)]
 #[group(id = "connopts")]
@@ -681,7 +691,7 @@ impl Options {
         //
         // to enable connection and/or cloud options for themselves
         // and their subcommands.
-        let tmp = clap::Command::new("edgedb");
+        let tmp = clap::Command::new(BRANDING_CLI);
         let tmp = <RawOptions as clap::Args>::augment_args(tmp);
         let mut global_args: Vec<_> = tmp
             .get_groups()
@@ -698,7 +708,7 @@ impl Options {
             }
         });
 
-        let app = clap::Command::new("edgedb")
+        let app = clap::Command::new(BRANDING_CLI)
             .term_width(term_width())
             .args(deglobalized);
 
@@ -720,7 +730,7 @@ impl Options {
         }
 
         if args.print_version {
-            println!("EdgeDB CLI {}", clap::crate_version!());
+            println!("{BRANDING} CLI {}", clap::crate_version!());
             return Err(ExitCode::new(0).into());
         }
 
@@ -732,7 +742,10 @@ impl Options {
         let interactive = args.query.is_none() && subcommand.is_none() && stdin().is_terminal();
 
         if args.json {
-            say_option_is_deprecated("--json", "edgedb query --output-format=json");
+            say_option_is_deprecated(
+                "--json",
+                concatcp!(BRANDING_CLI, " query --output-format=json"),
+            );
         }
         if args.tab_separated {
             say_option_is_deprecated(
@@ -741,7 +754,7 @@ impl Options {
             );
         }
         let subcommand = if let Some(query) = args.query {
-            say_option_is_deprecated("-c", "edgedb query");
+            say_option_is_deprecated("-c", concatcp!(BRANDING_CLI, " query"));
             let output_format = if args.json {
                 Some(OutputFormat::Json)
             } else if args.tab_separated {

@@ -76,7 +76,7 @@ pub async fn common(
                     Some(addr) => {
                         println!("{}", addr.0);
                     }
-                    None => print::error("pgaddr requires EdgeDB to run in DEV mode"),
+                    None => print::error("pgaddr requires {BRANDING} to run in DEV mode"),
                 }
             }
         },

@@ -2,6 +2,7 @@ use std::path::{PathBuf, MAIN_SEPARATOR};
 
 use prettytable::{Cell, Row, Table};
 
+use crate::branding::BRANDING;
 use crate::options::{Info, Options};
 use crate::platform;
 use crate::table;
@@ -97,7 +98,7 @@ pub fn info(_options: &Options, info: &Info) -> Result<(), anyhow::Error> {
 
     table.set_format(*table::FORMAT);
 
-    println!("EdgeDB uses the following local paths:");
+    println!("{BRANDING} uses the following local paths:");
     table.printstd();
 
     Ok(())

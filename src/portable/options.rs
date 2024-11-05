@@ -377,7 +377,7 @@ pub struct Destroy {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(long_about = "Link to a remote EdgeDB instance and
+#[command(long_about = "Link to a remote {BRANDING} instance and
 assign an instance name to simplify future connections.")]
 pub struct Link {
     #[command(flatten)]
@@ -409,7 +409,7 @@ pub struct Link {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(long_about = "Unlink from a remote EdgeDB instance.")]
+#[command(long_about = "Unlink from a remote {BRANDING} instance.")]
 pub struct Unlink {
     /// Specify remote instance name.
     #[arg(hide = true)]

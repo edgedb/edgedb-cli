@@ -83,7 +83,7 @@ fn simple_query() {
 fn version() {
     let cmd = SERVER.admin_cmd().arg("--version").assert();
     cmd.success()
-        .stdout(concat!("EdgeDB CLI ", env!("CARGO_PKG_VERSION"), "\n"));
+        .stdout(concat!("{BRANDING} CLI ", env!("CARGO_PKG_VERSION"), "\n"));
 }
 
 impl ServerGuard {

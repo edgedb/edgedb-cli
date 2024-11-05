@@ -98,7 +98,7 @@ fn dockerfile() -> String {
             ca-certificates sudo gnupg2 apt-transport-https curl \
             software-properties-common dbus-user-session
         RUN adduser --uid 2000 --home /home/user1 \
-            --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
+            --shell /bin/bash --ingroup users --gecos "Test User" \
             user1
         RUN mkdir /home/edgedb && chown user1 /home/edgedb
         ADD ./edgedb /usr/bin/edgedb

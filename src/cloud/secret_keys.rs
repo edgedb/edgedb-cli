@@ -141,7 +141,7 @@ pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> a
         if c.non_interactive {
             print!("{}", sk);
         } else {
-            echo!("\nYour new EdgeDB.Cloud secret key is printed below. \
+            echo!("\nYour new {BRANDING}.Cloud secret key is printed below. \
                  Be sure to copy and store it securely, as you will \
                  not be able to see it again.\n"
                 .green());

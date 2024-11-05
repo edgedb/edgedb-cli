@@ -8,6 +8,7 @@ use fn_error_context::context;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 
+use crate::branding::BRANDING_CLI;
 use crate::cli;
 use crate::platform;
 use crate::portable::repository;
@@ -56,14 +57,14 @@ fn write_cache(dir: &Path, data: &Cache) -> anyhow::Result<()> {
 fn newer_warning(ver: &ver::Semver) {
     if cli::upgrade::can_upgrade() {
         eprintln!(
-            "Newer version of edgedb tool exists {} (current {}). \
-                To upgrade run `edgedb cli upgrade`",
+            "Newer version of {BRANDING_CLI} tool exists {} (current {}). \
+                To upgrade run `{BRANDING_CLI} cli upgrade`",
             ver,
             env!("CARGO_PKG_VERSION")
         );
     } else {
         eprintln!(
-            "Newer version of edgedb tool exists {} (current {})",
+            "Newer version of {BRANDING_CLI} tool exists {} (current {})",
             ver,
             env!("CARGO_PKG_VERSION")
         );
