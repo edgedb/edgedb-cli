@@ -278,7 +278,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
 
 fn make_project_warning(profile: &str, projects: Vec<PathBuf>) -> String {
     format!(
-        "Cloud profile {:?} is still used by the following projects:\n    {}",
+        "{BRANDING_CLOUD} profile {:?} is still used by the following projects:\n    {}",
         profile,
         projects
             .iter()

@@ -294,7 +294,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     let Some((project_dir, config_path)) = project_dir(options.project_dir.as_deref())? else {
         if options.link {
             anyhow::bail!(
-                "{CONFIG_FILE_DISPLAY_NAME} not found, unable to link an {BRANDING} \
+                "{CONFIG_FILE_DISPLAY_NAME} not found, unable to link an existing {BRANDING} \
                 instance without an initialized project. To initialize \
                 a project, run `{BRANDING_CLI_CMD}` command without `--link` flag"
             )
@@ -323,8 +323,7 @@ fn ask_existing_instance_name(cloud_client: &mut CloudClient) -> anyhow::Result<
         let mut q = question::String::new(concatcp!(
             "Specify the name of the ",
             BRANDING,
-            " instance \
-                                   to link with this project"
+            " instance to link with this project"
         ));
         let target_name = q.ask()?;
 
@@ -667,7 +666,7 @@ pub fn init_existing(
 
     match &name {
         InstanceName::Cloud { org_slug, name } => {
-            echo!("Checking", BRANDING, "cloud versions...");
+            echo!("Checking", BRANDING_CLOUD, "versions...");
 
             let ver = cloud::versions::get_version(&ver_query, &client)
                 .with_context(|| "could not initialize project")?;
@@ -1778,7 +1777,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         let mut rows: Vec<(&str, String)> =
             vec![("Instance name", instance_name), ("Project root", root)];
         if let Some(profile) = cloud_profile.as_deref() {
-            rows.push(("Cloud profile", profile.to_string()));
+            rows.push((concatcp!(BRANDING_CLOUD, " profile"), profile.to_string()));
         }
         table::settings(rows.as_slice());
     }

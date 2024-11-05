@@ -211,7 +211,7 @@ async fn get_default_branch(connection: &mut Client) -> anyhow::Result<String> {
 pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     if matches!(cmd.name, Some(InstanceName::Cloud { .. })) {
         anyhow::bail!(
-            "cloud instances cannot be linked\
+            "{BRANDING_CLOUD} instances cannot be linked\
             \nTo connect run:\
             \n  {BRANDING_CLI_CMD} -I {}",
             cmd.name.as_ref().unwrap()

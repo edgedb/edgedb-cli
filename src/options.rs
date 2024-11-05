@@ -18,8 +18,7 @@ use crate::cli;
 use crate::cli::options::CliCommand;
 
 use crate::branch::option::BranchCommand;
-use crate::branding::CONFIG_FILE_DISPLAY_NAME;
-use crate::branding::{BRANDING, BRANDING_CLI_CMD};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, CONFIG_FILE_DISPLAY_NAME};
 use crate::cloud::options::CloudCommand;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
@@ -39,11 +38,11 @@ const MAX_TERM_WIDTH: usize = 100;
 const MIN_TERM_WIDTH: usize = 50;
 
 const CONN_OPTIONS_GROUP: &str = concatcp!(
-    " Connection Options (",
+    "Connection Options (",
     BRANDING_CLI_CMD,
     " --help-connect to see full list)"
 );
-const CLOUD_OPTIONS_GROUP: &str = "Cloud Connection Options";
+const CLOUD_OPTIONS_GROUP: &str = concatcp!(BRANDING_CLOUD, " Connection Options");
 const CONNECTION_ARG_HINT: &str = concatcp!(
     "\
     Run `",
@@ -268,19 +267,19 @@ pub struct HelpConnect {
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
 #[group(id = "cloudopts")]
 pub struct CloudOptions {
-    /// Specify the EdgeDB Cloud API endpoint. Defaults to the current logged-in
+    /// Specify the API endpoint. Defaults to the current logged-in
     /// server, or <https://api.g.aws.edgedb.cloud> if unauthorized
     #[arg(long, value_name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[arg(global = true)]
     pub cloud_api_endpoint: Option<String>,
 
-    /// Specify EdgeDB Cloud API secret key to use instead of loading
+    /// Specify the API secret key to use instead of loading
     /// key from a remembered authentication.
     #[arg(long, value_name="SECRET_KEY", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[arg(global = true)]
     pub cloud_secret_key: Option<String>,
 
-    /// Specify authenticated EdgeDB Cloud profile. Defaults to "default".
+    /// Specify the authenticated profile. Defaults to "default".
     #[arg(long, value_name="PROFILE", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[arg(global = true)]
     pub cloud_profile: Option<String>,
