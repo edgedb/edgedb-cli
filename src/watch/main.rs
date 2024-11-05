@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use const_format::concatcp;
 use edgedb_tokio::{get_project_path, Error};
 use edgeql_parser::helpers::quote_string;
 use indicatif::ProgressBar;
@@ -151,7 +152,7 @@ impl WatchContext {
     async fn do_update(&mut self) -> anyhow::Result<()> {
         let bar = ProgressBar::new_spinner();
         bar.enable_steady_tick(Duration::from_millis(100));
-        // TODO(tailhook) check edgedb version
+        // TODO(tailhook) check gel/edgedb version
         bar.set_message("connecting");
         let mut cli = self.connector.connect().await?;
 
@@ -198,9 +199,13 @@ impl From<anyhow::Error> for ErrorJson {
                     err.initial_message().unwrap_or(""),
                 ),
                 hint: Some(
-                    "see the window running \
-                           `edgedb watch` for more info"
-                        .into(),
+                    concatcp!(
+                        "see the window running \
+                           `",
+                        BRANDING_CLI_CMD,
+                        "watch` for more info"
+                    )
+                    .into(),
                 ),
                 details: None,
                 context: None, // TODO(tailhook)
@@ -214,9 +219,13 @@ impl From<anyhow::Error> for ErrorJson {
                     err
                 ),
                 hint: Some(
-                    "see the window running \
-                           `edgedb watch` for more info"
-                        .into(),
+                    concatcp!(
+                        "see the window running \
+                           `",
+                        BRANDING_CLI_CMD,
+                        " watch` for more info"
+                    )
+                    .into(),
                 ),
                 details: None,
                 context: None,

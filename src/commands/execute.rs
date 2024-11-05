@@ -3,6 +3,7 @@ use const_format::concatcp;
 use edgedb_tokio::server_params::{PostgresAddress, PostgresDsn};
 
 use crate::analyze;
+use crate::branding::BRANDING;
 use crate::commands::parser::{Common, DatabaseCmd, DescribeCmd, ListCmd};
 use crate::commands::{self, branching, CommandResult, Options};
 use crate::migrations;

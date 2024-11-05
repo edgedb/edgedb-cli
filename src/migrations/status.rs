@@ -2,6 +2,7 @@ use colorful::Colorful;
 use indexmap::IndexMap;
 
 use crate::async_try;
+use crate::branding::BRANDING_CLI_CMD;
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::migrations::context::Context;
@@ -35,7 +36,7 @@ async fn ensure_diff_is_empty(cli: &mut Connection, ctx: &Context) -> Result<(),
                 eprintln!("... and {} more changes", changes - 3);
             }
             print::error("Some migrations are missing.");
-            eprintln!("  Use `edgedb migration create`.");
+            eprintln!("  Use `{BRANDING_CLI_CMD} migration create`.");
         }
         return Err(ExitCode::new(2).into());
     }
@@ -112,7 +113,7 @@ pub async fn migrations_applied(
                     have been found in the filesystem.",
                     migrations.len(),
                 ));
-                eprintln!("  Run `edgedb migrate` to apply.");
+                eprintln!("  Run `{BRANDING_CLI_CMD} migrate` to apply.");
             }
         }
         return Ok(None);

@@ -3,6 +3,7 @@ use std::io::{stdout, Write};
 use anyhow::Context;
 use const_format::concatcp;
 
+use crate::branding::BRANDING;
 use crate::cloud;
 use crate::commands::ExitCode;
 use crate::options::{Options, UI};

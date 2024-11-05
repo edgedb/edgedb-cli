@@ -926,7 +926,7 @@ fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>
             .args(&inner_opts)
             .get_stdout_text()?;
         log::info!("WSL list returned {:?}", text);
-        serde_json::from_str(&text).context("cannot decode json from edgedb CLI in WSL")?
+        serde_json::from_str(&text).context("cannot decode json from `instance list` in WSL")?
     } else {
         Vec::new()
     };
