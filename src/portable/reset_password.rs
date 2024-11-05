@@ -3,12 +3,14 @@ use std::num::NonZeroU32;
 use std::path::Path;
 
 use base64::display::Base64Display;
+use const_format::concatcp;
 use fn_error_context::context;
 use rand::{Rng, SeedableRng};
 
 use edgedb_tokio::credentials::Credentials;
 use edgeql_parser::helpers::{quote_name, quote_string};
 
+use crate::branding::BRANDING_CLOUD;
 use crate::commands::ExitCode;
 use crate::connect::Connection;
 use crate::credentials;
@@ -46,7 +48,11 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
             }
         }
         InstanceName::Cloud { .. } => {
-            print::error("This operation is not supported on cloud instances yet.");
+            print::error(concatcp!(
+                "This operation is not supported on ",
+                BRANDING_CLOUD,
+                " instances yet."
+            ));
             return Err(ExitCode::new(1))?;
         }
     };

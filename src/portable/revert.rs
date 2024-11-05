@@ -1,8 +1,9 @@
+use const_format::concatcp;
 use fs_err as fs;
 
 use anyhow::Context;
 
-use crate::branding::BRANDING;
+use crate::branding::{BRANDING, BRANDING_CLOUD};
 use crate::commands::ExitCode;
 use crate::format;
 use crate::platform::tmp_file_path;
@@ -29,7 +30,11 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             }
         }
         InstanceName::Cloud { .. } => {
-            print::error("This operation is not supported on cloud instances yet.");
+            print::error(concatcp!(
+                "This operation is not supported on ",
+                BRANDING_CLOUD,
+                " instances yet."
+            ));
             return Err(ExitCode::new(1))?;
         }
     };

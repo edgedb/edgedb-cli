@@ -499,16 +499,19 @@ async fn _get_remote(
             get_remote_and_cloud(instances, cloud_client, errors),
             || {
                 if num > 0 {
-                    format!("Checking cloud and {} remote instances...", num)
+                    format!(
+                        "Checking {BRANDING_CLOUD} and {} remote instance(s)...",
+                        num
+                    )
                 } else {
-                    format!("Checking cloud instances...")
+                    format!("Checking {BRANDING_CLOUD} instances...")
                 }
             },
         )
         .await
     } else if num > 0 {
         intermediate_feedback(get_remote_async(instances, errors), || {
-            format!("Checking {} remote instances...", num)
+            format!("Checking {} remote instance(s)...", num)
         })
         .await
     } else {

@@ -407,7 +407,7 @@ pub async fn destroy_cloud_instance(
 async fn get_instances(client: &CloudClient) -> anyhow::Result<Vec<CloudInstance>> {
     timeout(Duration::from_secs(30), client.get("instances/"))
         .await
-        .or_else(|_| anyhow::bail!("timed out with {BRANDING_CLOUD} API"))?
+        .or_else(|_| anyhow::bail!("{BRANDING_CLOUD} instances API timed out"))?
         .context(concatcp!(
             "failed to list instances in ",
             BRANDING_CLOUD,

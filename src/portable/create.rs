@@ -110,7 +110,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     if cp.region.is_some() {
         Err(opts.error(
             clap::error::ErrorKind::ArgumentConflict,
-            cformat!("The <bold>--region</bold> option is only applicable to cloud instances."),
+            cformat!("The <bold>--region</bold> option is only applicable to {BRANDING_CLOUD} instances."),
         ))?;
     }
 
@@ -118,7 +118,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         Err(opts.error(
             clap::error::ErrorKind::ArgumentConflict,
             cformat!(
-                "The <bold>--compute-size</bold> option is only applicable to cloud instances."
+                "The <bold>--compute-size</bold> option is only applicable to {BRANDING_CLOUD} instances."
             ),
         ))?;
     }
@@ -127,7 +127,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         Err(opts.error(
             clap::error::ErrorKind::ArgumentConflict,
             cformat!(
-                "The <bold>--storage-size</bold> option is only applicable to cloud instances."
+                "The <bold>--storage-size</bold> option is only applicable to {BRANDING_CLOUD} instances."
             ),
         ))?;
     }
@@ -344,7 +344,7 @@ fn create_cloud(
 
     if !cmd.non_interactive
         && !question::Confirm::new(format!(
-            "This will create a new {BRANDING} cloud instance with the following parameters:\
+            "This will create a new {BRANDING_CLOUD} instance with the following parameters:\
         \n\
         \nTier: {tier:?}\
         \nRegion: {region}\
@@ -376,7 +376,7 @@ fn create_cloud(
             clap::error::ErrorKind::InvalidValue,
             cformat!(
                 "The instance specified by <bold>--from-instance</bold> does \
-                not specify a cloud instance, a name in the 'org/instance' format is expected."
+                not specify a valid {BRANDING_CLOUD} instance, a name in the 'org/instance' format is expected."
             ),
         ))?,
         None => Ok(None),

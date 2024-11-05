@@ -5,6 +5,7 @@ use clap::ValueHint;
 use edgedb_cli_derive::IntoArgs;
 use serde::{Deserialize, Serialize};
 
+use crate::branding::BRANDING_CLOUD;
 use crate::cloud::ops::CloudTier;
 use crate::commands::ExitCode;
 use crate::options::{CloudOptions, ConnectionOptions};
@@ -895,7 +896,7 @@ impl FromStr for InstanceName {
             }
             if name.len() > CLOUD_INSTANCE_NAME_MAX_LENGTH {
                 anyhow::bail!(
-                    "invalid cloud instance name \"{}\": \
+                    "invalid {BRANDING_CLOUD} instance name \"{}\": \
                     length cannot exceed {} characters",
                     name,
                     CLOUD_INSTANCE_NAME_MAX_LENGTH,
@@ -910,7 +911,7 @@ impl FromStr for InstanceName {
                 anyhow::bail!(
                     "instance name must be a valid identifier, \
                      regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$ or \
-                     a cloud instance name ORG/INST."
+                     {BRANDING_CLOUD} instance name ORG/INST."
                 );
             }
             Ok(InstanceName::Local(name.into()))

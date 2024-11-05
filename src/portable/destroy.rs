@@ -151,7 +151,7 @@ fn do_destroy(options: &Destroy, opts: &Options, name: &InstanceName) -> anyhow:
             org_slug,
             name: inst_name,
         } => {
-            log::info!("Removing cloud instance {}", name);
+            log::info!("Removing {BRANDING_CLOUD} instance {}", name);
             if let Err(e) =
                 crate::cloud::ops::destroy_cloud_instance(inst_name, org_slug, &opts.cloud_options)
             {

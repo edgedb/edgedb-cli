@@ -3,8 +3,10 @@ use std::fs;
 use std::path::PathBuf;
 
 use anyhow::Context;
+use const_format::concatcp;
 use fn_error_context::context;
 
+use crate::branding::BRANDING_CLOUD;
 use crate::commands::ExitCode;
 use crate::platform::{current_exe, detect_ipv6, home_dir};
 use crate::portable::destroy::InstanceNotFound;
@@ -423,7 +425,11 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => {
-            print::error("This operation is not yet supported on cloud instances.");
+            print::error(concatcp!(
+                "This operation is not yet supported on ",
+                BRANDING_CLOUD,
+                " instances."
+            ));
             return Err(ExitCode::new(1))?;
         }
     };

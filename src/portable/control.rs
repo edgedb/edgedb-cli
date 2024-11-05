@@ -3,9 +3,10 @@ use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
+use const_format::concatcp;
 use fn_error_context::context;
 
-use crate::branding::BRANDING;
+use crate::branding::{BRANDING, BRANDING_CLOUD};
 use crate::bug;
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -227,7 +228,11 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
             }
         }
         InstanceName::Cloud { .. } => {
-            print::error("Stopping cloud instances is not yet supported.");
+            print::error(concatcp!(
+                "Starting ",
+                BRANDING_CLOUD,
+                " instances is not yet supported."
+            ));
             return Err(ExitCode::new(1))?;
         }
     };
@@ -413,7 +418,11 @@ pub fn stop(options: &Stop) -> anyhow::Result<()> {
             }
         }
         InstanceName::Cloud { .. } => {
-            print::error("Stopping cloud instances is not yet supported.");
+            print::error(concatcp!(
+                "Stopping ",
+                BRANDING_CLOUD,
+                " instances is not yet supported."
+            ));
             return Err(ExitCode::new(1))?;
         }
     };

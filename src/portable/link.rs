@@ -19,7 +19,7 @@ use edgedb_tokio::{tls, Client};
 use edgedb_tokio::{Builder, Config};
 use rustyline::error::ReadlineError;
 
-use crate::branding::BRANDING_CLI_CMD;
+use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::options;
@@ -431,7 +431,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
         InstanceName::Local(name) => name,
         inst_name => {
             return Err(anyhow::anyhow!(
-                "cannot unlink cloud instance {}.",
+                "cannot unlink {BRANDING_CLOUD} instance {}.",
                 inst_name
             ))
             .with_hint(|| {

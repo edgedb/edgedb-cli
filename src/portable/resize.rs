@@ -160,7 +160,7 @@ fn resize_cloud_cmd(
     }
 
     let prompt = format!(
-        "Will resize the \"{inst_name}\" {BRANDING_CLOUD} instance as follows:\
+        "Will resize the {BRANDING_CLOUD} instance \"{inst_name}\" as follows:\
         \n\
         {resources_display}\
         \n\nContinue?",

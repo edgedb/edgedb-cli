@@ -61,7 +61,7 @@ fn backup_cloud_cmd(
     };
 
     let prompt = format!(
-        "Will create a backup for the \"{inst_name}\" {BRANDING_CLOUD} instance:\
+        "Will create a backup for the {BRANDING_CLOUD} instance \"{inst_name}\":\
         \n\nContinue?",
     );
 
@@ -116,7 +116,7 @@ fn restore_cloud_cmd(
     let source_inst = match &cmd.source_instance {
         Some(InstanceName::Local(_)) => Err(opts.error(
             clap::error::ErrorKind::InvalidValue,
-            cformat!("--source-instance can only be a {BRANDING_CLOUD} instance"),
+            cformat!("--source-instance can only be a valid {BRANDING_CLOUD} instance"),
         ))?,
         Some(InstanceName::Cloud { org_slug, name }) => {
             let inst = cloud::ops::find_cloud_instance_by_name(name, org_slug, &client)?
@@ -127,7 +127,7 @@ fn restore_cloud_cmd(
     };
 
     let prompt = format!(
-        "Will restore the \"{inst_name}\" {BRANDING_CLOUD} instance from the specified backup:\
+        "Will restore the {BRANDING_CLOUD} instance \"{inst_name}\" from the specified backup:\
         \n\nContinue?",
     );
 
