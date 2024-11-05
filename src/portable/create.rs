@@ -207,7 +207,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
 
     echo!("Instance", name.emphasize(), "is up and running.");
     echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI_CMD, " -I", name);
+    echo!("  ", BRANDING_CLI_CMD, "-I", name);
     Ok(())
 }
 
@@ -393,9 +393,9 @@ fn create_cloud(
         source_backup_id: cmd.cloud_backup_source.from_backup_id.clone(),
     };
     cloud::ops::create_cloud_instance(client, &request)?;
-    echo!(BRANDING_CLOUD, " instance", inst_name, "is up and running.");
+    echo!(BRANDING_CLOUD, "instance", inst_name, "is up and running.");
     echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI_CMD, " -I", inst_name);
+    echo!("  ", BRANDING_CLI_CMD, "-I", inst_name);
     Ok(())
 }
 
@@ -449,7 +449,7 @@ pub fn bootstrap(
     let password = generate_password();
     let script = bootstrap_script(user, &password);
 
-    echo!("Initializing ", BRANDING, " instance...");
+    echo!("Initializing", BRANDING, "instance...");
     let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
     cmd.arg("--bootstrap-only");
     cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");

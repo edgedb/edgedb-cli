@@ -211,7 +211,11 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
             )
         })?;
         if modified && no_dir_in_path(&new_bin_dir) {
-            print::success("The `{BRANDING_CLI_CMD}` executable has moved!");
+            print::success(concatcp!(
+                "The `",
+                BRANDING_CLI_CMD,
+                "` executable has moved!"
+            ));
             print_markdown!(
                 "\
                 \n\

@@ -186,6 +186,6 @@ fn resize_cloud_cmd(
         "has been resized successfuly."
     );
     echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI_CMD, " -I", inst_name);
+    echo!("  ", BRANDING_CLI_CMD, "-I", inst_name);
     Ok(())
 }

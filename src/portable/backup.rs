@@ -151,6 +151,6 @@ fn restore_cloud_cmd(
         "has been restored successfully."
     );
     echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI_CMD, " -I", inst_name);
+    echo!("  ", BRANDING_CLI_CMD, "-I", inst_name);
     Ok(())
 }

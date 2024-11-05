@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::thread;
 use std::time;
 
+use const_format::concatcp;
 use fn_error_context::context;
 
 use crate::branding::BRANDING;
@@ -371,7 +372,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
             Inactive { .. } | Ready => {
                 thread::sleep(time::Duration::from_millis(30));
                 if time::SystemTime::now() > cut_off {
-                    print::error("{BRANDING} failed to start for 30 seconds");
+                    print::error(concatcp!(BRANDING, " failed to start for 30 seconds"));
                     break;
                 }
                 continue;
@@ -390,7 +391,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
                 );
             }
             Failed { exit_code: None } => {
-                echo!(print::err_marker(), "{BRANDING} failed".emphasize());
+                echo!(print::err_marker(), BRANDING, "failed".emphasize());
             }
         }
     }

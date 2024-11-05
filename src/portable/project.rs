@@ -18,6 +18,7 @@ use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgedb_tokio::Builder;
 use edgeql_parser::helpers::quote_name;
 
+use crate::branding::BRANDING_CLOUD;
 use crate::branding::{BRANDING, BRANDING_CLI_CMD, CONFIG_FILE_DISPLAY_NAME};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
@@ -666,7 +667,7 @@ pub fn init_existing(
 
     match &name {
         InstanceName::Cloud { org_slug, name } => {
-            echo!("Checking {BRANDING} cloud versions...");
+            echo!("Checking", BRANDING, "cloud versions...");
 
             let ver = cloud::versions::get_version(&ver_query, &client)
                 .with_context(|| "could not initialize project")?;
@@ -715,7 +716,7 @@ pub fn init_existing(
             )
         }
         InstanceName::Local(name) => {
-            echo!("Checking {BRANDING} versions...");
+            echo!("Checking", BRANDING, "versions...");
 
             let pkg = repository::get_server_package(&ver_query)?.with_context(|| {
                 format!(
@@ -997,7 +998,7 @@ pub fn init_new(
 
     match &inst_name {
         InstanceName::Cloud { org_slug, name } => {
-            echo!("Checking {BRANDING} cloud versions...");
+            echo!("Checking", BRANDING_CLOUD, "versions...");
             client.ensure_authenticated()?;
 
             let (ver_query, version) = ask_cloud_version(options, &client)?;
@@ -1046,7 +1047,7 @@ pub fn init_new(
             )
         }
         InstanceName::Local(name) => {
-            echo!("Checking {BRANDING} versions...");
+            echo!("Checking", BRANDING, "versions...");
             let (ver_query, pkg) = ask_local_version(options)?;
             let specific_version = &pkg.version.specific();
             ver::print_version_hint(specific_version, &ver_query);

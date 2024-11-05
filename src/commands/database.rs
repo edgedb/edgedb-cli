@@ -15,7 +15,7 @@ pub async fn create(
     _: &Options,
 ) -> Result<(), anyhow::Error> {
     if cli.get_version().await?.specific().major >= 5 {
-        eprintln!("'edgedb database create' is deprecated in {BRANDING} 5+. Please use 'edgedb branch create'");
+        eprintln!("'database create' is deprecated in {BRANDING} 5+. Please use 'branch create'");
     }
 
     let (status, _warnings) = cli
@@ -34,9 +34,7 @@ pub async fn drop(
     _: &Options,
 ) -> Result<(), anyhow::Error> {
     if cli.get_version().await?.specific().major >= 5 {
-        eprintln!(
-            "'edgedb database drop' is deprecated in {BRANDING} 5+. Please use 'edgedb branch drop'"
-        );
+        eprintln!("'database drop' is deprecated in {BRANDING} 5+. Please use 'branch drop'");
     }
 
     if !options.non_interactive {
@@ -65,9 +63,7 @@ pub async fn wipe(
     _: &Options,
 ) -> Result<(), anyhow::Error> {
     if cli.get_version().await?.specific().major >= 5 {
-        eprintln!(
-            "'edgedb database wipe' is deprecated in {BRANDING} 5+. Please use 'edgedb branch wipe'"
-        );
+        eprintln!("'database wipe' is deprecated in {BRANDING} 5+. Please use 'branch wipe'");
     }
 
     if cli.get_version().await?.specific() < "3.0-alpha.2".parse().unwrap() {
@@ -75,7 +71,7 @@ pub async fn wipe(
             "The `database wipe` command is only \
                             supported in {BRANDING} >= 3.0"
         ))
-        .hint("Use `edgedb database drop`, `edgedb database create`")?;
+        .hint("Use `database drop`, `database create`")?;
     }
     if !options.non_interactive {
         let q = question::Confirm::new_dangerous(format!(

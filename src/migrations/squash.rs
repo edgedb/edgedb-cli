@@ -178,7 +178,7 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
         echo!("    git add dbschema".command_hint());
         echo!("");
         echo!("The normal migration process will update your migration history:");
-        echo!("    ", BRANDING_CLI_CMD, " migrate".command_hint());
+        echo!("    ", BRANDING_CLI_CMD, "migrate".command_hint());
     } else {
         echo!("Squash is complete.");
         echo!("");
@@ -189,8 +189,8 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
         echo!("    git add dbschema".command_hint());
         echo!("");
         echo!("You can now wipe your instances and apply the new schema:");
-        echo!("    ", BRANDING_CLI_CMD, " database wipe".command_hint());
-        echo!("    ", BRANDING_CLI_CMD, " migrate".command_hint());
+        echo!("    ", BRANDING_CLI_CMD, "database wipe".command_hint());
+        echo!("    ", BRANDING_CLI_CMD, "migrate".command_hint());
     }
     Ok(())
 }
