@@ -1,6 +1,6 @@
 use color_print::cformat;
 
-use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLOUD};
+use crate::branding::{BRANDING_CLI, BRANDING_CLOUD};
 use crate::cloud;
 use crate::portable::options::{Backup, InstanceName, ListBackups, Restore};
 use crate::print::echo;

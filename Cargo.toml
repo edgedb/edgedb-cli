@@ -46,6 +46,7 @@ rustyline = { version = "14.0.0" }
 clap = {workspace = true, features=["derive", "cargo", "deprecated", "wrap_help"]}
 clap_complete = "4.4.3"
 color-print = "0.3.5"
+const_format = "0.2.33"
 strsim = "0.11.0"
 whoami = "1.1"
 is-terminal = "0.4.4"

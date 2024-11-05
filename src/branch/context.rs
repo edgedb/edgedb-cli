@@ -1,6 +1,6 @@
 use edgedb_tokio::{get_project_path, get_stash_path};
 
-use crate::branding::{BRANDING, BRANDING_CLOUD};
+use crate::branding::BRANDING_CLOUD;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::credentials;

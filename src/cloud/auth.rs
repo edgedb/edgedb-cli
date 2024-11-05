@@ -7,7 +7,7 @@ use anyhow::Context;
 use fs_err as fs;
 use tokio::time::sleep;
 
-use crate::branding::{BRANDING, BRANDING_CLOUD};
+use crate::branding::BRANDING_CLOUD;
 use crate::cloud::client::{
     cloud_config_dir, cloud_config_file, CloudClient, CloudConfig, ErrorResponse,
 };
