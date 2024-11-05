@@ -15,7 +15,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use url::Url;
 
 use crate::async_util;
-use crate::branding::BRANDING;
+use crate::branding::{BRANDING, BRANDING_CLI};
 use crate::bug;
 use crate::cli::upgrade::{self, self_version};
 use crate::collect::Collector;
