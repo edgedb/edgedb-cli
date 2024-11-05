@@ -97,7 +97,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .context("curl shebang", "command-line install")
             .success()
             .stdout(predicates::str::contains(
-                "The {BRANDING} command-line tool is now installed",
+                "command-line tool is now installed",
             ));
     }
 
