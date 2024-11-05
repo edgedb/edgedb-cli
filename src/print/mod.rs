@@ -12,7 +12,7 @@ use tokio_stream::{Stream, StreamExt};
 
 use edgedb_errors::display::display_error;
 
-use crate::branding::BRANDING_CLI;
+use crate::branding::BRANDING_CLI_CMD;
 use crate::repl::VectorLimit;
 
 pub use crate::echo;
@@ -392,7 +392,7 @@ pub fn prompt(line: impl fmt::Display) {
 }
 
 pub fn err_marker() -> impl fmt::Display {
-    concatcp!(BRANDING_CLI, " error:").err_marker()
+    concatcp!(BRANDING_CLI_CMD, " error:").err_marker()
 }
 
 pub fn error(line: impl fmt::Display) {

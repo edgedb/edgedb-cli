@@ -2,7 +2,7 @@ use color_print::cformat;
 
 use anyhow::Context;
 
-use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLOUD};
+use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
 use crate::portable::options::{InstanceName, Resize};
 use crate::print::echo;
@@ -186,6 +186,6 @@ fn resize_cloud_cmd(
         "has been resized successfuly."
     );
     echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI, " -I", inst_name);
+    echo!("  ", BRANDING_CLI_CMD, " -I", inst_name);
     Ok(())
 }

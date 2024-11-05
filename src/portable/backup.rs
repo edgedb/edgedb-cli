@@ -1,6 +1,6 @@
 use color_print::cformat;
 
-use crate::branding::{BRANDING_CLI, BRANDING_CLOUD};
+use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
 use crate::portable::options::{Backup, InstanceName, ListBackups, Restore};
 use crate::print::echo;
@@ -151,6 +151,6 @@ fn restore_cloud_cmd(
         "has been restored successfully."
     );
     echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI, " -I", inst_name);
+    echo!("  ", BRANDING_CLI_CMD, " -I", inst_name);
     Ok(())
 }

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use fs_err as fs;
 
-use crate::branding::{BRANDING_CLI, BRANDING_CLOUD};
+use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::commands::ExitCode;
 use crate::options::Options;
 use crate::portable::control;
@@ -21,7 +21,10 @@ pub struct InstanceNotFound(#[source] pub anyhow::Error);
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     project::print_instance_in_use_warning(name, project_dirs);
     eprintln!("If you really want to destroy the instance, run:");
-    eprintln!("  {BRANDING_CLI} instance destroy -I {:?} --force", name);
+    eprintln!(
+        "  {BRANDING_CLI_CMD} instance destroy -I {:?} --force",
+        name
+    );
 }
 
 pub fn with_projects(

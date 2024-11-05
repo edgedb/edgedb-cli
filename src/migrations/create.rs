@@ -21,7 +21,7 @@ use tokio::io::{self, AsyncWriteExt};
 use tokio::task::spawn_blocking as unblock;
 
 use crate::async_try;
-use crate::branding::BRANDING;
+use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::bug;
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
@@ -141,7 +141,7 @@ struct SplitMigration;
 #[derive(Debug, thiserror::Error)]
 #[error(
     "{BRANDING} could not resolve migration automatically. \
-         Please run `edgedb migration create` in interactive mode."
+         Please run `{BRANDING_CLI_CMD} migration create` in interactive mode."
 )]
 struct CantResolve;
 
@@ -878,7 +878,7 @@ pub async fn normal_migration(
             if db_migration != ensure_parent {
                 anyhow::bail!("Database must be updated to the last migration \
                     on the filesystem for `migration create`. Run:\n  \
-                    edgedb migrate");
+                    {BRANDING_CLI_CMD} migrate");
             }
 
             if create.non_interactive {

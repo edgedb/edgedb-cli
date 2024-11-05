@@ -18,7 +18,7 @@ use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgedb_tokio::Builder;
 use edgeql_parser::helpers::quote_name;
 
-use crate::branding::{BRANDING, BRANDING_CLI, CONFIG_FILE_DISPLAY_NAME};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, CONFIG_FILE_DISPLAY_NAME};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -276,7 +276,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     if optional_docker_check()? {
         print::error(concatcp!(
             "`",
-            BRANDING_CLI,
+            BRANDING_CLI_CMD,
             " project init` is not supported in Docker containers."
         ));
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
@@ -295,7 +295,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
             anyhow::bail!(
                 "{CONFIG_FILE_DISPLAY_NAME} not found, unable to link an {BRANDING} \
                 instance without an initialized project. To initialize \
-                a project, run `{BRANDING_CLI}` command without `--link` flag"
+                a project, run `{BRANDING_CLI_CMD}` command without `--link` flag"
             )
         }
         let dir = options
@@ -485,12 +485,12 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path) -> anyhow::Result<Pr
     print::success("Project linked");
     if let Some(dir) = &options.project_dir {
         eprintln!(
-            "To connect to {}, navigate to {} and run `{BRANDING_CLI}`",
+            "To connect to {}, navigate to {} and run `{BRANDING_CLI_CMD}`",
             inst.name,
             dir.display()
         );
     } else {
-        eprintln!("To connect to {}, run `{BRANDING_CLI}`", inst.name);
+        eprintln!("To connect to {}, run `{BRANDING_CLI_CMD}`", inst.name);
     }
 
     Ok(ProjectInfo {
@@ -1225,7 +1225,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Resu
                         print::warn("Skipping migrations.");
                         echo!(
                             "You can use `",
-                            BRANDING_CLI,
+                            BRANDING_CLI_CMD,
                             " migrate` to apply migrations \
                                once the service is up and running."
                         );
@@ -1416,9 +1416,9 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
     print::success("Project initialized.");
     if let Some(dir) = dir_option {
         echo!("To connect to", name.emphasize();
-              ", navigate to", dir.display(), "and run `", BRANDING_CLI, "`");
+              ", navigate to", dir.display(), "and run `", BRANDING_CLI_CMD, "`");
     } else {
-        echo!("To connect to", name.emphasize(); ", run `", BRANDING_CLI, "`");
+        echo!("To connect to", name.emphasize(); ", run `", BRANDING_CLI_CMD, "`");
     }
 }
 
@@ -1890,7 +1890,7 @@ pub fn update_toml(
         }
         echo!(
             "Run",
-            BRANDING_CLI,
+            BRANDING_CLI_CMD,
             " project init".command_hint(),
             "to initialize an instance."
         );

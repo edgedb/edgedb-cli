@@ -14,10 +14,7 @@ fn project_link_and_init() {
         .assert()
         .context("version", "command-line version option")
         .success()
-        .stdout(predicates::str::contains(concat!(
-            "{BRANDING} CLI ",
-            env!("CARGO_PKG_VERSION")
-        )));
+        .stdout(predicates::str::contains(EXPECTED_VERSION));
 
     Command::new("edgedb")
         .arg("server")

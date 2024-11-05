@@ -7,7 +7,7 @@ use fn_error_context::context;
 
 use color_print::cformat;
 
-use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLOUD};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -70,7 +70,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     if optional_docker_check()? {
         print::error(concatcp!(
             "`",
-            BRANDING_CLI,
+            BRANDING_CLI_CMD,
             " instance create` is not supported in Docker containers."
         ));
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
@@ -138,7 +138,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         .with_context(|| format!("instance {:?} detected", name))
         .with_hint(|| {
             format!(
-                "Use `{BRANDING_CLI} instance destroy -I {}` \
+                "Use `{BRANDING_CLI_CMD} instance destroy -I {}` \
                               to remove rest of unused instance",
                 name
             )
@@ -207,7 +207,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
 
     echo!("Instance", name.emphasize(), "is up and running.");
     echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI, " -I", name);
+    echo!("  ", BRANDING_CLI_CMD, " -I", name);
     Ok(())
 }
 
@@ -395,7 +395,7 @@ fn create_cloud(
     cloud::ops::create_cloud_instance(client, &request)?;
     echo!(BRANDING_CLOUD, " instance", inst_name, "is up and running.");
     echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI, " -I", inst_name);
+    echo!("  ", BRANDING_CLI_CMD, " -I", inst_name);
     Ok(())
 }
 

@@ -9,7 +9,7 @@ use tokio::fs;
 use tokio::sync::watch;
 
 use crate::async_try;
-use crate::branding::BRANDING_CLI;
+use crate::branding::BRANDING_CLI_CMD;
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::migrations::context::Context;
@@ -209,7 +209,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
                 echo!("For faster feedback loop use:");
                 echo!(
                     "    ",
-                    BRANDING_CLI,
+                    BRANDING_CLI_CMD,
                     " migration upgrade-check --watch".command_hint()
                 );
                 return Err(ExitCode::new(3))?;
@@ -289,7 +289,7 @@ fn print_apply_migration_error() {
     echo!("Please squash all migrations to fix the issue:");
     echo!(
         "    ",
-        BRANDING_CLI,
+        BRANDING_CLI_CMD,
         " migration create --squash".command_hint()
     );
 }

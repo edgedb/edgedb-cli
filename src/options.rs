@@ -19,7 +19,7 @@ use crate::cli::options::CliCommand;
 
 use crate::branch::option::BranchCommand;
 use crate::branding::CONFIG_FILE_DISPLAY_NAME;
-use crate::branding::{BRANDING, BRANDING_CLI};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::cloud::options::CloudCommand;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
@@ -40,14 +40,14 @@ const MIN_TERM_WIDTH: usize = 50;
 
 const CONN_OPTIONS_GROUP: &str = concatcp!(
     " Connection Options (",
-    BRANDING_CLI,
+    BRANDING_CLI_CMD,
     " --help-connect to see full list)"
 );
 const CLOUD_OPTIONS_GROUP: &str = "Cloud Connection Options";
 const CONNECTION_ARG_HINT: &str = concatcp!(
     "\
     Run `",
-    BRANDING_CLI,
+    BRANDING_CLI_CMD,
     " project init` or use any of `-H`, `-P`, `-I` arguments \
     to specify connection parameters. See `--help` for details"
 );
@@ -691,7 +691,7 @@ impl Options {
         //
         // to enable connection and/or cloud options for themselves
         // and their subcommands.
-        let tmp = clap::Command::new(BRANDING_CLI);
+        let tmp = clap::Command::new(BRANDING_CLI_CMD);
         let tmp = <RawOptions as clap::Args>::augment_args(tmp);
         let mut global_args: Vec<_> = tmp
             .get_groups()
@@ -708,7 +708,7 @@ impl Options {
             }
         });
 
-        let app = clap::Command::new(BRANDING_CLI)
+        let app = clap::Command::new(BRANDING_CLI_CMD)
             .term_width(term_width())
             .args(deglobalized);
 
@@ -744,7 +744,7 @@ impl Options {
         if args.json {
             say_option_is_deprecated(
                 "--json",
-                concatcp!(BRANDING_CLI, " query --output-format=json"),
+                concatcp!(BRANDING_CLI_CMD, " query --output-format=json"),
             );
         }
         if args.tab_separated {
@@ -754,7 +754,7 @@ impl Options {
             );
         }
         let subcommand = if let Some(query) = args.query {
-            say_option_is_deprecated("-c", concatcp!(BRANDING_CLI, " query"));
+            say_option_is_deprecated("-c", concatcp!(BRANDING_CLI_CMD, " query"));
             let output_format = if args.json {
                 Some(OutputFormat::Json)
             } else if args.tab_separated {

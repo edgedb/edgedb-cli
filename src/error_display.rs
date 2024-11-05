@@ -11,7 +11,7 @@ use termcolor::{ColorChoice, StandardStream};
 
 use edgedb_errors::{Error, InternalServerError};
 
-use crate::branding::BRANDING_CLI;
+use crate::branding::BRANDING_CLI_CMD;
 use crate::print;
 
 pub fn print_query_error(
@@ -112,7 +112,7 @@ pub fn print_query_warning(
 }
 
 fn print_query_warning_plain(warning: &Warning) {
-    let marker = concatcp!(BRANDING_CLI, " warning:");
+    let marker = concatcp!(BRANDING_CLI_CMD, " warning:");
     let marker = if print::use_color() {
         marker.bold().yellow()
     } else {

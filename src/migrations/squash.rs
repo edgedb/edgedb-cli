@@ -6,7 +6,7 @@ use anyhow::Context as _;
 use tokio::fs;
 
 use crate::async_try;
-use crate::branding::BRANDING_CLI;
+use crate::branding::BRANDING_CLI_CMD;
 use crate::bug;
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
@@ -137,7 +137,7 @@ async fn confirm_squashing(db_rev: &str) -> anyhow::Result<()> {
     );
     echo!(
         "       ",
-        BRANDING_CLI,
+        BRANDING_CLI_CMD,
         " -I <name> migration log --from-db --newest-first --limit 1".command_hint()
     );
     echo!(
@@ -178,7 +178,7 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
         echo!("    git add dbschema".command_hint());
         echo!("");
         echo!("The normal migration process will update your migration history:");
-        echo!("    ", BRANDING_CLI, " migrate".command_hint());
+        echo!("    ", BRANDING_CLI_CMD, " migrate".command_hint());
     } else {
         echo!("Squash is complete.");
         echo!("");
@@ -189,8 +189,8 @@ fn print_final_message(fixup_created: bool) -> anyhow::Result<()> {
         echo!("    git add dbschema".command_hint());
         echo!("");
         echo!("You can now wipe your instances and apply the new schema:");
-        echo!("    ", BRANDING_CLI, " database wipe".command_hint());
-        echo!("    ", BRANDING_CLI, " migrate".command_hint());
+        echo!("    ", BRANDING_CLI_CMD, " database wipe".command_hint());
+        echo!("    ", BRANDING_CLI_CMD, " migrate".command_hint());
     }
     Ok(())
 }

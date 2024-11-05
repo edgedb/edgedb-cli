@@ -321,6 +321,8 @@ fn wsl_check_cli(_wsl: &wslapi::Library, wsl_info: &WslInfo) -> anyhow::Result<b
 #[context("cannot check linux CLI version")]
 fn wsl_cli_version(distro: &str) -> anyhow::Result<ver::Semver> {
     // Note: cannot capture output using wsl.launch
+
+    use const_format::concatcp;
     let data = process::Native::new("check version", "edgedb", "wsl")
         .arg("--user")
         .arg("edgedb")
@@ -331,7 +333,7 @@ fn wsl_cli_version(distro: &str) -> anyhow::Result<ver::Semver> {
         .get_stdout_text()?;
     let version = data
         .trim()
-        .strip_prefix("{BRANDING} CLI ")
+        .strip_prefix(concatcp!(BRANDING_CLI, " "))
         .with_context(|| format!("bad version info returned by linux CLI: {:?}", data))?
         .parse()?;
     Ok(version)

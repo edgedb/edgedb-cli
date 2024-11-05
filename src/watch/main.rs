@@ -7,7 +7,7 @@ use notify::{RecursiveMode, Watcher};
 use tokio::sync::watch;
 use tokio::time::timeout;
 
-use crate::branding::{BRANDING, BRANDING_CLI};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::connect::{Connection, Connector};
 use crate::interrupt::Interrupt;
 use crate::migrations::{self, dev_mode};
@@ -52,8 +52,8 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
     let project_path = match runtime.block_on(get_project_path(None, true))? {
         Some(proj) => proj,
         None => anyhow::bail!(
-            "The `{BRANDING_CLI} watch` command currently only \
-             works for projects. Run `{BRANDING_CLI} project init` first."
+            "The `{BRANDING_CLI_CMD} watch` command currently only \
+             works for projects. Run `{BRANDING_CLI_CMD} project init` first."
         ),
     };
     let mut ctx = WatchContext {
@@ -77,7 +77,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
     runtime.block_on(ctx.do_update())?;
 
     eprintln!("{BRANDING} Watch initialized.");
-    eprintln!("  Hint: Use `{BRANDING_CLI} migration create` and `{BRANDING_CLI} migrate --dev-mode` to apply changes once done.");
+    eprintln!("  Hint: Use `{BRANDING_CLI_CMD} migration create` and `{BRANDING_CLI_CMD} migrate --dev-mode` to apply changes once done.");
     eprintln!("Monitoring {:?}.", project_dir);
     let res = runtime.block_on(watch_loop(rx, &mut ctx));
     runtime

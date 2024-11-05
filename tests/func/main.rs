@@ -2,7 +2,10 @@
 #[macro_use]
 extern crate pretty_assertions;
 
-use std::env;
+#[path = "../common/util.rs"]
+mod util;
+use util::*;
+
 use std::fs;
 use std::path::Path;
 use std::process;
@@ -30,8 +33,6 @@ mod non_interactive;
 mod interactive;
 
 mod help;
-#[path = "../common/util.rs"]
-mod util;
 
 fn edgedb_cli_cmd() -> assert_cmd::Command {
     let mut cmd = Command::cargo_bin("edgedb").expect("binary found");
@@ -83,7 +84,7 @@ fn simple_query() {
 fn version() {
     let cmd = SERVER.admin_cmd().arg("--version").assert();
     cmd.success()
-        .stdout(concat!("{BRANDING} CLI ", env!("CARGO_PKG_VERSION"), "\n"));
+        .stdout(predicates::str::contains(EXPECTED_VERSION));
 }
 
 impl ServerGuard {

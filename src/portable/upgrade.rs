@@ -6,7 +6,7 @@ use std::time::{Duration, SystemTime};
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLOUD};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
 use crate::commands::{self, ExitCode};
 use crate::connect::{Connection, Connector};
@@ -59,7 +59,7 @@ pub fn print_project_upgrade_command(
     project_dir: &Path,
 ) {
     eprintln!(
-        "  {BRANDING_CLI} project upgrade {}{}",
+        "  {BRANDING_CLI_CMD} project upgrade {}{}",
         match version.channel {
             Channel::Stable =>
                 if let Some(filt) = &version.version {
@@ -347,7 +347,7 @@ pub fn upgrade_incompatible(
     reinit_and_restore(&inst, &paths).map_err(|e| {
         print::error(format!("{:#}", e));
         eprintln!(
-            "To undo run:\n  {BRANDING_CLI} instance revert -I {:?}",
+            "To undo run:\n  {BRANDING_CLI_CMD} instance revert -I {:?}",
             inst.name
         );
         ExitCode::new(exit_codes::NEEDS_REVERT)
