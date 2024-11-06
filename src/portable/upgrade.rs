@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context;
+use const_format::concatcp;
 use fn_error_context::context;
 
 use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD};
@@ -272,7 +273,7 @@ pub fn upgrade_cloud(
 
 pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::Result<()> {
     echo!("Upgrading to a minor version", pkg.version.emphasize());
-    let install = install::package(&pkg).context("error installing {BRANDING}")?;
+    let install = install::package(&pkg).context(concatcp!("error installing ", BRANDING))?;
     inst.installation = Some(install);
 
     let metapath = inst.data_dir()?.join("instance_info.json");
@@ -302,7 +303,7 @@ pub fn upgrade_incompatible(
 
     let old_version = inst.get_version()?.clone();
 
-    let install = install::package(&pkg).context("error installing {BRANDING}")?;
+    let install = install::package(&pkg).context(concatcp!("error installing ", BRANDING))?;
 
     let paths = Paths::get(&inst.name)?;
     dump_and_stop(&inst, &paths.dump_path)?;

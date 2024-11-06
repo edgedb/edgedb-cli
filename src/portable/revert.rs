@@ -102,7 +102,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     }
 
     install::specific(&old_inst.get_version()?.specific())
-        .context("error installing old {BRANDING} version")?;
+        .context(concatcp!("error installing old ", BRANDING))?;
 
     let paths = Paths::get(name)?;
     let tmp_path = tmp_file_path(&paths.data_dir);

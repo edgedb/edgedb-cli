@@ -832,7 +832,7 @@ fn do_init(
         })?;
         InstanceKind::Wsl(WslInfo {})
     } else {
-        let inst = install::package(pkg).context("error installing {BRANDING}")?;
+        let inst = install::package(pkg).context(concatcp!("error installing ", BRANDING))?;
         let info = InstanceInfo {
             name: name.into(),
             installation: Some(inst),

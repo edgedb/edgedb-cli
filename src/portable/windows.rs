@@ -15,7 +15,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use url::Url;
 
 use crate::async_util;
-use crate::branding::{BRANDING, BRANDING_CLI};
+use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_WSL};
 use crate::bug;
 use crate::cli::upgrade::{self, self_version};
 use crate::collect::Collector;
@@ -35,7 +35,7 @@ use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
 use crate::process;
 
-const CURRENT_DISTRO: &str = "{BRANDING}.WSL.1";
+const CURRENT_DISTRO: &str = BRANDING_WSL;
 static DISTRO_URL: Lazy<Url> = Lazy::new(|| {
     "https://aka.ms/wsl-debian-gnulinux"
         .parse()

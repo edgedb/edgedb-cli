@@ -69,6 +69,10 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck) -> anyhow::Resu
 
 #[cfg(unix)]
 pub fn upgrade_check(_options: &Options, options: &UpgradeCheck) -> anyhow::Result<()> {
+    use const_format::concatcp;
+
+    use crate::branding::BRANDING;
+
     let (version, _) = Query::from_options(
         repository::QueryOptions {
             nightly: options.to_nightly,
@@ -82,7 +86,7 @@ pub fn upgrade_check(_options: &Options, options: &UpgradeCheck) -> anyhow::Resu
 
     let pkg = repository::get_server_package(&version)?
         .with_context(|| format!("no package matching {} found", version.display()))?;
-    let info = install::package(&pkg).context("error installing {BRANDING}")?;
+    let info = install::package(&pkg).context(concatcp!("error installing ", BRANDING))?;
 
     // This is run from windows to do the upgrade check
     if let Some(status_path) = &options.run_server_with_status {
@@ -114,7 +118,11 @@ pub fn to_version(_: &PackageInfo, _: &Config) -> anyhow::Result<()> {
 
 #[cfg(unix)]
 pub fn to_version(pkg: &PackageInfo, config: &Config) -> anyhow::Result<()> {
-    let info = install::package(pkg).context("error installing {BRANDING}")?;
+    use const_format::concatcp;
+
+    use crate::branding::BRANDING;
+
+    let info = install::package(pkg).context(concatcp!("error installing ", BRANDING))?;
     let ctx = Context::for_project(config)?;
     spawn_and_check(&info, ctx, false)
 }

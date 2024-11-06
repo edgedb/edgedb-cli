@@ -5,7 +5,9 @@ use clap::ValueHint;
 use edgedb_cli_derive::IntoArgs;
 use serde::{Deserialize, Serialize};
 
-use crate::branding::{BRANDING, BRANDING_CLOUD};
+#[cfg(doc)]
+use crate::branding::BRANDING;
+use crate::branding::BRANDING_CLOUD;
 use crate::cloud::ops::CloudTier;
 use crate::commands::ExitCode;
 use crate::options::{CloudOptions, ConnectionOptions};
