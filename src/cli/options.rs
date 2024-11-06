@@ -1,3 +1,5 @@
+#[cfg(doc)]
+use crate::branding::BRANDING_CLI_CMD;
 use crate::cli::install;
 use crate::cli::migrate;
 use crate::cli::upgrade;
@@ -12,9 +14,9 @@ pub struct CliCommand {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
-    /// Upgrade the 'edgedb' command-line tool
+    /// Upgrade the [`BRANDING_CLI_CMD`] command-line tool
     Upgrade(upgrade::CliUpgrade),
-    /// Install the 'edgedb' command-line tool
+    /// Install the [`BRANDING_CLI_CMD`] command-line tool
     #[command(hide = true)]
     Install(install::CliInstall),
     /// Migrate files from `~/.edgedb` to the new directory layout

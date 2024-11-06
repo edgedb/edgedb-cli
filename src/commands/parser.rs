@@ -22,7 +22,7 @@ pub enum Common {
 
     /// Migration management subcommands
     Migration(Box<Migration>),
-    /// Apply migration (alias for `edgedb migration apply`)
+    /// Apply migration (alias for [`BRANDING_CLI_CMD`] migration apply)
     Migrate(Migrate),
 
     /// Database commands
@@ -141,9 +141,8 @@ pub enum BranchingCmd {
     Create(crate::branch::option::Create),
     /// Delete a branch along with its data
     Drop(crate::branch::option::Drop),
-    /// Delete a branches data and reset its schema while
-    /// preserving the branch itself (its cfg::DatabaseConfig)
-    /// and existing migration scripts
+    /// Delete a branch's data and reset its schema while preserving the branch
+    /// itself (its `cfg::DatabaseConfig`) and existing migration scripts
     Wipe(crate::branch::option::Wipe),
     /// List all branches.
     List(crate::branch::option::List),
@@ -170,9 +169,9 @@ pub enum DatabaseCmd {
     Create(CreateDatabase),
     /// Delete a database along with its data
     Drop(DropDatabase),
-    /// Delete a database's data and reset its schema while
-    /// preserving the database itself (its cfg::DatabaseConfig)
-    /// and existing migration scripts
+    /// Delete a database's data and reset its schema while preserving the
+    /// database itself (its `cfg::DatabaseConfig`) and existing migration
+    /// scripts
     Wipe(WipeDatabase),
 }
 

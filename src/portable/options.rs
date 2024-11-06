@@ -5,7 +5,7 @@ use clap::ValueHint;
 use edgedb_cli_derive::IntoArgs;
 use serde::{Deserialize, Serialize};
 
-use crate::branding::BRANDING_CLOUD;
+use crate::branding::{BRANDING, BRANDING_CLOUD};
 use crate::cloud::ops::CloudTier;
 use crate::commands::ExitCode;
 use crate::options::{CloudOptions, ConnectionOptions};
@@ -36,7 +36,7 @@ pub struct ServerInstanceCommand {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum InstanceCommand {
-    /// Initialize a new EdgeDB instance.
+    /// Initialize a new [`BRANDING`] instance.
     Create(Create),
     /// Show all instances.
     List(List),
@@ -56,13 +56,13 @@ pub enum InstanceCommand {
     Unlink(Unlink),
     /// Show logs for an instance.
     Logs(Logs),
-    /// Resize a Cloud instance.
+    /// Resize an instance ([`BRANDING_CLOUD`] only).
     Resize(Resize),
-    /// Create a Cloud instance backup.
+    /// Create a backup for an instance ([`BRANDING_CLOUD`] only).
     Backup(Backup),
-    /// Restore a Cloud instance from a backup.
+    /// Restore an instance from a backup ([`BRANDING_CLOUD`] only).
     Restore(Restore),
-    /// Restore a Cloud instance from a backup.
+    /// Restore an instance from a backup ([`BRANDING_CLOUD`] only).
     ListBackups(ListBackups),
     /// Upgrade installations and instances.
     Upgrade(Upgrade),

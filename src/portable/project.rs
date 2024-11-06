@@ -80,11 +80,13 @@ pub struct ProjectCommand {
 pub enum Command {
     /// Initialize project or link to existing unlinked project
     Init(Init),
-    /// Clean up project configuration. Use `edgedb project init` to relink
+    /// Clean up project configuration.
+    ///
+    /// Use [`BRANDING_CLI_CMD`] project init to relink.
     Unlink(Unlink),
     /// Get various metadata about project instance
     Info(Info),
-    /// Upgrade EdgeDB instance used for current project
+    /// Upgrade [`BRANDING`] instance used for current project
     ///
     /// Data is preserved using a dump/restore mechanism.
     ///

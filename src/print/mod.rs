@@ -380,7 +380,7 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config) -> Result<St
 }
 
 pub fn use_color() -> bool {
-    concolor::get(concolor::Stream::Stdout).color()
+    concolor::get(concolor::Stream::Stdout).ansi_color()
 }
 
 pub fn prompt(line: impl fmt::Display) {
