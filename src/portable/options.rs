@@ -50,9 +50,12 @@ pub enum InstanceCommand {
     Restart(Restart),
     /// Destroy an instance and remove the data.
     Destroy(Destroy),
-    /// Link a remote instance.
+    /// Link to a remote [`BRANDING`] instance.
+    #[command(
+        long_about = "Link to a remote [`BRANDING`] instance and assign an instance name to simplify future connections."
+    )]
     Link(Link),
-    /// Unlink a remote instance.
+    /// Unlink from a remote [`BRANDING`] instance.
     Unlink(Unlink),
     /// Show logs for an instance.
     Logs(Logs),
@@ -378,8 +381,6 @@ pub struct Destroy {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(long_about = "Link to a remote {BRANDING} instance and
-assign an instance name to simplify future connections.")]
 pub struct Link {
     #[command(flatten)]
     pub conn: ConnectionOptions,
@@ -410,7 +411,6 @@ pub struct Link {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(long_about = "Unlink from a remote {BRANDING} instance.")]
 pub struct Unlink {
     /// Specify remote instance name.
     #[arg(hide = true)]
@@ -811,11 +811,11 @@ pub struct Info {
     #[arg(conflicts_with_all=&["nightly", "version", "latest"])]
     pub channel: Option<Channel>,
 
-    #[arg(long, value_parser=["bin-path", "version"])]
     /// Get specific value:
     ///
     /// * `bin-path` -- Path to the server binary
     /// * `version` -- Server version
+    #[arg(long, value_parser=["bin-path", "version"])]
     pub get: Option<String>,
 }
 
