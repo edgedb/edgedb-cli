@@ -119,7 +119,7 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                         " server."
                     ));
                     print::echo!(
-                        "  If you have {BRANDING} 2.0 and above, try running the \
+                        "  Try running the \
                         server with `--admin-ui=enabled`."
                     );
                     return Err(ExitCode::new(2).into());
