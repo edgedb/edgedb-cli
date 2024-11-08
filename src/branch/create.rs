@@ -41,7 +41,7 @@ pub async fn create_branch(
             eprintln!("WARNING: when --empty is used, --copy-data will be ignored");
         }
 
-        format!("create empty branch {}", new_branch)
+        format!("create empty branch {new_branch}")
     } else {
         let kind = if copy_data { "data" } else { "schema" };
 

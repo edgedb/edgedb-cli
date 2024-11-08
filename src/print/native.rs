@@ -42,7 +42,7 @@ fn format_bytes(bytes: &[u8]) -> String {
     for b in bytes {
         match b {
             0..=0x08 | 0x0B | 0x0C | 0x0E..=0x1F | 0x7F..=0xFF => {
-                write!(&mut buf, "\\x{:02x}", b).unwrap()
+                write!(&mut buf, "\\x{b:02x}").unwrap()
             }
             b'\'' => buf.push_str("\\'"),
             b'\r' => buf.push_str("\\r"),
@@ -61,9 +61,9 @@ fn format_bigint(bint: BigInt) -> String {
     let no_zeros = txt.trim_end_matches('0');
     let zeros = txt.len() - no_zeros.len();
     if zeros > 5 {
-        format!("{}e{}n", no_zeros, zeros)
+        format!("{no_zeros}e{zeros}n")
     } else {
-        format!("{}n", txt)
+        format!("{txt}n")
     }
 }
 
@@ -73,17 +73,17 @@ fn format_decimal(value: BigDecimal) -> String {
         if txt.starts_with("0.00000") {
             let no_zeros = txt[2..].trim_start_matches('0');
             let zeros = txt.len() - 2 - no_zeros.len();
-            format!("0.{}e-{}", no_zeros, zeros)
+            format!("0.{no_zeros}e-{zeros}")
         } else {
-            format!("{}n", txt)
+            format!("{txt}n")
         }
     } else {
         let no_zeros = txt.trim_end_matches('0');
         let zeros = txt.len() - no_zeros.len();
         if zeros > 5 {
-            format!("{}.0e{}n", no_zeros, zeros)
+            format!("{no_zeros}.0e{zeros}n")
         } else {
-            format!("{}.0n", txt)
+            format!("{txt}.0n")
         }
     }
 }
@@ -105,14 +105,14 @@ impl FormatExt for Value {
             V::Decimal(v) => prn.const_number(format_decimal(v.into())),
             V::Bool(v) => prn.const_bool(v),
             V::ConfigMemory(t) => prn.typed("cfg::memory", t.to_string()),
-            V::Datetime(t) => prn.typed("datetime", format!("{:?}", t)),
-            V::LocalDatetime(t) => prn.typed("cal::local_datetime", format!("{:?}", t)),
-            V::LocalDate(d) => prn.typed("cal::local_date", format!("{:?}", d)),
-            V::LocalTime(t) => prn.typed("cal::local_time", format!("{:?}", t)),
+            V::Datetime(t) => prn.typed("datetime", format!("{t:?}")),
+            V::LocalDatetime(t) => prn.typed("cal::local_datetime", format!("{t:?}")),
+            V::LocalDate(d) => prn.typed("cal::local_date", format!("{d:?}")),
+            V::LocalTime(t) => prn.typed("cal::local_time", format!("{t:?}")),
             V::Duration(d) => prn.typed("duration", d.to_string()),
             V::RelativeDuration(d) => prn.typed("cal::relative_duration", d.to_string()),
             V::DateDuration(d) => prn.typed("cal::date_duration", d.to_string()),
-            V::Json(d) => prn.const_string(format!("{:?}", d)),
+            V::Json(d) => prn.const_string(format!("{d:?}")),
             V::Set(items) => prn.set(|prn| {
                 if let Some(limit) = prn.max_items() {
                     for item in &items[..min(limit, items.len())] {

@@ -145,7 +145,7 @@ impl Wsl {
 }
 
 fn credentials_linux(instance: &str) -> String {
-    format!("/home/edgedb/.config/edgedb/credentials/{}.json", instance)
+    format!("/home/edgedb/.config/edgedb/credentials/{instance}.json")
 }
 
 #[context("cannot convert to linux (WSL) path {:?}", path)]
@@ -616,7 +616,7 @@ pub fn startup_dir() -> anyhow::Result<PathBuf> {
 }
 
 fn service_file(instance: &str) -> anyhow::Result<PathBuf> {
-    Ok(startup_dir()?.join(format!("edgedb-server-{}.cmd", instance)))
+    Ok(startup_dir()?.join(format!("edgedb-server-{instance}.cmd")))
 }
 
 pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
@@ -973,7 +973,7 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
     }
     if options.debug {
         for status in remote {
-            println!("{:#?}", status);
+            println!("{status:#?}");
         }
     } else if options.extended {
         for status in remote {
@@ -1037,7 +1037,7 @@ fn get_instance_data_dir(name: &str, wsl: &Wsl) -> anyhow::Result<String> {
             Err(_) => "/home/edgedb/.local/share/edgedb/_localdev/".into(),
         }
     } else {
-        format!("/home/edgedb/.local/share/edgedb/data/{}/", name)
+        format!("/home/edgedb/.local/share/edgedb/data/{name}/")
     };
 
     if !wsl.check_path_exist(&data_dir) {
@@ -1068,8 +1068,7 @@ pub fn read_jose_keys_legacy(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
 pub fn get_instance_info(name: &str) -> anyhow::Result<String> {
     let wsl = try_get_wsl()?;
     wsl.read_text_file(format!(
-        "/home/edgedb/.local/share/edgedb/data/{}/instance_info.json",
-        name
+        "/home/edgedb/.local/share/edgedb/data/{name}/instance_info.json"
     ))
 }
 

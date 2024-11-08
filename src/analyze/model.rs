@@ -209,7 +209,7 @@ impl fmt::Display for PropValue {
                 write!(f, "ms")?;
             }
             Expr(val) => {
-                write!(f, "{:?}", val)?;
+                write!(f, "{val:?}")?;
             }
             Index(val) => {
                 val.fmt(f)?;

@@ -45,12 +45,12 @@ fn print_diff(path1: &Path, data1: &str, path2: &Path, data2: &str) {
     let changeset = diff(data1, data2);
     let n1 = data1.split('\n').count();
     let n2 = data2.split('\n').count();
-    println!("@@ -1,{} +1,{}", n1, n2);
+    println!("@@ -1,{n1} +1,{n2}");
     for item in &changeset {
         match item {
             Chunk::Equal(block) => {
                 for line in block.split('\n') {
-                    println!(" {}", line);
+                    println!(" {line}");
                 }
             }
             Chunk::Insert(block) => {
@@ -180,22 +180,19 @@ async fn _edit(
             echo!("Id", migration.id.emphasize(), "is already correct.");
         }
     } else {
-        let temp_path = path
-            .parent()
-            .unwrap()
-            .join(format!(".editing.{}.edgeql", n));
+        let temp_path = path.parent().unwrap().join(format!(".editing.{n}.edgeql"));
         if cli.ping_while(fs::metadata(&temp_path)).await.is_ok() {
             loop {
                 let mut q = Choice::new("Previously edited file exists. Restore?");
                 q.option(
                     OldAction::Restore,
                     &["y", "yes"],
-                    format!("use previously edited {:?}", temp_path),
+                    format!("use previously edited {temp_path:?}"),
                 );
                 q.option(
                     OldAction::Replace,
                     &["n", "no"],
-                    format!("use original {:?} instead", path),
+                    format!("use original {path:?} instead"),
                 );
                 q.option(OldAction::Diff, &["d", "diff"], "show diff");
                 match cli.ping_while(q.async_ask()).await? {

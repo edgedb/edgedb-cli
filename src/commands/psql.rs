@@ -26,7 +26,7 @@ pub async fn psql<'x>(cli: &mut Connection, _options: &Options) -> Result<(), an
             let npath = if let Some(path) = env::var_os("PATH") {
                 env::join_paths(iter::once(PathBuf::from(dir)).chain(env::split_paths(&path)))
                     .unwrap_or_else(|e| {
-                        eprintln!("PSQL_DEFAULT_PATH error: {}", e);
+                        eprintln!("PSQL_DEFAULT_PATH error: {e}");
                         path
                     })
             } else {

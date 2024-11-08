@@ -87,7 +87,7 @@ async fn rebase(
     }
 
     // drop source branch
-    eprintln!("\nReplacing '{}' with rebased version...", current_branch);
+    eprintln!("\nReplacing '{current_branch}' with rebased version...");
     let (status, _warnings) = target_connection
         .execute(
             &format!(

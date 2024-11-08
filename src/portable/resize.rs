@@ -95,8 +95,7 @@ fn resize_cloud_cmd(
             if storage_size.is_none() || compute_size.is_none() {
                 let prices = cloud::ops::get_prices(&client)?;
                 let tier_prices = prices.get(&tier).context(format!(
-                    "could not download pricing information for the {} tier",
-                    tier
+                    "could not download pricing information for the {tier} tier"
                 ))?;
                 let region_prices = tier_prices.get(&inst.region).context(format!(
                     "could not download pricing information for the {} region",

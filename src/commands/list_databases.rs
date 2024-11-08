@@ -20,8 +20,7 @@ pub async fn list_databases(cli: &mut Connection, options: &Options) -> Result<(
 
     if version.specific().major >= 5 {
         print::warn(format!(
-            "Databases are not supported in {BRANDING} {}, printing list of branches instead",
-            version
+            "Databases are not supported in {BRANDING} {version}, printing list of branches instead"
         ));
         return list_branches0(cli, options).await;
     }

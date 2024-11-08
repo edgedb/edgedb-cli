@@ -53,8 +53,7 @@ pub async fn list_scalar_types<'x>(
         }}
         {filter}
         ORDER BY .name;
-    "###,
-        filter = filter
+    "###
     );
 
     let items = filter::query::<ScalarType>(cli, query, pattern, case_sensitive).await?;
@@ -78,7 +77,7 @@ pub async fn list_scalar_types<'x>(
         }
         if table.is_empty() {
             if let Some(pattern) = pattern {
-                eprintln!("No scalar types found matching {:?}", pattern);
+                eprintln!("No scalar types found matching {pattern:?}");
             } else if !system {
                 eprintln!(
                     "No user-defined scalar types found. {}",

@@ -149,6 +149,6 @@ impl Context {
         let Some(path) = &project_dir else {
             return Ok(None);
         };
-        Ok(Some(crate::portable::config::read(&path)?))
+        Ok(Some(crate::portable::config::read(path)?))
     }
 }

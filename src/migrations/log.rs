@@ -61,11 +61,11 @@ async fn log_fs_async(_common: &Options, options: &MigrationLog) -> Result<(), a
     let limit = options.limit.unwrap_or(migrations.len());
     if options.newest_first {
         for rev in migrations.keys().rev().take(limit) {
-            println!("{}", rev);
+            println!("{rev}");
         }
     } else {
         for rev in migrations.keys().take(limit) {
-            println!("{}", rev);
+            println!("{rev}");
         }
     }
     Ok(())

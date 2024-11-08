@@ -90,7 +90,7 @@ pub fn ensure_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
         Ok(()) => Ok(runstate_dir),
         Err(e) if e.kind() == io::ErrorKind::PermissionDenied && cfg!(unix) => {
             Err(anyhow::Error::new(e)
-                .context(format!("failed to create runstate dir {:?}", runstate_dir))
+                .context(format!("failed to create runstate dir {runstate_dir:?}"))
                 .hint(
                     "This may mean that `XDG_RUNTIME_DIR` \
                             is inherited from another user's environment. \
@@ -100,7 +100,7 @@ pub fn ensure_runstate_dir(name: &str) -> anyhow::Result<PathBuf> {
                 .into())
         }
         Err(e) => Err(anyhow::Error::new(e)
-            .context(format!("failed to create runstate dir {:?}", runstate_dir))),
+            .context(format!("failed to create runstate dir {runstate_dir:?}"))),
     }
 }
 
@@ -249,7 +249,7 @@ pub fn start(options: &Start) -> anyhow::Result<()> {
         } else {
             drop(try_write);
             let locked_by = fs_err::read_to_string(&lock_path)
-                .with_context(|| format!("cannot read lock file {:?}", lock_path))?;
+                .with_context(|| format!("cannot read lock file {lock_path:?}"))?;
             if options.managed_by.is_some() {
                 log::warn!(
                     "Process is already running by {}. \
@@ -353,11 +353,11 @@ pub fn read_pid(instance: &str) -> anyhow::Result<Option<u32>> {
             let pid = pid_str
                 .trim()
                 .parse()
-                .with_context(|| format!("cannot parse pid file {:?}", pid_path))?;
+                .with_context(|| format!("cannot parse pid file {pid_path:?}"))?;
             Ok(Some(pid))
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e).context(format!("cannot read pid file {:?}", pid_path))?,
+        Err(e) => Err(e).context(format!("cannot read pid file {pid_path:?}"))?,
     }
 }
 

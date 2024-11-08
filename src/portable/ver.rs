@@ -323,10 +323,10 @@ impl fmt::Display for Specific {
         f.write_str(".")?;
         match self.minor {
             MinorVersion::Minor(m) => m.fmt(f),
-            MinorVersion::Alpha(v) => write!(f, "0-alpha.{}", v),
-            MinorVersion::Beta(v) => write!(f, "0-beta.{}", v),
-            MinorVersion::Rc(v) => write!(f, "0-rc.{}", v),
-            MinorVersion::Dev(v) => write!(f, "0-dev.{}", v),
+            MinorVersion::Alpha(v) => write!(f, "0-alpha.{v}"),
+            MinorVersion::Beta(v) => write!(f, "0-beta.{v}"),
+            MinorVersion::Rc(v) => write!(f, "0-rc.{v}"),
+            MinorVersion::Dev(v) => write!(f, "0-dev.{v}"),
         }
     }
 }

@@ -19,8 +19,7 @@ pub async fn list_modules(
         SELECT name := schema::Module.name
         {filter}
         ORDER BY name
-    "###,
-        filter = filter
+    "###
     );
     let items = filter::query(cli, &query, pattern, case_sensitive).await?;
     list::print(items, "List of modules", options).await?;

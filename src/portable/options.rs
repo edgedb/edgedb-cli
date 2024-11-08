@@ -873,7 +873,7 @@ impl fmt::Display for InstanceName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             InstanceName::Local(name) => name.fmt(f),
-            InstanceName::Cloud { org_slug, name } => write!(f, "{}/{}", org_slug, name),
+            InstanceName::Cloud { org_slug, name } => write!(f, "{org_slug}/{name}"),
         }
     }
 }
@@ -943,8 +943,7 @@ pub fn instance_arg<'x>(
         }
         warn(format_args!(
             "Specifying instance name as positional argument is \
-            deprecated. Use `-I {}` instead.",
-            name
+            deprecated. Use `-I {name}` instead."
         ));
         return Ok(name);
     }

@@ -435,7 +435,7 @@ fn hint_setting_value(input: &str, val: &SettingValue) -> Option<Hint> {
                 };
                 if let Some(suggest) = suggest {
                     return Some(Hint::new(
-                        format!("  ← unknown boolean, did you mean: {}", suggest),
+                        format!("  ← unknown boolean, did you mean: {suggest}"),
                         0,
                     ));
                 }

@@ -64,7 +64,7 @@ pub fn print_project_upgrade_command(
         match version.channel {
             Channel::Stable =>
                 if let Some(filt) = &version.version {
-                    format!("--to-version={}", filt)
+                    format!("--to-version={filt}")
                 } else {
                     "--to-latest".into()
                 },
@@ -182,7 +182,7 @@ fn upgrade_cloud_cmd(
     let client = cloud::client::CloudClient::new(&opts.cloud_options)?;
     client.ensure_authenticated()?;
 
-    let _inst_name = format!("{}/{}", org, name);
+    let _inst_name = format!("{org}/{name}");
     let inst_name = _inst_name.emphasize();
 
     let result = upgrade_cloud(org, name, &query, &client, cmd.force, |target_ver| {
@@ -346,7 +346,7 @@ pub fn upgrade_incompatible(
     }
 
     reinit_and_restore(&inst, &paths).map_err(|e| {
-        print::error(format!("{:#}", e));
+        print::error(format!("{e:#}"));
         eprintln!(
             "To undo run:\n  {BRANDING_CLI_CMD} instance revert -I {:?}",
             inst.name

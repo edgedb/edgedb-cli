@@ -95,15 +95,13 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                 if self.trust_tls_cert {
                     if !self.quiet {
                         print::warn(format!(
-                            "Trusting unknown server certificate: {:?}",
-                            fingerprint,
+                            "Trusting unknown server certificate: {fingerprint:?}",
                         ));
                     }
                 } else if self.non_interactive {
                     return Err(e);
                 } else if let Ok(answer) = question::Confirm::new(format!(
-                    "Unknown server certificate: {:?}. Trust?",
-                    fingerprint,
+                    "Unknown server certificate: {fingerprint:?}. Trust?",
                 ))
                 .default(false)
                 .ask()
@@ -423,7 +421,7 @@ async fn prompt_conn_params(
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     project::print_instance_in_use_warning(name, project_dirs);
     eprintln!("If you really want to unlink the instance, run:");
-    eprintln!("  {BRANDING_CLI_CMD} instance unlink -I {:?} --force", name);
+    eprintln!("  {BRANDING_CLI_CMD} instance unlink -I {name:?} --force");
 }
 
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
@@ -435,22 +433,14 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                 inst_name
             ))
             .with_hint(|| {
-                format!(
-                    "use `edgedb instance destroy -I {}` to remove the instance",
-                    inst_name
-                )
+                format!("use `edgedb instance destroy -I {inst_name}` to remove the instance")
             })?;
         }
     };
     let inst = InstanceInfo::try_read(name)?;
     if inst.is_some() {
         return Err(anyhow::anyhow!("cannot unlink local instance {:?}.", name)
-            .with_hint(|| {
-                format!(
-                    "use `edgedb instance destroy -I {}` to remove the instance",
-                    name
-                )
-            })
+            .with_hint(|| format!("use `edgedb instance destroy -I {name}` to remove the instance"))
             .into());
     }
     with_projects(name, options.force, print_warning, || {

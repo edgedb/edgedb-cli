@@ -50,7 +50,7 @@ pub async fn configure(
                 .collect::<Vec<_>>()
                 .join(", ");
             if !users.is_empty() {
-                props.push(format!("user := {{ {} }}", users))
+                props.push(format!("user := {{ {users} }}"))
             }
             if let Some(ref comment_text) = comment {
                 props.push(format!("comment := {}", quote_string(comment_text)))

@@ -21,11 +21,11 @@ pub fn unit_dir() -> anyhow::Result<PathBuf> {
 }
 
 fn unit_name(name: &str) -> String {
-    format!("edgedb-server@{}.service", name)
+    format!("edgedb-server@{name}.service")
 }
 
 fn socket_name(name: &str) -> String {
-    format!("edgedb-server@{}.socket", name)
+    format!("edgedb-server@{name}.socket")
 }
 
 pub fn service_files(name: &str) -> anyhow::Result<Vec<PathBuf>> {
@@ -37,16 +37,16 @@ pub fn create_service(info: &InstanceInfo) -> anyhow::Result<()> {
     let name = &info.name;
     let unit_dir = unit_dir()?;
     fs::create_dir_all(&unit_dir)
-        .with_context(|| format!("cannot create directory {:?}", unit_dir))?;
+        .with_context(|| format!("cannot create directory {unit_dir:?}"))?;
     let unit_name = unit_name(name);
     let socket_name = socket_name(name);
     let unit_path = unit_dir.join(unit_name);
     let socket_unit_path = unit_dir.join(socket_name);
     fs::write(&unit_path, systemd_unit(name, info)?)
-        .with_context(|| format!("cannot write {:?}", unit_path))?;
+        .with_context(|| format!("cannot write {unit_path:?}"))?;
     if info.get_version()?.specific().major >= 2 {
         fs::write(&socket_unit_path, systemd_socket(name, info)?)
-            .with_context(|| format!("cannot write {:?}", socket_unit_path))?;
+            .with_context(|| format!("cannot write {socket_unit_path:?}"))?;
     }
     if preliminary_detect().is_some() {
         process::Native::new("systemctl", "systemctl", "systemctl")
@@ -379,7 +379,7 @@ pub fn service_status(name: &str) -> Service {
         Ok(txt) => txt,
         Err(e) => {
             return Service::Inactive {
-                error: format!("cannot determine service status: {:#}", e),
+                error: format!("cannot determine service status: {e:#}"),
             }
         }
     };
@@ -437,7 +437,7 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
         let mut cmd = process::Native::new("logs", "journalctl", "journalctl");
         cmd.arg("--user-unit").arg(unit_name(name));
         if let Some(n) = options.tail {
-            cmd.arg(format!("--lines={}", n));
+            cmd.arg(format!("--lines={n}"));
         }
         if options.follow {
             cmd.arg("--follow");

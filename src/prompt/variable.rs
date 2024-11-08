@@ -83,9 +83,9 @@ impl ParseError<&str> for ParsingError {
 
     fn from_char(input: &str, c: char) -> Self {
         let message = if !input.is_empty() {
-            format!("Expected '{}' in {:?}", c, input)
+            format!("Expected '{c}' in {input:?}")
         } else {
-            format!("Expected '{}'", c)
+            format!("Expected '{c}'")
         };
         ParsingError::Mistake {
             kind: None,
@@ -94,7 +94,7 @@ impl ParseError<&str> for ParsingError {
     }
 
     fn or(self, other: Self) -> Self {
-        let message = format!("{}, or: {}", self, other);
+        let message = format!("{self}, or: {other}");
         ParsingError::Mistake {
             kind: None,
             description: message,
@@ -104,7 +104,7 @@ impl ParseError<&str> for ParsingError {
 
 impl ContextError<&str> for ParsingError {
     fn add_context(_input: &str, ctx: &'static str, other: Self) -> Self {
-        let message = format!("{} -> {}", ctx, other);
+        let message = format!("{ctx} -> {other}");
         ParsingError::Mistake {
             kind: None,
             description: message,
@@ -116,7 +116,7 @@ impl FromExternalError<&str, String> for ParsingError {
     fn from_external_error(input: &str, kind: ErrorKind, e: String) -> Self {
         ParsingError::Mistake {
             kind: Some(kind),
-            description: format!("{} at {}", e, input),
+            description: format!("{e} at {input}"),
         }
     }
 }
@@ -132,7 +132,7 @@ impl FromExternalError<&str, anyhow::Error> for ParsingError {
         ParsingError::External {
             error: e,
             kind: Some(kind),
-            description: format!("Failed at '{}'", input),
+            description: format!("Failed at '{input}'"),
         }
     }
 }
@@ -211,7 +211,7 @@ fn quoted_str_parser<'a>(input: &'a str, quote: char) -> IResult<&'a str, String
                     if !complete {
                         return Err(Failure(ParsingError::Mistake {
                             kind: None,
-                            description: format!("Missing end quote in '{}'", str),
+                            description: format!("Missing end quote in '{str}'"),
                         }));
                     }
 
@@ -602,8 +602,7 @@ impl VariableInput for NamedTuple {
                                     return Err(ParsingError::Mistake {
                                         kind: None,
                                         description: format!(
-                                            "Duplicate named tuple element: {}",
-                                            name
+                                            "Duplicate named tuple element: {name}"
                                         ),
                                     });
                                 }
@@ -647,16 +646,16 @@ fn format_parsing_error(e: nom::Err<ParsingError>) -> String {
                 ParsingError::Mistake {
                     kind: _kind,
                     description,
-                } => format!("{}", description),
+                } => format!("{description}"),
                 ParsingError::External {
                     description,
                     error,
                     kind: _,
-                } => format!("External error occurred: {} {}", description, error),
+                } => format!("External error occurred: {description} {error}"),
                 ParsingError::Incomplete { hint: description } =>
                     description.unwrap_or("Incomplete input".to_string()),
             },
-            Incomplete(Needed::Size(sz)) => format!("Incomplete input, needing {} more chars", sz),
+            Incomplete(Needed::Size(sz)) => format!("Incomplete input, needing {sz} more chars"),
             Incomplete(_n) => "Incomplete input".to_string(),
         }
     )

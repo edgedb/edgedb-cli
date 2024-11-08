@@ -135,12 +135,11 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     let paths = Paths::get(&name)?;
     paths
         .check_exists()
-        .with_context(|| format!("instance {:?} detected", name))
+        .with_context(|| format!("instance {name:?} detected"))
         .with_hint(|| {
             format!(
-                "Use `{BRANDING_CLI_CMD} instance destroy -I {}` \
-                              to remove rest of unused instance",
-                name
+                "Use `{BRANDING_CLI_CMD} instance destroy -I {name}` \
+                              to remove rest of unused instance"
             )
         })?;
 
@@ -284,12 +283,10 @@ fn create_cloud(
 
     let prices = cloud::ops::get_prices(client)?;
     let tier_prices = prices.get(&tier).context(format!(
-        "could not download pricing information for the {} tier",
-        tier
+        "could not download pricing information for the {tier} tier"
     ))?;
     let region_prices = tier_prices.get(&region).context(format!(
-        "could not download pricing information for the {} region",
-        region
+        "could not download pricing information for the {region} region"
     ))?;
     let default_compute = region_prices
         .iter()
@@ -462,7 +459,7 @@ pub fn bootstrap(
 
     let cert_path = tmp_data.join("edbtlscert.pem");
     let cert = fs::read_to_string(&cert_path)
-        .with_context(|| format!("cannot read certificate: {:?}", cert_path))?;
+        .with_context(|| format!("cannot read certificate: {cert_path:?}"))?;
 
     write_json(&tmp_data.join("instance_info.json"), "metadata", &info)?;
     fs::rename(&tmp_data, &paths.data_dir)

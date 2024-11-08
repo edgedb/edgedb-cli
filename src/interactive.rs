@@ -178,14 +178,14 @@ fn _check_json_limit(json: &serde_json::Value, path: &mut String, limit: usize) 
                 return false;
             }
             for (idx, item) in items.iter().enumerate() {
-                write!(path, "[{}]", idx).expect("formatting failed");
+                write!(path, "[{idx}]").expect("formatting failed");
                 _check_json_limit(item, path, limit);
                 path.truncate(level);
             }
         }
         Object(pairs) => {
             for (key, value) in pairs {
-                write!(path, ".{}", key).expect("formatting failed");
+                write!(path, ".{key}").expect("formatting failed");
                 _check_json_limit(value, path, limit);
                 path.truncate(level);
             }
@@ -242,7 +242,7 @@ async fn execute_backslash(state: &mut repl::State, text: &str) -> anyhow::Resul
                 // It's expected that command already printed all required
                 // messages, so ignoring it is safe
             } else {
-                eprintln!("Error executing command: {:#}", e);
+                eprintln!("Error executing command: {e:#}");
                 // Quick-edit command on error
                 state.initial_text = text.into();
                 state.last_error = Some(e);
@@ -303,7 +303,7 @@ async fn execute_query(
             }
             if options.debug_print_codecs {
                 let incodec = indesc.build_codec()?;
-                println!("Input Codec {:#?}", incodec);
+                println!("Input Codec {incodec:#?}");
             }
 
             let input_start = Instant::now();
@@ -313,7 +313,7 @@ async fn execute_query(
             {
                 Ok(input) => input,
                 Err(e) => {
-                    eprintln!("{:#}", e);
+                    eprintln!("{e:#}");
                     state.last_error = Some(e);
                     return Err(QueryError)?;
                 }
@@ -350,7 +350,7 @@ async fn execute_query(
                 return Err(RetryStateError)?;
             }
             Err(e) => {
-                eprintln!("Error: {}", e);
+                eprintln!("Error: {e}");
                 state.last_error = Some(e.into());
                 return Err(QueryError)?;
             }
@@ -388,7 +388,7 @@ async fn execute_query(
                 let mut text = match tab_separated::format_row(&row) {
                     Ok(text) => text,
                     Err(e) => {
-                        eprintln!("Error: {}", e);
+                        eprintln!("Error: {e}");
                         // exhaust the iterator to get connection in the
                         // consistent state
                         items.complete().await?;
@@ -411,7 +411,7 @@ async fn execute_query(
                         } => {
                             print_query_error(error, statement, state.verbose_errors, "<query>")?;
                         }
-                        _ => eprintln!("{:#?}", e),
+                        _ => eprintln!("{e:#?}"),
                     }
                     state.last_error = Some(e.into());
                     return Err(QueryError)?;
@@ -478,7 +478,7 @@ async fn execute_query(
 
                 let value: serde_json::Value =
                     serde_json::from_str(&text).context("cannot decode json result")?;
-                let path = format!(".[{}]", index);
+                let path = format!(".[{index}]");
                 if let Some(limit) = state.implicit_limit {
                     if index >= limit {
                         print_json_limit_error(&path);

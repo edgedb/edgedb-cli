@@ -39,7 +39,7 @@ pub async fn interactive(prompt: &mut repl::State, query: &str) -> anyhow::Resul
             {
                 Ok(input) => input,
                 Err(e) => {
-                    eprintln!("{:#}", e);
+                    eprintln!("{e:#}");
                     prompt.last_error = Some(e);
                     return Err(QueryError)?;
                 }
@@ -55,7 +55,7 @@ pub async fn interactive(prompt: &mut repl::State, query: &str) -> anyhow::Resul
         .unwrap_or(false)
     {
         let json: serde_json::Value = serde_json::from_str(&data).unwrap();
-        println!("JSON: {}", json);
+        println!("JSON: {json}");
     }
     let jd = &mut serde_json::Deserializer::from_str(&data);
     let output = serde_path_to_error::deserialize(jd).context("parsing explain output")?;

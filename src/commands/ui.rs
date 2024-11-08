@@ -33,15 +33,15 @@ pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
         match open::that(&url) {
             Ok(_) => {
                 print::success("Opening URL in browser:");
-                println!("{}", url);
+                println!("{url}");
                 Ok(())
             }
             Err(e) => {
-                print::error(format!("Cannot launch browser: {:#}", e));
+                print::error(format!("Cannot launch browser: {e:#}"));
                 print::prompt(
                     "Please paste the URL below into your browser to launch the {BRANDING} UI:",
                 );
-                println!("{}", url);
+                println!("{url}");
                 Err(ExitCode::new(1).into())
             }
         }
@@ -75,7 +75,7 @@ fn get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Stri
     let mut url = _get_local_ui_url(cmd, cfg)?;
 
     if let Some(secret_key) = secret_key {
-        url = format!("{}?authToken={}", url, secret_key);
+        url = format!("{url}?authToken={secret_key}");
     }
 
     Ok(url)
@@ -133,7 +133,7 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                     return Err(ExitCode::new(3).into());
                 }
                 Err(e) => {
-                    print::error(format!("cannot connect to {}: {:#}", url, e,));
+                    print::error(format!("cannot connect to {url}: {e:#}",));
                     return Err(ExitCode::new(4).into());
                 }
             }
@@ -265,7 +265,7 @@ mod jwt {
 
             let token = self.generate_token()?;
             if !self.legacy {
-                return Ok(format!("edbt_{}", token));
+                return Ok(format!("edbt_{token}"));
             }
 
             self.generate_legacy_token(token)
@@ -325,10 +325,9 @@ mod jwt {
             let protected = format!(
                 "{{\
                     \"alg\":\"ECDH-ES\",\"enc\":\"A256GCM\",\"epk\":{{\
-                        \"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"{}\",\"y\":\"{}\"\
+                        \"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"{x}\",\"y\":\"{y}\"\
                     }}\
-                }}",
-                x, y
+                }}"
             );
             let protected = URL_SAFE_NO_PAD.encode(protected.as_bytes());
             let mut nonce = vec![0; 96 / 8];

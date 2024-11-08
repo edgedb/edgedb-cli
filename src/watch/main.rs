@@ -79,7 +79,7 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
 
     eprintln!("{BRANDING} Watch initialized.");
     eprintln!("  Hint: Use `{BRANDING_CLI_CMD} migration create` and `{BRANDING_CLI_CMD} migrate --dev-mode` to apply changes once done.");
-    eprintln!("Monitoring {:?}.", project_dir);
+    eprintln!("Monitoring {project_dir:?}.");
     let res = runtime.block_on(watch_loop(rx, &mut ctx));
     runtime
         .block_on(ctx.try_connect_and_clear_error())
@@ -215,8 +215,7 @@ impl From<anyhow::Error> for ErrorJson {
                 kind: "WatchError",
                 message: format!(
                     "error when trying to update the schema.\n  \
-                    Original error: {}",
-                    err
+                    Original error: {err}"
                 ),
                 hint: Some(
                     concatcp!(

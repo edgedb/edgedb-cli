@@ -582,7 +582,7 @@ pub async fn execute(
     };
     match cmd {
         Help => {
-            print!("{}", HELP);
+            print!("{HELP}");
             Ok(Skip)
         }
         Common(ref cmd) => {
@@ -668,7 +668,7 @@ pub async fn execute(
                 .try_connect(&c.database_name)
                 .await
                 .map_err(|e| {
-                    print::error(format!("Cannot connect: {:#}", e));
+                    print::error(format!("Cannot connect: {e:#}"));
                 })
                 .ok();
             Ok(Skip)
@@ -677,7 +677,7 @@ pub async fn execute(
             if let Some(ref err) = prompt.last_error {
                 match err.downcast_ref::<Error>() {
                     Some(e) => println!("{}", display_error_verbose(e)),
-                    None => println!("{:#}", err),
+                    None => println!("{err:#}"),
                 }
             } else {
                 eprintln!("== no previous error ==");
@@ -702,7 +702,7 @@ pub async fn execute(
                     .map(|c| c.get_state_as_value())
                     .unwrap_or_else(|| prompt.get_state_as_value())?
             };
-            println!("Descriptor id: {}", desc_id);
+            println!("Descriptor id: {desc_id}");
             print::native_to_stdout(tokio_stream::iter([Ok::<_, Error>(value)]), &prompt.print)
                 .await?;
             println!();

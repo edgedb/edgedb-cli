@@ -54,8 +54,7 @@ pub async fn list_aliases(
         }}
         {filter}
         ORDER BY .name;
-    "###,
-        filter = filter
+    "###
     );
     let items = filter::query::<Alias>(cli, query, pattern, case_sensitive).await?;
     if !options.command_line || std::io::stdout().is_terminal() {
@@ -91,7 +90,7 @@ pub async fn list_aliases(
         }
         if table.is_empty() {
             if let Some(pattern) = pattern {
-                eprintln!("No aliases found matching {:?}", pattern);
+                eprintln!("No aliases found matching {pattern:?}");
             } else if !system {
                 eprintln!("No user-defined expression aliases found.");
             } else {

@@ -78,9 +78,8 @@ fn move_file(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
             return Ok(());
         }
         let mut q = question::Choice::new(format!(
-            "Attempting to move {:?} -> {:?}, but \
-            destination file exists. Do you want to overwrite?",
-            src, dest
+            "Attempting to move {src:?} -> {dest:?}, but \
+            destination file exists. Do you want to overwrite?"
         ));
         q.option(Yes, &["y"], "overwrite the destination file");
         q.option(Skip, &["s"], "skip, keep destination file, remove source");
@@ -114,9 +113,8 @@ fn move_dir(src: &Path, dest: &Path, dry_run: bool) -> anyhow::Result<()> {
             return Ok(());
         }
         let mut q = question::Choice::new(format!(
-            "Attempting to move {:?} -> {:?}, but \
-            destination directory exists. Do you want to overwrite?",
-            src, dest
+            "Attempting to move {src:?} -> {dest:?}, but \
+            destination directory exists. Do you want to overwrite?"
         ));
         q.option(Yes, &["y"], "overwrite the destination dir");
         q.option(Skip, &["s"], "skip, keep destination dir, remove source");
@@ -244,9 +242,9 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
         let cfg_dir = config_dir()?;
         let env_file = cfg_dir.join("env");
 
-        fs::create_dir_all(&cfg_dir).with_context(|| format!("failed to create {:?}", cfg_dir))?;
+        fs::create_dir_all(&cfg_dir).with_context(|| format!("failed to create {cfg_dir:?}"))?;
         fs::write(&env_file, new_line + "\n")
-            .with_context(|| format!("failed to write env file {:?}", env_file))?;
+            .with_context(|| format!("failed to write env file {env_file:?}"))?;
 
         if modified && no_dir_in_path(new_bin_dir) {
             print::success(concatcp!(
@@ -351,16 +349,14 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     if !dry_run && dir_is_non_empty(base)? {
         eprintln!(
             "\
-            Directory {:?} is no longer used by {BRANDING} tools and must be \
+            Directory {base:?} is no longer used by {BRANDING} tools and must be \
             removed to finish migration, but some files or directories \
             remain after all known files have moved. \
             The files may have been left by a third party tool. \
-        ",
-            base
+        "
         );
         let q = question::Confirm::new(format!(
-            "Do you want to remove all files and directories within {:?}?",
-            base,
+            "Do you want to remove all files and directories within {base:?}?",
         ));
         if !q.ask()? {
             print::error("Canceled by user.");

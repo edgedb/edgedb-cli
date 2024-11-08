@@ -12,7 +12,7 @@ pub async fn main(
     let current_branch = context.get_current_branch(connection).await?;
 
     if options.plain {
-        println!("{}", current_branch);
+        println!("{current_branch}");
     } else {
         eprintln!("The current branch is '{}'", current_branch.green());
     }

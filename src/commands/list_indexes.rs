@@ -70,8 +70,7 @@ pub async fn list_indexes(
         }}
         {filter}
         ORDER BY .subject_name;
-    "###,
-        filter = filter
+    "###
     );
     let items = filter::query::<Index>(cli, query, pattern, case_sensitive).await?;
     if !options.command_line || std::io::stdout().is_terminal() {
@@ -107,7 +106,7 @@ pub async fn list_indexes(
         }
         if table.is_empty() {
             if let Some(pattern) = pattern {
-                eprintln!("No indexes found matching {:?}", pattern);
+                eprintln!("No indexes found matching {pattern:?}");
             } else if !verbose {
                 if options.command_line {
                     eprintln!("No explicit indexes found. Try --verbose");

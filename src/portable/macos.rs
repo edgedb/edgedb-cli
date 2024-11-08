@@ -29,7 +29,7 @@ pub fn plist_dir() -> anyhow::Result<PathBuf> {
 }
 
 fn plist_name(name: &str) -> String {
-    format!("com.edgedb.edgedb-server-{}.plist", name)
+    format!("com.edgedb.edgedb-server-{name}.plist")
 }
 
 fn plist_path(name: &str) -> anyhow::Result<PathBuf> {
@@ -223,7 +223,7 @@ fn _service_status(name: &str) -> Status {
         Ok(output) => output,
         Err(e) => {
             return Inactive {
-                error: format!("cannot determine service status: {:#}", e),
+                error: format!("cannot determine service status: {e:#}"),
             }
         }
     };

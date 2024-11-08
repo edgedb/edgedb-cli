@@ -88,7 +88,7 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
     }
     let deadline = Instant::now() + AUTHENTICATION_WAIT_TIME;
     while Instant::now() < deadline {
-        match client.get(format!("auth/sessions/{}", id)).await {
+        match client.get(format!("auth/sessions/{id}")).await {
             Ok(UserSession {
                 id: _,
                 auth_url: _,
@@ -126,7 +126,7 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
                 ));
                 return Ok(());
             }
-            Err(e) => print::warn(format!("Request failed: {:?}\nRetrying...", e)),
+            Err(e) => print::warn(format!("Request failed: {e:?}\nRetrying...")),
             _ => {}
         }
         sleep(AUTHENTICATION_POLL_INTERVAL).await;
@@ -213,8 +213,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             removed = true;
             fs::remove_file(cloud_creds.join(item.file_name()))?;
             print::success(format!(
-                "You are now logged out from {BRANDING_CLOUD} profile {:?}.",
-                profile
+                "You are now logged out from {BRANDING_CLOUD} profile {profile:?}."
             ));
         }
     } else {

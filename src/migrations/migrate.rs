@@ -259,15 +259,13 @@ async fn fixup(
                                 "Last recorded database migration is the result of \
                             a direct DDL statement. \
                             Consider running `edgedb migration extract` \
-                            to bring the history in {0:?} in sync with the database.",
-                                migrations_dir
+                            to bring the history in {migrations_dir:?} in sync with the database."
                             )
                         } else {
                             format!(
                                 "You might have a wrong or outdated source checkout. \
                             If you don't, consider running `edgedb migration extract` \
-                            to bring the history in {0:?} in sync with the database.",
-                                migrations_dir
+                            to bring the history in {migrations_dir:?} in sync with the database."
                             )
                         }
                     }))?;
@@ -299,15 +297,13 @@ async fn fixup(
                                 "Last recorded database migration is the result of \
                             a direct DDL statement. \
                             Consider running `edgedb migration extract` \
-                            to bring the history in {0:?} in sync with the database.",
-                                migrations_dir
+                            to bring the history in {migrations_dir:?} in sync with the database."
                             )
                         } else {
                             format!(
                                 "You might have a wrong or outdated source checkout. \
                             If you don't, consider running `edgedb migration extract` \
-                            to bring the history in {0:?} in sync with the database.",
-                                migrations_dir
+                            to bring the history in {migrations_dir:?} in sync with the database."
                             )
                         }
                     }))?;
@@ -323,8 +319,7 @@ async fn fixup(
                     format!(
                         "You might have a wrong or outdated source checkout. \
                     If you don't, consider running `edgedb migration extract` \
-                    to bring the history in {0:?} in sync with the database.",
-                        migrations_dir,
+                    to bring the history in {migrations_dir:?} in sync with the database.",
                     )
                 }))?;
             }

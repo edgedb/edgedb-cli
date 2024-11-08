@@ -79,7 +79,7 @@ impl RebaseMigrations {
             }
         };
 
-        eprintln!("Last common migration is {}", last_common);
+        eprintln!("Last common migration is {last_common}");
         eprintln!(
             "Since then, there are:\n- {} new {} on the target branch,\n- {} {} to rebase",
             self.target_migrations.len().to_string().green(),

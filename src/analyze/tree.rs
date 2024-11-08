@@ -424,7 +424,7 @@ impl table::Contents for ShapeNode<'_> {
         self.marker.render_head(f)?;
         write!(f, "{}", self.context)?;
         if let Some(attr) = self.attribute {
-            write!(f, ".{}", attr)?;
+            write!(f, ".{attr}")?;
         }
         self.marker.render_tail(height, f)?;
         Ok(())
