@@ -147,6 +147,7 @@ impl<T: fmt::Display> fmt::Display for Colored<&T> {
     }
 }
 
+#[deprecated(note = "use msg! instead")]
 #[macro_export]
 macro_rules! echo {
     ($word1:expr $(; $semi_word1:expr)*
@@ -177,5 +178,12 @@ macro_rules! echo {
             buf.push('\n');
             eprint!("{}", buf);
         };
+    }
+}
+
+#[macro_export]
+macro_rules! msg {
+    ($($tt:tt)*) => {
+        eprintln!($($tt)*);
     }
 }

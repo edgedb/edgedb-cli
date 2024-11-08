@@ -15,7 +15,7 @@ use edgedb_errors::display::display_error;
 use crate::branding::BRANDING_CLI_CMD;
 use crate::repl::VectorLimit;
 
-pub use crate::echo;
+pub use crate::{echo, msg};
 
 mod buffer;
 mod color;
