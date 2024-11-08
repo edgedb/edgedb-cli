@@ -433,20 +433,14 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                 inst_name
             ))
             .with_hint(|| {
-                format!(
-                    "use `edgedb instance destroy -I {inst_name}` to remove the instance"
-                )
+                format!("use `edgedb instance destroy -I {inst_name}` to remove the instance")
             })?;
         }
     };
     let inst = InstanceInfo::try_read(name)?;
     if inst.is_some() {
         return Err(anyhow::anyhow!("cannot unlink local instance {:?}.", name)
-            .with_hint(|| {
-                format!(
-                    "use `edgedb instance destroy -I {name}` to remove the instance"
-                )
-            })
+            .with_hint(|| format!("use `edgedb instance destroy -I {name}` to remove the instance"))
             .into());
     }
     with_projects(name, options.force, print_warning, || {

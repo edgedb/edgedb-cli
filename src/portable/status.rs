@@ -499,9 +499,7 @@ async fn _get_remote(
             get_remote_and_cloud(instances, cloud_client, errors),
             || {
                 if num > 0 {
-                    format!(
-                        "Checking {BRANDING_CLOUD} and {num} remote instance(s)..."
-                    )
+                    format!("Checking {BRANDING_CLOUD} and {num} remote instance(s)...")
                 } else {
                     format!("Checking {BRANDING_CLOUD} instances...")
                 }

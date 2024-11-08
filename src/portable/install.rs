@@ -180,8 +180,8 @@ pub fn specific(version: &ver::Specific) -> anyhow::Result<InstallInfo> {
     if target_dir.exists() {
         return InstallInfo::read(&target_dir);
     }
-    let pkg = get_specific_package(version)?
-        .with_context(|| format!("cannot find package {version}"))?;
+    let pkg =
+        get_specific_package(version)?.with_context(|| format!("cannot find package {version}"))?;
     package(&pkg)
 }
 

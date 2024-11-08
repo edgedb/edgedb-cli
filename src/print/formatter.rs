@@ -212,8 +212,7 @@ where
     {
         self.delimit()?;
         self.block(
-            self.styler
-                .apply(Style::TupleLiteral, &format!("{name}(")),
+            self.styler.apply(Style::TupleLiteral, &format!("{name}(")),
             f,
             self.styler.apply(Style::TupleLiteral, ")"),
         )?;

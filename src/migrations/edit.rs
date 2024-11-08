@@ -180,10 +180,7 @@ async fn _edit(
             echo!("Id", migration.id.emphasize(), "is already correct.");
         }
     } else {
-        let temp_path = path
-            .parent()
-            .unwrap()
-            .join(format!(".editing.{n}.edgeql"));
+        let temp_path = path.parent().unwrap().join(format!(".editing.{n}.edgeql"));
         if cli.ping_while(fs::metadata(&temp_path)).await.is_ok() {
             loop {
                 let mut q = Choice::new("Previously edited file exists. Restore?");

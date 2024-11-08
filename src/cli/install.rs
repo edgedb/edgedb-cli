@@ -519,8 +519,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         fs::rename(&exe_path, &path).with_context(|| format!("failed to rename {exe_path:?}"))?;
     } else {
         fs::remove_file(&tmp_path).ok();
-        fs::copy(&exe_path, &tmp_path)
-            .with_context(|| format!("failed to write {tmp_path:?}"))?;
+        fs::copy(&exe_path, &tmp_path).with_context(|| format!("failed to write {tmp_path:?}"))?;
         fs::rename(&tmp_path, &path).with_context(|| format!("failed to rename {tmp_path:?}"))?;
     }
     write_completions_home()?;

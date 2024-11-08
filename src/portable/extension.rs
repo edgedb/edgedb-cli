@@ -38,9 +38,7 @@ fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, a
                 inst_name
             ))
             .with_hint(|| {
-                format!(
-                    "only local instances can install extensions ({inst_name} is remote)"
-                )
+                format!("only local instances can install extensions ({inst_name} is remote)")
             })?;
         }
     };
@@ -49,11 +47,7 @@ fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, a
             "cannot install extensions in {BRANDING_CLOUD} instance {}.",
             name
         ))
-        .with_hint(|| {
-            format!(
-                "only local instances can install extensions ({name} is remote)"
-            )
-        })?;
+        .with_hint(|| format!("only local instances can install extensions ({name} is remote)"))?;
     };
     Ok(inst)
 }
