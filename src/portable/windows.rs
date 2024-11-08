@@ -866,10 +866,8 @@ pub fn status(options: &options::Status) -> anyhow::Result<()> {
                 .args(options)
                 .run()?;
         } else {
-            msg!(
-                "WSL distribution is not installed, \
-                   so no {BRANDING} instances are present."
-            );
+            msg!("WSL distribution is not installed, \
+                   so no {BRANDING} instances are present.");
             return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
         }
     } else {

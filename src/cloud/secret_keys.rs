@@ -12,7 +12,6 @@ use crate::portable::exit_codes;
 
 use crate::table::{self, Cell, Row, Table};
 
-use crate::msg;
 use crate::print::{self, Highlight};
 use crate::question;
 
@@ -142,14 +141,12 @@ pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> a
         if c.non_interactive {
             print!("{sk}");
         } else {
-            msg!(
-                "\nYour new {} {}",
+            msg!("\nYour new {} {}",
                 BRANDING_CLOUD,
                 " secret key is printed below. \
                  Be sure to copy and store it securely, as you will \
                  not be able to see it again.\n"
-                    .green()
-            );
+                    .green());
             msg!("{}", sk.emphasize());
         }
     }

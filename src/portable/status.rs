@@ -33,7 +33,7 @@ use crate::portable::local::{InstanceInfo, Paths};
 use crate::portable::options::{instance_arg, InstanceName, List, Status};
 use crate::portable::upgrade::{BackupMeta, UpgradeMeta};
 use crate::portable::{linux, macos, windows};
-use crate::print::{self, msg, Highlight};
+use crate::print::{self, Highlight};
 use crate::process;
 use crate::table::{self, Cell, Row, Table};
 
@@ -312,11 +312,9 @@ async fn _remote_status(name: &str, quiet: bool) -> anyhow::Result<RemoteStatus>
     let cred_path = credentials::path(name)?;
     if !cred_path.exists() {
         if !quiet {
-            msg!(
-                "{} No instance {} found",
+            msg!("{} No instance {} found",
                 print::err_marker(),
-                name.emphasize()
-            );
+                name.emphasize());
         }
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }

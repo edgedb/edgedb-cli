@@ -20,7 +20,7 @@ use crate::portable::repository::QueryOptions;
 use crate::portable::repository::{download, PackageHash, PackageInfo, Query};
 use crate::portable::repository::{get_server_package, get_specific_package};
 use crate::portable::ver::{self, Build};
-use crate::print::{self, msg, Highlight};
+use crate::print::{self, Highlight};
 
 static INSTALLED_VERSIONS: Lazy<Mutex<BTreeSet<Build>>> = Lazy::new(|| Mutex::new(BTreeSet::new()));
 

@@ -14,7 +14,7 @@ use crate::portable::install;
 use crate::portable::local::Paths;
 use crate::portable::options::{instance_arg, InstanceName, Revert};
 use crate::portable::status::{instance_status, BackupStatus, DataDirectory};
-use crate::print::{self, msg, Highlight};
+use crate::print::{self, Highlight};
 use crate::process;
 use crate::question;
 
@@ -54,19 +54,15 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         } => (b, d),
     };
     msg!("{} version: {:?}", BRANDING, old_inst.get_version());
-    msg!(
-        "Backup timestamp: {} {}",
+    msg!("Backup timestamp: {} {}",
         humantime::format_rfc3339(backup_info.timestamp),
-        format!("({})", format::done_before(backup_info.timestamp))
-    );
+        format!("({})", format::done_before(backup_info.timestamp)));
     if !options.ignore_pid_check {
         match status.data_status {
             DataDirectory::Upgrading(Ok(up)) if process::exists(up.pid) => {
-                msg!(
-                    "Upgrade appears to still be in progress \
+                msg!("Upgrade appears to still be in progress \
                     with pid {}",
-                    up.pid.emphasize()
-                );
+                    up.pid.emphasize());
                 msg!("Run with `--ignore-pid-check` to override");
                 Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
             }
@@ -78,10 +74,8 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     }
     if !options.no_confirm {
         eprintln!();
-        msg!(
-            "Currently stored data {} and overwritten by the backup.",
-            "will be lost".emphasize()
-        );
+        msg!("Currently stored data {} and overwritten by the backup.",
+            "will be lost".emphasize());
         let q = question::Confirm::new_dangerous("Do you really want to revert?");
         if !q.ask()? {
             print::error("Canceled.");
@@ -109,7 +103,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     fs::rename(&paths.backup_dir, &paths.data_dir)?;
 
     let inst = old_inst;
-    msg!("Starting {} {}...", BRANDING, inst.get_version()?);
+    msg!("Starting {} {:?}...", BRANDING, inst.get_version());
 
     create::create_service(&inst)
         .map_err(|e| {
@@ -118,11 +112,9 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         .ok();
 
     control::do_restart(&inst)?;
-    msg!(
-        "Instance {} is successfully reverted to {}",
+    msg!("Instance {} is successfully reverted to {}",
         inst.name.emphasize(),
-        inst.get_version()?.emphasize()
-    );
+        inst.get_version()?.emphasize());
 
     fs::remove_file(paths.data_dir.join("backup.json"))?;
     fs::remove_dir_all(&tmp_path)?;

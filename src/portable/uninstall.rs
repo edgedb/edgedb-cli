@@ -10,7 +10,7 @@ use crate::portable::options::Uninstall;
 use crate::portable::repository::Query;
 use crate::portable::status;
 use crate::portable::ver;
-use crate::print::{self, msg, Highlight};
+use crate::print::{self, Highlight};
 
 pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
     let mut candidates = local::get_installed()?;
@@ -72,10 +72,8 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
         print::error("some instances are in use. See messages above.");
         Err(ExitCode::new(exit_codes::PARTIAL_SUCCESS))?;
     } else if uninstalled > 0 {
-        msg!(
-            "Successfully uninstalled {} versions.",
-            uninstalled.emphasize()
-        );
+        msg!("Successfully uninstalled {} versions.",
+            uninstalled.emphasize());
     } else {
         print::success("Nothing to uninstall.")
     }

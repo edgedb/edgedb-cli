@@ -23,7 +23,7 @@ use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query, QueryOptions};
 use crate::portable::reset_password::{generate_password, password_hash};
 use crate::portable::{linux, macos, windows};
-use crate::print::{self, err_marker, msg, Highlight};
+use crate::print::{self, err_marker, Highlight};
 use crate::process;
 use crate::question;
 
@@ -54,11 +54,9 @@ fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<Ins
             }
         };
         if exists {
-            msg!(
-                "{} Instance {} already exists.",
+            msg!("{} Instance {} already exists.",
                 err_marker(),
-                name.emphasize()
-            );
+                name.emphasize());
         } else {
             return Ok(inst_name);
         }
@@ -86,11 +84,9 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     let inst_name = if let Some(name) = &cmd.name {
         name.to_owned()
     } else if cmd.non_interactive {
-        msg!(
-            "{} Instance name is required \
+        msg!("{} Instance name is required \
                              in non-interactive mode",
-            err_marker()
-        );
+            err_marker());
         return Err(ExitCode::new(2).into());
     } else {
         ask_name(&mut client)?
@@ -205,7 +201,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
 
     msg!("Instance {} is up and running.", name.emphasize());
     msg!("To connect to the instance run:");
-    msg!("  {} -I {}", BRANDING_CLI_CMD, name);
+    msg!("  {BRANDING_CLI_CMD} -I {name}");
     Ok(())
 }
 
@@ -389,13 +385,9 @@ fn create_cloud(
         source_backup_id: cmd.cloud_backup_source.from_backup_id.clone(),
     };
     cloud::ops::create_cloud_instance(client, &request)?;
-    msg!(
-        "{} instance {} is up and running.",
-        BRANDING_CLOUD,
-        inst_name
-    );
+    msg!("{BRANDING_CLOUD} instance {inst_name} is up and running.");
     msg!("To connect to the instance run:");
-    msg!("  {} -I {}", BRANDING_CLI_CMD, inst_name);
+    msg!("  {BRANDING_CLI_CMD} -I {inst_name}");
     Ok(())
 }
 
@@ -449,7 +441,7 @@ pub fn bootstrap(
     let password = generate_password();
     let script = bootstrap_script(user, &password);
 
-    msg!("Initializing {} instance...", BRANDING);
+    msg!("Initializing {BRANDING} instance...");
     let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
     cmd.arg("--bootstrap-only");
     cmd.env_default("EDGEDB_SERVER_LOG_LEVEL", "warn");

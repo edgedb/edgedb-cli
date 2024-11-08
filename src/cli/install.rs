@@ -23,7 +23,7 @@ use crate::platform::{binary_path, config_dir, home_dir};
 use crate::portable::platform;
 use crate::portable::project::project_dir;
 use crate::portable::project::{self, Init};
-use crate::print::{self, msg};
+use crate::print::{self};
 use crate::print_markdown;
 use crate::process;
 use crate::question::{self, read_choice};
@@ -452,16 +452,12 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     if !options.no_confirm {
         match home_dir_from_passwd().zip(env::var_os("HOME")) {
             Some((passwd, env)) if passwd != env => {
-                msg!(
-                    "$HOME differs from euid-obtained home directory: \
-                       you may be using sudo"
-                );
+                msg!("$HOME differs from euid-obtained home directory: \
+                       you may be using sudo");
                 msg!("$HOME directory: {}", Path::new(&env).display());
                 msg!("euid-obtained home directory: {}", passwd.display());
-                msg!(
-                    "if this is what you want, \
-                       restart the installation with `-y'"
-                );
+                msg!("if this is what you want, \
+                       restart the installation with `-y'");
                 return Err(ExitCode::new(1).into());
             }
             _ => {}
@@ -499,10 +495,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     }
 
     if cfg!(all(target_os = "macos", target_arch = "x86_64")) && platform::is_arm64_hardware() {
-        msg!(
-            "{} now supports native M1 build. Downloading binary...",
-            BRANDING
-        );
+        msg!("{BRANDING} now supports native M1 build. Downloading binary...");
         return upgrade::upgrade_to_arm64();
     }
 

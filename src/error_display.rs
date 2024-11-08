@@ -12,7 +12,7 @@ use termcolor::{ColorChoice, StandardStream};
 use edgedb_errors::{Error, InternalServerError};
 
 use crate::branding::BRANDING_CLI_CMD;
-use crate::print::{self, msg};
+use crate::print::{self};
 
 pub fn print_query_error(
     err: &Error,
@@ -119,5 +119,5 @@ fn print_query_warning_plain(warning: &Warning) {
         CString::new(marker)
     };
 
-    msg!("{} {}", marker, warning);
+    msg!("{marker} {warning}");
 }

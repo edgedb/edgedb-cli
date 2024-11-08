@@ -10,7 +10,7 @@ use regex::Regex;
 use crate::branding::BRANDING_CLI_CMD;
 use crate::connect::Connection;
 use crate::portable::repository::Query;
-use crate::print::{msg, Highlight};
+use crate::print::{Highlight};
 use crate::process::{self, IntoArg};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -396,12 +396,10 @@ pub async fn check_client(cli: &mut Connection, minimum_version: &Build) -> anyh
 pub fn print_version_hint(version: &Specific, ver_query: &Query) {
     if let Some(filter) = &ver_query.version {
         if !filter.matches_exact(version) {
-            msg!(
-                "Using {} (matches `{}`), use `{}` for exact version",
+            msg!("Using {} (matches `{}`), use `{}` for exact version",
                 version.emphasize(),
                 filter,
-                filter.clone().with_exact()
-            );
+                filter.clone().with_exact());
         }
     }
 }

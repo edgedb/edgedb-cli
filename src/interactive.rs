@@ -27,7 +27,6 @@ use crate::config::Config;
 use crate::credentials;
 use crate::error_display::print_query_error;
 use crate::interrupt::{Interrupt, InterruptError};
-use crate::msg;
 use crate::options::Options;
 use crate::outputs::tab_separated;
 use crate::print::Highlight;
@@ -152,10 +151,8 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
 pub async fn _main(options: Options, mut state: repl::State, cfg: Config) -> anyhow::Result<()> {
     state.connect().await?;
     if let Some(config_path) = &cfg.file_name {
-        msg!(
-            "{}",
-            format_args!("Applied {} configuration file", config_path.display(),).fade()
-        );
+        msg!("{}",
+            format_args!("Applied {} configuration file", config_path.display(),).fade());
     }
     msg!("{}", r#"Type \help for help, \quit to quit."#.light_gray());
     state.set_history_limit(state.history_limit).await?;
@@ -589,14 +586,12 @@ async fn _interactive_main(
                             continue 'retry;
                         }
                         print::error("State could not be updated automatically");
-                        msg!(
-                            "  Hint: This means that migrations or DDL \
+                        msg!("  Hint: This means that migrations or DDL \
                                statements were run in a concurrent \
                                connection during the interactive \
                                session. Try restarting the CLI to resolve. \
                                (Note: globals and aliases must be \
-                               set again in this case)"
-                        );
+                               set again in this case)");
                         return Err(ExitCode::new(10))?;
                     } else if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
                         print::edgedb_error(e, state.verbose_errors);

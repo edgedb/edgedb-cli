@@ -414,19 +414,17 @@ pub fn success(line: impl fmt::Display) {
     if use_color() {
         msg!("{}", line.to_string().bold().light_green());
     } else {
-        msg!("{}", line);
+        msg!("{line}");
     }
 }
 
 pub fn success_msg(title: impl fmt::Display, msg: impl fmt::Display) {
     if use_color() {
-        msg!(
-            "{}: {}",
+        msg!("{}: {}",
             title.to_string().bold().light_green(),
-            msg.to_string().bold().white()
-        );
+            msg.to_string().bold().white());
     } else {
-        msg!("{}: {}", title, msg);
+        msg!("{title}: {msg}");
     }
 }
 
@@ -434,6 +432,6 @@ pub fn warn(line: impl fmt::Display) {
     if use_color() {
         msg!("{}", line.to_string().bold().yellow());
     } else {
-        msg!("{}", line);
+        msg!("{line}");
     }
 }
