@@ -17,6 +17,7 @@ use tokio::io::AsyncWriteExt;
 use url::Url;
 
 use crate::async_util::timeout;
+use crate::branding::BRANDING;
 use crate::portable::platform;
 use crate::portable::ver;
 use crate::portable::windows;
@@ -206,7 +207,7 @@ where
                 eprintln!("  1. Internet connectivity is slow");
                 eprintln!("  2. A firewall is blocking internet access to this resource");
                 if windows::is_in_wsl() {
-                    eprintln!("Note: The EdgeDB CLI tool is running under \
+                    eprintln!("Note: The {BRANDING} CLI tool is running under \
                                Windows Subsystem for Linux (WSL).");
                     eprintln!("  Consider adding a Windows Defender Firewall \
                               rule for WSL.");

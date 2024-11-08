@@ -7,6 +7,7 @@ use anyhow::Context;
 use fs_err as fs;
 use tokio::time::sleep;
 
+use crate::branding::BRANDING_CLOUD;
 use crate::cloud::client::{
     cloud_config_dir, cloud_config_file, CloudClient, CloudConfig, ErrorResponse,
 };
@@ -120,7 +121,7 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
 
                 let user: User = client.get("user").await?;
                 print::success(format!(
-                    "Successfully logged in to EdgeDB Cloud as {}.",
+                    "Successfully logged in to {BRANDING_CLOUD} as {}.",
                     user.name
                 ));
                 return Ok(());
@@ -212,7 +213,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             removed = true;
             fs::remove_file(cloud_creds.join(item.file_name()))?;
             print::success(format!(
-                "You are now logged out from EdgeDB Cloud profile {:?}.",
+                "You are now logged out from {BRANDING_CLOUD} profile {:?}.",
                 profile
             ));
         }
@@ -241,14 +242,14 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             if removed {
                 fs::remove_file(path).with_context(|| "failed to log out")?;
                 print::success(format!(
-                    "You are now logged out from EdgeDB Cloud for profile \"{}\".",
+                    "You are now logged out from {BRANDING_CLOUD} for profile \"{}\".",
                     client.profile.as_deref().unwrap_or("default")
                 ));
             }
             skipped = !removed;
         } else {
             print::warn(format!(
-                "Already logged out from EdgeDB Cloud for profile \"{}\".",
+                "Already logged out from {BRANDING_CLOUD} for profile \"{}\".",
                 client.profile.as_deref().unwrap_or("default")
             ));
         }
@@ -277,7 +278,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
 
 fn make_project_warning(profile: &str, projects: Vec<PathBuf>) -> String {
     format!(
-        "Cloud profile {:?} is still used by the following projects:\n    {}",
+        "{BRANDING_CLOUD} profile {:?} is still used by the following projects:\n    {}",
         profile,
         projects
             .iter()

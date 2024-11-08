@@ -3,9 +3,11 @@ use std::fmt;
 use std::str::FromStr;
 
 use anyhow::Context;
+use const_format::concatcp;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::connect::Connection;
 use crate::portable::repository::Query;
 use crate::print::{echo, Highlight};
@@ -97,11 +99,13 @@ impl FromStr for Build {
 impl FromStr for Specific {
     type Err = anyhow::Error;
     fn from_str(value: &str) -> anyhow::Result<Specific> {
-        let m = SPECIFIC.captures(value).context(
+        let m = SPECIFIC.captures(value).context(concatcp!(
             "unsupported version format.\n\t\
                     Examples: `1.15`, `7.0`, `4.0-rc.1`.\n\t\
-                    Use `edgedb server list-versions` to see all available versions.",
-        )?;
+                    Use `",
+            BRANDING_CLI_CMD,
+            " server list-versions` to see all available versions."
+        ))?;
         let major = m.get(1).unwrap().as_str().parse()?;
         let g3 = m.get(3).map(|m| m.as_str().parse()).transpose()?;
         let minor = match m.get(2).map(|m| m.as_str()) {
@@ -130,7 +134,7 @@ impl FromStr for Filter {
                 None => anyhow::bail!(
                     "unsupported version format.\n\t\
                     Examples: `1.15`, `7`, `4.0-rc.1`.\n\t\
-                    Use `edgedb server list-versions` to see all available versions."
+                    Use `{BRANDING_CLI_CMD} server list-versions` to see all available versions."
                 ),
             },
         };

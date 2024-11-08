@@ -9,6 +9,8 @@ use prettytable::{row, Table};
 use super::options::{
     ExtensionInstall, ExtensionList, ExtensionListExtensions, ExtensionUninstall,
 };
+
+use crate::branding::BRANDING_CLOUD;
 use crate::hint::HintExt;
 use crate::portable::install::download_package;
 use crate::portable::local::InstanceInfo;
@@ -32,7 +34,7 @@ fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, a
         InstanceName::Local(name) => name,
         inst_name => {
             return Err(anyhow::anyhow!(
-                "cannot install extensions in cloud instance {}.",
+                "cannot install extensions in {BRANDING_CLOUD} instance {}.",
                 inst_name
             ))
             .with_hint(|| {
@@ -45,7 +47,7 @@ fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, a
     };
     let Some(inst) = InstanceInfo::try_read(&name)? else {
         return Err(anyhow::anyhow!(
-            "cannot install extensions in cloud instance {}.",
+            "cannot install extensions in {BRANDING_CLOUD} instance {}.",
             name
         ))
         .with_hint(|| {

@@ -3,8 +3,10 @@ use std::path::PathBuf;
 use std::thread;
 use std::time;
 
+use const_format::concatcp;
 use fn_error_context::context;
 
+use crate::branding::BRANDING;
 use crate::commands::ExitCode;
 use crate::platform::{current_exe, detect_ipv6};
 use crate::platform::{data_dir, get_current_uid, home_dir};
@@ -370,7 +372,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
             Inactive { .. } | Ready => {
                 thread::sleep(time::Duration::from_millis(30));
                 if time::SystemTime::now() > cut_off {
-                    print::error("EdgeDB failed to start for 30 seconds");
+                    print::error(concatcp!(BRANDING, " failed to start for 30 seconds"));
                     break;
                 }
                 continue;
@@ -383,13 +385,13 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
             } => {
                 echo!(
                     print::err_marker(),
-                    "EdgeDB failed".emphasize(),
+                    "{BRANDING} failed".emphasize(),
                     "with exit code",
                     code
                 );
             }
             Failed { exit_code: None } => {
-                echo!(print::err_marker(), "EdgeDB failed".emphasize());
+                echo!(print::err_marker(), BRANDING, "failed".emphasize());
             }
         }
     }
@@ -402,7 +404,7 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
         .map_err(|e| log::warn!("Cannot show log: {}", e))
         .ok();
     println!("--- End of log ---");
-    anyhow::bail!("Failed to start EdgeDB");
+    anyhow::bail!("Failed to start {BRANDING}");
 }
 
 pub fn stop_service(name: &str) -> anyhow::Result<()> {

@@ -18,6 +18,7 @@ use tokio::time::sleep;
 use crate::connect::Connection;
 use edgedb_tokio::{credentials::Credentials, Builder};
 
+use crate::branding::BRANDING_CLOUD;
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::collect::Collector;
@@ -498,16 +499,19 @@ async fn _get_remote(
             get_remote_and_cloud(instances, cloud_client, errors),
             || {
                 if num > 0 {
-                    format!("Checking cloud and {} remote instances...", num)
+                    format!(
+                        "Checking {BRANDING_CLOUD} and {} remote instance(s)...",
+                        num
+                    )
                 } else {
-                    format!("Checking cloud instances...")
+                    format!("Checking {BRANDING_CLOUD} instances...")
                 }
             },
         )
         .await
     } else if num > 0 {
         intermediate_feedback(get_remote_async(instances, errors), || {
-            format!("Checking {} remote instances...", num)
+            format!("Checking {} remote instance(s)...", num)
         })
         .await
     } else {
@@ -845,7 +849,7 @@ impl RemoteStatus {
     pub fn print_extended(&self) {
         println!("{}:", self.name);
         let is_cloud = if let RemoteType::Cloud { instance_id } = &self.type_ {
-            println!("  Cloud Instance ID: {}", instance_id);
+            println!("  {BRANDING_CLOUD} Instance ID: {}", instance_id);
             true
         } else {
             false

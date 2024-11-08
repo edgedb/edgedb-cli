@@ -12,6 +12,7 @@ use base64::Engine;
 use anyhow::Context;
 use reqwest::{header, StatusCode};
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
 
@@ -295,7 +296,7 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
         if self.is_logged_in {
             Ok(())
         } else {
-            anyhow::bail!("Run `edgedb cloud login` first.")
+            anyhow::bail!("Run `{BRANDING_CLI_CMD} cloud login` first.")
         }
     }
 

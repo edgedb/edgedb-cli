@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 
 use clap::{CommandFactory, FromArgMatches};
+use const_format::concatcp;
 use once_cell::sync::Lazy;
 use prettytable::{Cell, Row, Table};
 use regex::Regex;
@@ -12,6 +13,7 @@ use edgedb_errors::Error;
 use edgedb_protocol::model::Duration;
 
 use crate::analyze;
+use crate::branding::BRANDING;
 use crate::commands::execute;
 use crate::commands::parser::{Backslash, BackslashCmd, Setting, StateParam};
 use crate::commands::Options;
@@ -29,8 +31,11 @@ pub enum ExecuteResult {
     Input(String),
 }
 
-const HELP: &str = r###"
-                            Edgedb REPL Commands
+const HELP: &str = concatcp!(
+    r###"
+                            "###,
+    BRANDING,
+    r###" REPL Commands
 
 Introspection
   Options:
@@ -72,7 +77,8 @@ Help
   \?, \h, \help             Show help on backslash commands
   \set                      Describe current settings
   \q, \quit, \exit, Ctrl+D  Quit REPL
-"###;
+"###
+);
 
 #[derive(Debug)]
 pub struct ParseError {

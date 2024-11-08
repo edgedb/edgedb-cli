@@ -4,8 +4,10 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 
 use anyhow::Context;
+use const_format::concatcp;
 use fn_error_context::context;
 
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
 use crate::commands::{self, ExitCode};
 use crate::connect::{Connection, Connector};
@@ -58,7 +60,7 @@ pub fn print_project_upgrade_command(
     project_dir: &Path,
 ) {
     eprintln!(
-        "  edgedb project upgrade {}{}",
+        "  {BRANDING_CLI_CMD} project upgrade {}{}",
         match version.channel {
             Channel::Stable =>
                 if let Some(filt) = &version.version {
@@ -84,7 +86,6 @@ fn check_project(name: &str, force: bool, ver_query: &Query) -> anyhow::Result<(
     }
 
     project::print_instance_in_use_warning(name, &project_dirs);
-    let current_project = project::project_dir_opt(None)?;
 
     if force {
         eprintln!(
@@ -96,7 +97,7 @@ fn check_project(name: &str, force: bool, ver_query: &Query) -> anyhow::Result<(
     }
     for pd in project_dirs {
         let pd = project::read_project_path(&pd)?;
-        print_project_upgrade_command(ver_query, &current_project, &pd);
+        print_project_upgrade_command(ver_query, &None, &pd);
     }
     if !force {
         anyhow::bail!("Upgrade aborted.");
@@ -203,7 +204,7 @@ fn upgrade_cloud_cmd(
     match result.action {
         UpgradeAction::Upgraded => {
             echo!(format!(
-                "EdgeDB Cloud instance {inst_name} has been successfully \
+                "{BRANDING_CLOUD} instance {inst_name} has been successfully \
                 upgraded to version {target_ver_str}.",
             ));
         }
@@ -272,7 +273,7 @@ pub fn upgrade_cloud(
 
 pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::Result<()> {
     echo!("Upgrading to a minor version", pkg.version.emphasize());
-    let install = install::package(&pkg).context("error installing EdgeDB")?;
+    let install = install::package(&pkg).context(concatcp!("error installing ", BRANDING))?;
     inst.installation = Some(install);
 
     let metapath = inst.data_dir()?.join("instance_info.json");
@@ -280,7 +281,7 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::R
 
     create::create_service(&inst)
         .map_err(|e| {
-            log::warn!("Error running EdgeDB as a service: {e:#}");
+            log::warn!("Error running {BRANDING} as a service: {e:#}");
         })
         .ok();
     control::do_restart(&inst)?;
@@ -302,7 +303,7 @@ pub fn upgrade_incompatible(
 
     let old_version = inst.get_version()?.clone();
 
-    let install = install::package(&pkg).context("error installing EdgeDB")?;
+    let install = install::package(&pkg).context(concatcp!("error installing ", BRANDING))?;
 
     let paths = Paths::get(&inst.name)?;
     dump_and_stop(&inst, &paths.dump_path)?;
@@ -346,7 +347,10 @@ pub fn upgrade_incompatible(
 
     reinit_and_restore(&inst, &paths).map_err(|e| {
         print::error(format!("{:#}", e));
-        eprintln!("To undo run:\n  edgedb instance revert -I {:?}", inst.name);
+        eprintln!(
+            "To undo run:\n  {BRANDING_CLI_CMD} instance revert -I {:?}",
+            inst.name
+        );
         ExitCode::new(exit_codes::NEEDS_REVERT)
     })?;
 
@@ -355,7 +359,7 @@ pub fn upgrade_incompatible(
 
     create::create_service(&inst)
         .map_err(|e| {
-            log::warn!("Error running EdgeDB as a service: {e:#}");
+            log::warn!("Error running {BRANDING} as a service: {e:#}");
         })
         .ok();
     control::do_restart(&inst)?;

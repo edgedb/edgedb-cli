@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use clap::ValueHint;
 
+#[cfg(doc)]
+use crate::branding::BRANDING;
 use crate::options::ConnectionOptions;
 use crate::portable::repository::Channel;
 use crate::portable::ver;
@@ -23,7 +25,7 @@ pub struct Migration {
 pub enum MigrationCmd {
     /// Apply migration from latest migration script.
     Apply(Box<Migrate>),
-    /// Create migration script inside /migrations.
+    /// Create migration script inside `/migrations`.
     Create(CreateMigration),
     /// Show current migration status.
     Status(ShowStatus),
@@ -36,13 +38,14 @@ pub enum MigrationCmd {
     /// in Windows). Usually should be used for migrations that have
     /// not been applied yet.
     Edit(MigrationEdit),
-    /// Check if current schema is compatible with new EdgeDB version.
+    /// Check if current schema is compatible with new [`BRANDING`] version.
     UpgradeCheck(UpgradeCheck),
     /// Extract migration history from the database and write it to
-    /// <schema-dir>/migrations. Useful when a direct DDL command has
-    /// been used to change the schema and now `edgedb migrate` will not
-    /// comply because the database migration history is ahead of the
-    /// migration history inside <schema-dir>/migrations.
+    /// `<schema-dir>/migrations`.
+    ///
+    /// Useful when a direct DDL command has been used to change the schema and
+    /// now [`BRANDING_CLI`] fails because the database migration history is
+    /// ahead of the migration history inside `<schema-dir>/migrations`.
     Extract(ExtractMigrations),
     /// Upgrades the format of migration files.
     UpgradeFormat(MigrationUpgradeFormat),
@@ -52,7 +55,7 @@ pub enum MigrationCmd {
 pub struct MigrationConfig {
     /// Project schema directory.  The default is `dbschema/`,
     /// which can be changed by setting `project.schema-dir`
-    /// in `edgedb.toml`.
+    /// in `{gel,edgedb}.toml`.
     #[arg(long, value_hint=ValueHint::DirPath)]
     pub schema_dir: Option<PathBuf>,
 }
@@ -67,7 +70,7 @@ pub struct CreateMigration {
     #[arg(long)]
     pub squash: bool,
     /// Do not ask questions. By default works only if "safe" changes are
-    /// to be done (those for which EdgeDB has a high degree of confidence).
+    /// to be done (those for which [`BRANDING`] has a high degree of confidence).
     /// This safe default can be overridden with `--allow-unsafe`.
     #[arg(long)]
     pub non_interactive: bool,

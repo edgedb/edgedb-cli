@@ -1,7 +1,9 @@
+use const_format::concatcp;
 use fs_err as fs;
 
 use anyhow::Context;
 
+use crate::branding::{BRANDING, BRANDING_CLOUD};
 use crate::commands::ExitCode;
 use crate::format;
 use crate::platform::tmp_file_path;
@@ -28,7 +30,11 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             }
         }
         InstanceName::Cloud { .. } => {
-            print::error("This operation is not supported on cloud instances yet.");
+            print::error(concatcp!(
+                "This operation is not supported on ",
+                BRANDING_CLOUD,
+                " instances yet."
+            ));
             return Err(ExitCode::new(1))?;
         }
     };
@@ -47,7 +53,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             data_meta: Ok(d),
         } => (b, d),
     };
-    echo!("EdgeDB version:", old_inst.get_version()?);
+    echo!(BRANDING, "version:", old_inst.get_version()?);
     echo!(
         "Backup timestamp:",
         humantime::format_rfc3339(backup_info.timestamp),
@@ -96,7 +102,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     }
 
     install::specific(&old_inst.get_version()?.specific())
-        .context("error installing old EdgeDB version")?;
+        .context(concatcp!("error installing old ", BRANDING))?;
 
     let paths = Paths::get(name)?;
     let tmp_path = tmp_file_path(&paths.data_dir);
@@ -104,11 +110,11 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     fs::rename(&paths.backup_dir, &paths.data_dir)?;
 
     let inst = old_inst;
-    echo!("Starting EdgeDB", inst.get_version()?, "...");
+    echo!("Starting", BRANDING, inst.get_version()?; "...");
 
     create::create_service(&inst)
         .map_err(|e| {
-            log::warn!("Error running EdgeDB as a service: {e:#}");
+            log::warn!("Error running {BRANDING} as a service: {e:#}");
         })
         .ok();
 

@@ -3,11 +3,13 @@ use std::io::stdin;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use color_print::cformat;
 use colorful::Colorful;
+use const_format::concatcp;
 use edgedb_errors::{ClientNoCredentialsError, ResultExt};
 use edgedb_protocol::model;
 use edgedb_tokio::credentials::TlsSecurity;
-use edgedb_tokio::{get_project_dir, Builder, Config};
+use edgedb_tokio::{get_project_path, Builder, Config};
 use is_terminal::IsTerminal;
 use tokio::task::spawn_blocking as unblock;
 
@@ -17,6 +19,7 @@ use crate::cli;
 use crate::cli::options::CliCommand;
 
 use crate::branch::option::BranchCommand;
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, CONFIG_FILE_DISPLAY_NAME};
 use crate::cloud::options::CloudCommand;
 use crate::commands::parser::Common;
 use crate::commands::ExitCode;
@@ -35,23 +38,31 @@ use crate::watch::options::WatchCommand;
 const MAX_TERM_WIDTH: usize = 100;
 const MIN_TERM_WIDTH: usize = 50;
 
-const CONN_OPTIONS_GROUP: &str = "Connection Options (edgedb --help-connect to see full list)";
-const CLOUD_OPTIONS_GROUP: &str = "Cloud Connection Options";
-const CONNECTION_ARG_HINT: &str = "\
-    Run `edgedb project init` or use any of `-H`, `-P`, `-I` arguments \
-    to specify connection parameters. See `--help` for details";
+const CONN_OPTIONS_GROUP: &str = concatcp!(
+    "Connection Options (",
+    BRANDING_CLI_CMD,
+    " --help-connect to see full list)"
+);
+const CLOUD_OPTIONS_GROUP: &str = concatcp!(BRANDING_CLOUD, " Connection Options");
+const CONNECTION_ARG_HINT: &str = concatcp!(
+    "\
+    Run `",
+    BRANDING_CLI_CMD,
+    " project init` or use any of `-H`, `-P`, `-I` arguments \
+    to specify connection parameters. See `--help` for details"
+);
 
 #[derive(clap::Args, Clone, Debug)]
 #[group(id = "connopts")]
 pub struct ConnectionOptions {
-    /// Instance name (use `edgedb instance list` to list local, remote and
-    /// Cloud instances available to you).
+    /// Instance name (use [`BRANDING_CLI_CMD`] `instance list` to list local, remote and
+    /// [`BRANDING_CLOUD`] instances available to you).
     #[arg(short='I', long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[arg(value_hint=clap::ValueHint::Other)] // TODO complete instance name
     #[arg(global = true)]
     pub instance: Option<InstanceName>,
 
-    /// DSN for EdgeDB to connect to (overrides all other options
+    /// DSN for [`BRANDING`] to connect to (overrides all other options
     /// except password)
     #[arg(long, help_heading=Some(CONN_OPTIONS_GROUP))]
     #[arg(conflicts_with_all=&["instance"])]
@@ -257,19 +268,19 @@ pub struct HelpConnect {
 #[derive(clap::Args, IntoArgs, Clone, Debug)]
 #[group(id = "cloudopts")]
 pub struct CloudOptions {
-    /// Specify the EdgeDB Cloud API endpoint. Defaults to the current logged-in
+    /// Specify the API endpoint. Defaults to the current logged-in
     /// server, or <https://api.g.aws.edgedb.cloud> if unauthorized
     #[arg(long, value_name="URL", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[arg(global = true)]
     pub cloud_api_endpoint: Option<String>,
 
-    /// Specify EdgeDB Cloud API secret key to use instead of loading
+    /// Specify the API secret key to use instead of loading
     /// key from a remembered authentication.
     #[arg(long, value_name="SECRET_KEY", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[arg(global = true)]
     pub cloud_secret_key: Option<String>,
 
-    /// Specify authenticated EdgeDB Cloud profile. Defaults to "default".
+    /// Specify the authenticated profile. Defaults to "default".
     #[arg(long, value_name="PROFILE", help_heading=Some(CLOUD_OPTIONS_GROUP))]
     #[arg(global = true)]
     pub cloud_profile: Option<String>,
@@ -345,15 +356,15 @@ pub enum Command {
     Common(Common),
     /// Execute EdgeQL query in quotes (e.g. `"select 9;"`)
     Query(Query),
-    /// Launch EdgeDB instance in browser web UI
+    /// Launch [`BRANDING`] instance in browser web UI
     UI(UI),
-    /// Show paths for EdgeDB installation
+    /// Show paths for [`BRANDING`] installation
     Info(Info),
     /// Manage project installation
     Project(project::ProjectCommand),
-    /// Manage local EdgeDB instances
+    /// Manage local [`BRANDING`] instances
     Instance(portable::options::ServerInstanceCommand),
-    /// Manage local EdgeDB installations
+    /// Manage local [`BRANDING`] installations
     Server(portable::options::ServerCommand),
     /// Manage local extensions
     Extension(portable::options::ServerInstanceExtensionCommand),
@@ -364,18 +375,18 @@ pub enum Command {
     /// Self-installation commands
     #[command(name = "cli")]
     Cli(CliCommand),
-    /// Install EdgeDB
+    /// Install [`BRANDING`]
     #[command(name = "_self_install")]
     #[command(hide = true)]
     _SelfInstall(cli::install::CliInstall),
-    /// EdgeDB Cloud authentication
+    /// [`BRANDING_CLOUD`] authentication
     Cloud(CloudCommand),
     /// Start a long-running process that watches for changes in schema files in
     /// a project's ``dbschema`` directory, applying them in real time.
     Watch(WatchCommand),
     /// Manage branches
     Branch(BranchCommand),
-
+    /// Generate a `SCRAM-SHA-256` hash for a password.
     HashPassword(HashPasswordCommand),
 }
 
@@ -560,33 +571,36 @@ fn make_subcommand_help(parent: &clap::Command) -> String {
                         format!("{} {}", cmd.get_name(), subcmd.get_name()),
                         padding = padding,
                     ),
-                    wrap(&markdown::format_title(
+                    wrap(
                         &subcmd
                             .get_about()
                             .or_else(|| subcmd.get_long_about())
                             .unwrap_or_default()
+                            .ansi()
                             .to_string()
-                    )),
+                    ),
                 )
                 .unwrap();
             }
             buf.push('\n');
             empty_line = true;
         } else {
+            let name = if cmd.has_subcommands() {
+                format!("{} ...", cmd.get_name())
+            } else {
+                cmd.get_name().to_string()
+            };
             writeln!(
                 &mut buf,
                 "  {} {}",
-                color_print::cformat!(
-                    "<bold>{:padding$}</bold>",
-                    cmd.get_name(),
-                    padding = padding,
-                ),
-                wrap(&markdown::format_title(
+                color_print::cformat!("<bold>{:padding$}</bold>", name, padding = padding,),
+                wrap(
                     &cmd.get_about()
                         .or_else(|| cmd.get_long_about())
                         .unwrap_or_default()
+                        .ansi()
                         .to_string()
-                )),
+                ),
             )
             .unwrap();
             empty_line = false;
@@ -597,6 +611,7 @@ fn make_subcommand_help(parent: &clap::Command) -> String {
     buf
 }
 
+/// Swap the standard subcommand help with expanded subcommand help.
 fn update_main_help(mut app: clap::Command) -> clap::Command {
     if !print::use_color() {
         app = app.color(clap::ColorChoice::Never);
@@ -617,6 +632,51 @@ fn update_main_help(mut app: clap::Command) -> clap::Command {
 
     let help = std::str::from_utf8(Vec::leak(help.into())).unwrap();
     app.override_help(help)
+}
+
+fn update_help_branding(help: &str) -> String {
+    let mut help = help.to_string();
+
+    for (placeholder, value) in [
+        ("BRANDING", BRANDING),
+        ("BRANDING_CLI_CMD", BRANDING_CLI_CMD),
+        ("BRANDING_CLOUD", BRANDING_CLOUD),
+    ] {
+        let value = cformat!("<bold>{}</bold>", value);
+        let pattern1 = format!("[{}]", placeholder);
+        help = help.replace(&pattern1, &value);
+        let pattern2 = format!("[`{}`]", placeholder);
+        help = help.replace(&pattern2, &value);
+    }
+
+    markdown::format_title(&help)
+}
+
+fn update_cmd_about(cmd: &mut clap::Command) {
+    let mut new_cmd = cmd.clone();
+    if let Some(about) = new_cmd.get_long_about() {
+        let about = update_help_branding(&about.ansi().to_string());
+        new_cmd = new_cmd.long_about(about);
+    }
+    if let Some(about) = new_cmd.get_about() {
+        let about = update_help_branding(&about.ansi().to_string());
+        new_cmd = new_cmd.about(about);
+    }
+
+    new_cmd = new_cmd.mut_args(|arg| {
+        let mut arg = arg;
+        if let Some(about) = arg.get_help() {
+            let about = update_help_branding(&about.ansi().to_string());
+            arg = arg.help(about);
+        }
+        arg
+    });
+
+    *cmd = new_cmd;
+
+    for subcmd in cmd.get_subcommands_mut() {
+        update_cmd_about(subcmd);
+    }
 }
 
 fn print_full_connection_options() {
@@ -680,7 +740,7 @@ impl Options {
         //
         // to enable connection and/or cloud options for themselves
         // and their subcommands.
-        let tmp = clap::Command::new("edgedb");
+        let tmp = clap::Command::new(BRANDING_CLI_CMD);
         let tmp = <RawOptions as clap::Args>::augment_args(tmp);
         let mut global_args: Vec<_> = tmp
             .get_groups()
@@ -697,11 +757,12 @@ impl Options {
             }
         });
 
-        let app = clap::Command::new("edgedb")
+        let app = clap::Command::new(BRANDING_CLI_CMD)
             .term_width(term_width())
             .args(deglobalized);
 
-        let app = <SubcommandOption as clap::Args>::augment_args(app);
+        let mut app = <SubcommandOption as clap::Args>::augment_args(app);
+        update_cmd_about(&mut app);
         update_main_help(app)
     }
 
@@ -719,7 +780,7 @@ impl Options {
         }
 
         if args.print_version {
-            println!("EdgeDB CLI {}", clap::crate_version!());
+            println!("{BRANDING} CLI {}", clap::crate_version!());
             return Err(ExitCode::new(0).into());
         }
 
@@ -731,7 +792,10 @@ impl Options {
         let interactive = args.query.is_none() && subcommand.is_none() && stdin().is_terminal();
 
         if args.json {
-            say_option_is_deprecated("--json", "edgedb query --output-format=json");
+            say_option_is_deprecated(
+                "--json",
+                concatcp!(BRANDING_CLI_CMD, " query --output-format=json"),
+            );
         }
         if args.tab_separated {
             say_option_is_deprecated(
@@ -740,7 +804,7 @@ impl Options {
             );
         }
         let subcommand = if let Some(query) = args.query {
-            say_option_is_deprecated("-c", "edgedb query");
+            say_option_is_deprecated("-c", concatcp!(BRANDING_CLI_CMD, " query"));
             let output_format = if args.json {
                 Some(OutputFormat::Json)
             } else if args.tab_separated {
@@ -831,19 +895,23 @@ impl Options {
                 Ok(Connector::new(Ok(cfg)))
             }
             Err(e) => {
-                let (_, cfg, _) = builder.build_no_fail().await;
+                let (_, cfg, errors) = builder.build_no_fail().await;
                 // ask password anyways, so input that fed as a password
                 // never goes to anywhere else
                 with_password(&self.conn_options, cfg).await?;
 
                 if e.is::<ClientNoCredentialsError>() {
-                    let project_dir = get_project_dir(None, true).await?;
+                    let project_dir = get_project_path(None, true).await?;
                     let message = if project_dir.is_some() {
-                        "project is not initialized and no connection options \
-                            are specified"
+                        format!(
+                            "project is not initialized and no connection options \
+                            are specified: {errors:?}"
+                        )
                     } else {
-                        "no `edgedb.toml` found and no connection options \
+                        format!(
+                            "no {CONFIG_FILE_DISPLAY_NAME} found and no connection options \
                             are specified"
+                        )
                     };
                     Ok(Connector::new(
                         Err(anyhow::anyhow!(message))

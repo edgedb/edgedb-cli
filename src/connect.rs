@@ -28,6 +28,7 @@ use edgedb_tokio::raw::{self, PoolState, Response};
 use edgedb_tokio::server_params::ServerParam;
 use edgedb_tokio::Config;
 
+use crate::branding::{BRANDING, BRANDING_CLOUD};
 use crate::hint::ArcError;
 use crate::portable::ver;
 
@@ -181,11 +182,11 @@ impl Connector {
             Some(edgedb_tokio::InstanceName::Cloud {
                 org_slug: org,
                 name,
-            }) => format!("EdgeDB Cloud instance '{}/{}'", org, name),
+            }) => format!("{BRANDING_CLOUD} instance '{}/{}'", org, name),
             Some(edgedb_tokio::InstanceName::Local(name)) => {
-                format!("EdgeDB instance '{}' at {}", name, cfg.display_addr())
+                format!("{BRANDING} instance '{}' at {}", name, cfg.display_addr())
             }
-            _ => format!("EdgeDB instance at {}", cfg.display_addr()),
+            _ => format!("{BRANDING} instance at {}", cfg.display_addr()),
         };
         format!("Connecting to {}...", desc)
     }

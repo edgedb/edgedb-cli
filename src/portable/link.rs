@@ -19,6 +19,7 @@ use edgedb_tokio::{tls, Client};
 use edgedb_tokio::{Builder, Config};
 use rustyline::error::ReadlineError;
 
+use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::credentials;
 use crate::hint::HintExt;
 use crate::options;
@@ -210,9 +211,9 @@ async fn get_default_branch(connection: &mut Client) -> anyhow::Result<String> {
 pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     if matches!(cmd.name, Some(InstanceName::Cloud { .. })) {
         anyhow::bail!(
-            "cloud instances cannot be linked\
+            "{BRANDING_CLOUD} instances cannot be linked\
             \nTo connect run:\
-            \n  edgedb -I {}",
+            \n  {BRANDING_CLI_CMD} -I {}",
             cmd.name.as_ref().unwrap()
         );
     }
@@ -336,7 +337,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
         }
         eprintln!(
             "{} To connect run:\
-            \n  edgedb -I {}",
+            \n  {BRANDING_CLI_CMD} -I {}",
             msg,
             instance_name.escape_default(),
         );
@@ -422,7 +423,7 @@ async fn prompt_conn_params(
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     project::print_instance_in_use_warning(name, project_dirs);
     eprintln!("If you really want to unlink the instance, run:");
-    eprintln!("  edgedb instance unlink -I {:?} --force", name);
+    eprintln!("  {BRANDING_CLI_CMD} instance unlink -I {:?} --force", name);
 }
 
 pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
@@ -430,7 +431,7 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
         InstanceName::Local(name) => name,
         inst_name => {
             return Err(anyhow::anyhow!(
-                "cannot unlink cloud instance {}.",
+                "cannot unlink {BRANDING_CLOUD} instance {}.",
                 inst_name
             ))
             .with_hint(|| {

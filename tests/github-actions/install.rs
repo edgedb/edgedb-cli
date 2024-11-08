@@ -6,6 +6,10 @@ use tokio::sync::oneshot;
 use warp::filters::path::path;
 use warp::Filter;
 
+#[path = "../common/util.rs"]
+mod util;
+use util::*;
+
 use crate::certs::Certs;
 
 const UNIX_INST: &str = "curl --proto '=https' --tlsv1.2 -sSf https://localhost:8443 | sh -s -- -y";
@@ -93,7 +97,7 @@ fn github_action_install() -> anyhow::Result<()> {
             .context("curl shebang", "command-line install")
             .success()
             .stdout(predicates::str::contains(
-                "The EdgeDB command-line tool is now installed",
+                "command-line tool is now installed",
             ));
     }
 
@@ -113,10 +117,7 @@ fn github_action_install() -> anyhow::Result<()> {
         .assert()
         .context("version", "command-line version option")
         .success()
-        .stdout(predicates::str::contains(concat!(
-            "EdgeDB CLI ",
-            env!("CARGO_PKG_VERSION")
-        )));
+        .stdout(predicates::str::contains(EXPECTED_VERSION));
 
     if !cfg!(windows) {
         Command::new(&edgedb)

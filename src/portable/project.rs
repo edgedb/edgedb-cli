@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::env;
-use std::ffi::OsString;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -8,14 +7,19 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use clap::ValueHint;
+use const_format::concatcp;
+use edgedb_tokio::get_project_path;
+use edgedb_tokio::get_stash_path;
+use edgedb_tokio::PROJECT_FILES;
 use fn_error_context::context;
 use rand::{thread_rng, Rng};
-use sha1::Digest;
 
 use edgedb_errors::DuplicateDatabaseDefinitionError;
 use edgedb_tokio::Builder;
 use edgeql_parser::helpers::quote_name;
 
+use crate::branding::BRANDING_CLOUD;
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, CONFIG_FILE_DISPLAY_NAME};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -76,15 +80,17 @@ pub struct ProjectCommand {
 pub enum Command {
     /// Initialize project or link to existing unlinked project
     Init(Init),
-    /// Clean up project configuration. Use `edgedb project init` to relink
+    /// Clean up project configuration.
+    ///
+    /// Use [`BRANDING_CLI_CMD`] project init to relink.
     Unlink(Unlink),
     /// Get various metadata about project instance
     Info(Info),
-    /// Upgrade EdgeDB instance used for current project
+    /// Upgrade [`BRANDING`] instance used for current project
     ///
     /// Data is preserved using a dump/restore mechanism.
     ///
-    /// Upgrades to version specified in `edgedb.toml` unless other options specified.
+    /// Upgrades to version specified in `{gel,edgedb}.toml` unless other options specified.
     ///
     /// Note: May fail if lower version is specified (e.g. moving from nightly to stable).
     Upgrade(Upgrade),
@@ -271,7 +277,11 @@ struct JsonInfo<'a> {
 
 pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
-        print::error("`edgedb project init` is not supported in Docker containers.");
+        print::error(concatcp!(
+            "`",
+            BRANDING_CLI_CMD,
+            " project init` is not supported in Docker containers."
+        ));
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
 
@@ -283,50 +293,28 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
         );
     }
 
-    match &options.project_dir {
-        Some(dir) => {
-            let dir = fs::canonicalize(dir)?;
-            if dir.join("edgedb.toml").exists() {
-                if options.link {
-                    link(options, &dir, &opts.cloud_options)?
-                } else {
-                    init_existing(options, &dir, &opts.cloud_options)?
-                }
-            } else {
-                if options.link {
-                    anyhow::bail!(
-                        "`edgedb.toml` not found, unable to link an EdgeDB \
-                        instance without initialized project. To initialize \
-                        a project, run command without `--link` flag"
-                    )
-                }
-
-                init_new(options, &dir, opts)?
-            }
+    let Some((project_dir, config_path)) = project_dir(options.project_dir.as_deref())? else {
+        if options.link {
+            anyhow::bail!(
+                "{CONFIG_FILE_DISPLAY_NAME} not found, unable to link an existing {BRANDING} \
+                instance without an initialized project. To initialize \
+                a project, run `{BRANDING_CLI_CMD}` command without `--link` flag"
+            )
         }
-        None => {
-            let base_dir = env::current_dir().context("failed to get current directory")?;
-            if let Some(dir) = search_dir(&base_dir) {
-                let dir = fs::canonicalize(dir)?;
-                if options.link {
-                    link(options, &dir, &opts.cloud_options)?
-                } else {
-                    init_existing(options, &dir, &opts.cloud_options)?
-                }
-            } else {
-                if options.link {
-                    anyhow::bail!(
-                        "`edgedb.toml` not found, unable to link an EdgeDB \
-                        instance without an initialized project. To initialize \
-                        a project, run command without `--link` flag"
-                    )
-                }
-
-                let dir = fs::canonicalize(&base_dir)?;
-                init_new(options, &dir, opts)?
-            }
-        }
+        let dir = options
+            .project_dir
+            .clone()
+            .unwrap_or_else(|| env::current_dir().unwrap());
+        let config_path = dir.join(PROJECT_FILES[0]);
+        init_new(options, &dir, config_path, opts)?;
+        return Ok(());
     };
+
+    if options.link {
+        link(options, &project_dir, config_path, &opts.cloud_options)?;
+    } else {
+        init_existing(options, &project_dir, config_path, &opts.cloud_options)?;
+    }
     Ok(())
 }
 
@@ -334,10 +322,11 @@ fn ask_existing_instance_name(cloud_client: &mut CloudClient) -> anyhow::Result<
     let instances = credentials::all_instance_names()?;
 
     loop {
-        let mut q = question::String::new(
-            "Specify the name of EdgeDB instance \
-                                   to link with this project",
-        );
+        let mut q = question::String::new(concatcp!(
+            "Specify the name of the ",
+            BRANDING,
+            " instance to link with this project"
+        ));
         let target_name = q.ask()?;
 
         let inst_name = match InstanceName::from_str(&target_name) {
@@ -429,17 +418,24 @@ pub fn get_default_branch_or_database(version: &Specific, project_dir: &Path) ->
 fn link(
     options: &Init,
     project_dir: &Path,
+    config_path: PathBuf,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
-    echo!("Found `edgedb.toml` in", project_dir.display());
+    echo!(
+        "Found `{}` in",
+        config_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy(),
+        project_dir.display()
+    );
     echo!("Linking project...");
 
-    let stash_dir = stash_path(project_dir)?;
+    let stash_dir = get_stash_path(project_dir)?;
     if stash_dir.exists() {
         anyhow::bail!("Project is already linked");
     }
 
-    let config_path = project_dir.join("edgedb.toml");
     let config = config::read(&config_path)?;
     let ver_query = config.edgedb.server_version;
 
@@ -493,12 +489,12 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path) -> anyhow::Result<Pr
     print::success("Project linked");
     if let Some(dir) = &options.project_dir {
         eprintln!(
-            "To connect to {}, navigate to {} and run `edgedb`",
+            "To connect to {}, navigate to {} and run `{BRANDING_CLI_CMD}`",
             inst.name,
             dir.display()
         );
     } else {
-        eprintln!("To connect to {}, run `edgedb`", inst.name);
+        eprintln!("To connect to {}, run `{BRANDING_CLI_CMD}`", inst.name);
     }
 
     Ok(ProjectInfo {
@@ -555,14 +551,20 @@ fn ask_name(
         }
         return Ok((default_name, false));
     }
-    let mut q =
-        question::String::new("Specify the name of EdgeDB instance to use with this project");
+    let mut q = question::String::new(concatcp!(
+        "Specify the name of the ",
+        BRANDING,
+        " instance to use with this project"
+    ));
     let default_name_str = default_name.to_string();
     q.default(&default_name_str);
     loop {
         let default_name_clone = default_name.clone();
-        let mut q =
-            question::String::new("Specify the name of EdgeDB instance to use with this project");
+        let mut q = question::String::new(concatcp!(
+            "Specify the name of the ",
+            BRANDING,
+            " instance to use with this project"
+        ));
         let default_name_str = default_name_clone.to_string();
         let target_name = q.default(&default_name_str).ask()?;
         let inst_name = match InstanceName::from_str(&target_name) {
@@ -603,18 +605,25 @@ fn ask_name(
 pub fn init_existing(
     options: &Init,
     project_dir: &Path,
+    config_path: PathBuf,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
-    echo!("Found `edgedb.toml` in", project_dir.display());
+    echo!(
+        "Found `{}` in",
+        config_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy(),
+        project_dir.display()
+    );
     echo!("Initializing project...");
 
-    let stash_dir = stash_path(project_dir)?;
+    let stash_dir = get_stash_path(project_dir)?;
     if stash_dir.exists() {
         // TODO(tailhook) do more checks and probably cleanup the dir
         anyhow::bail!("Project is already initialized.");
     }
 
-    let config_path = project_dir.join("edgedb.toml");
     let config = config::read(&config_path)?;
     let schema_dir = config.project.schema_dir;
     let schema_dir_path = project_dir.join(&schema_dir);
@@ -659,7 +668,7 @@ pub fn init_existing(
 
     match &name {
         InstanceName::Cloud { org_slug, name } => {
-            echo!("Checking EdgeDB cloud versions...");
+            echo!("Checking", BRANDING_CLOUD, "versions...");
 
             let ver = cloud::versions::get_version(&ver_query, &client)
                 .with_context(|| "could not initialize project")?;
@@ -708,7 +717,7 @@ pub fn init_existing(
             )
         }
         InstanceName::Local(name) => {
-            echo!("Checking EdgeDB versions...");
+            echo!("Checking", BRANDING, "versions...");
 
             let pkg = repository::get_server_package(&ver_query)?.with_context(|| {
                 format!(
@@ -823,7 +832,7 @@ fn do_init(
         })?;
         InstanceKind::Wsl(WslInfo {})
     } else {
-        let inst = install::package(pkg).context("error installing EdgeDB")?;
+        let inst = install::package(pkg).context(concatcp!("error installing ", BRANDING))?;
         let info = InstanceInfo {
             name: name.into(),
             installation: Some(inst),
@@ -833,9 +842,9 @@ fn do_init(
         match create::create_service(&info) {
             Ok(()) => {}
             Err(e) => {
-                log::warn!("Error running EdgeDB as a service: {e:#}");
+                log::warn!("Error running {BRANDING} as a service: {e:#}");
                 print::warn(
-                    "EdgeDB will not start on next login. \
+                    "{BRANDING} will not start on next login. \
                              Trying to start database in the background...",
                 );
                 control::start(&Start {
@@ -926,17 +935,18 @@ fn do_cloud_init(
 pub fn init_new(
     options: &Init,
     project_dir: &Path,
+    config_path: PathBuf,
     opts: &crate::options::Options,
 ) -> anyhow::Result<ProjectInfo> {
     eprintln!(
-        "No `edgedb.toml` found in `{}` or above",
+        "No {CONFIG_FILE_DISPLAY_NAME} found in `{}` or above",
         project_dir.display()
     );
 
-    let stash_dir = stash_path(project_dir)?;
+    let stash_dir = get_stash_path(project_dir)?;
     if stash_dir.exists() {
         anyhow::bail!(
-            "`edgedb.toml` deleted after \
+            "{CONFIG_FILE_DISPLAY_NAME} deleted after \
                        project initialization. \
                        Please run `edgedb project unlink -D` to \
                        clean up old database instance."
@@ -953,7 +963,6 @@ pub fn init_new(
         }
     }
 
-    let config_path = project_dir.join("edgedb.toml");
     let schema_dir = Path::new("dbschema");
     let schema_dir_path = project_dir.join(schema_dir);
     let schema_files = find_schema_files(schema_dir)?;
@@ -990,7 +999,7 @@ pub fn init_new(
 
     match &inst_name {
         InstanceName::Cloud { org_slug, name } => {
-            echo!("Checking EdgeDB cloud versions...");
+            echo!("Checking", BRANDING_CLOUD, "versions...");
             client.ensure_authenticated()?;
 
             let (ver_query, version) = ask_cloud_version(options, &client)?;
@@ -1039,7 +1048,7 @@ pub fn init_new(
             )
         }
         InstanceName::Local(name) => {
-            echo!("Checking EdgeDB versions...");
+            echo!("Checking", BRANDING, "versions...");
             let (ver_query, pkg) = ask_local_version(options)?;
             let specific_version = &pkg.version.specific();
             ver::print_version_hint(specific_version, &ver_query);
@@ -1097,44 +1106,8 @@ pub fn init_new(
     }
 }
 
-pub fn search_dir(base: &Path) -> Option<PathBuf> {
-    let mut path = base;
-    if path.join("edgedb.toml").exists() {
-        return Some(path.into());
-    }
-    while let Some(parent) = path.parent() {
-        if parent.join("edgedb.toml").exists() {
-            return Some(parent.into());
-        }
-        path = parent;
-    }
-    None
-}
-
-fn hash(path: &Path) -> anyhow::Result<String> {
-    Ok(hex::encode(
-        sha1::Sha1::new_with_prefix(path_bytes(path)?).finalize(),
-    ))
-}
-
-fn stash_name(path: &Path) -> anyhow::Result<OsString> {
-    let hash = hash(path)?;
-    let base = path
-        .file_name()
-        .ok_or_else(|| anyhow::anyhow!("bad path"))?;
-    let mut base = base.to_os_string();
-    base.push("-");
-    base.push(&hash);
-    Ok(base)
-}
-
 pub fn stash_base() -> anyhow::Result<PathBuf> {
     Ok(config_dir()?.join("projects"))
-}
-
-pub fn stash_path(project_dir: &Path) -> anyhow::Result<PathBuf> {
-    let hname = stash_name(project_dir)?;
-    Ok(stash_base()?.join(hname))
 }
 
 fn run_and_migrate(info: &Handle) -> anyhow::Result<()> {
@@ -1260,7 +1233,9 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Resu
                     Skip => {
                         print::warn("Skipping migrations.");
                         echo!(
-                            "You can use `edgedb migrate` to apply migrations \
+                            "You can use `",
+                            BRANDING_CLI_CMD,
+                            " migrate` to apply migrations \
                                once the service is up and running."
                         );
                         return Ok(());
@@ -1411,7 +1386,7 @@ impl Handle<'_> {
             Ok(inst_ver) => {
                 print::warn(format!(
                     "WARNING: existing instance has version {}, \
-                    but {} is required by `edgedb.toml`",
+                    but {} is required by {CONFIG_FILE_DISPLAY_NAME}",
                     inst_ver,
                     ver_query.display(),
                 ));
@@ -1450,9 +1425,9 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
     print::success("Project initialized.");
     if let Some(dir) = dir_option {
         echo!("To connect to", name.emphasize();
-              ", navigate to", dir.display(), "and run `edgedb`");
+              ", navigate to", dir.display(), "and run `", BRANDING_CLI_CMD, "`");
     } else {
-        echo!("To connect to", name.emphasize(); ", run `edgedb`");
+        echo!("To connect to", name.emphasize(); ", run `", BRANDING_CLI_CMD, "`");
     }
 }
 
@@ -1513,7 +1488,11 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
     } else {
         String::new()
     };
-    let mut q = question::String::new("Specify the version of EdgeDB to use with this project");
+    let mut q = question::String::new(concatcp!(
+        "Specify the version of the ",
+        BRANDING,
+        " instance to use with this project"
+    ));
     q.default(&default_ver);
     loop {
         let value = q.ask()?;
@@ -1599,7 +1578,11 @@ fn ask_cloud_version(
     }
     let default = cloud::versions::get_version(&Query::stable(), client)?;
     let default_ver = Query::from_version(&default)?.as_config_value();
-    let mut q = question::String::new("Specify the version of EdgeDB to use with this project");
+    let mut q = question::String::new(concatcp!(
+        "Specify the version of the ",
+        BRANDING,
+        " instance to use with this project"
+    ));
     q.default(&default_ver);
     loop {
         let value = q.ask()?;
@@ -1654,20 +1637,6 @@ fn print_cloud_versions(title: &str, client: &CloudClient) -> anyhow::Result<()>
     Ok(())
 }
 
-fn search_for_unlink(base: &Path) -> anyhow::Result<PathBuf> {
-    let mut path = base;
-    while let Some(parent) = path.parent() {
-        let canon = fs::canonicalize(path)
-            .with_context(|| format!("failed to canonicalize dir {:?}", parent))?;
-        let stash_dir = stash_path(&canon)?;
-        if stash_dir.exists() || path.join("edgedb.toml").exists() {
-            return Ok(stash_dir);
-        }
-        path = parent;
-    }
-    anyhow::bail!("no project directory found");
-}
-
 #[context("cannot read instance name of {:?}", stash_dir)]
 pub fn instance_name(stash_dir: &Path) -> anyhow::Result<InstanceName> {
     let inst = fs::read_to_string(stash_dir.join("instance-name"))?;
@@ -1687,14 +1656,12 @@ pub fn database_name(stash_dir: &Path) -> anyhow::Result<Option<String>> {
 }
 
 pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let stash_path = if let Some(dir) = &options.project_dir {
-        let canon = fs::canonicalize(dir)
-            .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
-        stash_path(&canon)?
-    } else {
-        let base = env::current_dir().context("failed to get current directory")?;
-        search_for_unlink(&base)?
+    let Some((project_dir, _)) = project_dir(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to unlink instance.");
     };
+    let canon = fs::canonicalize(&project_dir)
+        .with_context(|| format!("failed to canonicalize dir {:?}", project_dir))?;
+    let stash_path = get_stash_path(&canon)?;
 
     if stash_path.exists() {
         if options.destroy_server_instance {
@@ -1741,37 +1708,26 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
     Ok(())
 }
 
-pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<PathBuf> {
-    project_dir_opt(cli_option)?.ok_or_else(|| anyhow::anyhow!("no `edgedb.toml` found"))
-}
-
-pub fn project_dir_opt(cli_options: Option<&Path>) -> anyhow::Result<Option<PathBuf>> {
-    match cli_options {
-        Some(dir) => {
-            if dir.join("edgedb.toml").exists() {
-                let canon = fs::canonicalize(dir)
-                    .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
-                Ok(Some(canon))
-            } else {
-                anyhow::bail!("no `edgedb.toml` found in {:?}", dir);
-            }
-        }
-        None => {
-            let dir = env::current_dir().context("failed to get current directory")?;
-            if let Some(ancestor) = search_dir(&dir) {
-                let canon = fs::canonicalize(&ancestor)
-                    .with_context(|| format!("failed to canonicalize dir {:?}", ancestor))?;
-                Ok(Some(canon))
-            } else {
-                Ok(None)
-            }
-        }
-    }
+pub fn project_dir(cli_option: Option<&Path>) -> anyhow::Result<Option<(PathBuf, PathBuf)>> {
+    // Create a temporary runtime. Not efficient, but only called at CLI startup.
+    let cli_option = cli_option.map(|p| p.to_owned());
+    let res = std::thread::spawn(move || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(get_project_path(cli_option.as_deref(), true))
+    })
+    .join()
+    .unwrap()?;
+    Ok(res.map(|res| (res.parent().unwrap().to_owned(), res)))
 }
 
 pub fn info(options: &Info) -> anyhow::Result<()> {
-    let root = project_dir(options.project_dir.as_deref())?;
-    let stash_dir = stash_path(&root)?;
+    let Some((root, _)) = project_dir(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to get project info.");
+    };
+    let stash_dir = get_stash_path(&root)?;
     if !stash_dir.exists() {
         echo!(
             print::err_marker(),
@@ -1823,7 +1779,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
         let mut rows: Vec<(&str, String)> =
             vec![("Instance name", instance_name), ("Project root", root)];
         if let Some(profile) = cloud_profile.as_deref() {
-            rows.push(("Cloud profile", profile.to_string()));
+            rows.push((concatcp!(BRANDING_CLOUD, " profile"), profile.to_string()));
         }
         table::settings(rows.as_slice());
     }
@@ -1925,8 +1881,9 @@ pub fn update_toml(
     opts: &crate::options::Options,
     query: Query,
 ) -> anyhow::Result<()> {
-    let root = project_dir(options.project_dir.as_deref())?;
-    let config_path = root.join("edgedb.toml");
+    let Some((root, config_path)) = project_dir(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to upgrade {BRANDING} instance without an initialized project.");
+    };
     let config = config::read(&config_path)?;
     let schema_dir = &config.project.schema_dir;
 
@@ -1939,7 +1896,7 @@ pub fn update_toml(
     })?;
     let pkg_ver = pkg.version.specific();
 
-    let stash_dir = stash_path(&root)?;
+    let stash_dir = get_stash_path(&root)?;
     if !stash_dir.exists() {
         log::warn!("No associated instance found.");
 
@@ -1950,7 +1907,8 @@ pub fn update_toml(
         }
         echo!(
             "Run",
-            "edgedb project init".command_hint(),
+            BRANDING_CLI_CMD,
+            " project init".command_hint(),
             "to initialize an instance."
         );
     } else {
@@ -2038,13 +1996,14 @@ fn print_other_project_warning(
 }
 
 pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> anyhow::Result<()> {
-    let root = project_dir(options.project_dir.as_deref())?;
-    let config_path = root.join("edgedb.toml");
+    let Some((root, config_path)) = project_dir(options.project_dir.as_deref())? else {
+        anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to upgrade {BRANDING} instance without an initialized project.");
+    };
     let config = config::read(&config_path)?;
     let cfg_ver = &config.edgedb.server_version;
     let schema_dir = &config.project.schema_dir;
 
-    let stash_dir = stash_path(&root)?;
+    let stash_dir = get_stash_path(&root)?;
     if !stash_dir.exists() {
         anyhow::bail!("No instance initialized.");
     }
@@ -2073,14 +2032,24 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
         }
         upgrade::UpgradeAction::None => {
             echo!(
-                "EdgeDB instance is up to date with \
-                the specification in `edgedb.toml`."
+                "{BRANDING} instance is up to date with \
+                the specification in `{}`.",
+                config_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
             );
             if let Some(available) = result.available_upgrade {
                 echo!("New major version is available:", available.emphasize());
                 echo!(
-                    "To update `edgedb.toml` and upgrade to this version, \
-                        run:\n    edgedb project upgrade --to-latest"
+                    "To update `{}` and upgrade to this version, \
+                        run:\n    ",
+                    BRANDING_CLI_CMD,
+                    " project upgrade --to-latest",
+                    config_path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
                 );
             }
         }

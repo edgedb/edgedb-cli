@@ -4,6 +4,7 @@ use std::fmt;
 use std::io;
 
 use colorful::{Color, Colorful};
+use const_format::concatcp;
 use is_terminal::IsTerminal;
 use snafu::{AsErrorSource, ResultExt, Snafu};
 use terminal_size::{terminal_size, Width};
@@ -11,6 +12,7 @@ use tokio_stream::{Stream, StreamExt};
 
 use edgedb_errors::display::display_error;
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::repl::VectorLimit;
 
 pub use crate::echo;
@@ -378,7 +380,7 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config) -> Result<St
 }
 
 pub fn use_color() -> bool {
-    clicolors_control::colors_enabled()
+    concolor::get(concolor::Stream::Stdout).ansi_color()
 }
 
 pub fn prompt(line: impl fmt::Display) {
@@ -390,7 +392,7 @@ pub fn prompt(line: impl fmt::Display) {
 }
 
 pub fn err_marker() -> impl fmt::Display {
-    "edgedb error:".err_marker()
+    concatcp!(BRANDING_CLI_CMD, " error:").err_marker()
 }
 
 pub fn error(line: impl fmt::Display) {

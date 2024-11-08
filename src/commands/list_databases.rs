@@ -1,3 +1,4 @@
+use crate::branding::BRANDING;
 use crate::commands::list;
 use crate::commands::list_branches::list_branches0;
 use crate::commands::Options;
@@ -19,7 +20,7 @@ pub async fn list_databases(cli: &mut Connection, options: &Options) -> Result<(
 
     if version.specific().major >= 5 {
         print::warn(format!(
-            "Databases are not supported in EdgeDB {}, printing list of branches instead",
+            "Databases are not supported in {BRANDING} {}, printing list of branches instead",
             version
         ));
         return list_branches0(cli, options).await;

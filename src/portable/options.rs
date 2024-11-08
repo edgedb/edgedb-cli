@@ -5,6 +5,9 @@ use clap::ValueHint;
 use edgedb_cli_derive::IntoArgs;
 use serde::{Deserialize, Serialize};
 
+#[cfg(doc)]
+use crate::branding::BRANDING;
+use crate::branding::BRANDING_CLOUD;
 use crate::cloud::ops::CloudTier;
 use crate::commands::ExitCode;
 use crate::options::{CloudOptions, ConnectionOptions};
@@ -35,7 +38,7 @@ pub struct ServerInstanceCommand {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum InstanceCommand {
-    /// Initialize a new EdgeDB instance.
+    /// Initialize a new [`BRANDING`] instance.
     Create(Create),
     /// Show all instances.
     List(List),
@@ -49,19 +52,22 @@ pub enum InstanceCommand {
     Restart(Restart),
     /// Destroy an instance and remove the data.
     Destroy(Destroy),
-    /// Link a remote instance.
+    /// Link to a remote [`BRANDING`] instance.
+    #[command(
+        long_about = "Link to a remote [`BRANDING`] instance and assign an instance name to simplify future connections."
+    )]
     Link(Link),
-    /// Unlink a remote instance.
+    /// Unlink from a remote [`BRANDING`] instance.
     Unlink(Unlink),
     /// Show logs for an instance.
     Logs(Logs),
-    /// Resize a Cloud instance.
+    /// Resize an instance ([`BRANDING_CLOUD`] only).
     Resize(Resize),
-    /// Create a Cloud instance backup.
+    /// Create a backup for an instance ([`BRANDING_CLOUD`] only).
     Backup(Backup),
-    /// Restore a Cloud instance from a backup.
+    /// Restore an instance from a backup ([`BRANDING_CLOUD`] only).
     Restore(Restore),
-    /// Restore a Cloud instance from a backup.
+    /// Restore an instance from a backup ([`BRANDING_CLOUD`] only).
     ListBackups(ListBackups),
     /// Upgrade installations and instances.
     Upgrade(Upgrade),
@@ -149,13 +155,13 @@ pub struct ExtensionUninstall {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
-    /// Show locally installed EdgeDB versions.
+    /// Show locally installed server versions.
     Info(Info),
-    /// Install an EdgeDB version locally.
+    /// Install a server version locally.
     Install(Install),
-    /// Uninstall an EdgeDB version locally.
+    /// Uninstall a server version locally.
     Uninstall(Uninstall),
-    /// List available and installed versions of EdgeDB.
+    /// List available and installed versions of the server.
     ListVersions(ListVersions),
 }
 
@@ -377,8 +383,6 @@ pub struct Destroy {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(long_about = "Link to a remote EdgeDB instance and
-assign an instance name to simplify future connections.")]
 pub struct Link {
     #[command(flatten)]
     pub conn: ConnectionOptions,
@@ -409,7 +413,6 @@ pub struct Link {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(long_about = "Unlink from a remote EdgeDB instance.")]
 pub struct Unlink {
     /// Specify remote instance name.
     #[arg(hide = true)]
@@ -810,11 +813,11 @@ pub struct Info {
     #[arg(conflicts_with_all=&["nightly", "version", "latest"])]
     pub channel: Option<Channel>,
 
-    #[arg(long, value_parser=["bin-path", "version"])]
     /// Get specific value:
     ///
     /// * `bin-path` -- Path to the server binary
     /// * `version` -- Server version
+    #[arg(long, value_parser=["bin-path", "version"])]
     pub get: Option<String>,
 }
 
@@ -895,7 +898,7 @@ impl FromStr for InstanceName {
             }
             if name.len() > CLOUD_INSTANCE_NAME_MAX_LENGTH {
                 anyhow::bail!(
-                    "invalid cloud instance name \"{}\": \
+                    "invalid {BRANDING_CLOUD} instance name \"{}\": \
                     length cannot exceed {} characters",
                     name,
                     CLOUD_INSTANCE_NAME_MAX_LENGTH,
@@ -910,7 +913,7 @@ impl FromStr for InstanceName {
                 anyhow::bail!(
                     "instance name must be a valid identifier, \
                      regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$ or \
-                     a cloud instance name ORG/INST."
+                     {BRANDING_CLOUD} instance name ORG/INST."
                 );
             }
             Ok(InstanceName::Local(name.into()))

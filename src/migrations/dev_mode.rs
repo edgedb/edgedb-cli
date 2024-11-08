@@ -7,6 +7,7 @@ use indicatif::ProgressBar;
 use once_cell::sync::Lazy;
 
 use crate::async_try;
+use crate::branding::BRANDING;
 use crate::bug;
 use crate::commands::Options;
 use crate::migrations::context::Context;
@@ -59,7 +60,7 @@ pub async fn check_client(cli: &mut Connection) -> anyhow::Result<bool> {
 pub async fn migrate(cli: &mut Connection, ctx: &Context, bar: &ProgressBar) -> anyhow::Result<()> {
     if !check_client(cli).await? {
         anyhow::bail!(
-            "Dev mode is not supported on EdgeDB {}. Please upgrade.",
+            "Dev mode is not supported on {BRANDING} {}. Please upgrade.",
             cli.get_version().await?
         );
     }

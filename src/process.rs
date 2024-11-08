@@ -179,7 +179,7 @@ impl Native {
             program: cmd.as_ref().as_os_str().to_os_string(),
             args: vec![cmd.as_ref().as_os_str().to_os_string()],
             envs: HashMap::new(),
-            proxy: clicolors_control::colors_enabled(),
+            proxy: concolor::get(concolor::Stream::Stdout).color(),
             quiet: false,
             stop_process: None,
             pid_file: None,

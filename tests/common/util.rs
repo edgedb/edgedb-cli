@@ -1,4 +1,14 @@
+#![allow(unused)]
+
 use assert_cmd::assert::Assert;
+
+use const_format::concatcp;
+
+#[path = "../../src/branding.rs"]
+mod branding;
+
+pub const EXPECTED_VERSION: &str =
+    concatcp!(branding::BRANDING_CLI, " ", env!("CARGO_PKG_VERSION"));
 
 pub trait OutputExt {
     fn context(self, name: &'static str, description: &'static str) -> Self;

@@ -4,7 +4,7 @@ use colorful::core::ColorInterface;
 use colorful::Color;
 
 static THEME: once_cell::sync::Lazy<Theme> = once_cell::sync::Lazy::new(|| {
-    if clicolors_control::colors_enabled() {
+    if concolor::get(concolor::Stream::Stdout).color() {
         Theme {
             fade: Some(Style {
                 color: Color::Grey37,

@@ -3,11 +3,13 @@ use std::fmt;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
+use const_format::concatcp;
 use edgedb_tokio::credentials::Credentials;
 use edgedb_tokio::Builder;
 use indicatif::ProgressBar;
 use tokio::time::{sleep, timeout};
 
+use crate::branding::BRANDING_CLOUD;
 use crate::cloud::client::{CloudClient, ErrorResponse};
 use crate::collect::Collector;
 use crate::options::CloudOptions;
@@ -354,7 +356,11 @@ pub async fn upgrade_cloud_instance(
 }
 
 pub fn prompt_cloud_login(client: &mut CloudClient) -> anyhow::Result<()> {
-    let mut q = question::Confirm::new("Not authenticated to EdgeDB Cloud yet, log in now?");
+    let mut q = question::Confirm::new(concatcp!(
+        "Not authenticated to ",
+        BRANDING_CLOUD,
+        " yet, log in now?"
+    ));
     if q.default(true).ask()? {
         crate::cloud::auth::do_login(client)?;
         client.reinit()?;
@@ -401,8 +407,12 @@ pub async fn destroy_cloud_instance(
 async fn get_instances(client: &CloudClient) -> anyhow::Result<Vec<CloudInstance>> {
     timeout(Duration::from_secs(30), client.get("instances/"))
         .await
-        .or_else(|_| anyhow::bail!("timed out with Cloud API"))?
-        .context("failed with Cloud API")
+        .or_else(|_| anyhow::bail!("{BRANDING_CLOUD} instances API timed out"))?
+        .context(concatcp!(
+            "failed to list instances in ",
+            BRANDING_CLOUD,
+            " API"
+        ))
 }
 
 pub async fn list(

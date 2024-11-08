@@ -19,6 +19,7 @@ use edgedb_errors::{Error, ErrorKind, UserError};
 use edgeql_parser::helpers::quote_name;
 use edgeql_parser::preparser::is_empty;
 
+use crate::branding::BRANDING;
 use crate::commands::list_databases;
 use crate::commands::parser::Restore as RestoreCmd;
 use crate::commands::Options;
@@ -187,7 +188,7 @@ async fn restore_db<'x>(
         .with_context(file_ctx)?;
     if &buf[..17] != b"\xFF\xD8\x00\x00\xD8EDGEDB\x00DUMP\x00" {
         Err(anyhow::anyhow!(
-            "Incorrect header; file is not an EdgeDB dump"
+            "Incorrect header; file is not a dump from {BRANDING}"
         ))
         .with_context(file_ctx)?
     }

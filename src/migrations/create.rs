@@ -21,6 +21,7 @@ use tokio::io::{self, AsyncWriteExt};
 use tokio::task::spawn_blocking as unblock;
 
 use crate::async_try;
+use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::bug;
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
@@ -139,8 +140,8 @@ struct SplitMigration;
 
 #[derive(Debug, thiserror::Error)]
 #[error(
-    "EdgeDB could not resolve migration automatically. \
-         Please run `edgedb migration create` in interactive mode."
+    "{BRANDING} could not resolve migration automatically. \
+         Please run `{BRANDING_CLI_CMD} migration create` in interactive mode."
 )]
 struct CantResolve;
 
@@ -466,7 +467,7 @@ async fn non_interactive_populate(
                     execute(cli, &statement.text, None).await?;
                 }
             } else {
-                eprintln!("EdgeDB intended to apply the following migration:");
+                eprintln!("{BRANDING} intended to apply the following migration:");
                 for statement in proposal.statements {
                     for line in statement.text.lines() {
                         eprintln!("    {}", line);
@@ -477,14 +478,14 @@ async fn non_interactive_populate(
                     proposal.confidence, SAFE_CONFIDENCE
                 );
                 anyhow::bail!(
-                    "EdgeDB is unable to make a decision. Please run in \
+                    "{BRANDING} is unable to make a decision. Please run in \
                     interactive mode to confirm changes, \
                     or use `--allow-unsafe`"
                 );
             }
         } else {
             anyhow::bail!(
-                "EdgeDB could not resolve \
+                "{BRANDING} could not resolve \
                 migration automatically. Please run in \
                 interactive mode to confirm changes, \
                 or use `--allow-unsafe`"
@@ -698,13 +699,13 @@ impl InteractiveMigration<'_> {
         // TODO(tailhook) allow rollback
         let msg = match debug_info {
             Some(e) => format!(
-                "EdgeDB could not resolve migration with the provided answers. \
+                "{BRANDING} could not resolve migration with the provided answers. \
                 Please retry with different answers.\n\n \
                 Debug info:\n\n {}",
                 e
             ),
             None => String::from(
-                "EdgeDB could not resolve migration with the \
+                "{BRANDING} could not resolve migration with the \
             provided answers. Please retry with different answers.",
             ),
         };
@@ -877,7 +878,7 @@ pub async fn normal_migration(
             if db_migration != ensure_parent {
                 anyhow::bail!("Database must be updated to the last migration \
                     on the filesystem for `migration create`. Run:\n  \
-                    edgedb migrate");
+                    {BRANDING_CLI_CMD} migrate");
             }
 
             if create.non_interactive {

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use fs_err as fs;
 
+use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::commands::ExitCode;
 use crate::options::Options;
 use crate::portable::control;
@@ -20,7 +21,10 @@ pub struct InstanceNotFound(#[source] pub anyhow::Error);
 pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     project::print_instance_in_use_warning(name, project_dirs);
     eprintln!("If you really want to destroy the instance, run:");
-    eprintln!("  edgedb instance destroy -I {:?} --force", name);
+    eprintln!(
+        "  {BRANDING_CLI_CMD} instance destroy -I {:?} --force",
+        name
+    );
 }
 
 pub fn with_projects(
@@ -147,11 +151,11 @@ fn do_destroy(options: &Destroy, opts: &Options, name: &InstanceName) -> anyhow:
             org_slug,
             name: inst_name,
         } => {
-            log::info!("Removing cloud instance {}", name);
+            log::info!("Removing {BRANDING_CLOUD} instance {}", name);
             if let Err(e) =
                 crate::cloud::ops::destroy_cloud_instance(inst_name, org_slug, &opts.cloud_options)
             {
-                let msg = format!("Could not destroy EdgeDB Cloud instance: {:#}", e);
+                let msg = format!("Could not destroy {BRANDING_CLOUD} instance: {:#}", e);
                 if options.force {
                     print::warn(msg);
                 } else {

@@ -3,9 +3,11 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
+use const_format::concatcp;
 use fn_error_context::context;
 use fs_err as fs;
 
+use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::cli::install::{get_rc_files, no_dir_in_path};
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -210,15 +212,20 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
             )
         })?;
         if modified && no_dir_in_path(&new_bin_dir) {
-            print::success("The `edgedb` executable has moved!");
+            print::success(concatcp!(
+                "The `",
+                BRANDING_CLI_CMD,
+                "` executable has moved!"
+            ));
             print_markdown!(
                 "\
                 \n\
                 `${dir}` has been added to your `PATH`.\n\
                 You may need to reopen the terminal for this change to\n\
-                take effect, and for the `edgedb` command to become\n\
+                take effect, and for the `${cmd}` command to become\n\
                 available.\
                 ",
+                cmd = BRANDING_CLI_CMD,
                 dir = new_bin_dir.display(),
             );
         }
@@ -242,7 +249,11 @@ fn update_path(base: &Path, new_bin_path: &Path) -> anyhow::Result<()> {
             .with_context(|| format!("failed to write env file {:?}", env_file))?;
 
         if modified && no_dir_in_path(new_bin_dir) {
-            print::success("The `edgedb` executable has moved!");
+            print::success(concatcp!(
+                "The `",
+                BRANDING_CLI_CMD,
+                "` executable has moved!"
+            ));
             print_markdown!(
                 "\
                 \n\
@@ -271,7 +282,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             let new_bin_path = binary_path()?;
             try_move_bin(&exe_path, &new_bin_path).map_err(|e| {
                 print::error("Cannot move executable to new location.");
-                eprintln!("  Try `edgedb cli upgrade` instead.");
+                eprintln!("  Try `{BRANDING_CLI_CMD} cli upgrade` instead.");
                 e
             })?;
             update_path(base, &new_bin_path)?;
@@ -340,7 +351,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
     if !dry_run && dir_is_non_empty(base)? {
         eprintln!(
             "\
-            Directory {:?} is no longer used by EdgeDB tools and must be \
+            Directory {:?} is no longer used by {BRANDING} tools and must be \
             removed to finish migration, but some files or directories \
             remain after all known files have moved. \
             The files may have been left by a third party tool. \
@@ -358,9 +369,10 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
                 Once all files are backed up, run one of:\n\
                 ```\n\
                 rm -rf ~/.edgedb\n\
-                edgedb cli migrate\n\
+                ${cmd} cli migrate\n\
                 ```\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD
             );
             return Err(ExitCode::new(2).into());
         }

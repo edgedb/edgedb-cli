@@ -15,6 +15,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use url::Url;
 
 use crate::async_util;
+use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_WSL};
 use crate::bug;
 use crate::cli::upgrade::{self, self_version};
 use crate::collect::Collector;
@@ -34,7 +35,7 @@ use crate::portable::ver;
 use crate::print::{self, echo, Highlight};
 use crate::process;
 
-const CURRENT_DISTRO: &str = "EdgeDB.WSL.1";
+const CURRENT_DISTRO: &str = BRANDING_WSL;
 static DISTRO_URL: Lazy<Url> = Lazy::new(|| {
     "https://aka.ms/wsl-debian-gnulinux"
         .parse()
@@ -320,6 +321,8 @@ fn wsl_check_cli(_wsl: &wslapi::Library, wsl_info: &WslInfo) -> anyhow::Result<b
 #[context("cannot check linux CLI version")]
 fn wsl_cli_version(distro: &str) -> anyhow::Result<ver::Semver> {
     // Note: cannot capture output using wsl.launch
+
+    use const_format::concatcp;
     let data = process::Native::new("check version", "edgedb", "wsl")
         .arg("--user")
         .arg("edgedb")
@@ -330,7 +333,7 @@ fn wsl_cli_version(distro: &str) -> anyhow::Result<ver::Semver> {
         .get_stdout_text()?;
     let version = data
         .trim()
-        .strip_prefix("EdgeDB CLI ")
+        .strip_prefix(concatcp!(BRANDING_CLI, " "))
         .with_context(|| format!("bad version info returned by linux CLI: {:?}", data))?
         .parse()?;
     Ok(version)
@@ -729,7 +732,7 @@ pub fn uninstall(options: &options::Uninstall) -> anyhow::Result<()> {
     } else {
         log::warn!(
             "WSL distribution is not installed, \
-                   so no EdgeDB server versions are present."
+                   so no {BRANDING} server versions are present."
         );
     }
     Ok(())
@@ -747,7 +750,7 @@ pub fn list_versions(options: &options::ListVersions) -> anyhow::Result<()> {
     } else {
         log::warn!(
             "WSL distribution is not installed, \
-                   so no EdgeDB server versions are present."
+                   so no {BRANDING} server versions are present."
         );
     }
     Ok(())
@@ -759,7 +762,7 @@ pub fn info(options: &options::Info) -> anyhow::Result<()> {
     } else {
         anyhow::bail!(
             "WSL distribution is not installed, \
-                       so no EdgeDB server versions are present."
+                       so no {BRANDING} server versions are present."
         );
     }
     Ok(())
@@ -776,7 +779,7 @@ pub fn reset_password(options: &options::ResetPassword, name: &str) -> anyhow::R
     } else {
         anyhow::bail!(
             "WSL distribution is not installed, \
-                       so no EdgeDB instances are present."
+                       so no {BRANDING} instances are present."
         );
     }
     Ok(())
@@ -796,7 +799,7 @@ pub fn start(options: &options::Start, name: &str) -> anyhow::Result<()> {
     } else {
         anyhow::bail!(
             "WSL distribution is not installed, \
-                       so no EdgeDB instances are present."
+                       so no {BRANDING} instances are present."
         );
     }
     Ok(())
@@ -816,7 +819,7 @@ pub fn stop(options: &options::Stop, name: &str) -> anyhow::Result<()> {
     } else {
         anyhow::bail!(
             "WSL distribution is not installed, \
-                       so no EdgeDB instances are present."
+                       so no {BRANDING} instances are present."
         );
     }
     Ok(())
@@ -832,7 +835,7 @@ pub fn restart(options: &options::Restart) -> anyhow::Result<()> {
     } else {
         anyhow::bail!(
             "WSL distribution is not installed, \
-                       so no EdgeDB instances are present."
+                       so no {BRANDING} instances are present."
         );
     }
     Ok(())
@@ -848,7 +851,7 @@ pub fn logs(options: &options::Logs) -> anyhow::Result<()> {
     } else {
         anyhow::bail!(
             "WSL distribution is not installed, \
-                       so no EdgeDB instances are present."
+                       so no {BRANDING} instances are present."
         );
     }
     Ok(())
@@ -865,7 +868,7 @@ pub fn status(options: &options::Status) -> anyhow::Result<()> {
         } else {
             echo!(
                 "WSL distribution is not installed, \
-                   so no EdgeDB instances are present."
+                   so no {BRANDING} instances are present."
             );
             return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
         }
@@ -923,7 +926,7 @@ fn list_local(options: &options::List) -> anyhow::Result<Vec<status::JsonStatus>
             .args(&inner_opts)
             .get_stdout_text()?;
         log::info!("WSL list returned {:?}", text);
-        serde_json::from_str(&text).context("cannot decode json from edgedb CLI in WSL")?
+        serde_json::from_str(&text).context("cannot decode json from `instance list` in WSL")?
     } else {
         Vec::new()
     };

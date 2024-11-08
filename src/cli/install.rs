@@ -10,15 +10,18 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use clap_complete::{generate, shells};
+use edgedb_tokio::get_stash_path;
 use fn_error_context::context;
 use prettytable::{Cell, Row, Table};
 
+use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLI_CMD};
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
 use crate::options::Options;
 use crate::platform::current_exe;
 use crate::platform::{binary_path, config_dir, home_dir};
 use crate::portable::platform;
+use crate::portable::project::project_dir;
 use crate::portable::project::{self, Init};
 use crate::print::{self, echo};
 use crate::print_markdown;
@@ -281,9 +284,10 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
                 "\n\
                 To initialize a new project, run:\n\
                 ```\n\
-                    edgedb project init\n\
+                    ${cmd} project init\n\
                 ```\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD
             );
         }
         Ok(InitResult::NotAProject) => {
@@ -291,17 +295,19 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
                 "\n\
                 To initialize a new project, run:\n\
                 ```\n\
-                    edgedb project init\n\
+                    ${cmd} project init\n\
                 ```\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD,
             );
         }
         Ok(InitResult::Already) => {
             print_markdown!(
                 "\n\
-                `edgedb` without parameters will automatically\n\
+                `${cmd}` without parameters will automatically\n\
                 connect to the current project.\n\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD,
             );
         }
         Ok(InitResult::OldLayout) => {
@@ -309,10 +315,11 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
                 "\n\
                 To initialize a project run:\n\
                 ```\n\
-                    edgedb cli migrate\n\
-                    edgedb project init\n\
+                    ${cmd} cli migrate\n\
+                    ${cmd} project init\n\
                 ```\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD,
             );
         }
         Err(e) => {
@@ -322,9 +329,10 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
                 \n\
                 To restart project initialization, run:\n\
                 ```\n\
-                    edgedb project init\n\
+                    ${cmd} project init\n\
                 ```\
                 ",
+                cmd = BRANDING_CLI_CMD,
                 err = format!("{:#}", e),
             );
         }
@@ -393,8 +401,8 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
     }
 
     let base_dir = env::current_dir().context("failed to get current directory")?;
-    if let Some(dir) = project::search_dir(&base_dir) {
-        if project::stash_path(&base_dir)?.exists() {
+    if let Some((project_dir, config_path)) = project_dir(Some(&base_dir))? {
+        if get_stash_path(&project_dir)?.exists() {
             log::info!("Project already initialized. Skipping...");
             return Ok(Already);
         }
@@ -408,9 +416,9 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
         println!("Command-line tools are installed successfully.");
         println!();
         let q = question::Confirm::new(format!(
-            "Do you want to initialize an EdgeDB server instance for the project \
+            "Do you want to initialize a new {BRANDING} server instance for the project \
              defined in `{}`?",
-            dir.join("edgedb.toml").display(),
+            config_path.display(),
         ));
         if !q.ask()? {
             return Ok(Refused);
@@ -432,9 +440,7 @@ fn try_project_init(new_layout: bool) -> anyhow::Result<InitResult> {
             server_start_conf: None,
             cloud_opts: options.clone(),
         };
-        let dir = fs::canonicalize(&dir)
-            .with_context(|| format!("failed to canonicalize dir {:?}", dir))?;
-        project::init_existing(&init, &dir, &options)?;
+        project::init_existing(&init, &project_dir, config_path, &options)?;
         Ok(Initialized)
     } else {
         Ok(NotAProject)
@@ -493,7 +499,10 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     }
 
     if cfg!(all(target_os = "macos", target_arch = "x86_64")) && platform::is_arm64_hardware() {
-        echo!("EdgeDB now supports native M1 build. Downloading binary...");
+        echo!(
+            BRANDING,
+            "now supports native M1 build. Downloading binary..."
+        );
         return upgrade::upgrade_to_arm64();
     }
 
@@ -556,7 +565,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     let new_layout = if base.exists() {
         eprintln!(
             "\
-            Edgedb CLI no longer uses '{}' to store data \
+                {BRANDING_CLI} no longer uses '{}' to store data \
                 and now uses standard locations of your OS. \
         ",
             base.display()

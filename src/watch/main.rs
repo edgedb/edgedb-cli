@@ -1,12 +1,14 @@
 use std::time::{Duration, Instant};
 
-use edgedb_tokio::{get_project_dir, Error};
+use const_format::concatcp;
+use edgedb_tokio::{get_project_path, Error};
 use edgeql_parser::helpers::quote_string;
 use indicatif::ProgressBar;
 use notify::{RecursiveMode, Watcher};
 use tokio::sync::watch;
 use tokio::time::timeout;
 
+use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::connect::{Connection, Connector};
 use crate::interrupt::Interrupt;
 use crate::migrations::{self, dev_mode};
@@ -48,18 +50,19 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
         .thread_name("watch")
         .enable_all()
         .build()?;
-    let project_dir = match runtime.block_on(get_project_dir(None, true))? {
+    let project_path = match runtime.block_on(get_project_path(None, true))? {
         Some(proj) => proj,
         None => anyhow::bail!(
-            "The `edgedb watch` command currently only \
-             works for projects. Run `edgedb project init` first."
+            "The `{BRANDING_CLI_CMD} watch` command currently only \
+             works for projects. Run `{BRANDING_CLI_CMD} project init` first."
         ),
     };
     let mut ctx = WatchContext {
         connector: options.block_on_create_connector()?,
-        migration: migrations::Context::for_watch(&project_dir)?,
+        migration: migrations::Context::for_watch(&project_path)?,
         last_error: false,
     };
+    let project_dir = project_path.parent().unwrap();
     log::info!("Initialized in project dir {:?}", project_dir);
     let (tx, rx) = watch::channel(());
     let mut watch = notify::recommended_watcher(move |res: Result<_, _>| {
@@ -69,16 +72,13 @@ pub fn watch(options: &Options, _watch: &WatchCommand) -> anyhow::Result<()> {
         .ok();
         tx.send(()).unwrap();
     })?;
-    watch.watch(
-        &project_dir.join("edgedb.toml"),
-        RecursiveMode::NonRecursive,
-    )?;
+    watch.watch(&project_path, RecursiveMode::NonRecursive)?;
     watch.watch(&ctx.migration.schema_dir, RecursiveMode::Recursive)?;
 
     runtime.block_on(ctx.do_update())?;
 
-    eprintln!("EdgeDB Watch initialized.");
-    eprintln!("  Hint: Use `edgedb migration create` and `edgedb migrate --dev-mode` to apply changes once done.");
+    eprintln!("{BRANDING} Watch initialized.");
+    eprintln!("  Hint: Use `{BRANDING_CLI_CMD} migration create` and `{BRANDING_CLI_CMD} migrate --dev-mode` to apply changes once done.");
     eprintln!("Monitoring {:?}.", project_dir);
     let res = runtime.block_on(watch_loop(rx, &mut ctx));
     runtime
@@ -152,7 +152,7 @@ impl WatchContext {
     async fn do_update(&mut self) -> anyhow::Result<()> {
         let bar = ProgressBar::new_spinner();
         bar.enable_steady_tick(Duration::from_millis(100));
-        // TODO(tailhook) check edgedb version
+        // TODO(tailhook) check gel/edgedb version
         bar.set_message("connecting");
         let mut cli = self.connector.connect().await?;
 
@@ -199,9 +199,13 @@ impl From<anyhow::Error> for ErrorJson {
                     err.initial_message().unwrap_or(""),
                 ),
                 hint: Some(
-                    "see the window running \
-                           `edgedb watch` for more info"
-                        .into(),
+                    concatcp!(
+                        "see the window running \
+                           `",
+                        BRANDING_CLI_CMD,
+                        "watch` for more info"
+                    )
+                    .into(),
                 ),
                 details: None,
                 context: None, // TODO(tailhook)
@@ -215,9 +219,13 @@ impl From<anyhow::Error> for ErrorJson {
                     err
                 ),
                 hint: Some(
-                    "see the window running \
-                           `edgedb watch` for more info"
-                        .into(),
+                    concatcp!(
+                        "see the window running \
+                           `",
+                        BRANDING_CLI_CMD,
+                        " watch` for more info"
+                    )
+                    .into(),
                 ),
                 details: None,
                 context: None,

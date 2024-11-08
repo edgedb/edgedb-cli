@@ -5,11 +5,13 @@ use codespan_reporting::files::SimpleFile;
 use codespan_reporting::term::emit;
 use colorful::core::color_string::CString;
 use colorful::Colorful;
+use const_format::concatcp;
 use edgedb_protocol::annotations::Warning;
 use termcolor::{ColorChoice, StandardStream};
 
 use edgedb_errors::{Error, InternalServerError};
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::print;
 
 pub fn print_query_error(
@@ -110,7 +112,7 @@ pub fn print_query_warning(
 }
 
 fn print_query_warning_plain(warning: &Warning) {
-    let marker = "edgedb warning:";
+    let marker = concatcp!(BRANDING_CLI_CMD, " warning:");
     let marker = if print::use_color() {
         marker.bold().yellow()
     } else {

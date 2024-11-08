@@ -1,5 +1,6 @@
-use edgedb_tokio::get_project_dir;
+use edgedb_tokio::{get_project_path, get_stash_path};
 
+use crate::branding::BRANDING_CLOUD;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::credentials;
@@ -31,12 +32,13 @@ impl Context {
         // use instance name provided with --instance
         let instance_name = options.conn_params.get()?.instance_name();
         let mut instance_name: Option<InstanceName> = instance_name.map(|n| n.clone().into());
-        let project_dir = get_project_dir(None, true).await?;
+        let project_file = get_project_path(None, true).await?;
+        let project_dir = project_file.as_ref().map(|p| p.parent().unwrap());
         let mut branch: Option<String> = None;
 
         if instance_name.is_none() {
             instance_name = if let Some(project_dir) = project_dir.as_ref() {
-                let stash_dir = project::stash_path(&fs::canonicalize(project_dir)?)?;
+                let stash_dir = get_stash_path(project_dir)?;
                 project::instance_name(&stash_dir).ok()
             } else {
                 None
@@ -54,7 +56,7 @@ impl Context {
                 InstanceName::Cloud { org_slug, name } => anyhow::bail!(
                     // should never occur because of the above check
                     format!(
-                        "cannot use Cloud instance {}/{}: instance is not linked to a project",
+                        "cannot use {BRANDING_CLOUD} instance {}/{}: instance is not linked to a project",
                         org_slug, name
                     )
                 ),
@@ -67,12 +69,12 @@ impl Context {
             }
         } else if let Some(project_dir) = project_dir.as_ref() {
             // try read from the database file
-            let stash_dir = project::stash_path(&fs::canonicalize(project_dir)?)?;
+            let stash_dir = get_stash_path(project_dir)?;
             branch = project::database_name(&stash_dir)?;
         }
 
         Ok(Context {
-            project_dir,
+            project_dir: project_dir.map(|p| p.to_owned()),
             instance_name,
             current_branch: branch,
         })
@@ -122,8 +124,7 @@ impl Context {
             } if self.project_dir.is_some() => {
                 // only place to store the branch is the database file in the project
                 let stash_path =
-                    project::stash_path(&fs::canonicalize(self.project_dir.as_ref().unwrap())?)?
-                        .join("database");
+                    get_stash_path(self.project_dir.as_ref().unwrap())?.join("database");
 
                 // ensure that the temp file is created in the same directory as the 'database' file
                 let tmp = tmp_file_path(&stash_path);
@@ -137,19 +138,17 @@ impl Context {
                 name: inst,
             } => {
                 anyhow::bail!(
-                    format!("cannot switch branches on Cloud instance {}/{}: instance is not linked to a project", org, inst)
+                    format!("cannot switch branches on {BRANDING_CLOUD} instance {}/{}: instance is not linked to a project", org, inst)
                 )
             }
         }
     }
 
     pub async fn get_project_config(&self) -> anyhow::Result<Option<Config>> {
-        let project_dir = get_project_dir(None, true).await?;
+        let project_dir = get_project_path(None, true).await?;
         let Some(path) = &project_dir else {
             return Ok(None);
         };
-        Ok(Some(crate::portable::config::read(
-            &path.join("edgedb.toml"),
-        )?))
+        Ok(Some(crate::portable::config::read(&path)?))
     }
 }

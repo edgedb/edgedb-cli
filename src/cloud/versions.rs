@@ -1,3 +1,4 @@
+use crate::branding::{BRANDING, BRANDING_CLOUD};
 use crate::cloud::client::CloudClient;
 use crate::cloud::ops::get_versions;
 use crate::portable::repository::{Channel, Query};
@@ -30,7 +31,7 @@ pub fn get_version(query: &Query, client: &CloudClient) -> anyhow::Result<ver::S
 
     if versions.is_empty() {
         anyhow::bail!(
-            "no EdgeDB versions matching '{}' supported by EdgeDB Cloud",
+            "no {BRANDING} versions matching '{}' supported by {BRANDING_CLOUD}",
             query.display(),
         );
     }

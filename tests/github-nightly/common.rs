@@ -13,7 +13,7 @@ pub fn dock_ubuntu(codename: &str) -> String {
            stable"
         RUN apt-get update && apt-get install -y docker-ce-cli
         RUN adduser --uid 1000 --home /home/user1 \
-            --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
+            --shell /bin/bash --ingroup users --gecos "Test User" \
             user1
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers
@@ -38,7 +38,7 @@ pub fn dock_ubuntu_jspy(codename: &str) -> String {
            stable"
         RUN apt-get update && apt-get install -y docker-ce-cli
         RUN adduser --uid 1000 --home /home/user1 \
-            --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
+            --shell /bin/bash --ingroup users --gecos "Test User" \
             user1
         RUN pip3 install edgedb
         RUN npm install edgedb
@@ -85,7 +85,7 @@ pub fn dock_debian(codename: &str) -> String {
            stable"
         RUN apt-get update && apt-get install -y docker-ce-cli
         RUN adduser --uid 1000 --home /home/user1 \
-            --shell /bin/bash --ingroup users --gecos "EdgeDB Test User" \
+            --shell /bin/bash --ingroup users --gecos "Test User" \
             user1
         ADD ./edgedb /usr/bin/edgedb
         ADD ./sudoers /etc/sudoers

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::migrations::options::MigrationConfig;
 use crate::portable::config;
 
-use edgedb_tokio::get_project_dir;
+use edgedb_tokio::get_project_path;
 
 pub struct Context {
     pub schema_dir: PathBuf,
@@ -18,8 +18,7 @@ impl Context {
     ) -> anyhow::Result<Context> {
         let schema_dir = if let Some(schema_dir) = &cfg.schema_dir {
             schema_dir.clone()
-        } else if let Some(cfg_dir) = get_project_dir(None, true).await? {
-            let config_path = cfg_dir.join("edgedb.toml");
+        } else if let Some(config_path) = get_project_path(None, true).await? {
             let config = config::read(&config_path)?;
             config.project.schema_dir
         } else {
@@ -32,8 +31,7 @@ impl Context {
 
         Ok(Context { schema_dir, quiet })
     }
-    pub fn for_watch(project_dir: &Path) -> anyhow::Result<Context> {
-        let config_path = project_dir.join("edgedb.toml");
+    pub fn for_watch(config_path: &Path) -> anyhow::Result<Context> {
         let config = config::read(&config_path)?;
         Context::for_project(&config)
     }

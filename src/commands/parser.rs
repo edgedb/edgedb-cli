@@ -2,9 +2,12 @@ use std::path::PathBuf;
 
 use clap::ValueHint;
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::migrations::options::{Migrate, Migration};
 use crate::options::ConnectionOptions;
 use crate::repl::{self, VectorLimit};
+
+use const_format::concatcp;
 
 use edgedb_cli_derive::EdbSettings;
 
@@ -19,7 +22,7 @@ pub enum Common {
 
     /// Migration management subcommands
     Migration(Box<Migration>),
-    /// Apply migration (alias for `edgedb migration apply`)
+    /// Apply migration (alias for [`BRANDING_CLI_CMD`] migration apply)
     Migrate(Migrate),
 
     /// Database commands
@@ -105,15 +108,15 @@ pub enum ListCmd {
     Aliases(ListAliases),
     /// Display list of casts defined in the schema
     Casts(ListCasts),
-    /// On EdgeDB < 5.x: Display list of databases for an EdgeDB instance
+    /// On EdgeDB < 5.x: Display list of databases for an instance
     Databases,
-    /// On EdgeDB >= 5.x: Display list of branches for an EdgeDB instance
+    /// On EdgeDB/Gel >= 5.x: Display list of branches for an instance
     Branches,
     /// Display list of indexes defined in the schema
     Indexes(ListIndexes),
     /// Display list of modules defined in the schema
     Modules(ListModules),
-    /// Display list of roles for an EdgeDB instance
+    /// Display list of roles for an instance
     Roles(ListRoles),
     /// Display list of scalar types defined in the schema
     Scalars(ListTypes),
@@ -138,9 +141,8 @@ pub enum BranchingCmd {
     Create(crate::branch::option::Create),
     /// Delete a branch along with its data
     Drop(crate::branch::option::Drop),
-    /// Delete a branches data and reset its schema while
-    /// preserving the branch itself (its cfg::DatabaseConfig)
-    /// and existing migration scripts
+    /// Delete a branch's data and reset its schema while preserving the branch
+    /// itself (its `cfg::DatabaseConfig`) and existing migration scripts
     Wipe(crate::branch::option::Wipe),
     /// List all branches.
     List(crate::branch::option::List),
@@ -167,9 +169,9 @@ pub enum DatabaseCmd {
     Create(CreateDatabase),
     /// Delete a database along with its data
     Drop(DropDatabase),
-    /// Delete a database's data and reset its schema while
-    /// preserving the database itself (its cfg::DatabaseConfig)
-    /// and existing migration scripts
+    /// Delete a database's data and reset its schema while preserving the
+    /// database itself (its `cfg::DatabaseConfig`) and existing migration
+    /// scripts
     Wipe(WipeDatabase),
 }
 
@@ -417,11 +419,11 @@ pub struct Dump {
 }
 
 #[derive(clap::Args, Clone, Debug)]
-#[command(override_usage(
-    "edgedb restore [OPTIONS] <path>\n    \
-     Pre 5.0: edgedb restore -d <database-name> <path>\n    \
-     >=5.0:   edgedb restore -b <branch-name> <path>"
-))]
+#[command(override_usage(concatcp!(
+    BRANDING_CLI_CMD, " restore [OPTIONS] <path>\n    \
+     Pre 5.0: ", BRANDING_CLI_CMD, " restore -d <database-name> <path>\n    \
+     >=5.0:   ", BRANDING_CLI_CMD, " restore -b <branch-name> <path>"
+)))]
 pub struct Restore {
     #[command(flatten)]
     pub conn: Option<ConnectionOptions>,
