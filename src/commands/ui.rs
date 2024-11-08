@@ -102,10 +102,14 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                     use_https = true;
                 }
                 Ok(status) => {
-                    print::echo!("{} returned status code {}, retry HTTP.", https_url, status);
+                    msg!(
+                        "{} returned status code {}, retry HTTP. {} {}",
+                        https_url,
+                        status
+                    );
                 }
                 Err(e) => {
-                    print::echo!("Failed to probe {}: {:#}, retry HTTP.", https_url, e);
+                    msg!("Failed to probe {}: {:#}, retry HTTP. {} {}", https_url, e);
                 }
             }
         }
@@ -118,7 +122,7 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                         BRANDING,
                         " server."
                     ));
-                    print::echo!(
+                    msg!(
                         "  Try running the \
                         server with `--admin-ui=enabled`."
                     );

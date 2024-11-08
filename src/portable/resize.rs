@@ -5,7 +5,7 @@ use anyhow::Context;
 use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
 use crate::portable::options::{InstanceName, Resize};
-use crate::print::echo;
+use crate::print::msg;
 use crate::question;
 
 pub fn resize(cmd: &Resize, opts: &crate::options::Options) -> anyhow::Result<()> {
@@ -178,13 +178,12 @@ fn resize_cloud_cmd(
         };
         cloud::ops::resize_cloud_instance(&client, &request)?;
     }
-    echo!(
+    msg!(
+        "{} instance {} has been resized successfuly.",
         BRANDING_CLOUD,
-        " instance",
-        inst_name,
-        "has been resized successfuly."
+        inst_name
     );
-    echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI_CMD, "-I", inst_name);
+    msg!("To connect to the instance run:");
+    msg!("  {} -I {}", BRANDING_CLI_CMD, inst_name);
     Ok(())
 }

@@ -119,5 +119,5 @@ fn print_query_warning_plain(warning: &Warning) {
         CString::new(marker)
     };
 
-    print::echo!(marker, warning);
+    msg!("{} {}", marker, warning);
 }

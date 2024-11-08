@@ -11,7 +11,7 @@ use crate::portable::local;
 use crate::portable::options::{instance_arg, Destroy, InstanceName};
 use crate::portable::project;
 use crate::portable::windows;
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::question;
 
 #[derive(Debug, thiserror::Error)]
@@ -69,7 +69,7 @@ pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
         }
     })?;
     if !options.quiet {
-        echo!("Instance", name_str.emphasize(), "is successfully deleted.");
+        msg!("Instance {} is successfully deleted.", name_str.emphasize());
     }
     Ok(())
 }

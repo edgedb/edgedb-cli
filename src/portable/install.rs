@@ -20,7 +20,7 @@ use crate::portable::repository::QueryOptions;
 use crate::portable::repository::{download, PackageHash, PackageInfo, Query};
 use crate::portable::repository::{get_server_package, get_specific_package};
 use crate::portable::ver::{self, Build};
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, msg, Highlight};
 
 static INSTALLED_VERSIONS: Lazy<Mutex<BTreeSet<Build>>> = Lazy::new(|| Mutex::new(BTreeSet::new()));
 
@@ -195,12 +195,12 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
             .unwrap()
             .insert(meta.version.clone())
         {
-            echo!("Version", meta.version.emphasize(), "is already downloaded");
+            msg!("Version {} is already downloaded", meta.version.emphasize());
         }
         return Ok(meta);
     }
 
-    echo!("Downloading package...");
+    msg!("Downloading package...");
     let cache_path = download_package(pkg_info)?;
     let tmp_target = platform::tmp_file_path(&target_dir);
     unpack_package(&cache_path, &tmp_target)?;
@@ -215,7 +215,7 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     fs::rename(&tmp_target, &target_dir)
         .with_context(|| format!("cannot rename {tmp_target:?} -> {target_dir:?}"))?;
     unlink_cache(&cache_path);
-    echo!("Successfully installed", pkg_info.version.emphasize());
+    msg!("Successfully installed {}", pkg_info.version.emphasize());
     INSTALLED_VERSIONS
         .lock()
         .unwrap()

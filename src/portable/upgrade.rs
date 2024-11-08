@@ -21,7 +21,7 @@ use crate::portable::project;
 use crate::portable::repository::{self, Channel, PackageInfo, Query, QueryOptions};
 use crate::portable::ver;
 use crate::portable::windows;
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::question;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -139,12 +139,10 @@ fn upgrade_local_cmd(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     let pkg_ver = pkg.version.specific();
 
     if pkg_ver <= inst_ver && !cmd.force {
-        echo!(
-            "Latest version found",
+        msg!(
+            "Latest version found {} current instance version is {} Already up to date.",
             pkg.version.to_string() + ",",
-            "current instance version is",
-            inst.get_version()?.emphasize().to_string() + ".",
-            "Already up to date."
+            inst.get_version()?.emphasize().to_string() + "."
         );
         return Ok(());
     }
@@ -203,21 +201,16 @@ fn upgrade_cloud_cmd(
 
     match result.action {
         UpgradeAction::Upgraded => {
-            echo!(format!(
+            msg!(
                 "{BRANDING_CLOUD} instance {inst_name} has been successfully \
-                upgraded to version {target_ver_str}.",
-            ));
+                upgraded to version {target_ver_str}."
+            );
         }
         UpgradeAction::Cancelled => {
-            echo!("Canceled.");
+            msg!("Canceled.");
         }
         UpgradeAction::None => {
-            echo!(
-                "Already up to date.\nRequested upgrade version is",
-                target_ver_str.emphasize().to_string() + ",",
-                "current instance version is",
-                result.prior_version.emphasize().to_string() + ".",
-            );
+            msg!("Already up to date.\nRequested upgrade version is {} current instance version is {}", target_ver_str.emphasize().to_string() + ",", result.prior_version.emphasize().to_string() + ".");
         }
     }
 
@@ -272,7 +265,7 @@ pub fn upgrade_cloud(
 }
 
 pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::Result<()> {
-    echo!("Upgrading to a minor version", pkg.version.emphasize());
+    msg!("Upgrading to a minor version {}", pkg.version.emphasize());
     let install = install::package(&pkg).context(concatcp!("error installing ", BRANDING))?;
     inst.installation = Some(install);
 
@@ -285,10 +278,9 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::R
         })
         .ok();
     control::do_restart(&inst)?;
-    echo!(
-        "Instance",
+    msg!(
+        "Instance {} successfully upgraded to {}",
         inst.name.emphasize(),
-        "successfully upgraded to",
         pkg.version.emphasize()
     );
     Ok(())
@@ -299,7 +291,7 @@ pub fn upgrade_incompatible(
     pkg: PackageInfo,
     non_interactive: bool,
 ) -> anyhow::Result<()> {
-    echo!("Upgrading to a major version", pkg.version.emphasize());
+    msg!("Upgrading to a major version {}", pkg.version.emphasize());
 
     let old_version = inst.get_version()?.clone();
 
@@ -364,10 +356,9 @@ pub fn upgrade_incompatible(
         .ok();
     control::do_restart(&inst)?;
 
-    echo!(
-        "Instance",
+    msg!(
+        "Instance {} successfully upgraded to {}",
         inst.name.emphasize(),
-        "successfully upgraded to",
         pkg.version.emphasize()
     );
 
@@ -377,7 +368,7 @@ pub fn upgrade_incompatible(
 #[context("cannot dump {:?} -> {}", inst.name, path.display())]
 pub fn dump_and_stop(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()> {
     // in case not started for now
-    echo!("Dumping the database...");
+    msg!("Dumping the database...");
     log::info!("Ensuring instance is started");
     let res = control::do_start(inst);
     if let Err(err) = res {
@@ -464,7 +455,7 @@ fn reinit_and_restore(inst: &InstanceInfo, paths: &Paths) -> anyhow::Result<()> 
     fs::create_dir_all(&paths.data_dir)
         .with_context(|| format!("cannot create {:?}", paths.data_dir))?;
 
-    echo!("Restoring the database...");
+    msg!("Restoring the database...");
     control::ensure_runstate_dir(&inst.name)?;
     let mut cmd = control::get_server_cmd(inst, false)?;
     control::self_signed_arg(&mut cmd, inst.get_version()?);

@@ -12,7 +12,7 @@ use crate::migrations::grammar::parse_migration;
 use crate::migrations::migration::{file_num, read_names};
 use crate::migrations::options::MigrationEdit;
 use crate::platform::{spawn_editor, tmp_file_path};
-use crate::print::{echo, err_marker, Highlight};
+use crate::print::{err_marker, msg, Highlight};
 use crate::question::Choice;
 
 #[derive(Copy, Clone)]
@@ -102,9 +102,9 @@ pub async fn edit_no_check(
         }
         fs::write(&tmp_file, migration.replace_id(&text, &new_id)).await?;
         fs::rename(&tmp_file, &path).await?;
-        echo!("Updated migration id to", new_id.emphasize());
+        msg!("Updated migration id to {}", new_id.emphasize());
     } else {
-        echo!("Id", migration.id.emphasize(), "is already correct.");
+        msg!("Id {} is already correct.", migration.id.emphasize());
     }
     Ok(())
 }
@@ -175,9 +175,9 @@ async fn _edit(
                 anyhow::Ok(())
             })
             .await?;
-            echo!("Updated migration id to", new_id.emphasize());
+            msg!("Updated migration id to {}", new_id.emphasize());
         } else {
-            echo!("Id", migration.id.emphasize(), "is already correct.");
+            msg!("Id {} is already correct.", migration.id.emphasize());
         }
     } else {
         let temp_path = path.parent().unwrap().join(format!(".editing.{n}.edgeql"));
@@ -226,7 +226,7 @@ async fn _edit(
             let migration = match parse_migration(&new_data) {
                 Ok(migr) => migr,
                 Err(e) => {
-                    echo!(err_marker(), "error parsing file:", e);
+                    msg!("{} error parsing file: {}", err_marker(), e);
                     loop {
                         let mut q = Choice::new("Edit again?");
                         q.option(
@@ -276,14 +276,14 @@ async fn _edit(
             if migration.id != new_id {
                 new_data = migration.replace_id(&new_data, &new_id);
                 fs::write(&temp_path, &new_data).await?;
-                echo!("Updated migration id to", new_id.emphasize());
+                msg!("Updated migration id to {}", new_id.emphasize());
             } else {
-                echo!("Id", migration.id.emphasize(), "is already correct.");
+                msg!("Id {} is already correct.", migration.id.emphasize());
             }
             match check_migration(cli, &new_data, &path).await {
                 Ok(()) => {}
                 Err(e) => {
-                    echo!(err_marker(), "error checking migration:", e);
+                    msg!("{} error checking migration: {}", err_marker(), e);
                     loop {
                         let mut q = Choice::new("Edit again?");
                         q.option(FailAction::Edit, &["y", "yes"][..], "edit the file again");

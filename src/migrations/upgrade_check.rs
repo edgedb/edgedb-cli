@@ -23,7 +23,7 @@ use crate::portable::config::Config;
 use crate::portable::install;
 use crate::portable::local::InstallInfo;
 use crate::portable::repository::{self, PackageInfo, Query};
-use crate::print::{echo, success, warn, Highlight};
+use crate::print::{msg, success, warn, Highlight};
 use crate::process;
 use crate::watch::wait_changes;
 
@@ -214,9 +214,9 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
         match single_check(ctx, cli).await? {
             Okay => {}
             SchemaIssue => {
-                echo!("For faster feedback loop use:");
-                echo!(
-                    "    ",
+                msg!("For faster feedback loop use:");
+                msg!(
+                    "    {} {}",
                     BRANDING_CLI_CMD,
                     " migration upgrade-check --watch".command_hint()
                 );
@@ -228,7 +228,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
             }
         }
         if !ctx.quiet {
-            echo!("The schema is forward compatible. Ready for upgrade.");
+            msg!("The schema is forward compatible. Ready for upgrade.");
         }
         Ok(())
     }
@@ -294,9 +294,9 @@ fn print_apply_migration_error() {
         "The current schema is compatible, \
          but some of the migrations are outdated.",
     );
-    echo!("Please squash all migrations to fix the issue:");
-    echo!(
-        "    ",
+    msg!("Please squash all migrations to fix the issue:");
+    msg!(
+        "    {} {}",
         BRANDING_CLI_CMD,
         " migration create --squash".command_hint()
     );
