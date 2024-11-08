@@ -16,7 +16,7 @@ use crate::portable::local::{
 };
 use crate::portable::repository::Channel;
 use crate::portable::ver;
-use crate::print::{err_marker, warn};
+use crate::print::{err_marker, msg, warn};
 use crate::process::{self, IntoArg};
 
 const DOMAIN_LABEL_MAX_LENGTH: usize = 63;
@@ -933,10 +933,12 @@ pub fn instance_arg<'x>(
 ) -> anyhow::Result<&'x InstanceName> {
     if let Some(name) = positional {
         if named.is_some() {
-            msg!("{} Instance name is specified twice \
+            msg!(
+                "{} Instance name is specified twice \
                 as positional argument and via `-I`. \
                 The latter is preferred.",
-                err_marker());
+                err_marker()
+            );
             return Err(ExitCode::new(2).into());
         }
         warn(format_args!(
@@ -948,7 +950,9 @@ pub fn instance_arg<'x>(
     if let Some(name) = named {
         return Ok(name);
     }
-    msg!("{} Instance name argument is required, use '-I name'",
-        err_marker());
+    msg!(
+        "{} Instance name argument is required, use '-I name'",
+        err_marker()
+    );
     Err(ExitCode::new(2).into())
 }

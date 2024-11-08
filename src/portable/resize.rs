@@ -5,6 +5,7 @@ use anyhow::Context;
 use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
 use crate::portable::options::{InstanceName, Resize};
+use crate::print::msg;
 use crate::question;
 
 pub fn resize(cmd: &Resize, opts: &crate::options::Options) -> anyhow::Result<()> {

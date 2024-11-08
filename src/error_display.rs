@@ -12,7 +12,7 @@ use termcolor::{ColorChoice, StandardStream};
 use edgedb_errors::{Error, InternalServerError};
 
 use crate::branding::BRANDING_CLI_CMD;
-use crate::print::{self};
+use crate::print::{self, msg};
 
 pub fn print_query_error(
     err: &Error,

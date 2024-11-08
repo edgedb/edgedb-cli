@@ -12,7 +12,7 @@ use crate::migrations::grammar::parse_migration;
 use crate::migrations::migration::{file_num, read_names};
 use crate::migrations::options::MigrationEdit;
 use crate::platform::{spawn_editor, tmp_file_path};
-use crate::print::{err_marker, Highlight};
+use crate::print::{err_marker, msg, Highlight};
 use crate::question::Choice;
 
 #[derive(Copy, Clone)]

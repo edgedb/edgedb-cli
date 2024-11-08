@@ -11,7 +11,7 @@ use crate::portable::local;
 use crate::portable::options::{instance_arg, Destroy, InstanceName};
 use crate::portable::project;
 use crate::portable::windows;
-use crate::print::{self, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::question;
 
 #[derive(Debug, thiserror::Error)]

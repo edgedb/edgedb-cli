@@ -21,7 +21,7 @@ use crate::portable::project;
 use crate::portable::repository::{self, Channel, PackageInfo, Query, QueryOptions};
 use crate::portable::ver;
 use crate::portable::windows;
-use crate::print::{self, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::question;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
@@ -139,9 +139,11 @@ fn upgrade_local_cmd(cmd: &Upgrade, name: &str) -> anyhow::Result<()> {
     let pkg_ver = pkg.version.specific();
 
     if pkg_ver <= inst_ver && !cmd.force {
-        msg!("Latest version found {} current instance version is {} Already up to date.",
+        msg!(
+            "Latest version found {} current instance version is {} Already up to date.",
             pkg.version.to_string() + ",",
-            inst.get_version()?.emphasize().to_string() + ".");
+            inst.get_version()?.emphasize().to_string() + "."
+        );
         return Ok(());
     }
     ver::print_version_hint(&pkg_ver, &ver_query);
@@ -199,8 +201,10 @@ fn upgrade_cloud_cmd(
 
     match result.action {
         UpgradeAction::Upgraded => {
-            msg!("{BRANDING_CLOUD} instance {inst_name} has been successfully \
-                upgraded to version {target_ver_str}.");
+            msg!(
+                "{BRANDING_CLOUD} instance {inst_name} has been successfully \
+                upgraded to version {target_ver_str}."
+            );
         }
         UpgradeAction::Cancelled => {
             msg!("Canceled.");
@@ -274,9 +278,11 @@ pub fn upgrade_compatible(mut inst: InstanceInfo, pkg: PackageInfo) -> anyhow::R
         })
         .ok();
     control::do_restart(&inst)?;
-    msg!("Instance {} successfully upgraded to {}",
+    msg!(
+        "Instance {} successfully upgraded to {}",
         inst.name.emphasize(),
-        pkg.version.emphasize());
+        pkg.version.emphasize()
+    );
     Ok(())
 }
 
@@ -350,9 +356,11 @@ pub fn upgrade_incompatible(
         .ok();
     control::do_restart(&inst)?;
 
-    msg!("Instance {} successfully upgraded to {}",
+    msg!(
+        "Instance {} successfully upgraded to {}",
         inst.name.emphasize(),
-        pkg.version.emphasize());
+        pkg.version.emphasize()
+    );
 
     Ok(())
 }

@@ -9,7 +9,7 @@ use crate::commands::ExitCode;
 use crate::options::{Options, UI};
 use crate::portable::local;
 use crate::portable::repository::USER_AGENT;
-use crate::print::{self};
+use crate::print::{self, msg};
 
 pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
     let connector = opts.block_on_create_connector()?;
@@ -118,8 +118,10 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                         BRANDING,
                         " server."
                     ));
-                    msg!("  Try running the \
-                        server with `--admin-ui=enabled`.");
+                    msg!(
+                        "  Try running the \
+                        server with `--admin-ui=enabled`."
+                    );
                     return Err(ExitCode::new(2).into());
                 }
                 Ok(status) => {

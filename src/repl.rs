@@ -22,7 +22,7 @@ use crate::branding::BRANDING;
 use crate::connect::Connection;
 use crate::connect::Connector;
 use crate::portable::ver;
-use crate::print::{self, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::prompt::variable::VariableInput;
 use crate::prompt::{self, Control};
 
@@ -163,10 +163,12 @@ impl State {
         Ok(())
     }
     fn print_banner(&self, version: &ver::Build) -> anyhow::Result<()> {
-        msg!("{} {} {}",
+        msg!(
+            "{} {} {}",
             format!("{}\r{BRANDING}", ansi_escapes::EraseLine).light_gray(),
             version.to_string().light_gray(),
-            format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade());
+            format_args!("(repl {})", env!("CARGO_PKG_VERSION")).fade()
+        );
         Ok(())
     }
     pub async fn try_connect(&mut self, branch: &str) -> anyhow::Result<()> {

@@ -3,6 +3,7 @@ use color_print::cformat;
 use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
 use crate::portable::options::{Backup, InstanceName, ListBackups, Restore};
+use crate::print::msg;
 use crate::question;
 
 pub fn list(cmd: &ListBackups, opts: &crate::options::Options) -> anyhow::Result<()> {

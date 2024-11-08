@@ -23,7 +23,7 @@ use crate::portable::config::Config;
 use crate::portable::install;
 use crate::portable::local::InstallInfo;
 use crate::portable::repository::{self, PackageInfo, Query};
-use crate::print::{success, warn, Highlight};
+use crate::print::{msg, success, warn, Highlight};
 use crate::process;
 use crate::watch::wait_changes;
 
@@ -215,9 +215,11 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
             Okay => {}
             SchemaIssue => {
                 msg!("For faster feedback loop use:");
-                msg!("    {} {}",
+                msg!(
+                    "    {} {}",
                     BRANDING_CLI_CMD,
-                    " migration upgrade-check --watch".command_hint());
+                    " migration upgrade-check --watch".command_hint()
+                );
                 return Err(ExitCode::new(3))?;
             }
             MigrationsIssue => {
@@ -293,9 +295,11 @@ fn print_apply_migration_error() {
          but some of the migrations are outdated.",
     );
     msg!("Please squash all migrations to fix the issue:");
-    msg!("    {} {}",
+    msg!(
+        "    {} {}",
         BRANDING_CLI_CMD,
-        " migration create --squash".command_hint());
+        " migration create --squash".command_hint()
+    );
 }
 
 pub async fn watch_loop(

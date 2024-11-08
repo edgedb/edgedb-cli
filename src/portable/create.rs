@@ -23,7 +23,7 @@ use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query, QueryOptions};
 use crate::portable::reset_password::{generate_password, password_hash};
 use crate::portable::{linux, macos, windows};
-use crate::print::{self, err_marker, Highlight};
+use crate::print::{self, err_marker, msg, Highlight};
 use crate::process;
 use crate::question;
 
@@ -54,9 +54,11 @@ fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<Ins
             }
         };
         if exists {
-            msg!("{} Instance {} already exists.",
+            msg!(
+                "{} Instance {} already exists.",
                 err_marker(),
-                name.emphasize());
+                name.emphasize()
+            );
         } else {
             return Ok(inst_name);
         }
@@ -84,9 +86,11 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     let inst_name = if let Some(name) = &cmd.name {
         name.to_owned()
     } else if cmd.non_interactive {
-        msg!("{} Instance name is required \
+        msg!(
+            "{} Instance name is required \
                              in non-interactive mode",
-            err_marker());
+            err_marker()
+        );
         return Err(ExitCode::new(2).into());
     } else {
         ask_name(&mut client)?
