@@ -422,7 +422,7 @@ fn link(
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
     msg!(
-        "Found `{}` in {} {}",
+        "Found `{}` in {}",
         config_path
             .file_name()
             .unwrap_or_default()
@@ -608,7 +608,7 @@ pub fn init_existing(
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
     msg!(
-        "Found `{}` in {} {}",
+        "Found `{}` in {}",
         config_path
             .file_name()
             .unwrap_or_default()
@@ -2031,7 +2031,7 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
         upgrade::UpgradeAction::None => {
             msg!(
                 "{BRANDING} instance is up to date with \
-                the specification in `{}`. {}",
+                the specification in `{}`.",
                 config_path
                     .file_name()
                     .unwrap_or_default()
@@ -2041,7 +2041,7 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
                 msg!("New major version is available: {}", available.emphasize());
                 msg!(
                     "To update `{}` and upgrade to this version, \
-                        run:\n    {} project upgrade --to-latest {}",
+                        run:\n    {} project upgrade --to-latest",
                     BRANDING_CLI_CMD,
                     config_path
                         .file_name()

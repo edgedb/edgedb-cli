@@ -176,7 +176,7 @@ where
 #[context("cannot modify `{}`", config.display())]
 pub fn modify_server_ver(config: &Path, ver: &Query) -> anyhow::Result<bool> {
     msg!(
-        "Setting `server-version = {}` in `{}`{}",
+        "Setting `server-version = {}` in `{}`",
         format_args!("{:?}", ver.as_config_value()).emphasize(),
         config.file_name().unwrap_or_default().to_string_lossy()
     );

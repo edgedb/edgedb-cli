@@ -53,7 +53,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             data_meta: Ok(d),
         } => (b, d),
     };
-    msg!("{} version: {}", BRANDING, old_inst.get_version());
+    msg!("{} version: {:?}", BRANDING, old_inst.get_version());
     msg!(
         "Backup timestamp: {} {}",
         humantime::format_rfc3339(backup_info.timestamp),

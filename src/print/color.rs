@@ -147,40 +147,6 @@ impl<T: fmt::Display> fmt::Display for Colored<&T> {
     }
 }
 
-#[deprecated(note = "use msg! instead")]
-#[macro_export]
-macro_rules! echo {
-    ($word1:expr $(; $semi_word1:expr)*
-     $(,$word:expr $(; $semi_word:expr )*)* $(,)?) => {
-        // Buffer the whole output so mutliple processes do not interfere
-        // each other
-        {
-            use ::std::fmt::Write;
-            let mut buf = ::std::string::String::with_capacity(4096);
-            write!(&mut buf, "{}", $word1)
-                .expect("buffering of echo succeeds");
-            $(
-                write!(&mut buf, "{}", $semi_word1)
-                    .expect("buffering of echo succeeds");
-            )*
-            $(
-                buf.push(' ');
-                write!(&mut buf, "{}", $word)
-                    .expect("buffering of echo succeeds");
-                $(
-                    write!(&mut buf, "{}", $semi_word)
-                        .expect("buffering of echo succeeds");
-                )*
-            )*
-            if cfg!(windows) {
-                buf.push('\r');
-            }
-            buf.push('\n');
-            eprint!("{}", buf);
-        };
-    }
-}
-
 #[macro_export]
 macro_rules! msg {
     ($($tt:tt)*) => {
