@@ -215,7 +215,7 @@ fn print_statements(statements: impl IntoIterator<Item = impl AsRef<str>>) {
         buf.truncate(0);
         highlight::edgeql(&mut buf, statement.as_ref(), &styler);
         for line in buf.lines() {
-            println!("    {}", line);
+            println!("    {line}");
         }
     }
 }
@@ -470,7 +470,7 @@ async fn non_interactive_populate(
                 eprintln!("{BRANDING} intended to apply the following migration:");
                 for statement in proposal.statements {
                     for line in statement.text.lines() {
-                        eprintln!("    {}", line);
+                        eprintln!("    {line}");
                     }
                 }
                 eprintln!(
@@ -579,7 +579,7 @@ impl InteractiveMigration<'_> {
                 println!("The following extra DDL statements will be applied:");
                 for statement in &proposal.statements {
                     for line in statement.text.lines() {
-                        println!("    {}", line);
+                        println!("    {line}");
                     }
                 }
                 println!("(approved as part of an earlier prompt)");
@@ -672,7 +672,7 @@ impl InteractiveMigration<'_> {
                             e.to_string().bold().white(),
                         );
                     } else {
-                        eprintln!("Error applying statement: {:#}", e);
+                        eprintln!("Error applying statement: {e:#}");
                     }
                     if self.cli.is_consistent() {
                         eprintln!("Rolling back last operation...");
@@ -701,8 +701,7 @@ impl InteractiveMigration<'_> {
             Some(e) => format!(
                 "{BRANDING} could not resolve migration with the provided answers. \
                 Please retry with different answers.\n\n \
-                Debug info:\n\n {}",
-                e
+                Debug info:\n\n {e}"
             ),
             None => String::from(
                 "{BRANDING} could not resolve migration with the \
@@ -768,14 +767,14 @@ where
     }
     fs::remove_file(&tmp_file).await.ok();
     let mut file = io::BufWriter::new(fs::File::create(&tmp_file).await?);
-    file.write_all(format!("CREATE MIGRATION {}\n", id).as_bytes())
+    file.write_all(format!("CREATE MIGRATION {id}\n").as_bytes())
         .await?;
     file.write_all(format!("    ONTO {}\n", descr.parent()?).as_bytes())
         .await?;
     file.write_all(b"{\n").await?;
     for statement in descr.statements() {
         for line in statement.lines() {
-            file.write_all(format!("  {}\n", line).as_bytes()).await?;
+            file.write_all(format!("  {line}\n").as_bytes()).await?;
         }
     }
     file.write_all(b"};\n").await?;
@@ -928,7 +927,7 @@ fn get_input(req: &RequiredUserInput) -> Result<String, anyhow::Error> {
         match expr::check(&value) {
             Ok(()) => {}
             Err(e) => {
-                println!("Invalid expression: {}", e);
+                println!("Invalid expression: {e}");
                 prev = value;
                 continue;
             }
@@ -973,7 +972,7 @@ fn substitute_placeholders<'x>(
                 .ok_or_else(|| bug::error(format!("bad substitution token")))?;
             let expr = placeholders
                 .get(name)
-                .ok_or_else(|| bug::error(format!("missing input for {:?} placeholder", name)))?;
+                .ok_or_else(|| bug::error(format!("missing input for {name:?} placeholder")))?;
             output.push_str(expr);
             start = token.span.end as usize;
         }

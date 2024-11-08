@@ -96,7 +96,7 @@ where
     }
     fn typed<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(self.styler.apply(Style::Cast, &format!("<{}>", typ)))?;
+        self.write(self.styler.apply(Style::Cast, &format!("<{typ}>")))?;
         self.write(self.styler.apply(
             Style::String,
             &format!("'{}'", s.to_string().escape_default()),
@@ -104,7 +104,7 @@ where
     }
     fn error<S: ToString>(&mut self, typ: &str, s: S) -> Result<Self::Error> {
         self.delimit()?;
-        self.write(self.styler.apply(Style::Error, &format!("<err-{}>", typ)))?;
+        self.write(self.styler.apply(Style::Error, &format!("<err-{typ}>")))?;
         self.write(self.styler.apply(
             Style::Error,
             &format!("'{}'", s.to_string().escape_default()),
@@ -213,7 +213,7 @@ where
         self.delimit()?;
         self.block(
             self.styler
-                .apply(Style::TupleLiteral, &format!("{}(", name)),
+                .apply(Style::TupleLiteral, &format!("{name}(")),
             f,
             self.styler.apply(Style::TupleLiteral, ")"),
         )?;

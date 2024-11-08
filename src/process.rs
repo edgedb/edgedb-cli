@@ -223,7 +223,7 @@ impl Native {
             .append(true)
             .create(true)
             .open(path)
-            .with_context(|| format!("cannot open log file {:?}", path))?;
+            .with_context(|| format!("cannot open log file {path:?}"))?;
         self.command
             .stdout(file.try_clone().context("cannot clone file")?);
         self.command.stderr(file);
@@ -818,11 +818,11 @@ async fn stdout_loop(
             let mut lines = buf.lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 let message = if cfg!(windows) {
-                    format!("[{}] {}\r\n", marker, line)
+                    format!("[{marker}] {line}\r\n")
                         .color(Color::Grey37)
                         .to_string()
                 } else {
-                    format!("[{}] {}\n", marker, line)
+                    format!("[{marker}] {line}\n")
                         .color(Color::Grey37)
                         .to_string()
                 };

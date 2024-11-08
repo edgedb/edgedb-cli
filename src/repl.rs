@@ -277,14 +277,14 @@ impl State {
             Some(edgedb_tokio::InstanceName::Cloud {
                 org_slug: org,
                 name,
-            }) => format!("{}/{}:{}", org, name, current_database,),
+            }) => format!("{org}/{name}:{current_database}",),
             Some(edgedb_tokio::InstanceName::Local(name)) => {
-                format!("{}:{}", name, current_database,)
+                format!("{name}:{current_database}",)
             }
-            _ => format!("{}", current_database),
+            _ => format!("{current_database}"),
         };
 
-        let prompt = format!("{}{}> ", location, txstate);
+        let prompt = format!("{location}{txstate}> ");
 
         self.editor_cmd(|response| prompt::Control::EdgeqlInput {
             prompt,

@@ -44,8 +44,7 @@ pub async fn list_casts<'x>(
         }}
         {filter}
         ORDER BY .kind THEN .from_type.name THEN .to_type.name;
-    "###,
-        filter = filter
+    "###
     );
     let items = filter::query::<Cast>(cli, query, pattern, case_sensitive).await?;
     if !options.command_line || std::io::stdout().is_terminal() {
@@ -67,7 +66,7 @@ pub async fn list_casts<'x>(
         }
         if table.is_empty() {
             if let Some(pattern) = pattern {
-                eprintln!("No casts found matching {:?}", pattern);
+                eprintln!("No casts found matching {pattern:?}");
             }
         } else {
             table.printstd();

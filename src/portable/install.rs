@@ -181,7 +181,7 @@ pub fn specific(version: &ver::Specific) -> anyhow::Result<InstallInfo> {
         return InstallInfo::read(&target_dir);
     }
     let pkg = get_specific_package(version)?
-        .with_context(|| format!("cannot find package {}", version))?;
+        .with_context(|| format!("cannot find package {version}"))?;
     package(&pkg)
 }
 
@@ -213,7 +213,7 @@ pub fn package(pkg_info: &PackageInfo) -> anyhow::Result<InstallInfo> {
     };
     write_json(&tmp_target.join("install_info.json"), "metadata", &info)?;
     fs::rename(&tmp_target, &target_dir)
-        .with_context(|| format!("cannot rename {:?} -> {:?}", tmp_target, target_dir))?;
+        .with_context(|| format!("cannot rename {tmp_target:?} -> {target_dir:?}"))?;
     unlink_cache(&cache_path);
     echo!("Successfully installed", pkg_info.version.emphasize());
     INSTALLED_VERSIONS

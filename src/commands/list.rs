@@ -6,13 +6,13 @@ pub async fn print(
     options: &Options,
 ) -> Result<(), anyhow::Error> {
     if !options.command_line {
-        println!("{}:", title);
+        println!("{title}:");
     }
     for name in items {
         if options.command_line {
-            println!("{}", name);
+            println!("{name}");
         } else {
-            println!("  {}", name);
+            println!("  {name}");
         }
     }
     Ok(())

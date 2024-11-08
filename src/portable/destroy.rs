@@ -22,8 +22,7 @@ pub fn print_warning(name: &str, project_dirs: &[PathBuf]) {
     project::print_instance_in_use_warning(name, project_dirs);
     eprintln!("If you really want to destroy the instance, run:");
     eprintln!(
-        "  {BRANDING_CLI_CMD} instance destroy -I {:?} --force",
-        name
+        "  {BRANDING_CLI_CMD} instance destroy -I {name:?} --force"
     );
 }
 
@@ -55,8 +54,7 @@ pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
     with_projects(&name_str, options.force, print_warning, || {
         if !options.force && !options.non_interactive {
             let q = question::Confirm::new_dangerous(format!(
-                "Do you really want to delete instance {:?}?",
-                name_str
+                "Do you really want to delete instance {name_str:?}?"
             ));
             if !q.ask()? {
                 print::error("Canceled.");
@@ -155,7 +153,7 @@ fn do_destroy(options: &Destroy, opts: &Options, name: &InstanceName) -> anyhow:
             if let Err(e) =
                 crate::cloud::ops::destroy_cloud_instance(inst_name, org_slug, &opts.cloud_options)
             {
-                let msg = format!("Could not destroy {BRANDING_CLOUD} instance: {:#}", e);
+                let msg = format!("Could not destroy {BRANDING_CLOUD} instance: {e:#}");
                 if options.force {
                     print::warn(msg);
                 } else {

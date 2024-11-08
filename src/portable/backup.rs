@@ -140,7 +140,7 @@ fn restore_cloud_cmd(
         org: org_slug.to_string(),
         backup_id: backup.backup_id.clone(),
         latest: backup.latest,
-        source_instance_id: source_inst.and_then(|i| Some(i.id)),
+        source_instance_id: source_inst.map(|i| i.id),
     };
     cloud::backups::restore_cloud_instance(&client, &request)?;
 

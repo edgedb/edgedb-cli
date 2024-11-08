@@ -32,7 +32,7 @@ impl Context {
         Ok(Context { schema_dir, quiet })
     }
     pub fn for_watch(config_path: &Path) -> anyhow::Result<Context> {
-        let config = config::read(&config_path)?;
+        let config = config::read(config_path)?;
         Context::for_project(&config)
     }
     pub fn for_project(config: &config::Config) -> anyhow::Result<Context> {

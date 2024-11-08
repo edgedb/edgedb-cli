@@ -140,7 +140,7 @@ pub(crate) async fn find_by_prefix(
             }
             FILTER .name LIKE <str>$0
             "###,
-            &(format!("{}%", prefix),),
+            &(format!("{prefix}%"),),
         )
         .await?
     } else {
@@ -154,7 +154,7 @@ pub(crate) async fn find_by_prefix(
             }
             FILTER .name LIKE <str>$0
             "###,
-            &(format!("{}%", prefix),),
+            &(format!("{prefix}%"),),
         )
         .await?
     };

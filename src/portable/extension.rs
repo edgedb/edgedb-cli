@@ -39,21 +39,19 @@ fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, a
             ))
             .with_hint(|| {
                 format!(
-                    "only local instances can install extensions ({} is remote)",
-                    inst_name
+                    "only local instances can install extensions ({inst_name} is remote)"
                 )
             })?;
         }
     };
-    let Some(inst) = InstanceInfo::try_read(&name)? else {
+    let Some(inst) = InstanceInfo::try_read(name)? else {
         return Err(anyhow::anyhow!(
             "cannot install extensions in {BRANDING_CLOUD} instance {}.",
             name
         ))
         .with_hint(|| {
             format!(
-                "only local instances can install extensions ({} is remote)",
-                name
+                "only local instances can install extensions ({name} is remote)"
             )
         })?;
     };
@@ -98,7 +96,7 @@ fn install(options: &ExtensionInstall) -> Result<(), anyhow::Error> {
                 "Found extension package: {} version {}",
                 options.extension, pkg.version
             );
-            let zip = download_package(&pkg)?;
+            let zip = download_package(pkg)?;
             let command = if options.reinstall {
                 Some("--reinstall")
             } else {

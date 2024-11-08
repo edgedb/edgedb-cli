@@ -21,7 +21,7 @@ pub async fn main(
         if current_branch == branch {
             println!("{} - Current", branch.green());
         } else {
-            println!("{}", branch);
+            println!("{branch}");
         }
     }
 

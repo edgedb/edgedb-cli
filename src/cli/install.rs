@@ -204,7 +204,7 @@ fn ensure_line(path: &PathBuf, line: &str) -> anyhow::Result<()> {
         .append(true)
         .open(path)
         .context("cannot open file for appending (writing)")?;
-    file.write(format!("{}\n", line).as_bytes())
+    file.write(format!("{line}\n").as_bytes())
         .context("cannot append to file")?;
     Ok(())
 }
@@ -362,7 +362,7 @@ pub fn main(options: &CliInstall) -> anyhow::Result<()> {
             {
                 // This is needed so user can read the message if console
                 // was open just for this process
-                eprintln!("edgedb error: {:#}", e);
+                eprintln!("edgedb error: {e:#}");
                 eprintln!("Press the Enter key to continue");
                 read_choice()?;
                 exit(1);
@@ -516,12 +516,12 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     fs::create_dir_all(&settings.installation_path)
         .with_context(|| format!("failed to create {:?}", settings.installation_path))?;
     if exe_path.parent() == path.parent() {
-        fs::rename(&exe_path, &path).with_context(|| format!("failed to rename {:?}", exe_path))?;
+        fs::rename(&exe_path, &path).with_context(|| format!("failed to rename {exe_path:?}"))?;
     } else {
         fs::remove_file(&tmp_path).ok();
         fs::copy(&exe_path, &tmp_path)
-            .with_context(|| format!("failed to write {:?}", tmp_path))?;
-        fs::rename(&tmp_path, &path).with_context(|| format!("failed to rename {:?}", tmp_path))?;
+            .with_context(|| format!("failed to write {tmp_path:?}"))?;
+        fs::rename(&tmp_path, &path).with_context(|| format!("failed to rename {tmp_path:?}"))?;
     }
     write_completions_home()?;
 
@@ -551,10 +551,10 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
             );
             for path in &settings.rc_files {
                 ensure_line(path, &line)
-                    .with_context(|| format!("failed to update profile file {:?}", path))?;
+                    .with_context(|| format!("failed to update profile file {path:?}"))?;
             }
             if let Some(dir) = settings.env_file.parent() {
-                fs::create_dir_all(dir).with_context(|| format!("failed to create {:?}", dir))?;
+                fs::create_dir_all(dir).with_context(|| format!("failed to create {dir:?}"))?;
             }
             fs::write(&settings.env_file, line + "\n")
                 .with_context(|| format!("failed to write env file {:?}", settings.env_file))?;

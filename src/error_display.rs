@@ -41,7 +41,7 @@ pub fn print_query_error(
             "{}{}",
             err.kind_name(),
             err.initial_message()
-                .map(|s| format!(": {}", s))
+                .map(|s| format!(": {s}"))
                 .unwrap_or("".into())
         ))
         .with_labels(vec![Label {
@@ -63,7 +63,7 @@ pub fn print_query_error(
         if let Some(traceback) = err.server_traceback() {
             eprintln!("  Server traceback:");
             for line in traceback.lines() {
-                eprintln!("      {}", line);
+                eprintln!("      {line}");
             }
         }
     }

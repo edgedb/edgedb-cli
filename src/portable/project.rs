@@ -352,7 +352,7 @@ fn ask_existing_instance_name(cloud_client: &mut CloudClient) -> anyhow::Result<
         if exists {
             return Ok(inst_name);
         } else {
-            print::error(format!("Instance {:?} does not exist", target_name));
+            print::error(format!("Instance {target_name:?} does not exist"));
         }
     }
 }
@@ -589,9 +589,8 @@ fn ask_name(
         };
         if exists {
             let confirm = question::Confirm::new(format!(
-                "Do you want to use existing instance {:?} \
-                         for the project?",
-                target_name
+                "Do you want to use existing instance {target_name:?} \
+                         for the project?"
             ));
             if confirm.ask()? {
                 return Ok((inst_name, true));
@@ -629,7 +628,7 @@ pub fn init_existing(
     let schema_dir_path = project_dir.join(&schema_dir);
     let schema_dir_path = if schema_dir_path.exists() {
         fs::canonicalize(&schema_dir_path)
-            .with_context(|| format!("failed to canonicalize dir {:?}", schema_dir_path))?
+            .with_context(|| format!("failed to canonicalize dir {schema_dir_path:?}"))?
     } else {
         schema_dir_path
     };
@@ -905,7 +904,7 @@ fn do_cloud_init(
         source_backup_id: None,
     };
     crate::cloud::ops::create_cloud_instance(client, &request)?;
-    let full_name = format!("{}/{}", org, name);
+    let full_name = format!("{org}/{name}");
 
     let handle = Handle {
         name: full_name.clone(),
@@ -1505,7 +1504,7 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
                     continue;
                 }
                 Err(e) => {
-                    print::error(format!("Cannot find nightly version: {}", e));
+                    print::error(format!("Cannot find nightly version: {e}"));
                     continue;
                 }
             }
@@ -1517,7 +1516,7 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
                     continue;
                 }
                 Err(e) => {
-                    print::error(format!("Cannot find testing version: {}", e));
+                    print::error(format!("Cannot find testing version: {e}"));
                     continue;
                 }
             }
@@ -1591,7 +1590,7 @@ fn ask_cloud_version(
             match cloud::versions::get_version(&Query::nightly(), client) {
                 Ok(v) => return Ok((Query::nightly(), v)),
                 Err(e) => {
-                    print::error(format!("{}", e));
+                    print::error(format!("{e}"));
                     continue;
                 }
             }
@@ -1599,7 +1598,7 @@ fn ask_cloud_version(
             match cloud::versions::get_version(&Query::testing(), client) {
                 Ok(v) => return Ok((Query::testing(), v)),
                 Err(e) => {
-                    print::error(format!("{}", e));
+                    print::error(format!("{e}"));
                     continue;
                 }
             }
@@ -1660,7 +1659,7 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
         anyhow::bail!("`{CONFIG_FILE_DISPLAY_NAME}` not found, unable to unlink instance.");
     };
     let canon = fs::canonicalize(&project_dir)
-        .with_context(|| format!("failed to canonicalize dir {:?}", project_dir))?;
+        .with_context(|| format!("failed to canonicalize dir {project_dir:?}"))?;
     let stash_path = get_stash_path(&canon)?;
 
     if stash_path.exists() {
@@ -1669,8 +1668,7 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
             if !options.non_interactive {
                 let q = question::Confirm::new_dangerous(format!(
                     "Do you really want to unlink \
-                             and delete instance {}?",
-                    inst
+                             and delete instance {inst}?"
                 ));
                 if !q.ask()? {
                     print::error("Canceled.");
@@ -1696,7 +1694,7 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
                     echo!("Unlinking instance", name.emphasize());
                 }
                 Err(e) => {
-                    print::error(format!("Cannot read instance name: {}", e));
+                    print::error(format!("Cannot read instance name: {e}"));
                     eprintln!("Removing project configuration directory...");
                 }
             };
@@ -1753,14 +1751,14 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
                 if options.json {
                     println!("{}", serde_json::to_string(&instance_name)?);
                 } else {
-                    println!("{}", instance_name);
+                    println!("{instance_name}");
                 }
             }
             "cloud-profile" => {
                 if options.json {
                     println!("{}", serde_json::to_string(&cloud_profile)?);
                 } else if let Some(profile) = cloud_profile {
-                    println!("{}", profile);
+                    println!("{profile}");
                 }
             }
             _ => unreachable!(),
@@ -1980,9 +1978,8 @@ fn print_other_project_warning(
     }
     if !project_dirs.is_empty() {
         print::warn(format!(
-            "Warning: the instance {} is still used by the following \
-            projects:",
-            name
+            "Warning: the instance {name} is still used by the following \
+            projects:"
         ));
         for pd in &project_dirs {
             eprintln!("  {}", pd.display());
@@ -2147,7 +2144,7 @@ fn upgrade_cloud(
 
     let result = upgrade::upgrade_cloud(org, name, to_version, &client, cmd.force, |target_ver| {
         let target_ver_str = target_ver.to_string();
-        let _inst_name = format!("{}/{}", org, name);
+        let _inst_name = format!("{org}/{name}");
         let inst_name = _inst_name.emphasize();
         if !cmd.non_interactive {
             question::Confirm::new(format!(
@@ -2161,7 +2158,7 @@ fn upgrade_cloud(
     })?;
 
     if let upgrade::UpgradeAction::Upgraded = result.action {
-        let inst_name = format!("{}/{}", org, name);
+        let inst_name = format!("{org}/{name}");
         echo!(
             "Instance",
             inst_name.emphasize(),

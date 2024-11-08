@@ -187,7 +187,7 @@ pub fn render(title: Option<impl fmt::Display>, table: &[Vec<Box<dyn Contents + 
                     line_buf.push_str(line);
                 }
             }
-            println!("{}", line_buf);
+            println!("{line_buf}");
             line_buf.truncate(0);
         }
     }
@@ -219,14 +219,14 @@ impl fmt::Display for BufRender<'_> {
 impl<T: fmt::Display> Contents for T {
     fn width_bounds(&self) -> (usize, usize) {
         let mut cnt = Counter::new();
-        write!(&mut cnt, "{}", self).expect("can write into counter");
+        write!(&mut cnt, "{self}").expect("can write into counter");
         (cnt.width, cnt.width)
     }
     fn height(&self, _width: usize) -> usize {
         1
     }
     fn render(&self, _width: usize, _height: usize, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -311,7 +311,7 @@ pub fn str_width(s: &str) -> usize {
 
 pub fn display_width(v: impl fmt::Display) -> usize {
     let mut cnt = Counter::new();
-    write!(&mut cnt, "{}", v).expect("can write into counter");
+    write!(&mut cnt, "{v}").expect("can write into counter");
     cnt.width
 }
 
@@ -400,7 +400,7 @@ impl Printer for TextPrinter<'_, '_> {
                 counter: Counter::new(),
                 width: self.width,
             };
-            write!(&mut wrapper, "{}", word)?;
+            write!(&mut wrapper, "{word}")?;
             if wrapper.counter.width > 0 {
                 self.fmt.write_char('\n')?;
             }

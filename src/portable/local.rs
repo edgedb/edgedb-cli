@@ -58,7 +58,7 @@ fn port_file() -> anyhow::Result<PathBuf> {
 }
 
 pub fn log_file(instance: &str) -> anyhow::Result<PathBuf> {
-    Ok(cache_dir()?.join(format!("logs/{}.log", instance)))
+    Ok(cache_dir()?.join(format!("logs/{instance}.log")))
 }
 
 pub fn lock_file(instance: &str) -> anyhow::Result<PathBuf> {
@@ -76,14 +76,14 @@ pub fn open_lock(instance: &str) -> anyhow::Result<fd_lock::RwLock<fs::File>> {
         .write(true)
         .read(true)
         .open(&lock_path)
-        .with_context(|| format!("cannot open lock file {:?}", lock_path))?;
+        .with_context(|| format!("cannot open lock file {lock_path:?}"))?;
     Ok(fd_lock::RwLock::new(lock_file))
 }
 
 pub fn runstate_dir(instance: &str) -> anyhow::Result<PathBuf> {
     if cfg!(target_os = "linux") {
         if let Some(dir) = dirs::runtime_dir() {
-            return Ok(dir.join(format!("edgedb-{}", instance)));
+            return Ok(dir.join(format!("edgedb-{instance}")));
         }
     }
     Ok(cache_dir()?.join("run").join(instance))
@@ -196,7 +196,7 @@ pub fn write_json<T: serde::Serialize>(path: &Path, title: &str, data: &T) -> an
 fn list_installed(
     dir: &Path,
 ) -> anyhow::Result<impl Iterator<Item = anyhow::Result<(ver::Specific, PathBuf)>> + '_> {
-    let err_ctx = move || format!("error reading directory {:?}", dir);
+    let err_ctx = move || format!("error reading directory {dir:?}");
     let dir = fs::read_dir(dir).with_context(err_ctx)?;
     Ok(dir.filter_map(move |result| {
         let entry = match result {
@@ -266,9 +266,9 @@ impl Paths {
         Ok(Paths {
             credentials: credentials::path(name)?,
             data_dir: base.join(name),
-            dump_path: base.join(format!("{}.dump", name)),
-            backup_dir: base.join(format!("{}.backup", name)),
-            upgrade_marker: base.join(format!("{}.UPGRADE_IN_PROGRESS", name)),
+            dump_path: base.join(format!("{name}.dump")),
+            backup_dir: base.join(format!("{name}.backup")),
+            upgrade_marker: base.join(format!("{name}.UPGRADE_IN_PROGRESS")),
             runstate_dir: runstate_dir(name)?,
             service_files: if cfg!(windows) {
                 windows::service_files(name)?

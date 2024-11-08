@@ -60,7 +60,7 @@ pub async fn status(
                     migration.bold().white(),
                 );
             } else {
-                eprintln!("Database is up to date. Last migration: {}.", migration,);
+                eprintln!("Database is up to date. Last migration: {migration}.",);
             }
             Ok(())
         }
@@ -102,8 +102,7 @@ pub async fn migrations_applied(
                     ));
                 } else {
                     print::error(format!(
-                        "Database revision {} not found in the filesystem.",
-                        db_migration,
+                        "Database revision {db_migration} not found in the filesystem.",
                     ));
                     eprintln!("  Consider updating sources.");
                 }

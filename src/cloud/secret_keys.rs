@@ -140,7 +140,7 @@ pub async fn _do_create(c: &options::CreateSecretKey, client: &CloudClient) -> a
             .secret_key
             .context("no valid secret key returned from server")?;
         if c.non_interactive {
-            print!("{}", sk);
+            print!("{sk}");
         } else {
             echo!(
                 "\nYour new ",

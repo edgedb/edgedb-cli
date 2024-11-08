@@ -102,7 +102,7 @@ impl<T: Output> Printer<T> {
             return Err(Exception::DisableFlow);
         }
         if self.colors {
-            write!(&mut self.buffer, "{}", s).expect("formatting CString always succeeds");
+            write!(&mut self.buffer, "{s}").expect("formatting CString always succeeds");
         } else {
             self.buffer.push_str(&s.to_str());
         }

@@ -57,7 +57,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
                 if options.json {
                     println!("{}", serde_json::to_string(version)?);
                 } else {
-                    println!("{}", version);
+                    println!("{version}");
                 }
             }
             _ => unreachable!(),

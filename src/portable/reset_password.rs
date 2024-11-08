@@ -180,10 +180,7 @@ fn test_verifier() {
     assert_eq!(
         verifier,
         format!(
-            "SCRAM-SHA-256$4096:{salt}${stored_key}:{server_key}",
-            salt = salt,
-            stored_key = stored_key,
-            server_key = server_key
+            "SCRAM-SHA-256$4096:{salt}${stored_key}:{server_key}"
         )
     );
 }

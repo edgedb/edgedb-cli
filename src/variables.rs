@@ -26,7 +26,7 @@ pub async fn input_variables(
             let mut val = Vec::with_capacity(tuple.element_types.len());
             for (idx, el) in tuple.element_types.iter().enumerate() {
                 val.push(
-                    input_item(&format!("{}", idx), desc.get(*el)?, desc, state, false)
+                    input_item(&format!("{idx}"), desc.get(*el)?, desc, state, false)
                         .await?
                         .expect("no optional"),
                 );

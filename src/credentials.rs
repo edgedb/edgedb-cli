@@ -18,7 +18,7 @@ pub fn base_dir() -> anyhow::Result<PathBuf> {
 }
 
 pub fn path(name: &str) -> anyhow::Result<PathBuf> {
-    Ok(base_dir()?.join(format!("{}.json", name)))
+    Ok(base_dir()?.join(format!("{name}.json")))
 }
 
 pub fn all_instance_names() -> anyhow::Result<BTreeSet<String>> {
@@ -27,7 +27,7 @@ pub fn all_instance_names() -> anyhow::Result<BTreeSet<String>> {
     let dir_entries = match fs::read_dir(&dir) {
         Ok(d) => d,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(result),
-        Err(e) => return Err(e).context(format!("error reading {:?}", dir)),
+        Err(e) => return Err(e).context(format!("error reading {dir:?}")),
     };
     for item in dir_entries {
         let item = item?;

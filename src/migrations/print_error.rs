@@ -89,7 +89,7 @@ pub fn print_migration_error(
         if let Some(traceback) = err.server_traceback() {
             eprintln!("  Server traceback:");
             for line in traceback.lines() {
-                eprintln!("      {}", line);
+                eprintln!("      {line}");
             }
         }
     }

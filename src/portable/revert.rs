@@ -91,7 +91,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     }
 
     if let Err(e) = control::do_stop(name) {
-        print::error(format!("Error stopping service: {:#}", e));
+        print::error(format!("Error stopping service: {e:#}"));
         if !options.no_confirm {
             let q = question::Confirm::new("Do you want to proceed?");
             if !q.ask()? {

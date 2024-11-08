@@ -91,12 +91,12 @@ impl Highlighter for EdgeqlHelper {
         if prompt.ends_with("> ") {
             let content = &prompt[..prompt.len() - 2];
             if content.ends_with(TX_MARKER) {
-                return format!(
+                format!(
                     "{}{}> ",
                     &content[..content.len() - TX_MARKER.len()],
                     TX_MARKER.green()
                 )
-                .into();
+                .into()
             } else if content.ends_with(FAILURE_MARKER) {
                 return format!(
                     "{}{}> ",
@@ -108,7 +108,7 @@ impl Highlighter for EdgeqlHelper {
                 return prompt.into();
             }
         } else {
-            return prompt.into();
+            prompt.into()
         }
     }
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
@@ -201,7 +201,7 @@ pub fn load_history<H: rustyline::Helper, I: History>(
 ) -> Result<(), anyhow::Error> {
     let dir = data_local_dir().context("cannot find local data dir")?;
     let app_dir = dir.join("edgedb");
-    match ed.load_history(&app_dir.join(format!("{}.history", name))) {
+    match ed.load_history(&app_dir.join(format!("{name}.history"))) {
         Err(ReadlineError::Io(e)) if e.kind() == ErrorKind::NotFound => {}
         Err(e) => return Err(e).context("error loading history")?,
         Ok(()) => {}
@@ -218,7 +218,7 @@ fn _save_history<H: Helper, I: History>(
     if !app_dir.exists() {
         fs::create_dir_all(&app_dir).context("cannot create application dir")?;
     }
-    ed.save_history(&app_dir.join(format!("{}.history", name)))
+    ed.save_history(&app_dir.join(format!("{name}.history")))
         .context("error writing history file")?;
     Ok(())
 }
@@ -284,7 +284,7 @@ pub fn edgeql_input(
             return Ok(());
         }
         Err(e) => {
-            eprintln!("Readline error: {}", e);
+            eprintln!("Readline error: {e}");
             return Ok(());
         }
     };
@@ -375,7 +375,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                             }
                         }
                         Err(e) => {
-                            println!("Bad value: {}", e);
+                            println!("Bad value: {e}");
                             initial = text;
                         }
                     }
@@ -388,7 +388,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                 match show_history(editor.history()) {
                     Ok(()) => {}
                     Err(e) => {
-                        eprintln!("Error displaying history: {}", e);
+                        eprintln!("Error displaying history: {e}");
                     }
                 }
                 ack.send(()).ok();
@@ -406,7 +406,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                     e
                 };
                 if normal < 0 {
-                    eprintln!("No history entry {}", e);
+                    eprintln!("No history entry {e}");
                     response.send(Input::Interrupt).ok();
                     continue;
                 }
@@ -416,14 +416,14 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
                 ) {
                     value
                 } else {
-                    eprintln!("No history entry {}", e);
+                    eprintln!("No history entry {e}");
                     response.send(Input::Interrupt).ok();
                     continue;
                 };
                 let mut text = match spawn_editor(&value.entry) {
                     Ok(text) => text,
                     Err(e) => {
-                        eprintln!("Error editing history entry: {}", e);
+                        eprintln!("Error editing history entry: {e}");
                         response.send(Input::Interrupt).ok();
                         continue;
                     }
@@ -458,7 +458,7 @@ fn show_history(history: &dyn History) -> Result<(), anyhow::Error> {
             let prefix = format!("[-{}] ", history.len() - index);
             let mut lines = s.entry.lines();
             if let Some(first) = lines.next() {
-                writeln!(childin, "{}{}", prefix, first)?;
+                writeln!(childin, "{prefix}{first}")?;
             }
             for next in lines {
                 writeln!(childin, "{:1$}{2}", "", prefix.len(), next)?;

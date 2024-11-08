@@ -140,7 +140,7 @@ pub enum CloudTier {
 
 impl fmt::Display for CloudTier {
     fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -240,7 +240,7 @@ pub async fn find_cloud_instance_by_name(
     client: &CloudClient,
 ) -> anyhow::Result<Option<CloudInstance>> {
     client
-        .get(format!("orgs/{}/instances/{}", org, inst))
+        .get(format!("orgs/{org}/instances/{inst}"))
         .await
         .map(Some)
         .or_else(|e| match e.downcast_ref::<ErrorResponse>() {
@@ -254,7 +254,7 @@ pub async fn find_cloud_instance_by_name(
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn get_org(org: &str, client: &CloudClient) -> anyhow::Result<Org> {
-    client.get(format!("orgs/{}", org)).await
+    client.get(format!("orgs/{org}")).await
 }
 
 pub(crate) async fn wait_for_operation(
@@ -275,7 +275,7 @@ pub(crate) async fn wait_for_operation(
             (OperationStatus::Failed, Some(subsequent_id)) => {
                 original_error = original_error.or(Some(operation.message));
 
-                url = format!("operations/{}", subsequent_id);
+                url = format!("operations/{subsequent_id}");
                 operation = client.get(&url).await?;
             }
             (OperationStatus::Failed, None) => {
@@ -381,7 +381,7 @@ pub async fn restart_cloud_instance(
     client.ensure_authenticated()?;
     let operation: CloudOperation = client
         .post(
-            format!("orgs/{}/instances/{}/restart", org, name),
+            format!("orgs/{org}/instances/{name}/restart"),
             &CloudInstanceRestart {},
         )
         .await?;
@@ -398,7 +398,7 @@ pub async fn destroy_cloud_instance(
     let client = CloudClient::new(options)?;
     client.ensure_authenticated()?;
     let operation: CloudOperation = client
-        .delete(format!("orgs/{}/instances/{}", org, name))
+        .delete(format!("orgs/{org}/instances/{name}"))
         .await?;
     wait_for_operation(operation, &client).await?;
     Ok(())

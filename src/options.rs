@@ -643,9 +643,9 @@ fn update_help_branding(help: &str) -> String {
         ("BRANDING_CLOUD", BRANDING_CLOUD),
     ] {
         let value = cformat!("<bold>{}</bold>", value);
-        let pattern1 = format!("[{}]", placeholder);
+        let pattern1 = format!("[{placeholder}]");
         help = help.replace(&pattern1, &value);
-        let pattern2 = format!("[`{}`]", placeholder);
+        let pattern2 = format!("[`{placeholder}`]");
         help = help.replace(&pattern2, &value);
     }
 
@@ -704,7 +704,7 @@ fn print_full_connection_options() {
     let help = &help[slice_from..];
 
     color_print::cprintln!("<bold><underline>Connection Options (full list):</underline></bold>");
-    println!("{}", help);
+    println!("{help}");
 }
 
 fn term_width() -> usize {
@@ -835,8 +835,7 @@ impl Options {
                 \n         \
                     Use '--no-cli-update-check' instead.\
                 \n\
-            ",
-                error = error
+            "
             );
         }
 
@@ -882,7 +881,7 @@ impl Options {
                                            --unix-path or local instance name"
                             );
                         }
-                        let sock = runstate_dir(name)?.join(format!(".s.EDGEDB.admin.{}", port));
+                        let sock = runstate_dir(name)?.join(format!(".s.EDGEDB.admin.{port}"));
                         cfg = cfg.with_unix_path(&sock);
                     }
                     (true, Some(_), None) => {

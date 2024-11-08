@@ -70,7 +70,7 @@ pub async fn list_object_types(
         }
         if table.is_empty() {
             if let Some(pattern) = pattern {
-                eprintln!("No object types found matching {:?}", pattern);
+                eprintln!("No object types found matching {pattern:?}");
             } else if !system {
                 eprintln!(
                     "No user-defined object types found. {}",

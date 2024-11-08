@@ -387,7 +387,7 @@ pub fn prompt(line: impl fmt::Display) {
     if use_color() {
         println!("{}", line.to_string().bold().color(Color::Orange3),);
     } else {
-        println!("{}", line);
+        println!("{line}");
     }
 }
 
@@ -396,7 +396,7 @@ pub fn err_marker() -> impl fmt::Display {
 }
 
 pub fn error(line: impl fmt::Display) {
-    let text = format!("{:#}", line);
+    let text = format!("{line:#}");
     if text.len() > 60 {
         echo!(err_marker(), text);
     } else {

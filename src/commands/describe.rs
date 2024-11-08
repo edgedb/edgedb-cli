@@ -23,9 +23,9 @@ pub async fn describe(
         if let Some(ref styler) = options.styler {
             let mut out = String::with_capacity(text.len());
             highlight::edgeql(&mut out, &text, styler);
-            println!("{}", out);
+            println!("{out}");
         } else {
-            println!("{}", text);
+            println!("{text}");
         }
     }
     Ok(())

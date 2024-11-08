@@ -79,7 +79,7 @@ pub async fn list_cloud_instance_backups(
     name: &str,
     json: bool,
 ) -> anyhow::Result<()> {
-    let url = format!("orgs/{}/instances/{}/backups", org_slug, name);
+    let url = format!("orgs/{org_slug}/instances/{name}/backups");
     let backups: Vec<Backup> = client.get(url).await?;
 
     if json {

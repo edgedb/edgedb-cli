@@ -182,22 +182,22 @@ impl Connector {
             Some(edgedb_tokio::InstanceName::Cloud {
                 org_slug: org,
                 name,
-            }) => format!("{BRANDING_CLOUD} instance '{}/{}'", org, name),
+            }) => format!("{BRANDING_CLOUD} instance '{org}/{name}'"),
             Some(edgedb_tokio::InstanceName::Local(name)) => {
                 format!("{BRANDING} instance '{}' at {}", name, cfg.display_addr())
             }
             _ => format!("{BRANDING} instance at {}", cfg.display_addr()),
         };
-        format!("Connecting to {}...", desc)
+        format!("Connecting to {desc}...")
     }
 
     async fn print_warning(&self, cfg: &Config, interactive: bool) -> Result<Connection, Error> {
         sleep(Duration::new(1, 0)).await;
         let msg = self.warning_msg(cfg);
         if interactive {
-            eprint!("{}", msg);
+            eprint!("{msg}");
         } else {
-            eprintln!("{}", msg);
+            eprintln!("{msg}");
         }
         pending().await
     }

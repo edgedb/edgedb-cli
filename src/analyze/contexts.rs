@@ -191,7 +191,7 @@ fn print_buffer(buffer: &Buffer, title: impl fmt::Display) {
     let width = out.lines().map(table::str_width).max().unwrap_or(80);
 
     table::print_title(title, width);
-    println!("{}", out);
+    println!("{out}");
     println!();
 }
 

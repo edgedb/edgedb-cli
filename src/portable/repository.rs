@@ -524,8 +524,8 @@ impl PackageHash {
 impl fmt::Display for PackageHash {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            PackageHash::Blake2b(val) => write!(f, "blake2b:{}", val),
-            PackageHash::Unknown(val) => write!(f, "{}", val),
+            PackageHash::Blake2b(val) => write!(f, "blake2b:{val}"),
+            PackageHash::Unknown(val) => write!(f, "{val}"),
         }
     }
 }
@@ -858,10 +858,10 @@ impl fmt::Display for QueryDisplay<'_> {
                 match ver.minor {
                     None => "0".fmt(f),
                     Some(Minor(m)) => m.fmt(f),
-                    Some(Dev(v)) => write!(f, "0-dev.{}", v),
-                    Some(Alpha(v)) => write!(f, "0-alpha.{}", v),
-                    Some(Beta(v)) => write!(f, "0-beta.{}", v),
-                    Some(Rc(v)) => write!(f, "0-rc.{}", v),
+                    Some(Dev(v)) => write!(f, "0-dev.{v}"),
+                    Some(Alpha(v)) => write!(f, "0-alpha.{v}"),
+                    Some(Beta(v)) => write!(f, "0-beta.{v}"),
+                    Some(Rc(v)) => write!(f, "0-rc.{v}"),
                 }
             }
         }

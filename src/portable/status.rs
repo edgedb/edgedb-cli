@@ -149,7 +149,7 @@ fn is_run_by_supervisor(name: &str) -> anyhow::Result<Option<bool>> {
         Ok(s) if s == "launchctl" && cfg!(target_os = "macos") => Ok(Some(true)),
         Ok(_) => Ok(Some(false)),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e).context(format!("cannot read {:?}", lock_path))?,
+        Err(e) => Err(e).context(format!("cannot read {lock_path:?}"))?,
     }
 }
 
@@ -239,7 +239,7 @@ fn normal_status(cmd: &Status, opts: &crate::options::Options) -> anyhow::Result
         let paths = Paths::get(name)?;
         let status = status_from_meta(name, &paths, meta);
         if cmd.debug {
-            println!("{:#?}", status);
+            println!("{status:#?}");
             Ok(())
         } else if cmd.extended {
             status.print_extended_and_exit();
@@ -367,7 +367,7 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
     if options.service {
         println!("Remote instance");
     } else if options.debug {
-        println!("{:#?}", status);
+        println!("{status:#?}");
     } else if options.extended {
         status.print_extended();
     } else if options.json {
@@ -376,7 +376,7 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
             serde_json::to_string_pretty(&status.json()).expect("status is json-serializable"),
         );
     } else if let Some(inst_status) = &status.instance_status {
-        println!("{}", inst_status);
+        println!("{inst_status}");
     } else if let Some(ConnectionStatus::Error(e)) = &status.connection {
         print::error(e);
     } else if let Some(conn_status) = &status.connection {
@@ -390,7 +390,7 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
 pub fn list_local(
     dir: &Path,
 ) -> anyhow::Result<impl Iterator<Item = anyhow::Result<(String, PathBuf)>> + '_> {
-    let err_ctx = move || format!("error reading directory {:?}", dir);
+    let err_ctx = move || format!("error reading directory {dir:?}");
     let dir = fs::read_dir(dir).with_context(err_ctx)?;
     Ok(dir.filter_map(move |result| {
         let entry = match result {
@@ -433,7 +433,7 @@ async fn get_remote_async(
                     Some(status)
                 }
                 Err(e) => {
-                    errors.add(e.context(format!("probing {:?}", name)));
+                    errors.add(e.context(format!("probing {name:?}")));
                     None
                 }
             }
@@ -500,8 +500,7 @@ async fn _get_remote(
             || {
                 if num > 0 {
                     format!(
-                        "Checking {BRANDING_CLOUD} and {} remote instance(s)...",
-                        num
+                        "Checking {BRANDING_CLOUD} and {num} remote instance(s)..."
                     )
                 } else {
                     format!("Checking {BRANDING_CLOUD} instances...")
@@ -511,7 +510,7 @@ async fn _get_remote(
         .await
     } else if num > 0 {
         intermediate_feedback(get_remote_async(instances, errors), || {
-            format!("Checking {} remote instance(s)...", num)
+            format!("Checking {num} remote instance(s)...")
         })
         .await
     } else {
@@ -580,10 +579,10 @@ pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()
     }
     if options.debug {
         for status in local {
-            println!("{:#?}", status);
+            println!("{status:#?}");
         }
         for status in remote {
-            println!("{:#?}", status);
+            println!("{status:#?}");
         }
     } else if options.extended {
         for status in local {
@@ -619,7 +618,7 @@ pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()
 pub fn print_errors(errs: &[anyhow::Error], is_warning: bool) -> bool {
     for e in errs {
         if is_warning {
-            print::warn(format!("Warning: {:#}", e));
+            print::warn(format!("Warning: {e:#}"));
         } else {
             print::error(e);
         }
@@ -695,20 +694,20 @@ impl FullStatus {
                 println!("ready in socket activation mode, not running");
             }
             Service::Running { pid } => {
-                println!("running, pid {}", pid);
-                println!("  Pid: {}", pid);
+                println!("running, pid {pid}");
+                println!("  Pid: {pid}");
             }
             Service::Failed {
                 exit_code: Some(code),
             } => {
-                println!("stopped, exit code {}", code);
+                println!("stopped, exit code {code}");
             }
             Service::Failed { exit_code: None } => {
                 println!("not running");
             }
             Service::Inactive { error } => {
                 println!("inactive");
-                println!("  Inactivity assumed because: {}", error);
+                println!("  Inactivity assumed because: {error}");
             }
         }
         println!(
@@ -729,11 +728,11 @@ impl FullStatus {
         match &self.instance {
             Ok(inst) => {
                 if let Ok(version) = inst.get_version() {
-                    println!("  Version: {}", version);
+                    println!("  Version: {version}");
                 }
                 if let Some(port) = self.reserved_port {
                     if inst.port == port {
-                        println!("  Port: {}", port);
+                        println!("  Port: {port}");
                     } else {
                         println!("  Port: {} (but {} reserved)", inst.port, port);
                     }
@@ -743,7 +742,7 @@ impl FullStatus {
             }
             _ => {
                 if let Some(port) = self.reserved_port {
-                    println!("  Port: {} (reserved)", port);
+                    println!("  Port: {port} (reserved)");
                 }
             }
         }
@@ -754,7 +753,7 @@ impl FullStatus {
             match &self.data_status {
                 DataDirectory::Absent => "NOT FOUND".into(),
                 DataDirectory::NoMetadata => "METADATA ERROR".into(),
-                DataDirectory::Upgrading(Err(e)) => format!("upgrading ({:#})", e),
+                DataDirectory::Upgrading(Err(e)) => format!("upgrading ({e:#})"),
                 DataDirectory::Upgrading(Ok(up)) => {
                     format!(
                         "upgrading {} -> {} for {}",
@@ -774,7 +773,7 @@ impl FullStatus {
                     backup_meta: Err(e),
                     ..
                 } => {
-                    format!("present (error: {:#})", e)
+                    format!("present (error: {e:#})")
                 }
                 BackupStatus::Exists {
                     backup_meta: Ok(b), ..
@@ -813,12 +812,12 @@ impl FullStatus {
             }
             Running { pid } => {
                 eprint!("Running, pid ");
-                println!("{}", pid);
+                println!("{pid}");
             }
             Failed {
                 exit_code: Some(code),
             } => {
-                eprintln!("Stopped, exit code {}", code);
+                eprintln!("Stopped, exit code {code}");
             }
             Failed { exit_code: None } => {
                 eprintln!("Not running");
@@ -849,7 +848,7 @@ impl RemoteStatus {
     pub fn print_extended(&self) {
         println!("{}:", self.name);
         let is_cloud = if let RemoteType::Cloud { instance_id } = &self.type_ {
-            println!("  {BRANDING_CLOUD} Instance ID: {}", instance_id);
+            println!("  {BRANDING_CLOUD} Instance ID: {instance_id}");
             true
         } else {
             false
@@ -858,7 +857,7 @@ impl RemoteStatus {
             println!("  Connection status: {}", conn_status.as_str());
         }
         if let Some(inst_status) = &self.instance_status {
-            println!("  Instance status: {}", inst_status);
+            println!("  Instance status: {inst_status}");
         }
         if !is_cloud {
             println!("  Credentials: exist");
@@ -881,7 +880,7 @@ impl RemoteStatus {
             );
         }
         if let Some(ConnectionStatus::Error(e)) = &self.connection {
-            println!("  Connection error: {:#}", e);
+            println!("  Connection error: {e:#}");
         }
     }
 

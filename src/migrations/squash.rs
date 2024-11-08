@@ -208,7 +208,7 @@ impl TwoStageRemove<'_> {
             Ok(dir) => dir,
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
             Err(e) => {
-                return Err(e).context(format!("cannot open {:?}", dir_path))?;
+                return Err(e).context(format!("cannot open {dir_path:?}"))?;
             }
         };
 
@@ -255,7 +255,7 @@ impl TwoStageRemove<'_> {
             Ok(dir) => dir,
             Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
             Err(e) => {
-                return Err(e).context(format!("cannot open {:?}", dir_path))?;
+                return Err(e).context(format!("cannot open {dir_path:?}"))?;
             }
         };
         while let Some(item) = dir.next_entry().await? {

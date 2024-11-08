@@ -79,7 +79,7 @@ pub fn expression(
     editor.bind_sequence(KeyEvent::new('\r', Modifiers::ALT), Cmd::AcceptLine);
     load_history(&mut editor, &history_name)
         .map_err(|e| {
-            eprintln!("Can't load history: {:#}", e);
+            eprintln!("Can't load history: {e:#}");
         })
         .ok();
     editor.set_helper(Some(ExpressionHelper {

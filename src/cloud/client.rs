@@ -121,7 +121,7 @@ impl CloudClient {
                 .context("malformed secret key: missing `iss` claim")?;
 
             let mut headers = header::HeaderMap::new();
-            let auth_str = format!("Bearer {}", secret_key);
+            let auth_str = format!("Bearer {secret_key}");
             let mut auth_value = header::HeaderValue::from_str(&auth_str)?;
             auth_value.set_sensitive(true);
             headers.insert(header::AUTHORIZATION, auth_value.clone());
@@ -323,7 +323,7 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
                     log::debug!("Response body: {}", full);
                     ErrorResponse {
                         code,
-                        status: format!("error decoding response body: {:#}", e),
+                        status: format!("error decoding response body: {e:#}"),
                         error: Some(full),
                     }
                 })))
@@ -399,7 +399,7 @@ y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
 impl fmt::Display for ErrorResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if let Some(error) = &self.error {
-            write!(f, "{}", error)
+            write!(f, "{error}")
         } else {
             write!(f, "HTTP error: [{:?}] {}", self.code, self.status)
         }

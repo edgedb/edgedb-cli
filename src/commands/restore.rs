@@ -83,10 +83,10 @@ async fn read_packet(
         let read = input
             .read_buf(buf)
             .await
-            .with_context(|| format!("Error reading block of {} bytes", len))?;
+            .with_context(|| format!("Error reading block of {len} bytes"))?;
         if read == 0 {
             return Err(io::Error::from(io::ErrorKind::UnexpectedEof))
-                .with_context(|| format!("Error reading block of {} bytes", len))?;
+                .with_context(|| format!("Error reading block of {len} bytes"))?;
         }
     }
     Ok(Some(
@@ -219,7 +219,7 @@ fn path_to_database_name(path: &Path) -> anyhow::Result<String> {
         .and_then(|x| x.to_str())
         .ok_or_else(|| anyhow::anyhow!("invalid dump filename {:?}", path))?;
     let decoded = urlencoding::decode(encoded)
-        .with_context(|| format!("failed to decode filename {:?}", path))?;
+        .with_context(|| format!("failed to decode filename {path:?}"))?;
     Ok(decoded.to_string())
 }
 
@@ -238,7 +238,7 @@ async fn apply_init(cli: &mut Connection, path: &Path) -> anyhow::Result<()> {
             log::trace!("Executing {:?}", stmt);
             cli.execute(stmt, &())
                 .await
-                .with_context(|| format!("failed statement {:?}", stmt))?;
+                .with_context(|| format!("failed statement {stmt:?}"))?;
         }
     }
     Ok(())
@@ -253,7 +253,7 @@ pub async fn restore_all<'x>(
     let filename = dir.join("init.edgeql");
     apply_init(cli, filename.as_ref())
         .await
-        .with_context(|| format!("error applying init file {:?}", filename))?;
+        .with_context(|| format!("error applying init file {filename:?}"))?;
 
     let mut conn_params = options.conn_params.clone();
     conn_params.wait_until_available(Duration::from_secs(300));
@@ -274,17 +274,17 @@ pub async fn restore_all<'x>(
             let stmt = format!("CREATE DATABASE {}", quote_name(&database));
             cli.execute(&stmt, &())
                 .await
-                .with_context(|| format!("error creating database {:?}", database))?;
+                .with_context(|| format!("error creating database {database:?}"))?;
         }
         conn_params.branch(&database)?;
         let mut db_conn = conn_params
             .connect()
             .await
-            .with_context(|| format!("cannot connect to database {:?}", database))?;
+            .with_context(|| format!("cannot connect to database {database:?}"))?;
         params.path = path;
         restore_db(&mut db_conn, options, &params)
             .await
-            .with_context(|| format!("restoring database {:?}", database))?;
+            .with_context(|| format!("restoring database {database:?}"))?;
     }
     Ok(())
 }
