@@ -32,7 +32,7 @@ use crate::portable::project;
 use crate::portable::repository::{self, download, PackageHash, PackageInfo};
 use crate::portable::status::{self, Service};
 use crate::portable::ver;
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::process;
 
 const CURRENT_DISTRO: &str = BRANDING_WSL;
@@ -264,7 +264,7 @@ pub fn destroy(options: &options::Destroy, name: &str) -> anyhow::Result<()> {
         }
     }
     if !found {
-        echo!("No instance named", name.emphasize(), "found");
+        msg!("No instance named {} found", name.emphasize());
         return Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into());
     }
     Ok(())
@@ -456,7 +456,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
 
             let download_path = download_dir.join("debian.zip");
             download(&download_path, &*DISTRO_URL, false)?;
-            echo!("Unpacking WSL distribution...");
+            msg!("Unpacking WSL distribution...");
             let appx_path = download_dir.join("debian.appx");
             unpack_appx(&download_path, &appx_path)?;
             let root_path = download_dir.join("install.tar");
@@ -464,7 +464,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
 
             let distro_path = wsl_dir()?.join(CURRENT_DISTRO);
             fs::create_dir_all(&distro_path)?;
-            echo!("Initializing WSL distribution...");
+            msg!("Initializing WSL distribution...");
 
             let result = process::Native::new("wsl check", "wsl", "wsl")
                 .arg("--help")
@@ -509,7 +509,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
     }
 
     if update_cli {
-        echo!("Updating container CLI version...");
+        msg!("Updating container CLI version...");
         if let Some(bin_path) = env::var_os("_EDGEDB_WSL_LINUX_BINARY") {
             let bin_path = fs::canonicalize(bin_path)?;
             wsl_simple_cmd(
@@ -537,7 +537,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
     let certs_timestamp = if let Some(ts) = certs_timestamp {
         ts
     } else {
-        echo!("Checking certificate updates...");
+        msg!("Checking certificate updates...");
         process::Native::new("update certificates", "apt", "wsl")
             .arg("--distribution")
             .arg(&distro)
@@ -866,7 +866,7 @@ pub fn status(options: &options::Status) -> anyhow::Result<()> {
                 .args(options)
                 .run()?;
         } else {
-            echo!(
+            msg!(
                 "WSL distribution is not installed, \
                    so no {BRANDING} instances are present."
             );

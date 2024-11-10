@@ -14,7 +14,7 @@ use crate::portable::install;
 use crate::portable::local::Paths;
 use crate::portable::options::{instance_arg, InstanceName, Revert};
 use crate::portable::status::{instance_status, BackupStatus, DataDirectory};
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::process;
 use crate::question;
 
@@ -53,35 +53,34 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             data_meta: Ok(d),
         } => (b, d),
     };
-    echo!(BRANDING, "version:", old_inst.get_version()?);
-    echo!(
-        "Backup timestamp:",
+    msg!("{} version: {:?}", BRANDING, old_inst.get_version());
+    msg!(
+        "Backup timestamp: {} {}",
         humantime::format_rfc3339(backup_info.timestamp),
         format!("({})", format::done_before(backup_info.timestamp))
     );
     if !options.ignore_pid_check {
         match status.data_status {
             DataDirectory::Upgrading(Ok(up)) if process::exists(up.pid) => {
-                echo!(
+                msg!(
                     "Upgrade appears to still be in progress \
-                    with pid",
-                    up.pid.emphasize(),
+                    with pid {}",
+                    up.pid.emphasize()
                 );
-                echo!("Run with `--ignore-pid-check` to override");
+                msg!("Run with `--ignore-pid-check` to override");
                 Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
             }
             DataDirectory::Upgrading(_) => {
-                echo!("Note: backup appears to be from a broken upgrade");
+                msg!("Note: backup appears to be from a broken upgrade");
             }
             _ => {}
         }
     }
     if !options.no_confirm {
         eprintln!();
-        echo!(
-            "Currently stored data",
-            "will be lost".emphasize(),
-            "and overwritten by the backup."
+        msg!(
+            "Currently stored data {} and overwritten by the backup.",
+            "will be lost".emphasize()
         );
         let q = question::Confirm::new_dangerous("Do you really want to revert?");
         if !q.ask()? {
@@ -110,7 +109,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
     fs::rename(&paths.backup_dir, &paths.data_dir)?;
 
     let inst = old_inst;
-    echo!("Starting", BRANDING, inst.get_version()?; "...");
+    msg!("Starting {} {:?}...", BRANDING, inst.get_version());
 
     create::create_service(&inst)
         .map_err(|e| {
@@ -119,10 +118,9 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         .ok();
 
     control::do_restart(&inst)?;
-    echo!(
-        "Instance",
+    msg!(
+        "Instance {} is successfully reverted to {}",
         inst.name.emphasize(),
-        "is successfully reverted to",
         inst.get_version()?.emphasize()
     );
 

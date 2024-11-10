@@ -11,7 +11,7 @@ use crate::commands::ExitCode;
 use crate::platform::tmp_file_path;
 use crate::portable::exit_codes;
 use crate::portable::repository::{Channel, Query};
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, msg, Highlight};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -175,10 +175,9 @@ where
 
 #[context("cannot modify `{}`", config.display())]
 pub fn modify_server_ver(config: &Path, ver: &Query) -> anyhow::Result<bool> {
-    echo!(
-        "Setting `server-version = ",
+    msg!(
+        "Setting `server-version = {}` in `{}`",
         format_args!("{:?}", ver.as_config_value()).emphasize(),
-        "` in `{}`",
         config.file_name().unwrap_or_default().to_string_lossy()
     );
     read_modify_write(

@@ -3,7 +3,7 @@ use color_print::cformat;
 use crate::branding::{BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::cloud;
 use crate::portable::options::{Backup, InstanceName, ListBackups, Restore};
-use crate::print::echo;
+use crate::print::msg;
 use crate::question;
 
 pub fn list(cmd: &ListBackups, opts: &crate::options::Options) -> anyhow::Result<()> {
@@ -75,12 +75,7 @@ fn backup_cloud_cmd(
     };
     cloud::backups::backup_cloud_instance(&client, &request)?;
 
-    echo!(
-        "Successfully created a backup for ",
-        BRANDING_CLOUD,
-        " instance",
-        inst_name,
-    );
+    msg!("Successfully created a backup for {BRANDING_CLOUD} instance {inst_name}");
     Ok(())
 }
 
@@ -144,13 +139,8 @@ fn restore_cloud_cmd(
     };
     cloud::backups::restore_cloud_instance(&client, &request)?;
 
-    echo!(
-        BRANDING_CLOUD,
-        " instance",
-        inst_name,
-        "has been restored successfully."
-    );
-    echo!("To connect to the instance run:");
-    echo!("  ", BRANDING_CLI_CMD, "-I", inst_name);
+    msg!("{BRANDING_CLOUD} instance {inst_name} has been restored successfully.");
+    msg!("To connect to the instance run:");
+    msg!("  {BRANDING_CLI_CMD} -I {inst_name}");
     Ok(())
 }

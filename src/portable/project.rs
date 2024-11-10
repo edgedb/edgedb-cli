@@ -44,7 +44,7 @@ use crate::portable::upgrade;
 use crate::portable::ver;
 use crate::portable::ver::Specific;
 use crate::portable::windows;
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, msg, Highlight};
 
 use crate::question;
 use crate::table;
@@ -421,15 +421,15 @@ fn link(
     config_path: PathBuf,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
-    echo!(
-        "Found `{}` in",
+    msg!(
+        "Found `{}` in {}",
         config_path
             .file_name()
             .unwrap_or_default()
             .to_string_lossy(),
         project_dir.display()
     );
-    echo!("Linking project...");
+    msg!("Linking project...");
 
     let stash_dir = get_stash_path(project_dir)?;
     if stash_dir.exists() {
@@ -607,15 +607,15 @@ pub fn init_existing(
     config_path: PathBuf,
     cloud_options: &crate::options::CloudOptions,
 ) -> anyhow::Result<ProjectInfo> {
-    echo!(
-        "Found `{}` in",
+    msg!(
+        "Found `{}` in {}",
         config_path
             .file_name()
             .unwrap_or_default()
             .to_string_lossy(),
         project_dir.display()
     );
-    echo!("Initializing project...");
+    msg!("Initializing project...");
 
     let stash_dir = get_stash_path(project_dir)?;
     if stash_dir.exists() {
@@ -667,7 +667,7 @@ pub fn init_existing(
 
     match &name {
         InstanceName::Cloud { org_slug, name } => {
-            echo!("Checking", BRANDING_CLOUD, "versions...");
+            msg!("Checking {BRANDING_CLOUD} versions...");
 
             let ver = cloud::versions::get_version(&ver_query, &client)
                 .with_context(|| "could not initialize project")?;
@@ -716,7 +716,7 @@ pub fn init_existing(
             )
         }
         InstanceName::Local(name) => {
-            echo!("Checking", BRANDING, "versions...");
+            msg!("Checking {BRANDING} versions...");
 
             let pkg = repository::get_server_package(&ver_query)?.with_context(|| {
                 format!(
@@ -998,7 +998,7 @@ pub fn init_new(
 
     match &inst_name {
         InstanceName::Cloud { org_slug, name } => {
-            echo!("Checking", BRANDING_CLOUD, "versions...");
+            msg!("Checking {BRANDING_CLOUD} versions...");
             client.ensure_authenticated()?;
 
             let (ver_query, version) = ask_cloud_version(options, &client)?;
@@ -1047,7 +1047,7 @@ pub fn init_new(
             )
         }
         InstanceName::Local(name) => {
-            echo!("Checking", BRANDING, "versions...");
+            msg!("Checking {BRANDING} versions...");
             let (ver_query, pkg) = ask_local_version(options)?;
             let specific_version = &pkg.version.specific();
             ver::print_version_hint(specific_version, &ver_query);
@@ -1197,7 +1197,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Resu
         Skip,
     }
 
-    echo!("Applying migrations...");
+    msg!("Applying migrations...");
 
     let mut conn = loop {
         match inst.get_default_connection().await {
@@ -1231,10 +1231,8 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Resu
                     Retry => continue,
                     Skip => {
                         print::warn("Skipping migrations.");
-                        echo!(
-                            "You can use `",
-                            BRANDING_CLI_CMD,
-                            " migrate` to apply migrations \
+                        msg!(
+                            "You can use `{BRANDING_CLI_CMD} migrate` to apply migrations \
                                once the service is up and running."
                         );
                         return Ok(());
@@ -1423,10 +1421,18 @@ fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
 fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
     print::success("Project initialized.");
     if let Some(dir) = dir_option {
-        echo!("To connect to", name.emphasize();
-              ", navigate to", dir.display(), "and run `", BRANDING_CLI_CMD, "`");
+        msg!(
+            "To connect to {}, navigate to {} and run `{}`",
+            name.emphasize(),
+            dir.display(),
+            BRANDING_CLI_CMD
+        );
     } else {
-        echo!("To connect to", name.emphasize(); ", run `", BRANDING_CLI_CMD, "`");
+        msg!(
+            "To connect to {}, run `{}`",
+            name.emphasize(),
+            BRANDING_CLI_CMD
+        );
     }
 }
 
@@ -1691,7 +1697,7 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
         } else {
             match fs::read_to_string(stash_path.join("instance-name")) {
                 Ok(name) => {
-                    echo!("Unlinking instance", name.emphasize());
+                    msg!("Unlinking instance {}", name.emphasize());
                 }
                 Err(e) => {
                     print::error(format!("Cannot read instance name: {e}"));
@@ -1727,10 +1733,10 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
     };
     let stash_dir = get_stash_path(&root)?;
     if !stash_dir.exists() {
-        echo!(
+        msg!(
+            "{} {} Run `edgedb project init`.",
             print::err_marker(),
-            "Project is not initialized.".emphasize(),
-            "Run `edgedb project init`."
+            "Project is not initialized.".emphasize()
         );
         return Err(ExitCode::new(1).into());
     }
@@ -1903,11 +1909,10 @@ pub fn update_toml(
         } else {
             print::success("Config is up to date.");
         }
-        echo!(
-            "Run",
+        msg!(
+            "Run {} {} to initialize an instance.",
             BRANDING_CLI_CMD,
-            " project init".command_hint(),
-            "to initialize an instance."
+            " project init".command_hint()
         );
     } else {
         let name = instance_name(&stash_dir)?;
@@ -1936,21 +1941,16 @@ pub fn update_toml(
                 };
 
                 if config::modify_server_ver(&config_path, &config_version)? {
-                    echo!("Remember to commit it to version control.");
+                    msg!("Remember to commit it to version control.");
                 }
                 let name_str = name.to_string();
                 print_other_project_warning(&name_str, &root, &query)?;
             }
             upgrade::UpgradeAction::Cancelled => {
-                echo!("Canceled.");
+                msg!("Canceled.");
             }
             upgrade::UpgradeAction::None => {
-                echo!(
-                    "Already up to date.\nRequested upgrade version is",
-                    result.requested_version.emphasize().to_string() + ",",
-                    "current instance version is",
-                    result.prior_version.emphasize().to_string() + ".",
-                );
+                msg!("Already up to date.\nRequested upgrade version is {} current instance version is {}", result.requested_version.emphasize().to_string() + ",", result.prior_version.emphasize().to_string() + ".");
             }
         }
     };
@@ -2025,10 +2025,10 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
             // would have already printed a message.
         }
         upgrade::UpgradeAction::Cancelled => {
-            echo!("Canceled.");
+            msg!("Canceled.");
         }
         upgrade::UpgradeAction::None => {
-            echo!(
+            msg!(
                 "{BRANDING} instance is up to date with \
                 the specification in `{}`.",
                 config_path
@@ -2037,12 +2037,11 @@ pub fn upgrade_instance(options: &Upgrade, opts: &crate::options::Options) -> an
                     .to_string_lossy()
             );
             if let Some(available) = result.available_upgrade {
-                echo!("New major version is available:", available.emphasize());
-                echo!(
+                msg!("New major version is available: {}", available.emphasize());
+                msg!(
                     "To update `{}` and upgrade to this version, \
-                        run:\n    ",
+                        run:\n    {} project upgrade --to-latest",
                     BRANDING_CLI_CMD,
-                    " project upgrade --to-latest",
                     config_path
                         .file_name()
                         .unwrap_or_default()
@@ -2159,10 +2158,9 @@ fn upgrade_cloud(
 
     if let upgrade::UpgradeAction::Upgraded = result.action {
         let inst_name = format!("{org}/{name}");
-        echo!(
-            "Instance",
+        msg!(
+            "Instance {} has been successfully upgraded to {}",
             inst_name.emphasize(),
-            "has been successfully upgraded to",
             result.requested_version.emphasize().to_string() + "."
         );
     }

@@ -13,7 +13,7 @@ use crate::platform::{data_dir, get_current_uid, home_dir};
 use crate::portable::local::{log_file, runstate_dir, InstanceInfo};
 use crate::portable::options::{instance_arg, InstanceName, Logs};
 use crate::portable::status::Service;
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::process;
 
 enum Status {
@@ -383,15 +383,20 @@ fn wait_started(name: &str) -> anyhow::Result<()> {
             Failed {
                 exit_code: Some(code),
             } => {
-                echo!(
+                msg!(
+                    "{} {} with exit code {}",
                     print::err_marker(),
                     "{BRANDING} failed".emphasize(),
-                    "with exit code",
                     code
                 );
             }
             Failed { exit_code: None } => {
-                echo!(print::err_marker(), BRANDING, "failed".emphasize());
+                msg!(
+                    "{} {} {}",
+                    print::err_marker(),
+                    BRANDING,
+                    "failed".emphasize()
+                );
             }
         }
     }

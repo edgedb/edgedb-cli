@@ -12,7 +12,7 @@ use crate::platform::{binary_path, current_exe, home_dir, tmp_file_path};
 use crate::portable::platform;
 use crate::portable::repository::{self, download, Channel};
 use crate::portable::ver;
-use crate::print::{self, echo, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::process;
 
 const INDEX_TIMEOUT: Duration = Duration::new(60, 0);
@@ -226,7 +226,7 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
         .run()?;
     fs::remove_file(&tmp_path).ok();
     if !options.quiet {
-        echo!("Upgraded to version", pkg.version.emphasize());
+        msg!("Upgraded to version {}", pkg.version.emphasize());
     }
     Ok(())
 }

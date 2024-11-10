@@ -15,7 +15,7 @@ use edgedb_errors::display::display_error;
 use crate::branding::BRANDING_CLI_CMD;
 use crate::repl::VectorLimit;
 
-pub use crate::echo;
+pub use crate::msg;
 
 mod buffer;
 mod color;
@@ -398,41 +398,42 @@ pub fn err_marker() -> impl fmt::Display {
 pub fn error(line: impl fmt::Display) {
     let text = format!("{line:#}");
     if text.len() > 60 {
-        echo!(err_marker(), text);
+        msg!("{} {}", err_marker(), text);
     } else {
         // Emphasise only short lines. Long lines with bold look ugly.
-        echo!(err_marker(), text.emphasize());
+        msg!("{} {}", err_marker(), text.emphasize());
     }
 }
 
 pub fn edgedb_error(err: &edgedb_errors::Error, verbose: bool) {
     // Note: not using `error()` as display_error has markup inside
-    echo!(err_marker(), display_error(err, verbose));
+    msg!("{} {}", err_marker(), display_error(err, verbose));
 }
 
 pub fn success(line: impl fmt::Display) {
     if use_color() {
-        echo!(line.to_string().bold().light_green());
+        msg!("{}", line.to_string().bold().light_green());
     } else {
-        echo!(line);
+        msg!("{line}");
     }
 }
 
 pub fn success_msg(title: impl fmt::Display, msg: impl fmt::Display) {
     if use_color() {
-        echo!(
-            title.to_string().bold().light_green(); ":",
-            msg.to_string().bold().white(),
+        msg!(
+            "{}: {}",
+            title.to_string().bold().light_green(),
+            msg.to_string().bold().white()
         );
     } else {
-        echo!(title; ":", msg);
+        msg!("{title}: {msg}");
     }
 }
 
 pub fn warn(line: impl fmt::Display) {
     if use_color() {
-        echo!(line.to_string().bold().yellow());
+        msg!("{}", line.to_string().bold().yellow());
     } else {
-        echo!(line);
+        msg!("{line}");
     }
 }
