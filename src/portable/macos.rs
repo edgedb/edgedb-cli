@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::thread;
 use std::time;
 
-use const_format::concatcp;
 use fn_error_context::context;
 
 use crate::branding::BRANDING;

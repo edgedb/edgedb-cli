@@ -329,7 +329,7 @@ pub async fn first_migration(
                 return Err(bug::error("First migration population is not complete"));
             }
             if descr.confirmed.is_empty() && !options.allow_empty {
-                print::warn("No schema changes detected.");
+                print::warn!("No schema changes detected.");
                 return Err(ExitCode::new(4))?;
             }
             Ok(FutureMigration::new(MigrationKey::Index(1), descr))

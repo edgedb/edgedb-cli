@@ -1,7 +1,6 @@
 use std::io::{stdout, Write};
 
 use anyhow::Context;
-use const_format::concatcp;
 
 use crate::branding::BRANDING;
 use crate::cloud;
@@ -113,11 +112,9 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
             match open_url(&url).map(|r| r.status()) {
                 Ok(reqwest::StatusCode::OK) => {}
                 Ok(reqwest::StatusCode::NOT_FOUND) => {
-                    print::error(concatcp!(
-                        "Web UI not served correctly by specified ",
-                        BRANDING,
-                        " server."
-                    ));
+                    print::error!(
+                        "Web UI not served correctly by specified {BRANDING} server."
+                    );
                     msg!(
                         "  Try running the \
                         server with `--admin-ui=enabled`."

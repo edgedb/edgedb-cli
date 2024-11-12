@@ -67,11 +67,9 @@ fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<Ins
 
 pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
-        print::error(concatcp!(
-            "`",
-            BRANDING_CLI_CMD,
-            " instance create` is not supported in Docker containers."
-        ));
+        print::error!(
+            "`{BRANDING_CLI_CMD} instance create` is not supported in Docker containers."
+        );
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     if cmd.start_conf.is_some() {

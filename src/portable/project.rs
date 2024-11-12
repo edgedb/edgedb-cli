@@ -277,11 +277,7 @@ struct JsonInfo<'a> {
 
 pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
-        print::error(concatcp!(
-            "`",
-            BRANDING_CLI_CMD,
-            " project init` is not supported in Docker containers."
-        ));
+        print::error!("`{BRANDING_CLI_CMD} project init` is not supported in Docker containers.");
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
 

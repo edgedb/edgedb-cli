@@ -23,7 +23,7 @@ use crate::portable::config::Config;
 use crate::portable::install;
 use crate::portable::local::InstallInfo;
 use crate::portable::repository::{self, PackageInfo, Query};
-use crate::print::{msg, success, warn, Highlight};
+use crate::print::{msg, success, self, Highlight};
 use crate::process;
 use crate::watch::wait_changes;
 
@@ -246,7 +246,7 @@ async fn single_check(ctx: &Context, cli: &mut Connection) -> anyhow::Result<Che
             execute(cli, "ABORT MIGRATION", None).await?;
         }
         Err(e) if e.is::<EsdlError>() => {
-            warn(
+            print::warn!(
                 "Schema incompatibilities found. \
                   Please fix the errors above to proceed.",
             );
@@ -290,7 +290,7 @@ async fn single_check(ctx: &Context, cli: &mut Connection) -> anyhow::Result<Che
 }
 
 fn print_apply_migration_error() {
-    warn(
+    print::warn!(
         "The current schema is compatible, \
          but some of the migrations are outdated.",
     );

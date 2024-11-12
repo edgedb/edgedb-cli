@@ -30,11 +30,9 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             }
         }
         InstanceName::Cloud { .. } => {
-            print::error(concatcp!(
-                "This operation is not supported on ",
-                BRANDING_CLOUD,
-                " instances yet."
-            ));
+            print::error!(
+                "This operation is not yet supported on {BRANDING_CLOUD} instances."
+            );
             return Err(ExitCode::new(1))?;
         }
     };
