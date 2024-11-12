@@ -62,6 +62,7 @@ define_env! {
     #[env(PAGER)]
     system_pager: String,
 }
+
 #[derive(Debug)]
 pub enum VersionCheck {
     Never,
