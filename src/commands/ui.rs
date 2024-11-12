@@ -37,7 +37,7 @@ pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
                 Ok(())
             }
             Err(e) => {
-                print::error(format!("Cannot launch browser: {e:#}"));
+                print::error!("Cannot launch browser: {e:#}");
                 print::prompt(
                     "Please paste the URL below into your browser to launch the {BRANDING} UI:",
                 );
@@ -126,14 +126,12 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                 }
                 Ok(status) => {
                     log::info!("GET {} returned status code {}", url, status);
-                    print::error(
-                        "Web UI not served correctly by specified {BRANDING} server. \
-                        Try `edgedb instance logs -I <instance_name>` to see details.",
-                    );
+                    print::error!("Web UI not served correctly by specified {BRANDING} server. \
+                        Try `edgedb instance logs -I <instance_name>` to see details.");
                     return Err(ExitCode::new(3).into());
                 }
                 Err(e) => {
-                    print::error(format!("cannot connect to {url}: {e:#}",));
+                    print::error!("cannot connect to {url}: {e:#}");
                     return Err(ExitCode::new(4).into());
                 }
             }

@@ -43,7 +43,7 @@ pub async fn drop(
             options.database_name
         ));
         if !cli.ping_while(q.async_ask()).await? {
-            print::error("Canceled.");
+            print::error!("Canceled.");
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
         }
     }
@@ -80,7 +80,7 @@ pub async fn wipe(
             cli.database()
         ));
         if !cli.ping_while(q.async_ask()).await? {
-            print::error("Canceled.");
+            print::error!("Canceled.");
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
         }
     }

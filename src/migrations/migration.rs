@@ -141,7 +141,7 @@ async fn _read_names(dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     }
 
     if has_old_filename {
-        print::warn("Legacy migration file names detected, consider running 'edgedb migration upgrade-format'")
+        print::warn!("Legacy migration file names detected, consider running 'edgedb migration upgrade-format'")
     }
 
     Ok(result)

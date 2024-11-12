@@ -126,7 +126,7 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
                 ));
                 return Ok(());
             }
-            Err(e) => print::warn(format!("Request failed: {e:?}\nRetrying...")),
+            Err(e) => print::warn!("Request failed: {e:?}\nRetrying..."),
             _ => {}
         }
         sleep(AUTHENTICATION_POLL_INTERVAL).await;
@@ -247,10 +247,8 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             }
             skipped = !removed;
         } else {
-            print::warn(format!(
-                "Already logged out from {BRANDING_CLOUD} for profile \"{}\".",
-                client.profile.as_deref().unwrap_or("default")
-            ));
+            print::warn!("Already logged out from {BRANDING_CLOUD} for profile \"{}\".",
+                client.profile.as_deref().unwrap_or("default"));
         }
     }
     if !warnings.is_empty() {
@@ -260,9 +258,9 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             .collect::<Vec<_>>()
             .join("\n");
         if c.force {
-            print::warn(message);
+            print::warn!("{message}");
         } else {
-            print::error(message);
+            print::error!("{message}");
             Err(ExitCode::new(exit_codes::NEEDS_FORCE))?;
         }
     }

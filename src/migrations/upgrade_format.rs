@@ -34,7 +34,7 @@ async fn _upgrade_format(context: &Context) -> anyhow::Result<()> {
         } else if new_filename.captures(fname).is_some() {
             println!("Migration {fname} OK")
         } else {
-            print::warn(format!("Unknown migration file naming schema: {fname}",))
+            print::warn!("Unknown migration file naming schema: {fname}")
         }
     }
 

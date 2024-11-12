@@ -377,7 +377,7 @@ pub fn remote_status(options: &Status) -> anyhow::Result<()> {
     } else if let Some(inst_status) = &status.instance_status {
         println!("{inst_status}");
     } else if let Some(ConnectionStatus::Error(e)) = &status.connection {
-        print::error(e);
+        print::error!("{e}");
     } else if let Some(conn_status) = &status.connection {
         println!("{}", conn_status.as_str());
     } else {
@@ -569,7 +569,7 @@ pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()
             if options.json {
                 println!("[]");
             } else if !options.quiet {
-                print::warn("No instances found");
+                print::warn!("No instances found");
             }
             Ok(())
         };
@@ -615,9 +615,9 @@ pub fn list(options: &List, opts: &crate::options::Options) -> anyhow::Result<()
 pub fn print_errors(errs: &[anyhow::Error], is_warning: bool) -> bool {
     for e in errs {
         if is_warning {
-            print::warn(format!("Warning: {e:#}"));
+            print::warn!("Warning: {e:#}");
         } else {
-            print::error(e);
+            print::error!("{e}");
         }
     }
     !errs.is_empty()

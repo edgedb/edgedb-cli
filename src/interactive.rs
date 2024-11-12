@@ -587,7 +587,7 @@ async fn _interactive_main(
                         if state.try_update_state()? {
                             continue 'retry;
                         }
-                        print::error("State could not be updated automatically");
+                        print::error!("State could not be updated automatically");
                         msg!(
                             "  Hint: This means that migrations or DDL \
                                statements were run in a concurrent \
@@ -600,7 +600,7 @@ async fn _interactive_main(
                     } else if let Some(e) = err.downcast_ref::<edgedb_errors::Error>() {
                         print::edgedb_error(e, state.verbose_errors);
                     } else if !err.is::<QueryError>() {
-                        print::error(err);
+                        print::error!("{err}");
                     }
                     // Don't continue next statements on error
                     break 'todo;

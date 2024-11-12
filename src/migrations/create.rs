@@ -506,7 +506,7 @@ async fn run_non_interactive(
         non_interactive_populate(ctx, cli).await?
     };
     if descr.confirmed.is_empty() && !options.allow_empty {
-        print::warn("No schema changes detected.");
+        print::warn!("No schema changes detected.");
         //print::echo!("Hint: --allow-empty can be used to create a data-only migration with no schema changes.");
         return Err(ExitCode::new(4))?;
     }
@@ -652,7 +652,7 @@ impl InteractiveMigration<'_> {
                         return Err(SplitMigration.into());
                     }
                     Quit => {
-                        print::error("Migration aborted; no results were saved.");
+                        print::error!("Migration aborted; no results were saved.");
                         return Err(ExitCode::new(0))?;
                     }
                 }
@@ -722,7 +722,7 @@ async fn run_interactive(
     let descr = InteractiveMigration::new(cli).run(options).await?;
 
     if descr.confirmed.is_empty() && !options.allow_empty {
-        print::warn("No schema changes detected.");
+        print::warn!("No schema changes detected.");
         //print::echo!("Hint: --allow-empty can be used to create a data-only migration with no schema changes.");
         return Err(ExitCode::new(4))?;
     }

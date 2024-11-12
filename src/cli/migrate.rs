@@ -279,7 +279,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
         if exe_path.starts_with(base) {
             let new_bin_path = binary_path()?;
             try_move_bin(&exe_path, &new_bin_path).map_err(|e| {
-                print::error("Cannot move executable to new location.");
+                print::error!("Cannot move executable to new location.");
                 eprintln!("  Try `{BRANDING_CLI_CMD} cli upgrade` instead.");
                 e
             })?;
@@ -359,7 +359,7 @@ pub fn migrate(base: &Path, dry_run: bool) -> anyhow::Result<()> {
             "Do you want to remove all files and directories within {base:?}?",
         ));
         if !q.ask()? {
-            print::error("Canceled by user.");
+            print::error!("Canceled by user.");
             print_markdown!(
                 "\
                 Once all files are backed up, run one of:\n\

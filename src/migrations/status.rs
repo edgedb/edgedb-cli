@@ -35,7 +35,7 @@ async fn ensure_diff_is_empty(cli: &mut Connection, ctx: &Context) -> Result<(),
             if changes > 3 {
                 eprintln!("... and {} more changes", changes - 3);
             }
-            print::error("Some migrations are missing.");
+            print::error!("Some migrations are missing.");
             eprintln!("  Use `{BRANDING_CLI_CMD} migration create`.");
         }
         return Err(ExitCode::new(2).into());
@@ -91,27 +91,21 @@ pub async fn migrations_applied(
                     iter.next(); // skip db_migration itself
                     let first = iter.next().unwrap(); // we know it's not last
                     let count = iter.count() + 1;
-                    print::error(format!(
-                        "Database is at migration {db:?} while sources \
+                    print::error!("Database is at migration {db:?} while sources \
                         contain {n} migrations ahead, \
                         starting from {first:?}({first_file})",
                         db = db_migration,
                         n = count,
                         first = first,
-                        first_file = migrations[first].path.display()
-                    ));
+                        first_file = migrations[first].path.display());
                 } else {
-                    print::error(format!(
-                        "Database revision {db_migration} not found in the filesystem.",
-                    ));
+                    print::error!("Database revision {db_migration} not found in the filesystem.");
                     eprintln!("  Consider updating sources.");
                 }
             } else {
-                print::error(format!(
-                    "Database is empty, while {} migrations \
+                print::error!("Database is empty, while {} migrations \
                     have been found in the filesystem.",
-                    migrations.len(),
-                ));
+                    migrations.len());
                 eprintln!("  Run `{BRANDING_CLI_CMD} migrate` to apply.");
             }
         }

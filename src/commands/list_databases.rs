@@ -19,9 +19,7 @@ pub async fn list_databases(cli: &mut Connection, options: &Options) -> Result<(
     let version = cli.get_version().await?;
 
     if version.specific().major >= 5 {
-        print::warn(format!(
-            "Databases are not supported in {BRANDING} {version}, printing list of branches instead"
-        ));
+        print::warn!("Databases are not supported in {BRANDING} {version}, printing list of branches instead");
         return list_branches0(cli, options).await;
     }
 

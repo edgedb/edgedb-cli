@@ -81,7 +81,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
                 user.escape_default()
             ))?;
             if password != confirm {
-                print::error("Passwords do not match");
+                print::error!("Passwords do not match");
             } else {
                 break password;
             }

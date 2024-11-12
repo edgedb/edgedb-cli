@@ -55,14 +55,14 @@ pub fn destroy(options: &Destroy, opts: &Options) -> anyhow::Result<()> {
                 "Do you really want to delete instance {name_str:?}?"
             ));
             if !q.ask()? {
-                print::error("Canceled.");
+                print::error!("Canceled.");
                 return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
             }
         }
         match do_destroy(options, opts, name) {
             Ok(()) => Ok(()),
             Err(e) if e.is::<InstanceNotFound>() => {
-                print::error(e);
+                print::error!("{e}");
                 Err(ExitCode::new(exit_codes::INSTANCE_NOT_FOUND).into())
             }
             Err(e) => Err(e),
@@ -153,7 +153,7 @@ fn do_destroy(options: &Destroy, opts: &Options, name: &InstanceName) -> anyhow:
             {
                 let msg = format!("Could not destroy {BRANDING_CLOUD} instance: {e:#}");
                 if options.force {
-                    print::warn(msg);
+                    print::warn!("{msg}");
                 } else {
                     anyhow::bail!(msg);
                 }

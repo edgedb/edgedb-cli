@@ -286,11 +286,9 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     }
 
     if options.server_start_conf.is_some() {
-        print::warn(
-            "The option `--server-start-conf` is deprecated. \
+        print::warn!("The option `--server-start-conf` is deprecated. \
                      Use `edgedb instance start/stop` to control \
-                     the instance.",
-        );
+                     the instance.");
     }
 
     let Some((project_dir, config_path)) = project_dir(options.project_dir.as_deref())? else {
@@ -332,7 +330,7 @@ fn ask_existing_instance_name(cloud_client: &mut CloudClient) -> anyhow::Result<
         let inst_name = match InstanceName::from_str(&target_name) {
             Ok(name) => name,
             Err(e) => {
-                print::error(e);
+                print::error!("{e}");
                 continue;
             }
         };
@@ -341,7 +339,7 @@ fn ask_existing_instance_name(cloud_client: &mut CloudClient) -> anyhow::Result<
             InstanceName::Cloud { org_slug, name } => {
                 if !cloud_client.is_logged_in {
                     if let Err(e) = crate::cloud::ops::prompt_cloud_login(cloud_client) {
-                        print::error(e);
+                        print::error!("{e}");
                         continue;
                     }
                 }
@@ -352,7 +350,7 @@ fn ask_existing_instance_name(cloud_client: &mut CloudClient) -> anyhow::Result<
         if exists {
             return Ok(inst_name);
         } else {
-            print::error(format!("Instance {target_name:?} does not exist"));
+            print::error!("Instance {target_name:?} does not exist");
         }
     }
 }
@@ -367,7 +365,7 @@ fn ask_database(project_dir: &Path, options: &Init) -> anyhow::Result<String> {
     loop {
         let name = q.ask()?;
         if name.trim().is_empty() {
-            print::error(format!("Non-empty name is required"));
+            print::error!("Non-empty name is required");
         } else {
             return Ok(name.trim().into());
         }
@@ -380,7 +378,7 @@ fn ask_branch() -> anyhow::Result<String> {
     loop {
         let name = q.ask()?;
         if name.trim().is_empty() {
-            print::error(format!("Non-empty name is required"));
+            print::error!("Non-empty name is required");
         } else {
             return Ok(name.trim().into());
         }
@@ -570,7 +568,7 @@ fn ask_name(
         let inst_name = match InstanceName::from_str(&target_name) {
             Ok(name) => name,
             Err(e) => {
-                print::error(e);
+                print::error!("{e}");
                 continue;
             }
         };
@@ -579,7 +577,7 @@ fn ask_name(
             InstanceName::Cloud { org_slug, name } => {
                 if !cloud_client.is_logged_in {
                     if let Err(e) = crate::cloud::ops::prompt_cloud_login(cloud_client) {
-                        print::error(e);
+                        print::error!("{e}");
                         continue;
                     }
                 }
@@ -842,10 +840,8 @@ fn do_init(
             Ok(()) => {}
             Err(e) => {
                 log::warn!("Error running {BRANDING} as a service: {e:#}");
-                print::warn(
-                    "{BRANDING} will not start on next login. \
-                             Trying to start database in the background...",
-                );
+                print::warn!("{BRANDING} will not start on next login. \
+                             Trying to start database in the background...");
                 control::start(&Start {
                     name: None,
                     instance: Some(inst_name.clone()),
@@ -1203,7 +1199,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Resu
         match inst.get_default_connection().await {
             Ok(conn) => break conn,
             Err(e) if ask_for_running && inst.instance.is_local() => {
-                print::error(e);
+                print::error!("{e}");
                 let mut q = question::Numeric::new(format!(
                     "Cannot connect to instance {:?}. Options:",
                     inst.name,
@@ -1220,7 +1216,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Resu
                     Service => match start(inst) {
                         Ok(()) => continue,
                         Err(e) => {
-                            print::error(e);
+                            print::error!("{e}");
                             continue;
                         }
                     },
@@ -1230,7 +1226,7 @@ async fn migrate_async(inst: &Handle<'_>, ask_for_running: bool) -> anyhow::Resu
                     }
                     Retry => continue,
                     Skip => {
-                        print::warn("Skipping migrations.");
+                        print::warn!("Skipping migrations.");
                         msg!(
                             "You can use `{BRANDING_CLI_CMD} migrate` to apply migrations \
                                once the service is up and running."
@@ -1381,12 +1377,10 @@ impl Handle<'_> {
         match self.get_version() {
             Ok(inst_ver) if ver_query.matches(&inst_ver) => {}
             Ok(inst_ver) => {
-                print::warn(format!(
-                    "WARNING: existing instance has version {}, \
+                print::warn!("WARNING: existing instance has version {}, \
                     but {} is required by {CONFIG_FILE_DISPLAY_NAME}",
                     inst_ver,
-                    ver_query.display(),
-                ));
+                    ver_query.display());
             }
             Err(e) => {
                 log::warn!("Could not check instance's version: {:#}", e);
@@ -1506,11 +1500,11 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
             match repository::get_server_package(&Query::nightly()) {
                 Ok(Some(pkg)) => return Ok((Query::nightly(), pkg)),
                 Ok(None) => {
-                    print::error("No nightly versions found");
+                    print::error!("No nightly versions found");
                     continue;
                 }
                 Err(e) => {
-                    print::error(format!("Cannot find nightly version: {e}"));
+                    print::error!("Cannot find nightly version: {e}");
                     continue;
                 }
             }
@@ -1518,11 +1512,11 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
             match repository::get_server_package(&Query::testing()) {
                 Ok(Some(pkg)) => return Ok((Query::testing(), pkg)),
                 Ok(None) => {
-                    print::error("No testing versions found");
+                    print::error!("No testing versions found");
                     continue;
                 }
                 Err(e) => {
-                    print::error(format!("Cannot find testing version: {e}"));
+                    print::error!("Cannot find testing version: {e}");
                     continue;
                 }
             }
@@ -1530,12 +1524,12 @@ fn ask_local_version(options: &Init) -> anyhow::Result<(Query, PackageInfo)> {
             match parse_ver_and_find(value) {
                 Ok(Some(pair)) => return Ok(pair),
                 Ok(None) => {
-                    print::error("No matching packages found");
+                    print::error!("No matching packages found");
                     print_versions("Available versions")?;
                     continue;
                 }
                 Err(e) => {
-                    print::error(e);
+                    print::error!("{e}");
                     print_versions("Available versions")?;
                     continue;
                 }
@@ -1596,7 +1590,7 @@ fn ask_cloud_version(
             match cloud::versions::get_version(&Query::nightly(), client) {
                 Ok(v) => return Ok((Query::nightly(), v)),
                 Err(e) => {
-                    print::error(format!("{e}"));
+                    print::error!("{e}");
                     continue;
                 }
             }
@@ -1604,7 +1598,7 @@ fn ask_cloud_version(
             match cloud::versions::get_version(&Query::testing(), client) {
                 Ok(v) => return Ok((Query::testing(), v)),
                 Err(e) => {
-                    print::error(format!("{e}"));
+                    print::error!("{e}");
                     continue;
                 }
             }
@@ -1612,7 +1606,7 @@ fn ask_cloud_version(
             match parse_ver_and_find_cloud(value, client) {
                 Ok(pair) => return Ok(pair),
                 Err(e) => {
-                    print::error(e);
+                    print::error!("{e}");
                     print_cloud_versions("Available versions", client)?;
                     continue;
                 }
@@ -1677,7 +1671,7 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
                              and delete instance {inst}?"
                 ));
                 if !q.ask()? {
-                    print::error("Canceled.");
+                    print::error!("Canceled.");
                     return Ok(());
                 }
             }
@@ -1700,7 +1694,7 @@ pub fn unlink(options: &Unlink, opts: &crate::options::Options) -> anyhow::Resul
                     msg!("Unlinking instance {}", name.emphasize());
                 }
                 Err(e) => {
-                    print::error(format!("Cannot read instance name: {e}"));
+                    print::error!("Cannot read instance name: {e}");
                     eprintln!("Removing project configuration directory...");
                 }
             };
@@ -1839,16 +1833,14 @@ pub fn find_project_stash_dirs(
 }
 
 pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
-    print::warn(format!(
-        "Instance {:?} is used by the following project{}:",
+    print::warn!("Instance {:?} is used by the following project{}:",
         name,
-        if project_dirs.len() > 1 { "s" } else { "" },
-    ));
+        if project_dirs.len() > 1 { "s" } else { "" });
     for dir in project_dirs {
         let dest = match read_project_path(dir) {
             Ok(path) => path,
             Err(e) => {
-                print::error(e);
+                print::error!("{e}");
                 continue;
             }
         };
@@ -1968,7 +1960,7 @@ fn print_other_project_warning(
         let real_pd = match read_project_path(&pd) {
             Ok(path) => path,
             Err(e) => {
-                print::error(e);
+                print::error!("{e}");
                 continue;
             }
         };
@@ -1977,10 +1969,8 @@ fn print_other_project_warning(
         }
     }
     if !project_dirs.is_empty() {
-        print::warn(format!(
-            "Warning: the instance {name} is still used by the following \
-            projects:"
-        ));
+        print::warn!("Warning: the instance {name} is still used by the following \
+            projects:");
         for pd in &project_dirs {
             eprintln!("  {}", pd.display());
         }

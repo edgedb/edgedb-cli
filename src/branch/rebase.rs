@@ -42,7 +42,7 @@ pub async fn main(
     .await
     {
         Err(e) => {
-            print::error(e);
+            print::error!("{e}");
 
             eprintln!("Cleaning up cloned branch...");
             let mut rename_connection =
