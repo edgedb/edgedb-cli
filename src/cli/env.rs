@@ -26,10 +26,6 @@ define_env! {
     #[env(EDGEDB_PAGER, GEL_PAGER)]
     pager: String,
 
-    /// Path to test binary executable
-    #[env(EDGEDB_TEST_BIN_EXE, GEL_TEST_BIN_EXE)]
-    test_bin_exe: PathBuf,
-
     /// Debug flag for analyze JSON output
     #[env(_EDGEDB_ANALYZE_DEBUG_JSON, _GEL_ANALYZE_DEBUG_JSON)]
     _analyze_debug_json: bool,

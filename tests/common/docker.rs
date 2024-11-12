@@ -105,7 +105,9 @@ impl Context {
     pub fn add_bin(self) -> anyhow::Result<Self> {
         self.add_file_mode(
             "edgedb",
-            fs::read(Env::test_bin_exe().unwrap_or(env!("CARGO_BIN_EXE_edgedb").into()))?,
+            fs::read(
+                env::var("EDGEDB_TEST_BIN_EXE").unwrap_or(env!("CARGO_BIN_EXE_edgedb").into()),
+            )?,
             0o755,
         )
     }
