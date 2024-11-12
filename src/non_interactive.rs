@@ -65,8 +65,10 @@ pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), any
             run_query(&mut conn, query, options, fmt).await?;
         }
     } else {
-        print::error!("either a --file option or \
-                     a <queries> positional argument is required.");
+        print::error!(
+            "either a --file option or \
+                     a <queries> positional argument is required."
+        );
     }
 
     Ok(())

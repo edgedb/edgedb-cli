@@ -73,9 +73,11 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     if cmd.start_conf.is_some() {
-        print::warn!("The option `--start-conf` is deprecated. \
+        print::warn!(
+            "The option `--start-conf` is deprecated. \
                      Use `edgedb instance start/stop` to control \
-                     the instance.");
+                     the instance."
+        );
     }
 
     let mut client = cloud::client::CloudClient::new(&opts.cloud_options)?;
@@ -185,8 +187,10 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         Ok(()) => {}
         Err(e) => {
             log::warn!("Error running {BRANDING} as a service: {e:#}");
-            print::warn!("{BRANDING} will not start on next login. \
-                         Trying to start database in the background...");
+            print::warn!(
+                "{BRANDING} will not start on next login. \
+                         Trying to start database in the background..."
+            );
             control::start(&Start {
                 name: None,
                 instance: Some(inst_name),

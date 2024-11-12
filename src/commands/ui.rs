@@ -112,9 +112,7 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
             match open_url(&url).map(|r| r.status()) {
                 Ok(reqwest::StatusCode::OK) => {}
                 Ok(reqwest::StatusCode::NOT_FOUND) => {
-                    print::error!(
-                        "Web UI not served correctly by specified {BRANDING} server."
-                    );
+                    print::error!("Web UI not served correctly by specified {BRANDING} server.");
                     msg!(
                         "  Try running the \
                         server with `--admin-ui=enabled`."
@@ -123,8 +121,10 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                 }
                 Ok(status) => {
                     log::info!("GET {} returned status code {}", url, status);
-                    print::error!("Web UI not served correctly by specified {BRANDING} server. \
-                        Try `edgedb instance logs -I <instance_name>` to see details.");
+                    print::error!(
+                        "Web UI not served correctly by specified {BRANDING} server. \
+                        Try `edgedb instance logs -I <instance_name>` to see details."
+                    );
                     return Err(ExitCode::new(3).into());
                 }
                 Err(e) => {

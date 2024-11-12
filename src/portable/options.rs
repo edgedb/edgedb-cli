@@ -16,7 +16,7 @@ use crate::portable::local::{
 };
 use crate::portable::repository::Channel;
 use crate::portable::ver;
-use crate::print::{err_marker, msg, self};
+use crate::print::{self, err_marker, msg};
 use crate::process::{self, IntoArg};
 
 const DOMAIN_LABEL_MAX_LENGTH: usize = 63;

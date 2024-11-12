@@ -295,8 +295,10 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                             .default(&default)
                             .ask()?;
                     if !is_valid_local_instance_name(&name) {
-                        print::error!("Instance name must be a valid identifier, \
-                             (regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$)");
+                        print::error!(
+                            "Instance name must be a valid identifier, \
+                             (regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$)"
+                        );
                         continue;
                     }
                     break (credentials::path(&name)?, name);

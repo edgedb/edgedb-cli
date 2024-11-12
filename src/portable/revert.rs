@@ -30,9 +30,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             }
         }
         InstanceName::Cloud { .. } => {
-            print::error!(
-                "This operation is not yet supported on {BRANDING_CLOUD} instances."
-            );
+            print::error!("This operation is not yet supported on {BRANDING_CLOUD} instances.");
             return Err(ExitCode::new(1))?;
         }
     };

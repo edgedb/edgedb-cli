@@ -131,8 +131,7 @@ pub async fn extract(
     let to_migrations_dir = src_ctx.schema_dir.join("migrations");
     if !to_migrations_dir.is_dir() {
         if src_ctx.schema_dir.is_dir() {
-            print::warn!("Creating directory {}",
-                to_migrations_dir.display());
+            print::warn!("Creating directory {}", to_migrations_dir.display());
             fs::create_dir(to_migrations_dir)?;
         } else {
             anyhow::bail!(

@@ -424,9 +424,7 @@ pub fn logs(options: &Logs) -> anyhow::Result<()> {
     let name = match instance_arg(&options.name, &options.instance)? {
         InstanceName::Local(name) => name,
         InstanceName::Cloud { .. } => {
-            print::error!(
-                "This operation is not yet supported on {BRANDING_CLOUD} instances."
-            );
+            print::error!("This operation is not yet supported on {BRANDING_CLOUD} instances.");
             return Err(ExitCode::new(1))?;
         }
     };

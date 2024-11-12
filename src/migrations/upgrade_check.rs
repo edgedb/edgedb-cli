@@ -23,7 +23,7 @@ use crate::portable::config::Config;
 use crate::portable::install;
 use crate::portable::local::InstallInfo;
 use crate::portable::repository::{self, PackageInfo, Query};
-use crate::print::{msg, success, self, Highlight};
+use crate::print::{self, msg, success, Highlight};
 use crate::process;
 use crate::watch::wait_changes;
 

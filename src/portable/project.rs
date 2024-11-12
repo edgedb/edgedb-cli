@@ -282,9 +282,11 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     }
 
     if options.server_start_conf.is_some() {
-        print::warn!("The option `--server-start-conf` is deprecated. \
+        print::warn!(
+            "The option `--server-start-conf` is deprecated. \
                      Use `edgedb instance start/stop` to control \
-                     the instance.");
+                     the instance."
+        );
     }
 
     let Some((project_dir, config_path)) = project_dir(options.project_dir.as_deref())? else {
@@ -836,8 +838,10 @@ fn do_init(
             Ok(()) => {}
             Err(e) => {
                 log::warn!("Error running {BRANDING} as a service: {e:#}");
-                print::warn!("{BRANDING} will not start on next login. \
-                             Trying to start database in the background...");
+                print::warn!(
+                    "{BRANDING} will not start on next login. \
+                             Trying to start database in the background..."
+                );
                 control::start(&Start {
                     name: None,
                     instance: Some(inst_name.clone()),
@@ -1373,10 +1377,12 @@ impl Handle<'_> {
         match self.get_version() {
             Ok(inst_ver) if ver_query.matches(&inst_ver) => {}
             Ok(inst_ver) => {
-                print::warn!("WARNING: existing instance has version {}, \
+                print::warn!(
+                    "WARNING: existing instance has version {}, \
                     but {} is required by {CONFIG_FILE_DISPLAY_NAME}",
                     inst_ver,
-                    ver_query.display());
+                    ver_query.display()
+                );
             }
             Err(e) => {
                 log::warn!("Could not check instance's version: {:#}", e);
@@ -1829,9 +1835,11 @@ pub fn find_project_stash_dirs(
 }
 
 pub fn print_instance_in_use_warning(name: &str, project_dirs: &[PathBuf]) {
-    print::warn!("Instance {:?} is used by the following project{}:",
+    print::warn!(
+        "Instance {:?} is used by the following project{}:",
         name,
-        if project_dirs.len() > 1 { "s" } else { "" });
+        if project_dirs.len() > 1 { "s" } else { "" }
+    );
     for dir in project_dirs {
         let dest = match read_project_path(dir) {
             Ok(path) => path,
@@ -1965,8 +1973,10 @@ fn print_other_project_warning(
         }
     }
     if !project_dirs.is_empty() {
-        print::warn!("Warning: the instance {name} is still used by the following \
-            projects:");
+        print::warn!(
+            "Warning: the instance {name} is still used by the following \
+            projects:"
+        );
         for pd in &project_dirs {
             eprintln!("  {}", pd.display());
         }

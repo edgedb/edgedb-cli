@@ -247,8 +247,10 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             }
             skipped = !removed;
         } else {
-            print::warn!("Already logged out from {BRANDING_CLOUD} for profile \"{}\".",
-                client.profile.as_deref().unwrap_or("default"));
+            print::warn!(
+                "Already logged out from {BRANDING_CLOUD} for profile \"{}\".",
+                client.profile.as_deref().unwrap_or("default")
+            );
         }
     }
     if !warnings.is_empty() {
