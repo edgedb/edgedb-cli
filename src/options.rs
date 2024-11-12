@@ -902,9 +902,9 @@ impl Options {
 
                 if e.is::<ClientNoCredentialsError>() {
                     let project_dir = get_project_path(None, true).await?;
-                    let message = if project_dir.is_some() {
+                    let message = if let Some(project_dir) = project_dir {
                         format!(
-                            "project is not initialized and no connection options \
+                            "project is not initialized at {project_dir:?} and no connection options \
                             are specified: {errors:?}"
                         )
                     } else {
