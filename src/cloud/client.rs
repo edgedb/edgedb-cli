@@ -1,10 +1,10 @@
 use std::error::Error;
+use std::fmt;
 use std::fmt::Formatter;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{env, fmt};
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -13,6 +13,7 @@ use anyhow::Context;
 use reqwest::{header, StatusCode};
 
 use crate::branding::BRANDING_CLI_CMD;
+use crate::cli::env::Env;
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
 
@@ -80,14 +81,18 @@ impl CloudClient {
         options_profile: &Option<String>,
         options_api_endpoint: &Option<String>,
     ) -> anyhow::Result<Self> {
-        let profile = options_profile
-            .clone()
-            .or_else(|| env::var("EDGEDB_CLOUD_PROFILE").ok());
+        let profile = if let Some(p) = options_profile.clone() {
+            Some(p)
+        } else if let Some(p) = Env::cloud_profile()? {
+            Some(p)
+        } else {
+            None
+        };
         let secret_key = if let Some(secret_key) = options_secret_key {
             Some(secret_key.into())
-        } else if let Ok(secret_key) = env::var("EDGEDB_CLOUD_SECRET_KEY") {
+        } else if let Some(secret_key) = Env::cloud_secret_key()? {
             Some(secret_key)
-        } else if let Ok(secret_key) = env::var("EDGEDB_SECRET_KEY") {
+        } else if let Some(secret_key) = Env::secret_key()? {
             Some(secret_key)
         } else {
             match fs::read_to_string(cloud_config_file(&profile)?) {
@@ -152,20 +157,15 @@ impl CloudClient {
             dns_zone = EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string();
             is_logged_in = false;
         }
-        let api_endpoint = options_api_endpoint
-            .clone()
-            .map(Ok)
-            .or_else(|| env::var_os("EDGEDB_CLOUD_API_ENDPOINT").map(|v| v.into_string()))
-            .transpose()
-            .map_err(|v| anyhow::anyhow!("cannot decode EDGEDB_CLOUD_API_ENDPOINT: {:?}", v))?
-            .or_else(|| Some(format!("https://api.g.{dns_zone}")))
-            .as_deref()
-            .map(reqwest::Url::parse)
-            .unwrap()?;
-        let cloud_certs = env::var_os("_EDGEDB_CLOUD_CERTS")
-            .map(|v| v.into_string())
-            .transpose()
-            .map_err(|v| anyhow::anyhow!("cannot decode _EDGEDB_CLOUD_CERTS: {:?}", v))?;
+        let api_endpoint = if let Some(endpoint) = options_api_endpoint.clone() {
+            endpoint
+        } else if let Some(endpoint) = Env::cloud_api_endpoint()? {
+            endpoint
+        } else {
+            format!("https://api.g.{dns_zone}")
+        };
+        let api_endpoint = reqwest::Url::parse(&api_endpoint)?;
+        let cloud_certs = Env::_cloud_certs()?;
         if matches!(cloud_certs.as_deref(), Some("staging")) {
             builder = builder
                 .add_root_certificate(

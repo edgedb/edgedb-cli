@@ -1,6 +1,5 @@
 use std::cmp::min;
 use std::collections::HashMap;
-use std::env;
 use std::fmt;
 use std::future;
 use std::path::Path;
@@ -18,6 +17,7 @@ use url::Url;
 
 use crate::async_util::timeout;
 use crate::branding::BRANDING;
+use crate::cli::env::Env;
 use crate::portable::platform;
 use crate::portable::ver;
 use crate::portable::windows;
@@ -149,8 +149,8 @@ impl PackageInfo {
 
 fn pkg_root() -> anyhow::Result<&'static Url> {
     PKG_ROOT.get_or_try_init(|| {
-        let pkg_root = env::var("EDGEDB_PKG_ROOT")
-            .unwrap_or_else(|_| String::from("https://packages.edgedb.com"));
+        let pkg_root =
+            Env::pkg_root()?.unwrap_or_else(|| String::from("https://packages.edgedb.com"));
         let pkg_root = Url::parse(&pkg_root).context("Package root is a valid URL")?;
         Ok(pkg_root)
     })

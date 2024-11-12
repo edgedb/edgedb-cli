@@ -17,7 +17,7 @@ mod branch;
 mod branding;
 mod bug;
 mod classify;
-mod cli;
+pub(crate) mod cli;
 mod cloud;
 mod collect;
 mod commands;

@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::env;
 use std::fs;
 use std::io::{ErrorKind, Write};
 use std::process::{Command, Stdio};
@@ -22,6 +21,7 @@ use crate::commands::backslash;
 use crate::completion;
 use crate::highlight;
 use crate::platform::editor_path;
+use crate::platform::pager_path;
 use crate::print::style::Styler;
 use crate::print::Highlight;
 use crate::prompt::variable::{InputFlags, VariableInput};
@@ -438,15 +438,7 @@ pub fn main(mut control: Receiver<Control>) -> Result<(), anyhow::Error> {
 }
 
 fn show_history(history: &dyn History) -> Result<(), anyhow::Error> {
-    let pager = env::var("EDGEDB_PAGER")
-        .or_else(|_| env::var("PAGER"))
-        .unwrap_or_else(|_| {
-            if cfg!(windows) {
-                String::from("more.com")
-            } else {
-                String::from("less -R")
-            }
-        });
+    let pager = pager_path()?;
     let mut items = pager.split_whitespace();
     let mut cmd = Command::new(items.next().unwrap());
     cmd.stdin(Stdio::piped());
@@ -477,7 +469,7 @@ fn spawn_editor(data: &str) -> Result<String, anyhow::Error> {
     let mut temp_file = tempfile::Builder::new().suffix(".edgeql").tempfile()?;
     temp_file.write_all(data.as_bytes())?;
     let temp_path = temp_file.into_temp_path();
-    let editor = editor_path();
+    let editor = editor_path()?;
     let mut items = editor.split_whitespace();
     let mut cmd = Command::new(items.next().unwrap());
     cmd.args(items);

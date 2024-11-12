@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
+use crate::cli::env::Env;
+
 #[cfg(windows)]
 pub type Uid = u32;
 
@@ -168,20 +170,32 @@ pub fn detect_ipv6() -> bool {
     .is_ok()
 }
 
-pub fn editor_path() -> String {
-    env::var("EDGEDB_EDITOR")
-        .or_else(|_| env::var("EDITOR"))
-        .unwrap_or_else(|_| {
-            if cfg!(windows) {
-                String::from("notepad.exe")
-            } else {
-                String::from("vi")
-            }
-        })
+pub fn editor_path() -> anyhow::Result<String> {
+    Ok(if let Some(editor) = Env::editor()? {
+        editor
+    } else if let Some(editor) = Env::system_editor()? {
+        editor
+    } else if cfg!(windows) {
+        String::from("notepad.exe")
+    } else {
+        String::from("vi")
+    })
+}
+
+pub fn pager_path() -> anyhow::Result<String> {
+    Ok(if let Some(pager) = Env::pager()? {
+        pager
+    } else if let Some(pager) = Env::system_pager()? {
+        pager
+    } else if cfg!(windows) {
+        String::from("more.com")
+    } else {
+        String::from("less -R")
+    })
 }
 
 pub async fn spawn_editor(path: &Path) -> anyhow::Result<()> {
-    let editor = editor_path();
+    let editor = editor_path()?;
     let mut items = editor.split_whitespace();
     let mut cmd = tokio::process::Command::new(items.next().unwrap());
     cmd.args(items);

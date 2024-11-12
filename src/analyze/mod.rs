@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::env;
 use std::path::Path;
 
 use anyhow::Context;
@@ -10,6 +9,7 @@ use edgedb_errors::ParameterTypeMismatchError;
 use edgedb_tokio::raw::Description;
 
 use crate::classify;
+use crate::cli::env::Env;
 use crate::commands::parser::Analyze;
 use crate::connect::Connection;
 use crate::interactive::QueryError;
@@ -50,10 +50,7 @@ pub async fn interactive(prompt: &mut repl::State, query: &str) -> anyhow::Resul
         Err(e) => return Err(e)?,
     };
 
-    if env::var_os("_EDGEDB_ANALYZE_DEBUG_JSON")
-        .map(|x| !x.is_empty())
-        .unwrap_or(false)
-    {
+    if Env::_analyze_debug_json()?.unwrap_or(false) {
         let json: serde_json::Value = serde_json::from_str(&data).unwrap();
         println!("JSON: {json}");
     }
@@ -76,10 +73,7 @@ pub async fn render_expanded_explain(data: &Analysis) -> anyhow::Result<()> {
 
 fn render_explain(explain: &Analysis) -> anyhow::Result<()> {
     contexts::print(explain);
-    if env::var_os("_EDGEDB_ANALYZE_DEBUG_PLAN")
-        .map(|x| !x.is_empty())
-        .unwrap_or(false)
-    {
+    if Env::_analyze_debug_plan()?.unwrap_or(false) {
         tree::print_debug_plan(explain);
     }
     tree::print_shape(explain);
