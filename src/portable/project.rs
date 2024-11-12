@@ -482,7 +482,7 @@ fn do_link(inst: &Handle, options: &Init, stash_dir: &Path) -> anyhow::Result<Pr
         create_database(inst)?;
     }
 
-    print::success("Project linked");
+    print::success!("Project linked");
     if let Some(dir) = &options.project_dir {
         eprintln!(
             "To connect to {}, navigate to {} and run `{BRANDING_CLI_CMD}`",
@@ -1415,7 +1415,7 @@ fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
 }
 
 fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
-    print::success("Project initialized.");
+    print::success!("Project initialized.");
     if let Some(dir) = dir_option {
         msg!(
             "To connect to {}, navigate to {} and run `{}`",
@@ -1901,9 +1901,9 @@ pub fn update_toml(
         log::warn!("No associated instance found.");
 
         if config::modify_server_ver(&config_path, &query)? {
-            print::success("Config updated successfully.");
+            print::success!("Config updated successfully.");
         } else {
-            print::success("Config is up to date.");
+            print::success!("Config is up to date.");
         }
         msg!(
             "Run {} {} to initialize an instance.",

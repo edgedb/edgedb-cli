@@ -120,7 +120,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
                 credentials_file.display(),
             );
         } else {
-            print::success("Password was successfully changed.");
+            print::success!("Password was successfully changed.");
         }
     }
     Ok(())

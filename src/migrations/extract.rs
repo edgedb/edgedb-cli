@@ -159,10 +159,10 @@ pub async fn extract(
         updated = true;
     }
     if !updated {
-        print::success(format!(
+        print::success!(
             "Migration history in {:?} and in the database are in sync.",
-            src_ctx.schema_dir.join("migrations"),
-        ));
+            src_ctx.schema_dir.join("migrations")
+        );
     }
     Ok(())
 }

@@ -31,7 +31,7 @@ pub fn show_ui(cmd: &UI, opts: &Options) -> anyhow::Result<()> {
     } else {
         match open::that(&url) {
             Ok(_) => {
-                print::success("Opening URL in browser:");
+                print::success!("Opening URL in browser:");
                 println!("{url}");
                 Ok(())
             }

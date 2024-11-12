@@ -52,7 +52,7 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
 
     match user_resp {
         Ok(user) => {
-            print::success(format!("Already logged in as {}.", user.name));
+            print::success!("Already logged in as {}.", user.name);
             return Ok(());
         }
         Err(ref err)
@@ -120,10 +120,10 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
                 client.set_secret_key(None)?;
 
                 let user: User = client.get("user").await?;
-                print::success(format!(
+                print::success!(
                     "Successfully logged in to {BRANDING_CLOUD} as {}.",
                     user.name
-                ));
+                );
                 return Ok(());
             }
             Err(e) => print::warn!("Request failed: {e:?}\nRetrying..."),
@@ -212,9 +212,7 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             }
             removed = true;
             fs::remove_file(cloud_creds.join(item.file_name()))?;
-            print::success(format!(
-                "You are now logged out from {BRANDING_CLOUD} profile {profile:?}."
-            ));
+            print::success!("You are now logged out from {BRANDING_CLOUD} profile {profile:?}.");
         }
     } else {
         let client = CloudClient::new(options)?;
@@ -240,10 +238,10 @@ pub fn logout(c: &options::Logout, options: &CloudOptions) -> anyhow::Result<()>
             }
             if removed {
                 fs::remove_file(path).with_context(|| "failed to log out")?;
-                print::success(format!(
+                print::success!(
                     "You are now logged out from {BRANDING_CLOUD} for profile \"{}\".",
                     client.profile.as_deref().unwrap_or("default")
-                ));
+                );
             }
             skipped = !removed;
         } else {

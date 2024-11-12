@@ -77,7 +77,7 @@ pub fn uninstall(options: &Uninstall) -> anyhow::Result<()> {
             uninstalled.emphasize()
         );
     } else {
-        print::success("Nothing to uninstall.")
+        print::success!("Nothing to uninstall.")
     }
     Ok(())
 }

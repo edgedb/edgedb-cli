@@ -23,7 +23,7 @@ use crate::portable::config::Config;
 use crate::portable::install;
 use crate::portable::local::InstallInfo;
 use crate::portable::repository::{self, PackageInfo, Query};
-use crate::print::{self, msg, success, Highlight};
+use crate::print::{self, msg, Highlight};
 use crate::process;
 use crate::watch::wait_changes;
 
@@ -205,7 +205,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
 
         let ok = matches!(single_check(ctx, cli).await?, Okay);
         if ok {
-            success("The schema is forward compatible. Ready for upgrade.");
+            print::success!("The schema is forward compatible. Ready for upgrade.");
         }
         eprintln!("Monitoring {:?} for changes.", &ctx.schema_dir);
         watch_loop(rx, ctx, cli, ok).await?;
@@ -318,7 +318,7 @@ pub async fn watch_loop(
         match single_check(ctx, cli).await {
             Ok(CheckResult::Okay) => {
                 if !ok {
-                    success(
+                    print::success!(
                         "The schema is forward compatible. \
                             Ready for upgrade.",
                     );

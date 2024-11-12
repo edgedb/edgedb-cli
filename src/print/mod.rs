@@ -411,7 +411,8 @@ pub fn edgedb_error(err: &edgedb_errors::Error, verbose: bool) {
     msg!("{} {}", err_marker(), display_error(err, verbose));
 }
 
-pub fn success(line: impl fmt::Display) {
+#[doc(hidden)]
+pub fn write_success(line: impl fmt::Display) {
     if use_color() {
         msg!("{}", line.to_string().bold().light_green());
     } else {
@@ -447,8 +448,6 @@ macro_rules! warn {
     }
 }
 
-pub use crate::warn;
-
 #[macro_export]
 macro_rules! error {
     ($($args:tt)*) => {
@@ -456,4 +455,11 @@ macro_rules! error {
     }
 }
 
-pub use crate::error;
+#[macro_export]
+macro_rules! success {
+    ($($args:tt)*) => {
+        $crate::print::write_success(format_args!($($args)*))
+    }
+}
+
+pub use crate::{error, success, warn};
