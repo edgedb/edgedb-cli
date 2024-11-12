@@ -2,10 +2,6 @@ use edgedb_tokio::define_env;
 use std::path::PathBuf;
 
 define_env! {
-    /// The password to use when connecting to the database.
-    #[env(EDGEDB_PASSWORD, GEL_PASSWORD)]
-    password: String,
-
     /// Path to the editor executable
     #[env(EDGEDB_EDITOR, GEL_EDITOR)]
     editor: String,
@@ -34,25 +30,13 @@ define_env! {
     #[env(_EDGEDB_ANALYZE_DEBUG_PLAN, _GEL_ANALYZE_DEBUG_PLAN)]
     _analyze_debug_plan: bool,
 
-    /// Cloud profile name
-    #[env(EDGEDB_CLOUD_PROFILE, GEL_CLOUD_PROFILE)]
-    cloud_profile: String,
-
     /// Cloud secret key
     #[env(EDGEDB_CLOUD_SECRET_KEY, GEL_CLOUD_SECRET_KEY)]
     cloud_secret_key: String,
 
-    /// Legacy secret key
-    #[env(EDGEDB_SECRET_KEY, GEL_SECRET_KEY)]
-    secret_key: String,
-
     /// Cloud API endpoint URL
     #[env(EDGEDB_CLOUD_API_ENDPOINT, GEL_CLOUD_API_ENDPOINT)]
     cloud_api_endpoint: String,
-
-    /// Cloud certificates configuration
-    #[env(_EDGEDB_CLOUD_CERTS, _GEL_CLOUD_CERTS)]
-    _cloud_certs: String,
 
     /// WSL distro name
     #[env(_EDGEDB_WSL_DISTRO, _GEL_WSL_DISTRO)]
