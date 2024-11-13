@@ -123,7 +123,9 @@ fn print_long_description(settings: &Settings) {
 
             let normal = || {
                 write_ansi!(ResetAttributes);
-                write_ansi!(SetForegroundColor(Color::DarkMagenta));
+                write_ansi!(SetAttribute(Attribute::Bold));
+                write_ansi!(SetForegroundColor(Color::Magenta));
+                write_ansi!(SetAttribute(Attribute::Bold));
             };
 
             let highlight = || {
