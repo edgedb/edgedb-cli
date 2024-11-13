@@ -121,10 +121,14 @@ fn print_long_description(settings: &Settings) {
             const TRAILING_HIGHLIGHT_COLS: usize = 5;
             const FRAME_DELAY: u64 = 35;
 
-            let normal = || {
+            let normal = |c| {
                 write_ansi!(ResetAttributes);
                 write_ansi!(SetAttribute(Attribute::Bold));
-                write_ansi!(SetForegroundColor(Color::Magenta));
+                if c == '$' {
+                    write_ansi!(SetForegroundColor(Color::Magenta));
+                } else {
+                    write_ansi!(SetForegroundColor(Color::Yellow));
+                }
                 write_ansi!(SetAttribute(Attribute::Bold));
             };
 
@@ -132,8 +136,14 @@ fn print_long_description(settings: &Settings) {
                 write_ansi!(SetForegroundColor(Color::White));
             };
 
-            normal();
-            println!("{}", logo);
+            for line in &lines {
+                for char in line.chars() {
+                    normal(char);
+                    write_ansi!(char);
+                }
+                write_ansi!("\n");
+            }
+            write_ansi!("\n");
 
             write_ansi!(SaveCursorPosition);
             write_ansi!(HideCursor);
@@ -147,11 +157,12 @@ fn print_long_description(settings: &Settings) {
                     // Unhighlight the previous trailing column
                     if col >= TRAILING_HIGHLIGHT_COLS {
                         write_ansi!(MoveCursorLeft(TRAILING_HIGHLIGHT_COLS as u16));
-                        normal();
-                        write_ansi!(line
+                        let char = line
                             .chars()
                             .nth(col - TRAILING_HIGHLIGHT_COLS)
-                            .unwrap_or(' '));
+                            .unwrap_or(' ');
+                        normal(char);
+                        write_ansi!(char);
                         if TRAILING_HIGHLIGHT_COLS > 1 {
                             write_ansi!(MoveCursorRight((TRAILING_HIGHLIGHT_COLS - 1) as u16));
                         }
@@ -160,7 +171,7 @@ fn print_long_description(settings: &Settings) {
                         highlight();
                         write_ansi!(c);
                     } else {
-                        normal();
+                        normal(' ');
                         write_ansi!(' ');
                     }
                     write_ansi!(MoveCursorLeft(1 as u16));
