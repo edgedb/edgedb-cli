@@ -433,7 +433,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             }
             Ok(_) => {}
             Err(e) => {
-                log::warn!("Error reading WLS metadata: {:#}", e);
+                log::warn!("Error reading WSL metadata: {e:#}");
             }
         }
     }
