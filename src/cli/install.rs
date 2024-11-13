@@ -4,9 +4,7 @@
 use std::env;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::io::{stdout, BufWriter, Write};
+use std::io::{stdout, BufWriter, IsTerminal, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::str::FromStr;
@@ -103,6 +101,68 @@ pub struct Settings {
 fn print_long_description(settings: &Settings) {
     println!();
 
+<<<<<<< HEAD
+=======
+    if print::use_utf8() && cfg!(feature = "gel") {
+        let logo = include_str!("logo.txt");
+        let lines = logo.lines().collect::<Vec<_>>();
+        let line_count = lines.len() as u16;
+        let line_width = lines.iter().map(|line| line.chars().count()).max().unwrap();
+
+        if !cfg!(windows) && print::use_color() && stdout().is_terminal() {
+            macro_rules! write_ansi {
+                ($($args:tt)*) => {
+                    _ = write!(stdout(), "{}",$($args)*);
+                }
+            }
+
+            use anes::*;
+            const TRAILING_HIGHLIGHT_COLS: usize = 5;
+
+            write_ansi!(SetForegroundColor(Color::DarkMagenta));
+            println!("{}", logo);
+
+            write_ansi!(SaveCursorPosition);
+            write_ansi!(HideCursor);
+            for col in 0..line_width + TRAILING_HIGHLIGHT_COLS {
+                _ = stdout().flush();
+                std::thread::sleep(std::time::Duration::from_millis(35));
+
+                write_ansi!(MoveCursorUp(line_count + 1));
+                for line in &lines {
+                    // Unhighlight the previous trailing column
+                    if col >= TRAILING_HIGHLIGHT_COLS {
+                        write_ansi!(MoveCursorLeft(TRAILING_HIGHLIGHT_COLS as u16));
+                        write_ansi!(ResetAttributes);
+                        write_ansi!(SetForegroundColor(Color::DarkMagenta));
+                        write_ansi!(line.chars().nth(col - TRAILING_HIGHLIGHT_COLS).unwrap_or(' '));
+                        if TRAILING_HIGHLIGHT_COLS > 1 {
+                            write_ansi!(MoveCursorRight((TRAILING_HIGHLIGHT_COLS - 1) as u16));
+                        }
+                    }
+                    if let Some(c) = line.chars().nth(col) {
+                        write_ansi!(SetBackgroundColor(Color::DarkMagenta));
+                        write_ansi!(SetForegroundColor(Color::White));
+                        write_ansi!(c);
+                    } else {
+                        write_ansi!(ResetAttributes);
+                        write_ansi!(' ');
+                    }
+                    write_ansi!(MoveCursorLeft(1 as u16));
+                    write_ansi!(MoveCursorDown(1 as u16));
+                }
+                write_ansi!(MoveCursorDown(1 as u16));
+                write_ansi!(MoveCursorRight(1 as u16));
+            }
+            write_ansi!(ShowCursor);
+            write_ansi!(RestoreCursorPosition);
+            write_ansi!(ResetAttributes);
+        } else {
+            println!("{}", logo);
+        }
+    }
+
+>>>>>>> c1fc6b7 (ANSI logo demo)
     print_markdown!(
         "\
         # Welcome to ${branding}!\n\
@@ -122,7 +182,10 @@ fn print_long_description(settings: &Settings) {
     );
 
     if cfg!(windows) && settings.modify_path {
+<<<<<<< HEAD
         println!();
+=======
+>>>>>>> c1fc6b7 (ANSI logo demo)
         print_markdown!(
             "\
             This path will then be added to your `PATH` environment variable by \
@@ -140,7 +203,10 @@ fn print_long_description(settings: &Settings) {
             .collect::<Vec<_>>()
             .join("\n");
         let s = if settings.rc_files.len() > 1 { "s" } else { "" };
+<<<<<<< HEAD
         println!();
+=======
+>>>>>>> c1fc6b7 (ANSI logo demo)
         print_markdown!(
             "\
             This path will then be added to your `PATH` environment variable by \
@@ -156,7 +222,10 @@ fn print_long_description(settings: &Settings) {
     }
 
     if !cfg!(windows) && !settings.modify_path && no_dir_in_path(&settings.installation_path) {
+<<<<<<< HEAD
         println!();
+=======
+>>>>>>> c1fc6b7 (ANSI logo demo)
         print_markdown!(
             "\
             Path `${installation_path}` should be added to the `PATH` manually \
@@ -168,7 +237,10 @@ fn print_long_description(settings: &Settings) {
     }
 
     if !cfg!(windows) && !settings.modify_path && !no_dir_in_path(&settings.installation_path) {
+<<<<<<< HEAD
         println!();
+=======
+>>>>>>> c1fc6b7 (ANSI logo demo)
         print_markdown!(
             "\
             This path is already in your `PATH` environment variable, so no \
