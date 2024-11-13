@@ -658,12 +658,12 @@ pub fn check_executables() {
 
     if exe_path.file_name().unwrap() == BRANDING_CLI_CMD_ALT_FILE {
         if new_executable.exists() {
-            log::warn!("{exe_path:?} is the old name for the {BRANDING_CLI_CMD_FILE} executable. \
-            Please update your scripts (and muscle memory) to use the new executable at {new_executable:?}.");
+            log::warn!("`{exe_path:?}` is the old name for the `{BRANDING_CLI_CMD_FILE}` executable. \
+            Please update your scripts (and muscle memory) to use the new executable at `{new_executable:?}`.");
         } else {
             log::warn!(
-                "{exe_path:?} is the old name for the {BRANDING_CLI_CMD_FILE} executable, but \
-            {BRANDING_CLI_CMD_FILE} does not exist. You may need to reinstall {BRANDING} to fix this."
+                "`{exe_path:?}` is the old name for the `{BRANDING_CLI_CMD_FILE}` executable, but \
+            `{BRANDING_CLI_CMD_FILE}` does not exist. You may need to reinstall `{BRANDING}` to fix this."
             );
         }
     }
@@ -684,8 +684,8 @@ pub fn check_executables() {
         match (length_old, length_new) {
             (Some(length_old), Some(length_new)) if length_old != length_new => {
                 log::warn!(
-                    "{old_executable:?} and {new_executable:?} have different sizes. \
-                You mean need to reinstall {BRANDING}."
+                    "`{old_executable:?}` and `{new_executable:?}` have different sizes. \
+                You may need to reinstall `{BRANDING}`."
                 );
             }
             _ => {}
