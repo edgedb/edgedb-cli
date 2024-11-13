@@ -449,7 +449,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             return Err(NoDistribution.into());
         }
 
-        if let Ok(use_distro) = Env::_wsl_distro() {
+        if let Ok(use_distro) = Env::_wsl_distro()? {
             distro = use_distro;
         } else {
             let download_dir = cache_dir()?.join("downloads");
