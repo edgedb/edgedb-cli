@@ -55,7 +55,27 @@ fn get_local_instance(instance: &Option<InstanceName>) -> Result<InstanceInfo, a
 fn list(options: &ExtensionList) -> Result<(), anyhow::Error> {
     let inst = get_local_instance(&options.instance)?;
     let extension_loader = inst.extension_loader_path()?;
-    run_extension_loader(&extension_loader, Some("--list"), None::<&str>)?;
+    let output = run_extension_loader(&extension_loader, Some("--list-packages"), None::<&str>)?;
+    let value: serde_json::Value = serde_json::from_str(&output)?;
+
+    let mut table = Table::new();
+    table.set_format(*table::FORMAT);
+    table.add_row(row!["Name", "Version"]);
+    if let Some(array) = value.as_array() {
+        for pkg in array {
+            let name = pkg
+                .get("extension_name")
+                .map(|s| s.as_str().unwrap_or_default().to_owned())
+                .unwrap_or_default();
+            let version = pkg
+                .get("extension_version")
+                .map(|s| s.as_str().unwrap_or_default().to_owned())
+                .unwrap_or_default();
+            table.add_row(row![name, version]);
+        }
+    }
+    table.printstd();
+
     Ok(())
 }
 
@@ -114,7 +134,7 @@ fn run_extension_loader(
     extension_installer: &Path,
     command: Option<impl AsRef<OsStr>>,
     file: Option<impl AsRef<OsStr>>,
-) -> Result<(), anyhow::Error> {
+) -> Result<String, anyhow::Error> {
     let mut cmd = Command::new(extension_installer);
 
     if let Some(cmd_str) = command {
@@ -141,7 +161,7 @@ fn run_extension_loader(
         trace!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
     }
 
-    Ok(())
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
 fn list_extensions(options: &ExtensionListExtensions) -> Result<(), anyhow::Error> {

@@ -90,14 +90,12 @@ pub struct ServerInstanceExtensionCommand {
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum InstanceExtensionCommand {
     /// List installed extensions for a local instance.
-    #[command(hide = true)]
     List(ExtensionList),
     /// List available extensions for a local instance.
     ListAvailable(ExtensionListExtensions),
     /// Install an extension for a local instance.
     Install(ExtensionInstall),
     /// Uninstall an extension from a local instance.
-    #[command(hide = true)]
     Uninstall(ExtensionUninstall),
 }
 
