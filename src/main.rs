@@ -141,6 +141,8 @@ fn _main() -> anyhow::Result<()> {
     log_levels::init(&mut builder, &opt);
     builder.init();
 
+    cli::install::check_executables();
+
     let cfg = cfg.unwrap_or_else(|e| {
         log::warn!("Config error: {:#}", e);
         Default::default()

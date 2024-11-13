@@ -3,6 +3,9 @@
 
 use std::env;
 use std::fs;
+use std::fs::OpenOptions;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::io::{stdout, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
@@ -10,10 +13,13 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use clap_complete::{generate, shells};
+use const_format::concatcp;
 use edgedb_tokio::get_stash_path;
 use fn_error_context::context;
 use prettytable::{Cell, Row, Table};
 
+use crate::branding::BRANDING_CLI_CMD_ALT_FILE;
+use crate::branding::BRANDING_CLI_CMD_FILE;
 use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLI_CMD};
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
@@ -503,22 +509,9 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         return upgrade::upgrade_to_arm64();
     }
 
-    let tmp_path = settings.installation_path.join(".edgedb.tmp");
-    let path = if cfg!(windows) {
-        settings.installation_path.join("edgedb.exe")
-    } else {
-        settings.installation_path.join("edgedb")
-    };
-    let exe_path = current_exe()?;
-    fs::create_dir_all(&settings.installation_path)
-        .with_context(|| format!("failed to create {:?}", settings.installation_path))?;
-    if exe_path.parent() == path.parent() {
-        fs::rename(&exe_path, &path).with_context(|| format!("failed to rename {exe_path:?}"))?;
-    } else {
-        fs::remove_file(&tmp_path).ok();
-        fs::copy(&exe_path, &tmp_path).with_context(|| format!("failed to write {tmp_path:?}"))?;
-        fs::rename(&tmp_path, &path).with_context(|| format!("failed to rename {tmp_path:?}"))?;
-    }
+    copy_to_installation_path(&settings.installation_path)?;
+    copy_to_alternative_executable(&settings.installation_path)?;
+
     write_completions_home()?;
 
     if settings.modify_path {
@@ -593,6 +586,111 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn copy_to_installation_path<P: AsRef<Path>>(installation_path: P) -> anyhow::Result<()> {
+    let installation_path = installation_path.as_ref();
+    let tmp_path = installation_path.join(concatcp!(BRANDING_CLI_CMD, ".tmp"));
+    let path = installation_path.join(BRANDING_CLI_CMD_FILE);
+    let exe_path = current_exe()?;
+    fs::create_dir_all(installation_path)
+        .with_context(|| format!("failed to create {:?}", installation_path))?;
+
+    // Attempt to rename from the current executable to the target path. If this fails, we try a copy.
+    if fs::rename(&exe_path, &path).is_ok() {
+        return Ok(());
+    }
+
+    // If we can't rename, try to copy to the neighboring temporary file and
+    // then rename on top of the executable.
+    if tmp_path
+        .try_exists()
+        .with_context(|| format!("failed to check if {tmp_path:?} exists"))?
+    {
+        _ = fs::remove_file(&tmp_path);
+    }
+    fs::copy(&exe_path, &tmp_path).with_context(|| format!("failed to write {tmp_path:?}"))?;
+    fs::rename(&tmp_path, &path).with_context(|| format!("failed to rename {tmp_path:?}"))?;
+
+    Ok(())
+}
+
+fn copy_to_alternative_executable<P: AsRef<Path>>(installation_path: P) -> anyhow::Result<()> {
+    let path = installation_path.as_ref().join(BRANDING_CLI_CMD_FILE);
+    let alt_path = installation_path.as_ref().join(BRANDING_CLI_CMD_ALT_FILE);
+
+    if alt_path
+        .try_exists()
+        .with_context(|| format!("failed to check if {alt_path:?} exists"))?
+    {
+        _ = fs::remove_file(&alt_path);
+    }
+
+    // Try a hard link first.
+    if fs::hard_link(&path, &alt_path).is_ok() {
+        log::debug!("hard linked {path:?} to {alt_path:?}");
+        return Ok(());
+    }
+
+    // If that fails, try a symlink.
+    #[cfg(unix)]
+    if std::os::unix::fs::symlink(&path, &alt_path).is_ok() {
+        log::debug!("symlinked {path:?} to {alt_path:?}");
+        return Ok(());
+    }
+
+    // If that fails, try a copy.
+    fs::copy(&path, &alt_path)
+        .with_context(|| format!("failed to copy or symlink {path:?} to {alt_path:?}"))?;
+
+    Ok(())
+}
+
+pub fn check_executables() {
+    let exe_path = current_exe().unwrap();
+
+    let exe_dir = exe_path.parent().unwrap();
+    let old_executable = exe_dir.join(BRANDING_CLI_CMD_ALT_FILE);
+    let new_executable = exe_dir.join(BRANDING_CLI_CMD_FILE);
+    log::debug!("exe_path: {exe_path:?}");
+    log::debug!("old_executable: {old_executable:?}");
+    log::debug!("new_executable: {new_executable:?}");
+
+    if exe_path.file_name().unwrap() == BRANDING_CLI_CMD_ALT_FILE {
+        if new_executable.exists() {
+            log::warn!("{exe_path:?} is the old name for the {BRANDING_CLI_CMD_FILE} executable. \
+            Please update your scripts (and muscle memory) to use the new executable at {new_executable:?}.");
+        } else {
+            log::warn!(
+                "{exe_path:?} is the old name for the {BRANDING_CLI_CMD_FILE} executable. \
+            {BRANDING_CLI_CMD_FILE} does not exist. You may need to reinstall {BRANDING}."
+            );
+        }
+    }
+
+    if old_executable.exists() && new_executable.exists() {
+        let mut opts = OpenOptions::new();
+        opts.read(true);
+        let length_old = if let Ok(mut file) = opts.open(&old_executable) {
+            file.seek(SeekFrom::End(0)).ok().map(|n| n as usize)
+        } else {
+            None
+        };
+        let length_new = if let Ok(mut file) = opts.open(&new_executable) {
+            file.seek(SeekFrom::End(0)).ok().map(|n| n as usize)
+        } else {
+            None
+        };
+        match (length_old, length_new) {
+            (Some(length_old), Some(length_new)) if length_old != length_new => {
+                log::warn!(
+                    "{old_executable:?} and {new_executable:?} have different sizes. \
+                You mean need to reinstall {BRANDING}."
+                );
+            }
+            _ => {}
+        }
+    }
 }
 
 // This is used to decode the value of HKCU\Environment\PATH. If that
