@@ -117,35 +117,48 @@ fn print_long_description(settings: &Settings) {
             }
 
             use anes::*;
-            const TRAILING_HIGHLIGHT_COLS: usize = 5;
 
-            write_ansi!(SetForegroundColor(Color::DarkMagenta));
+            const TRAILING_HIGHLIGHT_COLS: usize = 5;
+            const FRAME_DELAY: u64 = 35;
+
+            let normal = || {
+                write_ansi!(ResetAttributes);
+                write_ansi!(SetForegroundColor(Color::DarkMagenta));
+            };
+
+            let highlight = || {
+                write_ansi!(SetForegroundColor(Color::White));
+            };
+
+            normal();
             println!("{}", logo);
 
             write_ansi!(SaveCursorPosition);
             write_ansi!(HideCursor);
+
             for col in 0..line_width + TRAILING_HIGHLIGHT_COLS {
                 _ = stdout().flush();
-                std::thread::sleep(std::time::Duration::from_millis(35));
+                std::thread::sleep(std::time::Duration::from_millis(FRAME_DELAY));
 
                 write_ansi!(MoveCursorUp(line_count + 1));
                 for line in &lines {
                     // Unhighlight the previous trailing column
                     if col >= TRAILING_HIGHLIGHT_COLS {
                         write_ansi!(MoveCursorLeft(TRAILING_HIGHLIGHT_COLS as u16));
-                        write_ansi!(ResetAttributes);
-                        write_ansi!(SetForegroundColor(Color::DarkMagenta));
-                        write_ansi!(line.chars().nth(col - TRAILING_HIGHLIGHT_COLS).unwrap_or(' '));
+                        normal();
+                        write_ansi!(line
+                            .chars()
+                            .nth(col - TRAILING_HIGHLIGHT_COLS)
+                            .unwrap_or(' '));
                         if TRAILING_HIGHLIGHT_COLS > 1 {
                             write_ansi!(MoveCursorRight((TRAILING_HIGHLIGHT_COLS - 1) as u16));
                         }
                     }
                     if let Some(c) = line.chars().nth(col) {
-                        write_ansi!(SetBackgroundColor(Color::DarkMagenta));
-                        write_ansi!(SetForegroundColor(Color::White));
+                        highlight();
                         write_ansi!(c);
                     } else {
-                        write_ansi!(ResetAttributes);
+                        normal();
                         write_ansi!(' ');
                     }
                     write_ansi!(MoveCursorLeft(1 as u16));
