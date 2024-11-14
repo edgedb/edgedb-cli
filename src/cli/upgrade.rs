@@ -7,7 +7,7 @@ use fn_error_context::context;
 use fs_err as fs;
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::platform::{binary_path, current_exe, home_dir, tmp_file_path};
+use crate::platform::{binary_path, current_exe, old_binary_path, tmp_file_path};
 use crate::portable::platform;
 use crate::portable::repository::{self, download, Channel};
 use crate::portable::ver;
@@ -54,18 +54,18 @@ pub fn can_upgrade() -> bool {
         })
 }
 
-pub fn old_binary_path() -> anyhow::Result<PathBuf> {
-    let bin_name = if cfg!(windows) {
-        "edgedb.exe"
-    } else {
-        "edgedb"
-    };
-    Ok(home_dir()?.join(".edgedb").join("bin").join(bin_name))
-}
-
 fn _can_upgrade(path: &Path) -> anyhow::Result<bool> {
     let exe_path = current_exe()?;
-    Ok(exe_path == path || matches!(old_binary_path(), Ok(old) if exe_path == old))
+    if exe_path == path {
+        return Ok(true);
+    }
+    let Some(current_bin_path) = exe_path.parent() else {
+        return Ok(false);
+    };
+    let Ok(old_binary_path) = old_binary_path() else {
+        return Ok(false);
+    };
+    Ok(current_bin_path == old_binary_path)
 }
 
 #[context("error unpacking {:?} -> {:?}", src, tgt)]

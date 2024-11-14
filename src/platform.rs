@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
+use crate::branding::BRANDING_CLI_CMD_FILE;
 use crate::cli::env::Env;
 
 #[cfg(windows)]
@@ -116,6 +117,11 @@ pub fn symlink_dir(original: impl AsRef<Path>, path: impl AsRef<Path>) -> anyhow
     Ok(())
 }
 
+/// The legacy binary path.
+pub fn old_binary_path() -> anyhow::Result<PathBuf> {
+    Ok(home_dir()?.join(".edgedb").join("bin"))
+}
+
 pub fn binary_path() -> anyhow::Result<PathBuf> {
     let dir = match dirs::executable_dir() {
         Some(dir) => dir,
@@ -125,12 +131,7 @@ pub fn binary_path() -> anyhow::Result<PathBuf> {
             .join("edgedb")
             .join("bin"),
     };
-    let path = if cfg!(windows) {
-        dir.join("edgedb.exe")
-    } else {
-        dir.join("edgedb")
-    };
-    Ok(path)
+    Ok(dir.join(BRANDING_CLI_CMD_FILE))
 }
 
 pub fn data_dir() -> anyhow::Result<PathBuf> {
