@@ -17,6 +17,7 @@ use url::Url;
 use crate::async_util;
 use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_WSL};
 use crate::bug;
+use crate::cli::env::Env;
 use crate::cli::upgrade::{self, self_version};
 use crate::collect::Collector;
 use crate::commands::ExitCode;
@@ -111,7 +112,7 @@ impl Wsl {
         Ok(())
     }
 
-    fn read_text_file(&self, linux_path: impl AsRef<str>) -> anyhow::Result<String> {
+    fn read_text_file(&self, linux_path: impl AsRef<Path>) -> anyhow::Result<String> {
         process::Native::new("read file", "wsl", "wsl")
             .arg("--user")
             .arg("edgedb")
@@ -122,7 +123,7 @@ impl Wsl {
             .get_stdout_text()
     }
 
-    fn check_path_exist(&self, linux_path: impl AsRef<str>) -> bool {
+    fn check_path_exist(&self, linux_path: impl AsRef<Path>) -> bool {
         process::Native::new("ls file", "wsl", "wsl")
             .arg("--user")
             .arg("edgedb")
@@ -432,7 +433,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             }
             Ok(_) => {}
             Err(e) => {
-                log::warn!("Error reading WLS metadata: {:#}", e);
+                log::warn!("Error reading WSL metadata: {e:#}");
             }
         }
     }
@@ -448,7 +449,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
             return Err(NoDistribution.into());
         }
 
-        if let Ok(use_distro) = env::var("_EDGEDB_WSL_DISTRO") {
+        if let Some(use_distro) = Env::_wsl_distro()? {
             distro = use_distro;
         } else {
             let download_dir = cache_dir()?.join("downloads");
@@ -510,7 +511,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
 
     if update_cli {
         msg!("Updating container CLI version...");
-        if let Some(bin_path) = env::var_os("_EDGEDB_WSL_LINUX_BINARY") {
+        if let Some(bin_path) = Env::_wsl_linux_binary()? {
             let bin_path = fs::canonicalize(bin_path)?;
             wsl_simple_cmd(
                 &wsl,
@@ -707,9 +708,7 @@ pub fn external_status(_inst: &InstanceInfo) -> anyhow::Result<()> {
 }
 
 pub fn is_wrapped() -> bool {
-    env::var_os("_EDGEDB_FROM_WINDOWS")
-        .map(|x| !x.is_empty())
-        .unwrap_or(false)
+    Env::_from_windows().unwrap_or_default().unwrap_or_default()
 }
 
 pub fn install(options: &options::Install) -> anyhow::Result<()> {
@@ -1024,20 +1023,12 @@ pub fn revert(options: &options::Revert, name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn get_instance_data_dir(name: &str, wsl: &Wsl) -> anyhow::Result<String> {
+fn get_instance_data_dir(name: &str, wsl: &Wsl) -> anyhow::Result<PathBuf> {
     let data_dir = if name == "_localdev" {
-        match env::var("EDGEDB_SERVER_DEV_DIR") {
-            Ok(path) => {
-                if path.ends_with('/') {
-                    path
-                } else {
-                    path + "/"
-                }
-            }
-            Err(_) => "/home/edgedb/.local/share/edgedb/_localdev/".into(),
-        }
+        Env::server_dev_dir()?
+            .unwrap_or_else(|| "/home/edgedb/.local/share/edgedb/_localdev/".into())
     } else {
-        format!("/home/edgedb/.local/share/edgedb/data/{name}/")
+        format!("/home/edgedb/.local/share/edgedb/data/{name}/").into()
     };
 
     if !wsl.check_path_exist(&data_dir) {
@@ -1050,7 +1041,7 @@ fn get_instance_data_dir(name: &str, wsl: &Wsl) -> anyhow::Result<String> {
 pub fn read_jws_key(name: &str) -> anyhow::Result<Vec<u8>> {
     let wsl = try_get_wsl()?;
     let data_dir = get_instance_data_dir(name, wsl)?;
-    let rv = wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?;
+    let rv = wsl.read_text_file(data_dir.join("edbjwskeys.pem"))?;
     Ok(rv.into_bytes())
 }
 
@@ -1058,9 +1049,9 @@ pub fn read_jose_keys_legacy(name: &str) -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
     let wsl = try_get_wsl()?;
     let data_dir = get_instance_data_dir(name, wsl)?;
     Ok((
-        wsl.read_text_file(data_dir.clone() + "edbjwskeys.pem")?
+        wsl.read_text_file(data_dir.join("edbjwskeys.pem"))?
             .into_bytes(),
-        wsl.read_text_file(data_dir + "edbjwekeys.pem")?
+        wsl.read_text_file(data_dir.join("edbjwekeys.pem"))?
             .into_bytes(),
     ))
 }

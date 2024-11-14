@@ -1,10 +1,10 @@
 use std::error::Error;
+use std::fmt;
 use std::fmt::Formatter;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
-use std::{env, fmt};
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -13,6 +13,7 @@ use anyhow::Context;
 use reqwest::{header, StatusCode};
 
 use crate::branding::BRANDING_CLI_CMD;
+use crate::cli::env::Env;
 use crate::options::CloudOptions;
 use crate::platform::config_dir;
 
@@ -80,14 +81,18 @@ impl CloudClient {
         options_profile: &Option<String>,
         options_api_endpoint: &Option<String>,
     ) -> anyhow::Result<Self> {
-        let profile = options_profile
-            .clone()
-            .or_else(|| env::var("EDGEDB_CLOUD_PROFILE").ok());
+        let profile = if let Some(p) = options_profile.clone() {
+            Some(p)
+        } else if let Some(p) = edgedb_tokio::env::Env::cloud_profile()? {
+            Some(p)
+        } else {
+            None
+        };
         let secret_key = if let Some(secret_key) = options_secret_key {
             Some(secret_key.into())
-        } else if let Ok(secret_key) = env::var("EDGEDB_CLOUD_SECRET_KEY") {
+        } else if let Some(secret_key) = Env::cloud_secret_key()? {
             Some(secret_key)
-        } else if let Ok(secret_key) = env::var("EDGEDB_SECRET_KEY") {
+        } else if let Some(secret_key) = edgedb_tokio::env::Env::secret_key()? {
             Some(secret_key)
         } else {
             match fs::read_to_string(cloud_config_file(&profile)?) {
@@ -152,104 +157,22 @@ impl CloudClient {
             dns_zone = EDGEDB_CLOUD_DEFAULT_DNS_ZONE.to_string();
             is_logged_in = false;
         }
-        let api_endpoint = options_api_endpoint
-            .clone()
-            .map(Ok)
-            .or_else(|| env::var_os("EDGEDB_CLOUD_API_ENDPOINT").map(|v| v.into_string()))
-            .transpose()
-            .map_err(|v| anyhow::anyhow!("cannot decode EDGEDB_CLOUD_API_ENDPOINT: {:?}", v))?
-            .or_else(|| Some(format!("https://api.g.{dns_zone}")))
-            .as_deref()
-            .map(reqwest::Url::parse)
-            .unwrap()?;
-        let cloud_certs = env::var_os("_EDGEDB_CLOUD_CERTS")
-            .map(|v| v.into_string())
-            .transpose()
-            .map_err(|v| anyhow::anyhow!("cannot decode _EDGEDB_CLOUD_CERTS: {:?}", v))?;
-        if matches!(cloud_certs.as_deref(), Some("staging")) {
+        let api_endpoint = if let Some(endpoint) = options_api_endpoint.clone() {
+            endpoint
+        } else if let Some(endpoint) = Env::cloud_api_endpoint()? {
+            endpoint
+        } else {
+            format!("https://api.g.{dns_zone}")
+        };
+
+        let api_endpoint = reqwest::Url::parse(&api_endpoint)?;
+        if let Some(cloud_certs) = edgedb_tokio::env::Env::_cloud_certs()? {
+            log::info!("Using cloud certs for {cloud_certs:?}");
+            let root = cloud_certs.root();
+            log::trace!("{root}");
+            // Add all certificates from the PEM bundle to the root store
             builder = builder
-                .add_root_certificate(
-                    reqwest::Certificate::from_pem(
-                        "-----BEGIN CERTIFICATE-----
-MIIFmDCCA4CgAwIBAgIQU9C87nMpOIFKYpfvOHFHFDANBgkqhkiG9w0BAQsFADBm
-MQswCQYDVQQGEwJVUzEzMDEGA1UEChMqKFNUQUdJTkcpIEludGVybmV0IFNlY3Vy
-aXR5IFJlc2VhcmNoIEdyb3VwMSIwIAYDVQQDExkoU1RBR0lORykgUHJldGVuZCBQ
-ZWFyIFgxMB4XDTE1MDYwNDExMDQzOFoXDTM1MDYwNDExMDQzOFowZjELMAkGA1UE
-BhMCVVMxMzAxBgNVBAoTKihTVEFHSU5HKSBJbnRlcm5ldCBTZWN1cml0eSBSZXNl
-YXJjaCBHcm91cDEiMCAGA1UEAxMZKFNUQUdJTkcpIFByZXRlbmQgUGVhciBYMTCC
-AiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBALbagEdDTa1QgGBWSYkyMhsc
-ZXENOBaVRTMX1hceJENgsL0Ma49D3MilI4KS38mtkmdF6cPWnL++fgehT0FbRHZg
-jOEr8UAN4jH6omjrbTD++VZneTsMVaGamQmDdFl5g1gYaigkkmx8OiCO68a4QXg4
-wSyn6iDipKP8utsE+x1E28SA75HOYqpdrk4HGxuULvlr03wZGTIf/oRt2/c+dYmD
-oaJhge+GOrLAEQByO7+8+vzOwpNAPEx6LW+crEEZ7eBXih6VP19sTGy3yfqK5tPt
-TdXXCOQMKAp+gCj/VByhmIr+0iNDC540gtvV303WpcbwnkkLYC0Ft2cYUyHtkstO
-fRcRO+K2cZozoSwVPyB8/J9RpcRK3jgnX9lujfwA/pAbP0J2UPQFxmWFRQnFjaq6
-rkqbNEBgLy+kFL1NEsRbvFbKrRi5bYy2lNms2NJPZvdNQbT/2dBZKmJqxHkxCuOQ
-FjhJQNeO+Njm1Z1iATS/3rts2yZlqXKsxQUzN6vNbD8KnXRMEeOXUYvbV4lqfCf8
-mS14WEbSiMy87GB5S9ucSV1XUrlTG5UGcMSZOBcEUpisRPEmQWUOTWIoDQ5FOia/
-GI+Ki523r2ruEmbmG37EBSBXdxIdndqrjy+QVAmCebyDx9eVEGOIpn26bW5LKeru
-mJxa/CFBaKi4bRvmdJRLAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMB
-Af8EBTADAQH/MB0GA1UdDgQWBBS182Xy/rAKkh/7PH3zRKCsYyXDFDANBgkqhkiG
-9w0BAQsFAAOCAgEAncDZNytDbrrVe68UT6py1lfF2h6Tm2p8ro42i87WWyP2LK8Y
-nLHC0hvNfWeWmjZQYBQfGC5c7aQRezak+tHLdmrNKHkn5kn+9E9LCjCaEsyIIn2j
-qdHlAkepu/C3KnNtVx5tW07e5bvIjJScwkCDbP3akWQixPpRFAsnP+ULx7k0aO1x
-qAeaAhQ2rgo1F58hcflgqKTXnpPM02intVfiVVkX5GXpJjK5EoQtLceyGOrkxlM/
-sTPq4UrnypmsqSagWV3HcUlYtDinc+nukFk6eR4XkzXBbwKajl0YjztfrCIHOn5Q
-CJL6TERVDbM/aAPly8kJ1sWGLuvvWYzMYgLzDul//rUF10gEMWaXVZV51KpS9DY/
-5CunuvCXmEQJHo7kGcViT7sETn6Jz9KOhvYcXkJ7po6d93A/jy4GKPIPnsKKNEmR
-xUuXY4xRdh45tMJnLTUDdC9FIU0flTeO9/vNpVA8OPU1i14vCz+MU8KX1bV3GXm/
-fxlB7VBBjX9v5oUep0o/j68R/iDlCOM4VVfRa8gX6T2FU7fNdatvGro7uQzIvWof
-gN9WUwCbEMBy/YhBSrXycKA8crgGg3x1mIsopn88JKwmMBa68oS7EHM9w7C4y71M
-7DiA+/9Qdp9RBWJpTS9i/mDnJg1xvo8Xz49mrrgfmcAXTCJqXi24NatI3Oc=
------END CERTIFICATE-----"
-                            .as_bytes(),
-                    )
-                    .unwrap(),
-                )
-                .add_root_certificate(
-                    reqwest::Certificate::from_pem(
-                        "-----BEGIN CERTIFICATE-----
-MIICTjCCAdSgAwIBAgIRAIPgc3k5LlLVLtUUvs4K/QcwCgYIKoZIzj0EAwMwaDEL
-MAkGA1UEBhMCVVMxMzAxBgNVBAoTKihTVEFHSU5HKSBJbnRlcm5ldCBTZWN1cml0
-eSBSZXNlYXJjaCBHcm91cDEkMCIGA1UEAxMbKFNUQUdJTkcpIEJvZ3VzIEJyb2Nj
-b2xpIFgyMB4XDTIwMDkwNDAwMDAwMFoXDTQwMDkxNzE2MDAwMFowaDELMAkGA1UE
-BhMCVVMxMzAxBgNVBAoTKihTVEFHSU5HKSBJbnRlcm5ldCBTZWN1cml0eSBSZXNl
-YXJjaCBHcm91cDEkMCIGA1UEAxMbKFNUQUdJTkcpIEJvZ3VzIEJyb2Njb2xpIFgy
-MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEOvS+w1kCzAxYOJbA06Aw0HFP2tLBLKPo
-FQqR9AMskl1nC2975eQqycR+ACvYelA8rfwFXObMHYXJ23XLB+dAjPJVOJ2OcsjT
-VqO4dcDWu+rQ2VILdnJRYypnV1MMThVxo0IwQDAOBgNVHQ8BAf8EBAMCAQYwDwYD
-VR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU3tGjWWQOwZo2o0busBB2766XlWYwCgYI
-KoZIzj0EAwMDaAAwZQIwRcp4ZKBsq9XkUuN8wfX+GEbY1N5nmCRc8e80kUkuAefo
-uc2j3cICeXo1cOybQ1iWAjEA3Ooawl8eQyR4wrjCofUE8h44p0j7Yl/kBlJZT8+9
-vbtH7QiVzeKCOTQPINyRql6P
------END CERTIFICATE-----"
-                            .as_bytes(),
-                    )
-                    .unwrap(),
-                )
-        } else if matches!(cloud_certs.as_deref(), Some("local")) {
-            // Local nebula development root cert found in
-            // nebula/infra/terraform/local/ca/root.certificate.pem
-            log::trace!("trusting local development nebula root certificates");
-            builder = builder.add_root_certificate(
-                reqwest::Certificate::from_pem(
-                    "-----BEGIN CERTIFICATE-----
-MIICBjCCAaugAwIBAgIUGLnu92rPr79+DsDQBtolXEZENwMwCgYIKoZIzj0EAwIw
-UDELMAkGA1UEBhMCVVMxGjAYBgNVBAoMEUVkZ2VEQiAoaW50ZXJuYWwpMSUwIwYD
-VQQDDBxOZWJ1bGEgSW5mcmEgUm9vdCBDQSAobG9jYWwpMB4XDTIzMDExNDIzMDkw
-M1oXDTMyMTAxMzIzMDkwM1owUDELMAkGA1UEBhMCVVMxGjAYBgNVBAoMEUVkZ2VE
-QiAoaW50ZXJuYWwpMSUwIwYDVQQDDBxOZWJ1bGEgSW5mcmEgUm9vdCBDQSAobG9j
-YWwpMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEHJk/v57y1dG1xekQjeYwqlW7
-45fvlWIIid/EfcyBNCyvWhLUyQUz3urmK81rJlFYCexq/kgazTeBFJyWbrvLLKNj
-MGEwHQYDVR0OBBYEFN5PvqC9p5e4HC99o3z0pJrRuIpeMB8GA1UdIwQYMBaAFN5P
-vqC9p5e4HC99o3z0pJrRuIpeMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQD
-AgEGMAoGCCqGSM49BAMCA0kAMEYCIQDedUpRy5YtQAHROrh/ZsWPlvek3vguuRrE
-y4u6fdOVhgIhAJ4pJLfdoWQsHPUOcnVG5fBgdSnoCJhGQyuGyp+NDu1q
------END CERTIFICATE-----"
-                        .as_bytes(),
-                )
-                .unwrap(),
-            )
+                .add_root_certificate(reqwest::Certificate::from_pem(root.as_bytes()).unwrap());
         }
 
         let retry_policy = reqwest_retry::policies::ExponentialBackoff::builder()

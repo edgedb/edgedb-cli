@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::branding::BRANDING_CLI_CMD;
 use crate::cli;
+use crate::cli::env::Env;
 use crate::platform;
 use crate::portable::repository;
 use crate::portable::ver;
@@ -126,16 +127,14 @@ fn cache_dir() -> anyhow::Result<PathBuf> {
 }
 
 pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
+    use cli::env::VersionCheck;
     let mut strict = false;
     if no_version_check_opt {
         log::debug!("Skipping version check due to --no-cli-update-check");
         return Ok(());
     }
-    match env::var("EDGEDB_RUN_VERSION_CHECK")
-        .as_ref()
-        .map(|x| &x[..])
-    {
-        Ok("never") => {
+    match Env::run_version_check()?.unwrap_or(VersionCheck::Default) {
+        VersionCheck::Never => {
             log::debug!(
                 "EDGEDB_RUN_VERSION_CHECK set to `never`, \
                 skipping version check
@@ -143,24 +142,9 @@ pub fn check(no_version_check_opt: bool) -> anyhow::Result<()> {
             );
             return Ok(());
         }
-        Ok("cached") | Ok("default") => {}
-        Ok("strict") => {
+        VersionCheck::Cached | VersionCheck::Default => {}
+        VersionCheck::Strict => {
             strict = true;
-        }
-        Ok(value) => {
-            anyhow::bail!(
-                "unexpected value for EDGEDB_RUN_VERSION_CHECK: {:?} \
-                           Options: never, cached, strict, default.",
-                value
-            );
-        }
-        Err(env::VarError::NotPresent) => {}
-        Err(env::VarError::NotUnicode(value)) => {
-            anyhow::bail!(
-                "unexpected value for EDGEDB_RUN_VERSION_CHECK: {:?} \
-                           Options: never, cached, default.",
-                value
-            );
         }
     }
     let dir = match cache_dir() {

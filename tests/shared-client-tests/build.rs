@@ -115,9 +115,10 @@ static MUTEX: Mutex<()> = Mutex::new(());
 "
     );
 
-    'testcase: for (i, case) in connection_testcases.as_array().unwrap().iter().enumerate() {
+    'testcase: for (_, case) in connection_testcases.as_array().unwrap().iter().enumerate() {
         let mut testcase = Vec::new();
         let case = case.as_object().unwrap();
+        let name = case.get("name").unwrap().as_str().unwrap();
         let opts = case
             .get("opts")
             .and_then(|v| v.as_object())
@@ -187,7 +188,7 @@ static MUTEX: Mutex<()> = Mutex::new(());
         write!(
             testcase,
             r#"
-fn connection_{i}() {{
+fn {name}() {{
     let _mutex = MUTEX.lock();
 "#
         );

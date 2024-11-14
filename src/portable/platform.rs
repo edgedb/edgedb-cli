@@ -1,6 +1,6 @@
-use std::env;
 use std::fs;
 
+use crate::cli::env::Env;
 use anyhow::Context;
 
 pub fn get_cli() -> anyhow::Result<&'static str> {
@@ -70,12 +70,10 @@ fn docker_check() -> anyhow::Result<bool> {
 }
 
 pub fn optional_docker_check() -> anyhow::Result<bool> {
+    use crate::cli::env::InstallInDocker;
     if cfg!(target_os = "linux") {
-        match env::var("EDGEDB_INSTALL_IN_DOCKER")
-            .as_ref()
-            .map(|x| &x[..])
-        {
-            Ok("forbid") | Ok("default") | Err(env::VarError::NotPresent) => {
+        match Env::install_in_docker()?.unwrap_or(InstallInDocker::Default) {
+            InstallInDocker::Forbid | InstallInDocker::Default => {
                 let result = docker_check()
                     .map_err(|e| {
                         log::warn!(
@@ -87,23 +85,7 @@ pub fn optional_docker_check() -> anyhow::Result<bool> {
                     .unwrap_or(false);
                 return Ok(result);
             }
-            Ok("allow") => return Ok(false),
-            Ok(value) => {
-                anyhow::bail!(
-                    "Invalid value for \
-                    EDGEDB_INSTALL_IN_DOCKER: {:?}. \
-                    Options: allow, forbid, default.",
-                    value
-                );
-            }
-            Err(env::VarError::NotUnicode(value)) => {
-                anyhow::bail!(
-                    "Invalid value for \
-                    EDGEDB_INSTALL_IN_DOCKER: {:?}. \
-                    Options: allow, forbid, default.",
-                    value
-                );
-            }
+            InstallInDocker::Allow => return Ok(false),
         };
     }
     Ok(false)
