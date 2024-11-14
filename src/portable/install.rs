@@ -10,7 +10,7 @@ use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
 use once_cell::sync::Lazy;
 
-use crate::branding::{BRANDING, BRANDING_CLI_CMD};
+use crate::branding::BRANDING_CLI_CMD;
 use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
