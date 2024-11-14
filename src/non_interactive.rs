@@ -65,9 +65,9 @@ pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), any
             run_query(&mut conn, query, options, fmt).await?;
         }
     } else {
-        print::error(
+        print::error!(
             "either a --file option or \
-                     a <queries> positional argument is required.",
+                     a <queries> positional argument is required."
         );
     }
 
@@ -185,10 +185,10 @@ async fn _run_query(
                     PrintError::StreamErr {
                         source: ref error, ..
                     } => {
-                        print::error(error);
+                        print::error!("{error}");
                     }
                     _ => {
-                        print::error(e);
+                        print::error!("{e}");
                     }
                 }
                 return Ok(());

@@ -30,11 +30,7 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
             }
         }
         InstanceName::Cloud { .. } => {
-            print::error(concatcp!(
-                "This operation is not supported on ",
-                BRANDING_CLOUD,
-                " instances yet."
-            ));
+            print::error!("This operation is not yet supported on {BRANDING_CLOUD} instances.");
             return Err(ExitCode::new(1))?;
         }
     };
@@ -84,17 +80,17 @@ pub fn revert(options: &Revert) -> anyhow::Result<()> {
         );
         let q = question::Confirm::new_dangerous("Do you really want to revert?");
         if !q.ask()? {
-            print::error("Canceled.");
+            print::error!("Canceled.");
             Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
         }
     }
 
     if let Err(e) = control::do_stop(name) {
-        print::error(format!("Error stopping service: {e:#}"));
+        print::error!("Error stopping service: {e:#}");
         if !options.no_confirm {
             let q = question::Confirm::new("Do you want to proceed?");
             if !q.ask()? {
-                print::error("Canceled.");
+                print::error!("Canceled.");
                 Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
             }
         }

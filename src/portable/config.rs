@@ -137,9 +137,7 @@ where
         return Ok(Some(out));
     }
 
-    print::error(format!(
-        "Invalid {CONFIG_FILE_DISPLAY_NAME}: missing {field_name}"
-    ));
+    print::error!("Invalid {CONFIG_FILE_DISPLAY_NAME}: missing {field_name}");
     Err(ExitCode::new(exit_codes::INVALID_CONFIG).into())
 }
 

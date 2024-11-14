@@ -72,9 +72,9 @@ fn main() {
             } else {
                 let mut error_chain = err.chain();
                 if let Some(first) = error_chain.next() {
-                    print::error(first);
+                    print::error!("{first}");
                 } else {
-                    print::error(" <empty error message>");
+                    print::error!(" <empty error message>");
                 }
                 for e in error_chain {
                     eprintln!("  Caused by: {e}");

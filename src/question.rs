@@ -72,13 +72,13 @@ impl<'a, T: Clone + 'a> Numeric<'a, T> {
             let choice = match value.parse::<u32>() {
                 Ok(choice) => choice,
                 Err(e) => {
-                    print::error(format!("Error reading choice: {e}"));
+                    print::error!("Error reading choice: {e}");
                     print::prompt("Please enter a number");
                     continue;
                 }
             };
             if choice == 0 || choice as usize > self.options.len() {
-                print::error("Please specify a choice from the list above");
+                print::error!("Please specify a choice from the list above");
                 continue;
             }
             return Ok(self.options[(choice - 1) as usize].1.clone());
@@ -190,7 +190,7 @@ impl<'a> Confirm<'a> {
                     }
                     _ => {
                         initial = val.into();
-                        print::error("Please answer Y or N");
+                        print::error!("Please answer Y or N");
                         continue;
                     }
                 }
@@ -267,9 +267,7 @@ impl<'a, T: Clone + 'a> Choice<'a, T> {
                     }
                 }
             }
-            print::error(format!(
-                "Invalid option {val:?}, please use one of: [{options}]"
-            ));
+            print::error!("Invalid option {val:?}, please use one of: [{options}]");
         }
     }
 }

@@ -34,11 +34,11 @@ fn _check() -> anyhow::Result<Option<PathBuf>> {
 pub fn check_and_error() -> anyhow::Result<()> {
     match _check().context("failed directory check")? {
         Some(dir) => {
-            print::error(format!(
+            print::error!(
                 "{BRANDING_CLI} no longer uses `{dir}` to store data \
                 and now uses standard locations of your OS.",
                 dir = dir.display()
-            ));
+            );
             print_markdown!(
                 "To upgrade the directory layout, run: \n\
                 ```\n\

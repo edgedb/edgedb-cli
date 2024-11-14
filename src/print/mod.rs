@@ -395,7 +395,8 @@ pub fn err_marker() -> impl fmt::Display {
     concatcp!(BRANDING_CLI_CMD, " error:").err_marker()
 }
 
-pub fn error(line: impl fmt::Display) {
+#[doc(hidden)]
+pub fn write_error(line: impl fmt::Display) {
     let text = format!("{line:#}");
     if text.len() > 60 {
         msg!("{} {}", err_marker(), text);
@@ -410,7 +411,8 @@ pub fn edgedb_error(err: &edgedb_errors::Error, verbose: bool) {
     msg!("{} {}", err_marker(), display_error(err, verbose));
 }
 
-pub fn success(line: impl fmt::Display) {
+#[doc(hidden)]
+pub fn write_success(line: impl fmt::Display) {
     if use_color() {
         msg!("{}", line.to_string().bold().light_green());
     } else {
@@ -430,10 +432,34 @@ pub fn success_msg(title: impl fmt::Display, msg: impl fmt::Display) {
     }
 }
 
-pub fn warn(line: impl fmt::Display) {
+#[doc(hidden)]
+pub fn write_warn(line: impl fmt::Display) {
     if use_color() {
         msg!("{}", line.to_string().bold().yellow());
     } else {
         msg!("{line}");
     }
 }
+
+#[macro_export]
+macro_rules! warn {
+    ($($args:tt)*) => {
+        $crate::print::write_warn(format_args!($($args)*))
+    }
+}
+
+#[macro_export]
+macro_rules! error {
+    ($($args:tt)*) => {
+        $crate::print::write_error(format_args!($($args)*))
+    }
+}
+
+#[macro_export]
+macro_rules! success {
+    ($($args:tt)*) => {
+        $crate::print::write_success(format_args!($($args)*))
+    }
+}
+
+pub use crate::{error, success, warn};

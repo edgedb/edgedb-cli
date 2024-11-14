@@ -179,7 +179,7 @@ pub async fn _do_revoke(c: &options::RevokeSecretKey, client: &CloudClient) -> a
             c.secret_key_id
         ));
         if !q.ask()? {
-            print::error("Canceled.");
+            print::error!("Canceled.");
             return Err(ExitCode::new(exit_codes::NOT_CONFIRMED).into());
         }
     }
@@ -214,7 +214,7 @@ fn _ask_ttl() -> anyhow::Result<Option<String>> {
             _ => match humantime::parse_duration(&ttl) {
                 Ok(duration) => Some(humantime::format_duration(duration).to_string()),
                 Err(e) => {
-                    print::error(e);
+                    print::error!("{e}");
                     continue;
                 }
             },

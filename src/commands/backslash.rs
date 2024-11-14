@@ -662,13 +662,13 @@ pub async fn execute(
         }
         Connect(c) => {
             if prompt.in_transaction() {
-                print::warn("WARNING: Transaction canceled.");
+                print::warn!("WARNING: Transaction canceled.");
             }
             prompt
                 .try_connect(&c.database_name)
                 .await
                 .map_err(|e| {
-                    print::error(format!("Cannot connect: {e:#}"));
+                    print::error!("Cannot connect: {e:#}");
                 })
                 .ok();
             Ok(Skip)

@@ -16,7 +16,7 @@ use crate::portable::local::{
 };
 use crate::portable::repository::Channel;
 use crate::portable::ver;
-use crate::print::{err_marker, msg, warn};
+use crate::print::{self, err_marker, msg};
 use crate::process::{self, IntoArg};
 
 const DOMAIN_LABEL_MAX_LENGTH: usize = 63;
@@ -939,10 +939,10 @@ pub fn instance_arg<'x>(
             );
             return Err(ExitCode::new(2).into());
         }
-        warn(format_args!(
+        print::warn!(
             "Specifying instance name as positional argument is \
             deprecated. Use `-I {name}` instead."
-        ));
+        );
         return Ok(name);
     }
     if let Some(name) = named {

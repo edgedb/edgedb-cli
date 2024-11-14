@@ -249,7 +249,7 @@ pub struct ConnectionOptions {
 impl ConnectionOptions {
     pub(crate) fn validate(&self) -> anyhow::Result<()> {
         if self.database.is_some() {
-            print::warn("database connection argument is deprecated in favor of 'branch'");
+            print::warn!("database connection argument is deprecated in favor of 'branch'");
         }
         if let Some((d, b)) = self.database.as_ref().zip(self.branch.as_ref()) {
             anyhow::bail!("Arguments --database={d} and --branch={b} are mutually exclusive");

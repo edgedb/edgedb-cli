@@ -88,7 +88,7 @@ pub async fn extract(
                                 migration_file.path.display()
                             ));
                             if !q.ask()? {
-                                print::error("Canceled.");
+                                print::error!("Canceled.");
                                 return Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
                             }
                         }
@@ -116,7 +116,7 @@ pub async fn extract(
                         migration_file.path.display()
                     ));
                     if !q.ask()? {
-                        print::error("Canceled.");
+                        print::error!("Canceled.");
                         return Err(ExitCode::new(exit_codes::NOT_CONFIRMED))?;
                     }
                 }
@@ -131,10 +131,7 @@ pub async fn extract(
     let to_migrations_dir = src_ctx.schema_dir.join("migrations");
     if !to_migrations_dir.is_dir() {
         if src_ctx.schema_dir.is_dir() {
-            print::warn(format!(
-                "Creating directory {}",
-                to_migrations_dir.display()
-            ));
+            print::warn!("Creating directory {}", to_migrations_dir.display());
             fs::create_dir(to_migrations_dir)?;
         } else {
             anyhow::bail!(
@@ -162,10 +159,10 @@ pub async fn extract(
         updated = true;
     }
     if !updated {
-        print::success(format!(
+        print::success!(
             "Migration history in {:?} and in the database are in sync.",
-            src_ctx.schema_dir.join("migrations"),
-        ));
+            src_ctx.schema_dir.join("migrations")
+        );
     }
     Ok(())
 }

@@ -12,9 +12,7 @@ pub async fn list_branches(cli: &mut Connection, options: &Options) -> Result<()
     let version = cli.get_version().await?;
 
     if version.specific().major <= 4 {
-        print::warn(format!(
-            "Branches are not supported in {BRANDING} {version}, printing list of databases instead"
-        ));
+        print::warn!("Branches are not supported in {BRANDING} {version}, printing list of databases instead");
         return list_databases(cli, options).await;
     }
 

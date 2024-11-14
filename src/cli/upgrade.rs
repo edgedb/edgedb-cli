@@ -189,7 +189,7 @@ fn _main(options: &CliUpgrade, path: PathBuf) -> anyhow::Result<()> {
     if !force && pkg.version <= self_version()? {
         log::info!("Version is identical; no update needed.");
         if !options.quiet {
-            print::success("Already up to date.");
+            print::success!("Already up to date.");
         }
         return Ok(());
     }

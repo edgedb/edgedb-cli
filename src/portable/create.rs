@@ -37,7 +37,7 @@ fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<Ins
         let inst_name = match InstanceName::from_str(&name) {
             Ok(name) => name,
             Err(e) => {
-                print::error(e);
+                print::error!("{e}");
                 continue;
             }
         };
@@ -46,7 +46,7 @@ fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<Ins
             InstanceName::Cloud { org_slug, name } => {
                 if !cloud_client.is_logged_in {
                     if let Err(e) = cloud::ops::prompt_cloud_login(cloud_client) {
-                        print::error(e);
+                        print::error!("{e}");
                         continue;
                     }
                 }
@@ -67,18 +67,16 @@ fn ask_name(cloud_client: &mut cloud::client::CloudClient) -> anyhow::Result<Ins
 
 pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()> {
     if optional_docker_check()? {
-        print::error(concatcp!(
-            "`",
-            BRANDING_CLI_CMD,
-            " instance create` is not supported in Docker containers."
-        ));
+        print::error!(
+            "`{BRANDING_CLI_CMD} instance create` is not supported in Docker containers."
+        );
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     if cmd.start_conf.is_some() {
-        print::warn(
+        print::warn!(
             "The option `--start-conf` is deprecated. \
                      Use `edgedb instance start/stop` to control \
-                     the instance.",
+                     the instance."
         );
     }
 
@@ -189,9 +187,9 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
         Ok(()) => {}
         Err(e) => {
             log::warn!("Error running {BRANDING} as a service: {e:#}");
-            print::warn(
+            print::warn!(
                 "{BRANDING} will not start on next login. \
-                         Trying to start database in the background...",
+                         Trying to start database in the background..."
             );
             control::start(&Start {
                 name: None,

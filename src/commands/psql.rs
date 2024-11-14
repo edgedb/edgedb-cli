@@ -5,7 +5,6 @@ use std::process::Command;
 use crate::branding::BRANDING;
 use crate::connect::Connection;
 use anyhow::Context;
-use const_format::concatcp;
 use edgedb_tokio::server_params::{PostgresAddress, PostgresDsn};
 
 use crate::commands::Options;
@@ -53,7 +52,7 @@ pub async fn psql<'x>(cli: &mut Connection, _options: &Options) -> Result<(), an
                 cmd.arg(&addr.0);
             }
             None => {
-                print::error(concatcp!(BRANDING, " must be run in DEV mode to use psql."));
+                print::error!("{BRANDING} must be run in DEV mode to use psql.");
                 return Ok(());
             }
         },

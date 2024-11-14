@@ -1,5 +1,4 @@
 use crate::connect::Connection;
-use const_format::concatcp;
 use edgedb_tokio::server_params::{PostgresAddress, PostgresDsn};
 
 use crate::analyze;
@@ -78,11 +77,7 @@ pub async fn common(
                     Some(addr) => {
                         println!("{}", addr.0);
                     }
-                    None => print::error(concatcp!(
-                        "pgaddr requires ",
-                        BRANDING,
-                        " to run in DEV mode"
-                    )),
+                    None => print::error!("pgaddr requires {BRANDING} to run in DEV mode"),
                 }
             }
         },

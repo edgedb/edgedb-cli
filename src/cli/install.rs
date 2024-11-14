@@ -377,7 +377,7 @@ fn customize(settings: &mut Settings) -> anyhow::Result<()> {
         let q = question::Confirm::new("Modify PATH variable?");
         settings.modify_path = q.ask()?;
     } else {
-        print::error("No options to customize.");
+        print::error!("No options to customize.");
     }
     Ok(())
 }
@@ -490,7 +490,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
                         settings.print();
                     }
                     _ => {
-                        print::error("Aborting installation.");
+                        print::error!("Aborting installation.");
                         exit(7);
                     }
                 }

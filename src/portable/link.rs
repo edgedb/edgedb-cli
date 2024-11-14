@@ -94,9 +94,7 @@ impl ServerCertVerifier for InteractiveCertVerifier {
                 let fingerprint = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, end_entity);
                 if self.trust_tls_cert {
                     if !self.quiet {
-                        print::warn(format!(
-                            "Trusting unknown server certificate: {fingerprint:?}",
-                        ));
+                        print::warn!("Trusting unknown server certificate: {fingerprint:?}");
                     }
                 } else if self.non_interactive {
                     return Err(e);
@@ -297,9 +295,9 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
                             .default(&default)
                             .ask()?;
                     if !is_valid_local_instance_name(&name) {
-                        print::error(
+                        print::error!(
                             "Instance name must be a valid identifier, \
-                             (regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$)",
+                             (regex: ^[a-zA-Z_0-9]+(-[a-zA-Z_0-9]+)*$)"
                         );
                         continue;
                     }
@@ -311,7 +309,7 @@ pub fn link(cmd: &Link, opts: &Options) -> anyhow::Result<()> {
     if cred_path.exists() {
         if cmd.overwrite {
             if !cmd.quiet {
-                print::warn(format!("Overwriting {}", cred_path.display()));
+                print::warn!("Overwriting {}", cred_path.display());
             }
         } else if cmd.non_interactive {
             anyhow::bail!("File {} exists; aborting.", cred_path.display());

@@ -3,7 +3,6 @@ use std::num::NonZeroU32;
 use std::path::Path;
 
 use base64::display::Base64Display;
-use const_format::concatcp;
 use fn_error_context::context;
 use rand::{Rng, SeedableRng};
 
@@ -48,11 +47,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
             }
         }
         InstanceName::Cloud { .. } => {
-            print::error(concatcp!(
-                "This operation is not supported on ",
-                BRANDING_CLOUD,
-                " instances yet."
-            ));
+            print::error!("This operation is not yet supported on {BRANDING_CLOUD} instances.");
             return Err(ExitCode::new(1))?;
         }
     };
@@ -81,7 +76,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
                 user.escape_default()
             ))?;
             if password != confirm {
-                print::error("Passwords do not match");
+                print::error!("Passwords do not match");
             } else {
                 break password;
             }
@@ -125,7 +120,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
                 credentials_file.display(),
             );
         } else {
-            print::success("Password was successfully changed.");
+            print::success!("Password was successfully changed.");
         }
     }
     Ok(())

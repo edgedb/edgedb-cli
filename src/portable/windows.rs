@@ -965,7 +965,7 @@ pub fn list(options: &options::List, opts: &crate::Options) -> anyhow::Result<()
             if options.json {
                 println!("[]");
             } else if !options.quiet {
-                print::warn("No instances found");
+                print::warn!("No instances found");
             }
             return Ok(());
         }

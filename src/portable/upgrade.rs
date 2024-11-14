@@ -316,7 +316,7 @@ pub fn upgrade_incompatible(
         }
 
         if has_main_dump {
-            print::warn("The database 'main' will now become the default database");
+            print::warn!("The database 'main' will now become the default database");
         } else if has_edgedb_dump
             && (non_interactive
                 || question::Confirm::new(
@@ -338,7 +338,7 @@ pub fn upgrade_incompatible(
     }
 
     reinit_and_restore(&inst, &paths).map_err(|e| {
-        print::error(format!("{e:#}"));
+        print::error!("{e:#}");
         eprintln!(
             "To undo run:\n  {BRANDING_CLI_CMD} instance revert -I {:?}",
             inst.name

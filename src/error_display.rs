@@ -34,7 +34,7 @@ pub fn print_query_error(
     let files = SimpleFile::new(source_name, query);
     let context_error = err.contexts().rev().collect::<Vec<_>>();
     if !context_error.is_empty() {
-        print::error(context_error.join(": "));
+        print::error!("{}", context_error.join(": "));
     }
     let diag = Diagnostic::error()
         .with_message(format!(
