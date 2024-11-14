@@ -19,6 +19,7 @@ use prettytable::{Cell, Row, Table};
 use crate::branding::BRANDING_CLI_CMD_ALT_FILE;
 use crate::branding::BRANDING_CLI_CMD_FILE;
 use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLI_CMD};
+use crate::cli::logo::print_logo;
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
 use crate::options::Options;
@@ -101,8 +102,6 @@ pub struct Settings {
 fn print_long_description(settings: &Settings) {
     println!();
 
-<<<<<<< HEAD
-=======
     if print::use_utf8() && cfg!(feature = "gel") {
         let logo = include_str!("logo.txt");
         let lines = logo.lines().collect::<Vec<_>>();
@@ -188,7 +187,8 @@ fn print_long_description(settings: &Settings) {
         }
     }
 
->>>>>>> c1fc6b7 (ANSI logo demo)
+    print_logo(true, false);
+
     print_markdown!(
         "\
         # Welcome to ${branding}!\n\
@@ -208,10 +208,7 @@ fn print_long_description(settings: &Settings) {
     );
 
     if cfg!(windows) && settings.modify_path {
-<<<<<<< HEAD
         println!();
-=======
->>>>>>> c1fc6b7 (ANSI logo demo)
         print_markdown!(
             "\
             This path will then be added to your `PATH` environment variable by \
@@ -229,10 +226,7 @@ fn print_long_description(settings: &Settings) {
             .collect::<Vec<_>>()
             .join("\n");
         let s = if settings.rc_files.len() > 1 { "s" } else { "" };
-<<<<<<< HEAD
         println!();
-=======
->>>>>>> c1fc6b7 (ANSI logo demo)
         print_markdown!(
             "\
             This path will then be added to your `PATH` environment variable by \
@@ -248,10 +242,7 @@ fn print_long_description(settings: &Settings) {
     }
 
     if !cfg!(windows) && !settings.modify_path && no_dir_in_path(&settings.installation_path) {
-<<<<<<< HEAD
         println!();
-=======
->>>>>>> c1fc6b7 (ANSI logo demo)
         print_markdown!(
             "\
             Path `${installation_path}` should be added to the `PATH` manually \
@@ -263,10 +254,7 @@ fn print_long_description(settings: &Settings) {
     }
 
     if !cfg!(windows) && !settings.modify_path && !no_dir_in_path(&settings.installation_path) {
-<<<<<<< HEAD
         println!();
-=======
->>>>>>> c1fc6b7 (ANSI logo demo)
         print_markdown!(
             "\
             This path is already in your `PATH` environment variable, so no \

@@ -1,6 +1,7 @@
 pub mod directory_check;
 pub mod env;
 pub mod install;
+pub mod logo;
 pub mod main;
 pub mod migrate;
 pub mod options;
