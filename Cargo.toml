@@ -22,6 +22,7 @@ github_action_install = []
 github_nightly = []
 portable_tests = []
 docker_test_wrapper = []
+gel = []
 
 [workspace.dependencies]
 clap = "4.4.6"
