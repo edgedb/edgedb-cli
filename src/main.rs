@@ -116,6 +116,11 @@ fn is_cli_upgrade(cmd: &Option<options::Command>) -> bool {
     )
 }
 
+fn is_cli_self_install(cmd: &Option<options::Command>) -> bool {
+    use options::Command::_SelfInstall;
+    matches!(cmd, Some(_SelfInstall(..)))
+}
+
 fn _main() -> anyhow::Result<()> {
     // If a crash happens we want the backtrace to be printed by default
     // to ease bug reporting and troubleshooting.
@@ -141,12 +146,15 @@ fn _main() -> anyhow::Result<()> {
     log_levels::init(&mut builder, &opt);
     builder.init();
 
-    cli::install::check_executables();
-
     let cfg = cfg.unwrap_or_else(|e| {
         log::warn!("Config error: {:#}", e);
         Default::default()
     });
+
+    // Check the executable name and warn on older names, but not for self-install.
+    if !is_cli_self_install(&opt.subcommand) {
+        cli::install::check_executables();
+    }
 
     if !is_cli_upgrade(&opt.subcommand) {
         version_check::check(opt.no_cli_update_check)?;

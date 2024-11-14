@@ -662,8 +662,8 @@ pub fn check_executables() {
             Please update your scripts (and muscle memory) to use the new executable at {new_executable:?}.");
         } else {
             log::warn!(
-                "{exe_path:?} is the old name for the {BRANDING_CLI_CMD_FILE} executable. \
-            {BRANDING_CLI_CMD_FILE} does not exist. You may need to reinstall {BRANDING}."
+                "{exe_path:?} is the old name for the {BRANDING_CLI_CMD_FILE} executable, but \
+            {BRANDING_CLI_CMD_FILE} does not exist. You may need to reinstall {BRANDING} to fix this."
             );
         }
     }
