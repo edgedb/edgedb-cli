@@ -1,4 +1,5 @@
 #![allow(unused)]
+use const_format::concatcp;
 
 /// The product name.
 pub const BRANDING: &str = if cfg!(feature = "gel") {
@@ -7,9 +8,10 @@ pub const BRANDING: &str = if cfg!(feature = "gel") {
     "EdgeDB"
 };
 /// The CLI name.
-pub const BRANDING_CLI: &str = const_format::concatcp!(BRANDING, " CLI");
+pub const BRANDING_CLI: &str = concatcp!(BRANDING, " CLI");
 /// The cloud name.
-pub const BRANDING_CLOUD: &str = const_format::concatcp!(BRANDING, " Cloud");
+pub const BRANDING_CLOUD: &str = concatcp!(BRANDING, " Cloud");
+
 /// The CLI command name.
 pub const BRANDING_CLI_CMD: &str = if cfg!(feature = "gel") {
     "gel"
@@ -24,17 +26,19 @@ pub const BRANDING_CLI_CMD_ALT: &str = if cfg!(feature = "gel") {
 };
 /// The executable file name for the CLI.
 pub const BRANDING_CLI_CMD_FILE: &str = if cfg!(windows) {
-    const_format::concatcp!(BRANDING_CLI_CMD, ".exe")
+    concatcp!(BRANDING_CLI_CMD, ".exe")
 } else {
     BRANDING_CLI_CMD
 };
 /// The executable file name for the CLI alternative.
 pub const BRANDING_CLI_CMD_ALT_FILE: &str = if cfg!(windows) {
-    const_format::concatcp!(BRANDING_CLI_CMD_ALT, ".exe")
+    concatcp!(BRANDING_CLI_CMD_ALT, ".exe")
 } else {
     BRANDING_CLI_CMD_ALT
 };
+
 /// The WSL distribution name.
 pub const BRANDING_WSL: &str = "EdgeDB.WSL.1";
+
 /// The display name for the configuration file.
 pub const CONFIG_FILE_DISPLAY_NAME: &str = "`gel.toml` (or `edgedb.toml`)";

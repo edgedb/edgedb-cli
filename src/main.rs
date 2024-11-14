@@ -152,7 +152,7 @@ fn _main() -> anyhow::Result<()> {
     });
 
     // Check the executable name and warn on older names, but not for self-install.
-    if !is_cli_self_install(&opt.subcommand) {
+    if !is_cli_self_install(&opt.subcommand) && cfg!(feature = "gel") {
         cli::install::check_executables();
     }
 
