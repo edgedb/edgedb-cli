@@ -10,6 +10,7 @@ use fn_error_context::context;
 use indicatif::{ProgressBar, ProgressStyle};
 use once_cell::sync::Lazy;
 
+use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::commands::ExitCode;
 use crate::platform;
 use crate::portable::exit_codes;
@@ -152,7 +153,7 @@ fn unlink_cache(cache_file: &Path) {
 
 pub fn install(options: &Install) -> anyhow::Result<()> {
     if optional_docker_check()? {
-        print::error!("`edgedb server install` not supported in Docker containers.");
+        print::error!("`{BRANDING_CLI_CMD} server install` not supported in Docker containers.");
         Err(ExitCode::new(exit_codes::DOCKER_CONTAINER))?;
     }
     let (query, _) = Query::from_options(

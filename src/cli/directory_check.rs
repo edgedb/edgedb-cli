@@ -13,9 +13,9 @@ pub fn check_and_warn() {
         Ok(None) => {}
         Ok(Some(dir)) => {
             log::warn!(
-                "Edgedb CLI no longer uses '{}' to store data \
+                "{BRANDING_CLI} no longer uses '{}' to store data \
                 and now uses standard locations of your OS. \
-                Run `edgedb cli migrate` to update the directory layout.",
+                Run `{BRANDING_CLI_CMD} cli migrate` to update the directory layout.",
                 dir.display()
             );
         }

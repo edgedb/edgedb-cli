@@ -4,6 +4,7 @@ use dissimilar::{diff, Chunk};
 use tokio::fs;
 use tokio::task::spawn_blocking as unblock;
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::commands::Options;
 use crate::connect::Connection;
 use crate::error_display::print_query_error;
@@ -81,10 +82,7 @@ pub async fn edit_no_check(
         .filter_map(|p| file_num(&p).map(|n| (n, p)))
         .max_by(|(an, _), (bn, _)| an.cmp(bn))
         .ok_or_else(|| {
-            anyhow::anyhow!(
-                "no migration exists. \
-                                       Run `edgedb migration create`"
-            )
+            anyhow::anyhow!("no migration exists. Run `{BRANDING_CLI_CMD} migration create`")
         })?;
 
     if !options.non_interactive {
@@ -151,10 +149,7 @@ async fn _edit(
         .filter_map(|p| file_num(&p).map(|n| (n, p)))
         .max_by(|(an, _), (bn, _)| an.cmp(bn))
         .ok_or_else(|| {
-            anyhow::anyhow!(
-                "no migration exists. \
-                                       Run `edgedb migration create`"
-            )
+            anyhow::anyhow!("no migration exists. Run `{BRANDING_CLI_CMD} migration create`")
         })?;
 
     if options.non_interactive {

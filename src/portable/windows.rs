@@ -600,7 +600,7 @@ fn try_get_wsl() -> anyhow::Result<&'static Wsl> {
         Ok(v) => Ok(v),
         Err(e) if e.is::<NoDistribution>() => Err(e).hint(
             "WSL is initialized automatically on \
-              `edgedb project init` or `edgedb instance create`",
+              `{BRANDING_CLI_CMD} project init` or `{BRANDING_CLI_CMD} instance create`",
         )?,
         Err(e) => Err(e),
     }
