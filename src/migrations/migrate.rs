@@ -3,7 +3,9 @@ use std::path::Path;
 
 use anyhow::Context as _;
 use colorful::Colorful;
-use edgedb_protocol::common::{Capabilities, Cardinality, CompilationOptions, IoFormat};
+use edgedb_protocol::common::{
+    Capabilities, Cardinality, CompilationOptions, InputLanguage, IoFormat,
+};
 use indexmap::IndexMap;
 use indicatif::ProgressBar;
 use tokio::fs;
@@ -549,6 +551,7 @@ async fn execute_with_parse_callback(
         implicit_typeids: false,
         explicit_objectids: true,
         allow_capabilities: Capabilities::ALL,
+        input_language: InputLanguage::EdgeQL,
         io_format: IoFormat::Binary,
         expected_cardinality: Cardinality::Many,
     };

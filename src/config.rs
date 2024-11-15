@@ -32,6 +32,8 @@ pub struct ShellConfig {
     #[serde(default, deserialize_with = "parse_idle_tx_timeout")]
     pub idle_transaction_timeout: Option<Duration>,
     #[serde(with = "serde_str::opt", default)]
+    pub input_language: Option<repl::InputLanguage>,
+    #[serde(with = "serde_str::opt", default)]
     pub output_format: Option<repl::OutputFormat>,
     #[serde(default)]
     pub display_typenames: Option<bool>,

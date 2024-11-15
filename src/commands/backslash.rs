@@ -539,6 +539,7 @@ pub fn get_setting(s: &Setting, prompt: &repl::State) -> Cow<'static, str> {
                 "0  # no timeout".into()
             }
         }
+        Language(_) => prompt.input_language.as_str().into(),
         HistorySize(_) => prompt.history_limit.to_string().into(),
         OutputFormat(_) => prompt.output_format.as_str().into(),
         DisplayTypenames(_) => bool_str(prompt.display_typenames).into(),
@@ -644,6 +645,9 @@ pub async fn execute(
                 HistorySize(c) => {
                     let limit = c.value.expect("only set here");
                     prompt.set_history_limit(limit).await?;
+                }
+                Language(l) => {
+                    prompt.input_language = l.value.expect("only writes here");
                 }
                 OutputFormat(c) => {
                     prompt.output_format = c.value.expect("only writes here");

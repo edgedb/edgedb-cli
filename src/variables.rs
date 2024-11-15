@@ -15,7 +15,8 @@ pub struct Canceled;
 
 pub async fn input_variables(
     desc: &Typedesc,
-    state: &mut repl::PromptRpc,
+    prompt: &mut repl::PromptRpc,
+    input_language: repl::InputLanguage,
 ) -> Result<Value, anyhow::Error> {
     // only for protocol < 0.12
     if desc.is_empty_tuple() {
@@ -26,7 +27,7 @@ pub async fn input_variables(
             let mut val = Vec::with_capacity(tuple.element_types.len());
             for (idx, el) in tuple.element_types.iter().enumerate() {
                 val.push(
-                    input_item(&format!("{idx}"), desc.get(*el)?, desc, state, false)
+                    input_item(&format!("{idx}"), desc.get(*el)?, desc, prompt, false)
                         .await?
                         .expect("no optional"),
                 );
@@ -38,7 +39,7 @@ pub async fn input_variables(
             let shape = tuple.elements[..].into();
             for el in tuple.elements.iter() {
                 fields.push(
-                    input_item(&el.name, desc.get(el.type_pos)?, desc, state, false)
+                    input_item(&el.name, desc.get(el.type_pos)?, desc, prompt, false)
                         .await?
                         .expect("no optional"),
                 );
@@ -50,9 +51,18 @@ pub async fn input_variables(
             let shape = obj.elements[..].into();
             for el in obj.elements.iter() {
                 let optional = el.cardinality.map(|c| c.is_optional()).unwrap_or(false);
-                fields.push(
-                    input_item(&el.name, desc.get(el.type_pos)?, desc, state, optional).await?,
-                );
+                let name = match input_language {
+                    // SQL params are 1-based, so adjust the base
+                    repl::InputLanguage::SQL => (el
+                        .name
+                        .parse::<i32>()
+                        .expect("SQL argument names to be numeric")
+                        + 1)
+                    .to_string(),
+                    _ => el.name.to_owned(),
+                };
+                fields
+                    .push(input_item(&name, desc.get(el.type_pos)?, desc, prompt, optional).await?);
             }
             Ok(Value::Object { shape, fields })
         }

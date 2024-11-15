@@ -216,6 +216,8 @@ pub struct SetCommand {
 
 #[derive(clap::Subcommand, Clone, Debug, EdbSettings)]
 pub enum Setting {
+    /// Query language. One of: edgeql, sql.
+    Language(Language),
     /// Set input mode. One of: vi, emacs
     InputMode(InputMode),
     /// Print implicit properties of objects: id, type id
@@ -242,6 +244,12 @@ pub enum Setting {
     /// Set idle transaction timeout in Duration format.
     /// Default is 5 minutes; specify 0 to disable.
     IdleTransactionTimeout(IdleTransactionTimeout),
+}
+
+#[derive(clap::Args, Clone, Debug, Default)]
+pub struct Language {
+    #[arg(value_name = "lang")]
+    pub value: Option<repl::InputLanguage>,
 }
 
 #[derive(clap::Args, Clone, Debug, Default)]

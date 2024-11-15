@@ -31,7 +31,7 @@ use crate::portable::local::{instance_data_dir, runstate_dir};
 use crate::portable::options::InstanceName;
 use crate::portable::project;
 use crate::print;
-use crate::repl::OutputFormat;
+use crate::repl::{InputLanguage, OutputFormat};
 use crate::tty_password;
 use crate::watch::options::WatchCommand;
 
@@ -404,6 +404,11 @@ pub struct Query {
     #[arg(short = 'F', long)]
     pub output_format: Option<OutputFormat>,
 
+    /// Input language: `edgeql`, `sql`.
+    /// Default is `edgeql`.
+    #[arg(short = 'L', long)]
+    pub input_language: Option<InputLanguage>,
+
     /// Filename to execute queries from.
     /// Pass `--file -` to execute queries from stdin.
     #[arg(short = 'f', long)]
@@ -459,6 +464,7 @@ pub struct Options {
     pub debug_print_frames: bool,
     pub debug_print_descriptors: bool,
     pub debug_print_codecs: bool,
+    pub input_language: Option<InputLanguage>,
     pub output_format: Option<OutputFormat>,
     pub no_cli_update_check: bool,
     pub test_output_conn_params: bool,
@@ -815,6 +821,7 @@ impl Options {
             Some(Command::Query(Query {
                 queries: Some(vec![query]),
                 output_format,
+                input_language: Some(InputLanguage::EdgeQL),
                 file: None,
                 conn: args.conn.clone(),
             }))
@@ -847,6 +854,7 @@ impl Options {
             debug_print_frames: args.debug_print_frames,
             debug_print_descriptors: args.debug_print_descriptors,
             debug_print_codecs: args.debug_print_codecs,
+            input_language: Some(InputLanguage::EdgeQL),
             output_format: if args.tab_separated {
                 Some(OutputFormat::TabSeparated)
             } else if args.json {

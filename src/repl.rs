@@ -10,7 +10,9 @@ use tokio::sync::oneshot;
 
 use edgedb_errors::{ClientError, ProtocolEncodingError};
 use edgedb_errors::{Error, ErrorKind};
-use edgedb_protocol::common::{RawTypedesc, State as EdgeqlState};
+use edgedb_protocol::common::{
+    InputLanguage as ServerInputLanguage, IoFormat, RawTypedesc, State as EdgeqlState,
+};
 use edgedb_protocol::model::Duration as EdbDuration;
 use edgedb_protocol::model::Uuid;
 use edgedb_protocol::server_message::TransactionState;
@@ -28,6 +30,13 @@ use crate::prompt::{self, Control};
 
 pub const TX_MARKER: &str = "[tx]";
 pub const FAILURE_MARKER: &str = "[tx:failed]";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[value(rename_all = "lowercase")]
+pub enum InputLanguage {
+    EdgeQL,
+    SQL,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 #[value(rename_all = "kebab-case")]
@@ -79,6 +88,7 @@ pub struct State {
     pub last_analyze: Option<LastAnalyze>,
     pub implicit_limit: Option<usize>,
     pub idle_transaction_timeout: EdbDuration,
+    pub input_language: InputLanguage,
     pub input_mode: InputMode,
     pub output_format: OutputFormat,
     pub display_typenames: bool,
@@ -284,7 +294,12 @@ impl State {
             _ => format!("{current_database}"),
         };
 
-        let prompt = format!("{location}{txstate}> ");
+        let lang = match self.input_language {
+            InputLanguage::EdgeQL => "",
+            InputLanguage::SQL => "[sql]",
+        };
+
+        let prompt = format!("{location}{lang}{txstate}> ");
 
         self.editor_cmd(|response| prompt::Control::EdgeqlInput {
             prompt,
@@ -397,6 +412,26 @@ impl std::str::FromStr for InputMode {
     }
 }
 
+impl std::str::FromStr for InputLanguage {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<InputLanguage, anyhow::Error> {
+        match s.to_lowercase().as_str() {
+            "edgeql" => Ok(InputLanguage::EdgeQL),
+            "sql" => Ok(InputLanguage::SQL),
+            _ => Err(anyhow::anyhow!("unsupported input language {:?}", s)),
+        }
+    }
+}
+
+impl Into<ServerInputLanguage> for InputLanguage {
+    fn into(self) -> ServerInputLanguage {
+        match self {
+            InputLanguage::EdgeQL => ServerInputLanguage::EdgeQL,
+            InputLanguage::SQL => ServerInputLanguage::SQL,
+        }
+    }
+}
+
 impl std::str::FromStr for OutputFormat {
     type Err = anyhow::Error;
     fn from_str(s: &str) -> Result<OutputFormat, anyhow::Error> {
@@ -407,6 +442,16 @@ impl std::str::FromStr for OutputFormat {
             "tab-separated" => Ok(OutputFormat::TabSeparated),
             "default" => Ok(OutputFormat::Default),
             _ => Err(anyhow::anyhow!("unsupported output mode {:?}", s)),
+        }
+    }
+}
+
+impl Into<IoFormat> for OutputFormat {
+    fn into(self) -> IoFormat {
+        match self {
+            OutputFormat::Default | OutputFormat::TabSeparated => IoFormat::Binary,
+            OutputFormat::JsonLines | OutputFormat::JsonPretty => IoFormat::JsonElements,
+            OutputFormat::Json => IoFormat::Json,
         }
     }
 }
@@ -429,6 +474,16 @@ impl InputMode {
         match self {
             Vi => "vi",
             Emacs => "emacs",
+        }
+    }
+}
+
+impl InputLanguage {
+    pub fn as_str(&self) -> &'static str {
+        use InputLanguage::*;
+        match self {
+            EdgeQL => "edgeql",
+            SQL => "sql",
         }
     }
 }

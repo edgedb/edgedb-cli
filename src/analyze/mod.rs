@@ -34,7 +34,11 @@ pub async fn interactive(prompt: &mut repl::State, query: &str) -> anyhow::Resul
             };
             let indesc = data_description.input()?;
             let input = match cli
-                .ping_while(input_variables(&indesc, &mut prompt.prompt))
+                .ping_while(input_variables(
+                    &indesc,
+                    &mut prompt.prompt,
+                    prompt.input_language,
+                ))
                 .await
             {
                 Ok(input) => input,
