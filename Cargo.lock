@@ -1127,6 +1127,7 @@ dependencies = [
  "blake2b_simd",
  "blake3",
  "bytes",
+ "bzip2",
  "chrono",
  "clap",
  "clap_complete",

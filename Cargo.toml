@@ -24,6 +24,7 @@ portable_tests = []
 docker_test_wrapper = []
 gel = []
 
+
 [workspace.dependencies]
 clap = "4.4.6"
 termimad = "0.30.0"
@@ -136,6 +137,10 @@ bitvec = "1.0.1"
 nom = "7.1.3"
 bitflags = "2.6"
 renamore = "0.3.2"
+
+[dependencies.bzip2]
+version = "*"
+features = ["static"]
 
 [dev-dependencies]
 assert_cmd = "2.0.8"
