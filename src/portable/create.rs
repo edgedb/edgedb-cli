@@ -75,7 +75,7 @@ pub fn create(cmd: &Create, opts: &crate::options::Options) -> anyhow::Result<()
     if cmd.start_conf.is_some() {
         print::warn!(
             "The option `--start-conf` is deprecated. \
-                     Use `edgedb instance start/stop` to control \
+                     Use `{BRANDING_CLI_CMD} instance start/stop` to control \
                      the instance."
         );
     }

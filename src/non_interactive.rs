@@ -15,6 +15,7 @@ use edgedb_protocol::value::Value;
 use edgeql_parser::preparser;
 use tokio_stream::StreamExt;
 
+use crate::branding::BRANDING_CLI_CMD;
 use crate::classify;
 use crate::commands::ExitCode;
 use crate::connect::Connection;
@@ -65,7 +66,7 @@ pub async fn noninteractive_main(q: &Query, options: &Options) -> Result<(), any
             if classify::is_analyze(query) {
                 anyhow::bail!(
                     "Analyze queries are not allowed. \
-                               Use the dedicated `edgedb analyze` command."
+                               Use the dedicated `{BRANDING_CLI_CMD} analyze` command."
                 );
             }
             run_query(&mut conn, query, options, fmt, lang).await?;
@@ -113,7 +114,7 @@ where
         if classify::is_analyze(stmt) {
             anyhow::bail!(
                 "Analyze queries are not allowed. \
-                           Use the dedicated `edgedb analyze` command."
+                           Use the dedicated `{BRANDING_CLI_CMD} analyze` command."
             );
         }
         run_query(&mut conn, stmt, options, fmt, lang).await?;

@@ -355,10 +355,14 @@ async fn prompt_conn_params(
         let config = match builder.build_env().await {
             Ok(config) => config,
             Err(e) if e.is::<ClientNoCredentialsError>() => {
-                return Err(anyhow::anyhow!("no connection options are specified")).hint(
-                    "Remove `--non-interactive` option or specify \
+                return Err(anyhow::anyhow!("no connection options are specified")).with_hint(
+                    || {
+                        format!(
+                            "Remove `--non-interactive` option or specify \
                            `--host=localhost` and/or `--port=5656`. \
-                           See `edgedb --help-connect` for details",
+                           See `{BRANDING_CLI_CMD} --help-connect` for details",
+                        )
+                    },
                 )?;
             }
             Err(e) => return Err(e)?,
@@ -431,14 +435,18 @@ pub fn unlink(options: &Unlink) -> anyhow::Result<()> {
                 inst_name
             ))
             .with_hint(|| {
-                format!("use `edgedb instance destroy -I {inst_name}` to remove the instance")
+                format!("use `{BRANDING_CLI_CMD} instance destroy -I {inst_name}` to remove the instance")
             })?;
         }
     };
     let inst = InstanceInfo::try_read(name)?;
     if inst.is_some() {
         return Err(anyhow::anyhow!("cannot unlink local instance {:?}.", name)
-            .with_hint(|| format!("use `edgedb instance destroy -I {name}` to remove the instance"))
+            .with_hint(|| {
+                format!(
+                    "use `{BRANDING_CLI_CMD} instance destroy -I {name}` to remove the instance"
+                )
+            })
             .into());
     }
     with_projects(name, options.force, print_warning, || {

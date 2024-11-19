@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::branding::{BRANDING, BRANDING_CLOUD};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD};
 use crate::bug;
 use crate::commands::ExitCode;
 use crate::credentials;
@@ -56,7 +56,7 @@ pub fn do_start(inst: &InstanceInfo) -> anyhow::Result<()> {
     if !cred_path.exists() {
         log::warn!(
             "No corresponding credentials file {:?} exists. \
-                    Use `edgedb instance reset-password -I {}` to create one.",
+                    Use `{BRANDING_CLI_CMD} instance reset-password -I {}` to create one.",
             cred_path,
             inst.name
         );

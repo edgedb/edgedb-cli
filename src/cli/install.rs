@@ -102,58 +102,80 @@ pub struct Settings {
 
 fn print_long_description(settings: &Settings) {
     println!();
-    print_markdown!("\
-        # Welcome to EdgeDB!\n\
+
+    print_markdown!(
+        "\
+        # Welcome to ${branding}!\n\
         \n\
-        This will install the official EdgeDB command-line tools.\n\
+        This will install the official ${branding} command-line tools.\n\
         \n\
-        The `edgedb` binary will be placed in the ${dir_kind} bin directory \
+        The `${cmd}` binary will be placed in the ${dir_kind} bin directory \
         located at:\n\
         ```\n\
             ${installation_path}\n\
         ```\n\
-        \n\
-        ${update_win\n\
-        This path will then be added to your `PATH` environment variable by \
-        modifying the `HKEY_CURRENT_USER/Environment/PATH` registry key.\n\
-        \n\
-        }\n\
-        ${update_files\n\
-        This path will then be added to your `PATH` environment variable by \
-        modifying the profile file${s} located at:\n\
-        ```\n\
-            ${rc_files}\n\
-        ```\n\
-        \n\
-        }\n\
-        ${modify_path
-        Path ${installation_path} should be added to the `PATH` manually \
-        after installation.\n\
-        \n\
-        }\n\
-        ${no_modified\n\
-        This path is already in your `PATH` environment variable, so no \
-        profile will be modified.\n\
-        }\n\
         ",
-        dir_kind=if settings.system { "system" } else { "user" },
-        installation_path=settings.installation_path.display(),
-        update_win: if cfg!(windows) && settings.modify_path,
-        update_files: if !cfg!(windows) && settings.modify_path => {
-            rc_files=settings.rc_files.iter()
-                     .map(|p| p.display().to_string())
-                     .collect::<Vec<_>>()
-                     .join("\n"),
-            s=if settings.rc_files.len() > 1 { "s" } else { "" },
-        },
-        modify_path: if !cfg!(windows) && !settings.modify_path &&
-                        no_dir_in_path(&settings.installation_path)
-        => {
-            installation_path=settings.installation_path.display()
-        },
-        no_modified: if !cfg!(windows) && !settings.modify_path &&
-                        !no_dir_in_path(&settings.installation_path),
+        branding = BRANDING,
+        cmd = BRANDING_CLI_CMD,
+        dir_kind = if settings.system { "system" } else { "user" },
+        installation_path = settings.installation_path.display(),
     );
+
+    if cfg!(windows) && settings.modify_path {
+        println!();
+        print_markdown!(
+            "\
+            This path will then be added to your `PATH` environment variable by \
+            modifying the `HKEY_CURRENT_USER/Environment/PATH` registry key.\n\
+            \n\
+        "
+        );
+    }
+
+    if !cfg!(windows) && settings.modify_path {
+        let rc_files = settings
+            .rc_files
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let s = if settings.rc_files.len() > 1 { "s" } else { "" };
+        println!();
+        print_markdown!(
+            "\
+            This path will then be added to your `PATH` environment variable by \
+            modifying the profile file${s} located at:\n\
+            ```\n\
+                ${rc_files}\n\
+            ```\n\
+            \n\
+            ",
+            s = s,
+            rc_files = rc_files,
+        );
+    }
+
+    if !cfg!(windows) && !settings.modify_path && no_dir_in_path(&settings.installation_path) {
+        println!();
+        print_markdown!(
+            "\
+            Path `${installation_path}` should be added to the `PATH` manually \
+            after installation.\n\
+            \n\
+            ",
+            installation_path = settings.installation_path.display()
+        );
+    }
+
+    if !cfg!(windows) && !settings.modify_path && !no_dir_in_path(&settings.installation_path) {
+        println!();
+        print_markdown!(
+            "\
+            This path is already in your `PATH` environment variable, so no \
+            profile will be modified.\n\
+        "
+        );
+    }
 }
 
 pub fn no_dir_in_path(dir: &Path) -> bool {
@@ -219,18 +241,20 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
     if cfg!(windows) && settings.modify_path {
         print_markdown!(
             "\
-            # The EdgeDB command-line tool is now installed!\n\
+            # The ${name} command-line tool is now installed!\n\
             \n\
             The `${dir}` directory has been added to your `PATH`. You may\n\
             need to reopen the terminal for this change to take effect\n\
-            and for the `edgedb` command to become available.\
+            and for the `${cmd}` command to become available.\
             ",
+            name = BRANDING,
+            cmd = BRANDING_CLI_CMD,
             dir = settings.installation_path.display(),
         );
     } else if settings.modify_path {
         print_markdown!(
             "\
-            # The EdgeDB command-line tool is now installed!\n\
+            # The ${name} command-line tool is now installed!\n\
             \n\
             Your shell profile has been updated with ${dir} in your `PATH`.\n\
             It will be configured automatically the next time you open the terminal.\n\
@@ -240,14 +264,16 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
                 source \"${env_path}\"\n\
             ```\
             ",
+            name = BRANDING,
             dir = settings.installation_path.display(),
             env_path = settings.env_file.display(),
         );
     } else {
         print_markdown!(
             "\
-            # The EdgeDB command-line tool is now installed!\
-        "
+            # The ${name} command-line tool is now installed!\
+            ",
+            name = BRANDING,
         );
     }
     if is_zsh() {
@@ -280,9 +306,10 @@ fn print_post_install_message(settings: &Settings, init_result: anyhow::Result<I
         Ok(InitResult::Initialized) => {
             print_markdown!(
                 "\n\
-                `edgedb` without parameters will automatically\n\
+                `${cmd}` without parameters will automatically\n\
                 connect to the initialized project.\n\
-            "
+            ",
+                cmd = BRANDING_CLI_CMD
             );
         }
         Ok(InitResult::Refused | InitResult::NonInteractive) => {
@@ -561,7 +588,7 @@ fn _main(options: &CliInstall) -> anyhow::Result<()> {
         );
         let q = question::Confirm::new(format!(
             "\
-            Do you want to run `edgedb cli migrate` now to update \
+            Do you want to run `{BRANDING_CLI_CMD} cli migrate` now to update \
             the directory layout?\
         "
         ));
@@ -658,12 +685,12 @@ pub fn check_executables() {
 
     if exe_path.file_name().unwrap() == BRANDING_CLI_CMD_ALT_FILE {
         if new_executable.exists() {
-            log::warn!("{exe_path:?} is the old name for the {BRANDING_CLI_CMD_FILE} executable. \
-            Please update your scripts (and muscle memory) to use the new executable at {new_executable:?}.");
+            log::warn!("`{exe_path:?}` is the old name for the `{BRANDING_CLI_CMD_FILE}` executable. \
+            Please update your scripts (and muscle memory) to use the new executable at `{new_executable:?}`.");
         } else {
             log::warn!(
-                "{exe_path:?} is the old name for the {BRANDING_CLI_CMD_FILE} executable, but \
-            {BRANDING_CLI_CMD_FILE} does not exist. You may need to reinstall {BRANDING} to fix this."
+                "`{exe_path:?}` is the old name for the `{BRANDING_CLI_CMD_FILE}` executable, but \
+            `{BRANDING_CLI_CMD_FILE}` does not exist. You may need to reinstall `{BRANDING}` to fix this."
             );
         }
     }
@@ -684,8 +711,8 @@ pub fn check_executables() {
         match (length_old, length_new) {
             (Some(length_old), Some(length_new)) if length_old != length_new => {
                 log::warn!(
-                    "{old_executable:?} and {new_executable:?} have different sizes. \
-                You mean need to reinstall {BRANDING}."
+                    "`{old_executable:?}` and `{new_executable:?}` have different sizes. \
+                You may need to reinstall `{BRANDING}`."
                 );
             }
             _ => {}

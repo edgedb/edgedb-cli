@@ -2,7 +2,7 @@ use std::io::{stdout, Write};
 
 use anyhow::Context;
 
-use crate::branding::BRANDING;
+use crate::branding::{BRANDING, BRANDING_CLI_CMD};
 use crate::cloud;
 use crate::commands::ExitCode;
 use crate::options::{Options, UI};
@@ -123,7 +123,7 @@ fn _get_local_ui_url(cmd: &UI, cfg: &edgedb_tokio::Config) -> anyhow::Result<Str
                     log::info!("GET {} returned status code {}", url, status);
                     print::error!(
                         "Web UI not served correctly by specified {BRANDING} server. \
-                        Try `edgedb instance logs -I <instance_name>` to see details."
+                        Try `{BRANDING_CLI_CMD} instance logs -I <instance_name>` to see details."
                     );
                     return Err(ExitCode::new(3).into());
                 }

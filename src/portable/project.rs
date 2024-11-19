@@ -284,7 +284,7 @@ pub fn init(options: &Init, opts: &crate::options::Options) -> anyhow::Result<()
     if options.server_start_conf.is_some() {
         print::warn!(
             "The option `--server-start-conf` is deprecated. \
-                     Use `edgedb instance start/stop` to control \
+                     Use `{BRANDING_CLI_CMD} instance start/stop` to control \
                      the instance."
         );
     }
@@ -717,7 +717,7 @@ pub fn init_existing(
             let pkg = repository::get_server_package(&ver_query)?.with_context(|| {
                 format!(
                     "cannot find package matching {}. \
-                    (Use `edgedb server list-versions` to see all available)",
+                    (Use `{BRANDING_CLI_CMD} server list-versions` to see all available)",
                     ver_query.display()
                 )
             })?;
@@ -943,7 +943,7 @@ pub fn init_new(
         anyhow::bail!(
             "{CONFIG_FILE_DISPLAY_NAME} deleted after \
                        project initialization. \
-                       Please run `edgedb project unlink -D` to \
+                       Please run `{BRANDING_CLI_CMD} project unlink -D` to \
                        clean up old database instance."
         );
     }
@@ -1730,7 +1730,7 @@ pub fn info(options: &Info) -> anyhow::Result<()> {
     let stash_dir = get_stash_path(&root)?;
     if !stash_dir.exists() {
         msg!(
-            "{} {} Run `edgedb project init`.",
+            "{} {} Run `{BRANDING_CLI_CMD} project init`.",
             print::err_marker(),
             "Project is not initialized.".emphasize()
         );
@@ -1890,7 +1890,7 @@ pub fn update_toml(
     let pkg = repository::get_server_package(&query)?.with_context(|| {
         format!(
             "cannot find package matching {} \
-        (Use `edgedb server list-versions` to see all available)",
+            (Use `{BRANDING_CLI_CMD} server list-versions` to see all available)",
             query.display()
         )
     })?;
@@ -2063,7 +2063,7 @@ fn upgrade_local(
     let pkg = repository::get_server_package(to_version)?.with_context(|| {
         format!(
             "cannot find package matching {} \
-        (Use `edgedb server list-versions` to see all available)",
+            (Use `{BRANDING_CLI_CMD} server list-versions` to see all available)",
             to_version.display()
         )
     })?;

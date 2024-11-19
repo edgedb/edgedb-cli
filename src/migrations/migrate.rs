@@ -11,6 +11,7 @@ use indicatif::ProgressBar;
 use tokio::fs;
 
 use crate::async_try;
+use crate::branding::BRANDING_CLI_CMD;
 use crate::bug;
 use crate::commands::ExitCode;
 use crate::commands::Options;
@@ -171,9 +172,9 @@ async fn _migrate(
             )
             .with_hint(|| {
                 format!(
-                    "You might have a wrong or outdated source checkout. \
-                 If you don't, consider running `edgedb migration extract` \
-                 to bring the history in {0:?} in sync with the database.",
+                    "You might have an incorrect or outdated source checkout. \
+                     If you don't, consider running `{BRANDING_CLI_CMD} migration extract` \
+                     to bring the history in {:?} in sync with the database.",
                     ctx.schema_dir.join("migrations")
                 )
             }))?;
@@ -222,16 +223,14 @@ async fn fixup(
         .map(|kv| kv.1)
         .context("database migration history is empty")?;
     let last_db_mname = &last_db_migration.name;
+    let hint = migration_error_hint(ctx, last_db_migration);
     let Some(path) = find_path(migrations, &fixups, last_db_mname, target)? else {
         match last_db_migration.generated_by {
             Some(MigrationGeneratedBy::DevMode) => {
                 return Err(anyhow::anyhow!(
-                    "database contains Dev mode / `edgedb watch` migrations."
+                    "database contains Dev mode / `{BRANDING_CLI_CMD} watch` migrations."
                 )
-                .hint(
-                    "Use `edgedb migration create` followed by \
-                    `edgedb migrate --dev-mode`, or resume `edgedb watch`",
-                ))?;
+                .with_hint(hint))?;
             }
             Some(MigrationGeneratedBy::DDLStatement) | None => {
                 let last_fs_rev = migrations
@@ -252,25 +251,7 @@ async fn fixup(
                         diff.len(),
                         if diff.len() != 1 { "s" } else { "" },
                     )
-                    .with_hint(|| {
-                        if matches!(
-                            last_db_migration.generated_by,
-                            Some(MigrationGeneratedBy::DDLStatement)
-                        ) {
-                            format!(
-                                "Last recorded database migration is the result of \
-                            a direct DDL statement. \
-                            Consider running `edgedb migration extract` \
-                            to bring the history in {migrations_dir:?} in sync with the database."
-                            )
-                        } else {
-                            format!(
-                                "You might have a wrong or outdated source checkout. \
-                            If you don't, consider running `edgedb migration extract` \
-                            to bring the history in {migrations_dir:?} in sync with the database."
-                            )
-                        }
-                    }))?;
+                    .with_hint(hint))?;
                 }
 
                 let mut last_common_rev: Option<&str> = None;
@@ -290,25 +271,7 @@ async fn fixup(
                         migrations_dir,
                         last_common_rev,
                     )
-                    .with_hint(|| {
-                        if matches!(
-                            last_db_migration.generated_by,
-                            Some(MigrationGeneratedBy::DDLStatement)
-                        ) {
-                            format!(
-                                "Last recorded database migration is the result of \
-                            a direct DDL statement. \
-                            Consider running `edgedb migration extract` \
-                            to bring the history in {migrations_dir:?} in sync with the database."
-                            )
-                        } else {
-                            format!(
-                                "You might have a wrong or outdated source checkout. \
-                            If you don't, consider running `edgedb migration extract` \
-                            to bring the history in {migrations_dir:?} in sync with the database."
-                            )
-                        }
-                    }))?;
+                    .with_hint(hint))?;
                 }
 
                 // No revisions in common
@@ -317,13 +280,7 @@ async fn fixup(
                     unrelated to migration history in {:?}",
                     migrations_dir,
                 )
-                .with_hint(|| {
-                    format!(
-                        "You might have a wrong or outdated source checkout. \
-                    If you don't, consider running `edgedb migration extract` \
-                    to bring the history in {migrations_dir:?} in sync with the database.",
-                    )
-                }))?;
+                .with_hint(hint))?;
             }
         }
     };
@@ -359,6 +316,38 @@ async fn fixup(
 
     apply_migrations(cli, &operations, ctx, _options.single_transaction).await?;
     Ok(())
+}
+
+fn migration_error_hint<'a: 'b, 'b: 'a>(
+    ctx: &'a Context,
+    last_db_migration: &'b DBMigration,
+) -> impl Fn() -> String + 'a + 'b {
+    move || {
+        let migrations_dir = ctx.schema_dir.join("migrations");
+        match last_db_migration.generated_by {
+            Some(MigrationGeneratedBy::DevMode) => {
+                format!(
+                    "Use `{BRANDING_CLI_CMD} migration create` followed by \
+                    `{BRANDING_CLI_CMD} migrate --dev-mode`, or resume `{BRANDING_CLI_CMD} watch`"
+                )
+            }
+            Some(MigrationGeneratedBy::DDLStatement) => {
+                format!(
+                    "Last recorded database migration is the result of \
+                    a direct DDL statement. \
+                    Consider running `{BRANDING_CLI_CMD} migration extract` \
+                    to bring the history in {migrations_dir:?} in sync with the database."
+                )
+            }
+            _ => {
+                format!(
+                    "You might have an incorrect or outdated source checkout. \
+                    If you don't, consider running `{BRANDING_CLI_CMD} migration extract` \
+                    to bring the history in {migrations_dir:?} in sync with the database."
+                )
+            }
+        }
+    }
 }
 
 fn find_path<'a>(

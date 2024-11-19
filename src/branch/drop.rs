@@ -1,5 +1,6 @@
 use crate::branch::context::Context;
 use crate::branch::option::Drop;
+use crate::branding::BRANDING_CLI_CMD;
 use crate::commands::ExitCode;
 use crate::connect::Connection;
 use crate::portable::exit_codes;
@@ -15,7 +16,7 @@ pub async fn main(
     if current_branch == options.target_branch {
         anyhow::bail!(
             "Dropping the currently active branch is not supported, please switch to a \
-            different branch to drop this one with `edgedb branch switch <branch>`"
+            different branch to drop this one with `{BRANDING_CLI_CMD} branch switch <branch>`"
         );
     }
 

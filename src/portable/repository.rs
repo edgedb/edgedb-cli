@@ -16,14 +16,13 @@ use tokio::io::AsyncWriteExt;
 use url::Url;
 
 use crate::async_util::timeout;
-use crate::branding::BRANDING;
+use crate::branding::{BRANDING, BRANDING_CLI};
 use crate::cli::env::Env;
-use crate::portable::platform;
-use crate::portable::ver;
 use crate::portable::windows;
+use crate::portable::{platform, ver};
 use crate::process::IntoArg;
 
-pub const USER_AGENT: &str = "edgedb";
+pub const USER_AGENT: &str = BRANDING_CLI;
 pub const DEFAULT_TIMEOUT: Duration = Duration::new(60, 0);
 static PKG_ROOT: OnceCell<Url> = OnceCell::new();
 
