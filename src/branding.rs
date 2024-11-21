@@ -49,8 +49,4 @@ pub const BRANDING_USERNAME: &str = "edgedb";
 
 /// The OS pathname for data files.
 // TODO: Should this be "gel" as well?
-pub const BRANDING_PATH: &str = if cfg!(windows) {
-    "EdgeDB"
-} else {
-    "edgedb"
-};
+pub const BRANDING_PATH: &str = if cfg!(windows) { "EdgeDB" } else { "edgedb" };

@@ -15,7 +15,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use url::Url;
 
 use crate::async_util;
-use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_WSL, BRANDING_PATH};
+use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_PATH, BRANDING_WSL};
 use crate::bug;
 use crate::cli::env::Env;
 use crate::cli::upgrade::{self, self_version};
