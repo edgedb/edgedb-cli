@@ -92,7 +92,7 @@ extern "C" fn delete_docker_image() {
 fn dockerfile() -> String {
     format!(
         r###"
-        FROM ubuntu:mantic
+        FROM ubuntu:jammy
         ENV DEBIAN_FRONTEND=noninteractive
         RUN apt-get update && apt-get install -y \
             ca-certificates sudo gnupg2 apt-transport-https curl \

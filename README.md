@@ -62,7 +62,7 @@ There are a few categories of tests in this repo:
   - runs other tests in a docker container,
   - run with: `cargo test --features=docker_test_wrapper --test=docker_test_wrapper`,
   - requires Docker,
-  - requires that binaries compiled on host machine are runnable in "ubuntu:mantic",
+  - requires that binaries compiled on host machine are runnable in "ubuntu:jammy",
 
 - Github Actions & Nightly tests
 
