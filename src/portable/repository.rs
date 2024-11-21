@@ -18,8 +18,7 @@ use url::Url;
 use crate::async_util::timeout;
 use crate::branding::{BRANDING, BRANDING_CLI};
 use crate::cli::env::Env;
-use crate::portable::windows;
-use crate::portable::{platform, ver};
+use crate::portable::{platform, ver, windows};
 use crate::process::IntoArg;
 
 pub const USER_AGENT: &str = BRANDING_CLI;

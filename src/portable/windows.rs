@@ -15,7 +15,7 @@ use once_cell::sync::{Lazy, OnceCell};
 use url::Url;
 
 use crate::async_util;
-use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_WSL};
+use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_WSL, BRANDING_PATH};
 use crate::bug;
 use crate::cli::env::Env;
 use crate::cli::upgrade::{self, self_version};
@@ -522,7 +522,7 @@ fn get_wsl_distro(install: bool) -> anyhow::Result<Wsl> {
                 ),
             )?;
         } else {
-            let cache_path = download_dir.join("edgedb");
+            let cache_path = download_dir.join(BRANDING_PATH);
             download_binary(&cache_path)?;
             wsl_simple_cmd(
                 &wsl,

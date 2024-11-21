@@ -17,6 +17,7 @@ use rustyline::{Config, Context, Editor, Helper};
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot::Sender;
 
+use crate::branding::BRANDING_PATH;
 use crate::commands::backslash;
 use crate::completion;
 use crate::highlight;
@@ -200,7 +201,7 @@ pub fn load_history<H: rustyline::Helper, I: History>(
     name: &str,
 ) -> Result<(), anyhow::Error> {
     let dir = data_local_dir().context("cannot find local data dir")?;
-    let app_dir = dir.join("edgedb");
+    let app_dir = dir.join(BRANDING_PATH);
     match ed.load_history(&app_dir.join(format!("{name}.history"))) {
         Err(ReadlineError::Io(e)) if e.kind() == ErrorKind::NotFound => {}
         Err(e) => return Err(e).context("error loading history")?,
@@ -214,7 +215,7 @@ fn _save_history<H: Helper, I: History>(
     name: &str,
 ) -> Result<(), anyhow::Error> {
     let dir = data_local_dir().context("cannot find local data dir")?;
-    let app_dir = dir.join("edgedb");
+    let app_dir = dir.join(BRANDING_PATH);
     if !app_dir.exists() {
         fs::create_dir_all(&app_dir).context("cannot create application dir")?;
     }
