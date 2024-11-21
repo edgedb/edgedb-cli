@@ -4,7 +4,7 @@
 use std::env;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::{stdout, BufWriter, IsTerminal, Seek, SeekFrom, Write};
+use std::io::{stdout, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::str::FromStr;
@@ -101,91 +101,6 @@ pub struct Settings {
 
 fn print_long_description(settings: &Settings) {
     println!();
-
-    if print::use_utf8() && cfg!(feature = "gel") {
-        let logo = include_str!("logo.txt");
-        let lines = logo.lines().collect::<Vec<_>>();
-        let line_count = lines.len() as u16;
-        let line_width = lines.iter().map(|line| line.chars().count()).max().unwrap();
-
-        if !cfg!(windows) && print::use_color() && stdout().is_terminal() {
-            macro_rules! write_ansi {
-                ($($args:tt)*) => {
-                    _ = write!(stdout(), "{}",$($args)*);
-                }
-            }
-
-            use anes::*;
-
-            const TRAILING_HIGHLIGHT_COLS: usize = 5;
-            const FRAME_DELAY: u64 = 35;
-
-            let normal = |c| {
-                write_ansi!(ResetAttributes);
-                write_ansi!(SetAttribute(Attribute::Bold));
-                if c == '$' {
-                    write_ansi!(SetForegroundColor(Color::Magenta));
-                } else {
-                    write_ansi!(SetForegroundColor(Color::Yellow));
-                }
-                write_ansi!(SetAttribute(Attribute::Bold));
-            };
-
-            let highlight = || {
-                write_ansi!(SetForegroundColor(Color::White));
-            };
-
-            for line in &lines {
-                for char in line.chars() {
-                    normal(char);
-                    write_ansi!(char);
-                }
-                write_ansi!("\n");
-            }
-            write_ansi!("\n");
-
-            write_ansi!(SaveCursorPosition);
-            write_ansi!(HideCursor);
-
-            for col in 0..line_width + TRAILING_HIGHLIGHT_COLS {
-                _ = stdout().flush();
-                std::thread::sleep(std::time::Duration::from_millis(FRAME_DELAY));
-
-                write_ansi!(MoveCursorUp(line_count + 1));
-                for line in &lines {
-                    // Unhighlight the previous trailing column
-                    if col >= TRAILING_HIGHLIGHT_COLS {
-                        write_ansi!(MoveCursorLeft(TRAILING_HIGHLIGHT_COLS as u16));
-                        let char = line
-                            .chars()
-                            .nth(col - TRAILING_HIGHLIGHT_COLS)
-                            .unwrap_or(' ');
-                        normal(char);
-                        write_ansi!(char);
-                        if TRAILING_HIGHLIGHT_COLS > 1 {
-                            write_ansi!(MoveCursorRight((TRAILING_HIGHLIGHT_COLS - 1) as u16));
-                        }
-                    }
-                    if let Some(c) = line.chars().nth(col) {
-                        highlight();
-                        write_ansi!(c);
-                    } else {
-                        normal(' ');
-                        write_ansi!(' ');
-                    }
-                    write_ansi!(MoveCursorLeft(1 as u16));
-                    write_ansi!(MoveCursorDown(1 as u16));
-                }
-                write_ansi!(MoveCursorDown(1 as u16));
-                write_ansi!(MoveCursorRight(1 as u16));
-            }
-            write_ansi!(ShowCursor);
-            write_ansi!(RestoreCursorPosition);
-            write_ansi!(ResetAttributes);
-        } else {
-            println!("{}", logo);
-        }
-    }
 
     print_logo(true, false);
 
