@@ -37,7 +37,7 @@ use crate::migrations::prompt;
 use crate::migrations::source_map::{Builder, SourceMap};
 use crate::migrations::squash;
 use crate::migrations::timeout;
-use crate::platform::tmp_file_name;
+use crate::platform::{is_legacy_schema_file, is_schema_file, tmp_file_name};
 use crate::print;
 use crate::print::style::Styler;
 use crate::question;
@@ -146,8 +146,8 @@ struct SplitMigration;
 struct CantResolve;
 
 #[derive(Debug, thiserror::Error)]
-#[error("cannot proceed until .esdl files are fixed")]
-pub struct EsdlError;
+#[error("cannot proceed until schema files are fixed")]
+pub struct SchemaFileError;
 
 impl FutureMigration {
     fn new(key: MigrationKey, descr: CurrentMigration) -> Self {
@@ -272,15 +272,25 @@ async fn gen_start_migration(ctx: &Context) -> anyhow::Result<(String, SourceMap
     };
 
     let mut paths: Vec<PathBuf> = Vec::new();
+    let mut has_legacy_paths: bool = false;
     while let Some(item) = dir.next_entry().await? {
         let fname = item.file_name();
         let lossy_name = fname.to_string_lossy();
         if !lossy_name.starts_with('.')
-            && lossy_name.ends_with(".esdl")
+            && is_schema_file(&lossy_name)
             && item.file_type().await?.is_file()
         {
-            paths.push(item.path())
+            paths.push(item.path());
+            if is_legacy_schema_file(&lossy_name) {
+                has_legacy_paths = true;
+            }
         }
+    }
+
+    if has_legacy_paths {
+        print::warn!(
+            "Legacy schema file extension '.esdl' detected. Consider renaming them to '.gel'."
+        );
     }
 
     paths.sort();
@@ -301,7 +311,7 @@ pub async fn execute_start_migration(ctx: &Context, cli: &mut Connection) -> any
         Ok(_) => Ok(()),
         Err(e) if e.is::<QueryError>() => {
             print_migration_error(&e, &source_map)?;
-            Err(EsdlError)?
+            Err(SchemaFileError)?
         }
         Err(e) => Err(e)?,
     }

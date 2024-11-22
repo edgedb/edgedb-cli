@@ -19,7 +19,9 @@ use edgedb_tokio::Builder;
 use edgeql_parser::helpers::quote_name;
 
 use crate::branding::BRANDING_CLOUD;
-use crate::branding::{BRANDING, BRANDING_CLI_CMD, CONFIG_FILE_DISPLAY_NAME};
+use crate::branding::{
+    BRANDING, BRANDING_CLI_CMD, BRANDING_SCHEMA_FILE_EXT, CONFIG_FILE_DISPLAY_NAME,
+};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::commands::ExitCode;
@@ -29,7 +31,7 @@ use crate::credentials;
 use crate::migrations;
 use crate::options::CloudOptions;
 use crate::platform::{bytes_to_path, path_bytes};
-use crate::platform::{config_dir, symlink_dir, tmp_file_path};
+use crate::platform::{config_dir, is_schema_file, symlink_dir, tmp_file_path};
 use crate::portable::config;
 use crate::portable::control;
 use crate::portable::create;
@@ -49,13 +51,13 @@ use crate::print::{self, msg, Highlight};
 use crate::question;
 use crate::table;
 
-const DEFAULT_ESDL: &str = "\
+const DEFAULT_SCHEMA: &str = "\
     module default {\n\
     \n\
     }\n\
 ";
 
-const FUTURES_ESDL: &str = "\
+const FUTURES_SCHEMA: &str = "\
     # Disable the application of access policies within access policies\n\
     # themselves. This behavior will become the default in EdgeDB 3.0.\n\
     # See: https://www.edgedb.com/docs/reference/ddl/access_policies#nonrecursive\n\
@@ -1402,12 +1404,12 @@ fn find_schema_files(path: &Path) -> anyhow::Result<bool> {
     };
     for item in dir {
         let entry = item?;
-        let is_esdl = entry
+        let is_schema_file = entry
             .file_name()
             .to_str()
-            .map(|x| x.ends_with(".esdl"))
+            .map(is_schema_file)
             .unwrap_or(false);
-        if is_esdl {
+        if is_schema_file {
             return Ok(true);
         }
     }
@@ -1436,17 +1438,17 @@ fn print_initialized(name: &str, dir_option: &Option<PathBuf>) {
 fn write_schema_default(dir: &Path, version: &Query) -> anyhow::Result<()> {
     fs::create_dir_all(dir)?;
     fs::create_dir_all(dir.join("migrations"))?;
-    let default = dir.join("default.esdl");
+    let default = dir.join(format!("default.{BRANDING_SCHEMA_FILE_EXT}"));
     let tmp = tmp_file_path(&default);
     fs::remove_file(&tmp).ok();
-    fs::write(&tmp, DEFAULT_ESDL)?;
+    fs::write(&tmp, DEFAULT_SCHEMA)?;
     fs::rename(&tmp, &default)?;
 
     if version.is_nonrecursive_access_policies_needed() {
-        let futures = dir.join("futures.esdl");
+        let futures = dir.join(format!("futures.{BRANDING_SCHEMA_FILE_EXT}"));
         let tmp = tmp_file_path(&futures);
         fs::remove_file(&tmp).ok();
-        fs::write(&tmp, FUTURES_ESDL)?;
+        fs::write(&tmp, FUTURES_SCHEMA)?;
         fs::rename(&tmp, &futures)?;
     };
     Ok(())

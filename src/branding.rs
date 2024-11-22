@@ -37,6 +37,15 @@ pub const BRANDING_CLI_CMD_ALT_FILE: &str = if cfg!(windows) {
     BRANDING_CLI_CMD_ALT
 };
 
+//
+pub const BRANDING_SCHEMA_FILE_EXT_GEL: &str = "gel";
+pub const BRANDING_SCHEMA_FILE_EXT_ESDL: &str = "esdl";
+pub const BRANDING_SCHEMA_FILE_EXT: &str = if cfg!(feature = "gel") {
+    BRANDING_SCHEMA_FILE_EXT_GEL
+} else {
+    BRANDING_SCHEMA_FILE_EXT_ESDL
+};
+
 /// The WSL distribution name.
 pub const BRANDING_WSL: &str = "EdgeDB.WSL.1";
 
