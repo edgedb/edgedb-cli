@@ -4,9 +4,7 @@
 use std::env;
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::io::{stdout, BufWriter, Write};
+use std::io::{stdout, BufWriter, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::str::FromStr;
@@ -21,6 +19,7 @@ use prettytable::{Cell, Row, Table};
 use crate::branding::BRANDING_CLI_CMD_ALT_FILE;
 use crate::branding::BRANDING_CLI_CMD_FILE;
 use crate::branding::{BRANDING, BRANDING_CLI, BRANDING_CLI_CMD};
+use crate::cli::logo::print_logo;
 use crate::cli::{migrate, upgrade};
 use crate::commands::ExitCode;
 use crate::options::Options;
@@ -102,6 +101,8 @@ pub struct Settings {
 
 fn print_long_description(settings: &Settings) {
     println!();
+
+    print_logo(true, false);
 
     print_markdown!(
         "\

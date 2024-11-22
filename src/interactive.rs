@@ -22,6 +22,7 @@ use edgeql_parser::preparser::{self, full_statement};
 
 use crate::analyze;
 use crate::classify;
+use crate::cli::logo::print_logo;
 use crate::commands::{backslash, ExitCode};
 use crate::config::Config;
 use crate::credentials;
@@ -143,6 +144,7 @@ pub fn main(options: Options, cfg: Config) -> Result<(), anyhow::Error> {
         edgeql_state: State::empty(),
         current_branch: None,
     };
+    print_logo(false, true);
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;

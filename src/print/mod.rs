@@ -2,6 +2,7 @@ use std::convert::Infallible;
 use std::error::Error;
 use std::fmt;
 use std::io;
+use std::sync::OnceLock;
 
 use colorful::{Color, Colorful};
 use const_format::concatcp;
@@ -379,6 +380,26 @@ pub fn json_item_to_string<I: FormatExt>(item: &I, config: &Config) -> Result<St
     Ok(out)
 }
 
+/// Does this terminal support UTF-8?
+pub fn use_utf8() -> bool {
+    static UTF8_ENV: OnceLock<bool> = OnceLock::new();
+
+    let utf8_env = UTF8_ENV.get_or_init(|| {
+        let env_vars = ["LANG", "LC_CTYPE", "LC_ALL"];
+        env_vars.iter().any(|var| {
+            std::env::var_os(var)
+                .map(|v| {
+                    let v = v.to_str().unwrap_or_default();
+                    v.contains("UTF8") || v.contains("UTF-8")
+                })
+                .unwrap_or(false)
+        })
+    });
+
+    cfg!(windows) || *utf8_env
+}
+
+/// Does this terminal support ANSI colors?
 pub fn use_color() -> bool {
     concolor::get(concolor::Stream::Stdout).ansi_color()
 }
