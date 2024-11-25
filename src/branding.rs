@@ -42,3 +42,12 @@ pub const BRANDING_WSL: &str = "EdgeDB.WSL.1";
 
 /// The display name for the configuration file.
 pub const CONFIG_FILE_DISPLAY_NAME: &str = "`gel.toml` (or `edgedb.toml`)";
+
+/// The database/OS username.
+// TODO: This should become "admin"
+pub const BRANDING_USERNAME: &str = "edgedb";
+
+/// The OS pathname for data files.
+// TODO: Should this be "gel" as well?
+// WARNING: This requires will require a migration strategy if we decide to change it
+pub const BRANDING_PATH: &str = if cfg!(windows) { "EdgeDB" } else { "edgedb" };

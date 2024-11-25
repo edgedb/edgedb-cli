@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::branding::BRANDING_CLI_CMD_FILE;
+use crate::branding::{BRANDING_CLI_CMD_FILE, BRANDING_PATH};
 use crate::cli::env::Env;
 
 #[cfg(windows)]
@@ -28,12 +28,12 @@ pub fn cache_dir() -> anyhow::Result<PathBuf> {
     let dir = if cfg!(windows) {
         dirs::data_local_dir()
             .context("cannot determine local data directory")?
-            .join("EdgeDB")
+            .join(BRANDING_PATH)
             .join("cache")
     } else {
         dirs::cache_dir()
             .context("cannot determine cache directory")?
-            .join("edgedb")
+            .join(BRANDING_PATH)
     };
     Ok(dir)
 }
@@ -46,12 +46,12 @@ pub fn config_dir() -> anyhow::Result<PathBuf> {
     let dir = if cfg!(windows) {
         dirs::data_local_dir()
             .context("cannot determine local data directory")?
-            .join("EdgeDB")
+            .join(BRANDING_PATH)
             .join("config")
     } else {
         dirs::config_dir()
             .context("cannot determine config directory")?
-            .join("edgedb")
+            .join(BRANDING_PATH)
     };
     Ok(dir)
 }
@@ -128,7 +128,7 @@ pub fn binary_path() -> anyhow::Result<PathBuf> {
         // windows and macos fit this branch
         None => dirs::data_dir()
             .context("cannot determine local data directory")?
-            .join("edgedb")
+            .join(BRANDING_PATH)
             .join("bin"),
     };
     Ok(dir.join(BRANDING_CLI_CMD_FILE))
@@ -137,14 +137,14 @@ pub fn binary_path() -> anyhow::Result<PathBuf> {
 pub fn data_dir() -> anyhow::Result<PathBuf> {
     Ok(dirs::data_dir()
         .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-        .join("edgedb")
+        .join(BRANDING_PATH)
         .join("data"))
 }
 
 pub fn portable_dir() -> anyhow::Result<PathBuf> {
     Ok(dirs::data_dir()
         .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-        .join("edgedb")
+        .join(BRANDING_PATH)
         .join("portable"))
 }
 
@@ -152,7 +152,7 @@ pub fn portable_dir() -> anyhow::Result<PathBuf> {
 pub fn wsl_dir() -> anyhow::Result<PathBuf> {
     Ok(dirs::data_dir()
         .ok_or_else(|| anyhow::anyhow!("Can't determine data directory"))?
-        .join("edgedb")
+        .join(BRANDING_PATH)
         .join("wsl"))
 }
 
