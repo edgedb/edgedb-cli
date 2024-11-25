@@ -800,7 +800,18 @@ fn error() {
         .arg("empty_err")
         .assert()
         .success();
-    let err = if SERVER.0.version_major >= 4 {
+    let err = if SERVER.0.version_major >= 6 {
+        r###"error: Unexpected keyword 'CREATE'
+  ┌─ tests/migrations/db1/error/bad.esdl:3:9
+  │
+3 │         create property text -> str;
+  │         ^^^^^^ Use a different identifier or quote the name with backticks: `create`
+  │
+  = This name is a reserved keyword and cannot be used as an identifier
+
+edgedb error: cannot proceed until schema files are fixed
+"###
+    } else if SERVER.0.version_major >= 4 {
         r###"error: Unexpected keyword 'CREATE'
   ┌─ tests/migrations/db1/error/bad.esdl:3:9
   │
@@ -1071,6 +1082,29 @@ fn input_required() {
 
 #[test]
 fn eof_err() {
+    let err = if SERVER.0.version_major >= 6 {
+        r###"error: Missing '{'
+   ┌─ tests/migrations/db_eof_err/default.esdl:9:19
+   │  
+ 9 │   alias default::Foo
+   │ ╭──────────────────^
+10 │ │ 
+   │ ╰^ error
+
+edgedb error: cannot proceed until schema files are fixed
+"###
+    } else {
+        r###"error: Missing '{'
+   ┌─ tests/migrations/db_eof_err/default.esdl:9:19
+   │  
+ 9 │   alias default::Foo
+   │ ╭──────────────────^
+10 │ │ 
+   │ ╰^ error
+
+edgedb error: cannot proceed until .esdl files are fixed
+"###
+    };
     SERVER
         .admin_cmd()
         .arg("database")
@@ -1087,18 +1121,7 @@ fn eof_err() {
         .env("NO_COLOR", "1")
         .assert()
         .code(1)
-        .stderr(ends_with(
-            r###"error: Missing '{'
-   ┌─ tests/migrations/db_eof_err/default.esdl:9:19
-   │  
- 9 │   alias default::Foo
-   │ ╭──────────────────^
-10 │ │ 
-   │ ╰^ error
-
-edgedb error: cannot proceed until .esdl files are fixed
-"###,
-        ));
+        .stderr(ends_with(err));
 }
 
 #[test]

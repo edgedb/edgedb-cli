@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use fn_error_context::context;
 
-use crate::branding::BRANDING_CLI_CMD_FILE;
+use crate::branding::{
+    BRANDING_CLI_CMD_FILE, BRANDING_SCHEMA_FILE_EXT_ESDL, BRANDING_SCHEMA_FILE_EXT_GEL,
+};
 use crate::cli::env::Env;
 
 #[cfg(windows)]
@@ -132,6 +134,15 @@ pub fn binary_path() -> anyhow::Result<PathBuf> {
             .join("bin"),
     };
     Ok(dir.join(BRANDING_CLI_CMD_FILE))
+}
+
+pub fn is_legacy_schema_file(filename: &str) -> bool {
+    filename.ends_with(&format!(".{BRANDING_SCHEMA_FILE_EXT_ESDL}"))
+}
+
+pub fn is_schema_file(filename: &str) -> bool {
+    filename.ends_with(&format!(".{BRANDING_SCHEMA_FILE_EXT_ESDL}"))
+        || filename.ends_with(&format!(".{BRANDING_SCHEMA_FILE_EXT_GEL}"))
 }
 
 pub fn data_dir() -> anyhow::Result<PathBuf> {

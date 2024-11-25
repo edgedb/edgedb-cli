@@ -13,7 +13,7 @@ use crate::branding::BRANDING_CLI_CMD;
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::migrations::context::Context;
-use crate::migrations::create::{execute_start_migration, EsdlError};
+use crate::migrations::create::{execute_start_migration, SchemaFileError};
 use crate::migrations::edb::{execute, execute_if_connected};
 use crate::migrations::migrate::{apply_migration, ApplyMigrationError};
 use crate::migrations::migration;
@@ -245,7 +245,7 @@ async fn single_check(ctx: &Context, cli: &mut Connection) -> anyhow::Result<Che
         Ok(()) => {
             execute(cli, "ABORT MIGRATION", None).await?;
         }
-        Err(e) if e.is::<EsdlError>() => {
+        Err(e) if e.is::<SchemaFileError>() => {
             print::warn!(
                 "Schema incompatibilities found. \
                   Please fix the errors above to proceed.",
