@@ -139,6 +139,7 @@ pub fn binary_path() -> anyhow::Result<PathBuf> {
 pub fn is_legacy_schema_file(filename: &str) -> bool {
     filename.ends_with(&format!(".{BRANDING_SCHEMA_FILE_EXT_ESDL}"))
 }
+
 pub fn is_schema_file(filename: &str) -> bool {
     filename.ends_with(&format!(".{BRANDING_SCHEMA_FILE_EXT_ESDL}"))
         || filename.ends_with(&format!(".{BRANDING_SCHEMA_FILE_EXT_GEL}"))
