@@ -603,6 +603,9 @@ pub enum ValueParameter {
     /// HTTP connections for the `std::net::http` module.
     HttpMaxConnections(ConfigStr),
 
+    /// The name of the current email provider.
+    CurrentEmailProviderName(ConfigStr),
+
     /// Whether to use the new simple scoping behavior (disable path factoring).
     SimpleScoping(ConfigStr),
 
@@ -656,6 +659,8 @@ pub enum ConfigParameter {
     StoreMigrationSdl,
     /// The maximum number of concurrent HTTP connections.
     HttpMaxConnections,
+    /// The name of the current email provider.
+    CurrentEmailProviderName,
     /// Whether to use the new simple scoping behavior.
     SimpleScoping,
     /// Whether to warn when depending on old scoping behavior.

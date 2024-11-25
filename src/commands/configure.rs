@@ -201,6 +201,9 @@ pub async fn configure(
             parameter: S::HttpMaxConnections(ConfigStr { value }),
         }) => set(cli, "http_max_connections", None, value).await,
         C::Set(Set {
+            parameter: S::CurrentEmailProviderName(ConfigStr { value }),
+        }) => set(cli, "current_email_provider_name", None, value).await,
+        C::Set(Set {
             parameter: S::SimpleScoping(ConfigStr { value }),
         }) => set(cli, "simple_scoping", None, value).await,
         C::Set(Set {
@@ -230,6 +233,7 @@ pub async fn configure(
                 C::AutoRebuildQueryCacheTimeout => "auto_rebuild_query_cache_timeout",
                 C::StoreMigrationSdl => "store_migration_sdl",
                 C::HttpMaxConnections => "http_max_connections",
+                C::CurrentEmailProviderName => "current_email_provider_name",
                 C::SimpleScoping => "simple_scoping",
                 C::WarnOldScoping => "warn_old_scoping",
             };
