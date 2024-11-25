@@ -9,7 +9,7 @@ use tokio::fs;
 use tokio::sync::watch;
 
 use crate::async_try;
-use crate::branding::BRANDING_CLI_CMD;
+use crate::branding::{BRANDING_CLI_CMD, QUERY_TAG};
 use crate::commands::{ExitCode, Options};
 use crate::connect::Connection;
 use crate::migrations::context::Context;
@@ -184,7 +184,7 @@ async fn do_check(ctx: &Context, status_file: &Path, watch: bool) -> anyhow::Res
         .pem_certificates(&cert_data)?
         .constrained_build()
         .context("cannot build connection params")?;
-    let cli = &mut Connection::connect(&config).await?;
+    let cli = &mut Connection::connect(&config, QUERY_TAG).await?;
 
     if fs::metadata(&ctx.schema_dir).await.is_err() {
         anyhow::bail!("No schema dir found at {:?}", ctx.schema_dir);

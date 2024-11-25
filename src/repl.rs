@@ -185,6 +185,7 @@ impl State {
         let mut params = self.conn_params.clone();
         params.branch(branch)?;
         let mut conn = params.connect_interactive().await?;
+        conn.set_tag("gel/repl");
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_ref() != Some(fetched_version) {
             self.print_banner(fetched_version)?;

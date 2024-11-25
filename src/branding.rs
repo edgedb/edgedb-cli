@@ -50,3 +50,7 @@ pub const BRANDING_WSL: &str = "EdgeDB.WSL.1";
 
 /// The display name for the configuration file.
 pub const CONFIG_FILE_DISPLAY_NAME: &str = "`gel.toml` (or `edgedb.toml`)";
+
+/// The default query tag for server statistics.
+pub const QUERY_TAG: &str = "gel/cli";
+pub const REPL_QUERY_TAG: &str = "gel/repl";
