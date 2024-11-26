@@ -7,7 +7,7 @@ use anyhow::Context;
 use const_format::concatcp;
 use fn_error_context::context;
 
-use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD};
+use crate::branding::{BRANDING, BRANDING_CLI_CMD, BRANDING_CLOUD, QUERY_TAG};
 use crate::cloud;
 use crate::commands::{self, ExitCode};
 use crate::connect::{Connection, Connector};
@@ -404,7 +404,7 @@ pub async fn dump_instance(inst: &InstanceInfo, destination: &Path) -> anyhow::R
     }
     let conn_params = inst.admin_conn_params()?;
     let config = conn_params.build_env().await?;
-    let mut cli = Connection::connect(&config).await?;
+    let mut cli = Connection::connect(&config, QUERY_TAG).await?;
     let options = commands::Options {
         command_line: true,
         styler: None,
@@ -493,7 +493,7 @@ async fn restore_instance(inst: &InstanceInfo, path: &Path) -> anyhow::Result<()
 
     log::info!("Restoring instance {:?}", inst.name);
     let cfg = conn_params.build_env().await?;
-    let mut cli = Connection::connect(&cfg).await?;
+    let mut cli = Connection::connect(&cfg, QUERY_TAG).await?;
 
     let options = commands::Options {
         command_line: true,

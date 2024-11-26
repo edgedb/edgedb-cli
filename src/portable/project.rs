@@ -19,6 +19,7 @@ use edgedb_tokio::Builder;
 use edgeql_parser::helpers::quote_name;
 
 use crate::branding::BRANDING_CLOUD;
+use crate::branding::QUERY_TAG;
 use crate::branding::{
     BRANDING, BRANDING_CLI_CMD, BRANDING_SCHEMA_FILE_EXT, CONFIG_FILE_DISPLAY_NAME,
 };
@@ -1172,7 +1173,7 @@ async fn create_database_async(inst: &Handle<'_>) -> anyhow::Result<()> {
     if name == config.database() {
         return Ok(());
     }
-    let mut conn = Connection::connect(&config).await?;
+    let mut conn = Connection::connect(&config, QUERY_TAG).await?;
     ensure_database(&mut conn, name).await?;
     Ok(())
 }
@@ -1365,10 +1366,10 @@ impl Handle<'_> {
         Ok(builder)
     }
     pub async fn get_default_connection(&self) -> anyhow::Result<Connection> {
-        Ok(Connection::connect(&self.get_default_builder()?.build_env().await?).await?)
+        Ok(Connection::connect(&self.get_default_builder()?.build_env().await?, QUERY_TAG).await?)
     }
     pub async fn get_connection(&self) -> anyhow::Result<Connection> {
-        Ok(Connection::connect(&self.get_builder()?.build_env().await?).await?)
+        Ok(Connection::connect(&self.get_builder()?.build_env().await?, QUERY_TAG).await?)
     }
     #[tokio::main(flavor = "current_thread")]
     pub async fn get_version(&self) -> anyhow::Result<ver::Build> {

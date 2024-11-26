@@ -20,7 +20,7 @@ use edgedb_protocol::value::Value;
 
 use crate::analyze;
 use crate::async_util::timeout;
-use crate::branding::BRANDING;
+use crate::branding::{BRANDING, REPL_QUERY_TAG};
 use crate::connect::Connection;
 use crate::connect::Connector;
 use crate::portable::ver;
@@ -185,6 +185,7 @@ impl State {
         let mut params = self.conn_params.clone();
         params.branch(branch)?;
         let mut conn = params.connect_interactive().await?;
+        conn.set_tag(REPL_QUERY_TAG);
         let fetched_version = conn.get_version().await?;
         if self.last_version.as_ref() != Some(fetched_version) {
             self.print_banner(fetched_version)?;

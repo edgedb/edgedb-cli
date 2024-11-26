@@ -9,7 +9,7 @@ use rand::{Rng, SeedableRng};
 use edgedb_tokio::credentials::Credentials;
 use edgeql_parser::helpers::{quote_name, quote_string};
 
-use crate::branding::BRANDING_CLOUD;
+use crate::branding::{BRANDING_CLOUD, QUERY_TAG};
 use crate::commands::ExitCode;
 use crate::connect::Connection;
 use crate::credentials;
@@ -91,7 +91,7 @@ pub fn reset_password(options: &ResetPassword) -> anyhow::Result<()> {
         .build()?
         .block_on(async {
             let conn_params = inst.admin_conn_params()?.constrained_build()?;
-            let mut cli = Connection::connect(&conn_params).await?;
+            let mut cli = Connection::connect(&conn_params, QUERY_TAG).await?;
             cli.execute(
                 &format!(
                     r###"

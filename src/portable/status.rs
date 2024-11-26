@@ -18,7 +18,7 @@ use tokio::time::sleep;
 use crate::connect::Connection;
 use edgedb_tokio::{credentials::Credentials, Builder};
 
-use crate::branding::BRANDING_CLOUD;
+use crate::branding::{BRANDING_CLOUD, QUERY_TAG};
 use crate::cloud;
 use crate::cloud::client::CloudClient;
 use crate::collect::Collector;
@@ -278,7 +278,7 @@ fn cloud_status(
 
 async fn try_get_version(creds: &Credentials) -> anyhow::Result<String> {
     let config = Builder::new().credentials(creds)?.constrained_build()?;
-    let mut conn = Connection::connect(&config).await?;
+    let mut conn = Connection::connect(&config, QUERY_TAG).await?;
     let ver = conn
         .query_required_single("SELECT sys::get_version_as_str()", &())
         .await

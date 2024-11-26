@@ -33,10 +33,10 @@ heck = "0.5.0"
 
 [dependencies]
 edgeql-parser = {git = "https://github.com/edgedb/edgedb"}
-edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust/", rev = "e27f385252302f64f554015d5a6a1f0d43651d0f", features=["all-types"]}
-edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust/", rev = "e27f385252302f64f554015d5a6a1f0d43651d0f"}
-edgedb-errors = {git = "https://github.com/edgedb/edgedb-rust/", rev = "e27f385252302f64f554015d5a6a1f0d43651d0f"}
-edgedb-tokio = {git = "https://github.com/edgedb/edgedb-rust/", rev = "e27f385252302f64f554015d5a6a1f0d43651d0f", features=["admin_socket", "unstable"]}
+edgedb-protocol = {git = "https://github.com/edgedb/edgedb-rust/", features=["all-types"]}
+edgedb-derive = {git = "https://github.com/edgedb/edgedb-rust/"}
+edgedb-errors = {git = "https://github.com/edgedb/edgedb-rust/"}
+edgedb-tokio = {git = "https://github.com/edgedb/edgedb-rust/", features=["admin_socket", "unstable"]}
 snafu = "0.8.4"
 ansi-escapes = "0.2"
 anyhow = "1.0.23"

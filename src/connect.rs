@@ -3,6 +3,7 @@ use std::error::Error as StdError;
 use std::future::{pending, Future};
 use std::mem;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -16,6 +17,7 @@ use edgedb_errors::{Error, ErrorKind, ResultExt};
 use edgedb_protocol::client_message::{CompilationOptions, State};
 use edgedb_protocol::common::{Capabilities, Cardinality, IoFormat};
 use edgedb_protocol::descriptors::{RawTypedesc, Typedesc};
+use edgedb_protocol::encoding::Annotations;
 use edgedb_protocol::features::ProtocolVersion;
 use edgedb_protocol::model::Uuid;
 use edgedb_protocol::query_arg::QueryArgs;
@@ -28,7 +30,7 @@ use edgedb_tokio::raw::{self, PoolState, Response};
 use edgedb_tokio::server_params::ServerParam;
 use edgedb_tokio::Config;
 
-use crate::branding::{BRANDING, BRANDING_CLOUD};
+use crate::branding::{BRANDING, BRANDING_CLOUD, QUERY_TAG, REPL_QUERY_TAG};
 use crate::hint::ArcError;
 use crate::portable::ver;
 
@@ -53,6 +55,7 @@ pub struct Connection {
     server_version: Option<ver::Build>,
     state: State,
     config: Config,
+    annotations: Arc<Annotations>,
 }
 
 pub struct ResponseStream<'a, T: QueryResult>
@@ -170,8 +173,13 @@ impl Connector {
 
     async fn _connect(&self, interactive: bool) -> Result<Connection, anyhow::Error> {
         let cfg = self.config.as_ref().map_err(Clone::clone)?;
+        let tag = if interactive {
+            REPL_QUERY_TAG
+        } else {
+            QUERY_TAG
+        };
         let conn = tokio::select!(
-            conn = Connection::connect(cfg) => conn?,
+            conn = Connection::connect(cfg, tag) => conn?,
             _ = self.print_warning(cfg, interactive) => unreachable!(),
         );
         Ok(conn)
@@ -207,7 +215,9 @@ impl Connector {
 }
 
 impl Connection {
-    pub async fn connect(cfg: &Config) -> Result<Connection, ConnectionError> {
+    pub async fn connect(cfg: &Config, tag: impl ToString) -> Result<Connection, ConnectionError> {
+        let mut annotations = Annotations::new();
+        annotations.insert("tag".to_string(), tag.to_string());
         Ok(Connection {
             inner: raw::Connection::connect(cfg)
                 .await
@@ -215,6 +225,7 @@ impl Connection {
             state: State::empty(),
             server_version: None,
             config: cfg.clone(),
+            annotations: Arc::new(annotations),
         })
     }
 
@@ -257,6 +268,7 @@ impl Connection {
                 "SELECT sys::get_version_as_str()",
                 &(),
                 &state,
+                &self.annotations,
                 Capabilities::empty(),
                 IoFormat::Binary,
                 Cardinality::AtMostOne,
@@ -278,6 +290,7 @@ impl Connection {
                     "SELECT sys::get_current_database()",
                     &(),
                     &state,
+                    &self.annotations,
                     Capabilities::empty(),
                     IoFormat::Binary,
                     Cardinality::AtMostOne,
@@ -299,6 +312,7 @@ impl Connection {
                 query,
                 arguments,
                 &self.state,
+                &self.annotations,
                 Capabilities::ALL,
                 IoFormat::Binary,
                 Cardinality::Many,
@@ -322,6 +336,7 @@ impl Connection {
                 query,
                 arguments,
                 &self.state,
+                &self.annotations,
                 Capabilities::ALL,
                 IoFormat::Binary,
                 Cardinality::AtMostOne,
@@ -353,7 +368,13 @@ impl Connection {
     {
         let resp = self
             .inner
-            .execute(query, arguments, &self.state, Capabilities::ALL)
+            .execute(
+                query,
+                arguments,
+                &self.state,
+                &self.annotations,
+                Capabilities::ALL,
+            )
             .await?;
         update_state(&mut self.state, &resp)?;
         Ok((resp.status_data, resp.warnings))
@@ -372,7 +393,7 @@ impl Connection {
     {
         let stream = self
             .inner
-            .execute_stream(opts, query, &self.state, desc, arguments)
+            .execute_stream(opts, query, &self.state, &self.annotations, desc, arguments)
             .await?;
         Ok(ResponseStream {
             inner: stream,
@@ -394,7 +415,15 @@ impl Connection {
     {
         let stream = self
             .inner
-            .try_execute_stream(opts, query, &self.state, input_desc, output_desc, arguments)
+            .try_execute_stream(
+                opts,
+                query,
+                &self.state,
+                &self.annotations,
+                input_desc,
+                output_desc,
+                arguments,
+            )
             .await?;
         Ok(ResponseStream {
             inner: stream,
@@ -458,7 +487,9 @@ impl Connection {
         opts: &CompilationOptions,
         query: &str,
     ) -> Result<CommandDataDescription1, Error> {
-        self.inner.parse(opts, query, &self.state).await
+        self.inner
+            .parse(opts, query, &self.state, &self.annotations)
+            .await
     }
     pub async fn restore(
         &mut self,
@@ -480,6 +511,12 @@ impl Connection {
             state: &mut self.state,
         };
         Ok((header, stream))
+    }
+
+    pub fn set_tag(&mut self, tag: impl ToString) {
+        let mut annotations = (*self.annotations).clone();
+        annotations.insert("tag".to_string(), tag.to_string());
+        self.annotations = Arc::new(annotations);
     }
 }
 
