@@ -836,7 +836,7 @@ fn do_init(
             installation: Some(inst),
             port,
         };
-        create::bootstrap(&paths, &info, "edgedb", database)?;
+        create::bootstrap(&paths, &info, "admin", database)?;
         match create::create_service(&info) {
             Ok(()) => {}
             Err(e) => {

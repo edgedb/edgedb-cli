@@ -336,7 +336,7 @@ pub struct Create {
 
     /// Default user name (created during initialization and saved in
     /// credentials file).
-    #[arg(long, default_value = "edgedb")]
+    #[arg(long, default_value = "admin")]
     pub default_user: String,
 
     /// The default branch name. This defaults to 'main' on EdgeDB >=5.x; otherwise
