@@ -209,6 +209,9 @@ pub async fn configure(
         C::Set(Set {
             parameter: S::WarnOldScoping(ConfigStr { value }),
         }) => set(cli, "warn_old_scoping", None, value).await,
+        C::Set(Set {
+            parameter: S::TrackQueryStats(ConfigStr { value }),
+        }) => set(cli, "track_query_stats", None, value).await,
         C::Reset(Res { parameter }) => {
             use crate::commands::parser::ConfigParameter as C;
             let name = match parameter {
@@ -236,6 +239,7 @@ pub async fn configure(
                 C::CurrentEmailProviderName => "current_email_provider_name",
                 C::SimpleScoping => "simple_scoping",
                 C::WarnOldScoping => "warn_old_scoping",
+                C::TrackQueryStats => "track_query_stats",
             };
             let (status, _warnings) = cli
                 .execute(&format!("CONFIGURE INSTANCE RESET {name}"), &())

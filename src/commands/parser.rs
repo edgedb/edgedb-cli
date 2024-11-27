@@ -611,6 +611,9 @@ pub enum ValueParameter {
 
     /// Whether to warn when depending on old scoping behavior.
     WarnOldScoping(ConfigStr),
+
+    /// Select what queries are tracked in sys::QueryStats.
+    TrackQueryStats(ConfigStr),
 }
 
 #[derive(clap::Subcommand, Clone, Debug)]
@@ -665,6 +668,8 @@ pub enum ConfigParameter {
     SimpleScoping,
     /// Whether to warn when depending on old scoping behavior.
     WarnOldScoping,
+    /// Select what queries are tracked in sys::QueryStats.
+    TrackQueryStats,
 }
 
 #[derive(clap::Args, Clone, Debug)]
