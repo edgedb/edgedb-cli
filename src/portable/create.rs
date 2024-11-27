@@ -22,6 +22,7 @@ use crate::portable::options::{Create, InstanceName, Start};
 use crate::portable::platform::optional_docker_check;
 use crate::portable::repository::{Query, QueryOptions};
 use crate::portable::reset_password::{generate_password, password_hash};
+use crate::portable::ver::Build;
 use crate::portable::{linux, macos, windows};
 use crate::print::{self, err_marker, msg, Highlight};
 use crate::process;
@@ -393,12 +394,12 @@ fn create_cloud(
     Ok(())
 }
 
-fn bootstrap_script(user: &str, password: &str) -> String {
+fn bootstrap_script(user: &str, password: &str, default_user: &str) -> String {
     use edgeql_parser::helpers::{quote_name, quote_string};
     use std::fmt::Write;
 
     let mut output = String::with_capacity(1024);
-    if user == "edgedb" {
+    if user == default_user {
         write!(
             &mut output,
             r###"
@@ -441,7 +442,15 @@ pub fn bootstrap(
     fs::create_dir_all(&tmp_data).with_context(|| format!("creating {:?}", &tmp_data))?;
 
     let password = generate_password();
-    let script = bootstrap_script(user, &password);
+    let script = bootstrap_script(
+        user,
+        &password,
+        if info.get_version()? >= &Build::from_str("6.0-dev.9024+4b89273").unwrap() {
+            "admin"
+        } else {
+            "edgedb"
+        },
+    );
 
     msg!("Initializing {BRANDING} instance...");
     let mut cmd = process::Native::new("bootstrap", "edgedb", server_path);
