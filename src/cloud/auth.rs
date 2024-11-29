@@ -81,7 +81,7 @@ pub async fn _do_login(client: &mut CloudClient) -> anyhow::Result<()> {
         .await?;
     {
         let link = client.api_endpoint.join(&auth_url)?.to_string();
-        let success_prompt = "Complete authentication now open in your browser";
+        let success_prompt = "Complete the authentication process now open in your browser";
         let error_prompt = "Please paste this link into your browser to complete authentication:";
         open_link(&link, Some(&success_prompt), Some(&error_prompt));
     }
